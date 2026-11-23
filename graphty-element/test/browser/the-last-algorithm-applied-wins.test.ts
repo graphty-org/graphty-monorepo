@@ -2,13 +2,13 @@
  * @file Naming an algorithm last in `applySuggestedStyles` puts its picture on top.
  *
  * WHAT THIS EXISTS TO CATCH, in the words the failure used. The story
- * `Algorithms/Combined CentralityVsCommunity` colours twenty nodes by community (Louvain) and
+ * `Algorithms/Combined CentralityVsCommunity` colors twenty nodes by community (Louvain) and
  * asks for PageRank beside it, and its own comment states the rule it depends on: "Louvain is
- * applied last and wins the colour, so the picture holds one colour per community rather than
+ * applied last and wins the color, so the picture holds one color per community rather than
  * one per PageRank score." It failed three runs in four with
  *
  *     draws exactly the same picture as "Algorithms/Combined DegreeAndPageRank" -- same shapes,
- *     sizes, colours, opacities and labels on every node.
+ *     sizes, colors, opacities and labels on every node.
  *
  * Two algorithms of the same shape suggest the SAME channel: a node metric and a community both
  * paint `node.color`. Which of them a reader ends up looking at is therefore decided entirely by
@@ -44,7 +44,7 @@ const NODES = Array.from({ length: GROUPS * PER_GROUP }, (_unused, index) => ({
     id: `g${String(Math.floor(index / PER_GROUP))}n${String(index % PER_GROUP)}`,
 }));
 
-/** A triangle inside each community, and one thin link between neighbouring communities. */
+/** A triangle inside each community, and one thin link between neighboring communities. */
 const EDGES = [
     ...Array.from({ length: GROUPS }, (_unused, group) =>
         Array.from({ length: PER_GROUP }, (_ignored, seat) => ({
@@ -97,9 +97,9 @@ describe("the last algorithm named in applySuggestedStyles", () => {
     });
 
     /**
-     * Which algorithm's layer is the one a reader is looking at on a node's colour.
+     * Which algorithm's layer is the one a reader is looking at on a node's color.
      * @param nodeId - The node to read.
-     * @returns The algorithm key of the topmost layer painting that node's colour.
+     * @returns The algorithm key of the topmost layer painting that node's color.
      */
     const paintingColour = (nodeId: string): string => {
         const winner = session.styles.explain({ node: nodeId }).channels.find((entry) => entry.channel === COLOR);
@@ -186,7 +186,7 @@ describe("the last algorithm named in applySuggestedStyles", () => {
             }
         }
 
-        /** A painted colour, as the channel stores it: 0-255 components. */
+        /** A painted color, as the channel stores it: 0-255 components. */
         type Rgba = { r: number; g: number; b: number };
         const wanted = byAlgorithm.get("pagerank") as Rgba | undefined;
         const other = byAlgorithm.get("louvain") as Rgba | undefined;

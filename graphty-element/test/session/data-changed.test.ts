@@ -3,9 +3,16 @@
  * change publishes `data:changed`.
  */
 
+import { setFlagsFromString } from "node:v8";
+import { runInNewContext } from "node:vm";
+
 import { assert, describe, it } from "vitest";
 
 import { createGraphSession, type DataChange, type GraphSession } from "../../session";
+import { dispatcherOf } from "../../src/session/GraphSession";
+
+setFlagsFromString("--expose-gc");
+const collect = runInNewContext("gc") as () => void;
 
 /**
  * Collect every `data:changed` a session publishes.
@@ -118,6 +125,72 @@ describe("data:changed", () => {
         await session.config.set({ data: { knownFields: { nodeLabelPath: "label" } } });
 
         assert.strictEqual(events.length, 0);
+        session.dispose();
+    });
+    it("tells a node re-imported under its id by the attribute keys whose values changed", async () => {
+        const session = createGraphSession();
+        const doc = (type: string): string =>
+            JSON.stringify({
+                nodes: [
+                    { id: "a", type, size: 1 },
+                    { id: "b", type: "host" },
+                ],
+                edges: [],
+            });
+        await session.data.import({ type: "json", config: { data: doc("host") } });
+        const events = heard(session);
+
+        await session.data.import({ type: "json", config: { data: doc("service") } });
+        assert.sameMembers([...(events.at(-1)?.updated.nodes ?? [])], ["a", "b"]);
+        assert.deepStrictEqual(events.at(-1)?.fields.nodes, ["type"]);
+
+        await session.undo();
+        assert.sameMembers([...(events.at(-1)?.updated.nodes ?? [])], ["a", "b"]);
+        assert.deepStrictEqual(events.at(-1)?.fields.nodes, ["type"]);
+        session.dispose();
+    });
+
+    it("tells the removal of a node whose id has no graph row as a removal", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes([{ id: Number.POSITIVE_INFINITY, type: "host" }, { id: "b" }]);
+        const events = heard(session);
+
+        await session.data.removeNodes([Number.POSITIVE_INFINITY]);
+        assert.deepStrictEqual(events.at(-1)?.removed.nodes, [Number.POSITIVE_INFINITY]);
+        assert.deepStrictEqual(events.at(-1)?.updated, { nodes: [], edges: [] });
+        assert.deepStrictEqual(events.at(-1)?.fields, { nodes: [], edges: [] });
+
+        await session.undo();
+        assert.deepStrictEqual(events.at(-1)?.added.nodes, [Number.POSITIVE_INFINITY]);
+        assert.deepStrictEqual(events.at(-1)?.updated, { nodes: [], edges: [] });
+        session.dispose();
+    });
+
+    it("lets go of the op logs an undo applied once its data:changed is told", async () => {
+        const session = createGraphSession();
+        const rows = (prefix: string): string =>
+            ["source,target", ...Array.from({ length: 20_000 }, (_, at) => `${prefix}${at},${prefix}${at + 1}`)].join(
+                "\n",
+            );
+        await session.data.import({ type: "csv", config: { data: rows("x") } });
+        await session.data.import({ type: "csv", config: { data: rows("p") } });
+        heard(session);
+        const dispatcher = dispatcherOf(session);
+        const beside = dispatcher.events.project;
+        let applied: WeakRef<object> | undefined;
+        dispatcher.events.project = (change) => {
+            beside?.(change);
+            if (change.cause === "undo" && change.graph !== undefined) {
+                applied = new WeakRef(change.graph);
+            }
+        };
+
+        await session.undo();
+        assert.isDefined(applied);
+        // A WeakRef keeps its target alive until the task that made it ends.
+        await new Promise((resolve) => setImmediate(resolve));
+        collect();
+        assert.isUndefined(applied?.deref());
         session.dispose();
     });
 });

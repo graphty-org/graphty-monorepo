@@ -9,12 +9,13 @@
 
 import { COMMANDS } from "../../../commands";
 import { type Exclusion, isWholeRoot } from "../../../src/ai/tools/exclusions";
-import { engineOptionsOf, enginesOf } from "../../../src/ai/tools/families/layout";
+import { enginesOf } from "../../../src/ai/tools/families/layout";
 import { SETTING_GROUPS } from "../../../src/ai/tools/families/project";
 import { optionsSchema } from "../../../src/ai/tools/optionSchema";
 import { ASSISTANT_OPTION_TABLES } from "../../../src/ai/tools/reach";
 import type { AssistantTool, Toolset } from "../../../src/ai/tools/toolset";
 import type { CatalogView } from "../../../src/ai/tools/types";
+import { engineOptionsOf } from "../../../src/catalog/layouts";
 import type { DoorRoot } from "../../../src/session/commands/doors";
 
 /** What coverage found. */

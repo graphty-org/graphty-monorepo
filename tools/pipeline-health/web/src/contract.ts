@@ -110,10 +110,10 @@ export type MemberState = SlaState | "notsetup" | "few" | "partial" | "idle" | "
 export type CategoryState = SlaState | "idle";
 
 /** An ISO 8601 time in UTC. */
-export type Iso = string; // NOSONAR(S6564): names the wire format of the string for readers of the contract
+export type Iso = string; // eslint-disable-line sonarjs/redundant-type-aliases -- names the wire format of the string for readers of the contract
 
 /** A hash route of the page, such as `/ci/runners` or `/master/red`, or an absolute https URL. */
-export type Route = string; // NOSONAR(S6564): names the wire format of the string for readers of the contract
+export type Route = string; // eslint-disable-line sonarjs/redundant-type-aliases -- names the wire format of the string for readers of the contract
 
 /** A parameter of a {@link Fact}: numbers in the unit its code names, ids, names of data, ISO times. */
 export type Param = string | number | boolean | null | readonly (string | number)[];
@@ -210,6 +210,12 @@ export const MEMBER_IDS = [
     "pull-requests.oldest_open",
     "pull-requests.merge_ratio",
     "pull-requests.caused_failures",
+    "pull-requests.issues_per_merge",
+    "pull-requests.multi_issue_share",
+    "pull-requests.runner_minutes_per_issue",
+    "pull-requests.group_released_share",
+    "pull-requests.groups_ready",
+    "pull-requests.groups_combinable",
     "pull-requests.automerge_green_stuck",
     "pull-requests.automerge_armed_long",
     "pull-requests.screenshot_backlog",
@@ -410,7 +416,7 @@ export type ChannelId = "canary" | "nightly" | "production";
 
 /**
  * How one release attempt ended: deployed or promoted (`ok`), failed (`bad`), passed but not promoted (`held`, a
- * nightly candidate waiting for screenshot approval), or cancelled.
+ * nightly candidate waiting for screenshot approval), or canceled.
  */
 export type ChannelOutcome = "ok" | "bad" | "held" | "cancelled";
 

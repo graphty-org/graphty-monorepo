@@ -41,10 +41,10 @@ const OUR_ENV = Object.fromEntries(
 // A checkout with the gate's tools in it: a source file, an ignored dist/ and tmp/, an installed lockfile.
 function repo() {
     const dir = join(TMP, `repo-${++made}`);
-    mkdirSync(join(dir, "tools"), { recursive: true });
+    mkdirSync(join(dir, "tools/lib"), { recursive: true });
     mkdirSync(join(dir, ".husky"));
     mkdirSync(join(dir, "node_modules/.pnpm"), { recursive: true });
-    for (const f of ["prepush-inputs.mjs", "push-base.mjs", "wait-log.mjs"])
+    for (const f of ["prepush-inputs.mjs", "push-base.mjs", "wait-log.mjs", "lib/git.mjs"])
         copyFileSync(join(TOOLS, f), join(dir, "tools", f));
     writeFileSync(join(dir, ".husky/pre-push"), "hook\n");
     writeFileSync(join(dir, ".gitignore"), "node_modules/\ndist/\ntmp/\n");
@@ -461,22 +461,78 @@ wait`,
         for (const h of fifth.heldBy) assert.match(h, /^\d+ \S+ .* :: sh -c touch held\.\d/);
     });
 
-    it("keeps a low-priority command (BROWSER_SLOT_PRIORITY=low) to slot 4; an ordinary one takes any", () => {
-        const dir = join(TMP, "low-lane");
+    it("names a browser slot holder that makes no progress to its waiter and once in the wait log, and never stops it", () => {
+        const dir = join(TMP, "stalled-holder");
         mkdirSync(dir, { recursive: true });
-        // The low holder takes slot 4; an ordinary command then takes slot 1 at once, and another low
-        // command waits for slot 4 although slots 2 and 3 are free.
+        const log = join(dir, "waits.jsonl");
+        // The holder blocks reading a fifo: no CPU, no output, as the hung app-perf.mjs did (#9046). The waiter
+        // reports it, the holder is left alone, and once the fifo is written the holder ends and the waiter runs.
         const r = spawnSync(
             "bash",
             [
                 "-c",
                 `set -u
-BROWSER_SLOT_PRIORITY=low "$GATE" sh -c "touch held.4; while [ ! -e go ]; do sleep 0.05; done" &
-until [ -e held.4 ]; do sleep 0.05; done
-"$GATE" sh -c "echo gate > gate"
-BROWSER_SLOT_PRIORITY=low "$GATE" sh -c "echo other > other" 2> other.err &
-until grep -q "waiting for one of 4 browser slots" other.err 2>/dev/null; do sleep 0.05; done
-[ ! -e other ] || exit 9
+mkfifo hang
+"$GATE" sh -c "touch held; read x < hang; touch holder-done" &
+until [ -e held ]; do sleep 0.05; done
+"$GATE" sh -c "echo waited > waited" 2> waiter.err &
+until [ "$(grep -c "STUCK? browser slot 1" waiter.err 2>/dev/null)" -ge 2 ]; do sleep 0.05; done
+[ ! -e holder-done ] || exit 9
+echo go > hang
+wait`,
+            ],
+            {
+                cwd: dir,
+                encoding: "utf8",
+                env: {
+                    ...process.env,
+                    GATE: join(TOOLS, "with-browser.sh"),
+                    BROWSER_SLOT_PRIORITY: "",
+                    BROWSER_SLOTS: "1",
+                    BROWSER_SLOT_DIR: join(dir, "browser-slots"),
+                    BROWSER_SLOT_POLL: "0.1",
+                    BROWSER_SLOT_STALL: "1",
+                    BROWSER_SLOT_STALL_CHECK: "0",
+                    PIPELINE_WAIT_LOG: log,
+                },
+            },
+        );
+        assert.equal(r.status, 0, r.stdout + r.stderr);
+        assert.ok(existsSync(join(dir, "holder-done")), "the holder ran to its end");
+        assert.equal(readFileSync(join(dir, "waited"), "utf8"), "waited\n");
+        const err = readFileSync(join(dir, "waiter.err"), "utf8");
+        assert.match(
+            err,
+            /STUCK\? browser slot 1 holder pid \d+ .* by .*stalled-holder :: sh -c touch held; read x < hang/,
+        );
+        const stalled = read(log).filter((l) => l.kind === "browser-slot-stalled");
+        assert.equal(stalled.length, 1, JSON.stringify(stalled));
+        assert.match(stalled[0].waiter, /:: sh -c touch held; read x < hang; touch holder-done$/);
+        assert.equal(stalled[0].slot, 1);
+    });
+
+    it("gives a low-priority command (BROWSER_SLOT_PRIORITY=low) slot 4 first, then a lower one no ordinary waiter wants", () => {
+        const dir = join(TMP, "low-lane");
+        mkdirSync(dir, { recursive: true });
+        // A low holder takes slot 4 and keeps it, as a hung holder would (#8930). A second low command waits
+        // while an ordinary command waits for any slot (a planted ticket of this shell), although slots 1 to 3
+        // are free, and takes slot 3 once that ticket is gone; an ordinary command still takes slot 1.
+        const r = spawnSync(
+            "bash",
+            [
+                "-c",
+                `set -u
+BROWSER_SLOT_PRIORITY=low "$GATE" sh -c 'echo $BROWSER_SLOT > a; while [ ! -e go ]; do sleep 0.05; done' &
+until [ -s a ]; do sleep 0.05; done
+mkdir -p browser-slots/queue
+echo 4 > browser-slots/queue/1-$$
+BROWSER_SLOT_PRIORITY=low "$GATE" sh -c 'echo $BROWSER_SLOT > b' 2> b.err &
+b=$!
+until grep -q "waiting for one of 4 browser slots" b.err 2>/dev/null; do sleep 0.05; done
+[ ! -e b ] || exit 9
+rm browser-slots/queue/1-$$
+wait $b || exit 8
+"$GATE" sh -c 'echo $BROWSER_SLOT > gate'
 touch go
 wait`,
             ],
@@ -494,25 +550,25 @@ wait`,
             },
         );
         assert.equal(r.status, 0, r.stdout + r.stderr);
-        assert.equal(readFileSync(join(dir, "gate"), "utf8"), "gate\n", "the ordinary command ran beside the holder");
-        assert.equal(
-            readFileSync(join(dir, "other"), "utf8"),
-            "other\n",
-            "the second low command ran once slot 4 was free",
-        );
+        assert.equal(readFileSync(join(dir, "a"), "utf8"), "4\n", "the first low command took slot 4");
+        assert.equal(readFileSync(join(dir, "b"), "utf8"), "3\n", "the second took slot 3 once no ordinary one waited");
+        assert.equal(readFileSync(join(dir, "gate"), "utf8"), "1\n", "an ordinary command took slot 1");
     });
 
     it("serves low-lane waiters in the order they began to wait, however often each one looks", () => {
         const dir = join(TMP, "low-lane-fifo");
         mkdirSync(dir, { recursive: true });
         // A holder keeps slot 4. A and B wait, looking every second; C waits last, looking every 0.02 s. When
-        // the slot frees, A takes it first, then B, then C.
+        // the slot frees, A takes it first, then B, then C. An ordinary waiter for slots 1 to 3 (a planted ticket of
+        // this shell) keeps the low lane off those.
         const r = spawnSync(
             "bash",
             [
                 "-c",
                 `set -u
 export BROWSER_SLOT_PRIORITY=low
+mkdir -p browser-slots/queue
+echo 3 > browser-slots/queue/1-$$
 "$GATE" sh -c "touch held; while [ ! -e go ]; do sleep 0.05; done" &
 until [ -e held ]; do sleep 0.05; done
 for w in A B; do

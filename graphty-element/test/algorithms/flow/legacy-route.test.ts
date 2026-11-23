@@ -20,11 +20,10 @@ import { LinkPredictionAlgorithm } from "../../../src/algorithms/LinkPredictionA
 import { MaxFlowAlgorithm } from "../../../src/algorithms/MaxFlowAlgorithm";
 import { MinCutAlgorithm } from "../../../src/algorithms/MinCutAlgorithm";
 import { type AlgorithmOutput, detachedRunContext } from "../../../src/algorithms/results";
-import type { Graph } from "../../../src/Graph";
-import { createMockGraph, type MockGraphOpts } from "../../helpers/mockGraph";
 import { referenceSnapshot } from "../../helpers/reference-snapshot";
+import { createSessionGraph, type SessionGraph, type SessionGraphOpts } from "../../helpers/session-graph";
 
-type Edge = MockGraphOpts["edges"] extends (infer E)[] | undefined ? E : never;
+type Edge = SessionGraphOpts["edges"] extends (infer E)[] | undefined ? E : never;
 
 /** A seeded generator, so a random fixture is the same graph on every run. */
 function lcg(seed: number): () => number {
@@ -39,7 +38,7 @@ function lcg(seed: number): () => number {
  * A random graph over `n` nodes named n0.., with `m` edges and integer capacities, never a
  * self-loop and never both directions of one pair (the one case where the ports differ on purpose).
  */
-function randomGraph(n: number, m: number, seed: number): MockGraphOpts {
+function randomGraph(n: number, m: number, seed: number): SessionGraphOpts {
     const rand = lcg(seed);
     const seen = new Set<string>();
     const edges: Edge[] = [];
@@ -63,7 +62,7 @@ function randomGraph(n: number, m: number, seed: number): MockGraphOpts {
 }
 
 /** A random two-sided graph: `l` left nodes l0.., `r` right nodes r0.., `m` distinct edges. */
-function randomBipartite(l: number, r: number, m: number, seed: number): MockGraphOpts {
+function randomBipartite(l: number, r: number, m: number, seed: number): SessionGraphOpts {
     const rand = lcg(seed);
     const seen = new Set<string>();
     const edges: Edge[] = [];
@@ -85,7 +84,7 @@ function randomBipartite(l: number, r: number, m: number, seed: number): MockGra
     };
 }
 
-const CLRS: MockGraphOpts = {
+const CLRS: SessionGraphOpts = {
     nodes: ["s", "v1", "v2", "v3", "v4", "t"].map((id) => ({ id })),
     edges: [
         { srcId: "s", dstId: "v1", capacity: 16 },
@@ -101,7 +100,7 @@ const CLRS: MockGraphOpts = {
 };
 
 /** Parallel edges, capacities that are not f32-exact, a `value` fallback and a record with neither. */
-const MULTI: MockGraphOpts = {
+const MULTI: SessionGraphOpts = {
     nodes: ["s", "a", "b", "t"].map((id) => ({ id })),
     edges: [
         { srcId: "s", dstId: "a", capacity: 0.1 },
@@ -113,7 +112,7 @@ const MULTI: MockGraphOpts = {
     ],
 };
 
-const NUMERIC: MockGraphOpts = {
+const NUMERIC: SessionGraphOpts = {
     nodes: [0, 1, 2, 3, 4, 5].map((id) => ({ id })),
     edges: [
         { srcId: 0, dstId: 1, capacity: 3, value: 3 },
@@ -126,7 +125,7 @@ const NUMERIC: MockGraphOpts = {
     ],
 };
 
-const FLOW_FIXTURES: { name: string; data: MockGraphOpts; source?: string | number; sink?: string | number }[] = [
+const FLOW_FIXTURES: { name: string; data: SessionGraphOpts; source?: string | number; sink?: string | number }[] = [
     { name: "the textbook network", data: CLRS },
     { name: "parallel edges and fractional capacities", data: MULTI },
     { name: "numeric ids", data: NUMERIC, source: 0, sink: 5 },
@@ -149,7 +148,7 @@ function byId(
     return new Map((rows ?? []).map((row) => [String(row.id), row.values]));
 }
 
-function dataManager(graph: Graph): Parameters<typeof createScopedInput>[0] & {
+function dataManager(graph: SessionGraph): Parameters<typeof createScopedInput>[0] & {
     edges: Map<string, Record<string, unknown>>;
 } {
     return graph.getDataManager() as never;
@@ -196,7 +195,7 @@ function legacyMaxFlow(): {
 describe("max-flow equals the legacy route", () => {
     for (const { name, data, source, sink } of FLOW_FIXTURES) {
         it(name, async () => {
-            const graph = await createMockGraph(data);
+            const graph = await createSessionGraph(data);
             const options = source === undefined ? {} : { source, sink };
             const output = await compute(new MaxFlowAlgorithm(graph, options));
             const expected = legacyMaxFlow();
@@ -215,7 +214,7 @@ describe("max-flow equals the legacy route", () => {
     }
 
     it("reports the net flow of two opposite edges, where legacy booked each push on the edge it ran along", async () => {
-        const graph = await createMockGraph({
+        const graph = await createSessionGraph({
             nodes: ["s", "a", "b", "t"].map((id) => ({ id })),
             edges: [
                 { srcId: "s", dstId: "a", capacity: 3 },
@@ -246,7 +245,7 @@ function legacyMinCut(): { cutValue: number; partition1: Set<string>; inCut: Map
     return { cutValue: r.cutValue, partition1: new Set(r.partition1), inCut: new Map(r.inCut) };
 }
 
-const CUT_FIXTURES: { name: string; data: MockGraphOpts; source?: string | number; sink?: string | number }[] = [
+const CUT_FIXTURES: { name: string; data: SessionGraphOpts; source?: string | number; sink?: string | number }[] = [
     { name: "the textbook network, global", data: CLRS },
     { name: "the textbook network, between s and t", data: CLRS, source: "s", sink: "t" },
     { name: "parallel edges, global", data: MULTI },
@@ -260,7 +259,7 @@ const CUT_FIXTURES: { name: string; data: MockGraphOpts; source?: string | numbe
 describe("min-cut equals the legacy route", () => {
     for (const { name, data, source, sink } of CUT_FIXTURES) {
         it(name, async () => {
-            const graph = await createMockGraph(data);
+            const graph = await createSessionGraph(data);
             const options = source === undefined ? {} : { source, sink };
             const output = await compute(new MinCutAlgorithm(graph, options));
             const expected = legacyMinCut();
@@ -289,7 +288,7 @@ describe("min-cut equals the legacy route", () => {
             }
         }
 
-        const graph = await createMockGraph({ nodes: [], edges });
+        const graph = await createSessionGraph({ nodes: [], edges });
         const run = async () =>
             compute(new MinCutAlgorithm(graph, { useGlobalMinCut: true, useKarger: true, kargerIterations: 1 }));
         const first = await run();
@@ -308,7 +307,7 @@ describe("min-cut equals the legacy route", () => {
 });
 
 describe("bipartite matching equals the legacy route", () => {
-    const fixtures: { name: string; data: MockGraphOpts }[] = [
+    const fixtures: { name: string; data: SessionGraphOpts }[] = [
         {
             name: "a path",
             data: {
@@ -327,7 +326,7 @@ describe("bipartite matching equals the legacy route", () => {
 
     for (const { name, data } of fixtures) {
         it(name, async () => {
-            const graph = await createMockGraph(data);
+            const graph = await createSessionGraph(data);
             const output = await compute(new BipartiteMatchingAlgorithm(graph));
             const dm = dataManager(graph);
             // bipartitePartition's two sides and the size of maximumBipartiteMatching between them.
@@ -366,7 +365,7 @@ describe("bipartite matching equals the legacy route", () => {
         // l0 can only partner r0, which leaves l1 with r1, so the pairing is forced: l0 with r0
         // through a reciprocal pair and a parallel edge, l1 with r1 through an edge declared from
         // the right, and the l1-r0 edge left out.
-        const graph = await createMockGraph({
+        const graph = await createSessionGraph({
             nodes: ["l0", "l1", "r0", "r1"].map((id) => ({ id })),
             edges: [
                 { srcId: "l0", dstId: "r0" },
@@ -391,7 +390,7 @@ describe("bipartite matching equals the legacy route", () => {
     });
 
     it("pairs nothing in a graph without two sides", async () => {
-        const graph = await createMockGraph({
+        const graph = await createSessionGraph({
             nodes: [],
             edges: [
                 { srcId: "a", dstId: "b" },
@@ -408,7 +407,7 @@ describe("bipartite matching equals the legacy route", () => {
 
 describe("link prediction equals the legacy route", () => {
     const methods = ["adamic-adar", "common-neighbors"] as const;
-    const fixtures: { name: string; data: MockGraphOpts }[] = [
+    const fixtures: { name: string; data: SessionGraphOpts }[] = [
         { name: "random 20 nodes, 45 edges", data: randomGraph(20, 45, 41) },
         { name: "random 40 nodes, 70 edges", data: randomGraph(40, 70, 43) },
         { name: "numeric ids", data: NUMERIC },
@@ -417,7 +416,7 @@ describe("link prediction equals the legacy route", () => {
     for (const { name, data } of fixtures) {
         for (const method of methods) {
             it(`${name}, ${method}`, async () => {
-                const graph = await createMockGraph(data);
+                const graph = await createSessionGraph(data);
                 const output = await compute(new LinkPredictionAlgorithm(graph, { method, topK: 25 }));
                 // The 2.x prediction over the undirected input, each unordered pair once, the first 25.
                 const expected = recorded() as { source: unknown; target: unknown; score: number }[];

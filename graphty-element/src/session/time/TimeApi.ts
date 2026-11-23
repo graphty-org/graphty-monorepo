@@ -17,13 +17,18 @@ import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 
 import type { EdgeId, MeasurementDeclaration, NodeId, Path, RunId, Scope } from "../../catalog/types";
 import { GraphtyError, isGraphtyError } from "../../errors";
-import { featureOff } from "../../features/resolve";
+import type { StylePatchCommand } from "../commands/style";
 import type { Dispatcher } from "../project/Dispatcher";
 import { RevisionCache } from "../revision";
 import type { Run } from "../runs";
+import type { ManagedRun } from "../runs/Run";
 import { windowKey } from "../runs/RunsApi";
 import { edgeSpaceOf } from "../scope/index";
 import type { CodedFact } from "../shared";
+import type { StepsEdit } from "../sources/steps/project";
+import type { CompiledLayer } from "../styles/Layer";
+import type { Selector } from "../styles/selector";
+import { drawsOutsideWindow, drawsOutsideWindowOf, paintedStack } from "../styles/tree";
 import type { HistoryStepId, SessionEventMap } from "../types";
 import type {
     FilterResult,
@@ -89,7 +94,6 @@ export type { TimeMeasure, TimeSeries, TimeSeriesOptions, TimeSeriesRow } from "
 
 /**
  * One table's time column.
- * @experimental timeline
  * @beta
  */
 export interface TimeSource {
@@ -125,17 +129,17 @@ export interface TimeSource {
 /**
  * The designated time field: on nodes, on edges, or on both (then both name the same column).
  * Designating a column makes it a time column: its measurement reads `"time"`.
- * @experimental timeline
  * @beta
  */
 export interface TimeField {
+    /** The nodes' time column; absent when nodes carry no designated time. */
     readonly nodes?: TimeSource;
+    /** The edges' time column; absent when edges carry no designated time. */
     readonly edges?: TimeSource;
 }
 
 /**
  * How {@link TimeApi.setField} designates a field.
- * @experimental timeline
  * @beta
  */
 export interface TimeFieldOptions {
@@ -149,7 +153,6 @@ export interface TimeFieldOptions {
 
 /**
  * How many elements of one kind have a usable time.
- * @experimental timeline
  * @beta
  */
 export interface TimeCounts {
@@ -163,19 +166,20 @@ export interface TimeCounts {
 
 /**
  * A notice about the values of a designated column.
- * @experimental timeline
  * @beta
  */
 export type TimeNoticeCode = "time.unparsed" | "time.parsed-loosely" | "time.unit-suspect" | "time.age-fade-inactive";
 
 /**
  * What designating a field found.
- * @experimental timeline
  * @beta
  */
 export interface TimeFieldResult {
+    /** The field now designated; null when none is. */
     readonly field: TimeField | null;
+    /** How many nodes have a usable time; absent when the field is not on nodes. */
     readonly nodes?: TimeCounts;
+    /** How many edges have a usable time; absent when the field is not on edges. */
     readonly edges?: TimeCounts;
     /**
      * `time.unparsed` (`{ path, count, examples }`; in a column mostly of date text, a bare number
@@ -191,26 +195,32 @@ export interface TimeFieldResult {
 /**
  * The span of the data's time, half-open: `to` is just past the last instant. Open ends do not
  * stretch it: it runs over the finite bounds.
- * @experimental timeline
  * @beta
  */
 export interface TimeExtent {
+    /** The first instant, in milliseconds since the epoch (or ordinal units for ordinal time). */
     readonly from: number;
+    /** Just past the last instant, in the same units as `from`. */
     readonly to: number;
+    /** How many nodes have a usable time. */
     readonly nodes: TimeCounts;
+    /** How many edges have a usable time. */
     readonly edges: TimeCounts;
 }
 
 /**
  * One histogram bar: elements whose instant is in `[start, end)`, or, for spans, the spans that
  * overlap it, so an element can count in many bars and twice in one.
- * @experimental timeline
  * @beta
  */
 export interface TimeBin {
+    /** Where the bar starts, inclusive, in the units of {@link TimeExtent.from}. */
     readonly start: number;
+    /** Where the bar ends, exclusive. */
     readonly end: number;
+    /** How many nodes count in the bar. */
     readonly nodes: number;
+    /** How many edges count in the bar. */
     readonly edges: number;
     /** The bins' width, when they were made by a step or a `maxCount` budget. */
     readonly step?: TimeStep;
@@ -218,7 +228,6 @@ export interface TimeBin {
 
 /**
  * What {@link TimeApi.bins} counts.
- * @experimental timeline
  * @beta
  */
 export interface TimeBinsOptions {
@@ -238,7 +247,8 @@ export interface TimeBinsOptions {
     readonly to?: number;
     /**
      * `"visible"` counts only elements that pass every filter, the window aside, so a bar outside
-     * the window still holds its filtered count. Default `"all"`.
+     * the window still holds its filtered count. Default `"visible"` while the session's
+     * `workingGraph` is on, `"all"` while it is off.
      */
     readonly scope?: "all" | "visible";
     /**
@@ -246,8 +256,11 @@ export interface TimeBinsOptions {
      * edges at the given nodes count too, so a node selection over edge time shows its edges' activity.
      */
     readonly of?: {
+        /** The nodes to count. */
         readonly nodes?: readonly NodeId[];
+        /** The edges to count. */
         readonly edges?: readonly EdgeId[];
+        /** Whether the edges at the given nodes count too. */
         readonly incident?: boolean;
     };
     /** The IANA zone calendar bins align in; default the current window's, else the setting's. */
@@ -256,46 +269,53 @@ export interface TimeBinsOptions {
 
 /**
  * Node and edge ids.
- * @experimental timeline
  * @beta
  */
 export interface TimeIds {
+    /** The node ids. */
     readonly nodes: readonly NodeId[];
+    /** The edge ids. */
     readonly edges: readonly EdgeId[];
 }
 
 /**
- * What entered and left the visible graph on the last move.
- * @experimental timeline
+ * What entered and left the window on the last move.
  * @beta
  */
 export interface TimeChanges {
+    /** What came into the window. */
     readonly entered: TimeIds;
+    /** What went out of the window. */
     readonly left: TimeIds;
 }
 
 /**
  * Node and edge counts.
- * @experimental timeline
  * @beta
  */
 export interface TimeCountPair {
+    /** How many nodes. */
     readonly nodes: number;
+    /** How many edges. */
     readonly edges: number;
 }
 
 /**
  * What one move of the window did. Numbers only; the application writes the words.
- * @experimental timeline
  * @beta
  */
 export interface TimeStepEvent {
     /** Step number from the start of the data, by the window's step. */
     readonly index: number;
+    /** Where the window now starts, inclusive, in the units of {@link TimeExtent.from}. */
     readonly from: number;
+    /** Where the window now ends, exclusive. */
     readonly to: number;
+    /** What every filter keeps inside the window: what is drawn as in it, never a visibility count. */
     readonly visible: TimeCountPair;
+    /** How many came into the window on this move. */
     readonly entered: TimeCountPair;
+    /** How many went out of the window on this move. */
     readonly left: TimeCountPair;
     /** Elements of a timed kind with no usable time: kept in every window unless `missing` is `"outside"`. */
     readonly untimed: TimeCountPair;
@@ -311,25 +331,25 @@ export interface TimeStepEvent {
  * A window as `time.window` takes it: the attribute defaults to the designated field, and a bound
  * left out keeps the current window's. With no window yet, `from` defaults to the start of the
  * data and `to` to one step after `from`, so `time.window({ step: "week" })` opens the first week.
- * @experimental timeline
  * @beta
  */
 export type TimeWindowInput = Omit<TimeWindow, "attribute" | "from" | "to"> & {
+    /** The attribute carrying the instant; absent, the designated field's. */
     readonly attribute?: Path;
+    /** The first instant inside the window: a number, or a string `Date.parse` understands. */
     readonly from?: number | string;
+    /** The first instant past the window, in the same form as `from`. */
     readonly to?: number | string;
 };
 
 /**
  * How playback moves the window: both ends (`sliding`), or only the end (`cumulative`).
- * @experimental timeline
  * @beta
  */
 export type TimePlayMode = "sliding" | "cumulative";
 
 /**
  * What `time.play` takes. Each one given is also written onto the window, so it is saved.
- * @experimental timeline
  * @beta
  */
 export interface TimePlayOptions {
@@ -346,7 +366,8 @@ export interface TimePlayOptions {
      * its step times the time elapsed over `interval`, so elements come and go as its edges pass
      * them; `"steps"` jumps one whole step every `interval`. Smooth falls back to steps under
      * `prefers-reduced-motion`, where there are no animation frames (Node), and with the
-     * `"rerun"` results setting, which re-runs algorithms on each step.
+     * `"rerun"` results setting, which re-runs algorithms as the window steps. A play does not wait
+     * for them: one re-run runs at a time, and the steps it missed are caught up by one more.
      */
     readonly motion?: "smooth" | "steps";
     /** The IANA zone calendar steps read in; default the window's, else the setting's. */
@@ -361,7 +382,6 @@ export interface TimePlayOptions {
 
 /**
  * How `session.time` moves windows: {@link TimePlayback} with every default filled in.
- * @experimental timeline
  * @beta
  */
 export interface TimeSettings {
@@ -373,21 +393,26 @@ export interface TimeSettings {
     readonly step: TimeStep | "auto";
     /** Whether an element with no usable time is kept in every window. */
     readonly missing: "inside" | "outside";
-    /** Whether elements outside the window are hidden or drawn as ghosts; see {@link TimePlayback.outside}. */
+    /**
+     * Whether elements outside the window are hidden or drawn as ghosts. Read from the style
+     * layers selecting `{ match: "state", state: "outsideWindow" }`, and written to them:
+     * `"ghost"` sets `visible: true` and `"hide"` sets `visible: false` on every layer of the stack
+     * that selects the state (adding one for each kind when none does). It reads `"ghost"` only
+     * while such layers draw both kinds; with none, nothing hides them and it reads `"hide"`.
+     * Never a layout input: what lies outside the window keeps its place.
+     */
     readonly outside: "hide" | "ghost";
     /** The IANA zone calendar steps and bins read in, unless a call or the window names its own. */
     readonly timeZone: string;
     /**
      * Fade by age: the opacity of edges at the window's first instant, rising to 1 at its end;
      * 1 (the default) draws no fade. See {@link TimePlayback.ageFade}.
-     * @experimental timeline
      */
     readonly ageFade: number;
 }
 
 /**
  * A column that reads as time, from {@link TimeApi.candidates}.
- * @experimental timeline
  * @beta
  */
 export interface TimeCandidate {
@@ -404,10 +429,7 @@ export interface TimeCandidate {
 }
 
 /**
- * The timeline: designate a time field, read its distribution, and move a window along it. It
- * needs `features="timeline"`: otherwise an action refuses with `E_FEATURE_OFF` and a read answers
- * as it does with no field designated.
- * @experimental timeline
+ * The timeline: designate a time field, read its distribution, and move a window along it.
  * @beta
  */
 export interface TimeApi {
@@ -488,13 +510,17 @@ export interface TimeApi {
      * @param of.incident - Whether the edges at the given nodes count too.
      * @returns The span of all their spans, `to` just past the last bound and an open bound held to
      *     {@link TimeApi.extent}'s, so it is always a usable window; null when none has a time.
-     * @throws `E_FEATURE_OFF` with the experiment off.
      */
     spanOf(of: {
         readonly nodes?: readonly NodeId[];
         readonly edges?: readonly EdgeId[];
         readonly incident?: boolean;
-    }): { readonly from: number; readonly to: number } | null;
+    }): {
+        /** Where the span starts, inclusive. */
+        readonly from: number;
+        /** Just past where the span ends. */
+        readonly to: number;
+    } | null;
     /**
      * The ids that entered and left the visible graph on the last move made through this API.
      * @returns The ids; empty before the first move.
@@ -505,10 +531,15 @@ export interface TimeApi {
     /**
      * The window history and the project file hold (`visibility.window`). It stays put while a
      * smooth play or a `seek` with `commit: false` moves {@link TimeApi.current}; a stepped play
-     * records each window in the play's one history step, so it follows every step. Reading it with
-     * the experiment off throws `E_FEATURE_OFF`.
+     * records each window in the play's one history step, so it follows every step.
      */
     readonly committed: TimeWindow | null;
+    /**
+     * What every filter keeps inside the window in force, by kind: what is drawn as in it, never a
+     * visibility count (the window narrows no `visibility.summary`). Null with no window.
+     * @since 3.40.0
+     */
+    readonly inside: TimeCountPair | null;
     /** Whether the window is the first one: a step back would leave the data. False with no window. */
     readonly atStart: boolean;
     /** Whether the window reaches the end of the data. False with no window. */
@@ -524,7 +555,8 @@ export interface TimeApi {
      * Change how windows move, one undoable step saved in the project (`visibility.playback`).
      * A sliding window snaps to a new step; switching to cumulative grows the window from the start
      * of the data, and back to sliding keeps one step ending where it ended. A new `timeZone` is
-     * written on the window, and snaps it as a new step does. With no window only the setting is
+     * written on the window and moves each bound that sat on a step boundary to the nearest boundary
+     * in that zone, so switching back returns the same window. With no window only the setting is
      * stored. `results: "rerun"` re-runs the runs a window move left out of date. `ageFade` moves
      * no window: it changes only how edges in it are drawn.
      * @param settings - The settings that change.
@@ -559,10 +591,9 @@ export interface TimeApi {
      * screen or touching history. Step, mode and zone left out come from the window in force, else
      * the settings; `from` and `to` default to the start and end of the data.
      * @param options - Step, mode, range, zone and measures.
-     * @returns A run resolving to the rows, one per window; it can be cancelled. It rejects with
+     * @returns A run resolving to the rows, one per window; it can be canceled. It rejects with
      *     `E_NO_TIME_FIELD` when nothing is designated, `E_OPTION_RANGE` past 10,000 windows or for a
      *     `from` or `to` that is not finite, and `E_BAD_COMMAND` (`reason: "measure"`) for a measure it does not have.
-     * @throws `E_FEATURE_OFF` with the experiment off.
      */
     series(options?: TimeSeriesOptions): Run<TimeSeries>;
     /**
@@ -601,8 +632,8 @@ export interface TimeApi {
 /** What `session.time` reads from the rest of the session. */
 export interface TimeSources {
     readonly snapshot: () => GraphSnapshot;
-    /** Whether the timeline experiment is on; absent reads on. */
-    readonly timeline?: () => boolean;
+    /** Whether the working graph is on, so bins naming no scope count what the filter passes. */
+    readonly workingGraph?: () => boolean;
     /** Moves on every write to the graph's rows or records. */
     readonly token: () => number;
     /**
@@ -628,7 +659,7 @@ export interface TimeSources {
     readonly columns: () => readonly { readonly kind: "node" | "edge"; readonly name: string }[];
     readonly dispatcher: Dispatcher;
     readonly visibility: SessionVisibilityApi;
-    readonly runs: () => readonly Run[];
+    readonly runs: () => readonly ManagedRun[];
     readonly digestOf: (spec: Scope) => string;
     readonly emit: <K extends keyof SessionEventMap>(event: K, detail: SessionEventMap[K]) => void;
     /**
@@ -636,6 +667,12 @@ export interface TimeSources {
      * any other column. Its dispatch is made before its first await. Absent, `asDates` does nothing.
      */
     readonly asDates?: (kind: "node" | "edge", column: string) => Promise<void> | undefined;
+    /**
+     * Under source-steps, the role edit a `data.knownFields` write makes: the time settings are
+     * views of the sources' time roles (design 3.9). Throws `E_ROLE_TARGET_AMBIGUOUS` when several
+     * sources could take the role. Absent, or null, the write sets only the setting.
+     */
+    readonly settingRoles?: (knownFields: Readonly<Record<string, unknown>>) => StepsEdit | null;
     /**
      * Settles on the next drawn frame, or at once when no frame is coming. Absent with no renderer.
      * Asked only by a stepped play with `waitForRender`.
@@ -689,68 +726,6 @@ export interface TimeInternals {
 /** The elements a question names: the given ones, and with `incident` the edges at the given nodes. */
 type TimeElements = NonNullable<TimeBinsOptions["of"]>;
 
-/** The members of `session.time` that return a promise, so refuse by rejecting it. */
-const REJECTING_MEMBERS: ReadonlySet<keyof TimeApi> = new Set<keyof TimeApi>([
-    "setField",
-    "setSettings",
-    "stepBy",
-    "seek",
-    "commit",
-]);
-
-/**
- * `session.time` behind its experiment. While it is off an action refuses with `E_FEATURE_OFF`
- * (the ones returning a promise read as a function that rejects, the rest throw when read) and a
- * read gives the answer it gives with nothing designated, so a consumer's display needs no check.
- * `parse` stays open: it reads text and touches no timeline, and date conditions rely on it.
- * Asked per member, because an element's session settles its features only when it first renders.
- * @param api - The timeline.
- * @param on - Whether the experiment is on now.
- * @returns The gated timeline.
- */
-export function gatedTimeApi(api: TimeApi, on: () => boolean): TimeApi {
-    const nothing: Partial<TimeApi> = {
-        field: null,
-        current: null,
-        atStart: false,
-        atEnd: false,
-        playing: false,
-        timeZone: UTC_ZONE,
-        settings: DEFAULT_TIME_SETTINGS,
-        mode: DEFAULT_TIME_SETTINGS.mode,
-        interval: DEFAULT_INTERVAL,
-        ready: Promise.resolve(),
-        extent: () => null,
-        bins: () => null,
-        candidates: () => [],
-        notices: () => [],
-        changes: () => NO_CHANGES,
-    };
-    const gated = {} as TimeApi;
-    for (const key of Object.keys(api) as (keyof TimeApi)[]) {
-        Object.defineProperty(gated, key, {
-            get: () => {
-                if (key !== "parse" && !on()) {
-                    if (key in nothing) {
-                        return nothing[key];
-                    }
-
-                    const refusal = featureOff("timeline", `time.${key}`);
-                    if (REJECTING_MEMBERS.has(key)) {
-                        return () => Promise.reject(refusal);
-                    }
-
-                    throw refusal;
-                }
-
-                return Reflect.get(api, key) as unknown;
-            },
-        });
-    }
-
-    return Object.freeze(gated);
-}
-
 /** Every timeline setting at its default. */
 const DEFAULT_TIME_SETTINGS: TimeSettings = Object.freeze({
     results: "stale",
@@ -761,6 +736,16 @@ const DEFAULT_TIME_SETTINGS: TimeSettings = Object.freeze({
     timeZone: UTC_ZONE,
     ageFade: 1,
 });
+
+/**
+ * Whether a layer selects what lies outside the time window.
+ * @param layer - The layer.
+ * @param layer.selector - What it selects.
+ * @returns True for `{ match: "state", state: "outsideWindow" }`.
+ */
+function selectsOutside(layer: { readonly selector: Selector }): boolean {
+    return layer.selector.match === "state" && layer.selector.state === "outsideWindow";
+}
 
 // ---------------------------------------------------------------------------------------------
 // Reading the index
@@ -1195,6 +1180,9 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     let staleBefore = new Set<RunId>();
     const accepted = new Map<RunId, { readonly from: string; readonly to: string; readonly window: string }>();
     let reruns: Promise<unknown> = Promise.resolve();
+    /** Whether a re-run is under way, and whether a move came while it ran. */
+    let rerunning = false;
+    let rerunAgain = false;
     /** The unit the reader last gave each column, so designating it again keeps it. */
     const units = new Map<string, TimeUnit>();
     /** The last `bins({ scope: "visible" })` counts, and what they were counted from. */
@@ -1227,9 +1215,8 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                       start: path,
                       ...(unit === null ? {} : { unit }),
                       ...(parseZone === null ? {} : { parseZone }),
-                      // With the timeline off they stay saved and are not read.
-                      ...(end === null || sources.timeline?.() === false ? {} : { end }),
-                      ...(spells === null || sources.timeline?.() === false ? {} : { spells }),
+                      ...(end === null ? {} : { end }),
+                      ...(spells === null ? {} : { spells }),
                   });
         const nodes = sourceOf(
             known.nodeTimePath,
@@ -1253,9 +1240,9 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
 
     /**
      * The write mark to compare an index by, read after the snapshot's freeze has run.
-     * @returns The mark; empty with the timeline off, where nothing is counted.
+     * @returns The mark.
      */
-    const rewritesNow = (): string => (sources.timeline?.() === false ? "" : (sources.rewrites?.() ?? ""));
+    const rewritesNow = (): string => sources.rewrites?.() ?? "";
 
     /**
      * The data as a key: what moved when an index built over it no longer fits.
@@ -1283,12 +1270,9 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         const graph = sources.snapshot();
         const path = columnOf(((field.edges ?? field.nodes) as TimeSource).start);
         const attribute = `${ATTRIBUTE_PREFIX}${path}`;
-        // With the timeline off no zone is named, and text reads as it did before zones.
-        const zoneFor = (source: TimeSource): string | undefined =>
-            sources.timeline?.() === false ? undefined : (source.parseZone ?? UTC_ZONE);
-        // With the timeline off the values are read as they always were.
+        const zoneFor = (source: TimeSource): string | undefined => source.parseZone ?? UTC_ZONE;
         const columnReader = (kind: "node" | "edge", column: string): KindPlan["read"] | null =>
-            sources.timeline?.() === false ? null : (sources.column?.(kind, column) ?? null);
+            sources.column?.(kind, column) ?? null;
         const beside = (kind: "node" | "edge", path: Path | undefined): SpanColumn | undefined => {
             if (path === undefined) {
                 return undefined;
@@ -1354,7 +1338,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         const rows =
             (field.nodes === undefined ? 0 : graph.nodeCount) + (field.edges === undefined ? 0 : graph.edgeCount);
 
-        return rows >= SLICED_ROWS && sources.timeline?.() !== false;
+        return rows >= SLICED_ROWS;
     };
 
     /**
@@ -1527,10 +1511,10 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
 
     /**
      * Whether a read that wants an answer now should still start no build: rows are arriving, so it
-     * would read the column only to read it again. With the timeline off, reads go on as they were.
+     * would read the column only to read it again.
      * @returns True during a load.
      */
-    const loadHoldsBuilds = (): boolean => sources.timeline?.() !== false && (sources.loading?.() ?? null) !== null;
+    const loadHoldsBuilds = (): boolean => (sources.loading?.() ?? null) !== null;
 
     /**
      * The unit the designated field reads in, as far as is known without a build: the designation's,
@@ -1662,10 +1646,73 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
      */
     const settingsNow = (): TimeSettings => {
         const saved: TimePlayback | null | undefined = dispatcher.state.visibility.playback;
+        const outside = outsideNow();
+        if (saved === null || saved === undefined) {
+            return outside === DEFAULT_TIME_SETTINGS.outside
+                ? DEFAULT_TIME_SETTINGS
+                : Object.freeze({ ...DEFAULT_TIME_SETTINGS, outside });
+        }
 
-        return saved === null || saved === undefined
-            ? DEFAULT_TIME_SETTINGS
-            : Object.freeze({ ...DEFAULT_TIME_SETTINGS, ...saved });
+        return Object.freeze({ ...DEFAULT_TIME_SETTINGS, ...saved, outside });
+    };
+
+    /**
+     * The layers of one kind selecting what lies outside the window that paint now: enabled, and
+     * not in a hidden row.
+     * @param target - Nodes or edges.
+     * @returns Them, bottom first, the element's own included.
+     */
+    const outsideLayers = (target: "node" | "edge"): CompiledLayer[] =>
+        paintedStack(dispatcher.state.styles).filter(
+            ({ layer }) => layer.enabled && layer.target === target && selectsOutside(layer),
+        );
+
+    /**
+     * How an element outside the window draws, read from the layers selecting that state.
+     * @returns `"ghost"` when nodes and edges alike are drawn.
+     */
+    const outsideNow = (): "hide" | "ghost" => (drawsOutsideWindow(dispatcher.state.styles) ? "ghost" : "hide");
+
+    /**
+     * The style writes that make what lies outside the window draw one way: for nodes and for
+     * edges, `visible` on every painting layer a reader or a template put in the stack selecting
+     * that state, or a new layer when none does.
+     * @param outside - How it draws.
+     * @returns The commands.
+     */
+    const outsideWrites = (outside: "hide" | "ghost"): StylePatchCommand[] => {
+        const drawn = outside === "ghost";
+        const painted = paintedStack(dispatcher.state.styles);
+        return (["node", "edge"] as const).flatMap((target): StylePatchCommand[] => {
+            const own = outsideLayers(target);
+            if (own.length === 0) {
+                // A kind already drawn the way asked needs no layer of its own.
+                return !drawn || !drawsOutsideWindowOf(painted, target)
+                    ? [
+                          {
+                              op: "style.patch",
+                              action: "add",
+                              spec: {
+                                  name: "Outside the time window",
+                                  target,
+                                  selector: { match: "state", state: "outsideWindow" },
+                                  set: { [`${target}.visible`]: drawn },
+                              },
+                          },
+                      ]
+                    : [];
+            }
+
+            // A layer already set the way asked is left alone, so asking again writes nothing.
+            return own
+                .filter(({ layer }) => layer.set?.[`${target}.visible`] !== drawn)
+                .map(({ layer }) => ({
+                    op: "style.patch",
+                    action: "update",
+                    id: layer.id,
+                    patch: { set: { ...layer.set, [`${target}.visible`]: drawn } },
+                }));
+        });
     };
 
     /**
@@ -2010,12 +2057,12 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         const extent = extentNow();
         const untimedOf = (kind: TimeCounts | undefined): number =>
             kind === undefined ? 0 : kind.untimed + kind.unparsed;
-        const { summary } = visibility;
+        const inside = visibility.windowCounts();
         const event: TimeStepEvent = Object.freeze({
             index: window === null ? 0 : stepIndexOf(window),
             from: window === null ? Number.NEGATIVE_INFINITY : boundOf(window, "from"),
             to: window === null ? Number.POSITIVE_INFINITY : boundOf(window, "to"),
-            visible: Object.freeze({ nodes: summary.visibleNodes, edges: summary.visibleEdges }),
+            visible: Object.freeze({ nodes: inside.nodes, edges: inside.edges }),
             entered: Object.freeze({ nodes: counts?.entered.nodes ?? 0, edges: counts?.entered.edges ?? 0 }),
             left: Object.freeze({ nodes: counts?.left.nodes ?? 0, edges: counts?.left.edges ?? 0 }),
             untimed: Object.freeze({ nodes: untimedOf(extent?.nodes), edges: untimedOf(extent?.edges) }),
@@ -2034,10 +2081,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
      * The masks as they stand, for a move that does not go through a slide.
      * @returns Both masks.
      */
-    const masksNow = (): { readonly nodes: Uint8Array; readonly edges: Uint8Array } => ({
-        nodes: visibility.nodeMask(),
-        edges: visibility.edgeMask(),
-    });
+    const masksNow = (): { readonly nodes: Uint8Array; readonly edges: Uint8Array } => visibility.windowMasks();
 
     /**
      * Publish a move that did not go through a slide, from the masks before it.
@@ -2083,7 +2127,8 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
      * @param next - The window.
      * @param cause - What moved it.
      * @param ownStep - Record it as its own step, never merged into the window step before it.
-     * @returns The event, once the masks and any re-runs the results setting started have settled.
+     * @returns The event, once the masks have settled, and any re-runs the results setting started
+     * too unless a play moved it: a play keeps its pace and the re-runs catch up (see `rerunAll`).
      */
     const move = async (next: TimeWindow, cause: TimeStepEvent["cause"], ownStep = false): Promise<TimeStepEvent> => {
         const slide = slides;
@@ -2102,7 +2147,9 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         }
 
         const event = published(counts, next, cause);
-        await reruns;
+        if (cause !== "play") {
+            await reruns;
+        }
 
         return event;
     };
@@ -2210,6 +2257,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     /** One playback step, then the next one on the timer. */
     const tick = async (): Promise<void> => {
         timer = null;
+        // A `time:play` listener can pause or dispose the play before `play()` arms this timer.
         if (!playing || disposed) {
             return;
         }
@@ -2364,35 +2412,123 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     };
 
     /**
-     * Re-run the runs a window move left out of date, and say which could not.
+     * Re-run the runs a window move left out of date, and say which could not. One re-run at a
+     * time: moves that come while one runs are caught up by one more re-run over the newest window,
+     * so a play stepping faster than an algorithm (Betweenness is O(nm)) re-runs it at most once
+     * per finished re-run, never once per step.
      * @param runs - The runs.
      */
-    const rerunAll = (runs: readonly Run[]): void => {
+    const rerunAll = (runs: readonly ManagedRun[]): void => {
+        if (rerunning) {
+            rerunAgain = true;
+            return;
+        }
+
+        rerunning = true;
+        const rerunOne = async (run: ManagedRun): Promise<void> => {
+            try {
+                // Marked as the session's own re-run, so `run:changed` says the window did it.
+                await run.rerun("time-window");
+            } catch (error) {
+                // A cancel is not a failure (`RunStatus`): the run reports it as "canceled".
+                if (error instanceof Error && error.name === "AbortError") {
+                    return;
+                }
+
+                sources.emit("time:rerun-failed", {
+                    run: run.id,
+                    error: isGraphtyError(error)
+                        ? { code: error.code, params: (error.details ?? {}) as CodedFact["params"] }
+                        : // A re-run canceled while it runs rejects with an AbortError.
+                          { code: "E_INTERNAL", params: {} },
+                });
+            }
+        };
         // Started after the pass that announced the move, not inside it.
-        reruns = Promise.resolve().then(async () =>
-            Promise.all(
-                runs.map(async (run) => {
-                    try {
-                        await run.rerun();
-                    } catch (error) {
-                        sources.emit("time:rerun-failed", {
-                            run: run.id,
-                            error: isGraphtyError(error)
-                                ? { code: error.code, params: (error.details ?? {}) as CodedFact["params"] }
-                                : { code: "E_INTERNAL", params: {} },
-                        });
-                    }
-                }),
-            ),
-        );
+        reruns = Promise.resolve().then(async () => {
+            let batch = runs;
+            for (;;) {
+                await Promise.all(batch.map(async (run) => rerunOne(run)));
+                if (!rerunAgain || disposed) {
+                    rerunning = false;
+                    rerunAgain = false;
+                    return;
+                }
+
+                rerunAgain = false;
+                batch = movedRuns();
+            }
+        });
     };
 
     /**
      * The runs over the visible graph that a filter or window move left out of date.
      * @returns The runs.
      */
-    const movedRuns = (): readonly Run[] =>
+    const movedRuns = (): readonly ManagedRun[] =>
         sources.runs().filter((run) => run.stale?.reason === "scope-changed" || run.stale?.reason === "window-moved");
+
+    /**
+     * A window's bounds under a new step: a sliding window snaps to one step on its boundary, a
+     * cumulative one's end to the end of its step.
+     * @param from - The window's start.
+     * @param to - The window's end.
+     * @param step - The new step.
+     * @param zone - The zone calendar steps read in.
+     * @param sliding - Whether the window slides.
+     * @returns The bounds that change.
+     */
+    const resteppedBounds = (
+        from: number,
+        to: number,
+        step: TimeStep,
+        zone: string,
+        sliding: boolean,
+    ): { readonly from?: number; readonly to: number } => {
+        if (!sliding) {
+            return { to: addSteps(alignAt(to - 1, step, zone), step, 1, zone) };
+        }
+        const start = alignAt(from, step, zone);
+        return { from: start, to: addSteps(start, step, 1, zone) };
+    };
+
+    /**
+     * A window's bounds under a new zone alone. A bound on a boundary in the old zone moves to the
+     * nearest boundary in the new one, and any other bound stays; two zones lie under a step apart,
+     * so switching back returns each bound. A cumulative window keeps its start.
+     * @param from - The window's start.
+     * @param to - The window's end.
+     * @param step - The step.
+     * @param zones - The zone the window read in, and the new one.
+     * @param zones.was - The old zone.
+     * @param zones.zone - The new zone.
+     * @param sliding - Whether the window slides.
+     * @returns The bounds that change, or none when they would cross.
+     */
+    const rezonedBounds = (
+        from: number,
+        to: number,
+        step: TimeStep,
+        { was, zone }: { readonly was: string; readonly zone: string },
+        sliding: boolean,
+    ): { readonly from?: number; readonly to?: number } => {
+        const rezoned = (at: number): number => {
+            if (alignAt(at, step, was) !== at) {
+                return at;
+            }
+            const below = alignAt(at, step, zone);
+            const above = addSteps(below, step, 1, zone);
+            if (at - below !== above - at) {
+                return at - below < above - at ? below : above;
+            }
+            // A tie (a zone half a step from the other) breaks one way going and the other coming
+            // back, so switching back returns the same bound rather than walking it.
+            return was < zone ? below : above;
+        };
+        const start = sliding ? rezoned(from) : from;
+        const end = rezoned(to);
+        return start < end ? { from: start, to: end } : {};
+    };
 
     /**
      * The window as new settings leave it: its step, mode, missing rule and zone.
@@ -2408,7 +2544,6 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         const to = boundOf(current, "to");
         const was = zoneOf(undefined, current);
         const zone = zoneOf(newZone, current);
-        const resized = step !== current.step || (zone !== was && isCalendarStep(step));
         const { timeZone: _timeZone, ...unzoned } = current;
         let window: TimeWindow = Object.freeze({
             ...(newZone === undefined ? current : unzoned),
@@ -2422,12 +2557,14 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             // Back to sliding: one step ending where the cumulative window ended.
             const { mode: _mode, ...rest } = window;
             window = Object.freeze({ ...rest, from: Math.max(extent.from, addSteps(to, step, -1, zone)) });
-        } else if (resized && next.mode === "sliding") {
-            // A new step or zone snaps a sliding window to one step on its boundary.
-            const start = alignAt(from, step, zone);
-            window = Object.freeze({ ...window, from: start, to: addSteps(start, step, 1, zone) });
-        } else if (resized) {
-            window = Object.freeze({ ...window, to: addSteps(alignAt(to - 1, step, zone), step, 1, zone) });
+        } else if (step !== current.step) {
+            window = Object.freeze({ ...window, ...resteppedBounds(from, to, step, zone, next.mode === "sliding") });
+        } else if (zone !== was && isCalendarStep(step)) {
+            // A new zone alone never snaps the window to one step.
+            window = Object.freeze({
+                ...window,
+                ...rezonedBounds(from, to, step, { was, zone }, next.mode === "sliding"),
+            });
         }
 
         if (next.missing !== (current.missing ?? "inside")) {
@@ -2541,6 +2678,21 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             }
         }
 
+        const knownFields = {
+            nodeTimePath: nodes === undefined ? null : columnOf(nodes.start),
+            nodeTimeUnit: nodes?.unit ?? null,
+            nodeTimeParseZone: nodes?.parseZone ?? null,
+            nodeTimeEndPath: optionalColumn(nodes?.end) ?? null,
+            nodeTimeSpellsPath: optionalColumn(nodes?.spells) ?? null,
+            edgeTimePath: edges === undefined ? null : columnOf(edges.start),
+            edgeTimeUnit: edges?.unit ?? null,
+            edgeTimeParseZone: edges?.parseZone ?? null,
+            edgeTimeEndPath: optionalColumn(edges?.end) ?? null,
+            edgeTimeSpellsPath: optionalColumn(edges?.spells) ?? null,
+        };
+        // Refused here, before anything changes, when several sources could take the time role.
+        const roles = sources.settingRoles?.(knownFields) ?? null;
+
         const before = fieldNow();
         const column = (edges ?? nodes)?.start;
         const changed = !sameReading(before?.nodes, nodes) || !sameReading(before?.edges, edges);
@@ -2565,25 +2717,10 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                     }
                 }
 
-                await tx.dispatch({
-                    op: "config.set",
-                    values: {
-                        data: {
-                            knownFields: {
-                                nodeTimePath: nodes === undefined ? null : columnOf(nodes.start),
-                                nodeTimeUnit: nodes?.unit ?? null,
-                                nodeTimeParseZone: nodes?.parseZone ?? null,
-                                nodeTimeEndPath: optionalColumn(nodes?.end) ?? null,
-                                nodeTimeSpellsPath: optionalColumn(nodes?.spells) ?? null,
-                                edgeTimePath: edges === undefined ? null : columnOf(edges.start),
-                                edgeTimeUnit: edges?.unit ?? null,
-                                edgeTimeParseZone: edges?.parseZone ?? null,
-                                edgeTimeEndPath: optionalColumn(edges?.end) ?? null,
-                                edgeTimeSpellsPath: optionalColumn(edges?.spells) ?? null,
-                            },
-                        },
-                    },
-                });
+                if (roles !== null) {
+                    await tx.dispatch({ op: "data.steps-set", edit: roles });
+                }
+                await tx.dispatch({ op: "config.set", values: { data: { knownFields } } });
                 // Another field, or another reading of it, is another timeline: the window goes.
                 if (changed && visibility.window !== null) {
                     await tx.dispatch({ op: "visibility.window", window: null });
@@ -2665,8 +2802,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         },
 
         parse(text: string, options: { readonly timeZone?: string } = {}): number | null {
-            // With the timeline off parse stays open, and reads as it did before zones.
-            const zone = sources.timeline?.() === false ? undefined : (options.timeZone ?? parseZoneNow());
+            const zone = options.timeZone ?? parseZoneNow();
             if (zone !== undefined && !isTimeZone(zone)) {
                 throw badZone("timeZone", zone);
             }
@@ -2687,7 +2823,9 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             return extentOf(indexIfReady());
         },
 
-        bins(options: TimeBinsOptions = {}): readonly TimeBin[] | null {
+        bins(given: TimeBinsOptions = {}): readonly TimeBin[] | null {
+            const options: TimeBinsOptions =
+                given.scope === undefined && sources.workingGraph?.() === true ? { ...given, scope: "visible" } : given;
             const built = indexIfReady();
             const extent = extentOf(built);
             if (extent === null || built === null) {
@@ -2783,6 +2921,14 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             return visibility.window;
         },
 
+        get inside() {
+            if ((cursor ?? visibility.window) === null) {
+                return null;
+            }
+            const { nodes, edges } = visibility.windowCounts();
+            return Object.freeze({ nodes, edges });
+        },
+
         get atStart() {
             const current = cursor ?? visibility.window;
             return current !== null && isFirst(current);
@@ -2814,21 +2960,30 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                 zoneOf(patch.timeZone);
             }
 
+            if (patch.outside !== undefined && patch.outside !== "hide" && patch.outside !== "ghost") {
+                throw badCommand('outside is "hide" or "ghost".', { field: "outside", value: patch.outside });
+            }
+
             const current = visibility.window;
-            // Fading by age changes only how the window is drawn, so it leaves the window where it is.
-            const drawingOnly = Object.keys(patch).every((key) => key === "ageFade");
+            // Fading by age and how what lies outside draws change only the drawing, so they leave the window where it is.
+            const drawingOnly = Object.keys(patch).every((key) => key === "ageFade" || key === "outside");
             const moved =
                 current !== null && extentNow() !== null && !drawingOnly
                     ? windowUnder(current, next, patch.timeZone)
                     : null;
             const before = masksNow();
+            // How what lies outside draws lives in the style layers, never in the playback.
             const playback: TimePlayback = Object.freeze(
                 Object.fromEntries(
                     Object.entries(next).filter(
-                        ([key, value]) => DEFAULT_TIME_SETTINGS[key as keyof TimeSettings] !== value,
+                        ([key, value]) =>
+                            key !== "outside" && DEFAULT_TIME_SETTINGS[key as keyof TimeSettings] !== value,
                     ),
                 ),
             );
+            // Written whatever `outside` reads now: it reads "ghost" only while both kinds are drawn,
+            // so a layer drawing one kind alone still reads "hide" and is set back by asking for it.
+            const styleWrites = patch.outside === undefined ? [] : outsideWrites(patch.outside);
             await dispatcher.transaction(
                 "time.settings",
                 async (tx) => {
@@ -2836,6 +2991,10 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                         op: "visibility.playback",
                         playback: Object.keys(playback).length === 0 ? null : playback,
                     });
+                    for (const write of styleWrites) {
+                        await tx.dispatch(write);
+                    }
+
                     if (moved !== null) {
                         await tx.dispatch({ op: "visibility.window", window: moved });
                     }
@@ -3095,7 +3254,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
 
         edgeAges(): EdgeAgeFade | null {
             const { ageFade, outside } = settingsNow();
-            if (ageFade >= 1 || sources.timeline?.() === false) {
+            if (ageFade >= 1) {
                 return null;
             }
 

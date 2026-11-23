@@ -2,6 +2,7 @@ import "@babylonjs/core/Meshes/thinInstanceMesh.js";
 
 import { VertexBuffer } from "@babylonjs/core/Buffers/buffer.js";
 import type { RawTexture } from "@babylonjs/core/Materials/Textures/rawTexture.js";
+import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
 import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import type { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
@@ -17,7 +18,9 @@ import type { RowMeasure } from "../render/RowTable";
 import { batchUploadFrames } from "./FrameRoster";
 import { handOverTogether } from "./handOverTogether";
 import type { MeshCache } from "./MeshCache";
+import { NodeMesh, styleOpacity } from "./NodeMesh";
 import { attachRowPull } from "./RowPullPlugin";
+import type { Point2 } from "./shapeOutlines";
 
 /**
  * @file Draw the rows of one source mesh in one draw call (design/rendering/row-renderer.md 4.2).
@@ -38,7 +41,7 @@ export const renderPathDefault: { value: RenderPath } = { value: "objects" };
 export interface RowCounts {
     /** Nodes drawn by a batch. */
     readonly batchedNodes: number;
-    /** Nodes drawn as a mesh of their own. */
+    /** Nodes drawn as a mesh of their own. A row drawn by neither is in neither count. */
     readonly objectNodes: number;
     /** Edges drawn from the row tables. */
     readonly pulledEdges: number;
@@ -486,10 +489,13 @@ function drawSpan(first: Mesh, sources: Mesh[]): [Mesh, Mesh] {
 }
 
 /** A view in which nothing keeps a row out of a batch: what a plain paint is drawn in. */
-const UNLIT_VIEW: BatchView = { flatOutline: false };
+const UNLIT_VIEW: BatchView = { flatOutline: false, sizeSpace: "scene" };
 
 /** The shapes a row can be round from every side as, as `Node` keeps them. */
 const ROUND_TYPES: ReadonlySet<string> = new Set(["sphere", "icosphere"]);
+
+/** Each source mesh's reach outline ({@link ColumnRow.reachOutline}): every row of a look shares it. */
+const REACH_OUTLINES = new WeakMap<Mesh, Point2[] | null>();
 
 /**
  * A row with no `Node`, drawn from its paint alone: the look, color and size the style stack
@@ -512,6 +518,31 @@ export class ColumnRow implements RowMeasure {
      */
     get walksEachFrame(): boolean {
         return false;
+    }
+
+    /**
+     * The row scan tests a ray against the row's source mesh, as it does a batched `Node`'s: a row never names a
+     * model, which stays on Babylon's pick.
+     * @returns True.
+     */
+    get drawnByRowScan(): boolean {
+        return true;
+    }
+
+    /**
+     * What the row scan tests a ray against.
+     * @returns The source mesh.
+     */
+    get drawnSourceMesh(): Mesh {
+        return this.paintedSourceMesh;
+    }
+
+    /**
+     * The row's paint draws at its source's size, so the scan scales its bound by 1.
+     * @returns One on each axis.
+     */
+    get drawnScaling(): Readonly<Vector3> {
+        return Vector3.OneReadOnly;
     }
 
     /**
@@ -544,6 +575,8 @@ export class ColumnRow implements RowMeasure {
             shape?.model === undefined &&
             (texture?.image ?? "") === "" &&
             drawnText(label) === undefined &&
+            // A view-sized row needs a `Node`: only a `Node` scales with the view.
+            (shape?.sizeSpace ?? view.sizeSpace) === "scene" &&
             // A plain paint is the fallback past an object budget: under 3D flat lighting, which batches nothing
             // else, it is still drawn by a batch, without the outline only a `Node` draws.
             batchableOf(paint, isPlainPaint(paint) ? UNLIT_VIEW : view)
@@ -620,11 +653,53 @@ export class ColumnRow implements RowMeasure {
     }
 
     /**
+     * Where its source mesh's box is centered about the row's place: off it for a shape whose box is not centered on
+     * its origin (a tetrahedron is centered on its centroid), as `Node.framingBounds` counts a node's mesh box.
+     * @returns The offset.
+     */
+    get drawnBoxCenter(): Readonly<{ x: number; y: number; z: number }> {
+        const { x, y, z } = this.paintedSourceMesh.getBoundingInfo().boundingBox.center;
+        return { x, y, z };
+    }
+
+    /**
      * With no border, its outline is its drawn surface.
      * @returns The half-extents.
      */
     get outlineHalfExtents(): Readonly<{ x: number; y: number; z: number }> {
         return this.drawnHalfExtents;
+    }
+
+    /**
+     * The opacity its paint draws its body at, as `Node.paintedOpacity` reads a node's.
+     * @returns The opacity.
+     */
+    get paintedOpacity(): number {
+        return styleOpacity(this.paint.style.texture);
+    }
+
+    /**
+     * Its paint's shape.
+     * @returns The shape's type.
+     */
+    get shapeType(): string | undefined {
+        return this.paint.style.shape?.type;
+    }
+
+    /**
+     * The outline a line ends on, as `Node.reachOutline` builds it, once per source mesh: a row has no label to fit.
+     * @returns The outline, or null for a shape whose box or ellipse is its outline.
+     */
+    get reachOutline(): readonly (readonly [x: number, y: number])[] | null {
+        const source = this.paintedSourceMesh;
+        let outline = REACH_OUTLINES.get(source);
+        if (outline === undefined) {
+            const { shape, border } = this.paint.style;
+            outline = NodeMesh.reachOutlineOf({ shape, border }, shape?.size ?? 0, source);
+            REACH_OUTLINES.set(source, outline);
+        }
+
+        return outline;
     }
 
     /**
@@ -829,12 +904,13 @@ export class NodeBatches {
     }
 
     /**
-     * Whether a batch draws this node now, rather than its own mesh.
-     * @param node - The node.
+     * Whether a batch draws this row now: a node rather than its own mesh, or a row with no `Node`
+     * at all, which nothing else draws.
+     * @param row - The node or the row.
      * @returns True when it does.
      */
-    draws(node: Node): boolean {
-        return this.nodeGroups.get(node)?.batched === true;
+    draws(row: BatchRow): boolean {
+        return this.groupOf(row)?.batched === true;
     }
 
     /**
@@ -997,22 +1073,48 @@ export class NodeBatches {
     }
 
     /**
+     * Whether a row with no `Node` keeps the source it draws from under a new paint (see
+     * {@link NodeBatches.lookOf}): a `Node` built from that source keeps its mesh under the paint,
+     * and one built from a source the paint does not keep is rebuilt as soon as it is painted.
+     * @param index - The row.
+     * @param paint - The paint the row is about to take.
+     * @returns True when it keeps it; false when it does not, or no batch draws the row.
+     */
+    keepsLook(index: number, paint: NodePaint): boolean {
+        const row = this.columnRows.get(index);
+        return row !== undefined && this.keeps({ paint: row.paint, source: row.paintedSourceMesh }, paint);
+    }
+
+    /**
+     * Whether a paint keeps the source a row draws from now, as `Node.keepsMeshFor` keeps a
+     * `Node`'s mesh: the same key, or a deep-equal style and color on the same shader path.
+     * @param drawn - What the row is drawn as now, if anything.
+     * @param paint - The new paint.
+     * @returns True when it keeps it.
+     */
+    private keeps(drawn: Pick<RowLook, "paint" | "source"> | null, paint: NodePaint): boolean {
+        return (
+            drawn !== null &&
+            !drawn.source.isDisposed() &&
+            (drawn.paint.meshKey === paint.meshKey ||
+                (shaderPartOf(drawn.paint.meshKey) === shaderPartOf(paint.meshKey) &&
+                    isEqual(drawn.paint.style, paint.style) &&
+                    isEqual(drawn.paint.color, paint.color)))
+        );
+    }
+
+    /**
      * The source a paint draws from: the one the row has while the paint keeps it, as
-     * `Node.keepsMeshFor` keeps a `Node`'s mesh (the same key, or a deep-equal style and colour on
+     * `Node.keepsMeshFor` keeps a `Node`'s mesh (the same key, or a deep-equal style and color on
      * the same shader path), or else the paint's own.
      * @param drawn - What the row is drawn as now, if anything.
      * @param paint - The new paint.
      * @returns The source and the paint it was made for.
      */
     private sourceFor(drawn: RowLook | null, paint: NodePaint): { source: Mesh; sourcePaint: NodePaint } {
-        const keeps =
-            drawn !== null &&
-            !drawn.source.isDisposed() &&
-            (drawn.paint.meshKey === paint.meshKey ||
-                (shaderPartOf(drawn.paint.meshKey) === shaderPartOf(paint.meshKey) &&
-                    isEqual(drawn.paint.style, paint.style) &&
-                    isEqual(drawn.paint.color, paint.color)));
-        return keeps ? drawn : { source: this.host.sourceOf(paint), sourcePaint: paint };
+        return drawn !== null && this.keeps(drawn, paint)
+            ? drawn
+            : { source: this.host.sourceOf(paint), sourcePaint: paint };
     }
 
     /**
@@ -1037,6 +1139,11 @@ export class NodeBatches {
                 : { paint: had.paint, sourcePaint: had.sourcePaint, source: had.paintedSourceMesh },
             paint,
         );
+        // A source with an object row is drawn by its own instances, and a row with no `Node` has none.
+        if ((this.groups.get(source)?.objects ?? 0) > 0) {
+            return false;
+        }
+
         const row = new ColumnRow(index, paint, source, sourcePaint);
         this.columnRows.set(index, row);
         this.plainRows += isPlainPaint(paint) ? 1 : 0;
@@ -1081,6 +1188,15 @@ export class NodeBatches {
      */
     columnRowOf(index: number): ColumnRow | undefined {
         return this.columnRows.get(index);
+    }
+
+    /**
+     * The opacity a row drawn with no `Node` is drawn at, as `Node.drawnOpacity` reads a batched node's.
+     * @param row - The row.
+     * @returns The opacity; 1 for a row in no batch.
+     */
+    columnOpacityOf(row: ColumnRow): number {
+        return this.groupOf(row)?.restVisibility ?? 1;
     }
 
     /**
@@ -1165,7 +1281,7 @@ export class NodeBatches {
     /** Bring every batch up to date before a frame. */
     private flush(): void {
         const view = this.host.view();
-        if (view.flatOutline !== this.view.flatOutline) {
+        if (view.flatOutline !== this.view.flatOutline || view.sizeSpace !== this.view.sizeSpace) {
             this.view = view;
             this.syncAll();
         }
@@ -1201,6 +1317,10 @@ export class NodeBatches {
             }
 
             const batched = group.objects === 0 && group.members.size > 0 && group.highest < this.host.places.rows;
+            if (group.objects > 0 && group.columns > 0) {
+                this.releaseColumns(group);
+            }
+
             if (this.settle(group, batched)) {
                 changed = true;
                 if (group.family !== null) {
@@ -1213,6 +1333,26 @@ export class NodeBatches {
 
         this.dirty.clear();
         return changed;
+    }
+
+    /**
+     * Give each row with no `Node` in a group that an object row keeps off the batch to its paint
+     * again, which builds it a `Node`: the group's source draws its rows as instances then, and such
+     * a row has none, so it would be drawn by nothing (issue #9226).
+     * ponytail: builds a `Node` per row of the source, which at a million rows of one look is a
+     * million `Node`s; draw the object row from a source of its own if selecting there gets slow.
+     * @param group - The group.
+     */
+    private releaseColumns(group: RowGroup): void {
+        const rows: number[] = [];
+        for (const row of [...group.members]) {
+            if (row instanceof ColumnRow) {
+                this.unpaintRow(row.index);
+                rows.push(row.index);
+            }
+        }
+
+        this.host.repaint?.(rows);
     }
 
     /**

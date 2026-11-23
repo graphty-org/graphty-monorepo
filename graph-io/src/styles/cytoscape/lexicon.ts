@@ -39,6 +39,50 @@ const opacity255: CytoscapeValueParser = (raw, site) => {
 // CX2's 0..1 opacity.
 const opacity01: CytoscapeValueParser = (raw, site) => canonOpacity(raw, "css", site);
 const length: CytoscapeValueParser = (raw, site) => canonNumber(raw, site);
+// A node's border as Cytoscape desktop shows it under an opaque fill: half its `NODE_BORDER_WIDTH`. Desktop strokes a
+// plain border along the node's outline inset by half the width, then paints the fill on that inset path, over the
+// stroke's inner half, so only the outer half shows (Cytoscape 3.10.5's SVG of cx-ndex-90f78bcd: a 200 x 40 node with a
+// border of 20 shows a ring 10 wide round a fill 20 tall). graphty draws an `inside` border beside its fill, not under
+// it. The resolver gives back the whole width where nothing covers it (resolve.ts `wholeBorders`), and the writers
+// double it back (emit.ts).
+const visibleBorder: CytoscapeValueParser = (raw, site) => canonNumber(raw, site, 1 / 2);
+
+/**
+ * The border styles desktop draws as their own outline, not as a plain line under its fill; it strokes every other,
+ * a line type it does not know as its default, SOLID.
+ */
+const PATTERNED_BORDERS: ReadonlySet<unknown> = new Set([
+    "dotted",
+    "zigzag",
+    "sinewave",
+    "double",
+    "other:backward-slash",
+    "other:forward-slash",
+    "other:vertical-slash",
+    "other:separate-arrow",
+    "other:contiguous-arrow",
+]);
+
+/**
+ * Whether Cytoscape desktop paints a node's fill over the inner half of its border, so only half the border shows: a
+ * visible border stroked as a plain line (solid, dashed, dash-dot) under an opaque fill. A patterned border (dotted,
+ * zigzag, sine wave, parallel lines, slashes, arrows) is drawn as its own outline (its SVG paints the dots as shapes),
+ * a translucent fill lets the whole stroke through, and an invisible border (transparency 0) still insets the fill by
+ * all of it.
+ * ponytail: a translucent fill shows its border's inner half faintly; it is counted as all showing.
+ * @param value - the node's neutral value of a property (`borderStyle`, `fillOpacity`, `borderOpacity`), null for
+ * Cytoscape's default (solid, opaque, opaque)
+ * @returns true when the fill covers half the border
+ * @category Styles
+ */
+export function borderUnderFill(value: (property: string) => unknown): boolean {
+    const [style, fill, border] = [value("borderStyle"), value("fillOpacity"), value("borderOpacity")];
+    return (
+        !PATTERNED_BORDERS.has(style) &&
+        (typeof fill !== "number" || fill >= 1) &&
+        (typeof border !== "number" || border > 0)
+    );
+}
 // An arrow size as the neutral factor: Cytoscape's normal arrow is size 6 (default_vizmap.xml).
 export const arrowSizeParser: CytoscapeValueParser = (raw, site) => {
     const v = canonNumber(raw, site);
@@ -708,7 +752,7 @@ export const CYTOSCAPE_LEXICON: Readonly<
                 ["NODE_BORDER_OPACITY", opacity01],
             ],
         ],
-        ["borderWidth", [["NODE_BORDER_WIDTH", length]]],
+        ["borderWidth", [["NODE_BORDER_WIDTH", visibleBorder]]],
         [
             "borderStyle",
             [
@@ -927,6 +971,53 @@ const IDENTIFIERS: Readonly<Record<StyleTarget, ReadonlyMap<string, string>>> = 
         ["edgebend", "EDGE_BEND"],
     ]),
 };
+
+/**
+ * The 2.x style identifiers DVisualLexicon maps beside the graphics attributes above (cytoscape-impl ding-impl
+ * DVisualLexicon `addIdentifierMapping`), read only from 2.x style files: the graphics attributes never use them.
+ */
+const STYLE_IDENTIFIERS: Readonly<Record<StyleTarget | "network", ReadonlyMap<string, string>>> = {
+    network: new Map([
+        ["backgroundcolor", "NETWORK_BACKGROUND_PAINT"],
+        ["color", "NETWORK_BACKGROUND_PAINT"],
+    ]),
+    node: new Map([
+        ["nodeselectioncolor", "NODE_SELECTED_PAINT"],
+        ["nodeborderopacity", "NODE_BORDER_TRANSPARENCY"],
+        ["nodelabelopacity", "NODE_LABEL_TRANSPARENCY"],
+        ["nodelabelwidth", "NODE_LABEL_WIDTH"],
+        ["nodeshownestednetwork", "NODE_NESTED_NETWORK_IMAGE_VISIBLE"],
+        ["nodelabelbackgroundshape", "NODE_LABEL_BACKGROUND_SHAPE"],
+        ["nodelabelbackgroundcolor", "NODE_LABEL_BACKGROUND_COLOR"],
+        ["nodelabelbackgroundtransparency", "NODE_LABEL_BACKGROUND_TRANSPARENCY"],
+        ...Array.from({ length: 9 }, (_, i): [string, string] => [
+            `nodecustomgraphics${i + 1}`,
+            `NODE_CUSTOMGRAPHICS_${i + 1}`,
+        ]),
+        ...Array.from({ length: 9 }, (_, i): [string, string] => [
+            `nodecustomgraphicsposition${i + 1}`,
+            `NODE_CUSTOMGRAPHICS_POSITION_${i + 1}`,
+        ]),
+    ]),
+    edge: new Map([
+        ["edgeselectioncolor", "EDGE_STROKE_SELECTED_PAINT"],
+        ["edgelabelopacity", "EDGE_LABEL_TRANSPARENCY"],
+        ["edgelabelwidth", "EDGE_LABEL_WIDTH"],
+        ["edgelabelposition", "EDGE_LABEL_POSITION"],
+    ]),
+};
+
+/**
+ * The visual property a Cytoscape 2.x style identifier (`nodeFillColor`, `edgeLineWidth`) names, as Cytoscape 3
+ * looks it up when it converts a 2.x style.
+ * @param target - the style section
+ * @param id - the identifier, in any case
+ * @returns the visual property's name, or undefined for an identifier Cytoscape does not map
+ */
+export function legacyVisualProperty(target: StyleTarget | "network", id: string): string | undefined {
+    const lower = id.toLowerCase();
+    return STYLE_IDENTIFIERS[target].get(lower) ?? (target === "network" ? undefined : IDENTIFIERS[target].get(lower));
+}
 
 /** Objects nested deeper than this inside one element's graphics are not read. */
 const MAX_VP_DEPTH = 8;

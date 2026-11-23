@@ -160,6 +160,45 @@ describe("a layer row's Values tab on the real element", () => {
         });
     });
 
+    it("Louvain's folder of group layers, as Run makes it, lists the run's groups largest first", async () => {
+        const { session, store } = await open();
+        const { runId } = await session.runs.start("louvain", {}, { style: { name: "Louvain", groups: "layers" } });
+        await session.styles.settled();
+        const folder = session.styles.tree().find((row) => row.kind === "folder" && row.name === "Louvain");
+        assert.isDefined(folder, "Run makes a Louvain folder");
+        store.set({ inspected: { kind: "folder-row", id: folder?.id ?? "" } });
+        const inspector = await screen.findByRole("complementary", { name: "Inspector" });
+        await userEvent.click(await within(inspector).findByRole("tab", { name: "Values" }));
+        const header = await within(inspector).findByText("Groups, largest first");
+        const section = header.closest<HTMLElement>("[role=group]");
+        if (section === null) {
+            throw new Error("the groups have no section");
+        }
+        const more = within(section).queryByRole("button", { name: /^\d+ more$/ });
+        if (more !== null) {
+            await userEvent.click(more);
+        }
+        const groups = session.runs.get(runId)?.result?.groups() ?? [];
+        const rows = await waitFor(() => {
+            const found = [...section.querySelectorAll<HTMLElement>("[data-testid=data-row-button]")];
+            assert.lengthOf(found, groups.length);
+            return found;
+        });
+        const sizes = rows.map((row) => Number(row.querySelector("[data-testid=data-row-value]")?.textContent));
+        assert.deepEqual(
+            sizes,
+            groups.map((group) => group.size),
+        );
+        assert.equal(
+            sizes.reduce((sum, n) => sum + n, 0),
+            77,
+        );
+        await userEvent.click(rows[0]);
+        await waitFor(() => {
+            assert.lengthOf(session.selection.nodes, sizes[0], "the largest group's nodes are selected");
+        });
+    });
+
     it("Louvain: a category list with one Summary, no histogram of community numbers", async () => {
         const { session, store } = await open();
         const { layer } = await runLayer(session, "louvain");
@@ -246,4 +285,320 @@ describe("a layer row's Values tab on the real element", () => {
             assert.equal(session.selection.nodes.length, matched);
         });
     });
+
+    it("Top N by Degree lists the ranked nodes, and a row selects its node", async () => {
+        const { session, store } = await open();
+        const { runId } = await runLayer(session, "degree");
+        const run = session.runs.get(runId);
+        const field = run?.fields.find((f) => f.type === "number" || f.type === "integer")?.name ?? "";
+        const top = await session.styles.add({
+            name: "Busiest",
+            target: "node",
+            selector: { match: "top", path: session.results.path(runId, field), n: 3 },
+            set: { "node.color": "#ff0000" },
+        });
+        await session.styles.settled();
+        const expected = run?.result?.top(field, 3).entries ?? [];
+        assert.isNotEmpty(expected);
+        const inspector = await openValues(store, top.row ?? top.id);
+        const list = await within(inspector).findByRole("group", { name: /^Top 3 by / });
+        const rows = [...list.querySelectorAll<HTMLElement>("[data-testid=data-row-button]")];
+        assert.lengthOf(rows, expected.length);
+        assert.deepEqual(
+            rows.map((row) => row.querySelector("[data-testid=data-row-value]")?.textContent),
+            expected.map((entry) => formatNumber(entry.value)),
+        );
+        await userEvent.click(rows[0]);
+        await waitFor(() => {
+            assert.deepEqual(session.selection.nodes, [expected[0]?.id]);
+        });
+    });
+
+    it("a set of nodes lists its members, the first eight and the rest on request", async () => {
+        const { session, store } = await open();
+        const ids = session.data
+            .nodes()
+            .slice(0, 10)
+            .map((node) => node.id);
+        const listed = await session.styles.add({
+            name: "Ten",
+            target: "node",
+            selector: { match: "ids", nodes: ids },
+            set: { "node.color": "#00ff00" },
+        });
+        await session.styles.settled();
+        const inspector = await openValues(store, listed.row ?? listed.id);
+        const members = await within(inspector).findByRole("group", { name: "Members" });
+        assert.lengthOf(members.querySelectorAll("[data-testid=data-row-button]"), 8);
+        await userEvent.click(within(members).getByRole("button", { name: "2 more" }));
+        await waitFor(() => {
+            assert.lengthOf(members.querySelectorAll("[data-testid=data-row-button]"), 10);
+        });
+        const last = [...members.querySelectorAll<HTMLElement>("[data-testid=data-row-button]")].at(-1);
+        assert.isDefined(last);
+        await userEvent.click(last ?? members);
+        await waitFor(() => {
+            assert.deepEqual(session.selection.nodes, [ids[9]]);
+        });
+    });
+
+    it("a rule layer lists the nodes its rule holds", async () => {
+        const { session, store } = await open();
+        const names = ["Myriel", "Napoleon", "Valjean"];
+        const rule = await session.styles.add({
+            name: "Three",
+            target: "node",
+            selector: { match: "rule", where: { kind: "categories", attribute: "data.name", values: names } },
+            set: { "node.color": "#0000ff" },
+        });
+        await session.styles.settled();
+        const resolved = await session.scope.resolve({
+            define: {
+                kind: "rule",
+                where: { kind: "categories", attribute: "data.name", values: names },
+                reading: "clipped",
+            },
+        });
+        assert.lengthOf([...resolved.nodes], 3);
+        const inspector = await openValues(store, rule.row ?? rule.id);
+        const members = await within(inspector).findByRole("group", { name: "Members" });
+        await waitFor(() => {
+            assert.lengthOf(members.querySelectorAll("[data-testid=data-row-button]"), 3);
+        });
+        assert.equal(statValue(inspector, "Matched nodes"), "3");
+    });
+
+    it("a data column's numbers: Data under Values read, and the column's histogram", async () => {
+        const { session, store } = await open();
+        const width = await session.styles.add({
+            name: "By value",
+            target: "edge",
+            selector: { match: "everything" },
+            encode: { "edge.width": { by: "data.shared_chapters", scale: "linear", range: [0.1, 1] } },
+        });
+        await session.styles.settled();
+        const inspector = await openValues(store, width.row ?? width.id);
+        const reads = await within(inspector).findByRole("group", { name: "Values read" });
+        const name = reads.querySelector(".cm-data-row-name")?.textContent ?? "";
+        assert.equal(statValue(reads, name), "Data");
+        const column = session.data.attributes().find((a) => a.path === "data.shared_chapters" && a.kind === "edge");
+        if (column === undefined) {
+            throw new Error("no shared_chapters column");
+        }
+        const histogram = session.data.histogram(column);
+        assert.equal(histogram.kind, "numeric");
+        const spread = await within(inspector).findByTestId("values-spread");
+        if (histogram.kind === "numeric") {
+            assert.equal(statValue(spread, "Lowest"), formatNumber(histogram.min ?? 0));
+            assert.equal(statValue(spread, "Highest"), formatNumber(histogram.max ?? 0));
+        }
+        assert.isNotEmpty(within(inspector).getAllByTestId("histogram-bar"));
+    });
+
+    it("Selected and Hovered say when nothing is selected or hovered", async () => {
+        const { session, store } = await open();
+        await session.config.set({ startingRows: true, editableBase: true });
+        await session.styles.settled();
+        const state = (which: "selected" | "hovered"): Layer | undefined =>
+            session.styles
+                .list()
+                .find((l) => l.selector.match === "state" && l.selector.state === which && l.target === "node");
+        const selected = state("selected");
+        const hovered = state("hovered");
+        assert.isDefined(selected, "the starting Selected layer");
+        assert.isDefined(hovered, "the starting Hovered layer");
+        let inspector = await openValues(store, selected?.row ?? selected?.id ?? "");
+        await within(inspector).findByText("Nothing selected");
+        inspector = await openValues(store, hovered?.row ?? hovered?.id ?? "");
+        await within(inspector).findByText("Nothing hovered");
+        assert.equal(statValue(inspector, "Is hovered"), "This view only");
+    });
+
+    it("a folder's Values tab names each value its layers read and the layers that read it", async () => {
+        const { session, store } = await open();
+        const { layer } = await runLayer(session, "degree");
+        const folder = await session.styles.addFolder("Measures");
+        await session.styles.moveRow(layer.row ?? layer.id, { parent: folder.id });
+        const empty = await session.styles.addFolder("Nothing yet");
+        await session.styles.settled();
+        const rowName = findName(session, layer.row ?? layer.id);
+
+        store.set({ inspected: { kind: "folder-row", id: folder.id } });
+        let inspector = await screen.findByRole("complementary", { name: "Inspector" });
+        await userEvent.click(await within(inspector).findByRole("tab", { name: "Values" }));
+        const reads = await within(inspector).findByRole("group", { name: "Values read" });
+        const values = [...reads.querySelectorAll("[data-testid=data-row-value]")].map((v) => v.textContent);
+        assert.isNotEmpty(values);
+        assert.include(values, rowName);
+
+        store.set({ inspected: { kind: "folder-row", id: empty.id } });
+        inspector = await screen.findByRole("complementary", { name: "Inspector" });
+        await userEvent.click(await within(inspector).findByRole("tab", { name: "Values" }));
+        await within(inspector).findByText("Its layers read no values");
+    });
+    it("a color drawn in steps lists each step's count, and a run changed since reads Out of date", async () => {
+        const { session, store } = await open();
+        const { runId } = await runLayer(session, "degree");
+        const run = session.runs.get(runId);
+        const field = run?.fields.find((f) => f.type === "number" || f.type === "integer")?.name ?? "";
+        const binding = { by: session.results.path(runId, field), scale: "quantile", palette: "viridis" } as const;
+        const stepped = await session.styles.add({
+            name: "Degree steps",
+            target: "node",
+            selector: { match: "everything" },
+            encode: { "node.color": binding },
+        });
+        await session.styles.settled();
+        const { stepCounts } = session.styles.preview(binding, { channel: "node.color" });
+        assert.isAbove(stepCounts.length, 1);
+        const inspector = await openValues(store, stepped.row ?? stepped.id);
+        const header = await within(inspector).findByText(`${channelWord("node.color")} steps`);
+        const section = header.closest<HTMLElement>("[role=group]");
+        if (section === null) {
+            throw new Error("the steps have no section");
+        }
+        const counts = [...section.querySelectorAll("[data-testid=data-row-value]")]
+            .slice(-stepCounts.length)
+            .map((value) => Number(value.textContent));
+        assert.deepEqual(counts, stepCounts);
+        const reads = within(inspector).getByRole("group", { name: "Values read" });
+        const name = reads.querySelector(".cm-data-row-name")?.textContent ?? "";
+        assert.equal(statValue(reads, name), "Current");
+
+        // A new edge changes every degree it touches: the run is out of date until it is rerun.
+        const [a, b] = session.data.nodes().map((node) => node.id);
+        await session.data.addEdges([{ source: a, target: b }]);
+        await waitFor(() => {
+            assert.isNotNull(session.runs.get(runId)?.stale ?? null);
+        });
+        await waitFor(() => {
+            assert.match(statValue(reads, name), /^Out of date/);
+        });
+    });
+
+    it("Selected's Now lists the selected nodes, and a row narrows the selection to its node", async () => {
+        const { session, store } = await open();
+        await session.config.set({ startingRows: true, editableBase: true });
+        await session.styles.settled();
+        const [first, second] = session.data.nodes().map((node) => node.id);
+        await session.selection.apply({ nodes: [first, second] });
+        const selected = session.styles
+            .list()
+            .find((l) => l.selector.match === "state" && l.selector.state === "selected" && l.target === "node");
+        assert.isDefined(selected, "the starting Selected layer");
+        const inspector = await openValues(store, selected?.row ?? selected?.id ?? "");
+        const now = await within(inspector).findByRole("group", { name: "Now" });
+        await within(now).findByText("2 nodes");
+        const rows = [...now.querySelectorAll<HTMLElement>("[data-testid=data-row-button]")];
+        assert.lengthOf(rows, 2);
+        await userEvent.click(rows[1]);
+        await waitFor(() => {
+            assert.deepEqual(session.selection.nodes, [second]);
+        });
+    });
+
+    it("a layer of a set's members lists the nodes the set holds", async () => {
+        const { session, store } = await open();
+        const names = ["Myriel", "Napoleon"];
+        const where = { kind: "categories", attribute: "data.name", values: names } as const;
+        const members = await session.styles.add({
+            name: "Two",
+            target: "node",
+            selector: { match: "member", of: { define: { kind: "rule", where, reading: "clipped" } } },
+            set: { "node.color": "#0000ff" },
+        });
+        await session.styles.settled();
+        const inspector = await openValues(store, members.row ?? members.id);
+        const section = await within(inspector).findByRole("group", { name: "Members" });
+        await waitFor(() => {
+            assert.lengthOf(section.querySelectorAll("[data-testid=data-row-button]"), 2);
+        });
+        assert.equal(statValue(inspector, "Matched nodes"), "2");
+    });
+
+    it("a folder's Values tab reads the layers of the folders inside it", async () => {
+        const { session, store } = await open();
+        const { layer } = await runLayer(session, "degree");
+        const outer = await session.styles.addFolder("Outer");
+        const inner = await session.styles.addFolder("Inner");
+        await session.styles.moveRow(inner.id, { parent: outer.id });
+        await session.styles.moveRow(layer.row ?? layer.id, { parent: inner.id });
+        await session.styles.settled();
+        store.set({ inspected: { kind: "folder-row", id: outer.id } });
+        const inspector = await screen.findByRole("complementary", { name: "Inspector" });
+        await userEvent.click(await within(inspector).findByRole("tab", { name: "Values" }));
+        const reads = await within(inspector).findByRole("group", { name: "Values read" });
+        const values = [...reads.querySelectorAll("[data-testid=data-row-value]")].map((v) => v.textContent);
+        assert.deepEqual(values, [findName(session, layer.row ?? layer.id)]);
+    });
+
+    it("Everything's Values tab reads the element's defaults, then the tree's row that paints every node", async () => {
+        const { session, store } = await open();
+        const values = async (): Promise<HTMLElement> => {
+            store.set({ inspected: { kind: "everything-row" } });
+            const inspector = await screen.findByRole("complementary", { name: "Inspector" });
+            await userEvent.click(await within(inspector).findByRole("tab", { name: "Values" }));
+            return inspector;
+        };
+        const matched = async (inspector: HTMLElement): Promise<(string | null)[]> => {
+            const covers = await within(inspector).findByRole("group", { name: "Covers" });
+            return [...covers.querySelectorAll("[data-testid=data-row-value]")].map((v) => v.textContent);
+        };
+        const all = String(session.data.nodes().length);
+
+        // No row of the tree paints every node: the element's own defaults do.
+        assert.isTrue(session.styles.list().some((layer) => layer.selector.match === "everything"));
+        assert.include(await matched(await values()), all, "the defaults match every node");
+
+        // A row of the tree that paints every node: its own counts, and where its color shows.
+        const whole = await session.styles.add({
+            name: "Whole graph",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.color": "#0072B2" },
+        });
+        await session.styles.settled();
+        const inspector = await values();
+        assert.include(await matched(inspector), all);
+        await waitFor(() => {
+            assertPainted(session, inspector, whole);
+        });
+    });
+
+    it("a rerun that finds a new group says so under the run's groups", async () => {
+        const { session, store } = await open();
+        const { runId, layer } = await runLayer(session, "louvain");
+        // Two characters met only each other: a group the last run never saw.
+        await session.data.addNodes([{ id: "x1" }, { id: "x2" }]);
+        await session.data.addEdges([{ source: "x1", target: "x2" }]);
+        await session.runs.start("louvain", {}, { as: runId });
+        await session.styles.settled();
+        const realigned = session.styles.get(layer.id);
+        const fresh = (realigned?.unmatched ?? []).find((u) => u.code === "group.new");
+        assert.isDefined(fresh, "the rerun noted a new group");
+        const inspector = await openValues(store, layer.row ?? layer.id);
+        await within(inspector).findByText(/ is new since the last run$/);
+    });
 });
+
+/**
+ * A style tree row's name.
+ * @param session - the session.
+ * @param id - the row.
+ * @returns its name.
+ */
+function findName(session: GraphSession, id: string): string {
+    const walk = (rows: readonly { id: string; name: string; children: readonly unknown[] }[]): string | undefined => {
+        for (const row of rows) {
+            if (row.id === id) {
+                return row.name;
+            }
+            const found = walk(row.children as typeof rows);
+            if (found !== undefined) {
+                return found;
+            }
+        }
+        return undefined;
+    };
+    return walk(session.styles.tree()) ?? "";
+}

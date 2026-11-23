@@ -15,10 +15,15 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
-import { act, render, screen, waitFor, within } from "../../../test/test-utils";
+import { withoutFeatures } from "../../../test/features";
+import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { showKind } from "./kindTab";
+
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 /**
  * Les Miserables in the workspace with the starting rows.
@@ -175,37 +180,6 @@ describe("an unset color line shows no color until one is picked", () => {
         await waitFor(() => {
             assert.equal(colorOf(session, "Paint"), "#E4572E");
         });
-    });
-
-    it("a node's own Style tab over a red node: 'red' and Enter on the new line writes it", async () => {
-        const session = await openScene();
-        const [node, other] = session.data.nodes().map((n) => String(n.id));
-        await session.styles.add({
-            name: "Red",
-            target: "node",
-            // Two nodes: a layer that paints more than this node is not the node's own.
-            selector: { match: "ids", nodes: [node, other] },
-            set: { "node.color": "#FF0000" },
-        });
-        await session.styles.settled();
-        const before = JSON.stringify(session.styles.list());
-        await act(async () => {
-            await session.selection.apply({ nodes: [node] });
-        });
-        await userEvent.click(await screen.findByRole("tab", { name: "Style" }));
-        await screen.findByTestId("style-tab", {});
-        const line = await addLine("fill", "node.color", "Color");
-        const box = within(line).getByRole<HTMLInputElement>("textbox", { name: /^Node color(,|$)/ });
-        assertBlank(line, box);
-        await userEvent.keyboard("red{Enter}");
-        await waitFor(() => {
-            assert.notEqual(JSON.stringify(session.styles.list()), before, "red is written for the node");
-        });
-        const reds = session.styles.list().filter((layer) => {
-            const color = layer.set?.["node.color"];
-            return typeof color === "string" && color.toUpperCase() === "#FF0000";
-        });
-        assert.lengthOf(reds, 2, "the node's own red beside the Red layer");
     });
 
     it("the Shape list checks no shape while none is set", async () => {

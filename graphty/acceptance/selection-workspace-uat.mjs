@@ -1,13 +1,17 @@
 #!/usr/bin/env node
 /**
- * User acceptance test of the selection workspace (the `selection-workspace` feature): a pairwise matrix
+ * User acceptance test of the selection workspace: a pairwise matrix
  * of card kinds, verbs, starts, card shapes, entry points, datasets, edits and ways of leaving, plus named
  * scenarios for what the matrix cannot reach. It drives a served build with real clicks, drags and keys
  * and checks what a reader sees (the counts on the title bar and the cards, the table's rows and tints,
  * the drawing through graphty-element's public API, the layer or filter saved, the run list).
  *
  *   tools/with-browser.sh node graphty/acceptance/selection-workspace-uat.mjs --url <served url>
+ *   tools/with-browser.sh node graphty/acceptance/selection-workspace-uat.mjs --dist graphty/dist
+ *     --dist <dir>         serve this build on a loopback port instead of --url (what CI does)
  *     --only <text,text>   only the scenarios whose id or description holds one of these
+ *     --browser <name>     chromium, webkit (Playwright's WebKit, the Safari engine) or all (default all:
+ *                          every scenario in each, one browser after the other)
  *     --workers <n>        scenarios at once, each in its own browser context (default 3)
  *     --out <dir>          where a failed scenario's screenshot goes (default tmp/selection-workspace-uat)
  *     --list               print the matrix and run nothing
@@ -17,21 +21,25 @@
  * Except a difference), then the cards unioned. Exit 0 when every scenario passed, 1 when one failed.
  * See README.md beside this file.
  */
-import { mkdirSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync } from "node:fs";
+import { readFile } from "node:fs/promises";
+import { createServer } from "node:http";
+import { extname, join, normalize, resolve, sep } from "node:path";
 import { parseArgs } from "node:util";
 
-import { chromium } from "playwright";
+import { chromium, webkit } from "playwright";
 
 import { WAIT_GUARD_MS } from "../../tools/test-wait-guard.mjs";
 
 const { values: args } = parseArgs({
     options: {
         url: { type: "string" },
+        dist: { type: "string" },
         only: { type: "string" },
         workers: { type: "string", default: "3" },
         out: { type: "string", default: "tmp/selection-workspace-uat" },
         list: { type: "boolean", default: false },
+        browser: { type: "string", default: "all" },
     },
 });
 
@@ -496,13 +504,18 @@ class Visit {
         }
     }
 
+    // The header's Cancel: a step whose run is still computing shows a Cancel button of its own.
+    get cancelButton() {
+        return this.ws.locator(".sel-ws-head").getByRole("button", { name: /^Cancel/ });
+    }
+
     // Leaves with Cancel or Escape and checks nothing stayed.
     async cancel(how) {
         if (how === "escape") {
             await this.ws.locator(".sel-ws-head").click({ position: { x: 300, y: 8 } });
             await this.page.keyboard.press("Escape");
         } else {
-            await this.ws.getByRole("button", { name: /^Cancel/ }).click();
+            await this.cancelButton.click();
         }
         await this.ws.waitFor({ state: "detached" });
         // A layer that selected everything reads the same as one card with All and no step.
@@ -1020,7 +1033,7 @@ async function reopenSame(v) {
     await v.ws.waitFor();
     await v.check("reopen");
     await assertOrder(v, "reopen");
-    await v.ws.getByRole("button", { name: /^Cancel/ }).click();
+    await v.cancelButton.click();
     await v.ws.waitFor({ state: "detached" });
 }
 
@@ -1257,7 +1270,7 @@ const reopenOrder = async (page) => {
     if (ring !== null) {
         fail(`opening left focus, and its ring, on the drawing (${String(ring)})`);
     }
-    await v.ws.getByRole("button", { name: /^Cancel/ }).click();
+    await v.cancelButton.click();
 };
 
 // A workspace opened while the graph is still being framed leaves it framed.
@@ -1265,9 +1278,7 @@ const quickOpen = (how) => async (page) => {
     const v = await visit(page, "lesmis", "style-nodes");
     await v.pickFirst(0, "Degree");
     await v.step(0, 0).getByRole("textbox", { name: "Degree from, number" }).waitFor();
-    await (how === "done"
-        ? v.ws.getByRole("button", { name: "Done", exact: true }).click()
-        : v.ws.getByRole("button", { name: /^Cancel/ }).click());
+    await (how === "done" ? v.ws.getByRole("button", { name: "Done", exact: true }).click() : v.cancelButton.click());
     await v.ws.waitFor({ state: "detached" });
     const zoomed = await inPage(page, async () => {
         const element = document.querySelector("graphty-element");
@@ -1314,7 +1325,7 @@ const edgesOnCard = async (page) => {
     if (lone > 0) {
         fail("the card's groups became a lone (no value) row");
     }
-    await v.ws.getByRole("button", { name: /^Cancel/ }).click();
+    await v.cancelButton.click();
 };
 
 // Every key a card's menu shows does what it says on the card's grip.
@@ -1326,7 +1337,11 @@ const cardKeys = async (page) => {
         .card(0)
         .getByRole("button", { name: /^More for / })
         .click();
-    for (const key of ["F2", "Ctrl+D", "Ctrl+]", "Ctrl+[", "Del"]) {
+    // The app names Cmd and listens for it wherever the browser says it is on Apple's systems, as
+    // Playwright's WebKit does on Linux too; Playwright's ControlOrMeta follows the host instead.
+    const mac = await inPage(v.page, () => /Mac|iPhone|iPad/.test(navigator.userAgent));
+    const [said, mod] = mac ? ["Cmd", "Meta"] : ["Ctrl", "Control"];
+    for (const key of ["F2", `${said}+D`, `${said}+]`, `${said}+[`, "Del"]) {
         const shown = await v.page.getByRole("menu").innerText();
         if (!shown.includes(key)) {
             fail(`the card's menu shows no ${key}: ${shown.replaceAll("\n", " ")}`);
@@ -1335,7 +1350,7 @@ const cardKeys = async (page) => {
     await v.page.keyboard.press("Escape");
     const grip = (at) => v.card(at).locator(".cm-card-grip");
     await grip(1).focus();
-    await v.page.keyboard.press("ControlOrMeta+]");
+    await v.page.keyboard.press(`${mod}+]`);
     v.cards.unshift(v.cards.pop());
     await v.page.waitForFunction(
         (want) =>
@@ -1349,7 +1364,7 @@ const cardKeys = async (page) => {
     await v.card(0).getByRole("textbox").waitFor();
     await v.page.keyboard.press("Escape");
     await grip(0).focus();
-    await v.page.keyboard.press("ControlOrMeta+d");
+    await v.page.keyboard.press(`${mod}+d`);
     await v.ws.locator(".cm-card-list > .cm-list-card").nth(2).waitFor();
     await grip(1).focus();
     await v.page.keyboard.press("Delete");
@@ -1392,12 +1407,18 @@ const analyzeList = async (page) => {
     await panel.waitFor();
     await v.type(panel.getByLabel("Seed", { exact: true }), "7");
     await page.getByRole("button", { name: "Run Leiden" }).click();
-    await page.waitForFunction(() => {
+    // Waits for the run to end however it ends, so a run that fails says why instead of waiting forever.
+    const ended = await page.waitForFunction(() => {
         const s = document.querySelector("graphty-element").session;
-        return s.runs
-            .list()
-            .some((r) => r.algorithm === "leiden" && r.params.randomSeed === 7 && r.status === "succeeded");
+        const run = s.runs.list().find((r) => r.algorithm === "leiden" && r.params.randomSeed === 7);
+        return ["succeeded", "failed", "canceled", "removed"].includes(run?.status)
+            ? { status: run.status, error: run.error ? `${run.error.code}: ${run.error.message}` : "" }
+            : null;
     }, null);
+    const { status, error } = await ended.jsonValue();
+    if (status !== "succeeded") {
+        fail(`the Leiden run with seed 7 ended ${status}: ${error}`);
+    }
 };
 
 // Every popover closes on an outside click and leaves the workspace open.
@@ -1625,29 +1646,6 @@ const dataColumns = (verb) => async (page) => {
     }
     await v.leave("done");
     await reopenSame(v);
-};
-
-// With the feature off, Which nodes opens the old editor and no modal.
-const flagOff = async (page) => {
-    const v = new Visit(page, "karate", "style-nodes");
-    const url = new URL(args.url);
-    url.searchParams.delete("features");
-    await v.open(url.href);
-    await page.getByRole("button", { name: "Add a layer or a folder" }).click();
-    await page.getByRole("menuitem", { name: "Layer", exact: true }).click();
-    await page.getByRole("textbox", { name: "Layer name" }).waitFor();
-    await page.keyboard.press("Escape");
-    const edit = page.getByRole("button", { name: /^Style Nodes\.\.\./ });
-    await page.mouse.move(0, 0);
-    const opacity = await edit.evaluate((each) => getComputedStyle(each).opacity);
-    if (opacity !== "0") {
-        fail(`with the feature off Edit is drawn at rest (opacity ${opacity}): it stays a hover control`);
-    }
-    await edit.click({ force: true });
-    await page.locator(".sel-ws").waitFor();
-    if ((await page.locator(".sel-ws.sel-modal").count()) > 0) {
-        fail("the modal opened with the feature off");
-    }
 };
 
 // A picture of a scenario's end state, for the reader to look at, beside the failure shots.
@@ -1898,8 +1896,7 @@ const SCENARIOS = [
     ["drag: by the grip, up then down", dragBothWays],
     ["fold: adding a card folds the others and keeps ticks", addFolds],
     ["table: a Degree column, and no actions before a test", degreeColumn],
-    ["cancel: a cancelled visit leaves nothing, the next one works", cancelThenDone],
-    ["flag: off keeps the old editor", flagOff],
+    ["cancel: a canceled visit leaves nothing, the next one works", cancelThenDone],
     ["columns: category and number, Add", dataColumns("add")],
     ["columns: category and number, Keep", dataColumns("keep")],
     ["columns: category and number, Except", dataColumns("except")],
@@ -1925,7 +1922,7 @@ const scenarios = [
         words: `${row.entry} ${row.dataset} start:${row.start} ${row.shape} ${row.k1}+${row.k2} ${row.verb} ${row.edit} ${row.leave}`,
         run: (page) => walkEdgeRow(page, row),
     })),
-    ...SCENARIOS.map(([words, run], at) => ({ id: `s${String(at + 1).padStart(2, "0")}`, words, run })),
+    ...SCENARIOS.map(([words, run], at) => ({ id: `s${String(at + 1).padStart(2, "0")}`, words, run, motion: true })),
 ];
 
 // ------------------------------------------------------------------------------------------------
@@ -1941,62 +1938,126 @@ if (args.list) {
     );
     process.exit(0);
 }
+const TYPES = {
+    ".html": "text/html",
+    ".js": "text/javascript",
+    ".css": "text/css",
+    ".json": "application/json",
+    ".svg": "image/svg+xml",
+    ".wasm": "application/wasm",
+};
+
+// The build in --dist on a loopback port: a file when the path names one, else the app's page.
+async function serve(dist) {
+    const root = resolve(dist);
+    if (!existsSync(join(root, "index.html"))) {
+        console.error(`no built app at ${root}: run pnpm exec nx run graphty:build first`);
+        process.exit(2);
+    }
+    const http = createServer(async (req, res) => {
+        const url = new URL(req.url, "https://x");
+        const file = join(root, normalize(decodeURIComponent(url.pathname)).replace(/^[/\\]+/, ""));
+        if (file !== root && !file.startsWith(root + sep)) {
+            return res.writeHead(403).end();
+        }
+        const body = await readFile(file).catch(() => null);
+        if (body !== null) {
+            return res.writeHead(200, { "content-type": TYPES[extname(file)] ?? "application/octet-stream" }).end(body);
+        }
+        if (extname(file) !== "") {
+            return res.writeHead(404).end();
+        }
+        res.writeHead(200, { "content-type": "text/html" }).end(await readFile(join(root, "index.html")));
+    });
+    await new Promise((ok) => http.listen(0, "127.0.0.1", ok));
+    http.unref();
+    return `http://127.0.0.1:${String(http.address().port)}/`;
+}
+
+if (args.dist !== undefined) {
+    args.url = await serve(args.dist);
+}
 if (args.url === undefined) {
-    console.error("--url is required");
+    console.error("--url or --dist is required");
+    process.exit(2);
+}
+
+// WebKit is here because a slider defect only Safari showed passed every Chromium run (#8309).
+const ENGINES = {
+    chromium: () => chromium.launch({ args: ["--ignore-certificate-errors", "--use-gl=angle"] }),
+    webkit: () => webkit.launch(),
+};
+const engines = args.browser === "all" ? Object.keys(ENGINES) : [args.browser];
+if (!engines.every((name) => name in ENGINES)) {
+    console.error(`--browser must be chromium, webkit or all, not ${args.browser}`);
     process.exit(2);
 }
 
 const wanted = args.only?.split(",");
-const queue = scenarios.filter(
+const chosen = scenarios.filter(
     (each) => wanted === undefined || wanted.some((text) => each.id === text || each.words.includes(text)),
 );
 mkdirSync(args.out, { recursive: true });
-const browser = await chromium.launch({ args: ["--ignore-certificate-errors", "--use-gl=angle"] });
 const results = [];
 
-async function runOne(scenario) {
-    const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, ignoreHTTPSErrors: true });
+async function runOne(browser, engine, scenario) {
+    // A matrix row runs as a reader who prefers less motion, so the graph is drawn once its layout
+    // settles instead of every frame of the flight in: on a runner's software GPU that drawing was
+    // about half of each row's CPU (#5404). A row checks what a selection holds, which motion does
+    // not change; the named scenarios check how the controls and the camera respond, so they keep
+    // every transition.
+    const context = await browser.newContext({
+        viewport: { width: 1440, height: 900 },
+        ignoreHTTPSErrors: true,
+        reducedMotion: scenario.motion === true ? "no-preference" : "reduce",
+    });
     const page = await context.newPage();
     // Every wait waits on its condition; only the repository's one hang guard ends a wait that hangs.
     page.setDefaultTimeout(WAIT_GUARD_MS);
     const began = Date.now();
-    const result = { id: scenario.id, words: scenario.words, status: "pass", message: "" };
+    const result = { id: scenario.id, engine, words: scenario.words, status: "pass", message: "" };
     try {
         await scenario.run(page);
     } catch (error) {
         result.status = "FAIL";
         const where = /selection-workspace-uat\.mjs:(\d+)/.exec(String(error.stack).split("\n").slice(1).join("\n"));
         result.message = `${String(error.message).split("\n").slice(0, 2).join(" ").slice(0, 400)} (line ${where?.[1] ?? "?"})`;
-        result.shot = join(args.out, `${scenario.id}.png`);
+        result.shot = join(args.out, `${engine}-${scenario.id}.png`);
         await page.screenshot({ path: result.shot }).catch(() => undefined);
     }
     result.seconds = Math.round((Date.now() - began) / 1000);
     results.push(result);
-    console.log(`${result.status}  ${result.id}  ${String(result.seconds).padStart(3)}s  ${result.words}`);
+    console.log(`${result.status}  ${engine}  ${result.id}  ${String(result.seconds).padStart(3)}s  ${result.words}`);
     if (result.message !== "") {
         console.log(`      ${result.message}`);
     }
     await context.close();
 }
 
-await Promise.all(
-    Array.from({ length: Number(args.workers) }, async () => {
-        for (let next = queue.shift(); next !== undefined; next = queue.shift()) {
-            await runOne(next);
-        }
-    }),
-);
-await browser.close();
+for (const engine of engines) {
+    const browser = await ENGINES[engine]();
+    const queue = [...chosen];
+    await Promise.all(
+        Array.from({ length: Number(args.workers) }, async () => {
+            for (let next = queue.shift(); next !== undefined; next = queue.shift()) {
+                await runOne(browser, engine, next);
+            }
+        }),
+    );
+    await browser.close();
+}
 
 const failed = results.filter((each) => each.status === "FAIL");
-console.log(`\n${"id".padEnd(6)}${"result".padEnd(8)}${"secs".padEnd(6)}scenario`);
-for (const each of [...results].sort((a, b) => a.id.localeCompare(b.id))) {
-    console.log(`${each.id.padEnd(6)}${each.status.padEnd(8)}${String(each.seconds).padEnd(6)}${each.words}`);
+console.log(`\n${"browser".padEnd(10)}${"id".padEnd(6)}${"result".padEnd(8)}${"secs".padEnd(6)}scenario`);
+for (const each of [...results].sort((a, b) => a.engine.localeCompare(b.engine) || a.id.localeCompare(b.id))) {
+    console.log(
+        `${each.engine.padEnd(10)}${each.id.padEnd(6)}${each.status.padEnd(8)}${String(each.seconds).padEnd(6)}${each.words}`,
+    );
 }
 console.log(
     `\n${String(results.length - failed.length)} passed, ${String(failed.length)} failed of ${String(results.length)}`,
 );
 for (const each of failed) {
-    console.log(`${each.id}: ${each.message}\n    ${each.shot}`);
+    console.log(`${each.engine} ${each.id}: ${each.message}\n    ${each.shot}`);
 }
 process.exit(failed.length === 0 ? 0 : 1);

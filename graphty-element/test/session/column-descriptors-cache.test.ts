@@ -3,18 +3,17 @@
  * `layout.locationColumns()` -- walk the graph's values once per change to the data, and never
  * again when only the view mask moves (issue #4386): a filter, a time window or a play frame moves
  * the session's input tick but no column, type or value.
+ *
+ * `data.attributes()` is the exception for a filter: while the working graph is on, its figures
+ * (completeness, range, distinct values) are measured over what is shown (design/working-graph
+ * decision 78), so a filter change measures them once for the new view and keeps them. The time
+ * window is not part of the working graph, so moving it measures nothing.
  */
 
-import { assert, beforeAll, describe, it } from "vitest";
+import { assert, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../session";
-import { setDefaultFeatures } from "../../src/features/resolve";
 import { assertScalesLinearly, visitsDuring } from "../helpers/cost";
-
-// The timeline is an experiment: this file's sessions switch it on.
-beforeAll(() => {
-    setDefaultFeatures(["timeline"]);
-});
 
 /**
  * A session over nodes carrying a date, a latitude and longitude pair and a group number.
@@ -36,6 +35,21 @@ async function sessionOf(size: number): Promise<GraphSession> {
     return session;
 }
 
+/**
+ * Move a view mask without changing the data: the time window for `data.attributes()`, whose
+ * figures follow the filter, and a filter for the reads that never do.
+ * @param name - The read.
+ * @param session - The session.
+ */
+async function moveMask(name: string, session: GraphSession): Promise<void> {
+    if (name === "data.attributes") {
+        await session.visibility.setWindow({ attribute: "data.group", from: 0, to: 3 });
+        return;
+    }
+
+    await session.visibility.set({ kind: "range", attribute: "data.group", min: 2 });
+}
+
 /** Each column read, by name. */
 const READS: Readonly<Record<string, (session: GraphSession) => unknown>> = {
     "data.attributes": (session) => session.data.attributes(),
@@ -50,7 +64,7 @@ describe("column reads are kept until the data changes", () => {
                 async (size) => {
                     const session = await sessionOf(size);
                     const before = read(session);
-                    await session.visibility.set({ kind: "range", attribute: "data.group", min: 2 });
+                    await moveMask(name, session);
                     let after: unknown;
                     const visits = await visitsDuring(() => {
                         after = read(session);
@@ -100,5 +114,27 @@ describe("column reads are kept until the data changes", () => {
             "string",
         );
         session.dispose();
+    });
+});
+
+describe("data.attributes under a filter", () => {
+    it("measures the shown rows once per filter state, then keeps the answer", async () => {
+        await assertScalesLinearly(
+            async (size) => {
+                const session = await sessionOf(size);
+                await session.visibility.set({ kind: "range", attribute: "data.group", min: 2 });
+                const first = session.data.attributes();
+                let again: unknown;
+                const visits = await visitsDuring(() => {
+                    again = session.data.attributes();
+                });
+                assert.strictEqual(again, first, "kept for the filter state");
+                const group = first.find(({ name }) => name === "group");
+                assert.strictEqual(group?.min, 2, "measured over what is shown");
+                session.dispose();
+                return visits;
+            },
+            { sizes: [200, 800], growth: "constant", counter: "elements visited by data.attributes on a second read" },
+        );
     });
 });

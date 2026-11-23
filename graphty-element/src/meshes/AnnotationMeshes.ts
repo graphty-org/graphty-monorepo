@@ -22,7 +22,7 @@ import type {
     TextAnnotation,
 } from "@graphty/graph-io/styles";
 
-import { type DrawnAnnotation, drawnAnnotationsOf } from "../session/styles/fileStyles/annotations";
+import { type DrawnAnnotation, drawnAnnotationsOf } from "../session/annotations";
 import { PREMULTIPLIED_ALPHA_MODE, uploadPremultiplied } from "./LabelBatch";
 import { fontFamilies, noteLabelFont } from "./labelFonts";
 

@@ -97,7 +97,7 @@ export function scriptedLiveEngine(exchanges: readonly LiveExchange[]): FakeEngi
     const engine = new FakeEngine();
     engine.openLive = (options, signal) => {
         if (signal.aborted) {
-            return Promise.resolve({ code: "AI_CANCELLED", params: {} });
+            return Promise.resolve({ code: "AI_CANCELED", params: {} });
         }
 
         const connection = new ScriptedLiveConnection(options, script);

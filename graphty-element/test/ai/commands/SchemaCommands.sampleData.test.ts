@@ -8,15 +8,15 @@ import { assert, beforeEach, describe, it } from "vitest";
 import { sampleData } from "../../../src/ai/commands/SchemaCommands";
 import type { CommandContext } from "../../../src/ai/commands/types";
 import type { Graph } from "../../../src/Graph";
-import { createMockContext, createTestGraph } from "../../helpers/test-graph";
+import { createCommandContext, createCommandGraph } from "../../helpers/session-graph";
 
 describe("sampleData command", () => {
     let graph: Graph;
     let context: CommandContext;
 
-    beforeEach(() => {
-        graph = createTestGraph({ nodes: 25, edges: 40 });
-        context = createMockContext(graph);
+    beforeEach(async () => {
+        graph = await createCommandGraph({ nodeCount: 25, edgeCount: 40 });
+        context = createCommandContext(graph);
     });
 
     describe("basic functionality", () => {
@@ -121,14 +121,12 @@ describe("sampleData command", () => {
     describe("value truncation", () => {
         it("truncates long string values in output", async () => {
             // Create a graph with long string values
-            const graphWithLongStrings = createTestGraph({ nodes: 5, edges: 5 });
-            const dataManager = graphWithLongStrings.getDataManager();
-
-            // Add a node with a very long string value
-            const nodes = Array.from(dataManager.nodes.values());
-            if (nodes[0]) {
-                nodes[0].data.longDescription = "x".repeat(500);
-            }
+            // The first node carries a very long string value
+            const graphWithLongStrings = await createCommandGraph({
+                nodeCount: 5,
+                edgeCount: 5,
+                nodeData: (i) => (i === 0 ? { longDescription: "x".repeat(500) } : {}),
+            });
 
             const result = await sampleData.execute(graphWithLongStrings, { target: "nodes", count: 5 }, context);
             assert.strictEqual(result.success, true);
@@ -137,10 +135,9 @@ describe("sampleData command", () => {
             // The truncation should happen in the data representation
             const data = result.data as { nodes: { data: Record<string, unknown> }[] };
             const nodeWithLong = data.nodes.find((n) => n.data.longDescription);
-            if (nodeWithLong) {
-                const desc = nodeWithLong.data.longDescription as string;
-                assert.ok(desc.length <= 103, "Long string should be truncated (100 chars + '...')");
-            }
+            assert.ok(nodeWithLong, "the node with the long string is sampled");
+            const desc = nodeWithLong.data.longDescription as string;
+            assert.ok(desc.length <= 103, "Long string should be truncated (100 chars + '...')");
         });
     });
 
@@ -165,7 +162,7 @@ describe("sampleData command", () => {
 
     describe("edge cases", () => {
         it("handles empty graph", async () => {
-            const emptyGraph = createTestGraph({ nodes: 0, edges: 0 });
+            const emptyGraph = await createCommandGraph({ nodeCount: 0, edgeCount: 0 });
             const result = await sampleData.execute(emptyGraph, {}, context);
             assert.strictEqual(result.success, true);
             const data = result.data as { nodes: unknown[]; edges: unknown[] };

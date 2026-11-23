@@ -1,28 +1,20 @@
-import {
-    type EdgeMask,
-    type F32,
-    type GraphSnapshot,
-    INVALID_INDEX,
-    makeMask,
-    maskSet,
-    maskTest,
-    type NodeMask,
-    type U32,
-} from "@graphty/graph-format";
+import { type F32, type GraphSnapshot, makeMask, maskSet, maskTest, type NodeMask } from "@graphty/graph-format";
 import type { LayoutResult } from "@graphty/layout";
 
 import type { AuthoredLayoutDescriptor } from "../catalog/types";
-import type { ElementPositions } from "../data/positions";
-import { readSeedPosition } from "../data/seedPosition";
+import type { RankSet } from "../data/groups";
+import { type PositionAxes, readSeedPosition } from "../data/seedPosition";
 import type { Edge } from "../Edge";
 import { GraphtyError } from "../errors";
 import type { GraphtyWarningCode } from "../errors/codes";
 import type { Node } from "../Node";
+import type { WorkingSnapshot } from "../session/working/graphs";
 import {
     type EdgePosition,
     layoutDim,
     LayoutEngine,
     type Position,
+    type RowPositions,
     simpleLayoutInternals,
     StaticLayoutEngine,
 } from "./LayoutEngine";
@@ -77,7 +69,7 @@ export interface SnapshotLayoutInput {
     /**
      * When the graph only grew since the last arrangement: the new rows. Every other row is kept
      * where it is (it is in `fixed`), so a layout that can start from `initial` places the newcomers
-     * among their neighbours. Null for a fresh arrangement.
+     * among their neighbors. Null for a fresh arrangement.
      */
     readonly added: NodeMask | null;
     /**
@@ -146,10 +138,16 @@ export type SnapshotLayoutAnswer = F32 | Promise<F32>;
 /** A layout on the snapshot contract: a descriptor, and a function from the graph to coordinates. */
 export interface SnapshotLayoutRegistration {
     /**
-     * What the catalogue publishes. `honoursWeights` and `scoped` are declared here, since there is
-     * no class to carry them as statics.
+     * What the catalog publishes. `honorsWeights` and `scoped` are declared here, since there is
+     * no class to carry them as statics. `honoursWeights` is the deprecated British spelling of
+     * `honorsWeights`, still read (and preferred) when set, and removed in the next major.
      */
-    readonly descriptor: AuthoredLayoutDescriptor & { readonly honoursWeights?: boolean; readonly scoped?: boolean };
+    readonly descriptor: AuthoredLayoutDescriptor & {
+        readonly honorsWeights?: boolean;
+        /** @deprecated Use `honorsWeights`. Removed in the next major. */
+        readonly honoursWeights?: boolean;
+        readonly scoped?: boolean;
+    };
     /** Arrange the graph. */
     readonly compute: (input: SnapshotLayoutInput) => SnapshotLayoutAnswer;
 }
@@ -178,10 +176,17 @@ interface SnapshotLayoutHost {
      * null before it is measured.
      */
     rowHalfExtents?(row: number): Readonly<{ x: number; y: number; z: number }> | null;
+    /**
+     * How far past {@link rowHalfExtents} a row drawn with no `Node` reaches with its border, as the row table measured
+     * it; 0 before it is measured.
+     */
+    rowBorderReach?(row: number): number;
     /** The element's `data.knownFields.positionScale`; undefined before the element is attached. */
     positionScale?(): number | undefined;
     /** The element's `data.knownFields`; undefined before the element is attached. */
-    knownFields?(): LocationDesignation | undefined;
+    knownFields?(): (LocationDesignation & PositionAxes) | undefined;
+    /** The data manager's rank subgraphs, which a graph whose rows have no `Node` (renderPath "batched") reaches no other way. */
+    rankSets?(): readonly RankSet[];
 }
 
 /** The element's reach into a snapshot engine. No entry point exports it. */
@@ -231,12 +236,6 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
     #ready: { readonly stored: GraphSnapshot; readonly positions: F32 } | null = null;
     /** Whether an answer has been published. */
     #published = false;
-    /**
-     * The part of the graph the run in progress arranges when the layout leaves rows out (see
-     * `LayoutEngine.setLeftOut`): `graph`, `sourceGraph` and `followerGroups` answer in its rows
-     * from the moment `compute` is called until the next run starts.
-     */
-    #part: KeptPart | null = null;
 
     /** How many coordinates a row has, in the input and in the answer. */
     protected abstract readonly dimensions: 2 | 3;
@@ -262,12 +261,11 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
     /** Run the layout, or publish the asynchronous answer that has arrived for this graph. */
     doLayout(): void {
         this.stale = false;
-        this.#part = null;
         const stored = this.sourceGraph;
         // The undirected graph has the stored node rows. It is read only by a layout that reads
         // it, so the fixed layout never makes the graph undirected.
         const n = stored.nodeCount;
-        const graph = (): GraphSnapshot => super.graph;
+        const graph = (): WorkingSnapshot => super.graph;
 
         const ready = this.#ready;
         this.#ready = null;
@@ -279,7 +277,7 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
 
         this.#abort();
         const controller = new AbortController();
-        const answer = this.#computeKept(this.#input(graph, stored, controller));
+        const answer = this.compute(this.#input(graph, stored, controller));
         if (!(answer instanceof Promise)) {
             this.result = this.#resultOf(answer, n);
             this.#published = true;
@@ -317,111 +315,6 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
         );
     }
 
-    /**
-     * The graph being arranged; while a run that leaves rows out is computing, only the rows it lays out.
-     * @returns the undirected graph
-     */
-    protected override get graph(): GraphSnapshot {
-        return this.#part?.input.graph ?? super.graph;
-    }
-
-    /**
-     * The graph being arranged as it is stored; see {@link SnapshotLayoutEngine.graph}.
-     * @returns the stored graph
-     */
-    protected override get sourceGraph(): GraphSnapshot {
-        return this.#part?.input.stored ?? super.sourceGraph;
-    }
-
-    /**
-     * The groups following their members, in the rows of the graph being arranged: a group or a
-     * member the layout leaves out is not in it.
-     * @returns the groups by row
-     */
-    protected override get followerGroups(): ReadonlyMap<number, readonly number[]> {
-        const groups = super.followerGroups;
-        const part = this.#part;
-        if (part === null) {
-            return groups;
-        }
-
-        const out = new Map<number, readonly number[]>();
-        for (const [row, members] of groups) {
-            const at = part.remap[row];
-            if (at !== INVALID_INDEX) {
-                out.set(
-                    at,
-                    members.map((member) => part.remap[member]).filter((member) => member !== INVALID_INDEX),
-                );
-            }
-        }
-
-        return out;
-    }
-
-    /**
-     * Compute the answer, over only the rows the layout keeps when it leaves any out: those rows
-     * are handed to the layout as a graph of their own, so a left-out node takes no slot and pulls
-     * on nothing, and the answer is spread back to the element's rows with the left-out rows NaN,
-     * which leaves them where they are.
-     * @param input - the input over every row
-     * @returns the answer over every row
-     */
-    #computeKept(input: SnapshotLayoutInput): SnapshotLayoutAnswer {
-        const part = this.#keptPartOf(input);
-        if (part === null) {
-            return this.compute(input);
-        }
-
-        this.#part = part;
-        const answer = this.compute(part.input);
-        const spread = (positions: F32): F32 => spreadRows(positions, part.origin, input);
-        return answer instanceof Promise ? answer.then(spread) : spread(answer);
-    }
-
-    /**
-     * The part of an input the layout keeps, when it leaves rows or edges out.
-     * @param input - the input over every row
-     * @returns the part, or null when it keeps everything
-     */
-    #keptPartOf(input: SnapshotLayoutInput): KeptPart | null {
-        const rows = this.keptRows(input.stored.nodeCount);
-        const edges = this.leavesEdgesOut ? this.keptEdges(input.graph) : null;
-        if (rows === null && edges === null) {
-            return null;
-        }
-
-        return keptPart(input, rows ?? makeMask(input.stored.nodeCount, true), {
-            graph: edges,
-            stored: edges === null ? null : this.keptEdges(input.stored),
-        });
-    }
-
-    /**
-     * Read something about the graph being arranged in the part the layout keeps, outside a run:
-     * what a run would have arranged had it run now (see `LayoutEngine.setLeftOut`). Inside a run,
-     * or when the layout keeps everything, `graph` already answers that.
-     * @param read - what to read, through `graph`, `sourceGraph` and `_nodes`
-     * @returns what it read
-     */
-    protected inKeptPart<T>(read: () => T): T {
-        if (this.#part !== null) {
-            return read();
-        }
-
-        const part = this.#keptPartOf(this.#input(() => this.graph, this.sourceGraph, new AbortController()));
-        if (part === null) {
-            return read();
-        }
-
-        this.#part = part;
-        try {
-            return read();
-        } finally {
-            this.#part = null;
-        }
-    }
-
     /** An emptied graph has nothing to arrange, so an answer still being computed for it is called off. */
     protected override refresh(): void {
         if (this.stale && simpleLayoutInternals.empty(this)) {
@@ -430,6 +323,11 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
         }
 
         super.refresh();
+        // Published, and the base class's column keeps the answer in scene units: the answer as
+        // computed is read only by the next refresh, so a layout that has finished holds one copy
+        // of its coordinates. (A third party's `SimpleLayoutEngine` keeps `result`, which its
+        // documented contract lets it read.)
+        this.result = null;
     }
 
     /**
@@ -525,7 +423,7 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
      * @param controller - the run's abort controller
      * @returns the input
      */
-    #input(graph: () => GraphSnapshot, stored: GraphSnapshot, controller: AbortController): SnapshotLayoutInput {
+    #input(graph: () => WorkingSnapshot, stored: WorkingSnapshot, controller: AbortController): SnapshotLayoutInput {
         const n = stored.nodeCount;
         const dim = this.dimensions;
         const positions = simpleLayoutInternals.positions(this);
@@ -533,12 +431,14 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
 
         const kept = simpleLayoutInternals.kept(this);
         // A scope's hold, or a group that follows its members: either way the row is not arranged.
+        // The hold is in the element's rows; a working graph is arranged in its own.
         const held = this.holdsAny;
+        const origin = this.#originFor(stored);
         const scope = held ? makeMask(n) : null;
         const rows = makeMask(n);
         const fixedAt = new Float32Array(dim * n).fill(Number.NaN);
         for (let row = 0; row < n; row++) {
-            const isHeld = held && this.isHeld(row);
+            const isHeld = held && this.isHeld(origin?.[row] ?? row);
             if (scope !== null && !isHeld) {
                 maskSet(scope, row, true);
             }
@@ -599,9 +499,10 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
             },
             dataPositions: () => {
                 const out = new Float32Array(dim * n).fill(Number.NaN);
+                const axes = this.knownFields();
                 for (let row = 0; row < n; row++) {
                     const data = dataOf(row);
-                    const seed = data === undefined ? null : readSeedPosition(data);
+                    const seed = data === undefined ? null : readSeedPosition(data, axes);
                     if (seed !== null) {
                         const scale =
                             this.#host?.positionScale?.() ??
@@ -617,24 +518,27 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
             // The sizes as the nodes are about to be drawn: paint that has arrived is drawn first.
             // ponytail: a style pass still running is not waited for; its sizes are read as drawn
             // now. Wait for it here if a layout is ever seen starting mid-pass.
-            // A row drawn with no `Node` (renderPath "batched") is read from the row table, as a batched `Node` is.
+            // Under renderPath "batched" every measured row is read from the row table, `Node` or none, border included as
+            // `Node.layoutRadius` counts it: whether a row has its `Node` when a layout reads the sizes is no fixed point
+            // in a load, and two answers (one without the border, one in doubles) had Graphviz route round two sizes.
+            // A border drawn in screen pixels is left out, as `layoutRadius` leaves it out (`RowTable.extentOf`).
             nodeSizes: () => {
                 this.#host?.drawPaint();
                 return Float32Array.from({ length: n }, (_, row) => {
-                    const node = nodes[row];
-                    if (node !== undefined) {
-                        return 2 * node.layoutRadius;
+                    const half = this.#host?.rowHalfExtents?.(row);
+                    if (half) {
+                        return 2 * (Math.max(half.x, half.y, half.z) + (this.#host?.rowBorderReach?.(row) ?? 0));
                     }
 
-                    const half = this.#host?.rowHalfExtents?.(row);
-                    return half ? 2 * Math.max(half.x, half.y, half.z) : Number.NaN;
+                    const node = nodes[row];
+                    return node === undefined ? Number.NaN : 2 * node.layoutRadius;
                 });
             },
             nodeExtents: () => {
                 this.#host?.drawPaint();
                 const out = new Float32Array(2 * n).fill(Number.NaN);
                 for (let row = 0; row < n; row++) {
-                    const half = nodes[row]?.drawnHalfExtents ?? this.#host?.rowHalfExtents?.(row);
+                    const half = this.#host?.rowHalfExtents?.(row) ?? nodes[row]?.drawnHalfExtents;
                     if (half) {
                         out[2 * row] = 2 * half.x;
                         out[2 * row + 1] = 2 * half.y;
@@ -657,12 +561,22 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
     }
 
     /**
+     * The element row of each row of the graph being arranged, when it is a working graph's.
+     * @param stored - The graph being arranged, as stored.
+     * @returns View row -> element row, or null when the rows are the element's own.
+     */
+    #originFor(stored: GraphSnapshot): Uint32Array | null {
+        const view = this.shownView;
+        return view?.snapshot === stored ? view.nodeOrigin : null;
+    }
+
+    /**
      * Every row's coordinates in the element's array, `dimensions` per row.
      * @param positions - the array
      * @param n - the number of rows
      * @returns the coordinates
      */
-    #current(positions: ElementPositions, n: number): F32 {
+    #current(positions: RowPositions, n: number): F32 {
         const dim = this.dimensions;
         const out = new Float32Array(dim * n).fill(Number.NaN);
         const at = { x: 0, y: 0, z: 0 };
@@ -701,8 +615,31 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
      * path) still reads what was designated; else through the first `Node`, for an engine the element did not connect.
      * @returns The fields, or undefined before the element is attached.
      */
-    protected knownFields(): LocationDesignation | undefined {
+    protected knownFields(): (LocationDesignation & PositionAxes) | undefined {
         return this.#host?.knownFields?.() ?? this._nodes[0]?.parentGraph?.getStyles?.().config.data.knownFields;
+    }
+
+    /**
+     * The element's `data.knownFields.positionScale`, which `dataPositions` multiplies by.
+     * @returns The scale, 1 before the element is attached.
+     */
+    protected positionScale(): number {
+        return (
+            this.#host?.positionScale?.() ??
+            this._nodes[0]?.parentGraph?.getStyles?.().config.data.knownFields.positionScale ??
+            1
+        );
+    }
+
+    /**
+     * The data manager's rank subgraphs: from the element, so a graph whose rows have no `Node` (the batched path)
+     * still reads them; else through the first `Node`, for an engine the element did not connect.
+     * @returns The rank sets; none before the element is attached.
+     */
+    protected rankSets(): readonly RankSet[] {
+        const graph: { getDataManager?: () => { readonly rankSets: readonly RankSet[] } } | undefined =
+            this._nodes[0]?.parentGraph;
+        return this.#host?.rankSets?.() ?? graph?.getDataManager?.().rankSets ?? [];
     }
 
     #nodesByRow(n: number): (Node | undefined)[] {
@@ -720,119 +657,21 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
     }
 }
 
-/** The rows a run that leaves rows out arranges, as their own input. */
-interface KeptPart {
-    /** The input over the kept rows only. */
-    readonly input: SnapshotLayoutInput;
-    /** Each kept row's row in the whole graph. */
-    readonly origin: U32;
-    /** Each row of the whole graph's kept row, or `INVALID_INDEX` for a row left out. */
-    readonly remap: U32;
-}
-
-/**
- * The input over only the kept rows and edges: the induced subgraph of the kept rows less the
- * edges left out, and every per-row array and mask gathered to its rows.
- * @param input - the input over every row
- * @param kept - the rows to keep
- * @param edges - the edges to keep, of `input.graph` and of `input.stored`; null keeps every edge
- * @param edges.graph - those of `input.graph`
- * @param edges.stored - those of `input.stored`
- * @returns the part
- */
-function keptPart(
-    input: SnapshotLayoutInput,
-    kept: NodeMask,
-    edges: { readonly graph: EdgeMask | null; readonly stored: EdgeMask | null },
-): KeptPart {
-    const withEdges = (graph: GraphSnapshot, mask: EdgeMask | null): GraphSnapshot =>
-        mask === null ? graph : graph.filterEdges(mask).snapshot;
-    const derived = withEdges(input.graph, edges.graph).inducedSubgraph({ mask: kept });
-    const n = input.graph.nodeCount;
-    const origin = derived.nodeOrigin ?? Uint32Array.from({ length: n }, (_, row) => row);
-    const remap = derived.nodeRemap ?? origin;
-
-    const m = origin.length;
-    const dim = input.dimensions;
-    const rows = (all: F32, per: number): F32 => {
-        const out = new Float32Array(per * m);
-        origin.forEach((from, row) => {
-            out.set(all.subarray(per * from, per * from + per), per * row);
-        });
-        return out;
-    };
-    const mask = (all: NodeMask): NodeMask => {
-        const out = makeMask(m);
-        origin.forEach((from, row) => {
-            maskSet(out, row, maskTest(all, from));
-        });
-        return out;
-    };
-    // The left-out rows were the only rows outside the scope when every kept row is in it.
-    const scope = input.scope === null ? null : mask(input.scope);
-    const whole = scope !== null && origin.every((_from, row) => maskTest(scope, row));
-
-    return {
-        origin,
-        remap,
-        input: {
-            ...input,
-            graph: derived.snapshot,
-            stored: withEdges(input.stored, edges.stored).inducedSubgraph({ mask: kept }).snapshot,
-            scope: whole ? null : scope,
-            fixed: { rows: mask(input.fixed.rows), positions: rows(input.fixed.positions, dim) },
-            initial: rows(input.initial, dim),
-            added: input.added === null ? null : mask(input.added),
-            column: (optionName) => {
-                const all = input.column(optionName);
-                return all === null ? null : Array.from(origin, (from) => all[from]);
-            },
-            dataPositions: () => rows(input.dataPositions(), dim),
-            ...(input.nodeSizes === undefined
-                ? {}
-                : { nodeSizes: () => rows(input.nodeSizes?.() ?? new Float32Array(0), 1) }),
-            ...(input.nodeExtents === undefined
-                ? {}
-                : { nodeExtents: () => rows(input.nodeExtents?.() ?? new Float32Array(0), 2) }),
-        },
-    };
-}
-
-/**
- * Spread an answer over the kept rows back to every row: a left-out row is NaN, which places nothing.
- * @param positions - the answer, `input.dimensions` per kept row
- * @param origin - each kept row's row in the whole graph
- * @param input - the input over every row
- * @returns the answer over every row; `positions` itself when it is not the kept rows' length,
- *     so the length check refuses it as it would any malformed answer
- */
-function spreadRows(positions: F32, origin: U32, input: SnapshotLayoutInput): F32 {
-    const dim = input.dimensions;
-    if (!(positions instanceof Float32Array) || positions.length !== dim * origin.length) {
-        return positions;
-    }
-
-    const out = new Float32Array(dim * input.graph.nodeCount).fill(Number.NaN);
-    origin.forEach((to, row) => {
-        out.set(positions.subarray(dim * row, dim * row + dim), dim * to);
-    });
-    return out;
-}
-
 /**
  * Register a layout on the snapshot contract: the element builds its engine from the
- * registration, publishes the descriptor to the catalogue and answers `setLayout(descriptor.id)`.
+ * registration, publishes the descriptor to the catalog and answers `setLayout(descriptor.id)`.
  * @param registration - the descriptor and the compute function
  * @throws what `LayoutEngine.register` throws for a missing, mismatched or taken name
  */
 export function registerSnapshotLayout(registration: SnapshotLayoutRegistration): void {
-    const { honoursWeights = false, scoped = false, ...descriptor } = registration.descriptor;
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- reading the alias is what keeps old registrations working
+    const { honorsWeights = false, honoursWeights, scoped = false, ...descriptor } = registration.descriptor;
     const { compute } = registration;
 
     class RegisteredSnapshotLayout extends SnapshotLayoutEngine {
         static override readonly type = descriptor.id;
         static readonly maxDimensions = descriptor.maxDimensions;
-        static override readonly honoursWeights = honoursWeights;
+        static override readonly honorsWeights = honoursWeights ?? honorsWeights;
         static override readonly scoped = scoped;
         static override readonly descriptor: AuthoredLayoutDescriptor = descriptor;
 

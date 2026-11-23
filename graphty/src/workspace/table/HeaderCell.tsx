@@ -64,7 +64,7 @@ export function HeaderWarning({
     return (
         <HoverCard openDelay={100} closeDelay={250} position="bottom-start" shadow="md">
             <HoverCard.Target>
-                <span // NOSONAR(S6819): a glyph inside a hover target, named by aria-label; an <img> cannot hold the icon component
+                <span // eslint-disable-line jsx-a11y/prefer-tag-over-role -- a glyph inside a hover target, named by aria-label; an <img> cannot hold the icon component
                     className="ws-th-warning"
                     role="img"
                     aria-label={`Issues in ${header}`}

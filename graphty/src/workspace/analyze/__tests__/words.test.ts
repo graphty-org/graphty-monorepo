@@ -4,6 +4,7 @@ import { assert, describe, it } from "vitest";
 
 import { runName } from "../../runWords";
 import {
+    ALGORITHM_DESCRIPTIONS,
     costLine,
     groupAlgorithms,
     HEADINGS,
@@ -253,6 +254,18 @@ describe("the Analyze popover's words", () => {
         assert.equal(highlightEntry("path"), "On the path");
         for (const shape of RESULT_SHAPES) {
             assert.notMatch(highlightEntry(shape), /route|\(/i);
+        }
+    });
+});
+
+describe("the Find list's line under each algorithm", () => {
+    it("is the app's own, keyed by descriptionId, and reads as the element's catalog did", () => {
+        for (const descriptor of BUILT_IN_ALGORITHMS) {
+            assert.strictEqual(
+                ALGORITHM_DESCRIPTIONS[descriptor.descriptionId ?? ""],
+                descriptor.description,
+                descriptor.key,
+            );
         }
     });
 });

@@ -7,10 +7,12 @@ import {
     defineRegistration,
     type SourceRowCommand,
 } from "../commands/registry";
+import { sourceStepsOn } from "../features";
+import { openRemove } from "../source-steps/steps";
 import type { WorkspaceStore } from "../state/store";
 import { panelsInView } from "../time/timeActions";
 import { openFilterDraft, selectRule } from "./filterCards";
-import { remap, sourceName } from "./words";
+import { sourceName } from "./words";
 
 /** One network load, as `data.loads()` records it. */
 type LoadRecord = ReturnType<GraphSession["data"]["loads"]>[number];
@@ -52,7 +54,7 @@ export async function pickEnd(
     workspace.set({ ends });
     if (ends.source !== null && ends.target !== null) {
         await session.data.reloadSource(load.key, {
-            mapping: remap(load, "nodes", { rowsAre: "edges", source: ends.source, target: ends.target }),
+            mapping: { rowsAre: "edges", source: ends.source, target: ends.target },
         });
         workspace.set({ ends: null });
     }
@@ -101,6 +103,30 @@ async function attempt(
  */
 function nodesOf(session: GraphSession, key: LoadedSource["key"]): number {
     return session.data.sources().find((each) => each.key === key)?.counts.nodes ?? 0;
+}
+
+/**
+ * Remove with no step card: takes the source out at once, one undo step, and names the sources
+ * joined to it that went with it.
+ * @param ctx - the command context.
+ * @param source - the source.
+ * @returns settles once removed or refused.
+ */
+function removeNow(ctx: CommandContext, source: LoadedSource): Promise<void> {
+    return attempt(
+        ctx,
+        async (session) => {
+            const sources = session.data.sources();
+            const { alsoRemoved } = await session.data.removeSource(source.key);
+            const names = sources.filter((each) => alsoRemoved.includes(each.key)).map(sourceName);
+            if (names.length > 0) {
+                ctx.workspace.set({
+                    notice: { message: `Also removed what was joined to it: ${names.join(", ")}` },
+                });
+            }
+        },
+        "Not removed",
+    );
 }
 
 /** The Data place's own Sources row commands; other packages add theirs by registering more. */
@@ -164,27 +190,15 @@ const SOURCE_ROW_COMMANDS: readonly SourceRowCommand[] = [
         label: "Remove",
         order: 90,
         run: (ctx, source) =>
-            attempt(
-                ctx,
-                async (session) => {
-                    const sources = session.data.sources();
-                    const { alsoRemoved } = await session.data.removeSource(source.key);
-                    const names = sources.filter((each) => alsoRemoved.includes(each.key)).map(sourceName);
-                    if (names.length > 0) {
-                        ctx.workspace.set({
-                            notice: { message: `Also removed what was joined to it: ${names.join(", ")}` },
-                        });
-                    }
-                },
-                "Not removed",
-            ),
+            // Under the source-steps experiment Remove opens the step card on a draft holding it; a
+            // source no step reads (one a file saved without the experiment brought in) is removed
+            // as before.
+            ctx.session !== null && sourceStepsOn(ctx.session)
+                ? openRemove(ctx.workspace, ctx.session, { source: source.key }, () => removeNow(ctx, source))
+                : removeNow(ctx, source),
     },
 ];
 
-/**
- * The Data place package's registration: its Sources row commands. Its Fields rows act on the row
- * they are drawn for, so they are not commands.
- */
 /**
  * A column's attribute, as `data.attributes()` describes it.
  * @param ctx - the workspace.
@@ -236,6 +250,10 @@ const COLUMN_HEADER_COMMANDS: readonly ColumnHeaderCommand[] = [
     },
 ];
 
+/**
+ * The Data place package's registration: its Sources row and column header commands. Its Fields rows act on the row
+ * they are drawn for, so they are not commands.
+ */
 export const registration = defineRegistration({
     owner: "data-place",
     commands: [],

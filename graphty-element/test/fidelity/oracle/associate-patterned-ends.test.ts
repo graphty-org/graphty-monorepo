@@ -65,7 +65,12 @@ const node = (id: string, cx: number, cy: number, r: number): PNode => ({
     stroke: null,
     label: null,
 });
-const edge = (id: string, source: string, target: string, dashClass: "solid" | "zigzag" | "double"): PEdge => ({
+const edge = (
+    id: string,
+    source: string,
+    target: string,
+    dashClass: "solid" | "zigzag" | "double" | "arrows",
+): PEdge => ({
     id,
     source,
     target,
@@ -350,5 +355,40 @@ describe("ends of lines drawn in pieces", () => {
             [edge("e1", "r", "p", "solid")],
         );
         assert.notInclude(pairs(associate(prims, 800, 400, guide).scene), "p->q");
+    });
+
+    it("carries a line of whole arrows stopped short of its headless end on to its node", () => {
+        const { prims, add } = drawing();
+        const spots: [string, number, number, number][] = [
+            ["a", 100, 100, 10],
+            ["b", 400, 100, 10],
+        ];
+        spots.forEach(([, x, y, r]) => add({ tag: "ellipse", points: disc(x, y, r) }));
+        // fifteen arrows 18 px apart, as Cytoscape desktop draws only whole ones: the last ends at 380, 10 px short of
+        // b's box, and the next would not have fit (cx2-syn-mappings 327->333)
+        const arrow = (x: number, y: number): Pt[] =>
+            evenly([
+                [x, y + 1.9],
+                [x + 7.5, y + 1.9],
+                [x + 7.5, y + 5.6],
+                [x + 15, y],
+                [x + 7.5, y - 5.6],
+                [x + 7.5, y - 1.9],
+                [x, y - 1.9],
+            ]);
+        add(
+            band(
+                "#496389",
+                Array.from({ length: 15 }, (_, k) => arrow(113 + 18 * k, 100)),
+            ),
+        );
+        const guide = guideOf(
+            spots.map(([id, x, y, r]) => node(id, x, y, r)),
+            [edge("e1", "a", "b", "arrows")],
+        );
+        const line = associate(prims, 800, 400, guide).scene.edges.find((e) => e.source === "a" || e.target === "a");
+        const xs = (line?.points ?? []).map(([x]) => x);
+        assert.closeTo(Math.max(...xs), 390, 0.5);
+        assert.closeTo(Math.min(...xs), 110, 0.5);
     });
 });

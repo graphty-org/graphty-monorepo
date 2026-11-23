@@ -1,5 +1,5 @@
 /**
- * UniformBlock (spec 5.3, D20): one field table generates BOTH the padded WGSL `struct` text spliced into a module
+ * UniformBlock: one field table generates BOTH the padded WGSL `struct` text spliced into a module
  * and the byte writer / reader the host uses, so the two cannot disagree. The layout is the strict WGSL layout
  * every runtime accepts (Chromium 139 lacks `uniform_buffer_standard_layout`): scalars 4-aligned, vec2 8-aligned,
  * vec4 16-aligned, no vec3, no bool, no arrays, and the total padded to a multiple of 16 (or to `padTo`) through an
@@ -9,7 +9,7 @@
 import { WebGpuGraphError } from "../errors.js";
 import { WGSL_RESERVED_WORDS } from "./prelude.js";
 
-/** Field types a block may hold; no vec3 (spec 5.3), no bool (not host-shareable), no arrays. */
+/** Field types a block may hold; no vec3, no bool (not host-shareable), no arrays. */
 export type UniformFieldType = "u32" | "i32" | "f32" | "vec2f" | "vec2u" | "vec4f" | "vec4u";
 /** One field. */
 export type UniformField = readonly [name: string, type: UniformFieldType];
@@ -53,7 +53,7 @@ const I32_MAX = 2147483647;
 
 /**
  * Rounds `value` up to the next multiple of `align` (arithmetic, never a bit trick: byte offsets are never operated
- * on bitwise, spec 3.6).
+ * on bitwise).
  * @param value - the value to round
  * @param align - the alignment, a positive integer
  * @returns the rounded value
@@ -141,7 +141,7 @@ function getScalar(view: DataView, kind: ScalarKind, offset: number): number {
     return view.getFloat32(offset, true);
 }
 
-/** A generated struct: the padded WGSL text and the byte writer / reader share one field table, so they cannot disagree (D20). */
+/** A generated struct: the padded WGSL text and the byte writer / reader share one field table, so they cannot disagree. */
 export class UniformBlock {
     /** The WGSL struct name. */
     readonly name: string;
@@ -161,10 +161,10 @@ export class UniformBlock {
     /**
      * Declares a block; fields are laid out in order with 16-byte alignment for vec4 / the struct, 8 for vec2, 4 for
      * scalars; the total is padded to 16 (uniform, storage) or to `padTo` when given.
-     * PLAN DECISION: rejects an empty field list and a struct or field name that is not a WGSL identifier or is a
-     * reserved word (spec 3.6: every throwing call leaves state unchanged; a reserved name would be invalid WGSL).
-     * PLAN DECISION: optional PARAMETERS (`options?` here, `byteOffset?` of write / read / readField) are spelled
-     * `?: T` rather than the contract's `?: T | undefined` because the root ESLint rule
+     * Rejects an empty field list and a struct or field name that is not a WGSL identifier or is a
+     * reserved word (every throwing call leaves state unchanged; a reserved name would be invalid WGSL).
+     * Optional PARAMETERS (`options?` here, `byteOffset?` of write / read / readField) are spelled
+     * `?: T` rather than `?: T | undefined` because the root ESLint rule
      * no-duplicate-type-constituents rejects the explicit undefined on an optional parameter; every call site is
      * identical, and optional PROPERTIES keep `?: T | undefined`.
      * @param name - the WGSL struct name
@@ -282,7 +282,7 @@ export class UniformBlock {
      * Writes `values` at `byteOffset` (default 0); a missing field is written as 0; an unknown key is
      * E_INVALID_ARGUMENT; a vector of the wrong width is E_INVALID_ARGUMENT. Always little-endian. Every byte of the
      * block's region is written (padding as zero), so a written block is byte-exact.
-     * PLAN DECISION: every value is validated first (u32 / vec*u components integers in [0, 2^32 - 1], i32 in
+     * Every value is validated first (u32 / vec*u components integers in [0, 2^32 - 1], i32 in
      * [-2^31, 2^31 - 1]) and only then is the region zeroed and written, so a rejected call leaves the view unchanged.
      * @param view - the target view (the region must lie inside it)
      * @param values - the field values
@@ -299,7 +299,7 @@ export class UniformBlock {
                 });
             }
         }
-        // validate every value first, so a rejected call leaves the view unchanged (spec 3.6)
+        // validate every value first, so a rejected call leaves the view unchanged
         const components: (readonly number[] | null)[] = this.laidOut.map((field) =>
             this.components(field, values[field.name]),
         );

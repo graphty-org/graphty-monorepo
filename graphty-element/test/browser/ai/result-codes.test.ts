@@ -23,7 +23,7 @@ import type { LlmProvider, LlmResponse } from "../../../src/ai/providers/types";
 import { VercelAiProvider } from "../../../src/ai/providers/VercelAiProvider";
 import { installAssistantTools } from "../../../src/ai/tools/install";
 import { Graph } from "../../../src/Graph";
-import { createMockGraphContext } from "../../helpers/mock-graph-context";
+import { cleanupTestGraph, createTestGraph } from "../../helpers/testSetup";
 
 const reached = new Set<string>();
 
@@ -306,13 +306,13 @@ describe("AI command result codes", () => {
         assert.deepEqual(result.params, { provider: "openai" });
     });
 
-    it("AI_CANCELLED when cancelled, AI_UNDONE when undone while it runs", async () => {
-        const cancelling = stallingModel();
-        const controller = assistant(cancelling.provider);
-        const cancelled = controller.execute("add x");
-        await cancelling.asked;
+    it("AI_CANCELED when canceled, AI_UNDONE when undone while it runs", async () => {
+        const canceling = stallingModel();
+        const controller = assistant(canceling.provider);
+        const canceled = controller.execute("add x");
+        await canceling.asked;
         controller.cancel();
-        assert.strictEqual(seen(await cancelled).code, "AI_CANCELLED");
+        assert.strictEqual(seen(await canceled).code, "AI_CANCELED");
 
         const undoing = stallingModel();
         const undone = assistant(undoing.provider).execute("add x");
@@ -349,19 +349,18 @@ describe("AI command result codes", () => {
     it("AI_NO_PREVIOUS_COMMAND: a retry before any command ran", async () => {
         const manager = new AiManager();
         assert.strictEqual(seen(await manager.retry()).code, "AI_NOT_ENABLED");
-        manager.init(createMockGraphContext({ nodeCount: 2, edgeCount: 1 }), { provider: "mock" });
+        const graph = await createTestGraph();
+        manager.init(graph, { provider: "mock" });
         assert.strictEqual(seen(await manager.retry()).code, "AI_NO_PREVIOUS_COMMAND");
         manager.dispose();
+        cleanupTestGraph(graph);
     });
 
     it("AI_CONFIG_INVALID: enableAiControl rejects helpers that cannot run, and builds no assistant", async () => {
         // A graph's methods with only the fields enableAiControl reads: no scene is needed, since it
         // rejects before building anything.
-        const graph = Object.assign(Object.create(Graph.prototype) as Graph, {
-            aiManager: null,
-            aiGeneration: 0,
-            aiEnabling: Promise.resolve(),
-        });
+        const graph = Object.create(Graph.prototype) as Graph;
+        Object.assign(graph, { aiManager: null, aiGeneration: 0, aiEnabling: Promise.resolve() });
 
         const error: unknown = await Graph.prototype.enableAiControl
             .call(graph, {
@@ -374,7 +373,7 @@ describe("AI command result codes", () => {
         const { code, params } = error;
         reached.add(code);
         assert.deepInclude(params, { agent: "counter", field: "commands", reason: "unknown-command" });
-        assert.isNull((graph as unknown as { aiManager: unknown }).aiManager);
+        assert.isNull(graph.getAiManager());
     });
 
     afterAll(() => {

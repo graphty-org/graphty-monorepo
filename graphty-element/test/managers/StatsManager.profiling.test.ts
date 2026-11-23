@@ -466,7 +466,7 @@ describe("StatsManager - Profiling", () => {
             statsManager.reportDetailed();
 
             assert.isAbove(tableSpy.mock.calls.length, 0);
-            const tableData = tableSpy.mock.calls[0][0];
+            const tableData = tableSpy.mock.calls[0][0] as Record<string, unknown>[];
             assert.isArray(tableData);
             assert.equal(tableData.length, 2);
 
@@ -725,7 +725,7 @@ describe("StatsManager - Profiling", () => {
             statsManager.reportDetailed();
 
             // Verify GPU metrics group was created
-            const groupCalls = groupSpy.mock.calls.map((call) => call[0]);
+            const groupCalls = groupSpy.mock.calls.map((call): unknown => call[0]);
             assert.include(groupCalls, "GPU Metrics (BabylonJS EngineInstrumentation)");
             assert.include(groupCalls, "GPU Frame Time (ms)");
             assert.include(groupCalls, "Shader Compilation (ms)");
@@ -821,7 +821,7 @@ describe("StatsManager - Profiling", () => {
             statsManager.reportDetailed();
 
             // Verify Scene metrics group was created
-            const groupCalls = groupSpy.mock.calls.map((call) => call[0]);
+            const groupCalls = groupSpy.mock.calls.map((call): unknown => call[0]);
             assert.include(groupCalls, "Scene Metrics (BabylonJS SceneInstrumentation)");
             assert.include(groupCalls, "Frame Time");
             assert.include(groupCalls, "Render Time");
@@ -849,7 +849,7 @@ describe("StatsManager - Profiling", () => {
 
             statsManager.reportDetailed();
 
-            const groupCalls = groupSpy.mock.calls.map((call) => call[0]);
+            const groupCalls = groupSpy.mock.calls.map((call): unknown => call[0]);
             assert.notInclude(groupCalls, "GPU Metrics (BabylonJS EngineInstrumentation)");
             assert.notInclude(groupCalls, "Scene Metrics (BabylonJS SceneInstrumentation)");
 
@@ -1136,7 +1136,7 @@ describe("StatsManager - Profiling", () => {
             statsManager.reportDetailed();
 
             // Verify blocking correlation section exists
-            const groupCalls = groupSpy.mock.calls.map((call) => call[0]);
+            const groupCalls = groupSpy.mock.calls.map((call): unknown => call[0]);
             assert.include(groupCalls, "Blocking Correlation Analysis");
 
             // Verify table was generated
@@ -1302,8 +1302,8 @@ describe("StatsManager - Profiling", () => {
 
                 // Verify table was called with counter data
                 const counterTableCall = tableSpy.mock.calls.find((call) => {
-                    const data = call[0];
-                    return Array.isArray(data) && data.some((row) => row.Label === "cache.hits");
+                    const data: unknown = call[0];
+                    return Array.isArray(data) && data.some((row: { Label?: unknown }) => row.Label === "cache.hits");
                 });
                 assert.isDefined(counterTableCall);
 
@@ -1332,9 +1332,9 @@ describe("StatsManager - Profiling", () => {
                 statsManager.incrementCounter("cache.misses", 10);
                 statsManager.reportDetailed();
 
-                const tableData = tableSpy.mock.calls.find((call) => {
-                    const data = call[0];
-                    return Array.isArray(data) && data.some((row) => row.Label === "cache.hits");
+                const tableData: unknown = tableSpy.mock.calls.find((call) => {
+                    const data: unknown = call[0];
+                    return Array.isArray(data) && data.some((row: { Label?: unknown }) => row.Label === "cache.hits");
                 })?.[0];
 
                 // Verify derived metrics are calculated

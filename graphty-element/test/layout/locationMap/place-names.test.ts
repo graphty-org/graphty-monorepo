@@ -18,7 +18,7 @@ import { loadGazetteer, normalizePlace, readPlaces } from "../../../src/layout/l
 import type { LocationMapFrame } from "../../../src/layout/locationMap/place";
 import { detectSource } from "../../../src/layout/locationMap/source";
 import { LocationMapLayout } from "../../../src/layout/LocationMapLayoutEngine";
-import type { Node } from "../../../src/Node";
+import { fakeNode } from "../../helpers/layout-fakes";
 
 /** The address the stubbed fetch answers; anything else is refused. */
 const BASE = "https://gazetteer.test/v1/";
@@ -74,9 +74,7 @@ async function place(
     options: Record<string, unknown> = {},
 ): Promise<{ at: (id: string) => { x: number; y: number }; frame: LocationMapFrame | null }> {
     const parentGraph = { getStyles: () => ({ config: session.config }) };
-    const nodes = session.data
-        .nodes()
-        .map((record) => ({ id: record.id, index: -1, data: record, parentGraph }) as unknown as Node);
+    const nodes = session.data.nodes().map((record) => fakeNode(record.id, { index: -1, data: record, parentGraph }));
     const layout = new LocationMapLayout({ gazetteer: BASE, dim: 2, ...options });
     layoutEngineInternals.addNodes(layout, nodes);
     layoutEngineInternals.addEdges(layout, [] as Edge[]);

@@ -1,18 +1,13 @@
-import { assert, beforeAll, describe, it, vi } from "vitest";
+import { assert, describe, it, vi } from "vitest";
 
-import { createGraphSession, type GraphSession } from "../../../session";
+import { createGraphSession, type GraphSession, type RunChange } from "../../../session";
 import { GraphtyError } from "../../../src/errors";
-import { setDefaultFeatures } from "../../../src/features/resolve";
 import { createRunResult } from "../../../src/session/results";
 import type { RunExecutionContext, RunOutcome } from "../../../src/session/runs";
 import { addSteps, alignTo, readInstant } from "../../../src/session/time/parse";
 import type { TimeStepEvent } from "../../../src/session/time/TimeApi";
+import { windowCount, windowNodeIds } from "../../helpers/time-window";
 import { type Harness, makeSession } from "../helpers";
-
-// The timeline is an experiment: this file's sessions switch it on.
-beforeAll(() => {
-    setDefaultFeatures(["timeline"]);
-});
 
 const DAY = 86_400_000;
 const T0 = Date.UTC(2026, 0, 1);
@@ -151,7 +146,7 @@ describe("undoing window moves", () => {
         harness.session.dispose();
     });
 
-    it("keeps moves apart in time as their own steps", async () => {
+    it("merges consecutive moves however far apart in time", async () => {
         let now = 0;
         const harness = fourDays(() => now);
         const { time } = harness.session;
@@ -162,7 +157,7 @@ describe("undoing window moves", () => {
         await time.stepBy(1);
 
         await harness.session.undo();
-        assert.strictEqual(time.current?.from, T0);
+        assert.isNull(time.current, "both moves were one step");
         harness.session.dispose();
     });
 });
@@ -458,7 +453,7 @@ describe("session.time: the window", () => {
             await time.window({ from, to });
             assert.strictEqual(visibility.window?.attribute, "data.sent");
             assert.strictEqual(visibility.window?.nodes, "ends");
-            assert.deepStrictEqual([...visibility.nodes].map(String).sort(), bruteNodes(harness, from, to));
+            assert.deepStrictEqual(windowNodeIds(harness.session).sort(), bruteNodes(harness, from, to));
         }
 
         harness.session.dispose();
@@ -469,10 +464,11 @@ describe("session.time: the window", () => {
         const { time, visibility } = harness.session;
         await time.setField({ edges: { start: "sent" } });
         await time.window({ from: T0, to: T0 + 10 * DAY });
-        assert.strictEqual(visibility.summary.visibleEdges, 5);
+        assert.strictEqual(windowCount(visibility).edges, 5);
         await time.window({ from: T0, to: T0 + 10 * DAY, missing: "outside" });
-        assert.strictEqual(visibility.summary.visibleEdges, 4);
-        assert.isFalse(visibility.isVisible("f"));
+        assert.strictEqual(windowCount(visibility).edges, 4);
+        assert.notInclude(windowNodeIds(harness.session), "f");
+        assert.isTrue(visibility.isVisible("f"), "left out of the window, never out of the data");
         harness.session.dispose();
     });
 
@@ -481,8 +477,8 @@ describe("session.time: the window", () => {
         await harness.session.time.setField({ edges: { start: "sent" } });
         await harness.session.visibility.setWindow({ attribute: "data.sent", from: T0, to: T0 + DAY });
         // No "ends": every node stays, only edges outside the window go.
-        assert.strictEqual(harness.session.visibility.summary.visibleNodes, 6);
-        assert.strictEqual(harness.session.visibility.summary.visibleEdges, 2);
+        assert.strictEqual(windowCount(harness.session.visibility).nodes, 6);
+        assert.strictEqual(windowCount(harness.session.visibility).edges, 2);
         harness.session.dispose();
     });
 
@@ -738,6 +734,127 @@ describe("session.time: what a window move does to finished runs", () => {
         assert.strictEqual(executions(), 2);
         assert.isNull(session.runs.get(id)?.stale);
         session.dispose();
+    });
+
+    it("says on run:changed that the window re-ran them, and nothing for a caller's run", async () => {
+        const { session, id } = await withRun("rerun");
+        const changes: RunChange[] = [];
+        session.on("run:changed", (change) => changes.push(change));
+        // A run's end is announced after its pass, which can be after the promise that started it.
+        const nextEnd = (): Promise<RunChange> =>
+            new Promise((resolve) => {
+                const stop = session.on("run:changed", (change) => {
+                    if (change.run.id === id && change.phase === "end") {
+                        stop();
+                        resolve(change);
+                    }
+                });
+            });
+
+        let ended = nextEnd();
+        await session.time.stepBy(1);
+        assert.strictEqual((await ended).trigger, "time-window");
+        const rerun = changes.filter((change) => change.run.id === id);
+        assert.isTrue(
+            rerun.every((change) => change.trigger === "time-window"),
+            "every moment of the re-run",
+        );
+
+        changes.length = 0;
+        ended = nextEnd();
+        await session.runs.get(id)?.rerun();
+        assert.isFalse("trigger" in (await ended), "a caller's re-run carries none");
+        assert.isNotEmpty(changes);
+        assert.isTrue(changes.every((change) => !("trigger" in change)));
+        session.dispose();
+    });
+
+    it("says the timeline re-ran them when the policy flips to rerun", async () => {
+        const { session, id } = await withRun();
+        await session.time.stepBy(1);
+        assert.strictEqual(session.runs.get(id)?.stale?.reason, "window-moved");
+        // The re-run's end is announced after its pass, which can be after the setting's promise.
+        const ended = new Promise<RunChange>((resolve) => {
+            session.on("run:changed", (change) => {
+                if (change.run.id === id && change.phase === "end") {
+                    resolve(change);
+                }
+            });
+        });
+
+        await session.time.setSettings({ results: "rerun" });
+        assert.strictEqual((await ended).trigger, "time-window");
+        session.dispose();
+    });
+
+    it("lets a play keep its pace under results: rerun, re-running one at a time (#9278)", async () => {
+        let count = 0;
+        let release = (): void => undefined;
+        const session = createGraphSession({
+            runs: {
+                execute: async (context) => {
+                    count++;
+                    // The first re-run is slow: it runs until the test lets it finish.
+                    if (count === 2) {
+                        await new Promise<void>((resolve) => {
+                            release = resolve;
+                        });
+                    }
+
+                    return execute(context);
+                },
+            },
+        });
+        const rows = Array.from(
+            { length: 12 },
+            (_, day) => `n${String(day)},n${String(day + 1)},${String(T0 + day * DAY)}`,
+        );
+        await session.data.import({ type: "csv", config: { data: `source,target,sent\n${rows.join("\n")}\n` } });
+        await session.time.setField({ edges: { start: "sent" } });
+        await session.time.setSettings({ results: "rerun" });
+        await session.time.window({ from: T0, to: T0 + DAY, step: "day" });
+        const run = session.runs.start("degree", undefined, { style: false });
+        await run;
+        let steps = 0;
+        session.on("time:step", (step) => {
+            if (step.cause === "play") {
+                steps++;
+            }
+        });
+        let reran = 0;
+        const caughtUp = new Promise<void>((resolve) => {
+            session.on("run:changed", (change) => {
+                if (change.run.id === run.id && change.phase === "end" && change.trigger === "time-window") {
+                    reran++;
+                    if (reran === 2) {
+                        resolve();
+                    }
+                }
+            });
+        });
+
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        try {
+            session.time.play({ interval: 100, motion: "steps" });
+            for (let step = 0; step < 4; step++) {
+                await vi.advanceTimersByTimeAsync(100);
+            }
+
+            // Four steps while the first re-run still runs: the play did not wait, and started no
+            // second re-run beside it.
+            assert.strictEqual(steps, 4);
+            assert.strictEqual(count, 1 + 1);
+
+            session.time.pause();
+            release();
+            await caughtUp;
+            // The three steps it missed are caught up by one re-run over the newest window.
+            assert.strictEqual(count, 1 + 2);
+            assert.isNull(session.runs.get(run.id)?.stale);
+        } finally {
+            vi.useRealTimers();
+            session.dispose();
+        }
     });
 
     it("saves the designation and the window with the project", async () => {

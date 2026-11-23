@@ -9,7 +9,6 @@
 import { assert, describe, it } from "vitest";
 
 import type { Scope } from "../../../src/catalog/types";
-import { inputCountersOf, writeUpdates } from "../../../src/session/attributes";
 import { scopeResolverOfSession, setsNotifierOfSession } from "../../../src/session/GraphSession";
 import { type MovedInput, SetsNotifier, type SetWatch } from "../../../src/session/sets/notify";
 import { scopeSignature } from "../../../src/session/sets/signature";
@@ -146,26 +145,23 @@ describe("change notification", () => {
         assert.strictEqual(bystander.resolves, 0);
     });
 
-    it("an attribute write, once per batch and only for a watch reading the field", () => {
+    it("an attribute write, once per batch and only for a watch reading the field", async () => {
         const h = graph();
         const heavy = probe(h, { where: "data.weight > `3`" });
         const labelled = probe(h, { where: "data.label == 'x'" });
-        const indexOf = (id: string | number): number => h.session.data.snapshot().ids.indexOf(id);
 
-        writeUpdates(
-            inputCountersOf(h.store),
-            "node",
-            [
-                { id: "a", weight: 10 },
-                { id: "b", weight: 10 },
-                { id: "zz", weight: 10 },
-            ],
-            (id) => h.nodeAttributes.get(indexOf(id)),
-        );
-
-        assert.deepStrictEqual(heavy.readies, [
-            { count: 4, moved: [{ kind: "attributes", element: "node", fields: ["weight"] }] },
+        await h.session.data.updateNodes([
+            { id: "a", values: { weight: 10 } },
+            { id: "b", values: { weight: 10 } },
         ]);
+
+        // Told once for the batch, with the field, after every record of it is written: the watch
+        // resolves against a, b, d and e (issue #8504).
+        assert.deepStrictEqual(
+            heavy.readies.map((ready) => ready.moved),
+            [[{ kind: "attributes", element: "node", fields: ["weight"] }]],
+        );
+        assert.strictEqual(heavy.readies[0]?.count, 4);
         assert.strictEqual(labelled.resolves, 0);
     });
 

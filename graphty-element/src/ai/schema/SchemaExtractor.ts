@@ -7,6 +7,7 @@
  */
 
 import type { Graph } from "../../Graph";
+import type { GraphSession } from "../../session/types";
 import { type InferredSchema, inferSchema } from "./inferSchema";
 import type { PropertySummary, PropertyType, SchemaExtractorOptions, SchemaSummary } from "./types";
 
@@ -121,45 +122,40 @@ class EnumTracker {
  * Capital One's enum detection algorithm.
  */
 export class SchemaExtractor {
-    private readonly graph: Graph;
+    private readonly session: GraphSession;
     private readonly options: Required<SchemaExtractorOptions>;
 
     /**
      * Creates a new SchemaExtractor instance.
-     * @param graph - The graph to extract schema from
+     * @param graph - The graph to extract schema from: a session, or the element's `Graph`, whose
+     *   session is read
      * @param options - Optional extraction options
      */
-    constructor(graph: Graph, options: SchemaExtractorOptions = {}) {
-        this.graph = graph;
+    constructor(graph: Graph | GraphSession, options: SchemaExtractorOptions = {}) {
+        this.session = "getSession" in graph ? graph.getSession() : graph;
         this.options = { ...DEFAULT_OPTIONS, ...options };
     }
 
     /**
-     * Extract schema from the graph.
+     * Extract schema from the graph: the session's node and edge records, only what is shown
+     * while the session reads the working graph.
      * @returns SchemaSummary with node and edge property information
      */
     extract(): SchemaSummary {
-        const dataManager = this.graph.getDataManager();
-
-        // Get counts
-        const nodeCount = this.graph.getNodeCount();
-        const edgeCount = this.graph.getEdgeCount();
-
-        // Extract node data
-        const nodeData = Array.from(dataManager.nodes.values())
-            .map((n) => (n as { data?: Record<string, unknown> }).data)
-            .filter((d): d is Record<string, unknown> => d !== undefined);
-
-        // Extract edge data
-        const edgeData = Array.from(dataManager.edges.values())
-            .map((e) => (e as { data?: Record<string, unknown> }).data)
-            .filter((d): d is Record<string, unknown> => d !== undefined);
+        const { data } = this.session;
+        const nodeData: Record<string, unknown>[] = [...data.nodes()];
+        // The endpoints are the edge's structure, which the record names `source` and `target`
+        // whatever the data called them; the schema describes the attributes the data carried.
+        const edgeData = data.edges().map((edge) => {
+            const { source: _source, target: _target, ...attributes } = edge;
+            return attributes;
+        });
 
         return {
             nodeProperties: this.extractFromCollection(nodeData),
             edgeProperties: this.extractFromCollection(edgeData),
-            nodeCount,
-            edgeCount,
+            nodeCount: nodeData.length,
+            edgeCount: edgeData.length,
         };
     }
 

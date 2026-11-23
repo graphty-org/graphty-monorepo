@@ -49,12 +49,41 @@ export const OPENALEX_SOURCE_ID = "openalex";
 export const SPARQL_SOURCE_ID = "sparql";
 
 /**
+ * The URL source: a graph file at a web address. Experimental.
+ * @category Network sources
+ */
+export const URL_SOURCE_ID = "url";
+
+/**
  * The GitHub source, a file host: one file of a repository, read through GitHub's API. Not among
  * the built-in sources: pass `githubSource` (`@graphty/graph-io/sources/github`) or register it.
  * Experimental.
  * @category Network sources
  */
 export const GITHUB_SOURCE_ID = "github";
+
+/**
+ * The Amazon S3 source, a file host: one object of a public bucket. Not among the built-in sources:
+ * pass `s3Source` (`@graphty/graph-io/sources/s3`) or register it. Experimental.
+ * @category Network sources
+ */
+export const S3_SOURCE_ID = "s3";
+
+/**
+ * The Zenodo source, a file host: one file of a Zenodo record, read through Zenodo's API. Not among
+ * the built-in sources: pass `zenodoSource` (`@graphty/graph-io/sources/zenodo`) or register it.
+ * Experimental.
+ * @category Network sources
+ */
+export const ZENODO_SOURCE_ID = "zenodo";
+
+/**
+ * The Figshare source, a file host: one file of a public Figshare item, read through Figshare's API.
+ * Not among the built-in sources: pass `figshareSource` (`@graphty/graph-io/sources/figshare`) or
+ * register it. Experimental.
+ * @category Network sources
+ */
+export const FIGSHARE_SOURCE_ID = "figshare";
 
 /**
  * The prefix of the reserved attribute namespace sources and graphty-element write facts under.

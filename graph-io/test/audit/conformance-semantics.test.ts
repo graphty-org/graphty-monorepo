@@ -873,6 +873,16 @@ describe("design 8.5: every LOSS code is reachable through a built-in exporter's
             },
         ],
         [
+            LOSS.ID_TEXT_RENAMED,
+            "graphml",
+            () => {
+                const b = new GraphBuilder({ directed: true });
+                b.addEdge(1, "1");
+                return b.freeze();
+            },
+            { sanitizeIds: "mangle" },
+        ],
+        [
             LOSS.WEIGHT_KEY_CLASH,
             "graphml",
             () => {
@@ -1012,7 +1022,7 @@ describe("design 8.5: every LOSS code is reachable through a built-in exporter's
         // the cases above plus these cover the whole table
         const covered = new Set([...CASES.map((c) => c[0]), LOSS.SELF_LOOPS, LOSS.COLUMN_DROPPED]);
         expect([...Object.values(LOSS)].filter((code) => !covered.has(code))).toEqual([]);
-        expect(Object.keys(LOSS)).toHaveLength(43);
+        expect(Object.keys(LOSS)).toHaveLength(44);
     });
 });
 
@@ -1166,7 +1176,7 @@ describe("design 5.1 / 8.4: untyped cells, option reporting, the children helper
                 behaviour[format] = `refused with ${err instanceof GraphFormatError ? err.code : "?"}`;
             }
         }
-        // 8.4: "the importer reports every option it could not honour"; one behaviour, one category
+        // 8.4: "the importer reports every option it could not honour"; one behavior, one category
         const distinct = new Set(Object.values(behaviour).filter((b) => b !== "honoured"));
         expect(distinct.size, JSON.stringify(behaviour)).toBe(1);
         expect([...distinct][0], JSON.stringify(behaviour)).toMatch(/^reported as/);

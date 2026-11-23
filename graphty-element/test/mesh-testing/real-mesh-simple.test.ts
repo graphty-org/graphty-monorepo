@@ -237,7 +237,7 @@ describe("Simple Real Mesh Tests", () => {
                 color: "#0000FF",
             };
 
-            const arrow = EdgeMesh.createArrowHead(meshCache, "test-arrow", arrowOptions, scene);
+            const arrow = EdgeMesh.createArrowHead(arrowOptions, scene);
 
             assert.isNotNull(arrow);
         });
@@ -249,7 +249,7 @@ describe("Simple Real Mesh Tests", () => {
                 color: "#0000FF",
             };
 
-            const arrow = EdgeMesh.createArrowHead(meshCache, "test-arrow-none", arrowOptions, scene);
+            const arrow = EdgeMesh.createArrowHead(arrowOptions, scene);
 
             assert.isNull(arrow);
         });

@@ -55,12 +55,22 @@ const REACH_PLACES: ReadonlySet<ShaderPlace> = new Set<ShaderPlace>(["replace", 
 /**
  * The values a shader's `reach` may take. @since 3.49.0
  */
-export const SHADER_REACH_RANGE: { readonly min: number; readonly max: number } = Object.freeze({ min: 1, max: 6 });
+export const SHADER_REACH_RANGE: {
+    /** The smallest `reach`. */
+    readonly min: number;
+    /** The largest `reach`. */
+    readonly max: number;
+} = Object.freeze({ min: 1, max: 6 });
 
 /**
  * The values a shader's `minSize` may take, in CSS pixels. @since 3.49.0
  */
-export const SHADER_MIN_SIZE_RANGE: { readonly min: number; readonly max: number } = Object.freeze({
+export const SHADER_MIN_SIZE_RANGE: {
+    /** The smallest `minSize`, in CSS pixels. */
+    readonly min: number;
+    /** The largest `minSize`, in CSS pixels. */
+    readonly max: number;
+} = Object.freeze({
     min: 0,
     max: 512,
 });
@@ -214,7 +224,10 @@ export type ShaderInput =
  */
 export interface ShaderMotion {
     /** Animates while on screen; still while the named parameter is 0. */
-    readonly loop?: { readonly speedParam?: string };
+    readonly loop?: {
+        /** The parameter that sets the speed; absent, the shader always animates. */
+        readonly speedParam?: string;
+    };
 }
 
 /** How long a shader plays on each moment of an element, in seconds. Internal. */
@@ -397,8 +410,11 @@ const PARAM_SHAPES: Readonly<Partial<Record<ShaderParamDescriptor["type"], Retur
  * @since 3.49.0
  */
 export function shaderParamShape(type: ShaderParamDescriptor["type"]): {
+    /** A valid default value; undefined for `"enum"`, which needs choices. */
     readonly default: unknown;
+    /** The descriptor fields that apply to the type, in no display order. */
     readonly fields: readonly ("min" | "max" | "step" | "values" | "varies")[];
+    /** Whether the parameter's default may be bound to a clock. */
     readonly clock: boolean;
 } {
     return PARAM_SHAPES[type] ?? { default: undefined, fields: [], clock: false };
@@ -419,7 +435,9 @@ export interface ShaderParamChoice {
  * with `outline`, stroked 2 units wide and not filled. @since 3.36.0
  */
 export interface ShaderGlyph {
+    /** SVG path data in a 24 x 24 box, y down. */
     readonly path: string;
+    /** Stroke the path 2 units wide instead of filling it. */
     readonly outline?: boolean;
 }
 
@@ -622,7 +640,7 @@ export type ShaderProblemCode =
     | "shader.revoked"
     // Open: a code may be added or retired in a minor release, and a build without shaders
     // reads a file that names one.
-    | (string & {}); // NOSONAR(S4335): the open-union idiom
+    | (string & {}); // the open-union idiom
 
 /** One shader problem: a code and its values. @since 3.36.0 */
 export interface ShaderProblem {
@@ -683,19 +701,32 @@ export interface ShaderRegistration {
  * shader is pasted, copied and saved in. Code, not words for a reader.
  * @since 3.36.0
  */
-export type ShaderText = string; // NOSONAR(S6564): a published, documented name for the pasted text form
+export type ShaderText = string; // eslint-disable-line sonarjs/redundant-type-aliases -- a published, documented name for the pasted text form
 
 /** What `parseShaderText` answers. @since 3.36.0 */
 export type ShaderTextResult =
     | {
+          /** The text was read. */
           readonly ok: true;
+          /** What to pass to `registerShader`. */
           readonly registration: ShaderRegistration & {
-              readonly descriptor: ShaderRegistration["descriptor"] & { readonly target: ShaderTarget };
+              /** The header's descriptor. */
+              readonly descriptor: ShaderRegistration["descriptor"] & {
+                  /** What the shader draws on. */
+                  readonly target: ShaderTarget;
+              };
+              /** The GLSL body. */
               readonly glsl: string;
+              /** The cheaper GLSL body (`shadeFar`), when the text has one. */
               readonly lowDetail?: string;
           };
       }
-    | { readonly ok: false; readonly problems: readonly ShaderProblem[] };
+    | {
+          /** The text could not be read. */
+          readonly ok: false;
+          /** What is wrong with it. */
+          readonly problems: readonly ShaderProblem[];
+      };
 
 /**
  * One parameter of a header as written: nothing is cleaned or filled in, and any value may be wrong.
@@ -710,6 +741,7 @@ export interface ShaderParamDraft {
  * @since 3.49.0
  */
 export interface ShaderTextDraft {
+    /** The header's parameters, as written. */
     readonly params?: readonly ShaderParamDraft[];
     readonly [key: string]: unknown;
 }

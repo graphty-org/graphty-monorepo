@@ -12,10 +12,15 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { withoutFeatures } from "../../../test/features";
 import { act, findValuePicker, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { registration } from "../commands";
+
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 const NODES = [
     { id: "1", name: "Alpha", dept: "east", code: 1 },
@@ -113,7 +118,7 @@ describe("labels from an attribute (task T10) on the real element", () => {
         await userEvent.click(within(list).getByRole("option", { name: /^name(,|$)/ }));
 
         await waitFor(() => {
-            const binding = readerLayers(session)[0]?.encode?.["node.label"];
+            const binding = readerLayers(session).find((l) => l.target === "node")?.encode?.["node.label"];
             assert.equal(binding !== undefined && "by" in binding ? binding.by : undefined, "data.name");
         });
         await waitFor(() => {
@@ -174,7 +179,7 @@ describe("the Selection row's highlight on the real element", () => {
         const part = (name: string): HTMLElement => within(highlight).getByRole("group", { name });
         const hexOf = (name: string): HTMLInputElement =>
             within(part(name)).getByRole<HTMLInputElement>("textbox", { name: /^Color hex value(,|$)/ });
-        assert.equal(hexOf("Nodes").value, "FFD700");
+        assert.equal(hexOf("Nodes").value, "0077BB", "the halo the element draws selected nodes with");
         assert.equal(hexOf("Edges").value, "0077BB", "the band the element draws selected edges with");
 
         await userEvent.clear(hexOf("Edges"));
@@ -182,7 +187,7 @@ describe("the Selection row's highlight on the real element", () => {
         await waitFor(() => {
             assert.equal(session.config.selectionStyle.edgeColor.toUpperCase(), "#FF0000");
         });
-        assert.equal(session.config.selectionStyle.color.toUpperCase(), "#FFD700", "the halo is left alone");
+        assert.equal(session.config.selectionStyle.color.toUpperCase(), "#0077BB", "the halo is left alone");
 
         const size = within(part("Edges")).getByRole("spinbutton", { name: "Size" });
         await userEvent.clear(size);

@@ -1,7 +1,8 @@
 /**
  * Camera tours whose stops name saved views and hold (issue #817): `playTour` and a recorded
- * `cameraPath`, in 2D and 3D. Holds are checked by counting the frames drawn while the camera sat
- * at a stop and adding up their frame time -- the same clock a hold counts in.
+ * `cameraPath` or `tour`, in 2D and 3D, each reaching the pose `setCameraState` gives (issue
+ * #7936). Holds are checked by counting the frames drawn while the camera sat at a stop and adding
+ * up their frame time -- the same clock a hold counts in. A pause holds the camera where it is.
  */
 import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
@@ -11,8 +12,10 @@ import type { ViewWaypoint } from "../../../src/video/VideoCapture.js";
 import { cleanupTestGraph, configureGraph, createTestGraph } from "../../helpers/testSetup.js";
 import { restoreMockMediaRecorder, setupMockMediaRecorder } from "./mock-media-recorder.js";
 
-const VIEW_A_3D: CameraState = { position: { x: 0, y: 0, z: 30 }, target: { x: 0, y: 0, z: 0 } };
-const VIEW_B_3D: CameraState = { position: { x: 30, y: 0, z: 0 }, target: { x: 0, y: 0, z: 0 } };
+const POSE_A = { position: { x: 0, y: 0, z: 30 }, target: { x: 0, y: 0, z: 0 } };
+const POSE_B = { position: { x: 30, y: 0, z: 0 }, target: { x: 0, y: 0, z: 0 } };
+const VIEW_A_3D: CameraState = POSE_A;
+const VIEW_B_3D: CameraState = POSE_B;
 const VIEW_A_2D: CameraState = { zoom: 1, pan: { x: 0, y: 0 } };
 const VIEW_B_2D: CameraState = { zoom: 2, pan: { x: 5, y: 5 } };
 
@@ -97,8 +100,8 @@ for (const mode of ["3d", "2d"] as const) {
             graph = await createTestGraph();
             await configureGraph(graph, { viewMode: mode, layout: "fixed" });
             await graph.waitForSettled();
-            graph.saveCameraPreset("tour-a", viewA);
-            graph.saveCameraPreset("tour-b", viewB);
+            await graph.saveCameraPreset("tour-a", viewA);
+            await graph.saveCameraPreset("tour-b", viewB);
         });
 
         afterEach(() => {
@@ -134,6 +137,25 @@ for (const mode of ["3d", "2d"] as const) {
             assert.isAtLeast(atB.frames, 1, "frames recorded at the second stop");
         });
 
+        test("a pause waits where the camera is, as one pause phase, when played and when recorded", async () => {
+            const paused = [{ view: "tour-a" }, { pause: HOLD }, { view: "tour-b", duration: 200, hold: HOLD }];
+            assert.strictEqual(graph.planTour(paused).totalMs, 2 * HOLD + 200);
+            const phases: string[] = [];
+            const off = graph.on("tour-progress", ({ stop, phase }) => {
+                phases.push(`${String(stop)}:${phase}`);
+            });
+            const [atA] = await framesAt(graph, [viewA, viewB], () => graph.playTour(paused));
+            off();
+
+            assert.deepStrictEqual(phases, ["0:hold", "1:pause", "2:flight", "2:hold"]);
+            assert.isAtLeast(atA.ms, HOLD, "the pause held the first stop for its length");
+
+            const [recordedA] = await framesAt(graph, [viewA, viewB], () =>
+                graph.captureAnimation({ fps: 30, tour: paused }),
+            );
+            assert.isAtLeast(recordedA.ms, HOLD, "the recording held the first stop through the pause");
+        });
+
         test("an unknown view name is refused before the camera moves", async () => {
             const before = graph.getCameraState();
             const playing = graph.playTour([{ view: "tour-a" }, { view: "no-such-view", duration: 100 }]);
@@ -157,21 +179,51 @@ for (const mode of ["3d", "2d"] as const) {
             assert.equal(await codeOf(graph.playTour([{ view: other, hold: 10 }])), "E_UNSUPPORTED");
         });
 
-        test("a tour of plain names keeps the animator path", async () => {
-            const recording = graph.captureAnimation({
-                duration: 300,
-                fps: 30,
-                cameraMode: "animated",
-                tour: ["tour-a", "tour-b"],
-            });
-            // The animator flies only views with a position and target: 2D views stay refused
-            // until issue #7936 moves plain tours onto the flight playTour uses.
-            if (mode === "2d") {
-                assert.equal(await codeOf(recording), "E_UNSUPPORTED");
-            } else {
-                assert.ok((await recording).blob instanceof Blob);
-            }
+        test("a recorded tour of names reaches each view, and getCameraState reports it", async () => {
+            // The second leg stays at the second view, so the camera stands there for a whole leg
+            // before the recording ends.
+            const [, atB] = await framesAt(graph, [viewA, viewB], () =>
+                graph.captureAnimation({
+                    duration: 600,
+                    fps: 30,
+                    cameraMode: "animated",
+                    tour: ["tour-a", "tour-b", "tour-b"],
+                }),
+            );
+
+            assert.isAtLeast(atB.frames, 1, "frames drawn at the second view");
+            assert.isFalse(standsAt(graph, viewB), "the camera is put back after the recording");
         });
+
+        if (mode === "3d") {
+            test("a recorded path of plain waypoints reaches each pose, and getCameraState reports it", async () => {
+                const [, atB] = await framesAt(graph, [viewA, viewB], () =>
+                    graph.captureAnimation({
+                        duration: 600,
+                        fps: 30,
+                        cameraMode: "animated",
+                        cameraPath: [POSE_A, { ...POSE_B, duration: 200 }],
+                    }),
+                );
+
+                assert.isAtLeast(atB.frames, 1, "frames drawn at the second waypoint");
+                assert.isFalse(standsAt(graph, viewB), "the camera is put back after the recording");
+            });
+        } else {
+            test("a plain waypoint is refused in 2D with E_UNSUPPORTED", async () => {
+                const plain = { position: { x: 0, y: 0, z: 10 }, target: { x: 0, y: 0, z: 0 } };
+                assert.equal(
+                    await codeOf(
+                        graph.captureAnimation({
+                            duration: 300,
+                            cameraMode: "animated",
+                            cameraPath: [plain, { ...plain, duration: 100 }],
+                        }),
+                    ),
+                    "E_UNSUPPORTED",
+                );
+            });
+        }
 
         test("cancelCameraAnimation ends a tour during a hold", async () => {
             let arrived: () => void = () => undefined;

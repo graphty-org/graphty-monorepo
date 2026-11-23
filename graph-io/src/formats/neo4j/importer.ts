@@ -32,6 +32,16 @@
  *   ("In Neo4j, all relationships have a direction"), so the sink is set directed before the first
  *   edge and `onMixedDirection: "undirected"` is the way to read a file as undirected.
  * - `:IGNORE` columns are skipped and counted in a loss note.
+ *
+ * APOC exports are read too. An `apoc.export.csv` table (`_id`, `_labels`, `_start`, `_end`,
+ * `_type` columns, node rows and relationship rows in one table) is a section whose rows are nodes
+ * when `_id` is set and relationships otherwise; the property columns before `_start` belong to
+ * nodes, the ones after it to relationships, and `_labels` is split on ":" (`:A:B`). An
+ * `apoc.export.json` file (an input whose first character is `{` or `[`: JSON Lines, one array, a
+ * `{nodes, rels}` object or query records) is walked for every object with `"type": "node"` (a node
+ * by its id) or `"type": "relationship"` (an edge from `start.id` to `end.id`, its type from
+ * `label`); a node or relationship repeated in query records is read once, and a property's JSON
+ * value is stored as it is.
  */
 
 import {
@@ -63,11 +73,13 @@ import {
     MISSING_ENDPOINT_CODE as SHARED_MISSING_ENDPOINT_CODE,
     MISSING_ID_CODE as SHARED_MISSING_ID_CODE,
     ROLE_TAKEN_CODE as SHARED_ROLE_TAKEN_CODE,
+    SYNTAX_CODE,
 } from "../../common/codes.js";
 import { type DeclaredTypeSpec } from "../../common/declared-types.js";
 import { DirectionResolver } from "../../common/direction.js";
 import { ID_MERGED_CODE as SHARED_ID_MERGED_CODE, IdCoercer } from "../../common/ids.js";
-import { inputLength, isImportInput, type ReadOptions, throwIfAborted } from "../../common/input.js";
+import { inputLength, isImportInput, type ReadOptions, readText, throwIfAborted } from "../../common/input.js";
+import { isRecord } from "../../common/json-elements.js";
 import { type ListSyntax, splitListText } from "../../common/lists.js";
 import {
     reportSinkOptions,
@@ -75,8 +87,9 @@ import {
     type ResolvedImportOptions,
     resolveImportOptions,
 } from "../../common/options.js";
+import { peekHead } from "../../common/peek.js";
 import { agree, plural, withArticle } from "../../common/plural.js";
-import { ImportReportBuilder } from "../../common/report.js";
+import { ImportReportBuilder, messageOf } from "../../common/report.js";
 import { parseTemporal } from "../../common/temporal.js";
 import { itemAt } from "../../common/text.js";
 import { parseWeightText } from "../../common/weights.js";
@@ -88,7 +101,17 @@ import {
     type ImportReport,
 } from "../../types.js";
 import { checkRecordSyntax, RecordReader, type RecordSyntax, splitRecords } from "../csv/records.js";
-import { allHeaderCells, type FieldKind, type HeaderField, isHeaderRecord, parseHeaderField } from "./header.js";
+import {
+    allHeaderCells,
+    type FieldKind,
+    type HeaderField,
+    isApocCsvHeader,
+    isHeaderRecord,
+    looksLikeApocJson,
+    parseHeaderField,
+    startsAsJson,
+} from "./header.js";
+import { neo4jCoordinates, type Neo4jPoint, neo4jPoint } from "./points.js";
 
 /**
  * The format-specific options of the Neo4j importer.
@@ -208,6 +231,13 @@ export const ID_MERGED_CODE = SHARED_ID_MERGED_CODE;
 export const HEADER_OPTION_CODE = "W_NEO4J_HEADER_OPTION_IGNORED";
 
 /**
+ * A point of the position property in another coordinate reference system than the property's first point:
+ * geographic among cartesian points (dropped) or 2D among 3D ones (kept, its missing coordinate 0).
+ * @category Issue and loss codes
+ */
+export const POINT_CRS_CODE = "W_NEO4J_POINT_CRS";
+
+/**
  * You read into a graph builder that already has the labels, type or id space attribute, so this file's one is kept
  * without its role.
  * @category Issue and loss codes
@@ -317,6 +347,8 @@ interface PropertySlot {
     companion: ColumnHandle;
     /** The item count a `vector{dimensions:n}` property requires, or null. */
     readonly dimensions: number | null;
+    /** For the node point property read as the position: the crs its header's `{crs:...}` option names. */
+    readonly position?: { readonly headerCrs: string | undefined };
 }
 
 /** A node section: the header interpreted. */
@@ -332,6 +364,8 @@ interface NodeSection {
     readonly labelCells: readonly number[];
     readonly extraLabels: readonly string[];
     readonly properties: readonly PropertySlot[];
+    /** Whether the label cells are APOC's `:A:B` form rather than a list split by the array delimiter. */
+    readonly colonLabels: boolean;
 }
 
 /** A relationship section: the header interpreted. */
@@ -354,7 +388,32 @@ interface RelationshipSection {
     readonly properties: readonly PropertySlot[];
 }
 
-type Section = NodeSection | RelationshipSection;
+/**
+ * An `apoc.export.csv` section: one table whose rows are nodes (`_id` set) or relationships; either
+ * part is null when the header has no column for it.
+ */
+interface ApocSection {
+    readonly kind: "apoc";
+    readonly node: NodeSection | null;
+    readonly relationship: RelationshipSection | null;
+}
+
+type Section = NodeSection | RelationshipSection | ApocSection;
+
+/** The kind of section an input option names. */
+type SectionKind = "node" | "relationship";
+
+/** How many leading bytes are peeked to tell an APOC JSON input from a CSV one. */
+const JSON_PEEK_BYTES = 1024;
+
+/** The APOC CSV columns with a structural meaning, and the neo4j-admin field kind each plays. */
+const APOC_CSV_COLUMNS: Readonly<Record<string, FieldKind>> = Object.freeze({
+    _id: "ID",
+    _labels: "LABEL",
+    _start: "START_ID",
+    _end: "END_ID",
+    _type: "TYPE",
+});
 
 /** The delimiters sniffed between when none is given: neo4j-admin's default and the TSV tab. */
 const NEO4J_DELIMITER_CANDIDATES: readonly string[] = Object.freeze([",", "\t"]);
@@ -608,10 +667,22 @@ class Neo4jImportSession {
     private readonly overflows: string[] = [];
 
     /** The section kind the option of the input being read names, or null for the primary input. */
-    private expectedKind: Section["kind"] | null = null;
+    private expectedKind: SectionKind | null = null;
 
     /** Whether any node row was read. */
     private nodeRows = false;
+
+    /** The node point property read as the position column (the first one a header declares), or null. */
+    private positionName: string | null = null;
+
+    /** The position column, declared on the first point (whose coordinate system it takes). */
+    private positionHandle: ColumnHandle = INVALID_INDEX as ColumnHandle;
+
+    /** The first point of the position column. */
+    private firstPoint: Neo4jPoint | null = null;
+
+    /** The ids of the APOC JSON relationships read, so one repeated in query records is read once. */
+    private readonly apocRelationships = new Set<string>();
 
     /** Nodes relationship endpoints created (no node row declared them yet), the first few by id. */
     private readonly placeholders: { readonly id: NodeId; readonly index: number }[] = [];
@@ -643,9 +714,7 @@ class Neo4jImportSession {
      * it is the only one.
      * @param inputs - the inputs in reading order, each with the kind of section its option names (null for the primary input)
      */
-    async run(
-        inputs: readonly { readonly input: ImportInput; readonly kind: Section["kind"] | null }[],
-    ): Promise<void> {
+    async run(inputs: readonly { readonly input: ImportInput; readonly kind: SectionKind | null }[]): Promise<void> {
         const progress = new ProgressTracker(
             this.common.onProgress,
             inputs.map((i) => i.input),
@@ -690,7 +759,13 @@ class Neo4jImportSession {
         carried: Section | null,
         mayBeEmpty: boolean,
     ): Promise<Section | null> {
-        const reader = new RecordReader(input, this.report, this.options.syntax, {
+        const peeked = await peekHead(input, JSON_PEEK_BYTES, readOptions.signal ?? null);
+        const { head } = peeked;
+        if (startsAsJson(typeof head === "string" ? head : new TextDecoder("utf-8", { fatal: false }).decode(head))) {
+            await this.readApocJson(peeked.input, readOptions);
+            return null;
+        }
+        const reader = new RecordReader(peeked.input, this.report, this.options.syntax, {
             ...readOptions,
             allowEmpty: mayBeEmpty,
         });
@@ -712,11 +787,7 @@ class Neo4jImportSession {
                 continue;
             }
             rows++;
-            if (section.kind === "node") {
-                this.nodeRow(section, reader, count);
-            } else {
-                this.relationshipRow(section, reader, count);
-            }
+            this.row(section, reader, count);
             if (++sinceCheck >= ABORT_CHECK_INTERVAL) {
                 sinceCheck = 0;
                 throwIfAborted(readOptions.signal);
@@ -765,6 +836,9 @@ class Neo4jImportSession {
         const kinds = cellsByKind(fields);
         const isNode = (kinds.get("ID") ?? []).length > 0;
         const isRelationship = (kinds.get("START_ID") ?? []).length > 0 || (kinds.get("END_ID") ?? []).length > 0;
+        if (!isNode && !isRelationship && isApocCsvHeader(fields.map((f) => f.text.trim()))) {
+            return this.declareApocSection(fields, line);
+        }
         checkSectionShape(fields, isNode, isRelationship);
         this.warnSectionKind(isNode, line);
         checkPropertyNames(fields);
@@ -874,7 +948,7 @@ class Neo4jImportSession {
             for (const [key, value] of field.options) {
                 if (key === "label" && field.kind === "ID") {
                     extraLabels.push(value);
-                } else if (!isVectorOption(field, key)) {
+                } else if (!isVectorOption(field, key) && !(key === "crs" && this.isPositionField(field))) {
                     this.report.warning(
                         "unsupported",
                         HEADER_OPTION_CODE,
@@ -914,7 +988,61 @@ class Neo4jImportSession {
             labelCells,
             extraLabels,
             properties,
+            colonLabels: false,
         };
+    }
+
+    /**
+     * Declare an `apoc.export.csv` section: the node part reads `_id`, `_labels` and the property
+     * columns before `_start`; the relationship part reads `_start`, `_end`, `_type` and the
+     * property columns from `_start` on. Each part sees the other's columns as ignored cells.
+     * @param fields - the parsed header (every cell a property field)
+     * @param line - the header line
+     * @returns the section
+     */
+    private declareApocSection(fields: readonly HeaderField[], line: number): ApocSection {
+        const firstRelationship = fields.findIndex(
+            (f) => f.name === "_start" || f.name === "_end" || f.name === "_type",
+        );
+        const split = firstRelationship < 0 ? fields.length : firstRelationship;
+        const ignored = (field: HeaderField): HeaderField => ({ ...field, name: "", kind: "IGNORE" });
+        const part = (nodes: boolean): HeaderField[] =>
+            fields.map((field, cell) => {
+                const kind = APOC_CSV_COLUMNS[field.name] as FieldKind | undefined;
+                const mine =
+                    kind === undefined ? cell < split === nodes : (kind === "ID" || kind === "LABEL") === nodes;
+                return !mine
+                    ? ignored(field)
+                    : { ...field, name: kind === undefined ? field.name : "", kind: kind ?? "PROPERTY" };
+            });
+        const nodeFields = part(true);
+        const relationshipFields = part(false);
+        checkPropertyNames(nodeFields);
+        checkPropertyNames(relationshipFields);
+        const cellOf = (list: readonly HeaderField[], kind: FieldKind): number =>
+            list.findIndex((f) => f.kind === kind);
+        const idCell = cellOf(nodeFields, "ID");
+        const startCell = cellOf(relationshipFields, "START_ID");
+        const endCell = cellOf(relationshipFields, "END_ID");
+        const labelCell = cellOf(nodeFields, "LABEL");
+        const node =
+            idCell < 0
+                ? null
+                : {
+                      ...this.declareNodeSection(nodeFields, [idCell], labelCell < 0 ? [] : [labelCell], line),
+                      colonLabels: true,
+                  };
+        const relationship =
+            startCell < 0 || endCell < 0
+                ? null
+                : this.declareRelationshipSection(
+                      relationshipFields,
+                      [startCell],
+                      [endCell],
+                      cellOf(relationshipFields, "TYPE"),
+                      line,
+                  );
+        return { kind: "apoc", node, relationship };
     }
 
     /**
@@ -1024,6 +1152,27 @@ class Neo4jImportSession {
         const { sink, report } = this;
         const { listSyntax } = this.options;
         const vector = vectorOf(field);
+        if (domain === "node" && this.isPositionField(field)) {
+            this.positionName = field.name;
+            return {
+                cell,
+                name: field.name,
+                handle: INVALID_INDEX as ColumnHandle,
+                spec: declareAttribute({
+                    format: NEO4J,
+                    id: field.name,
+                    title: null,
+                    type: field.type,
+                    namespace: null,
+                    listSyntax,
+                    long: this.common.long,
+                }).spec,
+                companionDecl: null,
+                companion: INVALID_INDEX as ColumnHandle,
+                dimensions: null,
+                position: { headerCrs: field.options.get("crs") },
+            };
+        }
         const input: AttributeDeclarationInput = {
             format: NEO4J,
             id: field.name,
@@ -1126,6 +1275,28 @@ class Neo4jImportSession {
     }
 
     /**
+     * Push one data row of a section: an APOC row is a node when its `_id` cell is set (or the
+     * table has no relationship columns), a relationship otherwise.
+     * @param section - the section
+     * @param reader - the reader positioned on the row
+     * @param count - the row's cell count
+     */
+    private row(section: Section, reader: RecordReader, count: number): void {
+        if (section.kind === "node") {
+            this.nodeRow(section, reader, count);
+        } else if (section.kind === "relationship") {
+            this.relationshipRow(section, reader, count);
+        } else if (
+            section.node !== null &&
+            (section.relationship === null || keyText(reader.cells, reader.quoted, section.node.idCells) !== null)
+        ) {
+            this.nodeRow(section.node, reader, count);
+        } else if (section.relationship !== null) {
+            this.relationshipRow(section.relationship, reader, count);
+        }
+    }
+
+    /**
      * Push one node row.
      * @param section - the section
      * @param reader - the reader positioned on the row
@@ -1223,7 +1394,7 @@ class Neo4jImportSession {
      * @param element - the row's element name
      * @param write - the write
      */
-    private guarded(line: number, element: string, write: () => void): void {
+    private guarded(line: number | null, element: string, write: () => void): void {
         try {
             write();
         } catch (err) {
@@ -1441,10 +1612,10 @@ class Neo4jImportSession {
     /**
      * Coerce an id cell, reporting a merge under `ids: "number"` and an invalid id as an error.
      * @param text - the cell
-     * @param line - the row's line
+     * @param line - the row's line, or null when the input has none (JSON)
      * @returns the id, or null when the cell was rejected (the error is recorded)
      */
-    private coerceId(text: string, line: number): NodeId | null {
+    private coerceId(text: string, line: number | null): NodeId | null {
         const { coercer, report } = this;
         let id: NodeId;
         try {
@@ -1527,7 +1698,81 @@ class Neo4jImportSession {
             values[slot.cell] = parseDeclaredValue(text, spec, this.options.listSyntax);
             checkNeo4jRange(spec, values[slot.cell], text);
             checkDimensions(slot, values[slot.cell], text);
+            if (slot.position !== undefined) {
+                const point = neo4jPoint(values[slot.cell], slot.position.headerCrs);
+                if (point === null) {
+                    throw new GraphFormatError(
+                        "E_COLUMN_TYPE",
+                        `"${text}" is not a point of a coordinate reference system Neo4j has`,
+                        { value: text, kind: "point" },
+                    );
+                }
+                values[slot.cell] = point;
+            }
         }
+    }
+
+    /**
+     * Whether a header field is the node point property read as the position: the first point property a node
+     * header declares, and the same name in a later header.
+     * @param field - the header field
+     * @returns true for that property
+     */
+    private isPositionField(field: HeaderField): boolean {
+        return (
+            field.kind === "PROPERTY" &&
+            field.type?.trim().toLowerCase() === "point" &&
+            (this.positionName === null || this.positionName === field.name)
+        );
+    }
+
+    /**
+     * Write a point into the position column, declaring it on the first point with that point's coordinate system.
+     * A point of the other kind (geographic or cartesian) is dropped; one of other dimensions is kept.
+     * @param row - the node
+     * @param point - the point
+     * @param name - the property name
+     * @param where - the row's line and element, for issues
+     * @param where.line - the line
+     * @param where.element - the element
+     */
+    private writePosition(
+        row: number,
+        point: Neo4jPoint,
+        name: string,
+        where: { line: number; element: string },
+    ): void {
+        const first = this.firstPoint;
+        if (first === null) {
+            this.firstPoint = point;
+            this.positionHandle = this.declareReserved("node", {
+                name,
+                dtype: "f64",
+                components: 3,
+                role: "position",
+                nullable: true,
+                mutable: true,
+                origin: { format: NEO4J, id: name, type: "point" },
+                extra: { sourceDims: point.dims },
+                coordinates: neo4jCoordinates(point),
+            });
+        } else if (first.geographic !== point.geographic) {
+            this.report.warning(
+                "validation-error",
+                POINT_CRS_CODE,
+                `a ${point.geographic ? "geographic" : "cartesian"} point among ${first.geographic ? "geographic" : "cartesian"} ones; dropped`,
+                where,
+            );
+            return;
+        } else if (first.dims !== point.dims) {
+            this.report.warnOnce(
+                "validation-error",
+                POINT_CRS_CODE,
+                `points mix ${first.dims} and ${point.dims} dimensions; the position column records ${first.dims}, each point keeps its own coordinates`,
+                where,
+            );
+        }
+        this.sink.setNodeValue(this.positionHandle, row, point.xyz);
     }
 
     /**
@@ -1552,6 +1797,12 @@ class Neo4jImportSession {
                 continue;
             }
             const text = texts[slot.cell];
+            if (slot.position !== undefined) {
+                this.guarded(line, `${element} ${slot.name}`, () => {
+                    this.writePosition(row, value as Neo4jPoint, slot.name, { line, element });
+                });
+                continue;
+            }
             // a value the sink refuses is recorded on the row's line; the other properties are written
             this.guarded(line, `${element} ${slot.name}`, () => {
                 if (text !== null && slot.companion === INVALID_INDEX && slot.companionDecl !== null) {
@@ -1599,6 +1850,231 @@ class Neo4jImportSession {
     }
 
     /**
+     * Read an `apoc.export.json` input: every node and relationship record anywhere in the
+     * document (JSON Lines, one array, a `{nodes, rels}` object, query records).
+     * @param input - the input
+     * @param readOptions - cancellation, progress and encoding
+     */
+    private async readApocJson(input: ImportInput, readOptions: ReadOptions): Promise<void> {
+        const text = await readText(input, this.report, readOptions);
+        const stack = parseApocJson(text, this.report).reverse();
+        const content = stack.some((doc) => (Array.isArray(doc) ? doc.length > 0 : isRecord(doc)));
+        let found = false;
+        let sinceCheck = 0;
+        while (stack.length > 0) {
+            found = this.apocValue(stack.pop(), stack) || found;
+            if (++sinceCheck >= ABORT_CHECK_INTERVAL) {
+                sinceCheck = 0;
+                throwIfAborted(readOptions.signal);
+            }
+        }
+        if (!found && content) {
+            this.report.fail(
+                HEADER_CODE,
+                'the input is JSON without an APOC node or relationship record (an object with "type": "node" or "type": "relationship", as apoc.export.json writes); read other JSON graphs as format "json"',
+                { line: 1 },
+            );
+        }
+    }
+
+    /**
+     * Read one value of an APOC JSON document: a node or relationship record is pushed, any other
+     * array or object has its children put on the stack (in document order).
+     * @param value - the value
+     * @param stack - the values still to read, the next on top
+     * @returns true when the value was a node or relationship record
+     */
+    private apocValue(value: unknown, stack: unknown[]): boolean {
+        if (isRecord(value) && value.type === "node" && "id" in value) {
+            this.apocNode(value);
+            return true;
+        }
+        if (isRecord(value) && value.type === "relationship") {
+            this.apocRelationship(value);
+            return true;
+        }
+        if (Array.isArray(value) || isRecord(value)) {
+            const children: readonly unknown[] = Array.isArray(value) ? value : Object.values(value);
+            for (let i = children.length - 1; i >= 0; i--) {
+                stack.push(children[i]);
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Push an APOC node record, or the start / end stub of a relationship: its id, labels and
+     * properties. A node record read again (a query export repeats them) is written again with the
+     * same values; a stub writes them only for a node not read before, so it never overwrites a record.
+     * @param record - the record
+     * @param stub - whether the record is a relationship's start or end stub
+     * @returns the node id, or null when the record was skipped (the error is recorded)
+     */
+    private apocNode(record: Record<string, unknown>, stub = false): NodeId | null {
+        const { sink, report } = this;
+        const raw = record.id;
+        if (typeof raw !== "string" && typeof raw !== "number") {
+            report.error("missing-value", MISSING_ID_CODE, "an APOC node record without a string or number id", {});
+            report.counts.skippedNodes++;
+            return null;
+        }
+        const element = String(raw);
+        const id = this.coerceId(element, null);
+        if (id === null) {
+            report.counts.skippedNodes++;
+            return null;
+        }
+        const existed = sink.indexOf(id) !== INVALID_INDEX;
+        let index: number;
+        try {
+            index = sink.addNode(id);
+        } catch (err) {
+            report.recordError(err, { element });
+            report.counts.skippedNodes++;
+            return null;
+        }
+        this.nodeRows = true;
+        if (!existed) {
+            report.counts.nodes++;
+        } else if (stub) {
+            return id;
+        }
+        if (Array.isArray(record.labels)) {
+            this.ensureLabels();
+            const labels = record.labels.filter((label): label is string => typeof label === "string");
+            this.guarded(null, element, () => {
+                sink.setNodeValue(this.labelsHandle, index, labels);
+            });
+        }
+        this.apocProperties("node", index, record.properties, element, null);
+        return id;
+    }
+
+    /**
+     * Push an APOC relationship record: its endpoints (from the start / end stubs), its type
+     * (`label`) and properties; one whose id was read before is skipped.
+     * @param record - the record
+     */
+    private apocRelationship(record: Record<string, unknown>): void {
+        const { report } = this;
+        if (!this.headerSet) {
+            this.headerSet = true;
+            this.direction.setHeader(true, {});
+        }
+        const { start, end, label, properties } = record;
+        if (!isRecord(start) || !isRecord(end)) {
+            report.error(
+                "missing-value",
+                MISSING_ENDPOINT_CODE,
+                "an APOC relationship record without a start or end node",
+                {},
+            );
+            report.counts.skippedEdges++;
+            return;
+        }
+        if (typeof record.id === "string" || typeof record.id === "number") {
+            const key = String(record.id);
+            if (this.apocRelationships.has(key)) {
+                return;
+            }
+            this.apocRelationships.add(key);
+        }
+        const source = this.apocNode(start, true);
+        const target = source === null ? null : this.apocNode(end, true);
+        if (source === null || target === null) {
+            report.counts.skippedEdges++;
+            return;
+        }
+        const element = `${String(source)}->${String(target)}`;
+        const weight = this.apocWeight(properties);
+        let edge: number;
+        try {
+            edge = this.direction.addEdge(source, target, "directed", weight, { element });
+        } catch (err) {
+            report.recordError(err, { element });
+            report.counts.skippedEdges++;
+            return;
+        }
+        this.setApocType(edge, label, element);
+        this.apocProperties("edge", edge, properties, element, weight === undefined ? null : this.common.weightFrom);
+        report.counts.edges++;
+    }
+
+    /**
+     * The weight of an APOC relationship: the number under the `weightFrom` property, if any.
+     * @param properties - the record's properties
+     * @returns the weight, or undefined
+     */
+    private apocWeight(properties: unknown): number | undefined {
+        const { weightFrom } = this.common;
+        if (weightFrom === null || !isRecord(properties) || typeof properties[weightFrom] !== "number") {
+            return undefined;
+        }
+        if (weightFrom !== "weight") {
+            this.weightProperty = weightFrom;
+        }
+        return properties[weightFrom];
+    }
+
+    /**
+     * Write an APOC relationship's type (its `label`), warning when it has none.
+     * @param edge - the edge index
+     * @param label - the record's label
+     * @param element - the element name for issues
+     */
+    private setApocType(edge: number, label: unknown, element: string): void {
+        if (typeof label !== "string" || label.length === 0) {
+            this.report.warning(
+                "missing-value",
+                MISSING_TYPE_CODE,
+                "an APOC relationship without a label (its type); kept without one",
+                { element },
+            );
+            return;
+        }
+        this.ensureType();
+        this.guarded(null, element, () => {
+            this.sink.setEdgeValue(this.typeHandle, edge, label);
+        });
+    }
+
+    /**
+     * Write the `properties` object of an APOC record: each non-null value as it is (a point map
+     * or a list is a JSON value); a key named like the labels or type column gets `<name>#<name>`.
+     * @param domain - node or edge
+     * @param row - the node or edge index
+     * @param properties - the record's properties, or anything else (written as none)
+     * @param element - the element name for issues
+     * @param skip - a key not to write (the one the weight was read from), or null
+     */
+    private apocProperties(
+        domain: "node" | "edge",
+        row: number,
+        properties: unknown,
+        element: string,
+        skip: string | null,
+    ): void {
+        if (!isRecord(properties)) {
+            return;
+        }
+        const { sink } = this;
+        const reserved = domain === "node" ? LABELS_COLUMN : TYPE_COLUMN;
+        for (const [key, value] of Object.entries(properties)) {
+            if (value === null || value === undefined || key === skip) {
+                continue;
+            }
+            const name = key === reserved ? `${key}#${key}` : key;
+            this.guarded(null, `${element} ${key}`, () => {
+                if (domain === "node") {
+                    sink.setNodeValue(name, row, value);
+                } else {
+                    sink.setEdgeValue(name, row, value);
+                }
+            });
+        }
+    }
+
+    /**
      * The labels of a node row: every `:LABEL` cell split by the array delimiter (empty items
      * dropped), plus the header's `{label:...}` options.
      * @param section - the section
@@ -1613,19 +2089,12 @@ class Neo4jImportSession {
             if (text.length === 0 && !quoted[cell]) {
                 continue;
             }
-            if (labels === undefined) {
-                labels = [];
-            }
-            for (const item of splitListText(text, this.options.listSyntax)) {
-                if (item.length > 0) {
-                    labels.push(item);
-                }
-            }
+            const items = section.colonLabels ? text.split(":") : splitListText(text, this.options.listSyntax);
+            labels ??= [];
+            labels.push(...items.filter((item) => item.length > 0));
         }
         if (section.extraLabels.length > 0) {
-            if (labels === undefined) {
-                labels = [];
-            }
+            labels ??= [];
             labels.push(...section.extraLabels);
         }
         return labels;
@@ -1731,6 +2200,36 @@ function sharedSpace(fields: readonly HeaderField[], keyCells: readonly number[]
         throw headerError(`the ${kind} columns of a composite key name different id spaces`);
     }
     return space;
+}
+
+/**
+ * Parse an APOC JSON export: one JSON document (an array or an object), else JSON Lines (one value
+ * per non-blank line). A line that is not JSON stops the import with E_SYNTAX.
+ * ponytail: an integer beyond 2^53 loses digits in JSON.parse; APOC writes ids as strings, so only
+ * a property can; keep its digits (rewriteNumbers) if such exports turn up.
+ * @param text - the decoded input
+ * @param report - the report
+ * @returns the documents
+ */
+function parseApocJson(text: string, report: ImportReportBuilder): unknown[] {
+    try {
+        return [JSON.parse(text) as unknown];
+    } catch {
+        // not one document: JSON Lines
+    }
+    const docs: unknown[] = [];
+    const lines = text.split(/\r\n|\r|\n/);
+    for (let i = 0; i < lines.length; i++) {
+        if (lines[i].trim().length === 0) {
+            continue;
+        }
+        try {
+            docs.push(JSON.parse(lines[i]) as unknown);
+        } catch (err) {
+            report.fail(SYNTAX_CODE, `line ${i + 1} is not JSON: ${messageOf(err)}`, { line: i + 1 });
+        }
+    }
+    return docs;
 }
 
 /**
@@ -1976,17 +2475,19 @@ function headerError(reason: string): GraphFormatError {
 }
 
 /**
- * Confidence that a head of bytes is a neo4j-admin CSV: the first line holds an `:ID`,
- * `:START_ID` or `:END_ID` header cell.
+ * Confidence that a head of bytes is Neo4j: the first line holds an `:ID`, `:START_ID` or
+ * `:END_ID` header cell (neo4j-admin) or APOC's `_id` / `_start` columns (apoc.export.csv), or the
+ * head is an apoc.export.json export.
  * @param head - the first bytes of the input
- * @returns 0.95 for a Neo4j header, 0 otherwise
+ * @returns 0.95 for a Neo4j header or an APOC export, 0 otherwise
  */
 function sniffNeo4j(head: Uint8Array): number {
     const text = new TextDecoder("utf-8", { fatal: false, ignoreBOM: false }).decode(head);
     const end = text.search(/[\r\n]/);
     const first = end < 0 ? text : text.slice(0, end);
     const cells = first.split(/[,;|\t]/);
-    return isHeaderRecord(cells, cells.length) ? 0.95 : 0;
+    const unquoted = cells.map((cell) => cell.trim().replace(/^"(.*)"$/, "$1"));
+    return isHeaderRecord(cells, cells.length) || isApocCsvHeader(unquoted) || looksLikeApocJson(text) ? 0.95 : 0;
 }
 
 /**

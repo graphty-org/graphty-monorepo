@@ -13,8 +13,7 @@ import { afterEach, assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../../index.js";
 import { shaderDescriptor } from "../../../src/catalog/shaderRegistry";
-import { operationQueueOf } from "../../../src/Graph";
-import type { RenderManager } from "../../../src/managers/RenderManager";
+import { operationQueueOf, renderManagerOf } from "../../../src/Graph";
 import type { GroupOutlinePass } from "../../../src/meshes/GroupOutlinePass";
 import { presetId } from "../../../stories/shaders/scenePresets";
 import lesMiserablesGexf from "../../helpers/corpus/gexf/lesmiserables.gexf?raw";
@@ -57,7 +56,7 @@ async function mounted(): Promise<Graphty> {
  * @returns The pass, or null.
  */
 function passOf(element: Graphty): GroupOutlinePass | null {
-    return (element.graph as unknown as { renderManager: RenderManager }).renderManager.shaderPasses().outline;
+    return renderManagerOf(element.graph).shaderPasses().outline;
 }
 
 /**

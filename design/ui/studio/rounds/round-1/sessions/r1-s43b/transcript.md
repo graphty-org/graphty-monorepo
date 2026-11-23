@@ -8,7 +8,7 @@ Start: empty, Les Miserables sample. Screenshots 01-09 in this folder.
 
 1. `--start ... empty` (01.png). Think-aloud: "A start screen. A question about collecting my usage. I did not ask for that. No thanks. Les Miserables is in the list on the right, so that is my practice file."
 2. `--click "No thanks"` (02.png). The banner went away.
-3. `--click "Les Miserables"` (03.png). A tangle of blue dots with grey lines, 77 nodes. "That is a pile. The middle is crowded. I need something that arranges the dots. Four small icons at the bottom, no words."
+3. `--click "Les Miserables"` (03.png). A tangle of blue dots with gray lines, 77 nodes. "That is a pile. The middle is crowded. I need something that arranges the dots. Four small icons at the bottom, no words."
 4. `--click-at 709,864` (04.png). The tool said "Layout". A small box opened: Method "Force - Recommended", Seed "1". "I don't know what Seed is. I'm leaving it alone."
 5. `--click "Method"` (05.png). A list: Force - Recommended, Force flat, Circle, Grid, Spiral, Spectral, No crossings, Random, Keep positions. "I only understand a few of these. 'No crossings' sounds like untangling."
 6. `--click "No crossings" --wait 3000` (06.png). Nothing changed. The box still said Force - Recommended, the drawing was identical, and a tiny x appeared beside the box. "I clicked it. Nothing moved. Did it do anything? First failure. One more try."

@@ -5,8 +5,10 @@
  * container node with its members nested inside), then every logical edge in index order with its
  * explicit weight, `key` (the edge id role), ports and attributes.
  *
- * What the format keeps and what check() reports: any id and any text (DOT quotes everything
- * except a text ending in a backslash, which the lexer cannot read back); bool / i32 / f64 cells
+ * What the format keeps and what check() reports: any id and any text (written quoted, except an
+ * attribute value the importer listed as an HTML string in `meta.extra.dot.html`, written bare; a
+ * text with a backslash before a quote or a line break, or at its end, cannot be quoted and fails
+ * the save); bool / i32 / f64 cells
  * (f64 written with a decimal point so the dtype survives re-import; other numeric dtypes are
  * written and read back inferred); containment through the parent role (clusters); graph
  * attributes; node positions as `pos="x,y"`. Mixed direction is folded per onMixedDirection
@@ -18,7 +20,14 @@ import { type Column, GraphFormatError, type GraphSnapshot } from "@graphty/grap
 import { type ChildrenCsr, childrenCsr } from "../../children.js";
 import { type PairFolding, pairFolding } from "../../common/direction.js";
 import { isWritableDotText, quoteDotId } from "../../common/escape.js";
-import { capabilities, checkCapabilities, countMixedEdges, LOSS, sanitizeIds } from "../../common/export.js";
+import {
+    capabilities,
+    checkCapabilities,
+    countMixedEdges,
+    LOSS,
+    type SanitizedIds,
+    sanitizeIds,
+} from "../../common/export.js";
 import { formatDecimal, formatF32, formatF64, formatInteger, idText } from "../../common/format.js";
 import { canonicalId } from "../../common/ids.js";
 import { type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
@@ -26,6 +35,8 @@ import { agree, plural } from "../../common/plural.js";
 import { inferTextDtype } from "../../common/text.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { encodeChunks, indentUnit, joinText } from "../../common/writer.js";
+import { respelledPositions } from "../../positions/convert.js";
+import { writingGeographicAsColumns } from "../../positions/geographic.js";
 import type { ExporterStyleOptions } from "../../styles/io/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
 import {
@@ -35,13 +46,14 @@ import {
     KEY_ATTRIBUTE,
     LABEL_ATTRIBUTE,
     PARENT_COLUMN,
+    PIN_ATTRIBUTE,
     POS_ATTRIBUTE,
     RANK_COLUMN,
     RANK_SET_COLUMN,
     SOURCE_PORT_COLUMN,
     TARGET_PORT_COLUMN,
 } from "./names.js";
-import { DOT_ATTRIBUTE_CLASH_CODE, DOT_STYLE_CAPABILITIES, dotStyledExport, isHtmlString } from "./styles.js";
+import { DOT_ATTRIBUTE_CLASH_CODE, DOT_STYLE_CAPABILITIES, dotHtmlTexts, dotStyledExport } from "./styles.js";
 
 /** The node columns written as rank subgraphs rather than as node attributes. */
 const RANK_COLUMNS: ReadonlySet<string> = new Set([RANK_COLUMN, RANK_SET_COLUMN]);
@@ -146,8 +158,8 @@ function isCharset(column: Column): boolean {
     return column.meta.name.toLowerCase() === "charset";
 }
 
-/** The roles DOT has a slot for (the label attribute, key, ports, clusters); every other role is reported. */
-const KEPT_ROLES: ReadonlySet<string> = new Set(["label", "id", "sourcePort", "targetPort", "parent"]);
+/** The roles DOT has a slot for (the label attribute, key, ports, clusters, `pin`); every other role is reported. */
+const KEPT_ROLES: ReadonlySet<string> = new Set(["label", "id", "sourcePort", "targetPort", "parent", "fixed"]);
 
 /** The column name the importer gives each mapped role on re-import. */
 const ROLE_NAMES: Readonly<Record<string, string>> = Object.freeze({
@@ -157,6 +169,7 @@ const ROLE_NAMES: Readonly<Record<string, string>> = Object.freeze({
     targetPort: TARGET_PORT_COLUMN,
     parent: PARENT_COLUMN,
     position: POS_ATTRIBUTE,
+    fixed: PIN_ATTRIBUTE,
 });
 
 const CAPABILITIES: ExportCapabilities = capabilities({
@@ -246,57 +259,59 @@ const TEXT_ROLES: ReadonlySet<string> = new Set(["label", "id", "sourcePort", "t
  * The exporter plugin for DOT / Graphviz text.
  * @category Built-in formats
  */
-export const dotExporter: GraphExporter<DotExportOptions> = Object.freeze({
-    format: DOT_FORMAT,
-    options: Object.freeze(["indent", "name", "strict"]),
-    capabilities: CAPABILITIES,
-    styles: Object.freeze({ capabilities: DOT_STYLE_CAPABILITIES }),
+export const dotExporter: GraphExporter<DotExportOptions> = writingGeographicAsColumns(
+    Object.freeze({
+        format: DOT_FORMAT,
+        options: Object.freeze(["indent", "name", "strict"]),
+        capabilities: CAPABILITIES,
+        styles: Object.freeze({ capabilities: DOT_STYLE_CAPABILITIES }),
 
-    /**
-     * Pre-flight: every loss the DOT text would incur, without writing anything; with styles, also the values
-     * written as the nearest ones Graphviz has.
-     * @param snapshot - the snapshot to check
-     * @param options - format-specific and common options
-     * @returns the notes, empty when the export is exact
-     */
-    check(snapshot: GraphSnapshot, options?: DotWriteOptions): readonly LossNote[] {
-        const styled = dotStyledExport(snapshot, options?.styles, options?.onMixedDirection);
-        if (styled === null) {
-            return checkPlain(snapshot, options);
-        }
-        return Object.freeze([...checkPlain(styled.snapshot, options), ...styled.notes]);
-    },
+        /**
+         * Pre-flight: every loss the DOT text would incur, without writing anything; with styles, also the values
+         * written as the nearest ones Graphviz has.
+         * @param snapshot - the snapshot to check
+         * @param options - format-specific and common options
+         * @returns the notes, empty when the export is exact
+         */
+        check(snapshot: GraphSnapshot, options?: DotWriteOptions): readonly LossNote[] {
+            const styled = dotStyledExport(snapshot, options?.styles, options?.onMixedDirection);
+            if (styled === null) {
+                return checkPlain(snapshot, options);
+            }
+            return Object.freeze([...checkPlain(styled.snapshot, options), ...styled.notes]);
+        },
 
-    /**
-     * Write the snapshot as UTF-8 chunks.
-     * @param snapshot - the snapshot to write
-     * @param options - format-specific and common options
-     * @returns the encoded chunks
-     */
-    export(snapshot: GraphSnapshot, options?: DotWriteOptions): AsyncIterable<Uint8Array> {
-        return encodeChunks(
-            writeDot(
-                dotStyledExport(snapshot, options?.styles, options?.onMixedDirection)?.snapshot ?? snapshot,
-                options,
-            ),
-        );
-    },
+        /**
+         * Write the snapshot as UTF-8 chunks.
+         * @param snapshot - the snapshot to write
+         * @param options - format-specific and common options
+         * @returns the encoded chunks
+         */
+        export(snapshot: GraphSnapshot, options?: DotWriteOptions): AsyncIterable<Uint8Array> {
+            return encodeChunks(
+                writeDot(
+                    dotStyledExport(snapshot, options?.styles, options?.onMixedDirection)?.snapshot ?? snapshot,
+                    options,
+                ),
+            );
+        },
 
-    /**
-     * Write the snapshot as one string.
-     * @param snapshot - the snapshot to write
-     * @param options - format-specific and common options
-     * @returns the whole document
-     */
-    exportToString(snapshot: GraphSnapshot, options?: DotWriteOptions): Promise<string> {
-        return joinText(
-            writeDot(
-                dotStyledExport(snapshot, options?.styles, options?.onMixedDirection)?.snapshot ?? snapshot,
-                options,
-            ),
-        );
-    },
-});
+        /**
+         * Write the snapshot as one string.
+         * @param snapshot - the snapshot to write
+         * @param options - format-specific and common options
+         * @returns the whole document
+         */
+        exportToString(snapshot: GraphSnapshot, options?: DotWriteOptions): Promise<string> {
+            return joinText(
+                writeDot(
+                    dotStyledExport(snapshot, options?.styles, options?.onMixedDirection)?.snapshot ?? snapshot,
+                    options,
+                ),
+            );
+        },
+    }),
+);
 
 /**
  * Every loss the DOT text of a snapshot would incur.
@@ -307,6 +322,7 @@ export const dotExporter: GraphExporter<DotExportOptions> = Object.freeze({
 function checkPlain(snapshot: GraphSnapshot, options?: DotExportOptions & CommonExportOptions): LossNote[] {
     const resolved = resolveExportOptions(options);
     const notes = checkCapabilities(snapshot, CAPABILITIES, resolved, {
+        idsAsText: true,
         positionDtype: "f64",
         roles: KEPT_ROLES,
         roleNames: ROLE_NAMES,
@@ -337,17 +353,6 @@ function* writeDot(snapshot: GraphSnapshot, options?: DotExportOptions & CommonE
  */
 function endsWithBackslash(text: string): boolean {
     return !isWritableDotText(text);
-}
-
-/**
- * Write an attribute value as a DOT ID: an HTML string bare, everything else through quoteDotId.
- * A node id is always quoted (quoteDotId): the importer names a node written as an HTML string
- * by the text inside its angle brackets, so no node id is HTML.
- * @param text - the text
- * @returns the DOT ID
- */
-function writeId(text: string): string {
-    return isHtmlString(text) ? text : quoteDotId(text);
 }
 
 /**
@@ -518,6 +523,8 @@ class ExportPlan {
     private readonly position: Column | null;
 
     private readonly positionDims: 2 | 3;
+    /** The position column's rows in Graphviz's spelling (center, y up), or null to write them as stored. */
+    private readonly spelled: Float64Array | null;
 
     private readonly parent: Column | null;
 
@@ -535,6 +542,8 @@ class ExportPlan {
 
     /** The node and edge label role columns, written under `label` whatever their name. */
     private readonly nodeLabel: Column | null;
+    /** The node fixed role column, written as Graphviz's `pin`. */
+    private readonly nodeFixed: Column | null;
 
     private readonly edgeLabel: Column | null;
 
@@ -543,6 +552,9 @@ class ExportPlan {
     private readonly nodeSteps: readonly NodeStep[];
 
     private readonly extraNotes: LossNote[] = [];
+
+    /** The texts written as HTML strings (styles.ts dotHtmlTexts). */
+    private readonly html: ReadonlySet<string>;
 
     /**
      * Plan one export.
@@ -553,6 +565,7 @@ class ExportPlan {
     constructor(snapshot: GraphSnapshot, resolved: ResolvedExportOptions, options?: DotExportOptions) {
         this.snapshot = snapshot;
         this.resolved = resolved;
+        this.html = dotHtmlTexts(snapshot);
         const { indent, name, strict } = options ?? {};
         if (name !== undefined && name !== null && typeof name !== "string") {
             throw badOption("name", name, "a string or null");
@@ -572,6 +585,8 @@ class ExportPlan {
         const { nodes, edges, graph } = snapshot;
         this.position = nodes.byRole("position");
         this.positionDims = positionDims(this.position);
+        // a column read from a y-down or top-left file (Pajek, yEd, GML) is written the way up Graphviz draws it
+        this.spelled = respelledPositions(snapshot, this.position, {});
         this.parent = nodes.byRole("parent");
         const cluster = nodes.get(CLUSTER_COLUMN);
         this.cluster = cluster !== null && cluster.dtype === "bool" ? cluster : null;
@@ -581,6 +596,7 @@ class ExportPlan {
         this.sourcePort = edges.byRole("sourcePort");
         this.targetPort = edges.byRole("targetPort");
         this.nodeLabel = nodes.byRole("label");
+        this.nodeFixed = nodes.byRole("fixed");
         this.edgeLabel = edges.byRole("label");
         this.nodeColumns = [...nodes].filter((c) => this.writesNodeColumn(c));
         this.edgeColumns = [...edges].filter((c) => this.writesEdgeColumn(c));
@@ -700,6 +716,10 @@ class ExportPlan {
         }
         if (name === POS_ATTRIBUTE && role !== "position") {
             this.clash("node", name, "the position role is written as pos");
+            return false;
+        }
+        if (name === PIN_ATTRIBUTE && this.nodeFixed !== null && this.nodeFixed !== column) {
+            this.clash("node", name, "the fixed role is written as pin");
             return false;
         }
         return this.labelFree("node", column, this.nodeLabel);
@@ -1068,8 +1088,9 @@ class ExportPlan {
             return null;
         }
         const format = column.dtype === "f32" ? formatF32 : formatF64;
-        const base = i * components;
-        const { data } = column;
+        const { spelled } = this;
+        const [data, stride] = spelled === null ? [column.data, components] : [spelled, 3];
+        const base = i * stride;
         const parts = [format(data[base]), format(data[base + 1])];
         if (this.positionDims === 3) {
             parts.push(format(components === 3 ? data[base + 2] : 0));
@@ -1078,12 +1099,15 @@ class ExportPlan {
     }
 
     /**
-     * The attribute a column is written as: `label` for a node or edge label role column (the
-     * importer gives that attribute the role back), the column name otherwise.
+     * The attribute a column is written as: `label` for a node or edge label role column and `pin` for the node
+     * fixed role column (the importer gives those attributes the role back), the column name otherwise.
      * @param column - the column
      * @returns the attribute name
      */
     private attributeName(column: Column): string {
+        if (column === this.nodeFixed) {
+            return PIN_ATTRIBUTE;
+        }
         return column === this.nodeLabel || column === this.edgeLabel ? LABEL_ATTRIBUTE : column.meta.name;
     }
 
@@ -1104,7 +1128,7 @@ class ExportPlan {
                 text = "UTF-8";
             }
             if (text !== null) {
-                out.push(`${quoteDotId(this.attributeName(column))}=${writeId(text)}`);
+                out.push(`${quoteDotId(this.attributeName(column))}=${this.writeId(text)}`);
             }
         }
         return out;
@@ -1130,7 +1154,7 @@ class ExportPlan {
             }
             const key = this.keyText(e);
             if (key !== null) {
-                attributes.unshift(`${KEY_ATTRIBUTE}=${writeId(key)}`);
+                attributes.unshift(`${KEY_ATTRIBUTE}=${this.writeId(key)}`);
             }
             const source = `${quoteDotId(this.idText(list.src[e]))}${this.portText(this.sourcePort, e)}`;
             const target = `${quoteDotId(this.idText(list.dst[e]))}${this.portText(this.targetPort, e)}`;
@@ -1170,13 +1194,28 @@ class ExportPlan {
     }
 
     /**
-     * The id text of a node.
+     * Write a text as a DOT ID: an HTML string (styles.ts dotHtmlTexts) bare, everything else through quoteDotId (a
+     * quoted `"<init>"` decodes to the same text as the HTML `<init>`, so the DOT importer records which was which).
+     * A node id is always quoted: the importer names a node written as an HTML string by the text inside its brackets.
+     * @param text - the text
+     * @returns the DOT ID
+     */
+    private writeId(text: string): string {
+        return this.html.has(text) ? text : quoteDotId(text);
+    }
+
+    /**
+     * The id text of a node: String(id), with a suffix for an id whose text an earlier id has (sanitizeIds).
      * @param i - the node index
-     * @returns String(id)
+     * @returns the text
      */
     private idText(i: number): string {
-        return idText(this.snapshot.ids.idOf(i));
+        this.written ??= sanitizeIds(this.snapshot, CAPABILITIES.idCharset, this.resolved.sanitizeIds);
+        return idText(this.written.idAt(i));
     }
+
+    /** The node ids to write, made on first use. */
+    private written: SanitizedIds | null = null;
 }
 
 /**

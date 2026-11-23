@@ -54,7 +54,7 @@ refused, never dropped on the floor, because a dropped option is a silently wron
 caller asked for something else and got no signal. Nothing forwards a bag into this member
 unseen: `accelerated(acc)` has no `closenessCentrality` method and no `bellmanFord` method
 (both are reachable on the accelerator object only), so the only caller that can hand these
-keys over is one that typed them. `weighted` is honoured: it defaults to the snapshot's
+keys over is one that typed them. `weighted` is honored: it defaults to the snapshot's
 `flags.weighted`, `true` routes a genuinely weighted run through one `sssp` per source, and
 `false` on a weighted snapshot ignores the column by request. `iterations` reports the source
 batches run and `converged` is always `true`.
@@ -74,7 +74,7 @@ shows is a product decision, not this phase's.
 `SsspOptions` value the two backends treat differently. The CPU port's relaxation test is
 `dv <= cutoff`, which never holds for `NaN`, so it returns the source alone. The kernel's guard
 is `nd > cutoff`, which also never holds for `NaN`, so it would relax EVERYTHING -- the same
-option silently inverted. The GPU member normalises `cutoff` on the host before any device work
+option silently inverted. The GPU member normalizes `cutoff` on the host before any device work
 and throws `E_INVALID_ARGUMENT { argument: "cutoff" }` for `NaN` (`normaliseCutoff` in
 `src/algorithms/sssp.ts`, shared by `bellmanFord`). Refused rather than mirrored, because
 mirroring would mean special-casing `NaN` to reproduce a CPU answer nobody asked for. Every
@@ -118,7 +118,7 @@ Two conditions, counted:
 
 - A `closenessCentrality` port lands in `@graphty/algorithms` with its real option type. Then the
   seam's member narrows from `HitsOptionsLike` to that type, `maxIterations` and `tolerance`
-  leave the type and the refusal with them, and any key the GPU member can honour (`harmonic`,
+  leave the type and the refusal with them, and any key the GPU member can honor (`harmonic`,
   a `normalized` switch, a source list) is that port's decision -- and if the port's default
   score is not `1 / sum`, the element's `normalization` label changes with it. The two
   accumulators land in `closeness-reduce` in the same phase. This record is superseded by the

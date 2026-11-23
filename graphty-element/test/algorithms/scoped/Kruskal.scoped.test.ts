@@ -5,11 +5,11 @@
 
 import { describe, it } from "vitest";
 
+import type { AlgorithmHost } from "../../../src/algorithms/host";
 import { KruskalAlgorithm } from "../../../src/algorithms/KruskalAlgorithm";
-import type { Graph } from "../../../src/Graph";
 import { assertOverGeneratedScopes, describeScopedAdapter } from "./harness";
 
-const build = (graph: Graph): KruskalAlgorithm => new KruskalAlgorithm(graph);
+const build = (graph: AlgorithmHost): KruskalAlgorithm => new KruskalAlgorithm(graph);
 
 describeScopedAdapter("kruskal", build);
 

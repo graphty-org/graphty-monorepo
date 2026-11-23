@@ -6,11 +6,21 @@
 import { z } from "zod";
 
 import type { MeasurementDeclaration } from "../../../catalog/types";
+import type { ModelDefaultsPatch } from "../../../session/assets/AssetsApi";
+import { DEFAULT_BACKGROUND_IMAGE_SIZE, prepareBackgroundImage } from "../../../session/backgroundImage";
 import { CONFIG_KEYS, unwrap } from "../../../session/configKeys";
 import type { ProjectConfigPatch } from "../../../session/types";
 import { MAX_STRING, text } from "../fields";
 import { toJson } from "../shape";
-import { type ActionContext, type ActionSpec, type ToolDefinition, ToolRefusal } from "../types";
+import {
+    type ActionContext,
+    type ActionSpec,
+    gated,
+    GateHold,
+    type JsonObject,
+    type ToolDefinition,
+    ToolRefusal,
+} from "../types";
 import { coded, ok } from "./common";
 
 /** The longest run name `runs.rename` takes. */
@@ -30,9 +40,11 @@ export const SETTING_GROUPS = Object.freeze({
     name: "The project's name.",
     framing: "How the camera frames the graph.",
     layoutTransition: "How nodes move to a new layout.",
+    minMarkSize: "The smallest size nodes and edges are drawn.",
     pinnedStyle: "How pinned nodes are drawn.",
     runPlacement: "Where a run's style layers go in the stack.",
     startingRows: "The style rows a new project starts with.",
+    startingCamerasWritten: "Whether the starting cameras were written into this project.",
     viewRotation: "How the view turns.",
 } as const);
 
@@ -97,15 +109,109 @@ const settings = Object.fromEntries(
     ]),
 );
 
+/**
+ * The longest side a background picture may be kept at on this device: the background image
+ * default, or the GPU's own texture limit when it is smaller.
+ * @param graph - The renderer, when there is one.
+ * @returns Pixels.
+ */
+function backgroundSizeLimit(graph: unknown): number {
+    const caps = (graph as { engine?: { getCaps?: () => { maxTextureSize?: number } } }).engine?.getCaps?.();
+    return Math.min(DEFAULT_BACKGROUND_IMAGE_SIZE, caps?.maxTextureSize ?? DEFAULT_BACKGROUND_IMAGE_SIZE);
+}
+
+/**
+ * Make a picture with the provider's image model and set it as the background. The reader is
+ * asked first (gate `"paid"`, preview `{ provider, model, costUsd }`), since the provider bills it;
+ * once made it is drawn at once, and one undo of the message brings the previous background back.
+ * @param context - The action's context.
+ * @param prompt - What the picture shows.
+ * @param projection - A photo dome around the graph, or flat behind it.
+ * @returns What was made: its size as stored, the model and the cost.
+ */
+async function generateBackground(
+    context: ActionContext,
+    prompt: string,
+    projection: "dome" | "flat",
+): Promise<JsonObject> {
+    const { host, message, tx, signal } = context;
+    const provider = host.provider ?? "";
+    if (host.image === undefined) {
+        // The procedural alternative, offered by name: a background shader (`shaders` add).
+        throw new ToolRefusal("AI_NOT_AVAILABLE", {
+            name: "generate_background",
+            requirement: "image-model",
+            provider,
+            alternative: "shaders",
+        });
+    }
+
+    const quote = { provider, model: host.image.model.id, costUsd: host.image.model.costUsd };
+    if (gated(message, "paid")) {
+        throw new GateHold("paid", quote);
+    }
+
+    const made = await host.image.generate(prompt, signal);
+    if (made.code !== "AI_COMPLETED") {
+        throw new ToolRefusal(made.code, made.params);
+    }
+
+    const prepared = await prepareBackgroundImage(made.image, { maxSize: backgroundSizeLimit(context.graph) });
+    if (!prepared.ok) {
+        throw new ToolRefusal(prepared.problem.code, prepared.problem.params as JsonObject);
+    }
+
+    const background = {
+        backgroundType: "skybox" as const,
+        data: prepared.data,
+        ...(projection === "flat" ? { projection } : {}),
+    };
+    await coded(() => tx.config.set({ background }));
+    const { width, height, scaled } = prepared;
+    return { ...quote, projection, width, height, scaled, bytes: prepared.data.length };
+}
+
 /** The `project` tool. */
 export const projectTool: ToolDefinition = {
     name: "project",
     plainName: "Project",
     core: false,
     description:
-        "Project settings (background, selection style, layout behavior, data columns, direction), its name, what a column measures, and whether it has unsaved changes. Saving is the reader's application's. The data source's own name is import_data rename_source.",
+        "Project settings (background, selection style, layout behavior, data columns, direction), a model's own settings, its name, what a column measures, and whether it has unsaved changes; a background picture made from a prompt. Saving is the reader's application's. The data source's own name is import_data rename_source.",
     example: { action: "settings", data: { knownFields: { nodeLabelPath: "name" } } },
     actions: [
+        {
+            name: "model_settings",
+            summary: "a model's own settings; null removes",
+            fields: {
+                model: z.string().max(MAX_STRING).describe("The model's asset id or URL, as node.model names it."),
+                values: z
+                    .record(
+                        z.string().max(100),
+                        z.union([z.string().max(MAX_STRING), z.number(), z.boolean(), z.null()]),
+                    )
+                    .optional()
+                    .describe("node.model* values every node drawing it starts from."),
+                hiddenTextures: z
+                    .array(z.string().max(MAX_STRING))
+                    .max(256)
+                    .optional()
+                    .describe("Picture names (inspect pictures) drawn without."),
+            },
+            effect: "write",
+            reaches: [{ door: "AssetsApi.setDefaults" }, { op: "asset.defaults" }],
+            run: async ({ tx }, args) => {
+                const record = await coded(() =>
+                    tx.assets.setDefaults(text(args.model), {
+                        ...(args.values === undefined ? {} : { style: args.values as ModelDefaultsPatch["style"] }),
+                        ...(Array.isArray(args.hiddenTextures)
+                            ? { hiddenTextures: args.hiddenTextures as string[] }
+                            : {}),
+                    }),
+                );
+                return ok(record.defaults ?? null, { model: record.id });
+            },
+        },
         {
             name: "settings",
             summary: "Change project settings; only the groups given change.",
@@ -125,6 +231,26 @@ export const projectTool: ToolDefinition = {
                 await coded(() => tx.config.set(patch as ProjectConfigPatch));
                 return ok(undefined, { changed: Object.keys(patch).join(",") });
             },
+        },
+        {
+            name: "generate_background",
+            summary:
+                "Make a picture from a prompt with the provider's image model and set it as the background: a photo dome around the graph, or flat behind it (a texture or backdrop). The provider bills each picture; the reader approves the cost first. Without an image model, a background shader (shaders) draws one instead.",
+            fields: {
+                prompt: z.string().min(1).max(MAX_STRING).describe("What the picture shows."),
+                projection: z
+                    .enum(["dome", "flat"])
+                    .optional()
+                    .describe("dome (default) wraps the graph and turns with the camera; flat stays still behind it."),
+            },
+            effect: "write",
+            keywords: ["image", "picture", "photo", "skybox", "wallpaper", "backdrop"],
+            reaches: [{ op: "config.set" }, { door: "SessionConfig.set" }],
+            run: async (context, args) =>
+                ok(
+                    undefined,
+                    await generateBackground(context, text(args.prompt), args.projection === "flat" ? "flat" : "dome"),
+                ),
         },
         {
             name: "rename",
@@ -193,6 +319,8 @@ export const projectTool: ToolDefinition = {
                 { door: "ProjectApi.name" },
                 { door: "ProjectApi.dirty" },
                 { door: "SessionConfig.editableBase" },
+                { door: "SessionConfig.timelineHiddenLook" },
+                { door: "SessionConfig.timelineHiddenAdded" },
                 ...Object.keys(SETTING_GROUPS).map((group) => ({ door: `SessionConfig.${group}` })),
             ],
             run: ({ tx, session }) =>
@@ -203,6 +331,8 @@ export const projectTool: ToolDefinition = {
                         dirty: tx.project.dirty,
                         undoable: session.history.position,
                         editableBase: tx.config.editableBase,
+                        timelineHiddenLook: tx.config.timelineHiddenLook,
+                        timelineHiddenAdded: tx.config.timelineHiddenAdded,
                         // Every setting group, as it reads now.
                         settings: Object.fromEntries(
                             Object.keys(SETTING_GROUPS).map((group) => [
@@ -225,6 +355,7 @@ interface Capturer {
         options: object,
     ): Promise<{ blob: Blob; metadata: { width: number; height: number; format: string; duration: number } }>;
     cancelAnimationCapture(): boolean;
+    stopAnimationCapture(): boolean;
     isVRSupported(): Promise<boolean>;
     isARSupported(): Promise<boolean>;
 }
@@ -285,18 +416,28 @@ export const captureTool: ToolDefinition = {
         },
         {
             name: "animation",
-            summary: "Record a short video while the camera and layout move.",
+            summary: "Record a short video while the camera and layout move, or record a saved tour.",
             fields: {
-                seconds: z.number().min(1).max(30).describe("How long, 1 to 30 seconds."),
+                seconds: z
+                    .number()
+                    .min(1)
+                    .max(30)
+                    .optional()
+                    .describe("How long, 1 to 30 seconds; a tour sets its own."),
+                tour: z.string().min(1).max(MAX_STRING).optional().describe("A saved tour's name, to record it."),
                 width: side,
                 height: side,
             },
             effect: "read",
             reaches: [{ door: "Graph.captureAnimation" }],
             run: (context, args) => {
+                if (args.seconds === undefined && args.tour === undefined) {
+                    throw new ToolRefusal("AI_ARG_INVALID", { path: "seconds", expected: "seconds or tour" });
+                }
+
                 const graph = capturer(context, "captureAnimation");
                 // A recording takes seconds: it settles after the batch commits, when it is the
-                // batch's last call, and a cancelled message stops it.
+                // batch's last call, and a canceled message stops it.
                 return Promise.resolve({
                     settle: async ({ signal, host }) => {
                         const stop = (): void => {
@@ -305,11 +446,14 @@ export const captureTool: ToolDefinition = {
                         signal.addEventListener("abort", stop, { once: true });
                         let result: Awaited<ReturnType<Capturer["captureAnimation"]>>;
                         try {
-                            result = await graph.captureAnimation({
-                                duration: Number(args.seconds) * 1000,
-                                ...(args.width === undefined ? {} : { width: args.width }),
-                                ...(args.height === undefined ? {} : { height: args.height }),
-                            });
+                            result = await coded(() =>
+                                graph.captureAnimation({
+                                    ...(args.seconds === undefined ? {} : { duration: Number(args.seconds) * 1000 }),
+                                    ...(args.tour === undefined ? {} : { tour: text(args.tour) }),
+                                    ...(args.width === undefined ? {} : { width: args.width }),
+                                    ...(args.height === undefined ? {} : { height: args.height }),
+                                }),
+                            );
                         } finally {
                             signal.removeEventListener("abort", stop);
                         }
@@ -334,7 +478,18 @@ export const captureTool: ToolDefinition = {
             reaches: [{ door: "Graph.cancelAnimationCapture" }],
             run: (context) =>
                 Promise.resolve(
-                    ok(undefined, { cancelled: capturer(context, "cancelAnimationCapture").cancelAnimationCapture() }),
+                    ok(undefined, { canceled: capturer(context, "cancelAnimationCapture").cancelAnimationCapture() }),
+                ),
+        },
+        {
+            name: "stop",
+            summary: "End a video recording now and keep what it has recorded.",
+            fields: {},
+            effect: "exempt",
+            reaches: [{ door: "Graph.stopAnimationCapture" }],
+            run: (context) =>
+                Promise.resolve(
+                    ok(undefined, { stopped: capturer(context, "stopAnimationCapture").stopAnimationCapture() }),
                 ),
         },
     ] satisfies ActionSpec[],

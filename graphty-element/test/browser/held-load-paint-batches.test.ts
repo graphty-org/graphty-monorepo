@@ -7,21 +7,23 @@
  * the `"batched"` path a row the batches draw comes back with none, so the speed was 0 and every
  * batch was the floor, a 32nd of the graph: a 100,000-node load took 32 frames, half of each idle.
  *
- * The test reads the speed the first batch left for the second, not the second batch's size: the
- * size is that speed times what is left of a 48 ms budget, so it falls back to the floor whenever
- * the first batch -- which also builds the batches' meshes -- takes longer than the budget, as it
- * did on a loaded CI runner. The speed is rows over time: above 0 once the rows are counted
- * however slow the machine, and 0 with the defect however fast.
+ * The count decides the second batch, not this machine's speed. On the real clock the first batch
+ * also builds the batched meshes and materials, and under load it took 90 ms for 128 rows (the next
+ * 128 took 2 ms), longer than the whole 48 ms budget, so the second batch was the floor anyway
+ * (issue #8336). While the frames are pumped the clock is a stated one, a microsecond a reading, so
+ * the first batch's speed is many rows a millisecond and the second batch is past the floor; with the
+ * defect the speed is 0 whatever the clock says, and the second batch is the floor every time.
  */
 
 import { afterAll, assert, beforeAll, describe, it, vi } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
-import type { UpdateManager } from "../../src/managers/UpdateManager";
 import { dispatcherOf } from "../../src/session/GraphSession";
 
 const COUNT = 4096;
 const FLOOR = COUNT / 32;
+/** How far the stated clock moves at each reading, so a batch's time is how many readings it made. */
+const CLOCK_STEP_MS = 0.001;
 
 describe("a held batched load's node batches", () => {
     let container: HTMLElement;
@@ -47,17 +49,12 @@ describe("a held batched load's node batches", () => {
         container.remove();
     });
 
-    it("are sized from the first batch's timed speed", async () => {
+    it("grow past the floor once the first batch has been timed", async () => {
         const painter = graph.getStylePainter();
-        const manager = (graph as unknown as { updateManager: UpdateManager }).updateManager;
-        const speedOf = (): number => (manager as unknown as { nodePaintRate: number }).nodePaintRate;
         const limits: number[] = [];
-        // the speed each batch starts from: the last batch's rows a millisecond
-        const speeds: number[] = [];
         const takeNodes = painter.takeNodes.bind(painter);
         vi.spyOn(painter, "takeNodes").mockImplementation((limit?: number) => {
             limits.push(limit ?? Number.POSITIVE_INFINITY);
-            speeds.push(speedOf());
             return takeNodes(limit);
         });
 
@@ -66,15 +63,19 @@ describe("a held batched load's node batches", () => {
         await operationQueueOf(graph).waitForCompletion();
         await dispatcherOf(graph.getSession()).lane.settled();
 
+        const manager = graph.getUpdateManager();
+        let now = Math.ceil(performance.now());
+        const clock = vi.spyOn(performance, "now").mockImplementation(() => (now += CLOCK_STEP_MS));
         let frames = 0;
         while (painter.hasPending && frames < COUNT) {
             manager.update(16);
             frames++;
         }
+        clock.mockRestore();
         assert.isFalse(painter.hasPending, "the whole repaint was applied");
 
         assert.isAtLeast(limits.length, 2, "the paint took more than one batch");
         assert.strictEqual(limits[0], FLOOR, "the first batch, untimed, is the floor");
-        assert.isAbove(speeds[1], 0, "the second batch is sized by the first one's speed, which counted its rows");
+        assert.isAbove(limits[1], FLOOR, "the second batch is sized by the first one's speed");
     });
 });

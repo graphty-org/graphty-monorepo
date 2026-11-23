@@ -13,7 +13,7 @@ Dana: "No names on the dots. Whatever. That hint says Analyze adds results -- th
 
 Command: `--step --click "Analyze"` -> 02.png
 
-Saw: A menu "Rank nodes and edges": Degree, Betweenness ("Which nodes sit on the most shortest paths between others"), Edge betweenness, Closeness, PageRank (tagged "Start here"), Eigenvector, Katz, HITS, All-pairs distance, ... Grey 11px subtitles -- had to squint.
+Saw: A menu "Rank nodes and edges": Degree, Betweenness ("Which nodes sit on the most shortest paths between others"), Edge betweenness, Closeness, PageRank (tagged "Start here"), Eigenvector, Katz, HITS, All-pairs distance, ... Gray 11px subtitles -- had to squint.
 Hesitated: "Start here" on PageRank pulls my eye, but I don't know what PageRank means for people. "How much the whole club depends on them" is a chokepoint question, and betweenness is the chokepoint word from the webinar. The subtitle -- sits between others -- is what I mean.
 Dana: "Betweenness. That's chokepoints. Clicking it."
 
@@ -63,6 +63,6 @@ Command: `node tool/real.mjs --end rounds/round-2/sessions/r2-s51`
 - PageRank is tagged "Start here". For a question about who the club depends on, that steers people away from betweenness. I nearly clicked it out of trust in the tag.
 - I picked "Betweenness" and the result came back named "Bridges". For a moment I wondered whether I had run the wrong thing; only the "Made with" line at the bottom of the Values tab told me it was the same.
 - After Run, all I got was dots in shades of orange with no names on them. Two dark ones, no way to tell who is third. The table was two clicks away (the result row on the left, then "Values" on the right); nothing pointed me to it. Clicking the row opened "Style" first, not the numbers.
-- The subtitles in the Analyze menu and the "20 of 20 have a value..." line are small grey text; I had to lean in.
+- The subtitles in the Analyze menu and the "20 of 20 have a value..." line are small gray text; I had to lean in.
 - The numbers (51.27, 40.02) have no unit or explanation -- fine for a ranking, but I could not tell a VP what 51 means.
 - I could not see a way to get the Top 10 out as a table for a slide (did not look hard; not part of this task).

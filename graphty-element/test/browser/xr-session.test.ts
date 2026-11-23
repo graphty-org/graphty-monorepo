@@ -19,6 +19,7 @@ import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
 import { isGraphtyError } from "../../src/errors";
 import { type Graph, operationQueueOf } from "../../src/Graph";
+import type { GraphSceneMetadata } from "../../src/types/sceneMetadata";
 import { installIWER, type IWERHandle } from "../interactions/helpers/iwer-setup";
 
 /** XR frames a session must render before it counts as drawing, not just started. */
@@ -407,7 +408,10 @@ describe("session.capabilities.xr", () => {
 
         assert.exists(graph.getXRSessionManager(), "XR was turned on");
         assert.isNull(graph.getXRSessionManager()?.getXRHelper() ?? null, "a WebXR helper was built");
-        assert.notExists(graph.scene.metadata?.xrHelper, "the scene holds a WebXR helper");
+        assert.notExists(
+            (graph.scene.metadata as GraphSceneMetadata | null)?.xrHelper,
+            "the scene holds a WebXR helper",
+        );
         assert.isFalse(
             graph.scene.cameras.some((camera) => camera.getClassName() === "WebXRCamera"),
             "the scene holds an XR camera",
@@ -424,7 +428,10 @@ describe("session.capabilities.xr", () => {
         await element.session.execute({ op: "view.immersive", mode: "vr" });
         assert.strictEqual(graph.getViewMode(), "vr");
         assert.strictEqual(element.session.capabilities.xr.active, "vr");
-        assert.strictEqual(element.session.history.steps.at(-1)?.label, "Switched to 3D for VR");
+        assert.deepEqual(element.session.history.steps.at(-1)?.fact, {
+            code: "view.immersive",
+            params: { mode: "vr" },
+        });
 
         await element.session.undo();
         await vi.waitFor(() => {

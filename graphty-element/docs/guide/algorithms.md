@@ -114,9 +114,6 @@ for (const swatch of block?.swatches ?? []) {
 }
 ```
 
-`SummaryGroup.name` ("Group 1") is deprecated and will be removed in the next major; word the
-group from `rank` in your own language instead.
-
 #### Hiding one group
 
 `styles.setValueHidden(layerId, channel, value, hidden)` takes one group out of a layer's paint
@@ -183,7 +180,7 @@ Word the band yourself from its `id`:
 The 0.3 line is Newman and Girvan's ("Finding and evaluating community structure in networks",
 Phys. Rev. E 69, 026113, 2004); the 0.1 line is graphty-element's convention for a split barely
 better than a random one. The same scale and the citation are on the modularity field of the
-algorithm's catalogue entry (`fields[].interpretation`), so it can be shown before anything has
+algorithm's catalog entry (`fields[].interpretation`), so it can be shown before anything has
 run. `band()` returns `undefined` for a field with no scale or no finite value. A band's
 `plainName` and `description`, and the scale's `summary`, are English and deprecated; they are
 removed in the next major.
@@ -210,8 +207,35 @@ a listed run of its own, with the id `<algorithm>_<option>_<value>` (`louvain_re
 so its full result is `session.runs.get(row.runId)` and a later sweep over the same values answers
 from it. Options the sweep does not vary go in `params`; `scope`, `seed`, `label`, `signal` and
 `onProgress` are as `batch()` takes them. Nothing is painted unless `style` asks for it, and one
-undo takes the whole sweep away. A cancelled sweep keeps the values that finished, and their rows
+undo takes the whole sweep away. A canceled sweep keeps the values that finished, and their rows
 say so.
+
+#### How much the seed matters
+
+A randomized algorithm, such as Louvain, can find a different answer with a different seed.
+`runs.stability()` runs it once per seed, as one batch, and compares every pair of seeds:
+
+```typescript
+const stability = await element.session.runs.stability("louvain", [1, 2, 3, 4, 5]);
+
+console.log(stability.agreement); // 1 = every seed found the same groups
+console.log(stability.adjustedMutualInformation);
+for (const pair of stability.pairs) {
+    console.log(pair.a.runId, pair.b.runId, pair.kind === "partition" ? pair.agreement : pair.correlation);
+}
+```
+
+`agreement` and `adjustedMutualInformation` are the means of each pair's adjusted Rand index and
+adjusted mutual information, as `results.compare()` reports them; an algorithm whose result is a
+ranking gives `correlation`, the mean Spearman correlation, instead. `pairs` holds
+each comparison in full, and `rows` one row per seed, as a sweep's rows (`value` is the seed). Each
+seed is a listed run with the id `<algorithm>_seed_<seed>` (`louvain_seed_1`); `params`, `field` (the
+result field to compare), `scope`, `style`, `label`, `signal` and `onProgress` are as `sweep()`
+takes them.
+
+A rerun of the same algorithm keeps its groups' numbers: each new group takes the number of the old
+group it shares most members with, so a layer or a saved view that names "group 3" still means the
+same members.
 
 ### Component Analysis
 
@@ -228,6 +252,40 @@ On an undirected graph every edge runs both ways, so `strongly-connected` finds 
 ```typescript
 await graph.runAlgorithm("graphty", "connected-components");
 ```
+
+#### What breaks if something is removed
+
+`removal-impact` works out what removing some nodes or edges would cut off, without removing
+anything: the graph is left as it was. Pass the nodes (`nodes`) and edges (`edges`) to imagine
+removed:
+
+```typescript
+const result = await element.session.runs.start("removal-impact", { nodes: ["hub"] });
+// The separate pieces before and after, and how many nodes are cut off from the rest of their piece.
+const { componentsBefore, componentsAfter, count } = result.graph;
+```
+
+Each node it cuts off carries `in: true`, which the suggested highlight layer paints. A piece that
+breaks keeps its largest part (the part holding the earliest node, on a tie); every other node of
+it is cut off. `cutOffShare` is the share of the remaining nodes cut off, read through its
+interpretation bands: `none`, `minor` (any), `severe` (more than a tenth). Pieces are weak: an
+edge joins its two nodes whichever way it was declared.
+
+#### Single points of failure
+
+`articulation-points` finds the nodes, and `bridges` the edges, whose removal would split their
+piece of the graph. Each flagged node or edge carries `in: true`, which the suggested highlight
+layer paints; nothing else is touched. Each run also reports how many it found, and what share of
+the nodes (or edges) that is.
+
+```typescript
+const points = await element.session.runs.start("articulation-points");
+// How many cut points, and the fraction of the nodes they are.
+const { count, share } = points.graph;
+```
+
+Both read the graph as undirected. Two edges between the same pair of nodes back each other up, so
+neither is a bridge.
 
 ### Traversal Algorithms
 
@@ -251,12 +309,43 @@ Find optimal paths between nodes:
 | `dijkstra`       | Shortest path (weighted)                  |
 | `bellman-ford`   | Handles negative weights                  |
 | `astar`          | A route, optionally steered by the layout |
+| `all-paths`      | Every route that visits no node twice     |
 | `floyd-warshall` | Distance between every pair               |
 
 ```typescript
 await graph.runAlgorithm("graphty", "dijkstra", {
     algorithmOptions: { source: "node1", target: "node5" },
 });
+```
+
+`shortest-path` also takes four choices. Each is off by default, so a run that sets none of them
+reads every edge either way and finds the same route it always did:
+
+- `direction`: `"out"` follows a directed edge from its source to its target, `"in"` against it,
+  and `"all"` (the default) either way.
+- `weight`: the edge column to read, and what it means. A distance is the cost of crossing the
+  edge. A strength is left unread unless `invertStrength: true`, which crosses each edge at
+  1 / weight, so the route prefers strong connections.
+- `timeOrder`: an edge column holding each edge's time. The route then only takes edges in time
+  order, each at or after the one before it, and never an edge with no time. A number, a date or a
+  date string is a time.
+- The result's `tiedRoutes` says how many routes share the cheapest cost: 1 when the route is the
+  only one, 0 when the target is unreached. It is absent from a time-ordered run.
+
+```typescript
+const route = await element.run("shortest-path", {
+    source: "alice",
+    target: "dave",
+    direction: "out",
+    weight: { attribute: "trust", meaning: "strength" },
+    invertStrength: true,
+    timeOrder: "sentAt",
+});
+const { cost, tiedRoutes } = route.graph;
+console.log(cost, tiedRoutes);
+for (const id of ["alice", "bob", "carol", "dave"]) {
+    console.log(id, route.node(id)?.onPath, route.node(id)?.order);
+}
 ```
 
 `astar` takes the same `source` and `target` as `dijkstra`, and a `heuristic`. The default,
@@ -267,6 +356,21 @@ distance it spans; the result says so with `caveats.exact: false`.
 
 ```typescript
 await element.run("astar", { source: "node1", target: "node5", heuristic: "layout-distance" });
+```
+
+`all-paths` finds every route from `source` to `target` that visits no node twice. On a directed
+graph `direction` says which way a route may cross an edge, as for `dijkstra`: `"all"` (either
+way, the default), `"out"` or `"in"`. The number of routes grows exponentially with the graph, so
+two options bound it: `maxLength`, the longest route in edges (any length when unset), and
+`maxPaths`, the most routes to find (1,000 by default). Every node and edge on a route carries
+`in: true`, which the suggested highlight paints, and `pathCount`, how many of the routes run
+through it. The graph facts are `found`, `complete` (false when `maxPaths` or the search's own
+budget of 1,000,000 steps left routes unfound), `shortest` and `longest` (in edges) and `paths`,
+one row per route in the order found, with its `nodes` and its `length`:
+
+```typescript
+const result = await element.session.runs.start("all-paths", { source: "node1", target: "node5", maxLength: 4 });
+const { found, complete, paths } = result.graph;
 ```
 
 `floyd-warshall` measures every pair of nodes, so it holds a matrix of n x n distances. It refuses
@@ -343,8 +447,7 @@ if (run.partial) {
 }
 ```
 
-The codes are in the [table below](#why-a-run-stopped-early). `run.caveats.partialReason`, the
-same cause as an English sentence, is deprecated and removed in the next major.
+The codes are in the [table below](#why-a-run-stopped-early).
 
 ## What a result says
 
@@ -394,9 +497,9 @@ console.log(run.caveats.facts);
 //  { code: "pagerank.sums-to-one", params: {} }, { code: "weights.unread", params: {} }]
 ```
 
-A node id in `params` is the data's own id, a string or a number. `run.caveats.notes`, the same
-remarks as English sentences, is deprecated and removed in the next major; an algorithm registered
-from outside the element that writes its own `notes` in words has no facts for them.
+A node id in `params` is the data's own id, a string or a number. `run.caveats.notes` holds only
+the sentences an algorithm registered from outside the element wrote in its own words; it is empty
+for every built-in algorithm.
 
 | Code                                 | What it says, and its `params`                                                                                                                                                                  |
 | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -414,10 +517,13 @@ from outside the element that writes its own `notes` in words has no facts for t
 | `scope.induced-subgraph`             | computed on the subgraph the scope's nodes induce: `{ nodes }`.                                                                                                                                 |
 | `scope.subgraph`                     | computed on the scope's nodes and edges: `{ nodes, edges }`.                                                                                                                                    |
 | `parallel-edges.merged`              | parallel edges were merged into one, every member of a group carrying the merged value: `{ count, policy }`, how many were merged and how their weights combined (`"sum"`, `"min"` or `"max"`). |
+| `direction.mixed`                    | the graph mixes directed and undirected edges, and the run read every edge alike, with the graph's default direction: `{ directed }`, true when it read them as directed.                       |
 | `input.empty`                        | the graph held nothing for the algorithm to measure.                                                                                                                                            |
 | `sampled.instead-of-exact`           | the run sampled rather than computed exactly: `{ method, name, sampleSize, nodes }`, the approximate method's id and catalog name, the sample, and the nodes it was drawn from.                 |
 | `sampled.exact-past-cap`             | an exact run was estimated past the cost cap, so the approximate method ran: `{ seconds, cap }`.                                                                                                |
 | `sampled.still-past-cap`             | the sampled run is itself estimated past the cap: `{ seconds, cap }`.                                                                                                                           |
+| `all-paths.length-bounded`           | only paths of at most `maxLength` edges were looked for: `{ maxLength }`.                                                                                                                       |
+| `all-paths.capped`                   | the search stopped at its path cap, or at its own step budget, before it had found every path: `{ maxPaths, found }`.                                                                           |
 | `astar.straight-line`                | A* was steered by straight-line distance, so its route is the cheapest only when every edge weighs at least the distance it spans.                                                              |
 | `betweenness.sampled`                | betweenness was estimated from sampled sources, unscaled: `{ sources, nodes }`.                                                                                                                 |
 | `betweenness.halved`                 | the raw counts were halved, because an undirected shortest path is reached from both ends.                                                                                                      |
@@ -425,6 +531,7 @@ from outside the element that writes its own `notes` in words has no facts for t
 | `bfs.origin`                         | the walk went outwards from a node, which is level 0: `{ source }`.                                                                                                                             |
 | `bfs.target-reached`                 | the walk stopped at its target: `{ target }`.                                                                                                                                                   |
 | `bfs.target-unreached`               | the walk never reached its target, so it covered everything reachable: `{ target }`.                                                                                                            |
+| `bfs.depth-bounded`                  | the walk stopped this many steps from its source, so a node further away carries nothing, as if unreachable: `{ maxDepth }`.                                                                    |
 | `dfs.walk`                           | the walk's start and when it recorded a node: `{ source, order }`, `order` `"pre"` (as reached) or `"post"` (as left).                                                                          |
 | `closeness.sampled`                  | closeness was estimated from sampled sources, unscaled: `{ sources, nodes }`.                                                                                                                   |
 | `closeness.exact`                    | distances are exact, over the graph read as undirected.                                                                                                                                         |
@@ -508,6 +615,23 @@ console.log(run.record.scope.set); // the set's id, and its revision when the ru
 
 With no `scope`, a run is over `"visible"`: the whole graph, or what the visibility filter shows.
 
+### Describing an entry in your own words
+
+Every catalog entry the element ships -- algorithm, layout, layout engine, camera, log destination,
+and a format that needs explaining -- carries a `descriptionId`, a stable id to key your own words on:
+`algorithm.<key>`, `layout.<id>`, `layout.<id>:<engine>`, `camera.<id>`, `logSink.<id>` and
+`format.<id>`. Each described option carries one too (`algorithm.<key>.<option>`). The English
+`description` beside it is deprecated and goes in a later release.
+
+```typescript
+const MY_WORDS: Record<string, string> = { "algorithm.pagerank": "Who the influential nodes are." };
+const line = (entry: { descriptionId?: string }) => MY_WORDS[entry.descriptionId ?? ""] ?? "";
+const lines = element.session.catalog.algorithms().map(line);
+```
+
+An extension that describes its entries supplies its own `descriptionId`, prefixed with its
+namespace.
+
 ### Options for this graph
 
 `session.catalog.algorithms()` and `session.catalog.layouts()` describe every option as plain data,
@@ -562,9 +686,9 @@ console.log(name, run.distinguishedBy); // "Communities" { option: "resolution",
 console.log(run.siblingsDifferBy); // null: no other Communities run yet
 ```
 
-`run.label` ("Communities (resolution 1.5)") is the element's own English for the same facts. It is
-deprecated, with the `label` of a run's record, of a `ResultRoot` and of an `EncodingRun`, and
-removed in the next major.
+When a run paints layers and the call names none, the layers are named from these facts
+("Communities (resolution 1.5)"); `name` on `encode()`, `highlight()` and `mark()` names them
+yourself.
 
 Starting the same run again finds the same result: same algorithm, same name, and the same scope
 -- with `"visible"` and `"selection"` frozen to the filter and the selection in force when the run
@@ -638,7 +762,7 @@ const run = await element.run("pagerank");
 // Size every measured node by its rank, on one call
 await element.session.styles.encode({ run, channel: "node.size" });
 
-// And colour it, through a palette of your choosing
+// And color it, through a palette of your choosing
 await element.session.styles.encode({ run, channel: "node.color", palette: "viridis" });
 ```
 
@@ -658,22 +782,22 @@ await element.session.styles.encode({ run, channel: "node.size", range: [1, 5] }
 ### Sizing by a measurement in one flag
 
 A node measurement -- PageRank, degree, betweenness and the rest -- can size the nodes as well as
-colour them, asked for when the run starts:
+color them, asked for when the run starts:
 
 ```typescript
-// Colour AND size by PageRank. Sizes run from 1 (the default node size) to 3.
+// Color AND size by PageRank. Sizes run from 1 (the default node size) to 3.
 element.run("pagerank", {}, { style: { size: true } });
 
 // Or pick the range
 element.run("pagerank", {}, { style: { size: [1, 5] } });
 ```
 
-`style: true` (the default) paints the colour alone and `style: false` paints nothing. For an
+`style: true` (the default) paints the color alone and `style: false` paints nothing. For an
 edge measurement, such as max flow or edge betweenness, `size` draws edge width instead: `size:
 true` runs from the default edge width to twice it, and `[min, max]` is in edge width units.
 
 ```typescript
-// Colour AND widen each edge by the flow it carries.
+// Color AND widen each edge by the flow it carries.
 element.run("max-flow", { source: "a", sink: "z" }, { style: { size: true } });
 ```
 
@@ -683,7 +807,7 @@ The size layer paints only the elements the run measured and is removed with the
 ### Running algorithms when the data loads
 
 `algorithmsOnLoad` lists algorithms to run once the data has loaded, and `runAlgorithmsOnLoad`
-switches the list on. An entry is an algorithm name -- a catalogue key such as `"degree"` or a
+switches the list on. An entry is an algorithm name -- a catalog key such as `"degree"` or a
 1.x address such as `"graphty:degree"` -- or an object carrying the same run options
 `element.run()` takes. The list is a property, set from script; the switch is also the
 `run-algorithms-on-load` attribute:
@@ -698,7 +822,7 @@ element.runAlgorithmsOnLoad = true;
 | `algorithm` | Required. The algorithm, as a name above                           |
 | `params`    | Its parameters, as `run()` takes them                              |
 | `style`     | What it paints: `true`, `false`, or `{ size: true \| [min, max] }` |
-| `seed`      | The seed for a randomised method, so the load is reproducible      |
+| `seed`      | The seed for a randomized method, so the load is reproducible      |
 | `as`        | The run's id, for a saved document or a later `session.runs.get()` |
 
 The other `run()` options are not accepted here, because each one answers a question nobody can
@@ -707,30 +831,30 @@ ask before the data arrives: `signal`, `onProgress` and `queue` steer a run some
 respond to a cost estimate. Start the run yourself when you need them. A misspelled or malformed
 entry is refused with a `GraphtyError` coded `E_BAD_COMMAND` that names the entry and its position.
 
-### More groups than colours
+### More groups than colors
 
-The default palette for groups, Okabe-Ito, has eight colours that stay apart for every kind of
-colour vision. When a community run finds more groups than that, `encode()` decides with
+The default palette for groups, Okabe-Ito, has eight colors that stay apart for every kind of
+color vision. When a community run finds more groups than that, `encode()` decides with
 `overflow`:
 
 ```typescript
-// Default: the 8 largest groups keep their colours; the rest share one grey,
-// and the legend lists that grey as its last row, with role: "other" and its count
+// Default: the 8 largest groups keep their colors; the rest share one gray,
+// and the legend lists that gray as its last row, with role: "other" and its count
 await element.session.styles.encode({ run, channel: "node.color" });
 
-// Cycle the colours and change node shape on each cycle: group 9 is orange again, as a box
+// Cycle the colors and change node shape on each cycle: group 9 is orange again, as a box
 await element.session.styles.encode({ run, channel: "node.color", overflow: "shape" });
 
-// A colour per group, however many -- past eight they are not guaranteed to be told apart
+// A color per group, however many -- past eight they are not guaranteed to be told apart
 await element.session.styles.encode({ run, channel: "node.color", overflow: "extend" });
 ```
 
 `"shape"` is for nodes only; an edge encoding refuses it. Its edge counterpart is `"pattern"`:
-the colours cycle and each cycle draws the edges in the next line pattern (solid, dashed, dotted,
-...), so two edge groups that share a colour never share a pattern. A layer that varies only the
-colour with either policy still draws the second cue. If you name a `palette` and no
+the colors cycle and each cycle draws the edges in the next line pattern (solid, dashed, dotted,
+...), so two edge groups that share a color never share a pattern. A layer that varies only the
+color with either policy still draws the second cue. If you name a `palette` and no
 `overflow`, a palette too small for the groups is refused with `E_CAP_EXCEEDED` rather than
-folded, because you asked for exactly those colours; name an `overflow` as well to apply it.
+folded, because you asked for exactly those colors; name an `overflow` as well to apply it.
 
 ## Multiple Algorithms
 
@@ -744,7 +868,7 @@ await element.session.styles.encode({ run: communities, channel: "node.color" })
 await element.session.styles.encode({ run: degree, channel: "node.size" });
 ```
 
-Layers stack, so the two do not fight: one decides colour, the other decides size, and
+Layers stack, so the two do not fight: one decides color, the other decides size, and
 `session.styles.legend()` describes both.
 
 ### What a run painted

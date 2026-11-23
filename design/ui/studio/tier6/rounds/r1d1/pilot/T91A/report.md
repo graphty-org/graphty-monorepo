@@ -96,7 +96,7 @@ start, where nothing has focus by design.
 - Enter on Open layer: inspector shows "trained: no, 9 nodes", focus stays on the button
   (keyboard/36.png).
 - Escape in a run stopped it, put the message back and said "Stopped. Changes taken back."; the layer
-  stayed. A second send and stop did the same (keyboard/42.png). The cancelled Gemini request is the
+  stayed. A second send and stop did the same (keyboard/42.png). The canceled Gemini request is the
   intended stop.
 - Control+I in the composer closes the panel with focus on Graph drawing; again returns with the draft
   kept.

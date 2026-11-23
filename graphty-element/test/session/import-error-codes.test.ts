@@ -56,7 +56,7 @@ DataSource.register(
     ),
 );
 
-// A network source, whose load honours the caller's signal.
+// A network source, whose load honors the caller's signal.
 registerSource(
     defineSource({
         id: "abortable-879",
@@ -157,7 +157,7 @@ describe("data.import() refusals are coded (#879)", () => {
 
     it("rejects an aborted load with the caller's own reason, unchanged", async () => {
         const session = createGraphSession();
-        const reason = new DOMException("The reader cancelled.", "AbortError");
+        const reason = new DOMException("The reader canceled.", "AbortError");
         const thrown = await session.data
             .import({ source: "abortable-879", config: {} }, { signal: AbortSignal.abort(reason) })
             .then(

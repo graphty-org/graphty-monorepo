@@ -10,30 +10,80 @@ layout runs on the device, the result comes back to the same position array the 
 and nothing else about your page changes.
 
 The element finds the hardware, builds against it, attaches it, watches it and recovers from
-losing it. You do not write any of that. You install one package, import one module, and read one
-property when you want to know where the work ran.
+losing it. You do not write any of that. You install one package, and read one property when you
+want to know where the work ran.
 
 ## Turning it on
 
-Two imports. The second is the whole of the activation:
+Install the GPU package beside the element. That's it:
+
+```bash
+npm install @graphty/graphty-element @graphty/webgpu-graph-algorithms
+```
 
 ```javascript
 import "@graphty/graphty-element";
-import "@graphty/graphty-element/webgpu";
 ```
 
-The second import is a side effect: it registers a WebGPU accelerator factory that the element
-uses if the machine has a device it can use. Without that import the element never looks for
-hardware and runs everything on the CPU.
+The first time the element looks for acceleration, it loads `@graphty/webgpu-graph-algorithms` if
+it is installed, and uses it when the machine has a device it can use. Nothing is downloaded before
+then, and `acceleration="off"` never loads it. When the package is not installed the element runs
+on the CPU, reports `E_MISSING_PACKAGE`, and prints nothing: you did not ask for a GPU.
 
-The module behind it is an optional package, so install it alongside the element:
+When the package is installed and the GPU still cannot be used, the element prints one line to the
+console, starting with the code, once per page per code -- for example
+`[graphty-element] E_NO_ADAPTER: ...`. A package that is installed but broken prints one
+`console.error` (`E_ACCELERATOR_FAILED`, `E_ACCELERATOR_INCOMPATIBLE`). If you installed the package
+and want the CPU anyway, say so with `acceleration="off"`, which never loads it and never prints.
 
-```bash
-npm install @graphty/webgpu-graph-algorithms
+To make a missing or unusable GPU an error rather than a fallback, set `acceleration="required"`
+(see [Policies](#policies)): work that would run on the CPU throws `E_NO_ACCELERATOR`, and its
+`details.acceleration` carries the code above.
+
+### Without a bundler
+
+`@graphty/graphty-element/bundle` leaves the GPU package out, so a page with no build step maps it
+in an import map. Without the mapping the page runs on the CPU and reports `E_MISSING_PACKAGE`.
+
+```html
+<script type="importmap">
+    {
+        "imports": {
+            "@graphty/webgpu-graph-algorithms": "https://cdn.jsdelivr.net/npm/@graphty/webgpu-graph-algorithms/dist/webgpu-graph-algorithms.js",
+            "@graphty/webgpu-graph-algorithms/browser": "https://cdn.jsdelivr.net/npm/@graphty/webgpu-graph-algorithms/dist/browser.js",
+            "@graphty/graph-format": "https://cdn.jsdelivr.net/npm/@graphty/graph-format/dist/graph-format.js"
+        }
+    }
+</script>
+<script type="module" src="https://cdn.jsdelivr.net/npm/@graphty/graphty-element/dist/graphty.bundle.js"></script>
 ```
 
-If it is not installed, drop the second import: everything else on this page still works and
-reports that acceleration is unavailable.
+### Toolchain requirements
+
+The element loads the package with an `import()` inside `try`, which bundlers build whether or not
+the package is installed. That needs:
+
+| Toolchain  | Supported                                                                                    |
+| ---------- | -------------------------------------------------------------------------------------------- |
+| Vite       | 8 (tested). The package must stay an optional peer, which is how graphty-element declares it |
+| webpack    | **5.90.2 and later**. Older versions fail the build when the package is absent               |
+| Rollup     | 4 with `@rollup/plugin-node-resolve` (tested); an absent package is left external            |
+| esbuild    | 0.8.53 and later, with `--splitting` to keep the package in a chunk of its own (0.28 tested) |
+| No bundler | `./bundle` and an import map, as above                                                       |
+
+Two setups cannot build the automatic loader while the package is absent: webpack older than
+5.90.2, and Vite 8 under Yarn Plug'n'Play (Vite issue 21881). In those, either install the package,
+or point the bundler's alias for `@graphty/webgpu-graph-algorithms` at an empty module (webpack:
+`resolve.alias: { "@graphty/webgpu-graph-algorithms": false }`), which the element reports as
+`E_ACCELERATOR_INCOMPATIBLE`.
+
+### The explicit import
+
+`import "@graphty/graphty-element/webgpu"` registers the same accelerator at a moment you choose; the
+package itself still downloads on first use. You do not need it with the root entry point. It is
+the way to get a GPU from the entry points that do not load the package by themselves (`./session`
+and the other Node-safe entries), and from a toolchain that cannot build the root entry's optional
+import (webpack before 5.90.2).
 
 ## Policies
 
@@ -101,7 +151,7 @@ The state is one of these words:
 | ------------- | ----------------------------------------------------------------------------------------- |
 | `active`      | An accelerator is attached and work is on it right now.                                   |
 | `idle`        | An accelerator is attached and usable, and nothing is using it at this moment.            |
-| `unavailable` | Nothing could be attached. `reason` says why in a sentence, `code` in a string.           |
+| `unavailable` | Nothing could be attached. `code` says why, `params` the values it is about.              |
 | `error`       | Something was attached and then failed -- a lost device, usually. The CPU path continues. |
 | `off`         | You switched acceleration off, so the element never looked.                               |
 
@@ -239,7 +289,7 @@ That last one is checked against a bound on the graph's largest eigenvalue: a hu
 neighbors raises it to about the square root of d, so at the default `alpha` of 0.1 a graph stays
 on the CPU once its busiest region is roughly as dense as a hub of 100 neighbors, or a hub of 10
 whose neighbors have 10 each. So does an `eigenvector` run that follows edge direction or runs over a graph
-with a two-colourable component (an even ring, a tree, a grid). Above the floor the accelerated scores are the CPU's scores to
+with a two-colorable component (an even ring, a tree, a grid). Above the floor the accelerated scores are the CPU's scores to
 single precision: the same scale, the same weighting, the same order. Under
 `acceleration="required"` such a run fails with `E_NO_ACCELERATOR` instead of answering on the CPU.
 
@@ -313,23 +363,42 @@ element.layoutBehavior = { layout: { iterationsPerStep: 16, maxInFlight: 2 } };
 
 ## When it does not work
 
-These arrive as `capabilities.acceleration.code`, beside a `reason` written for a person. None of
-them stops your graph from being drawn; they say why it is being drawn by the CPU.
+These arrive as `capabilities.acceleration.code`, with the values they are about in
+`capabilities.acceleration.params` (`accelerator`, and for the package codes `package` and
+`missing`). Switch on the code and write your own words; `reason` is a sentence for a developer and
+may change in any release. None of them stops your graph from being drawn; they say why it is being
+drawn by the CPU.
 
-| Code                          | What happened                                                                                                     |
-| ----------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `E_NO_WEBGPU`                 | The runtime exposes no WebGPU at all -- usually an insecure context, or a browser that does not implement it.     |
-| `E_NO_ADAPTER`                | WebGPU is there but no adapter could be acquired.                                                                 |
-| `E_SOFTWARE_ONLY`             | The only adapter is a software rasteriser, which `auto` turns down as slower than the CPU path.                   |
-| `E_DEVICE_INCORRECT`          | The adapter answers, and its answers are wrong. See below.                                                        |
-| `E_DEVICE_LOST`               | The device was lost mid-session -- a driver reset, a suspended tab.                                               |
-| `E_TOO_LARGE`                 | The accelerator cannot compute exactly over as many nodes as it was asked for.                                    |
-| `E_NO_ACCELERATOR_REGISTERED` | No accelerator is registered: `@graphty/graphty-element/webgpu` was never imported, or its module failed to load. |
-| `E_ACCELERATOR_FAILED`        | A registered accelerator threw while setting up, with no code of its own; `reason` says what it threw.            |
+| Code                          | What happened                                                                                                    |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `E_NO_WEBGPU`                 | The runtime exposes no WebGPU at all -- usually an insecure context, or a browser that does not implement it.    |
+| `E_NO_ADAPTER`                | WebGPU is there but no adapter could be acquired.                                                                |
+| `E_SOFTWARE_ONLY`             | The only adapter is a software rasterizer, which `auto` turns down as slower than the CPU path.                  |
+| `E_DEVICE_INCORRECT`          | The adapter answers, and its answers are wrong. See below.                                                       |
+| `E_DEVICE_LOST`               | The device was lost mid-session -- a driver reset, a suspended tab.                                              |
+| `E_GPU_TIMEOUT`               | A run got no answer from the device within its time limit, and the device never said it was lost. See below.     |
+| `E_TOO_LARGE`                 | The accelerator cannot compute exactly over as many nodes as it was asked for.                                   |
+| `E_MISSING_PACKAGE`           | `@graphty/webgpu-graph-algorithms` is not installed (`params.package`). Nothing is printed.                      |
+| `E_ACCELERATOR_FAILED`        | The package is installed and failed to load, or a registered accelerator threw with no code of its own.          |
+| `E_ACCELERATOR_INCOMPATIBLE`  | The package loaded but lacks exports this element calls (`params.missing`): install a version in the peer range. |
+| `E_NO_ACCELERATOR_REGISTERED` | No accelerator is registered: the element was used only through `./session` or another Node-safe entry point.    |
 
 A lost device is not the end of it. The element drops to the CPU path and then tries up to
 three times to attach a fresh accelerator, so a state that goes `error` and comes back to `idle`
 is a recovery that worked; after the third failure it stays down.
+
+A device can also stop answering without saying it is lost, and WebGPU has no event for that. So
+every algorithm run on the accelerator has a time limit: ten seconds, plus a millisecond per
+thousand nodes times edges (sources times edges for a sampled run, nodes cubed for
+`floyd-warshall`). A run past it fails with `E_GPU_TIMEOUT`, whose `details` carry the
+`capability`, `nodeCount`, `edgeCount`, `elapsedMs` and `limitMs`, and the element treats the
+device the way it treats a lost one: it lets go of it and attaches a fresh one for the next run.
+The stuck run is never finished on the CPU. To set your own limit, or none:
+
+```javascript
+element.graph.getAcceleration().setRunTimeout(60_000); // milliseconds; Infinity waits forever
+element.graph.getAcceleration().setRunTimeout(undefined); // back to the scaled limit
+```
 
 `E_DEVICE_INCORRECT` is the one that surprises people, because the hardware is there and it
 works. Before the element gives an accelerator any of your graph, it asks the accelerator to

@@ -1,19 +1,19 @@
 /**
- * The grid pyramid (spec 6 row 12, 7.7 G4-G5; P4-T9): the planner that records, into the caller's pass, the finest
+ * The grid pyramid (stages G4-G5 of the grid tier): the planner that records, into the caller's pass, the finest
  * centroids (G4, `grid-centroid`: thread per cell over `cells + outsideCells`, the pseudo-cells included), the hub-cell
- * completion (G4b: `grid-centroid-hub`, one workgroup per hub cell; PD-13) and one `grid-downsample` dispatch per
+ * completion (G4b: `grid-centroid-hub`, one workgroup per hub cell) and one `grid-downsample` dispatch per
  * coarser level (G5). G4b is a DIRECT dispatch of one workgroup per word of `hubList` -- the most hub cells the graph
  * can hold -- and the kernel's `h < hubCount[0]` guard idles the workgroups past the count. It was an indirect
  * dispatch from a finalize-written args slot until issue #732: Dawn validates every indirect dispatch with a hidden
  * pass that cost 0.3 to 0.9 ms of device time per iteration, several times the whole grid tier's own work at 10k
- * nodes (the frontier kernels' lesson, docs/decisions/G8.md G8-F5). The idle workgroups cost far less: `hubList` holds
+ * nodes (the frontier kernels' lesson, design/webgpu/dawn-indirect-dispatch-validation-cost.md). The idle workgroups cost far less: `hubList` holds
  * `ceil(n / GRID_HUB_CELL)` words, so 977 workgroups at 1M nodes, each reading one word. Level 0 holds `[sum m x, sum m y, sum m z, sum m]` per cell; every parent is the sum of its 2^dim
- * children; the pseudo-cells (indices `cells ..` of level 0) are never children. No atomics touch the sums (design 6 row 12:
+ * children; the pseudo-cells (indices `cells ..` of level 0) are never children. No atomics touch the sums (so they are
  * bitwise reproducible); the only atomics are the hub append and the occupancy max.
  *
  * The named grid buffers (`pyramid`, `hubList`, `hubCounters`) are the caller's (the model's
  * `BufferSpec`s, so `inspect(name)` reaches them); the static params of every level are written
- * ONCE at bind() through the scope's params writer (PD-11), so record() writes no uniform. `src/primitives/**` never
+ * ONCE at bind() through the scope's params writer, so record() writes no uniform. `src/primitives/**` never
  * imports `src/context.ts`.
  */
 
@@ -50,10 +50,10 @@ export interface GridPyramidBindings {
 /** Where `record()` stops: after level 0 is whole (G4 and G4b) or after every coarser level (G5, the default). */
 export type GridPyramidStage = "G4" | "G5";
 
-/** A prepared pyramid build (spec 7.7 G4-G5): binds once per load, records the stages of one iteration into a pass. */
+/** A prepared pyramid build (stages G4-G5): binds once per load, records the stages of one iteration into a pass. */
 export interface GridPyramidPlanner {
     /**
-     * Binds the named buffers and writes the static params of every level (PD-11); called once
+     * Binds the named buffers and writes the static params of every level; called once
      * per load (a second call rebinds and writes fresh params, so it belongs to a reload, never to an iteration).
      * @param bindings - the buffers
      */

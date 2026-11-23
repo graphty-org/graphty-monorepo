@@ -8,6 +8,9 @@ import {
     DEFAULT_BUDGET,
     earlierActive,
     FULL_RUN_MAX_PARALLEL,
+    MASTER_SHARE,
+    MAX_WAIT_MINUTES,
+    namedIssues,
     parseBudget,
     parseCap,
     POLL_SECONDS,
@@ -26,7 +29,7 @@ const run = (id, started, status, event = "pull_request") => ({
 const ME = run(40268423520, "2026-10-26T04:18:51Z", "in_progress");
 
 // a fake API that answers each path from a table, and a fake clock that advances on sleep
-function fake({ ci, release = [], jobs = {}, suites = {} }) {
+function fake({ ci, master = [], release = [], jobs = {}, suites = {} }) {
     const calls = [];
     let t = 0;
     const api = async (path, body) => {
@@ -47,6 +50,7 @@ function fake({ ci, release = [], jobs = {}, suites = {} }) {
                 },
             };
         if (path === `actions/runs/${ME.id}`) return ME;
+        if (path.startsWith("actions/workflows/ci.yml/runs?event=push&branch=master")) return { workflow_runs: master };
         if (path.startsWith("actions/workflows/ci.yml/runs")) {
             const status = /status=(\w+)/.exec(path)[1];
             const runs = typeof ci === "function" ? ci(t) : ci;
@@ -86,8 +90,9 @@ test("parseCap: default 2, off or junk is no cap", () => {
     assert.equal(parseCap("0"), null);
 });
 
-test("parseBudget: unset is the runner ceiling less the full run's share, off is no budget", () => {
-    assert.equal(DEFAULT_BUDGET, 160);
+test("parseBudget: unset is the runner ceiling less the full run's and master's shares, off is no budget", () => {
+    // 180 runners less the full run's 24 Test and 6 Story tests jobs (#7849) and master's 30 (#9153)
+    assert.equal(DEFAULT_BUDGET, 120);
     assert.equal(parseBudget(undefined), DEFAULT_BUDGET);
     assert.equal(parseBudget(""), DEFAULT_BUDGET); // ci.yml passes an unset variable as ""
     assert.equal(parseBudget("120"), 120);
@@ -97,7 +102,7 @@ test("parseBudget: unset is the runner ceiling less the full run's share, off is
 test("earlierActive counts only earlier, active pull request runs", () => {
     const runs = [
         ME,
-        run(40268220173, "2026-10-26T04:16:32Z", "completed"), // cancelled by a newer push: frees its place
+        run(40268220173, "2026-10-26T04:16:32Z", "completed"), // canceled by a newer push: frees its place
         run(40264114276, "2026-10-26T03:26:48Z", "in_progress"),
         run(40264114000, "2026-10-26T03:20:00Z", "queued"),
         run(40269999999, "2026-10-26T04:20:00Z", "in_progress"), // later: never counts (no deadlock)
@@ -114,7 +119,10 @@ test("proceeds at once under the cap, with one listing per status", async () => 
     const f = fake({ ci: [ME, run(1, "2026-10-26T04:00:00Z", "in_progress")] });
     const r = await waitTurn({ cap: 2, runId: ME.id, ...f });
     assert.deepEqual(r, { waitedSeconds: 0, outcome: "proceeded", checks: 1 });
-    assert.equal(f.calls.filter((c) => c.startsWith("actions/workflows/ci.yml")).length, 2);
+    assert.equal(
+        f.calls.filter((c) => c.startsWith("actions/workflows/ci.yml") && c.includes("pull_request")).length,
+        2,
+    );
     assert.match(f.calls[1], /event=pull_request&status=in_progress&per_page=100$/);
 });
 
@@ -173,6 +181,29 @@ test("yields to a release run waiting for a GitHub-hosted runner, not to a T4 or
     };
     const f4 = fake({ ci: [ME], release, jobs: full });
     assert.equal((await waitTurn({ cap: 2, runId: ME.id, ...f4 })).outcome, "proceeded");
+});
+
+test("yields to a master push build waiting for a runner, until it holds MASTER_SHARE of them (#9153)", async () => {
+    // a master build whose Build job waits for a runner behind pull request jobs
+    const master = [run(44669000001, "2026-11-20T04:13:00Z", "in_progress", "push")];
+    const jobs = { 44669000001: [job("Run cap", "completed"), job("Build", "queued")] };
+    assert.match(await firstTurn(fake({ ci: [ME], master, jobs }), { cap: 2 }), /master build 44669000001 is waiting/);
+    // a pending master build (held by its concurrency group, no jobs yet) and a finished one hold nothing
+    const idle = [
+        run(44669000002, "2026-11-20T04:14:00Z", "pending", "push"),
+        run(44669000003, "2026-11-20T04:00:00Z", "completed", "push"),
+    ];
+    const done = { 44669000003: [job("Build", "queued")] };
+    assert.equal(
+        (await waitTurn({ cap: 2, runId: ME.id, ...fake({ ci: [ME], master: idle, jobs: done }) })).outcome,
+        "proceeded",
+    );
+    // a master build that already holds its share no longer holds pull requests back
+    const full = { 44669000001: [...legs("visual", MASTER_SHARE, "in_progress"), job("Build", "queued")] };
+    assert.equal(
+        (await waitTurn({ cap: 2, runId: ME.id, ...fake({ ci: [ME], master, jobs: full }) })).outcome,
+        "proceeded",
+    );
 });
 
 test("never fails: an API error proceeds, and no cap asks nothing", async () => {
@@ -240,7 +271,7 @@ test("a run queued for over a day is stuck, not load, and never counts", async (
     assert.ok(!f.calls.includes("graphql"), "no earlier run, no query");
 });
 
-test("waits its turn with no time limit of its own: past 25 minutes until the jobs drain", async () => {
+test("waits its turn past 25 minutes until the jobs drain", async () => {
     const ci = [ME, suite(run(1, "2026-10-26T04:00:00Z", "in_progress"), "CS_1")];
     const f = fake({ ci, suites: { CS_1: { build: "COMPLETED", queued: 200 } } });
     // the earlier run's jobs drain after an hour
@@ -252,6 +283,20 @@ test("waits its turn with no time limit of its own: past 25 minutes until the jo
     const r = await waitTurn({ cap: null, budget: DEFAULT_BUDGET, runId: ME.id, ...f, api });
     assert.equal(r.outcome, "proceeded");
     assert.ok(r.waitedSeconds >= 3600, `waited ${r.waitedSeconds} s`);
+});
+
+test("ends its wait at MAX_WAIT_MINUTES and proceeds, so the job's timeout never cancels the run", async () => {
+    const ci = [ME, suite(run(1, "2026-10-26T04:00:00Z", "in_progress"), "CS_1")];
+    const f = fake({ ci, suites: { CS_1: { build: "COMPLETED", queued: 1000 } } });
+    const r = await waitTurn({ cap: null, budget: DEFAULT_BUDGET, runId: ME.id, ...f });
+    assert.equal(r.outcome, "wait limit");
+    assert.equal(r.waitedSeconds, MAX_WAIT_MINUTES * 60);
+});
+
+test("MAX_WAIT_MINUTES ends before the Run cap job's timeout in ci.yml", () => {
+    const yml = readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8");
+    const timeout = Number(/\n {4}run-cap:\n(?: {8}.*\n)*? {8}timeout-minutes: (\d+)\n/.exec(yml)?.[1]);
+    assert.ok(MAX_WAIT_MINUTES + 5 <= timeout, `wait ${MAX_WAIT_MINUTES} min, job timeout ${timeout} min`);
 });
 
 test("a failed GraphQL query is an API failure: it proceeds", async () => {
@@ -304,7 +349,7 @@ test("a full run waiting for runners with fewer than its share still holds pull 
         ],
     };
     assert.match(await firstTurn(fake({ ci: [ME], release, jobs }), { cap: 2 }), /release run 42966344736/);
-    // a test shard queued behind fourteen running ones is the run's own max-parallel, not a runner wait
+    // a test shard queued behind its running siblings at max-parallel is the run's own max-parallel, not a runner wait
     jobs[42966344736][jobs[42966344736].length - 1] = job("Test (layout-2)", "queued");
     const ok = await waitTurn({ cap: 2, runId: ME.id, ...fake({ ci: [ME], release, jobs }) });
     assert.equal(ok.outcome, "proceeded");
@@ -316,5 +361,76 @@ test("FULL_RUN_MAX_PARALLEL matches ci.yml's full-run max-parallel", () => {
         const re = new RegExp(`name: ${name} \\(\\$\\{\\{[^]*?max-parallel: .*\\|\\| (\\d+) \\}\\}`);
         assert.equal(Number(re.exec(yml)?.[1]), n, `${name}'s full-run max-parallel in ci.yml`);
     }
-    assert.equal(RELEASE_SHARE, 20);
+    assert.equal(RELEASE_SHARE, 30);
+    // the run cap's comment in ci.yml states the default budget it derives
+    assert.match(yml, new RegExp(`CI_PR_JOB_BUDGET \\(a repository variable, default ${DEFAULT_BUDGET}\\b`));
+});
+
+// a red fix skips the wait (#9473): a pull request that names an open alarm issue, or a revert/<sha7> branch
+test("a pull request that fixes an open red-master or full-run alarm skips the wait", async () => {
+    const ci = [run(40268423000, "2026-10-26T04:00:00Z", "in_progress"), ME];
+    const issues = [
+        { number: 9456, state: "open", title: "Full run red: CI / Test (layout) fails curve.test.ts" },
+        { number: 9100, state: "open", title: "GPU lane red on master" },
+        { number: 9200, state: "open", title: "Red master: CI failed on abc1234" },
+        { number: 9300, state: "open", title: "Red masterpiece in the docs" },
+        { number: 9465, state: "open", title: "Full run red: x", pull_request: {} },
+    ];
+    const withSearch = (commits = []) => {
+        const f = fake({ ci });
+        const inner = f.api;
+        f.api = async (path, body) => {
+            if (path.startsWith("/search/issues?")) {
+                f.calls.push(path);
+                const q = decodeURIComponent(path);
+                assert.match(q, /repo:o\/r is:issue is:open "Full run red" OR "Failing on master" OR "Red master"/);
+                return { items: issues };
+            }
+            if (path.startsWith("pulls/7/commits")) {
+                f.calls.push(path);
+                return commits.map((message) => ({ commit: { message } }));
+            }
+            return inner(path, body);
+        };
+        return f;
+    };
+    const pr = (body, ref = "fix/9456-curve") => ({ number: 7, title: "fix: curve", body, head: { ref } });
+    const outcome = async (p, commits) =>
+        (await waitTurn({ cap: 1, runId: ME.id, repo: "o/r", pr: p, ...withSearch(commits) })).outcome;
+
+    assert.equal(await outcome(pr("Fixes #9456")), "red fix");
+    assert.equal(await outcome(pr("Refs #9100")), "red fix");
+    assert.equal(await outcome(pr("No issue"), ["fix: curve\n\nFixes #9200"]), "red fix");
+    assert.equal(await outcome(pr("", "revert/1a2b3c4")), "red fix");
+    // a closed alarm is not in the open search, and a non-alarm issue or a pull request still waits
+    for (const body of ["Fixes #9999", "Fixes #9300", "Refs #9465", "mentions #9456 only"])
+        assert.equal(await outcome(pr(body)), "wait limit", body);
+    assert.equal(await outcome(pr("", "revert/not-a-sha")), "wait limit");
+    // a search that fails waits as usual, never jumps the queue
+    const f = withSearch();
+    const api = f.api;
+    f.api = async (path, body) => {
+        if (path.startsWith("/search/")) throw new Error("GET search: HTTP 403");
+        return api(path, body);
+    };
+    assert.equal(
+        (await waitTurn({ cap: 1, runId: ME.id, repo: "o/r", pr: pr("Fixes #9456"), ...f })).outcome,
+        "wait limit",
+    );
+    // no event payload: no extra calls
+    const plain = withSearch();
+    await waitTurn({ cap: 1, runId: ME.id, ...plain, maxWaitSeconds: 0 });
+    assert.ok(!plain.calls.some((c) => c.startsWith("/search") || c.startsWith("pulls/")));
+});
+
+test("namedIssues reads Fixes, Closes, Resolves and Refs, and not a bare mention", () => {
+    assert.deepEqual([...namedIssues("Fixes #1, refs #2\ncloses: #3 resolved #4 see #5")], [1, 2, 3, 4]);
+    assert.equal(namedIssues(undefined).size, 0);
+});
+
+test("ci.yml gives the run cap the event payload's reads: pull requests and issues", () => {
+    const yml = readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8");
+    const job = /\n {4}run-cap:\n([\s\S]*?)\n {4}\S/.exec(yml)[1];
+    assert.match(job, /pull-requests: read/);
+    assert.match(job, /issues: read/);
 });

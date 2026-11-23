@@ -2,13 +2,13 @@
 
 Available from graphty-element 3.0.
 
-A palette is a named list of colours that a style layer paints with. The element ships eighteen
+A palette is a named list of colors that a style layer paints with. The element ships eighteen
 (viridis, okabe-ito and the rest); `definePalette` adds yours, and from then on it is offered and
 used everywhere a built-in one is.
 
 ## Your first palette
 
-Brand colours for groups, and a brand ramp for amounts:
+Brand colors for groups, and a brand ramp for amounts:
 
 ```ts
 import { definePalette } from "@graphty/graphty-element/extend";
@@ -21,7 +21,7 @@ definePalette({
 definePalette({ id: "acme-brand-ramp", kind: "sequential", colors: ["#E8F1FA", "#1B7F79", "#0B1D51"] });
 ```
 
-**Use it** -- make them the colours every colour binding uses when it names none:
+**Use it** -- make them the colors every color binding uses when it names none:
 
 ```ts
 element.setDefaultPalettes({ categorical: "acme-brand", sequential: "acme-brand-ramp" });
@@ -32,9 +32,9 @@ so the layer records `acme-brand` by name and a saved document keeps its meaning
 names its own palette is never touched.
 
 That is all: no capacity, no plain name, nothing else is needed. `kind` is `"categorical"` (one
-colour per group), `"sequential"` (a ramp for an amount, low to high) or `"diverging"` (a ramp
-through a middle value); give a ramp at least two colours. Colours are anything CSS understands --
-hex, `rgb()`, `hsl()`, `oklch()`, a colour name. Palettes are opaque: an alpha channel
+color per group), `"sequential"` (a ramp for an amount, low to high) or `"diverging"` (a ramp
+through a middle value); give a ramp at least two colors. Colors are anything CSS understands --
+hex, `rgb()`, `hsl()`, `oklch()`, a color name. Palettes are opaque: an alpha channel
 (`#0B1D5180`, `rgb(27 127 121 / 50%)`) is discarded.
 
 A helper function that sets the defaults takes the element as `DefaultPaletteControls` (from
@@ -43,21 +43,21 @@ needs no renderer types.
 
 ### What the element does for you
 
-- **Lists it.** The palette appears in the catalogue beside the built-ins
+- **Lists it.** The palette appears in the catalog beside the built-ins
   (`element.session.catalog.palettes()`), named from its id -- `acme-brand` reads "Acme brand" --
   so every palette picker offers it. Pass `name` to choose the name yourself.
-- **Paints with it.** Any colour binding may name it (`palette: "acme-brand"`), exactly as it
+- **Paints with it.** Any color binding may name it (`palette: "acme-brand"`), exactly as it
   names `viridis`; the legend shows your swatches, and `reverse: true` turns a ramp round.
-- **Normalises your colours** to six-digit hex once, so the renderer, the legend and a saved
+- **Normalizes your colors** to six-digit hex once, so the renderer, the legend and a saved
   document all read the same values.
-- **Colours groups in a fixed order.** Groups take the palette's colours in order, largest group
-  first, ties broken by name: the most common department gets your first colour. Order the colours
+- **Colors groups in a fixed order.** Groups take the palette's colors in order, largest group
+  first, ties broken by name: the most common department gets your first color. Order the colors
   by how much you want each one seen.
-- **Never wraps a categorical palette.** Five colours name five groups. A sixth group is not given
-  the first colour again: the layer paints nothing and the console says why, with the code
-  `E_CAP_EXCEEDED` ("more groups than colours"). Give
-  a brand palette as many colours as the groupings it will colour.
-- **Makes no colour-blindness claim for you.** Add `colorblindSafe: ["deuteranopia"]` only when you
+- **Never wraps a categorical palette.** Five colors name five groups. A sixth group is not given
+  the first color again: the layer paints nothing and the console says why, with the code
+  `E_CAP_EXCEEDED` ("more groups than colors"). Give
+  a brand palette as many colors as the groupings it will color.
+- **Makes no color-blindness claim for you.** Add `colorblindSafe: ["deuteranopia"]` only when you
   have checked it; the element takes the claim on trust.
 
 ### How to run it
@@ -87,13 +87,13 @@ starts with the call and your id:
 | ------------------------------------------------ | --------------------------------------------------------------------------------------------- |
 | `colors: ["var(--brand-navy)"]`                  | `definePalette("acme-brand"): ...` -- a `var()` is not resolved; read the token first (below) |
 | a token read before its stylesheet loaded (`""`) | refused the same way, so a too-early read fails loudly                                        |
-| `colors: ["navvy"]`                              | the colour it could not read, quoted                                                          |
+| `colors: ["navvy"]`                              | the color it could not read, quoted                                                           |
 | `kind: "qualitative"`                            | `"kind"` must be `"categorical"`, `"sequential"` or `"diverging"`                             |
 | `id: "Acme Brand"`                               | an id is lower-case words joined by hyphens, led by your own prefix                           |
 | `colorblindSafe: ["deuteranomaly"]`              | a claim lists `"deuteranopia"`, `"protanopia"` or `"tritanopia"`                              |
 | `id: "viridis"`                                  | `E_DUPLICATE_PLUGIN`: the element ships that one                                              |
 
-**Colours from design tokens.** Read each token's value first, after the stylesheet that defines
+**Colors from design tokens.** Read each token's value first, after the stylesheet that defines
 it has loaded (a module script that runs after the page's stylesheets, or on `DOMContentLoaded`):
 
 ```ts
@@ -113,7 +113,7 @@ with `definePalette` IS such a descriptor once registered, so everything below a
 
 ## Advanced: the palette descriptor
 
-A palette is plain data. Nothing in the element ever asks a palette for behaviour: the categorical
+A palette is plain data. Nothing in the element ever asks a palette for behavior: the categorical
 index path, the continuous interpolation, the step table, the over-subscription refusal, the
 legend and the reversal flag are all implemented by code that reads six fields. So the unit you
 register is those six fields.
@@ -126,12 +126,12 @@ const ACME_HEAT: PaletteDescriptor = {
     plainName: "Acme Deep Sea to Sunrise",
     kind: "sequential",
     // Write anchors however your design system exports them: six-digit hex, three- or
-    // eight-digit hex, a CSS colour name, rgb(), hsl() or oklch(). They are normalised to
+    // eight-digit hex, a CSS color name, rgb(), hsl() or oklch(). They are normalized to
     // six-digit hex once, at registration.
     colors: ["#0B1D51", "#1B7F79", "oklch(0.7 0.15 30)", "#F2A65A", "#F7F056"],
-    // null for sequential and diverging; the number of colours for categorical.
+    // null for sequential and diverging; the number of colors for categorical.
     capacity: null,
-    // No colour-vision claim: the element takes one on trust and never checks it, so make one
+    // No color-vision claim: the element takes one on trust and never checks it, so make one
     // only for a palette you have tested.
     colorblindSafe: [],
 };
@@ -156,7 +156,7 @@ registerPalette(ACME_TEAMS);
 
 ## Painting with it
 
-Name the palette in a colour binding, exactly as you would name `viridis`:
+Name the palette in a color binding, exactly as you would name `viridis`:
 
 ```ts
 import type { LayerSpec } from "@graphty/graphty-element/session";
@@ -188,12 +188,12 @@ far end, and a saved document records the name.
 Everything, because all of it is palette-agnostic once a descriptor resolves:
 
 - the categorical index path and the continuous interpolation path;
-- the lazily built ramp table, so a layer that paints six elements builds six colours;
+- the lazily built ramp table, so a layer that paints six elements builds six colors;
 - the `E_CAP_EXCEEDED` refusal when a categorical palette is asked to name more groups than it has
-  colours -- it never wraps group eight round onto group zero's colour;
+  colors -- it never wraps group eight round onto group zero's color;
 - the legend's block kind, palette name, reversal note and swatches;
 - the missing-value policy: `missing: "skip"` leaves an unmeasured element whatever the layers
-  below it painted, and `missing: { value: "#cccccc" }` paints it that colour;
+  below it painted, and `missing: { value: "#cccccc" }` paints it that color;
 - a round trip through `styles.toDocument()` and `styles.applyTemplate()`.
 
 ## Finding it again
@@ -222,9 +222,9 @@ Registration validates at the door, and every refusal is a `GraphtyError` naming
 
 | What is wrong                            | Code                                           |
 | ---------------------------------------- | ---------------------------------------------- |
-| An anchor that is not a colour           | `E_BAD_COMMAND`, `details.field` is `colors`   |
+| An anchor that is not a color            | `E_BAD_COMMAND`, `details.field` is `colors`   |
 | A `capacity` that contradicts the `kind` | `E_BAD_COMMAND`, `details.field` is `capacity` |
-| No id, or no colours                     | `E_BAD_COMMAND`                                |
+| No id, or no colors                      | `E_BAD_COMMAND`                                |
 | An id the element itself ships           | `E_DUPLICATE_PLUGIN`                           |
 
 And afterwards:
@@ -232,13 +232,13 @@ And afterwards:
 | What is wrong                                                                | Code                                          |
 | ---------------------------------------------------------------------------- | --------------------------------------------- |
 | A layer, an `encode()` call or a document names a palette nothing registered | `E_UNKNOWN_PALETTE`, with `details.available` |
-| A categorical palette is asked to name more groups than it has colours       | `E_CAP_EXCEEDED`                              |
+| A categorical palette is asked to name more groups than it has colors        | `E_CAP_EXCEEDED`                              |
 
 ```ts
 import { isGraphtyError } from "@graphty/graphty-element/extend";
 
 try {
-    registerPalette({ ...ACME_HEAT, colors: ["not a colour"] });
+    registerPalette({ ...ACME_HEAT, colors: ["not a color"] });
 } catch (error) {
     if (isGraphtyError(error) && error.code === "E_BAD_COMMAND") {
         console.error(error.details.field, error.message);
@@ -248,7 +248,7 @@ try {
 
 ## Deliberate limits
 
-**A palette takes no options.** `PaletteDescriptor` is the only catalogue descriptor with no
+**A palette takes no options.** `PaletteDescriptor` is the only catalog descriptor with no
 `options` field, because every knob -- scale, domain, clamp, midpoint, reverse, missing, bins --
 belongs to the binding rather than to the palette. No built-in palette takes configuration either.
 
@@ -262,10 +262,10 @@ that settles once a `reapply` has repainted them. A binding on groups (an `ordin
 default, a binding with a `midpoint` takes the `diverging` one, and any other binding on amounts
 takes the `sequential` one. The highlight default, `blue-highlight`, has no slot and stays fixed.
 
-**The colour-blindness claim is taken on trust**, exactly as the element takes its own palettes'.
+**The color-blindness claim is taken on trust**, exactly as the element takes its own palettes'.
 Computing the answer for you would have the element overrule you about your own palette. A picker
 that wants to verify can compute it itself.
 
 **The function-style helpers are not a seam.** `sequential.viridis(v)` and its siblings are an
-older palette vocabulary with no link to the catalogue, and they wrap a categorical value by
+older palette vocabulary with no link to the catalog, and they wrap a categorical value by
 modulo where a registered palette refuses. Use `catalog.palettes()`.

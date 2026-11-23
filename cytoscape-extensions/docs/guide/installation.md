@@ -120,8 +120,8 @@ Importing the package adds every `graphty...` method to Cytoscape's `Core` and `
 The package has four entry points:
 
 - `@graphty/cytoscape-extensions`: the extension (default export), `configureWebGpu`, `toSnapshot`, `writeData`, `LAYOUT_NAMES`, `ALGORITHM_NAMES`, `ASYNC_ALGORITHM_NAMES`, `GPU_SIZE_FLOOR` and the types of the methods and options, such as `GraphtyLayoutOptions`, `AlgorithmOptions` and `Backend`.
-- `@graphty/cytoscape-extensions/samples`: `generateElements`, which returns `{ elements, directed }`, and `datasetElements`, which resolves to the same shape; `GENERATORS`, an object keyed by the 59 generator names; `NAMED_GRAPH_NAMES`, the 21 graphs the `"named"` generator builds; and `BUNDLED_DATASET_NAMES`, deprecated: the 16 small datasets the package used to bundle. Every dataset now downloads from graphty.app; `DATASET_NAMES` of `@graphty/graph-samples` lists them all.
-- `@graphty/cytoscape-extensions/io`: `importElements`, which resolves to `{ elements, directed, format, report }`, and `exportElements`.
+- `@graphty/cytoscape-extensions/samples`: `generateElements`, which returns `{ elements, directed }`, and `datasetElements`, which resolves to the same shape; `GENERATORS`, an object keyed by the 59 generator names; `NAMED_GRAPH_NAMES`, the 21 graphs the `"named"` generator builds. Every dataset downloads from graphty.app; `DATASET_NAMES` of `@graphty/graph-samples` lists them all.
+- `@graphty/cytoscape-extensions/io`: `importElements`, which resolves to `{ elements, directed, format, report }`, `applyBypass`, which sets the per-element styles an import with `styles: true` returns, and `exportElements`.
 - `@graphty/cytoscape-extensions/bundle`: the script-tag build.
 
 The [API reference](../api/generated/) defines each export and type.

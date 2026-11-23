@@ -48,6 +48,49 @@ function counted(params: Params, noun: string, key = "count"): string {
 }
 
 /**
+ * One thing a param names: "camera Top", or "a camera" when the element gave none.
+ * @param params - the params.
+ * @param key - the param.
+ * @param noun - the noun.
+ * @returns the words.
+ */
+function one(params: Params, key: string, noun: string): string {
+    const value = params[key];
+    return typeof value === "string" ? `${noun} ${value}` : `a ${noun}`;
+}
+
+/**
+ * The things a `names` param lists: "camera Hub cluster", or "3 cameras".
+ * @param params - the params.
+ * @param noun - the singular noun.
+ * @returns the words.
+ */
+function named(params: Params, noun: string): string {
+    const { names } = params;
+    if (Array.isArray(names) && names.length === 1) {
+        return `${noun} ${String(names[0])}`;
+    }
+    return Array.isArray(names) ? count(names.length, noun) : `${noun}s`;
+}
+
+/**
+ * A camera key change: "moving key 7 from Top to Hub cluster", "giving Hub cluster key 2",
+ * "removing the key of Top".
+ * @param params - the `view.key` params: `name`, `key` and `from`.
+ * @returns the words.
+ */
+function keyWords(params: Params): string {
+    const name = text(params, "name", "a camera");
+    if (params.key === null) {
+        return `removing the key of ${name}`;
+    }
+    const key = text(params, "key", "");
+    return typeof params.from === "string"
+        ? `moving key ${key} from ${params.from} to ${name}`
+        : `giving ${name} key ${key}`;
+}
+
+/**
  * An algorithm by its key, in the app's words.
  * @param session - the session, for the catalog.
  * @param key - the algorithm's key.
@@ -155,9 +198,13 @@ const WORDS: Readonly<Record<HistoryCode, (params: Params, session: GraphSession
     "data.declare": (p) => `changing the column ${text(p, "column", "")}`.trimEnd(),
     "data.set-source": () => "renaming the source",
     "data.import-source": (p) => `importing ${text(p, "name", "data from a network source")}`,
+    "data.steps-set": (p) => (p.kind === "add" ? `adding ${text(p, "name", "a source")}` : "changing the sources"),
     "data.source-expand": (p) => `expanding ${counted(p, "node", "nodes")} from a network source`,
     "data.collapse": (p) => `collapsing ${text(p, "node", "a node")}`,
-    "data.set-file-styles": () => "choosing which file styles to use",
+    "groups.collapse": (p) => `collapsing group ${String(p.group)}`,
+    "groups.expand": (p) => `expanding group ${String(p.group)}`,
+    "annotations.set": () => "setting the annotations",
+    "annotations.patch": () => "changing an annotation",
     "data.columns": () => "changing the columns",
     "data.join": (p) => `joining ${text(p, "name", "a table")}`,
     "data.edit-join": () => "editing a join",
@@ -173,6 +220,7 @@ const WORDS: Readonly<Record<HistoryCode, (params: Params, session: GraphSession
     "data.set-type": () => "changing a column's type",
     "data.hide-columns": () => "hiding columns",
     "data.show-columns": () => "showing columns",
+    "data.derive": (p) => (typeof p.column === "string" ? `computing ${p.column}` : "updating the computed columns"),
     "style.add-layer": (p, s) => `adding the layer ${layerWords(s, p)}`,
     "style.update-layer": (p, s) => {
         const what = channels(p.channels);
@@ -193,10 +241,12 @@ const WORDS: Readonly<Record<HistoryCode, (params: Params, session: GraphSession
     "style.lock-row": (p) => `${p.locked === true ? "locking" : "unlocking"} ${text(p, "row", "a layer")}`,
     "style.hide-row": (p) => `${p.hidden === true ? "hiding" : "showing"} ${text(p, "row", "a layer")}`,
     "style.delete-row": (p) => `deleting ${text(p, "row", "a layer")}`,
-    "style.restore-starting-rows": () => "restoring the starting rows",
+    "style.duplicate-row": (p) => `duplicating ${text(p, "row", "a layer")}`,
+    "style.add-default-rows": () => "adding the default rows",
     "shader.add": (p, s) => `adding ${shaderName(s, p.id)}`,
     "shader.replace": (p, s) => `changing ${shaderName(s, p.id)}`,
     "shader.remove": (p, s) => `removing ${shaderName(s, p.id)}`,
+    "asset.defaults": () => "changing a model's settings",
     "visibility.filter": () => "filtering",
     "visibility.clear-filter": () => "clearing the filter",
     "visibility.window": () => "setting the time window",
@@ -229,8 +279,17 @@ const WORDS: Readonly<Record<HistoryCode, (params: Params, session: GraphSession
     "note.update": () => "editing a note",
     "note.remove": () => "deleting a note",
     "note.merge": () => "merging notes",
-    "view.save": () => "saving a view",
-    "view.remove": () => "deleting a view",
+    "view.save": (p) => `saving ${named(p, "camera")}`,
+    "view.remove": (p) => `deleting ${named(p, "camera")}`,
+    "view.rename": (p) => `renaming ${one(p, "from", "camera")} to ${text(p, "to", "a new name")}`,
+    "view.move": (p) => `moving ${one(p, "name", "camera")}`,
+    "view.key": (p) => keyWords(p),
+    "view.starting": () => "adding the starting cameras",
+    "view.open": (p) => `opening ${one(p, "name", "camera")}`,
+    "tour.save": (p) => `saving ${named(p, "tour")}`,
+    "tour.remove": (p) => `deleting ${named(p, "tour")}`,
+    "tour.rename": (p) => `renaming ${one(p, "from", "tour")} to ${text(p, "to", "a new name")}`,
+    "tour.move": (p) => `moving ${one(p, "name", "tour")}`,
     "view.dimension": (p) => `switching to ${p.dimension === "2d" ? "2D" : "3D"}`,
     "view.immersive": (p) => `entering ${p.mode === "ar" ? "AR" : "VR"}`,
     "config.set": (p) => settingsWords(p),
@@ -349,28 +408,44 @@ export function historyTip(session: GraphSession | null, undo: boolean): string 
 }
 
 /**
- * Runs Undo or Redo and says what it took back on the status line: "Undid Size by PageRank" (a
+ * What an Undo or Redo about to run will say on the status line: "Undid Size by PageRank" (a
  * notice takes no final period). Named before it runs, since what the step names (a run, a filter
  * step) may be gone after; a filter step that only exists after (a Redo of its adding) is named
  * after. It is also a notice, except for an Assistant message's step with the Assistant panel open:
  * that turn reads Undone (or no longer does) in the panel, and a turn's notice is for a closed panel.
+ * Read it before the Undo or Redo starts and call what it returns once it has finished.
+ * @param session - the element's session.
+ * @param undo - true for Undo, false for Redo.
+ * @param store - the workspace store the words are posted to.
+ * @returns the function that posts the words and returns them, or null when there was nothing to take back.
+ */
+export function historyNotice(session: GraphSession, undo: boolean, store: WorkspaceStore): () => string | null {
+    const next = nextStep(session, undo);
+    const before = next === null ? null : historyWords(session, next);
+    const filterStep = next === null ? null : filterChange(session, next.fact);
+    return () => {
+        if (next === null) {
+            return null;
+        }
+        // Undo names the filter as it was before (what comes back); Redo as it is after the redo.
+        const words =
+            (undo ? filterStep : filterChange(session, next.fact)) ?? filterStep ?? before ?? "the last change";
+        const message = `${undo ? "Undid" : "Redid"} ${words}`;
+        const inTurn = next.provenance?.message !== undefined && assistantShown(store);
+        store.set(inTurn ? { announcement: message } : { notice: { message } });
+        return message;
+    };
+}
+
+/**
+ * Runs Undo or Redo and says what it took back on the status line, as {@link historyNotice} does.
  * @param session - the element's session.
  * @param undo - true for Undo, false for Redo.
  * @param store - the workspace store the words are posted to.
  * @returns the words, or null when there was nothing to take back.
  */
 export async function undoOrRedo(session: GraphSession, undo: boolean, store: WorkspaceStore): Promise<string | null> {
-    const next = nextStep(session, undo);
-    const before = next === null ? null : historyWords(session, next);
-    const filterStep = next === null ? null : filterChange(session, next.fact);
+    const say = historyNotice(session, undo, store);
     await (undo ? session.undo() : session.redo());
-    if (next === null) {
-        return null;
-    }
-    // Undo names the filter as it was before (what comes back); Redo as it is after the redo.
-    const words = (undo ? filterStep : filterChange(session, next.fact)) ?? filterStep ?? before ?? "the last change";
-    const message = `${undo ? "Undid" : "Redid"} ${words}`;
-    const inTurn = next.provenance?.message !== undefined && assistantShown(store);
-    store.set(inTurn ? { announcement: message } : { notice: { message } });
-    return message;
+    return say();
 }

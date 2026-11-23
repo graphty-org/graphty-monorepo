@@ -31,6 +31,7 @@ import type { EdgeStyleConfig } from "../../src/config";
 import { EdgeStyle } from "../../src/config/EdgeStyle";
 import { EdgeMesh } from "../../src/meshes/EdgeMesh";
 import { PatternedLineMesh } from "../../src/meshes/PatternedLineMesh";
+import type { LineMeshMetadata } from "../../src/types/sceneMetadata";
 import { batchLineFor, edgeLineFor } from "../helpers/edgeLine";
 import { create2DMeshScene, createMeshScene, type MeshTestScene } from "./real-mesh-harness";
 
@@ -63,7 +64,7 @@ function makeEdge(args: EdgeArgs): Mesh | InstancedMesh | PatternedLineMesh {
 
 /**
  * Build the line of a style drawn by a line batch, the way `Edge` builds it.
- * @param args - The style, and optionally the appearance id, width and colour.
+ * @param args - The style, and optionally the appearance id, width and color.
  * @returns The batch's mesh.
  */
 function makeBatchEdge(args: EdgeArgs): Mesh | InstancedMesh {
@@ -225,7 +226,10 @@ describe("Edge Golden Masters", () => {
             // The joined line shader, its width in world units so the line zooms with the graph.
             assert.instanceOf(mesh.material, ShaderMaterial);
             assert.include(mesh.material.options.defines, "#define WORLD_WIDTH");
-            assert.isTrue(mesh.metadata.is2DLine, "Edge.update reads this to decide how to move the line");
+            assert.isTrue(
+                (mesh.metadata as LineMeshMetadata).is2DLine,
+                "Edge.update reads this to decide how to move the line",
+            );
             assert.equal(ctx.cache.size(), 0, "2D lines are per-edge, so nothing is cached");
         });
 
@@ -250,7 +254,10 @@ describe("Edge Golden Masters", () => {
             const thin = makeEdge({ style: { line: { type: "solid" } }, width: 20 }) as Mesh;
             const thick = makeEdge({ style: { line: { type: "solid" } }, width: 80 }) as Mesh;
 
-            assert.isAbove(Number(thick.metadata.lineWidth), Number(thin.metadata.lineWidth));
+            assert.isAbove(
+                Number((thick.metadata as LineMeshMetadata).lineWidth),
+                Number((thin.metadata as LineMeshMetadata).lineWidth),
+            );
         });
 
         PATTERNED_TYPES.forEach((lineType) => {

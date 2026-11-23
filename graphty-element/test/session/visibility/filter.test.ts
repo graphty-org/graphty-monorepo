@@ -1,7 +1,6 @@
 import { assert, describe, it } from "vitest";
 
 import type { EdgeId, NodeId, Path, SelectionDirection } from "../../../src/catalog/types";
-import { isGraphtyError } from "../../../src/errors";
 import { edgeSpaceOf, ElementMask, nodeSpaceOf } from "../../../src/session/scope/index";
 import {
     assertVisibility,
@@ -17,7 +16,7 @@ import {
     type TimeWindow,
     type VisibilityPass,
 } from "../../../src/session/visibility/index";
-import { edgeBetween, type EdgeRow, type Harness, makeSession, type NodeRow } from "../helpers";
+import { edgeBetween, type EdgeRow, type Harness, makeSession, type NodeRow, rejectionCode } from "../helpers";
 
 function harnessOf(nodes: readonly NodeRow[], edges: readonly EdgeRow[] = []): Harness {
     const harness = makeSession();
@@ -56,17 +55,6 @@ function applied(
     runPass(pass);
 
     return { nodes: [...nodes.ids()].sort(), edges: [...edges.ids()].sort(), unresolved: compiled.unresolvedPaths() };
-}
-
-/** The code a call refused with, or null when it did not refuse. */
-function codeOf(call: () => unknown): string | null {
-    try {
-        call();
-    } catch (error) {
-        return isGraphtyError(error) ? error.code : "not-a-graphty-error";
-    }
-
-    return null;
 }
 
 describe("a filter over nodes", () => {
@@ -510,19 +498,19 @@ describe("paths nothing answered", () => {
 describe("refusing a filter that is not one", () => {
     it("checks a filter without touching the graph, so a form can gate its own button", () => {
         assert.strictEqual(
-            codeOf(() => assertVisibility({ kind: "nope" } as unknown as RuleTree, null)),
+            rejectionCode(() => assertVisibility({ kind: "nope" } as unknown as RuleTree, null)),
             "E_BAD_COMMAND",
         );
         assert.strictEqual(
-            codeOf(() => assertVisibility(null, { attribute: "data.at", from: 9, to: 1 })),
+            rejectionCode(() => assertVisibility(null, { attribute: "data.at", from: 9, to: 1 })),
             "E_OPTION_RANGE",
         );
         assert.strictEqual(
-            codeOf(() => assertVisibility({ kind: "degree", min: 1 }, null)),
+            rejectionCode(() => assertVisibility({ kind: "degree", min: 1 }, null)),
             null,
         );
         assert.strictEqual(
-            codeOf(() => assertVisibility(null, null)),
+            rejectionCode(() => assertVisibility(null, null)),
             null,
         );
     });
@@ -533,23 +521,23 @@ describe("refusing a filter that is not one", () => {
         const compile = (filter: RuleTree): unknown => compileVisibility(graph, filter, null, {});
 
         assert.strictEqual(
-            codeOf(() => compile({ kind: "nope" } as unknown as RuleTree)),
+            rejectionCode(() => compile({ kind: "nope" } as unknown as RuleTree)),
             "E_BAD_COMMAND",
         );
         assert.strictEqual(
-            codeOf(() => compile({ kind: "expression", where: "  " })),
+            rejectionCode(() => compile({ kind: "expression", where: "  " })),
             "E_BAD_QUERY",
         );
         assert.strictEqual(
-            codeOf(() => compile({ kind: "range", attribute: "data.x", min: 9, max: 1 })),
+            rejectionCode(() => compile({ kind: "range", attribute: "data.x", min: 9, max: 1 })),
             "E_OPTION_RANGE",
         );
         assert.strictEqual(
-            codeOf(() => compile({ kind: "range", attribute: "", min: 1 })),
+            rejectionCode(() => compile({ kind: "range", attribute: "", min: 1 })),
             "E_BAD_COMMAND",
         );
         assert.strictEqual(
-            codeOf(() => compile({ kind: "neighborhood", seeds: ["a"], depth: -1 })),
+            rejectionCode(() => compile({ kind: "neighborhood", seeds: ["a"], depth: -1 })),
             "E_OPTION_RANGE",
         );
         harness.session.dispose();
@@ -561,15 +549,15 @@ describe("refusing a filter that is not one", () => {
         const compile = (window: TimeWindow): unknown => compileVisibility(graph, null, window, {});
 
         assert.strictEqual(
-            codeOf(() => compile({ attribute: "data.at", from: "nope", to: 5 })),
+            rejectionCode(() => compile({ attribute: "data.at", from: "nope", to: 5 })),
             "E_OPTION_RANGE",
         );
         assert.strictEqual(
-            codeOf(() => compile({ attribute: "data.at", from: 9, to: 1 })),
+            rejectionCode(() => compile({ attribute: "data.at", from: 9, to: 1 })),
             "E_OPTION_RANGE",
         );
         assert.strictEqual(
-            codeOf(() => compile({ attribute: "data.at", from: 1, to: 9, step: 0 })),
+            rejectionCode(() => compile({ attribute: "data.at", from: 1, to: 9, step: 0 })),
             "E_OPTION_RANGE",
         );
         harness.session.dispose();
@@ -581,19 +569,19 @@ describe("refusing a filter that is not one", () => {
         const compile = (filter: RuleTree): unknown => compileVisibility(graph, filter, null, {});
 
         assert.strictEqual(
-            codeOf(() => compile({ kind: "expression", where: "q" })),
+            rejectionCode(() => compile({ kind: "expression", where: "q" })),
             "E_UNSUPPORTED",
         );
         assert.strictEqual(
-            codeOf(() => compile({ kind: "edges", where: "q" })),
+            rejectionCode(() => compile({ kind: "edges", where: "q" })),
             "E_UNSUPPORTED",
         );
         assert.strictEqual(
-            codeOf(() => compile({ kind: "component", id: 0 })),
+            rejectionCode(() => compile({ kind: "component", id: 0 })),
             "E_UNSUPPORTED",
         );
         assert.strictEqual(
-            codeOf(() => compile({ kind: "range", attribute: "data.x", min: 1 })),
+            rejectionCode(() => compile({ kind: "range", attribute: "data.x", min: 1 })),
             "E_UNSUPPORTED",
         );
         harness.session.dispose();

@@ -1,5 +1,5 @@
 /**
- * The behaviour pins of the ForceAtlas2 grid tier (spec 7.7, 7.8, 7.13, 7.16, 11.4; P4-T10): the grid tier on karate,
+ * The behavior pins of the ForceAtlas2 grid tier (spec 7.7, 7.8, 7.13, 7.16, 11.4; P4-T10): the grid tier on karate,
  * random1k and rmat14 in 2D and 3D (finite, the grid stats, run twice bitwise); the 7.8 tier rule by `n` alone;
  * `deterministic` selecting the radix or the counting sort; `nearMax` on the one-cell fixtures and the all-coincident
  * start (every node in one cell: `maxCellOccupancy === n`); the software saturation case (`gridMax2D: 32`); the

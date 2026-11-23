@@ -17,12 +17,45 @@ import type { GraphBounds, Vec3 } from "./types";
 /**
  * Half the width of the box an unmeasured graph is framed against.
  *
- * Twenty units square, centred on the origin, is the box the element has always used when there
+ * Twenty units square, centered on the origin, is the box the element has always used when there
  * was nothing to measure, and every built-in view's arithmetic is calibrated against it. A view
  * that wants to behave differently for "nothing to frame" reads `measured === 0` rather than
- * recognising these numbers.
+ * recognizing these numbers.
  */
 const DEFAULT_EXTENT = 10;
+
+/** The boxes that stand in for a single point: the point is their content, not their corners. */
+const pointBoxes = new WeakSet<GraphBounds>();
+
+/**
+ * Whether a box is the default box moved onto a single point (one node, or every node in one place).
+ * Its corners are not content: a view that centers the picture of the box's corners puts the point
+ * off center, because the corners nearer the camera project larger.
+ * @param bounds - The box a view was handed.
+ * @returns True for a box around a single point.
+ */
+export function isPointBox(bounds: GraphBounds): boolean {
+    return pointBoxes.has(bounds);
+}
+
+/** What a box was measured over, kept apart: the points themselves and each drawn box. */
+interface Measured {
+    readonly points: readonly Vec3[];
+    readonly boxes: readonly { readonly min: Vec3; readonly max: Vec3 }[];
+}
+
+const measuredOver = new WeakMap<GraphBounds, Measured>();
+
+/**
+ * The points a box was measured over and the drawn boxes it was grown by, apart: `points` holds
+ * both, each box as its eight corners, which seen from a turned view stand well outside a round
+ * node and frame it smaller than it is.
+ * @param bounds - The box a view was handed.
+ * @returns Both lists, or undefined for a box {@link measureBounds} did not grow.
+ */
+export function measuredOf(bounds: GraphBounds): Measured | undefined {
+    return measuredOver.get(bounds);
+}
 
 /**
  * The box around nothing: what an empty graph, and one whose nodes have no positions yet, both
@@ -44,8 +77,8 @@ function defaultBounds(): GraphBounds {
  * The axis-aligned box around a set of points, grown to take in the boxes the elements are drawn in.
  * @param points - Where the elements being framed are, in world units.
  * @param boxes - The boxes the elements take up, in world units: a big node at the edge of the
- *   graph reaches past its centre. They never shrink the box the points give.
- * @returns The box, its centre and its sides. With no points at all this is the element's default
+ *   graph reaches past its center. They never shrink the box the points give.
+ * @returns The box, its center and its sides. With no points at all this is the element's default
  *   box with `measured` zero, which is what the built-in views have always framed an empty graph
  *   against. When every point is in the same place it is that default box moved onto the point.
  */
@@ -62,7 +95,9 @@ export function measureBounds(
     const max = { ...bounds.max };
     const spots = bounds.points === undefined ? undefined : [...bounds.points];
     let grown = false;
+    const drawn: { readonly min: Vec3; readonly max: Vec3 }[] = [];
     for (const box of boxes) {
+        drawn.push(box);
         for (const axis of ["x", "y", "z"] as const) {
             grown ||= box.min[axis] < min[axis] || box.max[axis] > max[axis];
             min[axis] = Math.min(min[axis], box.min[axis]);
@@ -72,20 +107,30 @@ export function measureBounds(
         spots?.push(...cornersOf(box));
     }
 
+    const kept = (result: GraphBounds): GraphBounds => {
+        if (drawn.length > 0 && bounds.points !== undefined) {
+            measuredOver.set(result, { points: bounds.points, boxes: drawn });
+        }
+
+        return result;
+    };
+
     if (!grown) {
-        return spots === undefined ? bounds : Object.freeze({ ...bounds, points: spots });
+        return kept(spots === undefined ? bounds : Object.freeze({ ...bounds, points: spots }));
     }
 
     const size = { x: max.x - min.x, y: max.y - min.y, z: max.z - min.z };
-    return Object.freeze({
-        min,
-        max,
-        center: { x: (min.x + max.x) / 2, y: (min.y + max.y) / 2, z: (min.z + max.z) / 2 },
-        size,
-        maxDimension: Math.max(size.x, size.y, size.z),
-        measured: bounds.measured,
-        ...(spots === undefined ? {} : { points: spots }),
-    });
+    return kept(
+        Object.freeze({
+            min,
+            max,
+            center: { x: (min.x + max.x) / 2, y: (min.y + max.y) / 2, z: (min.z + max.z) / 2 },
+            size,
+            maxDimension: Math.max(size.x, size.y, size.z),
+            measured: bounds.measured,
+            ...(spots === undefined ? {} : { points: spots }),
+        }),
+    );
 }
 
 /**
@@ -139,11 +184,11 @@ function measurePoints(points: Iterable<Vec3>): GraphBounds {
     if (minX === maxX && minY === maxY && minZ === maxZ) {
         // A box around one point has no size, and every view divides by or scales with it: the
         // 2D zoom came out infinite and the 3D camera stood on the node. Framing one node is
-        // what `zoomToNodes(id)` is for, so a point gets the default box, centred on it.
+        // what `zoomToNodes(id)` is for, so a point gets the default box, centered on it.
         const center = { x: minX, y: minY, z: minZ };
         const offset = (by: number): Vec3 => ({ x: minX + by, y: minY + by, z: minZ + by });
 
-        return Object.freeze({
+        const box = Object.freeze({
             min: offset(-DEFAULT_EXTENT),
             max: offset(DEFAULT_EXTENT),
             center,
@@ -151,6 +196,8 @@ function measurePoints(points: Iterable<Vec3>): GraphBounds {
             maxDimension: DEFAULT_EXTENT * 2,
             measured,
         });
+        pointBoxes.add(box);
+        return box;
     }
 
     const size = { x: maxX - minX, y: maxY - minY, z: maxZ - minZ };

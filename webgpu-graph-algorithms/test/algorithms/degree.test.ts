@@ -1,6 +1,6 @@
 /**
  * The walking-skeleton algorithm (spec 11.5, 3.3; contract 3.12, 5.5): degree(ctx, s) equals outDegreeOracle bitwise on
- * every named fixture, the empty / one-node / arcCount-0 / directed / parallel cases, honours dest / signal /
+ * every named fixture, the empty / one-node / arcCount-0 / directed / parallel cases, honors dest / signal /
  * onProgress, runs twice bitwise, on the arena AND the per-array path, through the row-window leg, and writes /
  * compares the cross-adapter noise fixture (u32 bitwise). Plus the CPU tests of the noise-floor helpers.
  */
@@ -36,6 +36,7 @@ import {
 } from "../helpers/noise-floor.js";
 import { assertCheckPasses } from "../helpers/sabotage.js";
 import { outDegreeOracle } from "../oracle/degree.js";
+import { noiseDirOverride, noiseFloorWriting } from "../setup/env.js";
 import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
 
 const KARATE_UNDIRECTED = [
@@ -334,7 +335,7 @@ describe("degree (spec 3.3, 11.5): the walking-skeleton algorithm", () => {
             expectBitwiseEqual(result, outDegreeOracle(snapshot), "random1k");
             const cls = adapterClass(ctx.caps);
             writeNoiseFixture("degree", "random1k", cls, result, "u32");
-            if (process.env.GRAPHTY_NOISE_FLOOR_WRITE === "1") {
+            if (noiseFloorWriting()) {
                 expect(existsSync(noiseFixturePath("degree", "random1k", cls))).toBe(true);
             }
             const committed = readNoiseFixtures("degree", "random1k");
@@ -370,7 +371,7 @@ describe("degree (spec 3.3, 11.5): the walking-skeleton algorithm", () => {
 
 describe("noise-floor helpers (Node)", () => {
     it("noiseFixturePath lives under test/fixtures/noise (GRAPHTY_NOISE_DIR unset) and sanitises every segment like the 2.5 command", () => {
-        expect(process.env.GRAPHTY_NOISE_DIR).toBeUndefined();
+        expect(noiseDirOverride()).toBeUndefined();
         const p = noiseFixturePath("degree", "random1k", "nvidia-lovelace-node");
         expect(p.replace(/\\/g, "/")).toMatch(/\/test\/fixtures\/noise\/degree-random1k-nvidia-lovelace-node\.json$/);
         expect(noiseFixturePath("a b", "c/d", "e:f")).toMatch(/a_b-c_d-e_f\.json$/);

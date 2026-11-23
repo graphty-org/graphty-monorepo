@@ -78,6 +78,8 @@ export interface StyleValues {
     readonly dialect?: StyleDialect | null;
     /** The program that wrote the file, whose defaults fill in what the file leaves unset; null when unknown. */
     readonly tool?: StyleTool | null;
+    /** Whether the import was given program settings other than its defaults (see `FileStyles`). */
+    readonly settingsGiven?: boolean;
     /** The unit of every length; defaults to pixels. */
     readonly units?: "px" | "relative";
     /** The graph's own style. */
@@ -197,6 +199,7 @@ export function planStyles(values: StyleValues, features: StyleFeatures, options
                 format: values.format,
                 dialect: values.dialect ?? null,
                 tool: defaults === null ? null : defaults.tool,
+                ...(values.settingsGiven === true ? { settingsGiven: true } : {}),
             },
             units: { length: units },
             graph: graph,

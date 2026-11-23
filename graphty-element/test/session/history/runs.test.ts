@@ -1,11 +1,11 @@
 /**
  * @file Runs as steps: a finished run, its result and its layers are one step; undo keeps the
  * result instead of computing it again; undo while a run is still going cancels it, and a run
- * cancelled that way, or any way, never writes anything, however late its work finishes.
+ * canceled that way, or any way, never writes anything, however late its work finishes.
  *
  * The runs here are the fixture session's fake `degree` and `shortest-path`, with a gate in front
  * of `betweenness` that holds its work until the test opens it. The held work ignores the signal
- * the run is cancelled with, as an accelerator's kernel does, so a cancelled run's value still
+ * the run is canceled with, as an accelerator's kernel does, so a canceled run's value still
  * arrives late. See design/undo/undo-design.md sections 4.8 and 6.1 to 6.3.
  */
 
@@ -341,7 +341,7 @@ describe("undo while a run is still going", () => {
 
         const outcome = await session.undo();
 
-        assert.strictEqual(outcome.kind, "cancelled");
+        assert.strictEqual(outcome.kind, "canceled");
         assert.strictEqual(run.status, "canceled");
         open();
         await idle(session);
@@ -352,7 +352,7 @@ describe("undo while a run is still going", () => {
         session.dispose();
     });
 
-    it("leaves a style edit made while the run computed alone when the run is cancelled", async () => {
+    it("leaves a style edit made while the run computed alone when the run is canceled", async () => {
         const { session, open } = await gated();
         const run = session.runs.start("betweenness", {}, { as: "bet" });
         await idle(session);
@@ -397,7 +397,7 @@ describe("undo while a run is still going", () => {
         await run;
 
         assert.lengthOf(session.history.steps, 1, "the run recorded on top and the redo tail went");
-        assert.strictEqual(session.history.steps[0].label, "Ran betweenness");
+        assert.deepEqual(session.history.steps[0].fact, { code: "algo.run", params: { algorithm: "betweenness" } });
         assert.isFalse(session.canRedo);
         session.dispose();
     });
@@ -424,7 +424,7 @@ describe("undo while a run is still going", () => {
         session.dispose();
     });
 
-    it("writes nothing when a cancelled run's work finishes late", async () => {
+    it("writes nothing when a canceled run's work finishes late", async () => {
         const { session, open } = await gated();
         const run = session.runs.start("betweenness", {}, { as: "bet" });
         await idle(session);
@@ -521,7 +521,7 @@ describe("history.clear while a run is pending", () => {
             () => undefined,
             (reason: unknown) => reason,
         );
-        assert.isDefined(error, "the run was cancelled");
+        assert.isDefined(error, "the run was canceled");
         assert.lengthOf(session.history.steps, 0);
         assert.isUndefined(entryOf(session, "bet"));
         session.dispose();

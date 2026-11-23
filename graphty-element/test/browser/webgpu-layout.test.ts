@@ -8,7 +8,7 @@
  * happens when an accelerator arrives, leaves or rejects a batch, and it does so without a
  * device, a driver or a frame rate in the answer. What a fake cannot tell anyone is whether the
  * real kernels, reached through the real `./webgpu` entry point, produce a graph a person would
- * recognise. That is this file, and it needs hardware.
+ * recognize. That is this file, and it needs hardware.
  *
  * So it runs only when the run asked for hardware. `GRAPHTY_BROWSER_GPU` selects a Chromium flag
  * set in `vitest.config.ts` -- `swiftshader` for a workstation or a plain CI runner, `nvidia` for
@@ -16,7 +16,7 @@
  * CI browser shards are unaffected by its existence.
  *
  * The policy is `required` on purpose. Under `auto` the element refuses a software adapter,
- * because a software rasteriser is slower than its own CPU path and attaching one would report
+ * because a software rasterizer is slower than its own CPU path and attaching one would report
  * "active" while making the graph worse. Under `required` the consumer has said "no CPU path",
  * and SwiftShader is a device -- which is what lets the same file run the real kernels on a
  * machine that has no graphics card.
@@ -167,9 +167,10 @@ function watchStatus(element: Graphty): AccelerationStatus[] {
  * Sets a layout and waits for the element to report the arrangement at rest.
  * @param element - The element to lay out.
  * @param layout - The registered layout name.
+ * @param options - The layout's options.
  * @returns How long the settle took, in milliseconds.
  */
-async function settle(element: Graphty, layout: string): Promise<number> {
+async function settle(element: Graphty, layout: string, options: object = {}): Promise<number> {
     let settled = false;
     const onSettled = (): void => {
         settled = true;
@@ -178,7 +179,7 @@ async function settle(element: Graphty, layout: string): Promise<number> {
     element.addEventListener("graph-settled", onSettled, { once: true });
 
     const started = performance.now();
-    await element.setLayout(layout);
+    await element.setLayout(layout, options);
     await until(() => settled, `"${layout}" to settle`);
     const took = performance.now() - started;
 
@@ -594,7 +595,7 @@ describe.skipIf(!GPU_LANE)("graphty-element on a real WebGPU device", () => {
         await settle(cpu, "forceatlas2");
 
         // The reference is only a reference if it really ran the CPU simulation. Without this the
-        // case would still pass if `acceleration="off"` stopped being honoured -- it would be
+        // case would still pass if `acceleration="off"` stopped being honored -- it would be
         // comparing the device against itself, which is the one comparison that proves nothing.
         assert.isFalse(
             (cpu.graph.getLayoutManager().layoutEngine as SimulationLayoutEngine).isAccelerated,
@@ -621,9 +622,101 @@ describe.skipIf(!GPU_LANE)("graphty-element on a real WebGPU device", () => {
     });
 });
 
+/**
+ * How far the arrangement reaches along z: the standard deviation of every node's z.
+ * @param element - The element whose positions to measure.
+ * @returns The spread, in scene units; 0 for a flat arrangement.
+ */
+function zSpread(element: Graphty): number {
+    const data = element.graph.getDataManager();
+    const read = { x: 0, y: 0, z: 0 };
+    const zs: number[] = [];
+
+    for (const { id } of GRAPH.nodes) {
+        const node = data.getNode(id);
+
+        if (node === undefined) {
+            throw new Error(`the graph lost ${id} between load and measurement`);
+        }
+
+        data.positions.read(node.index, read);
+        zs.push(read.z);
+    }
+
+    const mean = zs.reduce((sum, z) => sum + z, 0) / zs.length;
+
+    return Math.sqrt(zs.reduce((sum, z) => sum + (z - mean) ** 2, 0) / zs.length);
+}
+
+describe.skipIf(!GPU_LANE)("graphty-element on a real WebGPU device: a 3D force layout", () => {
+    for (const layout of ["forceatlas2", "force"]) {
+        it(`spreads "${layout}" with dim 3 along z on the device as the CPU does, from a flat arrangement`, async () => {
+            const options = { dim: 3, seed: 7 };
+
+            // FROM A FLAT START: a 2D arrangement first, so every node begins the 3D run at z = 0.
+            await settle(gpu, layout, { dim: 2, seed: 7 });
+            await settle(cpuReference(), layout, { dim: 2, seed: 7 });
+            assert.equal(zSpread(gpu), 0, "the 2D arrangement is flat");
+
+            await settle(gpu, layout, options);
+            assert.isTrue(
+                (gpu.graph.getLayoutManager().layoutEngine as SimulationLayoutEngine).isAccelerated,
+                "the layout ran on the accelerator",
+            );
+            const accelerated = zSpread(gpu);
+
+            await settle(cpuReference(), layout, options);
+            const onCpu = zSpread(cpuReference());
+
+            console.log(`[webgpu-layout] adapter=${ADAPTER} layout=${layout} zSpread gpu=${accelerated} cpu=${onCpu}`);
+
+            assert.isAbove(onCpu, 0, "the CPU reference laid the graph out in 3D, or the case proves nothing");
+            assert.isAbove(
+                accelerated / onCpu,
+                0.5,
+                `the device's z spread ${accelerated.toFixed(3)} against the CPU's ${onCpu.toFixed(3)}`,
+            );
+            assert.isBelow(accelerated / onCpu, 2, "and no more than twice it");
+        });
+    }
+});
+
+/** The members of the peer's ForceAtlas2 simulation the measuring case drives. */
+interface TierProbe {
+    load(snapshot: unknown, positions: Float32Array): void;
+    step(iterations: number): Promise<unknown>;
+    readonly stats: { readonly repulsionTier: "exact" | "grid" };
+    dispose(): void;
+}
+
+/**
+ * The repulsion tier one ForceAtlas2 step on `accelerator` uses for a ring of `n` nodes.
+ * @param accelerator - The accelerator the factory built.
+ * @param n - The node count.
+ * @returns The tier the simulation reported.
+ */
+async function tierAt(accelerator: GraphAccelerator, n: number): Promise<"exact" | "grid"> {
+    const src = new Uint32Array(n);
+    const dst = new Uint32Array(n);
+    for (let i = 0; i < n; i++) {
+        src[i] = i;
+        dst[i] = (i + 1) % n;
+    }
+    const snapshot = fromEdgeArrays({ directed: false, nodeCount: n, src, dst });
+    const sim = (accelerator.forceAtlas2 as () => TierProbe)();
+    try {
+        sim.load(snapshot, new Float32Array(3 * n).fill(Number.NaN));
+        await sim.step(1);
+        return sim.stats.repulsionTier;
+    } finally {
+        sim.dispose();
+        (accelerator.release as (snapshot: unknown) => void)(snapshot);
+    }
+}
+
 describe.skipIf(!GPU_LANE)("graphty-element on a real WebGPU device: what the policy accepts", () => {
-    /** SwiftShader is the only software adapter a lane launches; every other flag set is hardware. */
-    const SOFTWARE = ADAPTER === "swiftshader";
+    /** SwiftShader, frame-limited or not, is the only software adapter a lane launches; the rest are hardware. */
+    const SOFTWARE = ADAPTER.startsWith("swiftshader");
 
     it(
         SOFTWARE ? "refuses the software adapter under auto, saying why" : "attaches the hardware adapter under auto",
@@ -672,89 +765,100 @@ describe.skipIf(!GPU_LANE)("graphty-element on a real WebGPU device: what the po
             }
         },
     );
-});
 
-/** The members of the peer's ForceAtlas2 simulation the measuring case drives. */
-interface TierProbe {
-    load(snapshot: unknown, positions: Float32Array): void;
-    step(iterations: number): Promise<unknown>;
-    readonly stats: { readonly repulsionTier: "exact" | "grid" };
-    dispose(): void;
-}
+    describe("the measured exact-tier ceiling", () => {
+        /**
+         * The accelerator the registered WebGPU factory builds right now, outside any element.
+         * @param options - The factory options.
+         * @returns The accelerator.
+         */
+        async function built(options: { exactMaxNodes?: number } = {}): Promise<GraphAccelerator> {
+            const entry = acceleratorRegistry.list().find((candidate) => candidate.name === "webgpu-graph-algorithms");
+            const accelerator = await entry?.factory({ acceptSoftware: SOFTWARE, ...options });
+            if (accelerator === null || accelerator === undefined) {
+                assert.fail("the factory built an accelerator");
+            }
 
-/**
- * The repulsion tier one ForceAtlas2 step on `accelerator` uses for a ring of `n` nodes.
- * @param accelerator - The accelerator the factory built.
- * @param n - The node count.
- * @returns The tier the simulation reported.
- */
-async function tierAt(accelerator: GraphAccelerator, n: number): Promise<"exact" | "grid"> {
-    const src = new Uint32Array(n);
-    const dst = new Uint32Array(n);
-    for (let i = 0; i < n; i++) {
-        src[i] = i;
-        dst[i] = (i + 1) % n;
-    }
-    const snapshot = fromEdgeArrays({ directed: false, nodeCount: n, src, dst });
-    const sim = (accelerator.forceAtlas2 as () => TierProbe)();
-    try {
-        sim.load(snapshot, new Float32Array(3 * n).fill(Number.NaN));
-        await sim.step(1);
-        return sim.stats.repulsionTier;
-    } finally {
-        sim.dispose();
-        (accelerator.release as (snapshot: unknown) => void)(snapshot);
-    }
-}
+            return accelerator;
+        }
 
-// SwiftShader is left out: even opted in, the element never measures a software adapter (its probes would take
-// tens of seconds of processor time), so there is nothing to see there.
-describe.skipIf(!GPU_LANE || ADAPTER.startsWith("swiftshader"))(
-    "graphty-element on a real WebGPU device: the measured exact-tier ceiling",
-    () => {
-        it("leaves the shipped ceiling alone unless the page opts in", () => {
-            assert.equal(status(gpu).exactMaxNodes, 32_768);
-            assert.equal(status(gpu).exactMaxNodesBasis, "default");
+        it("leaves the shipped ceiling alone unless the page opts in", async () => {
+            // A fresh element: the policy cases above may have let go of the shared one's adapter.
+            const element = await mount("required");
+            try {
+                await until(() => status(element).backend !== undefined, "an accelerator to attach");
+                assert.equal(status(element).exactMaxNodes, 32_768);
+                assert.equal(status(element).exactMaxNodesBasis, "default");
+            } finally {
+                element.parentElement?.remove();
+            }
         });
 
-        it("opted in, measures the device after its first layout, and builds the next accelerator with the measurement", async () => {
-            configureWebGpu({ exactMaxNodes: "measured" });
-            let measured = 0;
-            let opted: Graphty | undefined;
+        it("hands a configured ceiling to the device's layouts as the tier boundary", async () => {
+            const ceiling = 256;
+            const accelerator = await built({ exactMaxNodes: ceiling });
             try {
-                opted = await mount("required");
-                const element = opted;
-                await until(() => status(element).exactMaxNodesBasis === "measured", "the device to be measured");
-                measured = status(element).exactMaxNodes ?? 0;
+                assert.deepEqual(accelerator.exactMaxNodes, { value: ceiling, basis: "configured" });
+                assert.equal(await tierAt(accelerator, ceiling), "exact");
+                assert.equal(await tierAt(accelerator, ceiling + 1), "grid");
             } finally {
-                opted?.parentElement?.remove();
-                configureWebGpu({ exactMaxNodes: "default" });
+                accelerator.dispose?.();
             }
-            console.log(`[webgpu-layout] adapter=${ADAPTER} measured exactMaxNodes=${String(measured)}`);
-            assert.isAbove(measured, 0);
-            assert.isAtMost(measured, 32_768);
-            // A fresh accelerator on the same device starts from the cached measurement.
-            configureWebGpu({ exactMaxNodes: "measured" });
-            try {
-                const entry = acceleratorRegistry
-                    .list()
-                    .find((candidate) => candidate.name === "webgpu-graph-algorithms");
-                const accelerator = await entry?.factory({});
-                if (accelerator === null || accelerator === undefined) {
-                    assert.fail("the factory built an accelerator");
+        });
+
+        it(
+            SOFTWARE
+                ? "opted in, offers no measurement of a software adapter, whose probes would take tens of seconds"
+                : "opted in, measures the device after its first layout, and builds the next accelerator with the measurement",
+            async () => {
+                if (SOFTWARE) {
+                    configureWebGpu({ exactMaxNodes: "measured" });
+                    try {
+                        const accelerator = await built();
+                        try {
+                            assert.isUndefined(accelerator.calibrate, "nothing to measure on a software adapter");
+                            assert.deepEqual(accelerator.exactMaxNodes, { value: 32_768, basis: "default" });
+                        } finally {
+                            accelerator.dispose?.();
+                        }
+                    } finally {
+                        configureWebGpu({ exactMaxNodes: "default" });
+                    }
+
+                    return;
                 }
 
+                configureWebGpu({ exactMaxNodes: "measured" });
+                let measured = 0;
+                let opted: Graphty | undefined;
                 try {
-                    assert.deepEqual(accelerator.exactMaxNodes, { value: measured, basis: "measured" });
-                    // What reached createAccelerator as layout.exactMaxNodes decides the tier.
-                    assert.equal(await tierAt(accelerator, measured), "exact");
-                    assert.equal(await tierAt(accelerator, measured + 1), "grid");
+                    opted = await mount("required");
+                    const element = opted;
+                    await until(() => status(element).exactMaxNodesBasis === "measured", "the device to be measured");
+                    measured = status(element).exactMaxNodes ?? 0;
                 } finally {
-                    accelerator.dispose?.();
+                    opted?.parentElement?.remove();
+                    configureWebGpu({ exactMaxNodes: "default" });
                 }
-            } finally {
-                configureWebGpu({ exactMaxNodes: "default" });
-            }
-        });
-    },
-);
+                console.log(`[webgpu-layout] adapter=${ADAPTER} measured exactMaxNodes=${String(measured)}`);
+                assert.isAbove(measured, 0);
+                assert.isAtMost(measured, 32_768);
+                // A fresh accelerator on the same device starts from the cached measurement.
+                configureWebGpu({ exactMaxNodes: "measured" });
+                try {
+                    const accelerator = await built();
+                    try {
+                        assert.deepEqual(accelerator.exactMaxNodes, { value: measured, basis: "measured" });
+                        // What reached createAccelerator as layout.exactMaxNodes decides the tier.
+                        assert.equal(await tierAt(accelerator, measured), "exact");
+                        assert.equal(await tierAt(accelerator, measured + 1), "grid");
+                    } finally {
+                        accelerator.dispose?.();
+                    }
+                } finally {
+                    configureWebGpu({ exactMaxNodes: "default" });
+                }
+            },
+        );
+    });
+});

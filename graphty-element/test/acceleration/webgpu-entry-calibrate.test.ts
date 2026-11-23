@@ -30,6 +30,7 @@ const peer = vi.hoisted(() => ({
 
 vi.mock("@graphty/webgpu-graph-algorithms", () => ({
     EXACT_MAX_NODES: 32_768,
+    VERSION: "0.0.0-test",
     calibrateLayout: peer.calibrateLayout,
     createAccelerator: peer.createAccelerator,
 }));
@@ -46,7 +47,16 @@ vi.mock("@graphty/webgpu-graph-algorithms/browser", () => ({
  */
 function ready(description: string, layout: Record<string, unknown> = {}): unknown {
     const ctx = {
-        caps: { vendor: "acme", architecture: "gen-1", description, device: "acme-1" },
+        caps: {
+            vendor: "acme",
+            architecture: "gen-1",
+            description,
+            device: "acme-1",
+            software: false,
+            features: [],
+            limits: {},
+        },
+        device: { addEventListener: (): void => undefined, removeEventListener: (): void => undefined },
         lost: new Promise(() => {
             // never lost: this suite is about calibration
         }),
@@ -183,6 +193,17 @@ describe("the ./webgpu entry point: measuring the exact-tier ceiling, opted in",
 
         assert.deepStrictEqual(after.exactMaxNodes, { value: 32_768, basis: "default" });
         assert.strictEqual(peer.createAccelerator.mock.calls.length, 0);
+    });
+
+    it("offers nothing to measure on a software adapter", async () => {
+        const software = ready("software") as { accelerator: { ctx: { caps: { software: boolean } } } };
+        software.accelerator.ctx.caps.software = true;
+        peer.current.mockResolvedValue(software);
+
+        const accelerator = await build();
+
+        assert.isUndefined(accelerator.calibrate);
+        assert.deepStrictEqual(accelerator.exactMaxNodes, { value: 32_768, basis: "default" });
     });
 
     it("keeps a configured ceiling and offers nothing to measure", async () => {

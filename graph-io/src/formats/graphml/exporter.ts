@@ -1,7 +1,7 @@
 /**
  * The GraphML exporter (design section 8.5; research note 07 section 9): `<key>` declarations
  * regenerated from ColumnMeta.origin when the column came from GraphML (key id, attr.name,
- * attr.type, yfiles.type) and derived from the dtype otherwise; node ids sanitised to NMTOKEN
+ * attr.type, yfiles.type) and derived from the dtype otherwise; node ids sanitized to NMTOKEN
  * (`sanitizeIds: "error"` refuses, `"mangle"` rewrites and keeps the original in a
  * `graphty:originalId` data attribute the importer restores); mixed direction written with
  * `edgedefault` plus per-edge `directed` attributes, folding expanded pairs back through the
@@ -29,9 +29,10 @@ import {
     mangleNmtoken,
     type SanitizedIds,
     sanitizeIds,
+    textCollisions,
 } from "../../common/export.js";
 import { formatF32, formatF64, formatInteger } from "../../common/format.js";
-import { isCanonicalIntegerText } from "../../common/ids.js";
+import { isCanonicalIntegerText, ORIGINAL_ID_ATTRIBUTE } from "../../common/ids.js";
 import { setOwn } from "../../common/json-elements.js";
 import { type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
 import { agree, plural } from "../../common/plural.js";
@@ -39,6 +40,7 @@ import { jsonText } from "../../common/text.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
 import { isXmlName, xmlIllegalTextNotes } from "../../common/xml.js";
+import { writingGeographicAsColumns } from "../../positions/geographic.js";
 import type { ExporterStyleOptions } from "../../styles/io/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
 import {
@@ -49,7 +51,6 @@ import {
     type GraphmlMeta,
     LABEL_COLUMN,
     META_KEY,
-    ORIGINAL_ID_ATTRIBUTE,
     PARENT_COLUMN,
     PORT_KEYS_EXTRA,
     RESERVED_EDGE_NAMES,
@@ -408,7 +409,7 @@ function planExport(
     if (edgeIdColumn !== null) {
         planEdgeIds(snapshot, edgeIdColumn, options, note);
     }
-    const unrepresentable = countUnrepresentableNodeIds(snapshot);
+    const unrepresentable = countUnrepresentableNodeIds(snapshot) + textCollisions(snapshot.ids).length;
     const needsOriginalIdKey = unrepresentable > 0 && options.sanitizeIds === "mangle";
     const originalIdKey = needsOriginalIdKey ? keyIds.next(null) : null;
 
@@ -1543,7 +1544,7 @@ function keyElement(key: KeyPlan, indent: string): string {
 }
 
 /**
- * Sanitised edge ids: NMTOKENs as they are; the rest refused or mangled per sanitizeIds.
+ * Sanitized edge ids: NMTOKENs as they are; the rest refused or mangled per sanitizeIds.
  * @param column - the edge id column, or null
  * @param mode - the resolved sanitizeIds option
  * @param edgeCount - the edge count
@@ -1785,7 +1786,7 @@ interface SubtreeWalk {
  * cannot overflow the call stack).
  * @param root - the top-level node
  * @param plan - the plan
- * @param ids - the sanitised ids
+ * @param ids - the sanitized ids
  * @param indent - the indentation of top-level nodes
  * @param step - one indentation step
  * @param walk - the reusable walk state
@@ -1873,42 +1874,44 @@ function* writeNodeSubtree(
  * The GraphML exporter.
  * @category Built-in formats
  */
-export const graphmlExporter: GraphExporter<GraphmlExportOptions> = Object.freeze({
-    format: FORMAT,
-    options: Object.freeze(["edgedefault", "pretty"]),
-    capabilities: CAPABILITIES,
-    styles: Object.freeze({ capabilities: GRAPHML_STYLE_CAPABILITIES }),
-    /**
-     * Pre-flight: every loss the export would incur.
-     * @param snapshot - the snapshot
-     * @param options - format-specific and common options
-     * @returns the notes
-     */
-    check(snapshot: GraphSnapshot, options?: GraphmlWriteOptions): readonly LossNote[] {
-        const { plan, styled } = prepare(snapshot, options);
-        return Object.freeze([...plan.notes, ...(styled?.notes ?? [])]);
-    },
-    /**
-     * Write the document as UTF-8 chunks.
-     * @param snapshot - the snapshot
-     * @param options - format-specific and common options
-     * @returns the chunks
-     */
-    export(snapshot: GraphSnapshot, options?: GraphmlWriteOptions): AsyncIterable<Uint8Array> {
-        const { plan, written } = prepare(snapshot, options);
-        return encodeChunks(writeGraphml(written, plan));
-    },
-    /**
-     * Write the document as one string.
-     * @param snapshot - the snapshot
-     * @param options - format-specific and common options
-     * @returns the document
-     */
-    exportToString(snapshot: GraphSnapshot, options?: GraphmlWriteOptions): Promise<string> {
-        const { plan, written } = prepare(snapshot, options);
-        return joinText(writeGraphml(written, plan));
-    },
-});
+export const graphmlExporter: GraphExporter<GraphmlExportOptions> = writingGeographicAsColumns(
+    Object.freeze({
+        format: FORMAT,
+        options: Object.freeze(["edgedefault", "pretty"]),
+        capabilities: CAPABILITIES,
+        styles: Object.freeze({ capabilities: GRAPHML_STYLE_CAPABILITIES }),
+        /**
+         * Pre-flight: every loss the export would incur.
+         * @param snapshot - the snapshot
+         * @param options - format-specific and common options
+         * @returns the notes
+         */
+        check(snapshot: GraphSnapshot, options?: GraphmlWriteOptions): readonly LossNote[] {
+            const { plan, styled } = prepare(snapshot, options);
+            return Object.freeze([...plan.notes, ...(styled?.notes ?? [])]);
+        },
+        /**
+         * Write the document as UTF-8 chunks.
+         * @param snapshot - the snapshot
+         * @param options - format-specific and common options
+         * @returns the chunks
+         */
+        export(snapshot: GraphSnapshot, options?: GraphmlWriteOptions): AsyncIterable<Uint8Array> {
+            const { plan, written } = prepare(snapshot, options);
+            return encodeChunks(writeGraphml(written, plan));
+        },
+        /**
+         * Write the document as one string.
+         * @param snapshot - the snapshot
+         * @param options - format-specific and common options
+         * @returns the document
+         */
+        exportToString(snapshot: GraphSnapshot, options?: GraphmlWriteOptions): Promise<string> {
+            const { plan, written } = prepare(snapshot, options);
+            return joinText(writeGraphml(written, plan));
+        },
+    }),
+);
 
 /**
  * The plan of an export, with styles: the graph to write with yEd graphics in place of its yFiles columns.

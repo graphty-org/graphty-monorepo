@@ -15,8 +15,7 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
 import type { Graphty } from "../../index.js";
-import { operationQueueOf } from "../../src/Graph";
-import type { RenderManager } from "../../src/managers/RenderManager";
+import { operationQueueOf, renderManagerOf } from "../../src/Graph";
 import { drawnFrames } from "../helpers/drawn-frames";
 import {
     click,
@@ -90,7 +89,7 @@ async function mounted(viewMode: "2d" | "3d"): Promise<Graphty> {
  * Where a node is drawn, from the element's public API.
  * @param element - The element.
  * @param id - The node.
- * @returns Its centre in CSS pixels from the element's top-left corner.
+ * @returns Its center in CSS pixels from the element's top-left corner.
  */
 function at(element: Graphty, id: string): Point {
     const position = element.nodeScreenPosition(id);
@@ -553,6 +552,8 @@ describe("the mouse", () => {
 
         it("a selected node's halo follows it while it is dragged, before the button is released", async () => {
             const element = await mounted(viewMode);
+            // Read by its gold, which nothing else here carries; the default ring is blue (#811).
+            element.graph.setSelectionStyle({ color: "#FFD700" });
             const from = at(element, "b");
             await click(element, from);
             await applied(element);
@@ -679,7 +680,7 @@ async function hold(
     const { canvas } = element.graph;
     const input = (element.graph.camera as unknown as { inputs: Map<string, { update(): void }> }).inputs.get(name);
     assert.isDefined(input);
-    const { renderManager } = element.graph as unknown as { renderManager: RenderManager };
+    const renderManager = renderManagerOf(element.graph);
     const update = input.update.bind(input);
     let held = false;
     let all = 0;
@@ -767,7 +768,7 @@ describe("the keyboard", () => {
             // loop is held from the key-down until the key-up arrives: the keys are real input,
             // only the clock is stopped, as `hold` stops it.
             const { canvas } = element.graph;
-            const { renderManager } = element.graph as unknown as { renderManager: RenderManager };
+            const renderManager = renderManagerOf(element.graph);
             let releaseFrames = (): void => undefined;
             const down = (): void => {
                 releaseFrames = renderManager.holdFrames();
@@ -992,24 +993,29 @@ describe("touch", () => {
         assert.isAbove(spread(element), gap * 1.5, "the drawing grew with the fingers");
     });
 
-    it("turning two fingers turns the 2D view with them, and the camera reports the turn", async () => {
-        const element = await mounted("2d");
-        // The way from node a to node b on screen, in degrees clockwise (screen y runs down).
-        const heading = (): number => {
-            const a = at(element, "a");
-            const b = at(element, "b");
-            return (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
-        };
-        const before = heading();
-        assert.closeTo(element.getCameraState().rotation ?? Number.NaN, 0, 1e-9, "the view starts unturned");
+    // Which finger the browser reports moving first is its own choice; each must give the same turn
+    // (issue #9523: the first finger's pointer was also read as a mouse drag from the other one).
+    it.each([undefined, 0, 1] as const)(
+        "turning two fingers turns the 2D view with them, and the camera reports the turn (leading finger %s)",
+        async (lead) => {
+            const element = await mounted("2d");
+            // The way from node a to node b on screen, in degrees clockwise (screen y runs down).
+            const heading = (): number => {
+                const a = at(element, "a");
+                const b = at(element, "b");
+                return (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
+            };
+            const before = heading();
+            assert.closeTo(element.getCameraState().rotation ?? Number.NaN, 0, 1e-9, "the view starts unturned");
 
-        await twist(element, { x: WIDTH / 2, y: HEIGHT / 2 }, 120, 40);
-        await applied(element);
+            await twist(element, { x: WIDTH / 2, y: HEIGHT / 2 }, 120, 40, 8, lead);
+            await applied(element);
 
-        assert.closeTo(heading() - before, 40, 4, "the drawing turned clockwise with the fingers");
-        // The camera reports the drawing's turn counterclockwise, in radians: 40 degrees clockwise is -40.
-        assert.closeTo(element.getCameraState().rotation ?? Number.NaN, (-40 * Math.PI) / 180, 0.07);
-    });
+            assert.closeTo(heading() - before, 40, 4, "the drawing turned clockwise with the fingers");
+            // The camera reports the drawing's turn counterclockwise, in radians: 40 degrees clockwise is -40.
+            assert.closeTo(element.getCameraState().rotation ?? Number.NaN, (-40 * Math.PI) / 180, 0.07);
+        },
+    );
 
     it("spreading two fingers zooms the 3D view in", async () => {
         const element = await mounted("3d");

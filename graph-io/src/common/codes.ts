@@ -387,6 +387,13 @@ export const COLUMN_TYPE_CODE = "E_COLUMN_TYPE";
 export const GRAPH_NOT_FOUND_CODE = "E_GRAPH_NOT_FOUND";
 
 /**
+ * The `sheet` option names no sheet of the workbook. The import stops; the issue's params are
+ * `{ sheet, sheets }`, the name asked for and every sheet's name in workbook order.
+ * @category Issue and loss codes
+ */
+export const SHEET_NOT_FOUND_CODE = "E_SHEET_NOT_FOUND";
+
+/**
  * `graphName` matches more than one graph; the message lists their positions. The import stops.
  * @category Issue and loss codes
  */
@@ -484,6 +491,13 @@ export const ID_TEXT_TYPE_CODE = "W_ID_TEXT_TYPE";
  * @category Issue and loss codes
  */
 export const ID_TEXT_COLLISION_CODE = "E_ID_TEXT_COLLISION";
+
+/**
+ * Two node ids would be written as the same text (the number 5 and the text "5") and `sanitizeIds` is "mangle": every
+ * id after the first with that text is written with a suffix (`5_2`, `5_3`...), so the two read back as two nodes.
+ * @category Issue and loss codes
+ */
+export const ID_TEXT_RENAMED_CODE = "W_ID_TEXT_RENAMED";
 
 /**
  * A `<column>.text` companion the format cannot carry.

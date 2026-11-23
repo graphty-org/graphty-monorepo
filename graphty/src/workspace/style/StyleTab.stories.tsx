@@ -5,7 +5,9 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { freshStore, storeOf } from "../../stories/freshStore";
+import { paintSettled } from "../../stories/paintSettled";
 import { fixWallClock } from "../../test/fixedWallClock";
+import { fileStylesOn } from "../features";
 import type { WorkspaceStore } from "../state/store";
 import { Workspace } from "../Workspace";
 import ring from "./__fixtures__/ring.json";
@@ -151,9 +153,15 @@ export const ColorPopover: Story = styleStory(async (canvasElement) => {
     await userEvent.click(tab(canvasElement).getByRole("button", { name: "Pick node color" }));
 });
 
-/** The Shape grid: every shape the element draws, by its picture and name (`#/style-pickers/shape`). */
-export const ShapePopover: Story = styleStory(async (canvasElement) => {
-    await userEvent.click(tab(canvasElement).getByRole("combobox", { name: /^Node shape/ }));
+/**
+ * The Shape grid: every shape the element draws, by its picture and name (`#/style-pickers/shape`).
+ * With file-styles on the tab is drawn by part, and Shape's value is a button opening the shape list.
+ */
+export const ShapePopover: Story = styleStory(async (canvasElement, element) => {
+    const field = fileStylesOn(element.session)
+        ? tab(canvasElement).getByRole("button", { name: /^Node shape, / })
+        : tab(canvasElement).getByRole("combobox", { name: /^Node shape/ });
+    await userEvent.click(field);
 });
 
 /** The bind icon opens the From data list: attributes, a refused one last (`#/style-pickers/bind-prop`). */
@@ -209,6 +217,9 @@ export const LabelEmpty: Story = styleStory(async (canvasElement) => {
     await waitFor(() => {
         expect(body().queryByRole("combobox", { name: "Find an attribute" })).toBeNull();
     });
+    // The status bar's WebGPU chip arrives a frame early or late: draw the page afresh once it is up.
+    await body().findByTestId("webgpu-chip");
+    await paintSettled(canvasElement.ownerDocument);
 });
 
 /** A label entry reading the name, with the element's count (`#/inspector-group-set-path-row/label-two`). */

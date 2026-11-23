@@ -181,7 +181,7 @@ describe("flat shape outlines", () => {
     });
 
     test("a polygon keeps its corners where they are around its centre, the farthest reaching its sides", () => {
-        // clockwise and lopsided: read counter-clockwise, stretched about the centre and not re-centred
+        // clockwise and lopsided: read counter-clockwise, stretched about the center and not re-centered
         const outline = flatShapeOutline("polygon", 8, 2, undefined, "2,0 -1,-1 -1,0.5");
         assert.deepEqual(
             outline.map(([x, y]) => [x + 0, y + 0]),
@@ -499,9 +499,9 @@ describe("node extents", () => {
     }
 
     /**
-     * A mesh's full size along each axis, and its centre.
+     * A mesh's full size along each axis, and its center.
      * @param mesh - The mesh.
-     * @returns The sizes and the centre.
+     * @returns The sizes and the center.
      */
     function extentOf(mesh: Mesh): { x: number; y: number; z: number; centre: number[] } {
         mesh.refreshBoundingInfo();
@@ -552,6 +552,27 @@ describe("node extents", () => {
         assert.isDefined(box);
         assert.approximately((box?.max.x ?? 0) - (box?.min.x ?? 0), 4 * NODE_EXTENT_PER_SIZE, 1e-3);
         assert.isUndefined(labelBoxOf(build({ type: "ellipse", size: 1, width: 4, height: 2 })));
+    });
+
+    test("a rounded polygon's label box is its sharp twin's, as Cytoscape.js places the label", () => {
+        // the rounded apex falls short of the box's top, where the label still sits
+        const mesh = build({ type: "round-triangle", size: 1, width: 4, height: 4 });
+        const drawn = extentOf(mesh);
+        const box = labelBoxOf(mesh);
+        assert.isDefined(box);
+        assert.isBelow(drawn.y, 4 * NODE_EXTENT_PER_SIZE - 1e-3);
+        assert.approximately((box?.max.y ?? 0) - (box?.min.y ?? 0), 4 * NODE_EXTENT_PER_SIZE, 1e-3);
+    });
+
+    test("a polygon drawn where its corners say has the node's box for its label box, as yEd places the label", () => {
+        // yEd's star6: its side corners reach 0.866 of the box's half width, the label still sits by the box
+        const points = "0,-1 0.3,-0.5196 0.866,-0.5 0.6,0 0.866,0.5 0.3,0.5196 0,1 -0.3,0.5196 -0.866,0.5 -0.6,0";
+        const mesh = build({ type: "polygon", points, stretchPoints: false, size: 1, width: 4, height: 2 });
+        const box = labelBoxOf(mesh);
+        assert.isDefined(box);
+        assert.isBelow(extentOf(mesh).x, 4 * NODE_EXTENT_PER_SIZE - 0.1);
+        assert.approximately((box?.max.x ?? 0) - (box?.min.x ?? 0), 4 * NODE_EXTENT_PER_SIZE, 1e-3);
+        assert.approximately((box?.max.y ?? 0) - (box?.min.y ?? 0), 2 * NODE_EXTENT_PER_SIZE, 1e-3);
     });
 
     test("width and height set the extent along each axis, for a solid and a flat shape", () => {

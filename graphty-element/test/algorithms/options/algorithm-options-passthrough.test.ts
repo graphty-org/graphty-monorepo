@@ -24,14 +24,15 @@ import { MaxFlowAlgorithm } from "../../../src/algorithms/MaxFlowAlgorithm";
 import { MinCutAlgorithm } from "../../../src/algorithms/MinCutAlgorithm";
 import { PageRankAlgorithm } from "../../../src/algorithms/PageRankAlgorithm";
 import { PrimAlgorithm } from "../../../src/algorithms/PrimAlgorithm";
-import type { Graph } from "../../../src/Graph";
+import type { CodedFact } from "../../../src/session/shared";
 import {
-    createMockGraph,
+    createSessionGraph,
     getGraphResult,
     getNodeResult,
     partitionOf,
     type ResultCarrier,
-} from "../../helpers/mockGraph";
+    type SessionGraph,
+} from "../../helpers/session-graph";
 
 type NodeId = string | number;
 
@@ -40,7 +41,7 @@ type NodeId = string | number;
  * @param graph - The graph.
  * @returns The ids.
  */
-function nodeIdsOf(graph: Graph): NodeId[] {
+function nodeIdsOf(graph: SessionGraph): NodeId[] {
     return Array.from(graph.getDataManager().nodes.keys());
 }
 
@@ -52,7 +53,7 @@ function nodeIdsOf(graph: Graph): NodeId[] {
  * @param key - The field.
  * @returns The id of the highest-valued node.
  */
-function topNodeOf(algo: ResultCarrier, graph: Graph, type: string, key: string): NodeId {
+function topNodeOf(algo: ResultCarrier, graph: SessionGraph, type: string, key: string): NodeId {
     let best: { id: NodeId; value: number } | undefined;
     for (const id of nodeIdsOf(graph)) {
         const value = getNodeResult(algo, id, "graphty", type, key) as number;
@@ -128,8 +129,8 @@ describe("Algorithm Options Pass-Through Tests", () => {
     describe("Centrality Algorithms", () => {
         describe("PageRankAlgorithm", () => {
             it("dampingFactor option affects results", async () => {
-                const graph1 = await createMockGraph({ dataPath: "./data4.json" });
-                const graph2 = await createMockGraph({ dataPath: "./data4.json" });
+                const graph1 = await createSessionGraph({ dataPath: "./data4.json" });
+                const graph2 = await createSessionGraph({ dataPath: "./data4.json" });
 
                 // Run with default damping (0.85)
                 const pr1 = new PageRankAlgorithm(graph1);
@@ -145,17 +146,23 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 const rank1 = getNodeResult(pr1, firstNodeId, "graphty", "pagerank", "rank");
                 const rank2 = getNodeResult(pr2, firstNodeId, "graphty", "pagerank", "rank");
 
-                // The damping factor a run used is in its caveats' notes.
-                assert.ok(pr1.result?.summary().caveats.notes.some((note: string) => note.includes("0.85")));
-                assert.ok(pr2.result?.summary().caveats.notes.some((note: string) => note.includes("0.5")));
+                // The damping factor a run used is in its caveats' facts.
+                assert.deepInclude(pr1.result?.summary().caveats.facts ?? [], {
+                    code: "pagerank.damping",
+                    params: { dampingFactor: 0.85 },
+                });
+                assert.deepInclude(pr2.result?.summary().caveats.facts ?? [], {
+                    code: "pagerank.damping",
+                    params: { dampingFactor: 0.5 },
+                });
 
                 // Results should be different
                 assert.notStrictEqual(rank1, rank2, "Different damping factors should produce different results");
             });
 
             it("maxIterations option affects convergence", async () => {
-                const graph1 = await createMockGraph({ dataPath: "./data4.json" });
-                const graph2 = await createMockGraph({ dataPath: "./data4.json" });
+                const graph1 = await createSessionGraph({ dataPath: "./data4.json" });
+                const graph2 = await createSessionGraph({ dataPath: "./data4.json" });
 
                 // Run with few iterations (may not converge)
                 const pr1 = new PageRankAlgorithm(graph1, { maxIterations: 1 });
@@ -178,8 +185,8 @@ describe("Algorithm Options Pass-Through Tests", () => {
             });
 
             it("tolerance option affects convergence", async () => {
-                const graph1 = await createMockGraph({ dataPath: "./data4.json" });
-                const graph2 = await createMockGraph({ dataPath: "./data4.json" });
+                const graph1 = await createSessionGraph({ dataPath: "./data4.json" });
+                const graph2 = await createSessionGraph({ dataPath: "./data4.json" });
 
                 // Run with very tight tolerance (more iterations needed)
                 const pr1 = new PageRankAlgorithm(graph1, { tolerance: 1e-10 });
@@ -205,8 +212,8 @@ describe("Algorithm Options Pass-Through Tests", () => {
 
         describe("EigenvectorCentralityAlgorithm", () => {
             it("maxIterations option affects results", async () => {
-                const graph1 = await createMockGraph({ dataPath: "./data4.json" });
-                const graph2 = await createMockGraph({ dataPath: "./data4.json" });
+                const graph1 = await createSessionGraph({ dataPath: "./data4.json" });
+                const graph2 = await createSessionGraph({ dataPath: "./data4.json" });
 
                 // Two passes cannot converge, and an unconverged run fails rather than publishing.
                 const ev1 = new EigenvectorCentralityAlgorithm(graph1, { maxIterations: 2 });
@@ -232,8 +239,8 @@ describe("Algorithm Options Pass-Through Tests", () => {
             });
 
             it("tolerance option affects results", async () => {
-                const graph1 = await createMockGraph({ dataPath: "./data4.json" });
-                const graph2 = await createMockGraph({ dataPath: "./data4.json" });
+                const graph1 = await createSessionGraph({ dataPath: "./data4.json" });
+                const graph2 = await createSessionGraph({ dataPath: "./data4.json" });
 
                 // Use valid tolerance values (max is 0.01)
                 const ev1 = new EigenvectorCentralityAlgorithm(graph1, { tolerance: 1e-10, maxIterations: 1000 });
@@ -256,8 +263,8 @@ describe("Algorithm Options Pass-Through Tests", () => {
 
         describe("KatzCentralityAlgorithm", () => {
             it("alpha option affects results", async () => {
-                const graph1 = await createMockGraph({ dataPath: "./data4.json" });
-                const graph2 = await createMockGraph({ dataPath: "./data4.json" });
+                const graph1 = await createSessionGraph({ dataPath: "./data4.json" });
+                const graph2 = await createSessionGraph({ dataPath: "./data4.json" });
 
                 // Both below 1 / lambda_max of data4, where the default 0.1 diverges.
                 const katz1 = new KatzCentralityAlgorithm(graph1, { alpha: 0.02 });
@@ -275,8 +282,8 @@ describe("Algorithm Options Pass-Through Tests", () => {
             });
 
             it("beta option affects results", async () => {
-                const graph1 = await createMockGraph({ dataPath: "./data4.json" });
-                const graph2 = await createMockGraph({ dataPath: "./data4.json" });
+                const graph1 = await createSessionGraph({ dataPath: "./data4.json" });
+                const graph2 = await createSessionGraph({ dataPath: "./data4.json" });
 
                 // Use normalized=false to see the actual beta effect
                 // (normalization can wash out beta differences)
@@ -297,8 +304,8 @@ describe("Algorithm Options Pass-Through Tests", () => {
 
         describe("HITSAlgorithm", () => {
             it("maxIterations option affects results", async () => {
-                const graph1 = await createMockGraph({ dataPath: "./data4.json" });
-                const graph2 = await createMockGraph({ dataPath: "./data4.json" });
+                const graph1 = await createSessionGraph({ dataPath: "./data4.json" });
+                const graph2 = await createSessionGraph({ dataPath: "./data4.json" });
 
                 // Few iterations
                 const hits1 = new HITSAlgorithm(graph1, { maxIterations: 3 });
@@ -329,8 +336,8 @@ describe("Algorithm Options Pass-Through Tests", () => {
     describe("Community Detection Algorithms", () => {
         describe("LouvainAlgorithm", () => {
             it("resolution option affects number of communities", async () => {
-                const graph1 = await createMockGraph(communityGraphData);
-                const graph2 = await createMockGraph(communityGraphData);
+                const graph1 = await createSessionGraph(communityGraphData);
+                const graph2 = await createSessionGraph(communityGraphData);
 
                 // Low resolution = fewer, larger communities
                 const louvain1 = new LouvainAlgorithm(graph1, { resolution: 0.5 });
@@ -346,8 +353,8 @@ describe("Algorithm Options Pass-Through Tests", () => {
             });
 
             it("maxIterations option limits iterations", async () => {
-                const graph1 = await createMockGraph(communityGraphData);
-                const graph2 = await createMockGraph(communityGraphData);
+                const graph1 = await createSessionGraph(communityGraphData);
+                const graph2 = await createSessionGraph(communityGraphData);
 
                 const louvain1 = new LouvainAlgorithm(graph1, { maxIterations: 1 });
                 await louvain1.run();
@@ -363,13 +370,15 @@ describe("Algorithm Options Pass-Through Tests", () => {
 
         describe("LeidenAlgorithm", () => {
             it("resolution option affects results", async () => {
-                const graph1 = await createMockGraph(communityGraphData);
-                const graph2 = await createMockGraph(communityGraphData);
+                const graph1 = await createSessionGraph(communityGraphData);
+                const graph2 = await createSessionGraph(communityGraphData);
 
-                const leiden1 = new LeidenAlgorithm(graph1, { resolution: 0.5 });
+                // Seeded: the bridge has one edge to each triangle, so at 0.5 which triangle it joins
+                // is a tie the seed breaks; unseeded, about 1 run in 100 put it with triangle B.
+                const leiden1 = new LeidenAlgorithm(graph1, { resolution: 0.5, randomSeed: 42 });
                 await leiden1.run();
 
-                const leiden2 = new LeidenAlgorithm(graph2, { resolution: 2.0 });
+                const leiden2 = new LeidenAlgorithm(graph2, { resolution: 2.0, randomSeed: 42 });
                 await leiden2.run();
 
                 // At 0.5 the bridge joins a triangle; at 2.0 it is a community of its own.
@@ -382,8 +391,8 @@ describe("Algorithm Options Pass-Through Tests", () => {
 
         describe("LabelPropagationAlgorithm", () => {
             it("maxIterations option limits iterations", async () => {
-                const graph1 = await createMockGraph(communityGraphData);
-                const graph2 = await createMockGraph(communityGraphData);
+                const graph1 = await createSessionGraph(communityGraphData);
+                const graph2 = await createSessionGraph(communityGraphData);
 
                 const lp1 = new LabelPropagationAlgorithm(graph1, { maxIterations: 1 });
                 await lp1.run();
@@ -405,9 +414,9 @@ describe("Algorithm Options Pass-Through Tests", () => {
             });
 
             it("randomSeed option affects reproducibility", async () => {
-                const graph1 = await createMockGraph(communityGraphData);
-                const graph2 = await createMockGraph(communityGraphData);
-                const graph3 = await createMockGraph(communityGraphData);
+                const graph1 = await createSessionGraph(communityGraphData);
+                const graph2 = await createSessionGraph(communityGraphData);
+                const graph3 = await createSessionGraph(communityGraphData);
 
                 // Same randomSeed should produce same results
                 const lp1 = new LabelPropagationAlgorithm(graph1, { randomSeed: 42 });
@@ -420,7 +429,7 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 const lp3 = new LabelPropagationAlgorithm(graph3, { randomSeed: 123 });
                 await lp3.run();
 
-                const labelsOf = (algo: ResultCarrier, graph: Graph): Record<string, unknown> =>
+                const labelsOf = (algo: ResultCarrier, graph: SessionGraph): Record<string, unknown> =>
                     Object.fromEntries(
                         nodeIdsOf(graph).map((id) => [
                             String(id),
@@ -443,8 +452,8 @@ describe("Algorithm Options Pass-Through Tests", () => {
 
         describe("GirvanNewmanAlgorithm", () => {
             it("maxCommunities option limits number of communities", async () => {
-                const graph1 = await createMockGraph(communityGraphData);
-                const graph2 = await createMockGraph(communityGraphData);
+                const graph1 = await createSessionGraph(communityGraphData);
+                const graph2 = await createSessionGraph(communityGraphData);
 
                 const gn1 = new GirvanNewmanAlgorithm(graph1, { maxCommunities: 2 });
                 await gn1.run();
@@ -466,8 +475,8 @@ describe("Algorithm Options Pass-Through Tests", () => {
     describe("Pathfinding Algorithms", () => {
         describe("DijkstraAlgorithm", () => {
             it("source option changes starting point", async () => {
-                const graph1 = await createMockGraph(linearGraphData);
-                const graph2 = await createMockGraph(linearGraphData);
+                const graph1 = await createSessionGraph(linearGraphData);
+                const graph2 = await createSessionGraph(linearGraphData);
 
                 const dijkstra1 = new DijkstraAlgorithm(graph1, { source: "A", target: "E" });
                 await dijkstra1.run();
@@ -485,8 +494,8 @@ describe("Algorithm Options Pass-Through Tests", () => {
             });
 
             it("target option changes path calculation", async () => {
-                const graph1 = await createMockGraph(linearGraphData);
-                const graph2 = await createMockGraph(linearGraphData);
+                const graph1 = await createSessionGraph(linearGraphData);
+                const graph2 = await createSessionGraph(linearGraphData);
 
                 const dijkstra1 = new DijkstraAlgorithm(graph1, { source: "A", target: "C" });
                 await dijkstra1.run();
@@ -511,8 +520,8 @@ describe("Algorithm Options Pass-Through Tests", () => {
 
         describe("BellmanFordAlgorithm", () => {
             it("source option changes starting point", async () => {
-                const graph1 = await createMockGraph(linearGraphData);
-                const graph2 = await createMockGraph(linearGraphData);
+                const graph1 = await createSessionGraph(linearGraphData);
+                const graph2 = await createSessionGraph(linearGraphData);
 
                 const bf1 = new BellmanFordAlgorithm(graph1, { source: "A", target: "E" });
                 await bf1.run();
@@ -530,8 +539,8 @@ describe("Algorithm Options Pass-Through Tests", () => {
             });
 
             it("target option changes path marking", async () => {
-                const graph1 = await createMockGraph(linearGraphData);
-                const graph2 = await createMockGraph(linearGraphData);
+                const graph1 = await createSessionGraph(linearGraphData);
+                const graph2 = await createSessionGraph(linearGraphData);
 
                 const bf1 = new BellmanFordAlgorithm(graph1, { source: "A", target: "C" });
                 await bf1.run();
@@ -551,8 +560,8 @@ describe("Algorithm Options Pass-Through Tests", () => {
     describe("Traversal Algorithms", () => {
         describe("BFSAlgorithm", () => {
             it("source option changes traversal start", async () => {
-                const graph1 = await createMockGraph(linearGraphData);
-                const graph2 = await createMockGraph(linearGraphData);
+                const graph1 = await createSessionGraph(linearGraphData);
+                const graph2 = await createSessionGraph(linearGraphData);
 
                 const bfs1 = new BFSAlgorithm(graph1, { source: "A" });
                 await bfs1.run();
@@ -577,8 +586,8 @@ describe("Algorithm Options Pass-Through Tests", () => {
             });
 
             it("targetNode option stops traversal early", async () => {
-                const graph1 = await createMockGraph(linearGraphData);
-                const graph2 = await createMockGraph(linearGraphData);
+                const graph1 = await createSessionGraph(linearGraphData);
+                const graph2 = await createSessionGraph(linearGraphData);
 
                 // Traverse until C (should visit A, B, C)
                 const bfs1 = new BFSAlgorithm(graph1, { source: "A", targetNode: "C" });
@@ -588,7 +597,7 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 const bfs2 = new BFSAlgorithm(graph2, { source: "A" });
                 await bfs2.run();
 
-                const levelsOf = (algo: ResultCarrier, graph: Graph): Record<string, unknown> =>
+                const levelsOf = (algo: ResultCarrier, graph: SessionGraph): Record<string, unknown> =>
                     Object.fromEntries(
                         nodeIdsOf(graph).map((id) => [String(id), getNodeResult(algo, id, "graphty", "bfs", "level")]),
                     );
@@ -602,8 +611,8 @@ describe("Algorithm Options Pass-Through Tests", () => {
 
         describe("DFSAlgorithm", () => {
             it("source option changes traversal start", async () => {
-                const graph1 = await createMockGraph(linearGraphData);
-                const graph2 = await createMockGraph(linearGraphData);
+                const graph1 = await createSessionGraph(linearGraphData);
+                const graph2 = await createSessionGraph(linearGraphData);
 
                 const dfs1 = new DFSAlgorithm(graph1, { source: "A" });
                 await dfs1.run();
@@ -630,8 +639,8 @@ describe("Algorithm Options Pass-Through Tests", () => {
                         { srcId: "D", dstId: "E" },
                     ],
                 };
-                const graph1 = await createMockGraph(branchData);
-                const graph2 = await createMockGraph(branchData);
+                const graph1 = await createSessionGraph(branchData);
+                const graph2 = await createSessionGraph(branchData);
 
                 const dfs1 = new DFSAlgorithm(graph1, { source: "A", targetNode: "B", recursive: true });
                 await dfs1.run();
@@ -639,7 +648,7 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 const dfs2 = new DFSAlgorithm(graph2, { source: "A", targetNode: "B", recursive: false });
                 await dfs2.run();
 
-                const visitedOf = (algo: ResultCarrier, graph: Graph): Record<string, unknown> =>
+                const visitedOf = (algo: ResultCarrier, graph: SessionGraph): Record<string, unknown> =>
                     Object.fromEntries(
                         nodeIdsOf(graph).map((id) => [
                             String(id),
@@ -658,8 +667,8 @@ describe("Algorithm Options Pass-Through Tests", () => {
     describe("MST Algorithms", () => {
         describe("PrimAlgorithm", () => {
             it("startNode option changes MST construction", async () => {
-                const graph1 = await createMockGraph(diamondGraphData);
-                const graph2 = await createMockGraph(diamondGraphData);
+                const graph1 = await createSessionGraph(diamondGraphData);
+                const graph2 = await createSessionGraph(diamondGraphData);
 
                 const prim1 = new PrimAlgorithm(graph1, { startNode: "A" });
                 await prim1.run();
@@ -687,8 +696,8 @@ describe("Algorithm Options Pass-Through Tests", () => {
     describe("Flow Algorithms", () => {
         describe("MaxFlowAlgorithm", () => {
             it("source and sink options determine flow endpoints", async () => {
-                const graph1 = await createMockGraph(diamondGraphData);
-                const graph2 = await createMockGraph(diamondGraphData);
+                const graph1 = await createSessionGraph(diamondGraphData);
+                const graph2 = await createSessionGraph(diamondGraphData);
 
                 const mf1 = new MaxFlowAlgorithm(graph1, { source: "A", sink: "D" });
                 await mf1.run();
@@ -708,8 +717,8 @@ describe("Algorithm Options Pass-Through Tests", () => {
 
         describe("MinCutAlgorithm", () => {
             it("source and sink options determine cut endpoints", async () => {
-                const graph1 = await createMockGraph(diamondGraphData);
-                const graph2 = await createMockGraph(diamondGraphData);
+                const graph1 = await createSessionGraph(diamondGraphData);
+                const graph2 = await createSessionGraph(diamondGraphData);
 
                 const mc1 = new MinCutAlgorithm(graph1, { source: "A", sink: "D" });
                 await mc1.run();
@@ -717,7 +726,7 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 const mc2 = new MinCutAlgorithm(graph2, { source: "B", sink: "C" });
                 await mc2.run();
 
-                const graph3 = await createMockGraph(diamondGraphData);
+                const graph3 = await createSessionGraph(diamondGraphData);
                 const mc3 = new MinCutAlgorithm(graph3, { source: "A", sink: "B" });
                 await mc3.run();
 
@@ -732,7 +741,7 @@ describe("Algorithm Options Pass-Through Tests", () => {
 
     describe("Algorithm.get with options", () => {
         it("passes options through Algorithm.get factory", async () => {
-            const graph = await createMockGraph({ dataPath: "./data4.json" });
+            const graph = await createSessionGraph({ dataPath: "./data4.json" });
 
             // Use factory method with options
             const algo = Algorithm.get(graph, "graphty", "pagerank", { dampingFactor: 0.5 });
@@ -744,13 +753,18 @@ describe("Algorithm Options Pass-Through Tests", () => {
 
             // The damping factor is part of what qualifies the numbers, so it is in the caveats'
             // notes rather than published as a graph result of its own.
-            const { result } = algo as unknown as { result?: { summary: () => { caveats: { notes: string[] } } } };
+            const { result } = algo as unknown as {
+                result?: { summary: () => { caveats: { facts: readonly CodedFact[] } } };
+            };
             assert.ok(result);
-            assert.ok(result.summary().caveats.notes.some((note) => note.includes("0.5")));
+            assert.deepInclude(result.summary().caveats.facts ?? [], {
+                code: "pagerank.damping",
+                params: { dampingFactor: 0.5 },
+            });
         });
 
         it("uses defaults when no options passed to factory", async () => {
-            const graph = await createMockGraph({ dataPath: "./data4.json" });
+            const graph = await createSessionGraph({ dataPath: "./data4.json" });
 
             const algo = Algorithm.get(graph, "graphty", "pagerank");
 
@@ -759,9 +773,14 @@ describe("Algorithm Options Pass-Through Tests", () => {
             // Type assertion needed due to abstract signature mismatch
             await (algo as unknown as { run(): Promise<void> }).run();
 
-            const { result } = algo as unknown as { result?: { summary: () => { caveats: { notes: string[] } } } };
+            const { result } = algo as unknown as {
+                result?: { summary: () => { caveats: { facts: readonly CodedFact[] } } };
+            };
             assert.ok(result);
-            assert.ok(result.summary().caveats.notes.some((note) => note.includes("0.85")));
+            assert.deepInclude(result.summary().caveats.facts ?? [], {
+                code: "pagerank.damping",
+                params: { dampingFactor: 0.85 },
+            });
         });
     });
 });

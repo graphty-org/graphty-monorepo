@@ -20,6 +20,11 @@ import type { Scene } from "@babylonjs/core/scene.js";
  * Babylon writes a thin instance's normal by another formula than an ordinary instance's, which
  * shades any scale in `matrix` differently (85 levels for a non-uniform one). The rewrite below
  * puts the ordinary line back, so a batch and an object row agree.
+ *
+ * Babylon also multiplies a thin instance's alpha by its interpolated color alpha, which an
+ * ordinary instance's never is. A batch's color alpha is always 1, but WebKit interpolates that 1
+ * a hair below 1, so a 0.5-opacity node blends a level off where the object row lands on a half
+ * level (#9506). The fragment rewrite drops the multiply for a batch.
  */
 
 const PLUGIN_NAME = "GraphtyRowPull";
@@ -48,6 +53,20 @@ int grRow = int(graphtyRow + 0.5);
 vec4 grPlace = graphtyRow < 0.0 ? vec4(0.0) : texelFetch(rowPosition, ivec2(grRow & 1023, grRow >> 10), 0);
 vec3 grOrigin = world[3].xyz;
 worldPos = vec4((worldPos.xyz - grOrigin) * grPlace.w + grOrigin + mat3(world) * grPlace.xyz, worldPos.w);
+#endif
+`,
+};
+
+const GLSL_FRAGMENT = {
+    [String.raw`!alpha\*=vColor\.a;`]: `#ifndef ROW_PULL
+alpha*=vColor.a;
+#endif
+`,
+};
+
+const WGSL_FRAGMENT = {
+    [String.raw`!alpha\*=fragmentInputs\.vColor\.a;`]: `#ifndef ROW_PULL
+alpha*=fragmentInputs.vColor.a;
 #endif
 `,
 };
@@ -195,14 +214,15 @@ class RowPullPlugin extends MaterialPluginBase {
      * The vertex code, in the language the material compiles to.
      * @param shaderType - "vertex" or "fragment".
      * @param shaderLanguage - GLSL or WGSL.
-     * @returns The code, or null for a fragment shader.
+     * @returns The code.
      */
-    override getCustomCode(shaderType: string, shaderLanguage?: ShaderLanguage): Record<string, string> | null {
+    override getCustomCode(shaderType: string, shaderLanguage?: ShaderLanguage): Record<string, string> {
+        const wgsl = shaderLanguage === ShaderLanguage.WGSL;
         if (shaderType !== "vertex") {
-            return null;
+            return wgsl ? WGSL_FRAGMENT : GLSL_FRAGMENT;
         }
 
-        return shaderLanguage === ShaderLanguage.WGSL ? WGSL : GLSL;
+        return wgsl ? WGSL : GLSL;
     }
 }
 
@@ -220,7 +240,7 @@ export function attachRowPull(material: Material): void {
         material.unfreeze();
     }
 
-    new RowPullPlugin(material); // NOSONAR(S1848): the base constructor attaches it to the material
+    new RowPullPlugin(material); // eslint-disable-line sonarjs/constructor-for-side-effects -- the base constructor attaches it to the material
     if (frozen) {
         material.freeze();
     }

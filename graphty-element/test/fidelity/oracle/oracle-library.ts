@@ -23,6 +23,7 @@ import {
 } from "./associate";
 import {
     compareOracle,
+    legiblePx,
     namedCaptions,
     ORACLE_PROPERTIES,
     type OracleReport,
@@ -30,6 +31,7 @@ import {
     specimenSettingNames,
 } from "./compare-oracle";
 import { drawnPrimitives } from "./drawn-primitives";
+import { markHiddenHeads } from "./hidden-heads";
 import { judgesFor, type Reference, SHEET_JUDGES, specificationScene } from "./judges";
 import type { Pixels } from "./picture-gradient";
 import type { PScene } from "./primitives";
@@ -101,8 +103,8 @@ export async function oraclePngUrl(id: string): Promise<string | undefined> {
 /**
  * The reader options a program's drawing was made with that the file cannot carry: the Gephi Preview
  * settings of a GEXF page (`previewProperties`), which graphty-element's GEXF reader takes as
- * `gephiPreview`, and the sigma.js settings of a graphology page (`settings`), which its JSON reader takes as
- * `sigmaSettings`.
+ * `gephiPreview`, and the sigma.js settings of a graphology page (`settings`), which its JSON reader hands graph-io
+ * as `importOptions: { sigmaSettings }`.
  * @param meta - the oracle's metadata
  * @param format - graph-io's format name of the sample
  * @returns the options, empty for none
@@ -118,9 +120,30 @@ export function oracleFormatOptions(meta: Record<string, unknown>, format: strin
         typeof meta.settings === "object" &&
         meta.settings !== null
     ) {
-        return { sigmaSettings: meta.settings };
+        return { importOptions: { sigmaSettings: meta.settings } };
     }
     return format === "gexf" && typeof preview === "object" && preview !== null ? { gephiPreview: preview } : {};
+}
+
+/**
+ * The canvas graphty draws a sample on: Pajek's Draw window for a Pajek drawing (the canvas it recorded, which Pajek
+ * fits the file's 0..1 square to and graphty's Pajek reader takes as `pajekDraw`), so both frame that square on the
+ * same canvas (issue #8193); {@link ORACLE_CANVAS} for any other.
+ * @param meta - the oracle's metadata
+ * @param format - graph-io's format name of the sample
+ * @returns the canvas size in CSS px
+ */
+export function oracleCanvas(meta: Record<string, unknown>, format: string): { width: number; height: number } {
+    const canvas = meta.canvas as { widthPx?: number; heightPx?: number } | undefined;
+    if (
+        format === "pajek" &&
+        meta.program === "Pajek" &&
+        canvas?.widthPx !== undefined &&
+        canvas.heightPx !== undefined
+    ) {
+        return { width: canvas.widthPx, height: canvas.heightPx };
+    }
+    return ORACLE_CANVAS;
 }
 
 /**
@@ -199,7 +222,21 @@ async function associateOracle(
             meta.svgKind !== "raster" && drawing !== undefined
                 ? nameDrawnNodes(prims, meta.drawn as DrawnNodes)
                 : prims;
-        return associate(named, size.width, size.height, graphty, { ownLayout });
+        return associate(named, size.width, size.height, graphty, {
+            ownLayout,
+            // desktop strokes a node's border, then paints its fill over the inner half (cytoscape-painted-borders);
+            // graph-io reads that half only from Cytoscape's own formats, so desktop standing in for another format's
+            // program (its drawing of a GML sheet, where yEd shows the whole border) is read at the stroke it drew
+            fillOverStroke: meta.program === "Cytoscape desktop" && !isStandIn(meta),
+            ...(named === prims
+                ? {}
+                : {
+                      drawn: {
+                          ...(meta.drawn as DrawnNodes),
+                          scale: (meta.observed as { scale?: number } | undefined)?.scale,
+                      },
+                  }),
+        });
     }
     const png = await pngPixels(pngUrl);
     const k = png.width / size.width;
@@ -225,6 +262,25 @@ export function isStandIn(meta: Record<string, unknown>): boolean {
 
 /** The oracle programs that draw no group box, whatever the file says. */
 const NO_GROUP_PROGRAMS: ReadonlySet<string> = new Set(["Gephi Toolkit", "Pajek"]);
+
+/**
+ * The oracle programs whose SVG names every node and group it draws (Graphviz's `<g class="node">` and
+ * `<g class="cluster">`): graphty's groups there are the ones the program names (`namedGroups`; a cluster's title is the
+ * id graph-io gives its group node), never a node drawn round a smaller one, which the oracle reads as the node it
+ * names (dot-real-softmaint 375499, an ellipse over the 5 px circle odfpr1_0_3t_21 in both drawings).
+ */
+const NAMED_GROUP_PROGRAMS: ReadonlySet<string> = new Set(["Graphviz"]);
+
+/**
+ * The groups an oracle's markup names, by id.
+ * @param id - the sample
+ * @returns their ids
+ */
+async function namedGroups(id: string): Promise<Set<string>> {
+    const svgPath = pathOf(svgs, id);
+    const read = svgPath === undefined ? null : await readSvgOnce(await svgs[svgPath]());
+    return new Set((read?.prims ?? []).flatMap((p) => (p.hint?.role === "group" ? [p.hint.id] : [])));
+}
 
 /**
  * What a comparison takes from the mounted element besides its drawing, so the same comparison can be run again on a
@@ -324,11 +380,13 @@ export async function compareWithOracle(
     const nodes = scene.nodes.map((n) => {
         const d = drawn.nodes.get(n.id);
         const fontPx = (d?.label ?? d?.tableLabel)?.fontPx ?? 0;
-        return n.label === null || fontPx >= 1 ? n : { ...n, label: { ...n.label, visible: false } };
+        return n.label === null || legiblePx(fontPx) ? n : { ...n, label: { ...n.label, visible: false } };
     });
-    // An SVG names no group, so a box graphty draws round others is read as one by its drawing alone, as the oracle's
-    // is, not only where the file nests nodes (the scene's groups, which the reference scenes are judged by)
-    const unmutated = drawnPrimitives({ ...scene, nodes, groups: groupsOf(nodes, drawn.nodes) }, drawn, {
+    // An SVG that names no group has a box graphty draws round others read as one by its drawing alone, as the
+    // oracle's is, not only where the file nests nodes (the scene's groups, which the reference scenes are judged by);
+    // one that names its groups has only those
+    const declared = NAMED_GROUP_PROGRAMS.has(String(meta.program)) ? await namedGroups(id) : undefined;
+    const unmutated = drawnPrimitives({ ...scene, nodes, groups: groupsOf(nodes, drawn.nodes, declared) }, drawn, {
         groups: !groupless,
     });
     // A specimen sheet whose format ids its nodes otherwise (Cytoscape desktop by SUID, GML by number) keeps `cap-*`
@@ -352,6 +410,17 @@ export async function compareWithOracle(
         ownLayouts: ownLayout && !GRAPHVIZ_ENGINES.some((engine) => graphvizLayoutId(engine) === element.layout),
         command,
     });
+}
+
+/**
+ * Whether a program's drawing hides node labels that would overlap others: Gephi's Preview does unless its
+ * `node.label.avoidOverlap` is set false (the specimen pages set it; a plain GEXF file keeps Gephi's default, on).
+ * @param meta - the drawing's metadata
+ * @returns true where the program hid overlapping labels
+ */
+function avoidsLabelOverlap(meta: Record<string, unknown>): boolean {
+    const preview = meta.previewProperties as Record<string, unknown> | undefined;
+    return meta.program === "Gephi Toolkit" && preview?.["node.label.avoidOverlap"] !== "false";
 }
 
 /** The SVG read last, and what was read from it. */
@@ -413,7 +482,10 @@ export async function judgeDrawing(id: string, graphty: PScene, inputs: JudgeInp
         // the oracle's nodes take graphty's ids, so a caption the program drew as a node is named a caption there too
         const association = {
             ...associated,
-            scene: withoutCovered(namedCaptions(namedCaptions(associated.scene, captionOf), names), graphty),
+            scene: markHiddenHeads(
+                withoutCovered(namedCaptions(namedCaptions(associated.scene, captionOf), names), graphty),
+                read.prims,
+            ),
         };
         const report = compareOracle(
             id,
@@ -435,6 +507,7 @@ export async function judgeDrawing(id: string, graphty: PScene, inputs: JudgeInp
                 mirror: drawnBy.mirrored === true,
                 standIn: isStandIn(drawnBy),
                 ownLayouts: inputs.ownLayouts,
+                labelsAvoidOverlap: avoidsLabelOverlap(drawnBy),
                 ...(sheet === undefined ? {} : { judges: judgesFor(sheet, reference) }),
             },
         );

@@ -24,6 +24,8 @@
 
 import { ACCELERATION_ERROR_CODES, type AccelerationErrorCode, GraphtyError } from "../errors";
 import { GraphtyLogger } from "../logging/GraphtyLogger.js";
+import type { CodedFactParam } from "../session/shared";
+import { reportUnavailable } from "./consoleReport";
 import { type AcceleratorRegistry, acceleratorRegistry } from "./registry";
 import {
     ACCELERATION_MIN_EDGES_MEASUREMENT,
@@ -101,6 +103,8 @@ type AccelerationDecision =
           readonly accelerator: GraphAccelerator;
           /** The arithmetic the result will have been computed in. Belongs on `Caveats.precision`. */
           readonly precision: AccelerationPrecision;
+          /** Whether the accelerator runs on a software adapter (SwiftShader, llvmpipe), which only `"required"` accepts. */
+          readonly software: boolean;
       }
     | {
           /** The work goes to the CPU path. */
@@ -151,7 +155,12 @@ interface AccelerationControllerOptions {
     readonly registry?: AcceleratorRegistry;
     /** Whether a lost device is followed by an attempt to attach a fresh accelerator. Defaults to true. */
     readonly recoverOnDeviceLoss?: boolean;
-    /** How many consecutive recovery attempts to make before giving up. Defaults to 3. */
+    /**
+     * How many times to try attaching a fresh accelerator after a device loss before giving up.
+     * Defaults to 3. The first try follows the loss at once; each later one waits for the next
+     * {@link AccelerationController.plan} call or factory registration while the state is
+     * `"error"`. The count starts again once a reattached device has finished a piece of work.
+     */
     readonly maxRecoveryAttempts?: number;
     /**
      * Opens a span around every call-shaped accelerated run, returning what closes it.
@@ -198,6 +207,44 @@ interface Attachment {
 
 const logger = GraphtyLogger.getLogger(["graphty", "acceleration"]);
 
+/**
+ * The part of every run's time limit that does not depend on its size: a first run compiles its
+ * pipelines, which takes seconds on some browsers.
+ */
+const RUN_TIMEOUT_FLOOR_MS = 10_000;
+
+/**
+ * Milliseconds the time limit allows per unit of work (see {@link defaultRunTimeoutMs}). GPU
+ * betweenness over every source of the Venice transit sample -- 1,874 nodes times 2,702 edges,
+ * about 5 million units -- takes about 45 ms on a desktop card; this allows a device a hundred
+ * times slower before it calls the run stuck.
+ */
+const RUN_TIMEOUT_MS_PER_UNIT = 1e-3;
+
+/** The longest delay setTimeout honors; a longer one fires at once. */
+const MAX_TIMER_MS = 2 ** 31 - 1;
+
+/**
+ * The time limit for an accelerated run nobody set one for, scaled from the work it was asked to do.
+ *
+ * The unit is an upper bound on what the run touches: the sources times the edges for a sourced
+ * run, the nodes cubed for all-pairs shortest paths (a Floyd-Warshall sweep), and the nodes times
+ * the edges for everything else (every node visiting every edge). Generous on purpose: a false
+ * timeout fails a run that would have finished, and a lax one only waits longer before failing.
+ * ponytail: one bound per run shape, not per kernel; a measured per-capability cost model is the
+ * upgrade if large iterative runs need a tighter limit.
+ * @param work - The run.
+ * @returns The limit in milliseconds.
+ */
+function defaultRunTimeoutMs(work: AcceleratedWork): number {
+    const nodes = work.nodeCount;
+    const units =
+        work.capability === "allPairsShortestPath"
+            ? nodes * nodes * nodes
+            : (work.sourceEdges ?? nodes * Math.max(1, work.edgeCount ?? 0));
+    return RUN_TIMEOUT_FLOOR_MS + units * RUN_TIMEOUT_MS_PER_UNIT;
+}
+
 /** The mutable form of the published status, used while assembling it. */
 type MutableStatus = {
     -readonly [K in keyof AccelerationStatus]: AccelerationStatus[K];
@@ -213,6 +260,27 @@ type MutableStatus = {
  */
 function accelerationCodeOf(error: GraphtyError): AccelerationErrorCode | undefined {
     return ACCELERATION_ERROR_CODES.find((known) => known === error.code);
+}
+
+/** The `details` of a failed probe that are published as `capabilities.acceleration.params`. */
+const PUBLISHED_PARAMS = ["accelerator", "package", "missing"] as const;
+
+/**
+ * Picks the values a failed probe publishes beside its code: the accelerator's name, and for the
+ * package codes the package and the exports it lacked. Never a sentence.
+ * @param error - The failure, already wrapped.
+ * @returns The params, frozen.
+ */
+function paramsOf(error: GraphtyError): Readonly<Record<string, CodedFactParam>> {
+    const params: Record<string, CodedFactParam> = {};
+    for (const key of PUBLISHED_PARAMS) {
+        const value = error.details[key];
+        if (typeof value === "string" || (Array.isArray(value) && value.every((item) => typeof item === "string"))) {
+            params[key] = value;
+        }
+    }
+
+    return Object.freeze(params);
 }
 
 /**
@@ -254,7 +322,8 @@ function sameStatus(a: AccelerationStatus, b: AccelerationStatus): boolean {
         a.exactMaxNodes === b.exactMaxNodes &&
         a.exactMaxNodesBasis === b.exactMaxNodesBasis &&
         a.reason === b.reason &&
-        a.code === b.code
+        a.code === b.code &&
+        JSON.stringify(a.params) === JSON.stringify(b.params)
     );
 }
 
@@ -301,6 +370,7 @@ export class AccelerationController {
     #state: AccelerationState;
     #reason: string | undefined;
     #code: AccelerationErrorCode | undefined;
+    #params: Readonly<Record<string, CodedFactParam>> | undefined;
     #backend: string | undefined;
     #device: AcceleratorDeviceInfo | undefined;
     #attachment: Attachment | null = null;
@@ -317,13 +387,19 @@ export class AccelerationController {
      */
     #generation = 0;
     #recoveryAttempts = 0;
+    /** The consumer's run time limit, or undefined for one scaled from each run's size. */
+    #runTimeoutMs: number | undefined;
+    /** True while a reattach after a device failure is in flight, so a second one does not start. */
+    #recovering = false;
+    /** What happened to the last failed device, while recovery from it may still try. */
+    #failure: { readonly sentence: string; readonly code: "E_DEVICE_LOST" | "E_GPU_TIMEOUT" } | undefined;
     #disposed = false;
     #status: AccelerationStatus;
     #capabilities: AccelerationCapabilities;
 
     /**
      * Builds a controller. Nothing is probed until {@link start} is called.
-     * @param options - The policy, the threshold, the registry and the recovery behaviour.
+     * @param options - The policy, the threshold, the registry and the recovery behavior.
      */
     constructor(options: AccelerationControllerOptions = {}) {
         this.#registry = options.registry ?? acceleratorRegistry;
@@ -344,7 +420,7 @@ export class AccelerationController {
     }
 
     /**
-     * Where acceleration stands right now, as frozen, serialisable data.
+     * Where acceleration stands right now, as frozen, serializable data.
      * @returns The published status.
      */
     get status(): AccelerationStatus {
@@ -396,6 +472,15 @@ export class AccelerationController {
     }
 
     /**
+     * The time limit for one accelerated run that the consumer set, or undefined while each run's
+     * limit is scaled from its size.
+     * @returns The limit in milliseconds, or undefined.
+     */
+    get runTimeoutMs(): number | undefined {
+        return this.#runTimeoutMs;
+    }
+
+    /**
      * The attached accelerator, or null when there is none.
      * @returns The accelerator.
      */
@@ -438,6 +523,8 @@ export class AccelerationController {
 
         this.#policy = policy;
         this.#generation += 1;
+        this.#recoveryAttempts = 0;
+        this.#failure = undefined;
 
         if (policy === "off") {
             this.#detach();
@@ -481,6 +568,30 @@ export class AccelerationController {
 
         this.#minNodes = minNodes;
         this.#explicitMinNodes = true;
+    }
+
+    /**
+     * Changes how long one accelerated run may go without an answer before it fails with
+     * `E_GPU_TIMEOUT`.
+     *
+     * A browser's GPU can stop answering without reporting the device lost, and WebGPU has no
+     * event for that, so every call-shaped run (an algorithm, not a layout's frame-by-frame
+     * simulation) has a limit. Left unset, the limit is scaled from the run's size: at least ten
+     * seconds, more for a large graph. `Infinity` waits forever.
+     * @param ms - The limit in milliseconds, or undefined to go back to the scaled limit.
+     * @throws A `GraphtyError` with `E_OPTION_RANGE` when the value is not a positive number.
+     */
+    setRunTimeout(ms: number | undefined): void {
+        if (ms !== undefined && (Number.isNaN(ms) || ms <= 0)) {
+            throw new GraphtyError({
+                code: "E_OPTION_RANGE",
+                message: `the accelerated run time limit must be a positive number of milliseconds, not ${String(ms)}`,
+                source: "config",
+                details: { key: "acceleration.runTimeoutMs", min: 0, value: ms },
+            });
+        }
+
+        this.#runTimeoutMs = ms;
     }
 
     /**
@@ -615,6 +726,9 @@ export class AccelerationController {
 
         const { accelerator } = this;
         if (accelerator === null) {
+            // This work is planned without an accelerator either way; a reattach that succeeds
+            // serves the work after it.
+            this.#retryRecovery();
             return this.#withoutAccelerator(work, required);
         }
 
@@ -648,7 +762,12 @@ export class AccelerationController {
             }
         }
 
-        return { accelerated: true, accelerator, precision: accelerator.precision ?? DEFAULT_ACCELERATOR_PRECISION };
+        return {
+            accelerated: true,
+            accelerator,
+            precision: accelerator.precision ?? DEFAULT_ACCELERATOR_PRECISION,
+            software: this.#attachment?.software === true,
+        };
     }
 
     /**
@@ -754,7 +873,8 @@ export class AccelerationController {
         const endSpan = this.#whileRunning?.();
 
         try {
-            const value = await fn(decision.accelerator);
+            const value = await this.#withDeadline(work, decision.accelerator, fn);
+            this.#workFinished(attachment);
             return { accelerated: true, value, precision: decision.precision };
         } catch (error) {
             // The one exit. Nothing below this line may produce a CPU result: the accelerator
@@ -791,6 +911,7 @@ export class AccelerationController {
             };
         }
 
+        const attachment = this.#attachment;
         this.#enterWork();
         let ended = false;
 
@@ -800,6 +921,7 @@ export class AccelerationController {
             }
 
             ended = true;
+            this.#workFinished(attachment);
             this.#leaveWork();
         };
     }
@@ -852,7 +974,8 @@ export class AccelerationController {
         this.#probeSettled = true;
 
         if (!attached) {
-            this.#transition("unavailable", this.#reason, this.#code);
+            this.#transition("unavailable", this.#reason, this.#code, this.#params);
+            reportUnavailable(this.#code, this.#reason);
         }
 
         return this.#status;
@@ -877,14 +1000,17 @@ export class AccelerationController {
 
         if (registrations.length === 0) {
             this.#reason =
-                'no accelerator is registered. Import "@graphty/graphty-element/webgpu" to use WebGPU, ' +
-                "or register your own accelerator factory.";
+                "no accelerator is registered. Load the element from @graphty/graphty-element, which finds " +
+                'an installed WebGPU package itself, import "@graphty/graphty-element/webgpu", or register ' +
+                "your own accelerator factory.";
             this.#code = "E_NO_ACCELERATOR_REGISTERED";
+            this.#params = undefined;
             return false;
         }
 
         const declined: string[] = [];
         let code: AccelerationErrorCode | undefined;
+        let params: Readonly<Record<string, CodedFactParam>> | undefined;
 
         for (const registration of registrations) {
             if (this.#stale(generation)) {
@@ -913,7 +1039,12 @@ export class AccelerationController {
                 });
                 // A throw with no acceleration code of its own (a backend module that failed to load,
                 // a defect) still gets one, so a consumer can switch on every unavailable state.
-                code = accelerationCodeOf(failure) ?? code ?? "E_ACCELERATOR_FAILED";
+                const own = accelerationCodeOf(failure);
+                if (own !== undefined || code === undefined) {
+                    code = own ?? "E_ACCELERATOR_FAILED";
+                    params = paramsOf(failure);
+                }
+
                 declined.push(`${registration.name}: ${failure.message}`);
             }
         }
@@ -921,6 +1052,7 @@ export class AccelerationController {
         if (!this.#stale(generation)) {
             this.#reason = declined.join("; ");
             this.#code = code;
+            this.#params = params;
         }
 
         return false;
@@ -1016,7 +1148,7 @@ export class AccelerationController {
         this.#attachment = attachment;
         this.#backend = accelerator.backend;
         this.#device = accelerator.device;
-        this.#recoveryAttempts = 0;
+        this.#failure = undefined;
 
         const { lost } = accelerator;
         if (lost !== undefined) {
@@ -1081,14 +1213,47 @@ export class AccelerationController {
      * @param reason - What the backend said about the loss.
      */
     #onDeviceLost(attachment: Attachment, reason: string): void {
+        this.#onDeviceFailed(attachment, `the accelerator's device was lost: ${reason}`, "E_DEVICE_LOST");
+    }
+
+    /**
+     * Lets go of a device that failed while attached, says so, then tries a fresh one.
+     *
+     * A lost device and one that stopped answering end the same way: releasing the accelerator
+     * frees the buffers and pipelines the failed work holds, and the next run gets a new device
+     * rather than the suspect one.
+     * @param attachment - The attachment whose device failed.
+     * @param sentence - What happened, for `status.reason`.
+     * @param code - `E_DEVICE_LOST` or `E_GPU_TIMEOUT`.
+     */
+    #onDeviceFailed(attachment: Attachment, sentence: string, code: "E_DEVICE_LOST" | "E_GPU_TIMEOUT"): void {
         if (this.#disposed || attachment.released || this.#attachment !== attachment) {
             return;
         }
 
         this.#detach();
-        this.#transition("error", `the accelerator's device was lost: ${reason}`, "E_DEVICE_LOST");
+        logger.warn("device failed", { code, reason: sentence, busy: this.#busy });
+        this.#transition("error", sentence, code);
+        this.#failure = { sentence, code };
+        this.#retryRecovery();
+    }
 
+    /**
+     * Starts one more try at reattaching after a device loss or a run that got no answer, when
+     * the budget allows it.
+     *
+     * Called at the loss itself, and then on the next `plan()` and the next factory registration
+     * while the state is still `"error"`: a browser often has no adapter to hand out in the first
+     * moments after a GPU reset, and those events are the moments worth trying again. No timer.
+     */
+    #retryRecovery(): void {
+        const failure = this.#failure;
         if (
+            failure === undefined ||
+            this.#recovering ||
+            this.#disposed ||
+            this.#state !== "error" ||
+            this.#attachment !== null ||
             !this.#recoverOnDeviceLoss ||
             this.#policy === "off" ||
             this.#recoveryAttempts >= this.#maxRecoveryAttempts
@@ -1097,18 +1262,33 @@ export class AccelerationController {
         }
 
         this.#recoveryAttempts += 1;
-        void this.#recover(reason);
+        this.#recovering = true;
+        void this.#recover(failure.sentence, failure.code).finally(() => {
+            this.#recovering = false;
+        });
     }
 
     /**
-     * Tries to attach a fresh accelerator after a device loss.
+     * Records that the attached device finished a piece of work, which is what proves a
+     * reattached device healthy and gives the next loss a full recovery budget again.
+     * @param attachment - The attachment the work ran on.
+     */
+    #workFinished(attachment: Attachment | null): void {
+        if (attachment !== null && attachment === this.#attachment) {
+            this.#recoveryAttempts = 0;
+        }
+    }
+
+    /**
+     * Makes one try at attaching a fresh accelerator after a device loss or a run that got no answer.
      *
      * The state stays `"error"` while this runs and when it fails: an accelerator that worked
      * and then died is a different thing from one that was never there, and flattening the two
      * would hide a real hardware failure behind "unavailable".
-     * @param lossReason - What the backend said about the loss, kept for the failure message.
+     * @param failure - What happened to the device, kept for the failure message.
+     * @param code - The code the failure was published with.
      */
-    async #recover(lossReason: string): Promise<void> {
+    async #recover(failure: string, code: "E_DEVICE_LOST" | "E_GPU_TIMEOUT"): Promise<void> {
         const generation = this.#generation;
         const recovered = await this.#tryFactories();
 
@@ -1117,11 +1297,7 @@ export class AccelerationController {
         }
 
         const why = this.#reason ?? "no accelerator available";
-        this.#transition(
-            "error",
-            `the accelerator's device was lost: ${lossReason}; reattaching failed: ${why}`,
-            "E_DEVICE_LOST",
-        );
+        this.#transition("error", `${failure}; reattaching failed: ${why}`, code);
     }
 
     /**
@@ -1133,6 +1309,11 @@ export class AccelerationController {
      */
     #onRegistryChanged(): void {
         if (this.#disposed || this.#policy === "off" || this.#injected || this.#attachment !== null) {
+            return;
+        }
+
+        if (this.#state === "error") {
+            this.#retryRecovery();
             return;
         }
 
@@ -1219,6 +1400,62 @@ export class AccelerationController {
     }
 
     /**
+     * Runs the accelerated function, rejecting with `E_GPU_TIMEOUT` when it has no answer by the
+     * run's time limit.
+     *
+     * The device's own signals -- a lost device, a rejected map -- already end a run as
+     * `E_DEVICE_LOST`. This is for the case WebGPU has no signal for: a GPU that stops answering
+     * without being lost, which leaves a readback pending forever. The stuck promise is abandoned,
+     * and the failure path releases the accelerator, which destroys what the run holds.
+     * @param work - The run, which sizes the limit and names the failure.
+     * @param accelerator - The accelerator it runs on.
+     * @param fn - The accelerated function.
+     * @returns What the function returned.
+     */
+    async #withDeadline<T>(
+        work: AcceleratedWork,
+        accelerator: GraphAccelerator,
+        fn: (accelerator: GraphAccelerator) => T | Promise<T>,
+    ): Promise<T> {
+        const limitMs = this.#runTimeoutMs ?? defaultRunTimeoutMs(work);
+        const started = performance.now();
+        const running = Promise.resolve(fn(accelerator));
+        // setTimeout fires at once past 2^31 - 1 ms, so a limit beyond that (about 25 days) is none.
+        if (limitMs > MAX_TIMER_MS) {
+            return running;
+        }
+
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const deadline = new Promise<never>((_resolve, reject) => {
+            timer = setTimeout(() => {
+                const elapsedMs = Math.round(performance.now() - started);
+                reject(
+                    new GraphtyError({
+                        code: "E_GPU_TIMEOUT",
+                        message: `the accelerator gave no answer to "${work.capability}" within ${String(Math.round(limitMs))} ms`,
+                        source: "acceleration",
+                        details: {
+                            capability: work.capability,
+                            nodeCount: work.nodeCount,
+                            edgeCount: work.edgeCount ?? 0,
+                            elapsedMs,
+                            limitMs: Math.round(limitMs),
+                            accelerator: accelerator.name,
+                            backend: accelerator.backend,
+                        },
+                    }),
+                );
+            }, limitMs);
+        });
+
+        try {
+            return await Promise.race([running, deadline]);
+        } finally {
+            clearTimeout(timer);
+        }
+    }
+
+    /**
      * Turns a failure from a running accelerator into the error to throw.
      *
      * Never into a CPU result. A device loss noticed this way also moves the state, because the
@@ -1253,6 +1490,10 @@ export class AccelerationController {
 
         if (failure.code === "E_DEVICE_LOST" && attachment !== null) {
             this.#onDeviceLost(attachment, failure.message);
+        }
+
+        if (failure.code === "E_GPU_TIMEOUT" && attachment !== null) {
+            this.#onDeviceFailed(attachment, failure.message, "E_GPU_TIMEOUT");
         }
 
         if (failure.code === "E_DEVICE_INCORRECT" && attachment !== null) {
@@ -1316,6 +1557,7 @@ export class AccelerationController {
                 policy: this.#policy,
                 state: this.#state,
                 ...(this.#code === undefined ? {} : { acceleration: this.#code }),
+                ...(this.#params === undefined ? {} : { params: this.#params }),
                 ...(work === undefined ? {} : { capability: work.capability, nodeCount: work.nodeCount }),
             },
         });
@@ -1340,11 +1582,18 @@ export class AccelerationController {
      * @param state - The new state.
      * @param reason - The sentence a person reads, or undefined to clear it.
      * @param code - The code a `switch` takes, or undefined to clear it.
+     * @param params - The values the code is about, or undefined to clear them.
      */
-    #transition(state: AccelerationState, reason: string | undefined, code: AccelerationErrorCode | undefined): void {
+    #transition(
+        state: AccelerationState,
+        reason: string | undefined,
+        code: AccelerationErrorCode | undefined,
+        params?: Readonly<Record<string, CodedFactParam>>,
+    ): void {
         this.#state = state;
         this.#reason = reason;
         this.#code = code;
+        this.#params = params;
 
         const next = this.#buildStatus();
         if (sameStatus(this.#status, next)) {
@@ -1352,6 +1601,8 @@ export class AccelerationController {
         }
 
         this.#status = next;
+        // The probe's answer, the device attached, a loss and a recovery all pass through here.
+        logger.info("status", { ...next });
         this.#capabilities = Object.freeze({ acceleration: next });
         for (const listener of [...this.#listeners]) {
             // A listener is consumer code, and one that throws must not stop the others from
@@ -1420,6 +1671,10 @@ export class AccelerationController {
 
         if (this.#code !== undefined) {
             status.code = this.#code;
+        }
+
+        if (this.#params !== undefined) {
+            status.params = this.#params;
         }
 
         return Object.freeze(status);

@@ -46,6 +46,9 @@ import type {
     ScreenshotResult,
 } from "./types.js";
 
+/** The kinds of pending work that are a picture still loading; see `PendingWork`. */
+const PICTURE_LOADS = ["picture", "model", "font", "basemap"] as const;
+
 /**
  * Handles screenshot capture for graph visualizations using Babylon.js rendering engine.
  * Supports quality enhancement, transparent backgrounds, format conversion, and multiple output destinations.
@@ -72,6 +75,8 @@ export class ScreenshotCapture {
      * @param requestFrame - Asks the render loop to draw the next frame, even when the picture
      *     looks final: a graph drawn on demand draws none for a background cleared for a moment
      * @param readLegend - The element's legend (`session.styles.legend()`), for `legend: true`
+     * @param drawNow - Draws a frame now, outside the render loop, so a copy of a canvas that keeps
+     *     no frame is taken at the end of a frame that drew
      */
     constructor(
         private readonly engine: Engine | WebGPUEngine,
@@ -80,6 +85,7 @@ export class ScreenshotCapture {
         private readonly graph: Graph,
         private readonly requestFrame: () => void = () => undefined,
         private readonly readLegend: () => readonly LegendBlock[] = () => [],
+        private readonly drawNow: () => void = () => undefined,
     ) {}
 
     /**
@@ -139,6 +145,7 @@ export class ScreenshotCapture {
         );
 
         const controller = new AbortController();
+        const stop = options.onProgress && operationQueueOf(this.graph).watchPendingWork(options.onProgress);
         try {
             return await new Promise<ScreenshotResult>((resolve, reject) => {
                 const run = (): void => {
@@ -164,6 +171,7 @@ export class ScreenshotCapture {
                 }, reject);
             });
         } finally {
+            stop?.();
             controller.abort();
         }
     }
@@ -242,12 +250,17 @@ export class ScreenshotCapture {
                 timing.captureNow,
             );
         }
+        // 3. Wait for pictures still loading -- a background, a node's image or 3D model, a font,
+        // the map -- and a frame drawn once they have landed, as waitForStableFrame() does.
+        if (timing.captureNow?.aborted !== true) {
+            await this.waitForPictures(options.signal, timing.captureNow);
+        }
         throwIfAborted(options.signal);
 
         // The legend is read once the queued edits have landed, so the key matches the picture.
         this.legend = this.resolveLegend(options.legend);
 
-        // 3. Handle camera override
+        // 4. Handle camera override
         const cameraOverride = options.camera ? await this.overrideCamera(options, options.camera) : undefined;
 
         // Left out of the picture only: the selection itself, and its events, are untouched. A
@@ -704,6 +717,57 @@ export class ScreenshotCapture {
     }
 
     /**
+     * Wait until no picture is still loading and a frame has been drawn since, asked after every
+     * drawn frame. Only the record of pending work's loads are waited for, not the rest of what
+     * `waitForStableFrame()` waits for (a camera turning by itself never rests), and each load
+     * ends by itself, landed or failed.
+     * @param signal - Aborted, the wait rejects with the signal's reason.
+     * @param captureNow - Aborted, the wait ends at once.
+     * @returns Promise that resolves once a frame was drawn with nothing loading.
+     */
+    private async waitForPictures(signal?: AbortSignal, captureNow?: AbortSignal): Promise<void> {
+        const { pending } = this.graph.getUpdateManager();
+        const loading = (): boolean => PICTURE_LOADS.some((kind) => pending.isPending(kind));
+        if (!loading()) {
+            return;
+        }
+        throwIfAborted(signal);
+
+        await new Promise<void>((resolve, reject) => {
+            const stop = new AbortController();
+            const finish = (outcome: () => void): void => {
+                this.scene.onAfterRenderObservable.remove(observer);
+                stop.abort();
+                outcome();
+            };
+            const observer = this.scene.onAfterRenderObservable.add(() => {
+                if (loading()) {
+                    this.requestFrame();
+                } else {
+                    finish(resolve);
+                }
+            });
+            captureNow?.addEventListener(
+                "abort",
+                () => {
+                    finish(resolve);
+                },
+                { signal: stop.signal },
+            );
+            signal?.addEventListener(
+                "abort",
+                () => {
+                    finish(() => {
+                        reject(abortReason(signal));
+                    });
+                },
+                { signal: stop.signal },
+            );
+            this.requestFrame();
+        });
+    }
+
+    /**
      * Waits for a single render frame to complete.
      * Used to ensure the scene state is fully rendered before capture.
      * @internal
@@ -777,13 +841,26 @@ export class ScreenshotCapture {
                 1 / Math.min(this.canvas.width, this.canvas.height);
             let dataUrl: string;
             if (sameSize || !sameShape) {
-                // Babylon copies the canvas at the end of the next frame. A canvas that keeps no
-                // frame (WebGPU, or WebGL without preserveDrawingBuffer) holds a picture only in a
-                // frame that drew one, and a graph drawn on demand may draw none: ask for one.
-                if (!this.keepsFrames()) {
+                // Babylon copies the canvas at the end of the frame it is asked in. A canvas that
+                // keeps no frame (WebGPU, or WebGL without preserveDrawingBuffer) holds a picture
+                // only at the end of a frame that drew one, and the loop ends ticks that draw
+                // nothing: one skipped while the GPU is behind, the frame guard's half rate, a held
+                // draw, or any tick of a graph drawn on demand. A copy taken there is transparent
+                // (#9730, #9732). So the copy is asked for from inside a frame that draws, and a
+                // frame is drawn now; a loop whose frames are held draws the requested one when
+                // the hold ends.
+                if (this.keepsFrames()) {
+                    dataUrl = await CreateScreenshotAsync(this.engine, camera, size);
+                } else {
+                    const copied = new Promise<string>((resolve, reject) => {
+                        this.scene.onAfterRenderObservable.addOnce(() => {
+                            CreateScreenshotAsync(this.engine, camera, size).then(resolve, reject);
+                        });
+                    });
                     this.requestFrame();
+                    this.drawNow();
+                    dataUrl = await copied;
                 }
-                dataUrl = await CreateScreenshotAsync(this.engine, camera, size);
             } else {
                 const scale = captureWidth / this.canvas.width;
                 CustomLineRenderer.setPixelScale(this.scene, scale);

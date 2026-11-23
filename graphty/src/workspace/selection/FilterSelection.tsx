@@ -94,15 +94,38 @@ export function FilterSelection({
     name?: string;
     onRename?: (name: string | undefined) => void;
 }>): React.JSX.Element {
-    // The rule as last edited, until the element holds it.
-    const [local, setLocal] = useState<UnionLeaf | null>(null);
     // The card is edited as a draft: nothing that is shown changes and nothing is laid out again
     // until the workspace closes, when the draft is written as one step (graphty-element's
     // `visibility.draft`; design/working-graph/design.md, section 3). A new card is written only once
-    // it has a step.
-    const draft = useRef<FilterDraft | null>(null);
+    // it has a step. A draft graphty-element's autosave reopened after a reload is picked up, so
+    // the reader's unwritten edits are the ones shown, Done writes them and Cancel drops them.
+    // on reload: fresh: read: graphty-element's reopened draft, read when the card mounts or it reopens
+    const [adopted, setAdopted] = useState(() => session.visibility.draftOf(id));
+    const draft = useRef<FilterDraft | null>(adopted);
+    const adoptedRule = adopted?.condition.rule.kind === "union" ? adopted.condition.rule : null;
+    // The rule as last edited, until the element holds it.
+    // on reload: fresh: derived: a reopened draft's rule, read from graphty-element
+    const [local, setLocal] = useState<UnionLeaf | null>(adoptedRule);
+    const own = useRef(false);
+    // The card can open before autosave has opened its draft again (the place comes back first):
+    // the draft is picked up when it opens, unless the reader has started one of their own.
+    useEffect(
+        () =>
+            session.on("visibility:draft-changed", () => {
+                // Read again on each change: autosave opens the draft, then puts its edits back.
+                const found = own.current ? null : session.visibility.draftOf(id);
+                if (found !== null) {
+                    draft.current = found;
+                    setAdopted(found);
+                    setLocal(found.condition.rule.kind === "union" ? found.condition.rule : null);
+                }
+            }),
+        [session, id],
+    );
     const toDraft = (next: UnionLeaf): void => {
         if (draft.current?.open !== true) {
+            // A draft of its own is not a reopened one to pick up (the event below fires inside it).
+            own.current = true;
             draft.current = session.visibility.draft(
                 effect === undefined
                     ? {
@@ -142,24 +165,39 @@ export function FilterSelection({
     const finishRef = useRef(finish);
     finishRef.current = finish;
     // Leaving the card open (a switch of place, a side switch) closes it as Done; an element that
-    // has gone (the app closing) takes nothing more.
+    // has gone (the app closing, the page ending) takes nothing more. Decided a microtask later:
+    // an element removed with the app shuts down in the microtask its removal queued, so a page
+    // torn down with the card open writes nothing the reader did not finish, and the draft stays
+    // in the element's last autosave write for a reload to reopen (issue #9655). StrictMode's
+    // development-only rerun mounts the card again before that microtask: it is still open, so a
+    // draft adopted at mount is not written.
+    const mounted = useRef(false);
     useEffect(() => {
+        mounted.current = true;
         let gone = false;
         const unwatch = session.on("session:disposed", () => {
             gone = true;
         });
         return () => {
-            unwatch();
-            if (gone) {
-                draft.current?.cancel();
-                draft.current = null;
-            }
-            finishRef.current();
+            mounted.current = false;
+            queueMicrotask(() => {
+                unwatch();
+                if (mounted.current) {
+                    return;
+                }
+                if (gone) {
+                    draft.current?.cancel();
+                    draft.current = null;
+                }
+                finishRef.current();
+            });
         };
     }, [session]);
     return (
         <SelectionEditor
             session={session}
+            workspaceKey={`filter:${id}:${rule.side}`}
+            restoredFrom={adoptedRule === null ? undefined : rule}
             rule={local ?? rule}
             host="filter"
             ownerName="Filters"

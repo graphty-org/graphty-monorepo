@@ -1048,6 +1048,31 @@ const visit = async (page, dataset, entry) => {
     return v;
 };
 
+// Safari ends a background tab and loads it again with its session storage emptied (issue #9655):
+// a real reload, in a new page, of the workspace left open with a step picked and not Done. The
+// workspace comes back on that step, and nothing was written: a filter card's pick is still a draft.
+const reloadKeeps = (entry) => async (page) => {
+    const v = await visit(page, "karate", entry);
+    await v.pickFirst(0, "Degree");
+    const step = v.card(0).locator(".sel-card-step[data-row]", { hasText: "Degree" });
+    await step.waitFor();
+    await page.waitForFunction(() => {
+        const status = document.querySelector("graphty-element:not([data-start-page])")?.autosaver?.status;
+        return status?.state === "saved" && status.entry !== null;
+    });
+    const held = await v.held();
+    await inPage(page, () => {
+        sessionStorage.clear();
+    });
+    await page.reload();
+    await v.ws.waitFor();
+    await step.waitFor();
+    const after = await v.held();
+    if (JSON.stringify(after) !== JSON.stringify(held)) {
+        fail(`the reload wrote the unfinished edit: ${JSON.stringify(held)} became ${JSON.stringify(after)}`);
+    }
+};
+
 // A slider dragged past both ends reaches them exactly; the last node can be picked alone.
 const sliderEnds = (dataset, entry, kind, algorithm) => async (page) => {
     const v = await visit(page, dataset, entry);
@@ -1831,6 +1856,8 @@ const groupSwatches = async (page) => {
 };
 
 const SCENARIOS = [
+    ["reload: Safari ends the tab, a style layer's workspace open", reloadKeeps("style-nodes")],
+    ["reload: Safari ends the tab, a new Data filter not yet Done", reloadKeeps("filter-nodes")],
     [
         "slider: Betweenness, Karate Club, both exact ends",
         sliderEnds("karate", "style-nodes", "Betweenness", "betweenness"),
@@ -1896,7 +1923,7 @@ const SCENARIOS = [
     ["drag: by the grip, up then down", dragBothWays],
     ["fold: adding a card folds the others and keeps ticks", addFolds],
     ["table: a Degree column, and no actions before a test", degreeColumn],
-    ["cancel: a cancelled visit leaves nothing, the next one works", cancelThenDone],
+    ["cancel: a canceled visit leaves nothing, the next one works", cancelThenDone],
     ["columns: category and number, Add", dataColumns("add")],
     ["columns: category and number, Keep", dataColumns("keep")],
     ["columns: category and number, Except", dataColumns("except")],

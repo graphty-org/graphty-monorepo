@@ -1593,6 +1593,57 @@ export const TextTemplate: Story = {
     },
 };
 
+/**
+ * A name on one line and a number below it, written with a number format.
+ *
+ * The template binding carries `format`, so the PageRank each node holds is drawn with two
+ * decimals and its thousands grouped, while the name line is drawn as written.
+ */
+export const TextTemplateFormat: Story = {
+    args: {
+        // Empty, so the cat network the file's default args load gives way to the nodes below.
+        dataSource: "",
+        nodeData: [
+            { id: "a", name: "Ada", score: 12345.6789, position: { x: -6, y: 0, z: 0 } },
+            { id: "b", name: "Bo", score: 0.5, position: { x: 0, y: 0, z: 0 } },
+            { id: "c", name: "Cy", score: 1234567, position: { x: 6, y: 0, z: 0 } },
+        ],
+        edgeData: [
+            { src: "a", dst: "b" },
+            { src: "b", dst: "c" },
+        ],
+        layout: "fixed",
+        layoutConfig: { dim: 3 },
+        setup: storySetup({
+            nodeEncode: {
+                "node.label": {
+                    template: ["<bold>{data.name}</bold>", "{data.score}"],
+                    format: { maximumFractionDigits: 2, useGrouping: true, locale: "en-US" },
+                },
+            },
+        }),
+    },
+    play: async ({ canvasElement }) => {
+        const scene = await labelled(canvasElement, "TextTemplateFormat", { nodes: 3, edges: 2 });
+        const want: Record<string, string> = {
+            a: "Ada\n12,345.68",
+            b: "Bo\n0.5",
+            c: "Cy\n1,234,567",
+        };
+        const wrong = Object.entries(want).filter(([id, text]) => scene.element.labelOf(id)?.text !== text);
+
+        await holds(
+            wrong.length === 0,
+            `Styles/Label TextTemplateFormat: each label is its name, then its score with two decimals and ` +
+                `grouped thousands; these differ: ${wrong
+                    .map(([id]) => `${id} draws ${JSON.stringify(scene.element.labelOf(id)?.text)}`)
+                    .join(", ")}`,
+        );
+
+        await assertDistinctPicture(scene, "Styles/Label", labelDigest(scene));
+    },
+};
+
 /** Where the DepthFade story's labels start to fade, and where they are gone, in world units. */
 const DEPTH_FADE_NEAR = 65;
 const DEPTH_FADE_FAR = 105;

@@ -178,7 +178,7 @@ describe("Neo4j corpus facts: typed-properties.csv (every header type, :IGNORE, 
         expect((text.match(/,LINK,/g) ?? []).length).toBe(3);
     });
 
-    it("maps every declared type: bool, int, long (precision issue), float f32, double, string, char, byte, short, point json, lists", async () => {
+    it("maps every declared type: bool, int, long (precision issue), float f32, double, string, char, byte, short, point position, lists", async () => {
         const { snapshot, report } = await load("typed-properties.csv");
         expect(snapshot.ids.toArray()).toEqual([1, 2, 3]);
         expect(column(snapshot, "nodes", "b")).toEqual([true, false, true]);
@@ -192,8 +192,10 @@ describe("Neo4j corpus facts: typed-properties.csv (every header type, :IGNORE, 
         expect(column(snapshot, "nodes", "c")).toEqual(["x", "y", "<unset>"]);
         expect(column(snapshot, "nodes", "by")).toEqual([127, "<unset>", 0]);
         expect(column(snapshot, "nodes", "sh")).toEqual([-32768, "<unset>", 0]);
-        expect(snapshot.nodes.get("p")?.dtype).toBe("json");
-        expect(column(snapshot, "nodes", "p")).toEqual([{ x: 1.5, y: 2, crs: "cartesian" }, "<unset>", "<unset>"]);
+        // the point property is the position column
+        expect(snapshot.nodes.byRole("position")?.meta.name).toBe("p");
+        expect(snapshot.nodes.get("p")?.dtype).toBe("f64");
+        expect(Array.from(snapshot.nodes.value("p", 0) as ArrayLike<number>)).toEqual([1.5, 2, 0]);
         expect(column(snapshot, "nodes", "li")).toEqual([[1, 2, 3], "<unset>", "<unset>"]);
         expect(column(snapshot, "nodes", "ld")).toEqual([[0.5, 1.5], "<unset>", "<unset>"]);
         expect(column(snapshot, "nodes", "lb")).toEqual([[true, false], "<unset>", "<unset>"]);

@@ -2,6 +2,7 @@ import { type AbstractMesh, Camera, ShaderMaterial } from "@babylonjs/core";
 import { assert, beforeEach, describe, test } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
+import type { LineMeshMetadata } from "../../src/types/sceneMetadata";
 import { asData, edgeBetween } from "../helpers/testSetup";
 
 describe("Edge 2D Solid Integration", () => {
@@ -39,7 +40,10 @@ describe("Edge 2D Solid Integration", () => {
         assert(edge, "Edge should exist in dataManager");
 
         // Verify edge mesh has 2D line metadata
-        assert((edge.mesh as AbstractMesh).metadata?.is2DLine, "Edge mesh should be marked as 2D line");
+        assert(
+            ((edge.mesh as AbstractMesh).metadata as LineMeshMetadata | null)?.is2DLine,
+            "Edge mesh should be marked as 2D line",
+        );
 
         // A 2D line is the joined line with its width in world units, so it zooms with the graph.
         const { material } = edge.mesh as AbstractMesh;
@@ -78,7 +82,10 @@ describe("Edge 2D Solid Integration", () => {
         assert(edge, "Edge should exist in dataManager");
 
         // Verify edge mesh does NOT have 2D line metadata
-        assert(!(edge.mesh as AbstractMesh).metadata?.is2DLine, "Edge mesh should NOT be marked as 2D line in 3D mode");
+        assert(
+            !((edge.mesh as AbstractMesh).metadata as LineMeshMetadata | null)?.is2DLine,
+            "Edge mesh should NOT be marked as 2D line in 3D mode",
+        );
 
         // Cleanup
         graph.dispose();
@@ -106,7 +113,10 @@ describe("Edge 2D Solid Integration", () => {
         assert(edge, "Edge should exist in dataManager");
 
         // Verify 2D mode
-        assert((edge.mesh as AbstractMesh).metadata?.is2DLine, "Should be in 2D mode initially");
+        assert(
+            ((edge.mesh as AbstractMesh).metadata as LineMeshMetadata | null)?.is2DLine,
+            "Should be in 2D mode initially",
+        );
 
         // Switch to perspective camera (3D mode)
         // Note: graph.camera is CameraManager, not a raw Camera

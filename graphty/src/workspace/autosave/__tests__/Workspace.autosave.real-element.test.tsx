@@ -17,7 +17,7 @@ import { type GraphSession, isGraphtyError, listAutosaves } from "@graphty/graph
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import { loadSiteConfig, resetSiteConfig } from "../../../siteConfig";
+import { onUsageEvent } from "../../../lib/analytics";
 import { openBy } from "../../../test/open";
 import { pickSample, sampleTile } from "../../../test/samples-dialog";
 import { render, screen, waitFor, type Within, within } from "../../../test/test-utils";
@@ -487,97 +487,77 @@ describe("Workspace autosave with the real graphty-element", () => {
     });
 
     it("keeps a rail click made while this tab's work reopens after a reload", async () => {
-        resetSiteConfig();
-        await loadSiteConfig(
-            `data:application/json,${encodeURIComponent(JSON.stringify({ features: ["assistant"] }))}`,
-        );
-        try {
-            const first = mountWorkspace();
-            await openBy(first.store, () => pickSample(FLORENTINE.name));
-            await leave(openedElement().element, first.view);
+        const first = mountWorkspace();
+        await openBy(first.store, () => pickSample(FLORENTINE.name));
+        await leave(openedElement().element, first.view);
 
-            // The reload, with the work's read held back: the reader clicks the rail's Assistant
-            // before the work is in.
-            const release = await holdParts();
-            const second = mountWorkspace();
-            const rail = await screen.findByRole("toolbar", { name: "Places" });
-            await userEvent.click(await within(rail).findByRole("button", { name: "Assistant" }));
-            await screen.findByRole("region", { name: "Assistant" });
-            assert.notInclude(
+        // The reload, with the work's read held back: the reader clicks the rail's Assistant
+        // before the work is in.
+        const release = await holdParts();
+        const second = mountWorkspace();
+        const rail = await screen.findByRole("toolbar", { name: "Places" });
+        await userEvent.click(await within(rail).findByRole("button", { name: "Assistant" }));
+        await screen.findByRole("region", { name: "Assistant" });
+        assert.notInclude(
+            screen.getAllByRole("status").map((status) => status.textContent),
+            `Reopened ${FLORENTINE.name}`,
+            "the click came before the work was in",
+        );
+        release();
+
+        // The work comes in, and the reader is still where they went.
+        await waitFor(() => {
+            assert.include(
                 screen.getAllByRole("status").map((status) => status.textContent),
                 `Reopened ${FLORENTINE.name}`,
-                "the click came before the work was in",
             );
-            release();
-
-            // The work comes in, and the reader is still where they went.
-            await waitFor(() => {
-                assert.include(
-                    screen.getAllByRole("status").map((status) => status.textContent),
-                    `Reopened ${FLORENTINE.name}`,
-                );
-            });
-            assert.equal(openedElement().session.data.statistics().nodeCount, FLORENTINE.nodes);
-            assert.isNotNull(screen.queryByRole("region", { name: "Assistant" }), "the Assistant closed");
-            assert.strictEqual(second.store.get().place, "assistant");
-            second.view.unmount();
-        } finally {
-            resetSiteConfig();
-        }
+        });
+        assert.equal(openedElement().session.data.statistics().nodeCount, FLORENTINE.nodes);
+        assert.isNotNull(screen.queryByRole("region", { name: "Assistant" }), "the Assistant closed");
+        assert.strictEqual(second.store.get().place, "assistant");
+        second.view.unmount();
     });
 
     it("brings back an Assistant left open at a reload by itself, drawn whenever the rail marks it", async () => {
-        resetSiteConfig();
-        await loadSiteConfig(
-            `data:application/json,${encodeURIComponent(JSON.stringify({ features: ["assistant"] }))}`,
-        );
-        try {
-            const first = mountWorkspace();
-            await openBy(first.store, () => pickSample(FLORENTINE.name));
-            const firstRail = await screen.findByRole("toolbar", { name: "Places" });
-            await userEvent.click(await within(firstRail).findByRole("button", { name: "Assistant" }));
-            await screen.findByRole("region", { name: "Assistant" });
-            await leave(openedElement().element, first.view);
+        const first = mountWorkspace();
+        await openBy(first.store, () => pickSample(FLORENTINE.name));
+        const firstRail = await screen.findByRole("toolbar", { name: "Places" });
+        await userEvent.click(await within(firstRail).findByRole("button", { name: "Assistant" }));
+        await screen.findByRole("region", { name: "Assistant" });
+        await leave(openedElement().element, first.view);
 
-            // The reload, with the work's read held back. A click on a rail button marked as the
-            // open place closes it, so the rail must never mark the Assistant without its panel.
-            let markedWithoutPanel = false;
-            const watch = new MutationObserver(() => {
-                const marked = document.querySelector('[data-assistant-door][aria-current="page"]') !== null;
-                const drawn = document.querySelector('section[aria-label="Assistant"]') !== null;
-                markedWithoutPanel ||= marked && !drawn;
-            });
-            watch.observe(document.body, { childList: true, subtree: true, attributes: true });
-            const release = await holdParts();
-            const second = mountWorkspace();
-            // The panel is back with no click, before the work is in.
-            await screen.findByRole("region", { name: "Assistant" });
-            assert.notInclude(
+        // The reload, with the work's read held back. A click on a rail button marked as the
+        // open place closes it, so the rail must never mark the Assistant without its panel.
+        let markedWithoutPanel = false;
+        const watch = new MutationObserver(() => {
+            const marked = document.querySelector('[data-assistant-door][aria-current="page"]') !== null;
+            const drawn = document.querySelector('section[aria-label="Assistant"]') !== null;
+            markedWithoutPanel ||= marked && !drawn;
+        });
+        watch.observe(document.body, { childList: true, subtree: true, attributes: true });
+        const release = await holdParts();
+        const second = mountWorkspace();
+        // The panel is back with no click, before the work is in.
+        await screen.findByRole("region", { name: "Assistant" });
+        assert.notInclude(
+            screen.getAllByRole("status").map((status) => status.textContent),
+            `Reopened ${FLORENTINE.name}`,
+            "the panel waited for the work",
+        );
+        release();
+        await waitFor(() => {
+            assert.include(
                 screen.getAllByRole("status").map((status) => status.textContent),
                 `Reopened ${FLORENTINE.name}`,
-                "the panel waited for the work",
             );
-            release();
-            await waitFor(() => {
-                assert.include(
-                    screen.getAllByRole("status").map((status) => status.textContent),
-                    `Reopened ${FLORENTINE.name}`,
-                );
-            });
-            watch.disconnect();
-            assert.isNotNull(screen.queryByRole("region", { name: "Assistant" }), "the Assistant closed");
-            assert.isFalse(markedWithoutPanel, "the rail marked the Assistant before its panel was drawn");
-            second.view.unmount();
-        } finally {
-            resetSiteConfig();
-        }
+        });
+        watch.disconnect();
+        assert.isNotNull(screen.queryByRole("region", { name: "Assistant" }), "the Assistant closed");
+        assert.isFalse(markedWithoutPanel, "the rail marked the Assistant before its panel was drawn");
+        second.view.unmount();
     });
 
     it("keeps a chat started with New chat while the saved chats and the work load: neither replaces it", async () => {
-        resetSiteConfig();
-        await loadSiteConfig(
-            `data:application/json,${encodeURIComponent(JSON.stringify({ features: ["assistant"] }))}`,
-        );
         writeAssistantChoice({ provider: "mock", model: "mock", remember: false });
         await new Promise((resolve) => {
             indexedDB.deleteDatabase("graphty-ai").onsuccess = resolve;
@@ -647,7 +627,6 @@ describe("Workspace autosave with the real graphty-element", () => {
             second.view.unmount();
         } finally {
             writeAssistantChoice(null);
-            resetSiteConfig();
         }
     });
 
@@ -734,7 +713,19 @@ describe("Workspace autosave with the real graphty-element", () => {
         assert.include(region.textContent, FLORENTINE.name);
         assert.include(region.textContent, `${String(FLORENTINE.nodes)} nodes`);
 
+        const counted: Readonly<Record<string, unknown>>[] = [];
+        const offUsage = onUsageEvent((name, props) => {
+            if (name === "project_reopened") {
+                counted.push(props);
+            }
+        });
         await openBy(second.store, () => userEvent.click(screen.getByRole("button", { name: "Restore" })));
+        offUsage();
+        // Counted as a reopen of work kept from an earlier visit, never by its name.
+        assert.deepEqual(
+            counted.map((props) => ({ ...props })),
+            [{ from: "kept" }],
+        );
         const reopened = openedElement();
         assert.equal(reopened.session.data.statistics().nodeCount, FLORENTINE.nodes);
         assert.equal(reopened.session.project.name, FLORENTINE.name);

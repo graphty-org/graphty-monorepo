@@ -6,6 +6,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { flushSync } from "react-dom";
 
 import { bootSignal } from "../bootSignal";
+import { APP_CALLER_KEY } from "../lib/analytics";
 import { findKept, reopenOwn } from "./autosave/autosave";
 import { createRegistry, type WorkspaceRegistration } from "./commands/registry";
 import { ScoreDialog } from "./data-place/ScoreDialog";
@@ -16,7 +17,10 @@ import { NoticeSlot } from "./frame/NoticeSlot";
 import { loadedFrame, loadFrame } from "./frameLoader";
 import { useCommandKeys } from "./keys/useCommandKeys";
 import { ReportDialog } from "./privacy/ReportDialog";
+import { SurveyCard } from "./privacy/SurveyCard";
+import { useAnalyticsSends } from "./privacy/usageData";
 import { UsageDataCard } from "./privacy/UsageDataCard";
+import { useUsageEvents } from "./privacy/useUsageEvents";
 import { openingFile } from "./project/actions";
 import { ProjectDialogs } from "./project/ProjectDialogs";
 import { notReadWords } from "./project/words";
@@ -24,11 +28,13 @@ import { REGISTRATIONS } from "./registrations";
 import { cardPalette } from "./selection/cardPalette";
 import { readAuthor, readPreference, TIMELINE_STYLE } from "./settings/preferences";
 import { SettingsDialog } from "./settings/SettingsDialog";
+import { DraftOpenDialog } from "./source-steps/DraftOpenDialog";
 import { openAgain, useDropToOpen } from "./start/open";
 import { SamplesDialog } from "./start/SamplesDialog";
 import { StartScreen } from "./start/StartScreen";
 import {
     createWorkspaceStore,
+    keepLayout,
     keepPlace,
     keptBlank,
     keptEntry,
@@ -110,6 +116,10 @@ export function Workspace({
         [store, registry, element],
     );
     useCommandKeys(value);
+    // Anonymous usage counts from the project's element and the panels (lib/analytics.ts).
+    useUsageEvents(element.session, store);
+    // The survey corner only where the page sends PostHog: the surveys come from it.
+    const usageAnalytics = useAnalyticsSends();
     // The project the workspace started with (a story's, a test's) is left as its maker set it.
     const [startProjectId] = useState(() => store.get().project?.id);
     // Set while a just-opened project's sample is read, so focus waits for it.
@@ -165,8 +175,13 @@ export function Workspace({
                   }),
             ...(author === "" || session.config.author === author ? {} : { author }),
         };
+        // The starting choices are one step marked as the app's own, so they are not counted as the reader's.
+        const writeDefaults = (): Promise<unknown> =>
+            session.transaction("Starting settings", (tx) => tx.config.set(patch), {
+                callerKey: APP_CALLER_KEY,
+            });
         const defaults = starting.then(() =>
-            project?.id === startProjectId || Object.keys(patch).length === 0 ? undefined : session.config.set(patch),
+            project?.id === startProjectId || Object.keys(patch).length === 0 ? undefined : writeDefaults(),
         );
         if (opening === null) {
             // Nothing waits on the app's starting choices here; a refusal is logged, not shown.
@@ -290,8 +305,19 @@ export function Workspace({
             live = false;
         };
     }, [store, checking]);
-    // The reader's place is kept for a reload of this tab while autosave keeps the work.
-    useEffect(() => (store.get().autosave ? keepPlace(store) : undefined), [store]);
+    // The reader's place is kept for a reload of this tab while autosave keeps the work, and the
+    // panel sizes, table dock and legend switch for the next visit.
+    useEffect(() => {
+        if (!store.get().autosave) {
+            return undefined;
+        }
+        const stops = [keepPlace(store), keepLayout(store)];
+        return () => {
+            stops.forEach((stop) => {
+                stop();
+            });
+        };
+    }, [store]);
     // The entry the project's work is written to, so a reload can tell work never written.
     useEffect(() => {
         const host = element.element;
@@ -436,9 +462,19 @@ export function Workspace({
             <CustomModelHost />
             <SettingsDialog />
             <ReportDialog />
-            {/* The usage data question, on whatever page a first visit lands, until it is answered. */}
-            <UsageDataCard returnFocus={projectOpen ? undefined : firstDoor} />
+            {/* One corner for the usage data question (on whatever page a first visit lands, until it
+                is answered) and a short survey, only while usage data is shared (usage-analytics.md
+                section 4.4): stacked, so neither covers or hides the other. Where the page sends PostHog
+                nothing (a site with no PostHog ids, or off the site's own host), the
+                question alone, with no survey, in a plain wrapper that draws nothing: the card keeps
+                its place in the tree when site.json switches PostHog on, so it is not remounted and
+                keeps its answer line and focus. */}
+            <div className={usageAnalytics ? "ws-usage-corner" : undefined}>
+                <UsageDataCard returnFocus={projectOpen ? undefined : firstDoor} />
+                {usageAnalytics ? <SurveyCard /> : null}
+            </div>
             <ProjectDialogs />
+            <DraftOpenDialog />
             {/* The one status line, outside the start screen, the frame and every surface the Data
                 page hides, so it is on the page, empty, before anything is written to it and a
                 message is spoken once, politely, as it happens. Each write puts in a new text node,

@@ -644,12 +644,13 @@ function refusalSpeech(session: GraphSession, refusal: Refusal): string {
  * @param current - the element's session.
  * @param typed - the typed text.
  * @param setRefusal - shows a refusal under the box.
+ * @returns whether it selected, rather than being refused.
  */
 async function runTypedRule(
     current: GraphSession,
     typed: string,
     setRefusal: (refusal: Refusal | null) => void,
-): Promise<void> {
+): Promise<boolean> {
     try {
         // A rule over a column the graph does not have would select nothing, which reads like
         // an answer; it is refused instead.
@@ -659,16 +660,46 @@ async function runTypedRule(
             : null;
         if (unknown !== null) {
             setRefusal(unknown);
-            return;
+            return false;
         }
         await current.selection.apply({ text: rule }, "replace", { cause: "user" });
+        return true;
     } catch (error) {
         const refused = ruleRefusal(error);
         if (refused === null) {
             throw error;
         }
         setRefusal(refused);
+        return false;
     }
+}
+
+/**
+ * Frames every selected node after a find selected several. With Follow selection on, the element
+ * glides the camera to the selection's center at the same zoom, which can push the farther picks
+ * off the canvas (issue #9287); framing them all keeps every pick in view. One node, or Follow
+ * selection off, leaves the camera to the element.
+ * @param session - the element's session.
+ * @param element - the element.
+ * @param store - the workspace store, for Follow selection.
+ */
+async function frameManyPicks(
+    session: GraphSession,
+    element: Workspace["element"],
+    store: Workspace["store"],
+): Promise<void> {
+    if (session.selection.nodes.length < 2 || !store.get().followSelection) {
+        return;
+    }
+    // Keep the angle the reader looks from, as Fit selection does. A move refused because the
+    // drawing mode changed since leaves the camera where it is.
+    await element
+        ?.applyCameraView("fitToGraph", { scope: "selection", params: { keepAngle: true }, animate: true })
+        .catch((error: unknown) => {
+            if (!isGraphtyError(error) || error.code !== "E_UNSUPPORTED") {
+                throw error;
+            }
+        });
 }
 
 /** What a pick reads and changes. */
@@ -760,13 +791,16 @@ async function pickOption(ctx: PickContext, option: Option, adding: boolean): Pr
         // element corrected runs the correction, which the line under the box named.
         ctx.setActive(-1);
         ctx.setRefusal(null);
-        await runTypedRule(session, option.rule, ctx.setRefusal);
+        if (await runTypedRule(session, option.rule, ctx.setRefusal)) {
+            await frameManyPicks(session, ctx.element, ctx.store);
+        }
         return;
     }
     ctx.setText("");
     ctx.setActive(-1);
     if (option.type === "value") {
         await session.selection.apply(valueTarget(option), "replace", { cause: "user" });
+        await frameManyPicks(session, ctx.element, ctx.store);
         return;
     }
     await pickHit(ctx, session, option.hit);
@@ -798,7 +832,12 @@ function enterKey(ctx: KeyContext): void {
     if (ctx.chosen !== undefined) {
         void ctx.pick(ctx.chosen);
     } else if (ctx.runsTyped && ctx.session !== null) {
-        void runTypedRule(ctx.session, ctx.text, ctx.setRefusal);
+        const { session, element, store } = ctx;
+        void runTypedRule(session, ctx.text, ctx.setRefusal).then(async (ran) => {
+            if (ran) {
+                await frameManyPicks(session, element, store);
+            }
+        });
     } else if (ctx.text.trim() !== "") {
         // Enter with nothing to pick says so, rather than nothing at all.
         ctx.store.set({ announcement: ctx.spokenLine ?? `No match for "${ctx.text}"` });

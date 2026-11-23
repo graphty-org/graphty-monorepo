@@ -64,6 +64,9 @@ let takingBack = 0;
 /** The control that opens a new filter card and stays on screen: "+". */
 const OPENS_FILTERS = "[data-filters-plus] [data-add]";
 
+/** The workspace key of a filter card's selection editor, before the condition's id. */
+const FILTER_KEY = "filter:";
+
 /** A card's on box, inside the card. */
 const ON_BOX = ".dp-filter-on input[type=checkbox]";
 
@@ -151,8 +154,22 @@ export function FiltersSection({
     const { session, store } = useWorkspace();
     const version = useSessionEvents(session, VISIBILITY_EVENTS);
     const asked = useWorkspaceState((state) => state.filterDraft);
+    // on reload: fresh: derived: a new card's draft is graphty-element's, reopened by its autosave and listed again below
     const [drafts, setDrafts] = useState<readonly Draft[]>([]);
-    const [openId, setOpenId] = useState<string | null>(null);
+    // The card whose workspace is open; a reload reopens the one the kept selectionWorkspace names,
+    // whether the place comes back before this section mounts or after (from the autosave stash).
+    const keptOwner = useWorkspaceState((state) => state.selectionWorkspace?.owner ?? "");
+    // The key is `filter:<id>:<side>`: a new card's side switch starts another editor.
+    const keptCard = keptOwner.startsWith(FILTER_KEY)
+        ? keptOwner.slice(FILTER_KEY.length, keptOwner.lastIndexOf(":"))
+        : null;
+    // on reload: fresh: derived: read from the kept selectionWorkspace
+    const [openId, setOpenId] = useState<string | null>(keptCard);
+    useEffect(() => {
+        if (keptCard !== null) {
+            setOpenId(keptCard);
+        }
+    }, [keptCard]);
     const keys = new Set(session?.data.sources().map((each) => each.key) ?? []);
     // A filter of a load that is gone is listed with the filters of no load, so it can be removed.
     const ownless = (condition: FilterCondition): boolean =>
@@ -176,6 +193,33 @@ export function FiltersSection({
         });
     }, [ids]);
     const counts = session?.visibility.conditionCounts() ?? [];
+    // A new card graphty-element's autosave reopened after a reload (an open draft of a condition
+    // not yet written) is listed again, on the side its rule reads.
+    const reopened = (session?.visibility.openDrafts() ?? []).filter(
+        (each) =>
+            each.rule.kind === "union" &&
+            listed(each) &&
+            !conditions.some((c) => c.id === each.id) &&
+            !drafts.some((d) => d.id === each.id),
+    );
+    const reopenedNow = useRef(reopened);
+    reopenedNow.current = reopened;
+    const reopenedIds = reopened.map((each) => each.id).join("\n");
+    useEffect(() => {
+        const found = reopenedNow.current;
+        if (found.length > 0) {
+            // Each once: StrictMode's development-only rerun runs this effect twice.
+            setDrafts((now) => [
+                ...now,
+                ...found
+                    .filter((each) => !now.some((draft) => draft.id === each.id))
+                    .map((each): Draft => ({
+                        id: each.id,
+                        side: each.rule.kind === "union" ? sideOf(each.rule) : "node",
+                    })),
+            ]);
+        }
+    }, [reopenedIds]);
 
     useEffect(() => {
         if (pendingFocus !== null && focusCard(pendingFocus.target, pendingFocus.onBox)) {
@@ -190,6 +234,7 @@ export function FiltersSection({
     // or a control the closing popup hands focus to, never one that opens filters. The workspace
     // covers the canvas, and its toolbar, until it closes: focus moves once it has.
     const openedFrom = useRef<HTMLElement | null>(null);
+    // on reload: fresh: in flight: focus on its way back after a card closes
     const [goingBack, setGoingBack] = useState<{ readonly to: HTMLElement | null } | null>(null);
     const covered = useWorkspaceState((state) => state.selectionWorkspace !== null);
     useEffect(() => {
@@ -216,10 +261,11 @@ export function FiltersSection({
     // A new card: its value picker opens at once, or on a field, that field's step card.
     const open = (side: Side, field?: CardField, from: Element | null = document.activeElement): void => {
         openedFrom.current = from instanceof HTMLElement && from.matches(OPENS_FILTERS) ? from : null;
-        const id = newConditionId(
-            session?.visibility.conditions ?? [],
-            drafts.map((each) => each.id),
-        );
+        // Not the id of a draft graphty-element holds (one its autosave reopened, in any section).
+        const id = newConditionId(session?.visibility.conditions ?? [], [
+            ...drafts.map((each) => each.id),
+            ...(session?.visibility.openDrafts() ?? []).map((each) => each.id),
+        ]);
         setDrafts((now) => [...now, { id, side, ...(field === undefined ? {} : { field }) }]);
         setOpenId(id);
     };
@@ -482,9 +528,12 @@ function FilterCard({
         }
     }, [open]);
     // A new card's selection: one group starting with All, and a Keep step on its field when it has one.
-    const [draftRule, setDraftRule] = useState(() =>
-        newFilterSelection(session, fresh?.side ?? "node", fresh?.field, source),
-    );
+    // A card graphty-element's autosave reopened starts from its draft's rule.
+    // on reload: fresh: derived: a new card's rule comes back from graphty-element's reopened draft
+    const [draftRule, setDraftRule] = useState(() => {
+        const kept = condition === undefined ? session.visibility.draftOf(id)?.condition.rule : undefined;
+        return kept?.kind === "union" ? kept : newFilterSelection(session, fresh?.side ?? "node", fresh?.field, source);
+    });
     const draft = condition === undefined;
     // Added in this card's life: Cancel in the workspace it opened takes it away again, written or not.
     const born = useRef(draft);
@@ -513,6 +562,7 @@ function FilterCard({
     const reading = useSteps(session, selection ?? NO_SELECTION);
     const stepless = draftRule.branches.every((branch) => branch.steps.length === 0);
     // The picker opens by itself only on arrival: after a side switch the reader uses "Keep...".
+    // on reload: fresh: pointer: a side switched on a new card for a look
     const [switched, setSwitched] = useState(false);
     const remove = (): void => {
         if (draft) {
@@ -525,7 +575,10 @@ function FilterCard({
     // Drawn: the values the card reads; said: the card's rule in words, as the filter chip says it.
     // A card is named by what the reader typed, else by all its cards' summary ("Louvain: Group 3 +
     // Degree 8 to 36"), never only its first value.
-    const [draftName, setDraftName] = useState<string | undefined>(undefined);
+    // on reload: fresh: derived: a new card's name comes back from graphty-element's reopened draft
+    const [draftName, setDraftName] = useState<string | undefined>(() =>
+        condition === undefined ? session.visibility.draftOf(id)?.condition.name : undefined,
+    );
     const given = condition === undefined ? draftName : condition.name;
     const summary =
         selection === null || selection.branches.every((branch) => branch.steps.length === 0)
@@ -540,6 +593,7 @@ function FilterCard({
         // One undo step, through the session: an empty name goes back to the cards' summary.
         void writeCondition(store, () => session.visibility.updateCondition(id, { name: next }));
     };
+    // on reload: gap #9662: a card renamed in place
     const [renaming, setRenaming] = useState(false);
     const renameProps = { name: draftName, onRename: rename };
     // A selection is said as its title says it; a rule no editor reads, in its own words.
@@ -601,7 +655,10 @@ function FilterCard({
                       group: "edit" as const,
                       key: "Mod+D",
                       onRun: () => {
-                          const copy = newConditionId(session.visibility.conditions);
+                          const copy = newConditionId(
+                              session.visibility.conditions,
+                              session.visibility.openDrafts().map((each) => each.id),
+                          );
                           const { id: _id, ...rest } = condition;
                           void writeCondition(store, () => session.visibility.addCondition({ ...rest, id: copy })).then(
                               () => {
@@ -905,7 +962,8 @@ function clearFilters(session: GraphSession, store: WorkspaceStore): void {
  */
 export function FilterChip(): React.JSX.Element | null {
     const { session, store } = useWorkspace();
-    useSessionEvents(session, VISIBILITY_EVENTS);
+    // The filter is not a style layer: a change to the layers alone does not draw the chip again.
+    useSessionEvents(session, VISIBILITY_EVENTS, true);
 
     useEffect(() => {
         if (session === null) {

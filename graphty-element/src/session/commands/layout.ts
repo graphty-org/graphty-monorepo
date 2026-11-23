@@ -23,7 +23,8 @@
  * coordinates back. See design sections 3.2, 4.7, 6.4 and 11.4.
  */
 
-import { layoutAlias, layoutDescriptor, layoutIdForEngine } from "../../catalog/layouts";
+import { registeredLayoutDescriptors } from "../../catalog/layoutRegistry";
+import { LAYOUT_CATALOG, layoutAlias, layoutDescriptor, layoutIdForEngine } from "../../catalog/layouts";
 import type { LayoutId, NodeId, Scope } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { ExemptDefinition, UndoableContext, UndoableDefinition } from "../project/Dispatcher";
@@ -122,6 +123,12 @@ export interface LayoutService {
      * @returns True when it does.
      */
     followsFilters?(): boolean;
+    /**
+     * The hardware the layout in force computes on: `"cpu"`, or the accelerator's backend. Absent
+     * reads `"cpu"`.
+     * @returns The backend.
+     */
+    accelerator?(): string;
 }
 
 /**
@@ -208,6 +215,55 @@ async function applyChoice(choice: LayoutChoice, ctx: UndoableContext, explicitS
     await ctx.services.layout?.apply(choice, ctx.signal, explicitScope);
 }
 
+/**
+ * The refusal for a layout or engine name nothing answers to: the same with or without a
+ * renderer, and listing what could have been asked for instead.
+ * @param name - The name that was asked for.
+ * @returns The error to throw.
+ */
+export function unknownLayout(name: string): GraphtyError {
+    return new GraphtyError({
+        code: "E_UNKNOWN_LAYOUT",
+        message: `no layout named "${name}" is registered`,
+        source: "layout",
+        details: {
+            layout: name,
+            available: [
+                ...new Set([
+                    ...LAYOUT_CATALOG.flatMap((entry) => [
+                        entry.descriptor.id,
+                        ...entry.implementations.map((each) => each.engine),
+                    ]),
+                    ...registeredLayoutDescriptors().map((descriptor) => descriptor.id),
+                ]),
+            ],
+        },
+    });
+}
+
+/**
+ * Refuse a choice whose layout or engine the catalog does not know, before anything is written.
+ * An engine slot holding a layout id or a deprecated name is known: it stands for that layout's
+ * default engine.
+ * @param choice - The choice a `layout.set` makes.
+ */
+function assertKnownLayout(choice: LayoutChoice): void {
+    if (layoutDescriptor(choice.id) === undefined) {
+        throw unknownLayout(choice.id);
+    }
+
+    // `setLayout("force")` passes the name as both id and engine: a layout id or a deprecated
+    // name in the engine slot means its default engine, as the renderer's layout manager reads it.
+    const { engine } = choice;
+    if (
+        layoutIdForEngine(engine) === undefined &&
+        layoutDescriptor(engine) === undefined &&
+        layoutAlias(engine) === undefined
+    ) {
+        throw unknownLayout(engine);
+    }
+}
+
 const layoutSet: UndoableDefinition<LayoutSetCommand> = {
     op: "layout.set",
     // Takes the arrangement it began from: the new layout moves every node.
@@ -222,6 +278,9 @@ const layoutSet: UndoableDefinition<LayoutSetCommand> = {
     },
     execute: async (command, ctx) => {
         const choice = choiceOf(command, ctx.state.layout);
+        // Checked here, the one place every caller's choice passes, so a session with no renderer
+        // refuses a name the same way the renderer's layout manager does.
+        assertKnownLayout(choice);
         ctx.draft.layout = choice;
         await applyChoice(choice, ctx, choice.scope !== undefined && command.scope !== undefined);
     },

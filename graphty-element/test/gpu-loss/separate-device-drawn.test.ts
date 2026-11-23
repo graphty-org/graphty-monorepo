@@ -12,6 +12,7 @@ import { WRITABLE_LANE } from "../../src/data/lane";
 import type { Graph } from "../../src/Graph";
 import {
     adapterSays,
+    assertCanLand,
     landed,
     layoutOf,
     nextFrame,
@@ -31,6 +32,7 @@ async function uploadedLanding(graph: Graph): Promise<void> {
     assert.isNotNull(table);
     const before = table.landedUploads;
     while (table.landedUploads <= before) {
+        assertCanLand(graph);
         await nextFrame();
     }
 }
@@ -64,11 +66,12 @@ describe("the layout filling the row table from a separate device", () => {
         // yet the public generation says the coordinates moved, once a landing
         assert.isAtLeast(lane.generation - generation, 3);
 
-        // a read publishes the rows the texture shows
+        // a read of one node answers where the texture shows it and writes no row; a read of the table writes them
         const at = graph.getNode("n0")?.getPosition();
         assert.isTrue(Number.isFinite(at?.x));
-        assert.isAbove(lane.changes - written, 0);
+        assert.strictEqual(lane.changes - written, 0);
         assert.isBelow((await textureDiff(graph)).worst, 1e-5);
+        assert.isAbove(lane.changes - written, 0);
     });
 
     it("draws a layout switched to while a landing is owed", async () => {
@@ -97,7 +100,8 @@ describe("the layout filling the row table from a separate device", () => {
             assert.strictEqual(lane.changes - written, 0, "the landing is owed, not written");
             const owed = Float64Array.from(engine.publishedBounds() ?? []);
 
-            // reading every row writes the owed publish: the rows' own box, and the box the written path reports
+            // every row as the owed publish puts it (a small graph's rows are read one at a time), then the
+            // publish written: the rows' own box, and the box the written path reports
             const rows = [Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity];
             for (const node of graph.getNodes()) {
                 const { x, y, z } = node.getPosition();
@@ -106,6 +110,7 @@ describe("the layout filling the row table from a separate device", () => {
                     rows[axis + 3] = Math.max(rows[axis + 3], value);
                 });
             }
+            assert.isTrue(lane.settle());
             assert.isAbove(lane.changes - written, 0);
             const writtenBox = Array.from(engine.publishedBounds() ?? []);
 
@@ -155,8 +160,11 @@ describe("the layout filling the row table from a separate device", () => {
         const fromDevice = await settled(true);
         // The settled landing is fitted by the device's envelope, which agrees with a CPU walk of the same rows.
         // Compared within one run: two seeded runs on a software adapter need not lay out to the same bits.
-        const both = layoutOf(fromDevice.graph).envelopeAgreement();
+        const deviceEngine = layoutOf(fromDevice.graph);
+        const beforeAgreement = deviceEngine.envelopeRowsWalked;
+        const both = deviceEngine.envelopeAgreement();
         assert.isNotNull(both);
+        const oneFit = deviceEngine.envelopeRowsWalked - beforeAgreement;
         const { device, walked } = both;
         assert.isNotNull(device, "the settled landing was measured on the device");
         assert.isAbove(walked.box[5] - walked.box[2], 0, "a 3D layout, so z counts in the radius");
@@ -167,9 +175,61 @@ describe("the layout filling the row table from a separate device", () => {
         });
         unmount();
 
-        // the device measured the running layout's fits, the walk measured every one of them
+        // the device measured every landing; at most the fit before the first landing walked, however many frames
+        // the device queue ran behind the page (issue #9627)
+        assert.isAtMost(fromDevice.walked, oneFit);
+        // the walk measured every landing of the running layout
         const fromWalk = await settled(false);
         assert.isBelow(fromDevice.walked, fromWalk.walked);
+    });
+
+    it("walks no row for a fit with no new landing (issue #9627)", async () => {
+        const graph = await running("batched", undefined, "webgl");
+        const engine = layoutOf(graph);
+        // Walked, not measured on the device, so every landing costs a walk and only a landing may.
+        engine.deviceEnvelope = false;
+        await landed(graph);
+
+        // Fits with nothing landed in between measure the same rows: none walks again.
+        engine.publishPositions();
+        const once = engine.envelopeRowsWalked;
+        engine.publishPositions();
+        engine.publishPositions();
+        assert.strictEqual(engine.envelopeRowsWalked, once, "a refit of the same landing walked");
+
+        // Across frames, a walk comes only with a newly published landing, however many frames the queue lags.
+        const start = engine.envelopeRowsWalked;
+        let published = engine.landedBatchesPublished;
+        let walked = engine.envelopeRowsWalked;
+        let landings = 0;
+        while (landings < 3) {
+            await nextFrame();
+            const nowPublished = engine.landedBatchesPublished;
+            if (nowPublished === published) {
+                assert.strictEqual(engine.envelopeRowsWalked, walked, "a frame with no landing walked");
+            } else {
+                landings += 1;
+            }
+
+            published = nowPublished;
+            walked = engine.envelopeRowsWalked;
+        }
+
+        assert.isAbove(engine.envelopeRowsWalked, start, "the landings were walked");
+
+        // A pre-step batch rewrites the rows outside the frame loop's landings, so the next fit measures again. With
+        // the frames stopped, only a batch already in flight can land during it: such a try proves nothing, so again.
+        graph.engine.stopRenderLoop();
+        for (;;) {
+            engine.publishPositions();
+            const before = { walked: engine.envelopeRowsWalked, landings: engine.landedBatches };
+            await engine.stepAsync(1);
+            if (engine.landedBatches === before.landings) {
+                engine.publishPositions();
+                assert.isAbove(engine.envelopeRowsWalked, before.walked, "the fit after a pre-step reused a stale one");
+                break;
+            }
+        }
     });
 
     it("draws every landing of a running layout on demand (issue #8801)", async () => {

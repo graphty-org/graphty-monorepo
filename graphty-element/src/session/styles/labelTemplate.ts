@@ -147,11 +147,13 @@ function rankTable(column: Iterable<unknown>): { readonly count: number; readonl
  * Settle everything a template can know before it sees an element.
  * @param parsed - The parsed template.
  * @param columnOf - Every value one path holds over the layer's elements, for count and rank.
+ * @param writeNumber - How a number a `{path}` reads is written, when the binding names a format.
  * @returns The text for one element, read through `read`, or undefined when every line dropped.
  */
 export function prepareTemplate(
     parsed: ParsedTemplate,
     columnOf: (path: Path) => Iterable<unknown>,
+    writeNumber: ((value: number) => string) | null = null,
 ): (read: (path: Path) => unknown) => string | undefined {
     const tables = new Map<Path, ReturnType<typeof rankTable>>();
     for (const line of parsed.lines) {
@@ -184,7 +186,9 @@ export function prepareTemplate(
             return rank === undefined ? undefined : String(rank);
         }
 
-        return escapeLabelMarkup(textOf(value));
+        return escapeLabelMarkup(
+            typeof value === "number" && writeNumber !== null ? writeNumber(value) : textOf(value),
+        );
     };
 
     // A line with a placeholder that has nothing to fill it is left out whole.

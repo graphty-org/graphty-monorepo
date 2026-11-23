@@ -1,6 +1,6 @@
 /**
  * @file `session.calibrate()`: measuring this machine once per page so that estimates stop reporting
- * "modelled" and report "calibrated", published through `capabilities.calibration`.
+ * "modeled" and report "calibrated", published through `capabilities.calibration`.
  */
 
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
@@ -45,10 +45,10 @@ afterEach(() => {
 });
 
 describe("session.calibrate()", () => {
-    it("turns a modelled estimate into a calibrated one", async () => {
+    it("turns a modeled estimate into a calibrated one", async () => {
         const { session } = chain();
         const before = session.estimate({ op: "algo.run", algorithm: "degree" });
-        assert.strictEqual(before.confidence, "modelled");
+        assert.strictEqual(before.confidence, "modeled");
         assert.strictEqual(session.capabilities.calibration, null, "nothing measured yet");
 
         const limits = await session.calibrate();
@@ -100,7 +100,7 @@ describe("session.calibrate()", () => {
         assert.isNull(session.capabilities.calibration, "nothing was measured");
     });
 
-    it("stops waiting when cancelled, while the shared measurement still lands", async () => {
+    it("stops waiting when canceled, while the shared measurement still lands", async () => {
         const { session } = chain();
         const controller = new AbortController();
 

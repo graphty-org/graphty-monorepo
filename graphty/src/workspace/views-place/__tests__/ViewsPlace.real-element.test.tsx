@@ -13,7 +13,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 import { cdp, page, userEvent } from "vitest/browser";
 
-import { dragTo, touchDragCancelled } from "../../../test/real-pointer";
+import { dragTo, touchDragCanceled } from "../../../test/real-pointer";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -562,7 +562,7 @@ describe("the Views place", () => {
 
         // A drag the browser cancels changes nothing and adds no step.
         const before = session.history.steps.length;
-        await touchDragCancelled(within(stopCard(2)).getByRole("button", { name: "Move Stop 2" }), 120);
+        await touchDragCanceled(within(stopCard(2)).getByRole("button", { name: "Move Stop 2" }), 120);
         await waitFor(() => {
             assert.isNull(stopCard(2).closest("[data-dragging]"));
             assert.isNull(place().querySelector("[data-dragging]"));

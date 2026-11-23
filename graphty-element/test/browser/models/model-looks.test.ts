@@ -994,7 +994,7 @@ describe("model load progress", () => {
         stop.abort();
         const error = await adding.catch((e: unknown) => e);
         assert.instanceOf(error, Error);
-        assert.deepInclude(heard.at(-1), { phase: "end", outcome: "cancelled" });
+        assert.deepInclude(heard.at(-1), { phase: "end", outcome: "canceled" });
 
         const again = await element.session.assets.add(url);
         assert.strictEqual(again.state, "accepted", JSON.stringify(again.problems));

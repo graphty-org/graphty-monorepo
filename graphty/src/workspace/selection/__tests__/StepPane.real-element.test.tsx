@@ -1,7 +1,9 @@
 /**
  * A step's controls on a selection workspace card, on the REAL graphty-element, driven by real
  * clicks and keys: a Relative to step's Hops box, a touching step's Edge ends, Include not measured
- * on a value some nodes lack, and an algorithm step's output select and setting chips. Each edit
+ * on a value some nodes lack or on an algorithm's test, an algorithm step's output select and setting
+ * chips, a touching step's One end, By position's tie words, ends and percent, Computed on, a failed
+ * run's Run again, All edges and a category list's more words. Each edit
  * lands in the layer's selection as graphty-element holds it.
  */
 
@@ -17,6 +19,7 @@ import { withFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore } from "../../state/store";
+import { tooltipOf } from "../../style/__tests__/tooltip";
 import { Workspace } from "../../Workspace";
 
 // Every experiment stays off here.
@@ -456,5 +459,261 @@ describe("a card's count chip", () => {
         await waitFor(() => {
             assert.lengthOf(session.selection.nodes, 2, "Ana and Bo");
         });
+    });
+});
+
+/** Four people scored 5, 5, 3 and 1, in a line. */
+const SCORES_GML = `graph [
+  node [ id 1 label "Ana" score 5 ]
+  node [ id 2 label "Bo" score 5 ]
+  node [ id 3 label "Cy" score 3 ]
+  node [ id 4 label "Dee" score 1 ]
+  edge [ source 1 target 2 ]
+  edge [ source 2 target 3 ]
+  edge [ source 3 target 4 ]
+]`;
+
+describe("a selection step's ties, touching ends and an algorithm's not measured", () => {
+    it("a By position step says when a tie keeps more than it asked for", async () => {
+        const { session, layer, modal } = await openStep(
+            oneStep("nodes", { kind: "range", attribute: "data.score", min: 0 }),
+            SCORES_GML,
+        );
+        const settings = await openSettings(modal);
+        await userEvent.click(
+            within(within(settings).getByRole("radiogroup", { name: "Test" })).getByText("By position"),
+        );
+        const count = await within(pane(modal)).findByRole("textbox", { name: "score: how many" });
+        await userEvent.click(count);
+        await userEvent.keyboard("{Control>}a{/Control}1{Enter}");
+        // Ana and Bo tie for the top score: both are kept, and the pane says so.
+        await within(pane(modal)).findByText("1 asked, 2 kept: tied");
+        await session.styles.settled();
+        assert.strictEqual(session.styles.counts(layer.id).matched, 2);
+    });
+
+    it("a touching step's Edge ends picks One", async () => {
+        const { session, layer, modal } = await openStep(
+            oneStep("edges", { kind: "touching", ends: "either", of: { nodes: ["Valjean"] } }),
+        );
+        const settings = await openSettings(modal);
+        const ends = within(settings).getByRole("radiogroup", { name: "Edge ends" });
+        await userEvent.click(within(ends).getByText("One"));
+        await waitFor(() => {
+            assert.strictEqual((stepOf(session, layer)?.rule as { ends?: string }).ends, "one");
+        });
+    });
+
+    it("Include not measured on an algorithm's test is said on Settings, and off leaves the test without it", async () => {
+        const { session, layer, modal } = await openStep(
+            oneStep("nodes", {
+                kind: "measure",
+                algorithm: "pagerank",
+                field: "value",
+                test: { kind: "range", min: 0, missing: "include" },
+            }),
+        );
+        const measure = (): Extract<RuleTree, { kind: "measure" }> =>
+            stepOf(session, layer)?.rule as Extract<RuleTree, { kind: "measure" }>;
+        await within(pane(modal)).findByRole("button", { name: /^Settings for / });
+        const settings = await openSettings(modal);
+        const include = within(settings).getByRole<HTMLInputElement>("checkbox", { name: "Include not measured" });
+        assert.isTrue(include.checked);
+        await userEvent.click(include);
+        await waitFor(() => {
+            assert.deepEqual(measure().test, { kind: "range", min: 0 }, "the test keeps its bound, not measured gone");
+        });
+        assert.strictEqual(measure().algorithm, "pagerank", "still the same algorithm");
+    });
+});
+
+/** Four people, three of them with an age. */
+const AGES_GML = `graph [
+  node [ id 1 label "Ana" age 30 ]
+  node [ id 2 label "Bo" age 40 ]
+  node [ id 3 label "Cy" age 50 ]
+  node [ id 4 label "Dee" ]
+  edge [ source 1 target 2 ]
+  edge [ source 2 target 3 ]
+  edge [ source 3 target 4 ]
+]`;
+
+describe("a selection step's less traveled controls", () => {
+    it("a step whose run fails offers Run again", async () => {
+        const { modal } = await openStep(
+            // graphty-element refuses Louvain with its optimized implementation switched off.
+            oneStep("nodes", {
+                kind: "measure",
+                algorithm: "louvain",
+                field: "community",
+                params: { useOptimized: false },
+            }),
+        );
+        await within(pane(modal)).findByRole("button", { name: "Run again" });
+    });
+
+    it("a changed setting that is not a number is said on its chip, and its x resets it", async () => {
+        const { session, layer, modal } = await openStep(
+            oneStep("nodes", {
+                kind: "measure",
+                algorithm: "hierarchical-clustering",
+                field: "community",
+                params: { linkage: "complete" },
+            }),
+        );
+        await within(pane(modal)).findByRole("button", { name: "Linkage complete, settings" });
+        await userEvent.click(within(pane(modal)).getByRole("button", { name: "Reset Linkage" }));
+        await waitFor(() => {
+            const rule = stepOf(session, layer)?.rule as Extract<RuleTree, { kind: "measure" }>;
+            assert.notProperty(rule.params ?? {}, "linkage", "back to its default");
+        });
+        assert.isNull(within(pane(modal)).queryByRole("button", { name: "Linkage complete, settings" }));
+    });
+
+    it("By position counts from the bottom and in percent, and goes back to the top, to a count and to By value", async () => {
+        const { session, layer, modal } = await openStep(
+            oneStep("nodes", { kind: "range", attribute: "data.score", min: 0 }),
+            SCORES_GML,
+        );
+        const rule = (): Record<string, unknown> => (stepOf(session, layer)?.rule ?? {}) as Record<string, unknown>;
+        let settings = await openSettings(modal);
+        await userEvent.click(
+            within(within(settings).getByRole("radiogroup", { name: "Test" })).getByText("By position"),
+        );
+        const count = await within(pane(modal)).findByRole("textbox", { name: "score: how many" });
+        await userEvent.click(count);
+        await userEvent.keyboard("{Control>}a{/Control}1{Enter}");
+        await within(pane(modal)).findByText("1 asked, 2 kept: tied");
+
+        const pick = async (box: string, option: string): Promise<void> => {
+            await userEvent.click(within(pane(modal)).getByRole("combobox", { name: box }));
+            await userEvent.click(await screen.findByRole("option", { name: option }));
+        };
+        await pick("score: which end", "Bottom");
+        await session.styles.settled();
+        await waitFor(() => {
+            assert.strictEqual(session.styles.counts(layer.id).matched, 1, "Dee, the lowest");
+        });
+        await pick("score: which end", "Top");
+        await waitFor(() => {
+            assert.strictEqual(session.styles.counts(layer.id).matched, 2, "Ana and Bo again");
+        });
+        await pick("score: count or percent", "% of nodes");
+        await within(pane(modal)).findByRole("textbox", { name: "score: what percent" });
+        await pick("score: count or percent", "nodes");
+        await within(pane(modal)).findByRole("textbox", { name: "score: how many" });
+
+        settings = await openSettings(modal);
+        await userEvent.click(within(within(settings).getByRole("radiogroup", { name: "Test" })).getByText("By value"));
+        await waitFor(() => {
+            assert.isNull(within(pane(modal)).queryByRole("textbox", { name: "score: how many" }), "no count box");
+            assert.notInclude(JSON.stringify(rule()), '"top"', "the step tests values again");
+        });
+    });
+
+    it("Computed on switches a keep step's algorithm to what is selected so far and back", async () => {
+        const where: UnionLeaf = {
+            kind: "union",
+            side: "nodes",
+            within: "visible",
+            branches: [
+                {
+                    id: "a",
+                    start: "all",
+                    steps: [
+                        {
+                            id: "s",
+                            op: "keep",
+                            rule: {
+                                kind: "measure",
+                                algorithm: "degree",
+                                field: "degree",
+                                test: { kind: "range", min: 1 },
+                            },
+                        },
+                    ],
+                },
+            ],
+        };
+        const { session, layer, modal } = await openStep(where);
+        const settings = await openSettings(modal);
+        const on = within(settings).getByRole("radiogroup", { name: "Computed on" });
+        await userEvent.click(within(on).getByText("So far"));
+        await waitFor(() => {
+            assert.strictEqual(stepOf(session, layer)?.computedOn, "so-far");
+        });
+        await userEvent.click(within(on).getByText("Filtered graph"));
+        await waitFor(() => {
+            assert.notStrictEqual(stepOf(session, layer)?.computedOn, "so-far");
+        });
+    });
+
+    it("Hops refuses 0 and keeps its count", async () => {
+        const { session, layer, modal } = await openStep(
+            oneStep("nodes", { kind: "hops", of: { nodes: ["Valjean"] }, max: 2 }),
+        );
+        const hops = within(pane(modal)).getByRole("textbox", { name: "Hops" });
+        await userEvent.tripleClick(hops);
+        await userEvent.keyboard("0");
+        await userEvent.tab();
+        await session.styles.settled();
+        assert.strictEqual((stepOf(session, layer)?.rule as { max?: number }).max, 2);
+    });
+
+    it("All edges takes a step's edge condition off", async () => {
+        const where: UnionLeaf = {
+            kind: "union",
+            side: "nodes",
+            within: "visible",
+            branches: [
+                {
+                    id: "a",
+                    start: "none",
+                    steps: [
+                        {
+                            id: "s",
+                            op: "add",
+                            rule: { kind: "hops", of: { nodes: ["Valjean"] }, max: 1 },
+                            links: { kind: "range", attribute: "data.value", min: 2 },
+                        },
+                    ],
+                },
+            ],
+        };
+        const { session, layer, modal } = await openStep(where);
+        const settings = await openSettings(modal);
+        await userEvent.click(
+            within(within(settings).getByRole("radiogroup", { name: "Edges" })).getByText("All edges"),
+        );
+        await waitFor(() => {
+            assert.isUndefined(stepOf(session, layer)?.links, "every link counts again");
+        });
+    });
+
+    it("one node with no value is said in the singular", async () => {
+        const { modal } = await openStep(oneStep("nodes", { kind: "range", attribute: "data.age", min: 0 }), AGES_GML);
+        const chip = await within(pane(modal)).findByText("Not measured: 1");
+        assert.strictEqual(await tooltipOf(chip), "1 node has no value and is left out");
+    });
+
+    it("a category list says the checked values it cannot draw, and a search with more matches than rows how many more", async () => {
+        const { modal } = await openStep(
+            oneStep("nodes", {
+                kind: "categories",
+                attribute: "data.kind",
+                values: ["k1", "k2", "k3", "k4", "k5", "k6", "k7"],
+            }),
+            KINDS_GML,
+        );
+        // Six checked rows are drawn, so the two largest unchecked stay in reach: the seventh is said.
+        await within(pane(modal)).findByText("1 more checked");
+        // A locator resolved at the click, not an element: the matches strip mounts its own search after
+        // the workspace's first paint, and an element's selector is generated before that, short
+        // enough ("Search") to match both once it does.
+        await userEvent.click(page.getByRole("textbox", { name: "Search kind", exact: true }));
+        await userEvent.keyboard("k");
+        // All ten match; eight are drawn.
+        await within(pane(modal)).findByText("2 more");
+        assert.isNull(within(pane(modal)).queryByText("1 more checked"), "a search draws no checked count");
     });
 });

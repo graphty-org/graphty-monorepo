@@ -226,6 +226,8 @@ export interface PStroke {
     line?: number;
     /** A stroke painted with a gradient (its first stop is also its `color`), or null for a flat color. */
     gradient?: PGradient | null;
+    /** A line drawn as parallel strands side by side: their colors, in the order drawn. */
+    strands?: readonly string[];
     /** How its corners are joined, where not mitered (SVG's default): what a thick-stroked arrowhead's tip reaches. */
     join?: "round" | "bevel";
 }
@@ -508,6 +510,12 @@ export interface PArrow {
      * the barb meets it; graphty stopped it at the head's back, short of a barb that meets the line only near its tip.
      */
     lineGap?: number;
+    /**
+     * Drawn wholly under a node other than its edge's ends, which is painted over it, so this drawing shows it nowhere.
+     * The head is left out only where the other side's head at the same end of the paired edge is hidden too
+     * (`withoutHiddenInBoth`); a head hidden in one drawing and shown in the other is judged as any other.
+     */
+    hidden?: boolean;
 }
 
 /** An edge as drawn. */
@@ -536,6 +544,12 @@ export interface PEdge {
      * an end at a node drawn wholly under another at the same place is seen at the node over it. Absent: the same.
      */
     ownEnds?: { source: string; target: string };
+    /**
+     * The oracle's: ends with no arrowhead read where the drawing still has a filled head-sized piece at the line's
+     * end wholly under a node other than its ends, painted after it (`markHiddenHeads`), so the program's head there is
+     * hidden. Judged only beside graphty's head at the same end hidden too (`withoutHiddenInBoth`). Absent: none.
+     */
+    hiddenEnds?: ArrowEnd[];
 }
 
 /** A group box as drawn. */
@@ -570,6 +584,8 @@ export interface PStray {
     text: string | null;
     /** Words a program drew as glyph outlines (`isLettering`), whose words it does not say. */
     lettering?: true;
+    /** A picture graphty draws in a node's label (yEd's label icon). */
+    label?: true;
 }
 
 /** One side's drawing, associated with graph elements. */
@@ -662,7 +678,10 @@ export function dashClassOf(dash: readonly number[] | null, width: number, cap =
     // line's last element is cut short by its end
     const sorted = [...on].sort((x, y) => x - y);
     const alternate = sorted[Math.floor(0.75 * sorted.length)] >= 2 * sorted[Math.floor(0.25 * sorted.length)];
-    if (on.every((d) => d <= dot)) {
+    // a ring of dots round a sharp-cornered shape has one dot per corner that takes the corner's mitre and measures one
+    // and a half to two dots (#9768): dots by the typical piece, while no piece is twice it (a dash is three dots)
+    const typical = sorted[Math.floor(0.5 * sorted.length)];
+    if (on.every((d) => d <= dot) || (typical <= dot && sorted[sorted.length - 1] < 2 * typical)) {
         // under the floor every dash is a dot, but a hairline's dash and dot still differ (cx-syn-mappings 342->360)
         return alternate ? "dash-dot" : "dotted";
     }
@@ -973,22 +992,26 @@ function piecesPattern(
     // row of arrows touching one another is drawn square on the line.
     {
         // round a ring, a piece across the seam of the angle reaches all the way round less its widest gap
-        const covered = subpaths.reduce((sum, q) => {
+        const spans = subpaths.map((q) => {
             const a = q.map(run.along).sort((x, y) => x - y);
             const span = (a.at(-1) ?? 0) - (a[0] ?? 0);
             if (run.circular !== true) {
-                return sum + span;
+                return span;
             }
             const widest = Math.max(run.length - span, ...a.slice(1).map((x, i) => x - a[i]));
-            return sum + run.length - widest;
-        }, 0);
+            return run.length - widest;
+        });
+        const covered = spans.reduce((a, b) => a + b, 0);
+        // a wave drawn in whole periods leaves up to one period undrawn where the next would not fit: round a small
+        // node that is more than a tenth of the way (cx2-syn-mappings 222, six periods round a hexagon, 89% covered)
+        const reachesRound = covered >= Math.min(0.9 * run.length, run.length - median(spans));
         const thin = median(subpaths.map((q) => (2 * Math.abs(signedArea(q))) / Math.max(lengthOf(q), 1e-9)));
         const reach = median(pieces.map((p) => p.short));
         // a period of a wave (Cytoscape desktop's sine wave is a crest and a trough a piece) or a lobe of one lies off
         // its own mirror image by half its thickness or more (a wide one's period, cys-syn-mappings 432->450: 1.3 px off
         // at 1.4 thick); an arrow drawn square on the line is its own mirror image, a fraction of a pixel off
         const lopsided = median(subpaths.map((q) => mirrorGap(q, run.mirror))) > 0.5 * thin;
-        if (covered >= 0.9 * run.length && reach > 4 * thin && lopsided) {
+        if (reachesRound && reach > 4 * thin && lopsided) {
             const straight = subpaths.reduce((sum, q) => sum + straightShare(q), 0) / subpaths.length;
             return { dashClass: straight > 0.5 ? "zigzag" : "sinewave", width: thin };
         }
@@ -1314,6 +1337,12 @@ export interface PaintedBand extends PaintedOutline {
      * straight and runs between its `ends`.
      */
     route?: Pt[];
+    /**
+     * How far apart its pieces are along it, where the band is drawn in pieces: a program that draws only whole pieces
+     * (Cytoscape desktop's arrows and slashes) stops the line up to this far short of where it ends. Absent for a band
+     * of one outline.
+     */
+    piece?: number;
 }
 
 /**
@@ -1378,7 +1407,9 @@ export function bandPaintedAsFill(subpaths: readonly (readonly Pt[])[]): Painted
             return [x + 2 * c * u[1], y - 2 * c * u[0]];
         },
     });
-    const result = { ...patternResult(dashClass, width, box), ends, across: spread };
+    const order = subpaths.map((q) => q.reduce((t, p) => t + alongOf(p), 0) / q.length).sort((a, b) => a - b);
+    const piece = median(order.slice(1).map((a, i) => a - order[i]));
+    const result = { ...patternResult(dashClass, width, box), ends, across: spread, piece };
     // A straight band reaches across its axis as far as one of its pieces does; one that reaches twice as far bends,
     // and is routed through its pieces' centers, in order along it, its ends the end pieces' centers carried out along
     // the axis to the band's ends.
@@ -1722,15 +1753,18 @@ export function framedBand(vertices: readonly Pt[], samples: number): FramedBand
         return plain;
     }
     const fromTarget = bandOf([v[v.length - 1], ...v.slice(0, -1)], samples);
-    return fromTarget === null
-        ? null
-        : {
-              route: [...fromTarget.route].reverse(),
-              width: fromTarget.width,
-              heads: fromTarget.heads
-                  .map((h) => ({ ...h, end: h.end === "source" ? ("target" as const) : ("source" as const) }))
-                  .reverse(),
-          };
+    if (fromTarget === null) {
+        // and some at the source's arrowhead, one corner before its tip, at its wing (graphml-stm32-func e36, Arrows
+        // source="standard" target="standard"): read from the tip, it is read as drawn
+        return bandOf([...v.slice(1), v[0]], samples);
+    }
+    return {
+        route: [...fromTarget.route].reverse(),
+        width: fromTarget.width,
+        heads: fromTarget.heads
+            .map((h) => ({ ...h, end: h.end === "source" ? ("target" as const) : ("source" as const) }))
+            .reverse(),
+    };
 }
 
 /**
@@ -2115,6 +2149,51 @@ export function figureOf(
 }
 
 /**
+ * A node's figure (`PNode.figure`) as edges in the point's pixels.
+ * @param figure - the figure's edges, in halves of the node's size from its center
+ * @param n - the node's center and size, in the point's pixels
+ * @param n.cx - its center's x
+ * @param n.cy - its center's y
+ * @param n.w - its width
+ * @param n.h - its height
+ * @returns the edges
+ */
+function figureEdges(
+    figure: readonly (readonly [Readonly<Pt>, Readonly<Pt>])[],
+    n: { cx: number; cy: number; w: number; h: number },
+): [Pt, Pt][] {
+    const [hw, hh] = [n.w / 2, n.h / 2];
+    return figure.map(([a, b]): [Pt, Pt] => [
+        [n.cx + a[0] * hw, n.cy + a[1] * hh],
+        [n.cx + b[0] * hw, n.cy + b[1] * hh],
+    ]);
+}
+
+/**
+ * How far a point lies from a node's figure's outline (`PNode.figure`), inside or out.
+ * @param figure - the figure's edges, in halves of the node's size from its center
+ * @param n - the node's center and size, in the point's pixels
+ * @param n.cx - its center's x
+ * @param n.cy - its center's y
+ * @param n.w - its width
+ * @param n.h - its height
+ * @param p - the point
+ * @returns the distance, in pixels
+ */
+export function figureOutlineDistance(
+    figure: readonly (readonly [Readonly<Pt>, Readonly<Pt>])[],
+    n: { cx: number; cy: number; w: number; h: number },
+    [px, py]: Readonly<Pt>,
+): number {
+    const off = ([[x0, y0], [x1, y1]]: [Pt, Pt]): number => {
+        const [dx, dy] = [x1 - x0, y1 - y0];
+        const t = Math.max(0, Math.min(1, ((px - x0) * dx + (py - y0) * dy) / (dx * dx + dy * dy || 1)));
+        return Math.hypot(px - x0 - t * dx, py - y0 - t * dy);
+    };
+    return Math.min(...figureEdges(figure, n).map(off));
+}
+
+/**
  * Whether a point lies inside a node's figure (`PNode.figure`, even-odd), or within `slack` pixels of its outline.
  * @param figure - the figure's edges, in halves of the node's size from its center
  * @param n - the node's center and size, in the point's pixels
@@ -2129,24 +2208,15 @@ export function figureOf(
 export function insideFigure(
     figure: readonly (readonly [Readonly<Pt>, Readonly<Pt>])[],
     n: { cx: number; cy: number; w: number; h: number },
-    [px, py]: Readonly<Pt>,
+    p: Readonly<Pt>,
     slack = 0,
 ): boolean {
-    const [hw, hh] = [n.w / 2, n.h / 2];
-    const edges = figure.map(([a, b]): [Pt, Pt] => [
-        [n.cx + a[0] * hw, n.cy + a[1] * hh],
-        [n.cx + b[0] * hw, n.cy + b[1] * hh],
-    ]);
+    const [px, py] = p;
     let inside = false;
-    for (const [[x0, y0], [x1, y1]] of edges) {
+    for (const [[x0, y0], [x1, y1]] of figureEdges(figure, n)) {
         if (y0 > py !== y1 > py && px < x0 + ((py - y0) * (x1 - x0)) / (y1 - y0)) {
             inside = !inside;
         }
     }
-    const off = ([[x0, y0], [x1, y1]]: [Pt, Pt]): number => {
-        const [dx, dy] = [x1 - x0, y1 - y0];
-        const t = Math.max(0, Math.min(1, ((px - x0) * dx + (py - y0) * dy) / (dx * dx + dy * dy || 1)));
-        return Math.hypot(px - x0 - t * dx, py - y0 - t * dy);
-    };
-    return inside || (slack > 0 && edges.some((e) => off(e) <= slack));
+    return inside || (slack > 0 && figureOutlineDistance(figure, n, p) <= slack);
 }

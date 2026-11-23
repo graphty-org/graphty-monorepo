@@ -7,7 +7,7 @@
  */
 
 export type { CaveatCode, PartialCode } from "./caveatFacts";
-export { ENGINE_VERSIONS } from "./engine";
+export { ELEMENT_VERSION, LAYOUT_ENGINE, RUN_ENGINE, withAcceleratorPackage } from "./engine";
 export { createLocalRunQueue } from "./localQueue";
 export type {
     RunBody,
@@ -39,6 +39,7 @@ export type {
     BatchStep,
     BatchStepFailure,
     Caveats,
+    ComputeBackend,
     EngineVersions,
     Precision,
     Progress,
@@ -63,6 +64,8 @@ export type {
     RunStatus,
     RunStyle,
     RunWindow,
+    StabilityOptions,
+    StabilityResult,
     StaleNote,
     StaleReason,
     StartOptions,

@@ -1,8 +1,14 @@
 import type { ScreenshotOptions } from "@graphty/graphty-element";
+import { VIDEO_FORMATS } from "@graphty/graphty-element/session";
 import { useEffect, useState } from "react";
 
+import { allowlisted, count } from "../../lib/analytics";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { failureWords, type ImageSize, refusalWords } from "./choices";
+import { failureWords, IMAGE_EXTENSIONS, type ImageSize, refusalWords } from "./choices";
+
+/** The formats `export_done` may name: the element's video formats and the app's image formats. */
+const VIDEO_FORMAT_IDS: ReadonlySet<string> = new Set(VIDEO_FORMATS);
+const IMAGE_FORMAT_IDS: ReadonlySet<string> = new Set(Object.keys(IMAGE_EXTENSIONS));
 
 /** The hooks and helpers the Image and Video outputs share, in both the generic Export dialog and a camera's or tour's. */
 
@@ -39,6 +45,11 @@ export function recorded(
 ): void {
     const file = name.replace(/\.webm$/, `.${metadata.format}`);
     const dropped = metadata.framesDropped;
+    count("export_done", {
+        kind: "video",
+        format: allowlisted(metadata.format, VIDEO_FORMAT_IDS),
+        destination: "download",
+    });
     onDone(dropped > 0 ? `Exported ${file}, ${String(dropped)} frames dropped` : `Exported ${file}`, file);
 }
 
@@ -177,8 +188,9 @@ export function useImageCapture<C>(ask: CaptureAsk<C>): {
         }
         setStatus({ kind: "capturing" });
         try {
+            const options = build(choices, { [destination]: true }, name);
             const result = await element.captureScreenshot({
-                ...build(choices, { [destination]: true }, name),
+                ...options,
                 legend,
                 timing: { waitForSettle },
             });
@@ -186,6 +198,11 @@ export function useImageCapture<C>(ask: CaptureAsk<C>): {
                 setStatus({ kind: "clipboard-refused" });
                 return;
             }
+            count("export_done", {
+                kind: "image",
+                format: allowlisted(options.format, IMAGE_FORMAT_IDS),
+                destination,
+            });
             if (destination === "clipboard") {
                 onDone("Copied the image");
             } else {

@@ -13,10 +13,12 @@
  */
 import {
     AbstractMesh,
+    type BoundingInfo,
     type Camera,
     Color3,
     InstancedMesh,
     type Material,
+    type Matrix,
     Mesh,
     MultiMaterial,
     type Scene,
@@ -136,10 +138,10 @@ export class Projector {
 
     /**
      * A mesh's world bounding box (its eight local corners through its world matrix) on screen.
-     * @param mesh - the mesh
+     * @param mesh - the mesh, or a batched node's body
      * @returns the screen box
      */
-    box(mesh: AbstractMesh): ScreenBox {
+    box(mesh: Placed): ScreenBox {
         const world = mesh.computeWorldMatrix(true);
         const { minimum: a, maximum: b } = mesh.getBoundingInfo().boundingBox;
         const out: ScreenBox = {
@@ -270,10 +272,10 @@ function readTableLabel(node: Node, p: Projector): DrawnLabel | null {
  */
 function readPieces(node: Node, p: Projector): ScreenPiece[] {
     const pieces = node.decorationPieces;
-    if (pieces.length === 0 || !node.mesh.isEnabled()) {
+    if (pieces.length === 0 || !node.isDrawn) {
         return [];
     }
-    const world = node.mesh.computeWorldMatrix(true);
+    const world = node.drawnWorldMatrix(true);
     const z = 0;
     return pieces.map((piece) => {
         const { x0, y0, x1, y1 } = piece.box;
@@ -446,6 +448,8 @@ const runsText = (runs: readonly (readonly TextSegment[])[]): string =>
 export interface DrawnLabel {
     text: string;
     box: ScreenBox;
+    /** The picture drawn in the label beside or behind its words (`image`, yEd's label icon), its screen box. */
+    image?: ScreenBox;
     fontPx: number;
     color: string;
     enabled: boolean;
@@ -570,7 +574,9 @@ function leadingOf(label: RichTextLabel, opt: LabelInternals["options"]): [numbe
 /**
  * The panel behind a label's words on screen: its canvas without the room round it for a shadow and an outline, or
  * for a disc, the square its circle fills, as wide as the panel's shorter side and centered on it.
- * @param margin - the room round the panel, in label units
+ * @param margin - the room round the panel, in label units, across and down
+ * @param margin.x - across
+ * @param margin.y - down
  * @param dims - the label's canvas, in label units
  * @param dims.width - its width
  * @param dims.height - its height
@@ -579,14 +585,14 @@ function leadingOf(label: RichTextLabel, opt: LabelInternals["options"]): [numbe
  * @returns the box
  */
 function panelBox<B>(
-    margin: number,
+    margin: { x: number; y: number },
     dims: { width: number; height: number },
     circle: boolean,
     onScreen: (x: number, y: number, w: number, h: number) => B,
 ): B {
-    const [w, h] = [dims.width - margin * 2, dims.height - margin * 2];
+    const [w, h] = [dims.width - margin.x * 2, dims.height - margin.y * 2];
     const d = circle ? Math.min(w, h) : 0;
-    return circle ? onScreen(margin + (w - d) / 2, margin + (h - d) / 2, d, d) : onScreen(margin, margin, w, h);
+    return circle ? onScreen(margin.x + (w - d) / 2, margin.y + (h - d) / 2, d, d) : onScreen(margin.x, margin.y, w, h);
 }
 
 /**
@@ -670,9 +676,13 @@ export function readLabel(label: RichTextLabel | null | undefined, p: Projector)
     const outlineCss = opt.textOutline ? cssColor(opt.textOutlineColor ?? "#000000") : null;
     const lineCount = label.textRuns.filter((line) => line.some((r) => r.text.trim() !== "")).length;
     const align = ({ left: "start", right: "end" } as const)[opt.textAlign as "left" | "right"] ?? "middle";
+    const image = inner.imageBox;
     return {
         text: runsText(label.textRuns),
         box,
+        ...(image === null
+            ? {}
+            : { image: { ...onScreen(image.x, image.y, image.width, image.height), near: box.near, far: box.far } }),
         fontPx,
         color: cssColor(run?.style.color ?? "#000000").hex,
         enabled: mesh.isEnabled() && mesh.isVisible && mesh.visibility > 0 && (material === null || material.alpha > 0),
@@ -702,7 +712,15 @@ export function readLabel(label: RichTextLabel | null | undefined, p: Projector)
                 : {
                       // the panel, without the room round it for its shadow and the words' outline (#8746); a disc
                       // as wide as its shorter side
-                      box: panelBox(inner.shadowMargin, dims, opt.backgroundShape === "circle", onScreen),
+                      box: panelBox(
+                          {
+                              x: inner.shadowMargin + inner.imageRoom.x,
+                              y: inner.shadowMargin + inner.imageRoom.y,
+                          },
+                          dims,
+                          opt.backgroundShape === "circle",
+                          onScreen,
+                      ),
                       color: bgCss !== null && bgCss.alpha > 0 ? bgCss.hex : null,
                       opacity: (bgCss?.alpha ?? 0) * planeAlpha,
                       rounded: (opt.cornerRadius ?? 0) > 0,
@@ -821,6 +839,11 @@ export interface DrawnBorder {
     screen: boolean;
     /** The opacity it is drawn at: its material's alpha times the ring's visibility. */
     opacity: number;
+    /**
+     * A ring cut into dashes or dots: each piece's length and the gap after it, in turn, in render pixels, as drawn
+     * (`ringDashesPx`); absent for a ring in one piece.
+     */
+    dashPx?: number[];
 }
 
 /**
@@ -842,7 +865,7 @@ function readTableOutline(node: Node, p: Projector): DrawnBorder | null {
         return null;
     }
     const css = cssColor(color);
-    const at = node.mesh.getAbsolutePosition();
+    const at = node.drawnWorldPosition;
     return {
         color: css.hex,
         widthPx: width * NodeMesh.extentPerSize(shape) * p.pxPerWorld(at),
@@ -869,7 +892,7 @@ function readTableFrame(node: Node, p: Projector): DrawnBorder | null {
     const css = cssColor(color);
     return {
         color: css.hex,
-        widthPx: tableFrame * NodeMesh.extentPerSize(drawnStyle?.shape) * p.pxPerWorld(node.mesh.getAbsolutePosition()),
+        widthPx: tableFrame * NodeMesh.extentPerSize(drawnStyle?.shape) * p.pxPerWorld(node.drawnWorldPosition),
         lineWidthPx: null,
         style: "solid",
         screen: false,
@@ -898,8 +921,8 @@ function readInnerLine(node: Node, p: Projector): { border: DrawnBorder; box: Sc
     if (!closed || !(width > 0) || typeof color !== "string") {
         return null;
     }
-    const unitPx = NodeMesh.extentPerSize(shape) * p.pxPerWorld(node.mesh.getAbsolutePosition());
-    const box = p.box(node.mesh);
+    const unitPx = NodeMesh.extentPerSize(shape) * p.pxPerWorld(node.drawnWorldPosition);
+    const box = p.box(bodyOf(node));
     const [w, h] = [box.x1 - box.x0, box.y1 - box.y0];
     const xs = lists[0].map((q) => (box.x0 + box.x1) / 2 + (q[0] * w) / 2 + q[1] * unitPx);
     // a point's y runs up, the screen's down
@@ -933,7 +956,7 @@ function readBorder(node: Node, p: Projector): DrawnBorder | null {
     if (border === null || border.isDisposed() || !border.isEnabled() || !border.isVisible) {
         return null;
     }
-    const at = node.mesh.getAbsolutePosition();
+    const at = node.drawnWorldPosition;
     const source = border instanceof InstancedMesh ? border.sourceMesh : border;
     const style = drawnStyle?.border?.style ?? "solid";
     // a zigzag or sine wave with a swing of its own is a line its width thick waving round the node: as thick as the
@@ -941,14 +964,88 @@ function readBorder(node: Node, p: Projector): DrawnBorder | null {
     const waved = NodeMesh.waveOf(drawnStyle?.border, 1) !== undefined && (style === "zigzag" || style === "sinewave");
     const lineWidthPx = waved ? frontThickness(source) * Math.abs(border.absoluteScaling.x) * p.pxPerWorld(at) : null;
     const material = materialColor(source.material);
+    const widthPx = drawnWidthPx(node, border, waved || MARK_RINGS.has(style) ? "marks" : style, p);
+    const dashPx = DASHED_RINGS.has(style) ? ringDashesPx(border, p, widthPx) : null;
     return {
         color: material ? hex(material.rgb) : null,
-        widthPx: drawnWidthPx(node, border, waved || MARK_RINGS.has(style) ? "marks" : style, p),
+        widthPx,
         lineWidthPx,
         style,
         screen: drawnStyle?.border?.screenWidth !== undefined,
         opacity: (material?.alpha ?? 1) * border.visibility,
+        ...(dashPx === null ? {} : { dashPx }),
     };
+}
+
+/** Border styles drawn as a ring cut into dashes or dots, whose pieces `ringDashesPx` measures. */
+const DASHED_RINGS: ReadonlySet<string> = new Set(["dashed", "dotted", "dash-dot"]);
+
+/**
+ * The dashes and gaps a ring cut into pieces is drawn with, on screen: its front face split where no triangle joins
+ * another, each piece as long as its area on screen over the ring's width (its length along the middle of the ring,
+ * however it bends, where a chord would read a square dot as long as its diagonal), and each gap as wide as the
+ * nearest two corners of a piece and the next round the ring.
+ * @param ring - the border ring
+ * @param p - the projector
+ * @param widthPx - the ring's width on screen, in render pixels
+ * @returns each piece's length and the gap after it, in turn, in render pixels; null for a ring in fewer than two pieces
+ */
+function ringDashesPx(ring: Placed, p: Projector, widthPx: number): number[] | null {
+    const { triangles } = frontFace(sourceOf(ring));
+    const keyOf = (q: Xyz): string => `${q[0].toFixed(5)},${q[1].toFixed(5)}`;
+    // the pieces: triangles joined by a shared corner, found with a union-find over the corners
+    const parent = new Map<string, string>();
+    const find = (k: string): string => {
+        let r = k;
+        while (parent.get(r) !== r) {
+            r = parent.get(r) ?? r;
+        }
+        parent.set(k, r);
+        return r;
+    };
+    const corners = new Map<string, Xyz>();
+    for (const tri of triangles) {
+        const keys = tri.map(keyOf);
+        tri.forEach((q, i) => {
+            corners.set(keys[i], q);
+            if (!parent.has(keys[i])) {
+                parent.set(keys[i], keys[i]);
+            }
+        });
+        parent.set(find(keys[1]), find(keys[0]));
+        parent.set(find(keys[2]), find(keys[0]));
+    }
+    const groups = new Map<string, Xyz[]>();
+    for (const [k, q] of corners) {
+        const root = find(k);
+        groups.set(root, [...(groups.get(root) ?? []), q]);
+    }
+    if (groups.size < 2 || widthPx <= 0) {
+        return null;
+    }
+    const area = new Map<string, number>();
+    for (const tri of triangles) {
+        const [a, b, c] = onScreen(ring, tri, p);
+        const root = find(keyOf(tri[0]));
+        area.set(root, (area.get(root) ?? 0) + Math.abs(twiceArea([a, b, c])) / 2);
+    }
+    const roots = [...groups.keys()];
+    const pieces = roots.map((root) => onScreen(ring, groups.get(root) ?? [], p));
+    const lengths = new Map(pieces.map((piece, i) => [piece, (area.get(roots[i]) ?? 0) / widthPx]));
+    const all = pieces.flat();
+    const [cx, cy] = [all.reduce((a, q) => a + q[0], 0) / all.length, all.reduce((a, q) => a + q[1], 0) / all.length];
+    const angleOf = (qs: readonly Xy[]): number =>
+        Math.atan2(
+            qs.reduce((a, q) => a + q[1], 0) / qs.length - cy,
+            qs.reduce((a, q) => a + q[0], 0) / qs.length - cx,
+        );
+    pieces.sort((a, b) => angleOf(a) - angleOf(b));
+    const far = (qs: readonly Xy[], rs: readonly Xy[], pick: (a: number, b: number) => number, start: number): number =>
+        qs.reduce((best, q) => rs.reduce((b, r) => pick(b, Math.hypot(q[0] - r[0], q[1] - r[1])), best), start);
+    return pieces.flatMap((piece, i) => [
+        lengths.get(piece) ?? 0,
+        far(piece, pieces[(i + 1) % pieces.length], Math.min, Infinity),
+    ]);
 }
 
 /**
@@ -964,10 +1061,11 @@ function drawnWidthPx(node: Node, ring: AbstractMesh, style: string, p: Projecto
         return markRingPx(node, ring, p);
     }
     const shape = nodeInternals.drawn(node).drawnStyle?.shape?.type ?? "";
-    const sided = ringBandPx(node.mesh, ring, isFlatShape(shape), p);
+    const body = bodyOf(node);
+    const sided = ringBandPx(body, ring, isFlatShape(shape), p);
     // a fill drawn in to a point (a centered border wider than its node) has no sides: the ring reaches from its middle
     const span = (b: ScreenBox): number => Math.min(b.x1 - b.x0, b.y1 - b.y0);
-    const band = sided > 0 ? sided : Math.max(0, (span(p.box(ring)) - span(p.box(node.mesh))) / 2);
+    const band = sided > 0 ? sided : Math.max(0, (span(p.box(ring)) - span(p.box(body))) / 2);
     // a solid ring is also as thick as its area over its edges: what a fill too small to have sides to measure against
     // leaves (a node of no size, all ring); a corner too sharp to mitre in full takes area from it, so the larger
     return style === "solid" ? Math.max(band, bandThicknessPx(ring, p)) : band;
@@ -986,7 +1084,7 @@ const MARK_RINGS: ReadonlySet<string> = new Set(["contiguous-arrow", "separate-a
  * @returns the width in render pixels
  */
 function markRingPx(node: Node, ring: AbstractMesh, p: Projector): number {
-    const at = node.mesh.getAbsolutePosition();
+    const at = node.drawnWorldPosition;
     const o = p.point(at);
     const x = p.point(at.add(new Vector3(node.borderReach * Math.abs(ring.scaling.x), 0, 0)));
     return Math.hypot(x.x - o.x, x.y - o.y);
@@ -1018,7 +1116,7 @@ interface ScreenSide {
  * @param p - the projector
  * @returns the width in render pixels, 0 when the fill has no outline
  */
-function ringBandPx(fill: AbstractMesh, ring: AbstractMesh, flat: boolean, p: Projector): number {
+function ringBandPx(fill: Placed, ring: AbstractMesh, flat: boolean, p: Projector): number {
     const sides = fillSides(fill, flat, p);
     const bands = new Map<ScreenSide, { out: number; in: number }>();
     for (const q of edgeSamples(ring, p)) {
@@ -1101,7 +1199,7 @@ function nearestSide(q: Xy, sides: readonly ScreenSide[]): { side: ScreenSide; o
  * @param p - the projector
  * @returns the sides
  */
-function fillSides(fill: AbstractMesh, flat: boolean, p: Projector): ScreenSide[] {
+function fillSides(fill: Placed, flat: boolean, p: Projector): ScreenSide[] {
     const source = sourceOf(fill);
     let local: { a: Xyz; b: Xyz; inward: Xyz }[];
     if (flat) {
@@ -1135,8 +1233,56 @@ function fillSides(fill: AbstractMesh, flat: boolean, p: Projector): ScreenSide[
  * @param mesh - a mesh or an instance
  * @returns its source mesh
  */
-function sourceOf(mesh: AbstractMesh): AbstractMesh {
-    return mesh instanceof InstancedMesh ? mesh.sourceMesh : mesh;
+function sourceOf(mesh: Placed): AbstractMesh {
+    return mesh instanceof InstancedMesh || mesh instanceof BatchedBody ? mesh.sourceMesh : mesh;
+}
+
+/**
+ * A node a batch draws, standing where its own mesh would: its batch's source shape through the row's place. Read
+ * through Node's `drawn*` accessors, never `node.mesh`, which under `renderPath: "batched"` holds the node off its
+ * batch for good, so reading the drawing would change it (and the batched run would never cover a batch).
+ */
+class BatchedBody {
+    /**
+     * @param node - the batched node
+     */
+    constructor(private readonly node: Node) {}
+
+    /** @returns the shared mesh its batch draws */
+    get sourceMesh(): AbstractMesh {
+        return this.node.drawnSourceMesh;
+    }
+
+    /**
+     * @param force - recompute it
+     * @returns the row's world matrix
+     */
+    computeWorldMatrix(force?: boolean): Matrix {
+        return this.node.drawnWorldMatrix(force);
+    }
+
+    /** @returns the source's bounds where the row sits */
+    getBoundingInfo(): BoundingInfo {
+        return this.node.drawnBoundingInfo;
+    }
+
+    /** @returns where the row is drawn, in world space */
+    getAbsolutePosition(): Vector3 {
+        return this.node.drawnWorldPosition;
+    }
+}
+
+/** A mesh, or a batched node's body standing in for the mesh it has not got. */
+type Placed = AbstractMesh | BatchedBody;
+
+/**
+ * A node's body: its own mesh, or for a node a batch draws, the batch's shape where the row sits.
+ * @param node - the node
+ * @returns the body
+ */
+function bodyOf(node: Node): Placed {
+    const own = node.drawnInBatch ? null : node.drawnPickMesh;
+    return own ?? new BatchedBody(node);
 }
 
 /**
@@ -1146,7 +1292,7 @@ function sourceOf(mesh: AbstractMesh): AbstractMesh {
  * @param p - the projector
  * @returns the screen points, in render pixels
  */
-function onScreen(mesh: AbstractMesh, points: readonly Xyz[], p: Projector): Xy[] {
+function onScreen(mesh: Placed, points: readonly Xyz[], p: Projector): Xy[] {
     const world = mesh.computeWorldMatrix(true);
     return points.map((q) => {
         const s = p.point(Vector3.TransformCoordinates(new Vector3(q[0], q[1], q[2]), world));
@@ -1216,7 +1362,7 @@ const figureEdges = new WeakMap<AbstractMesh, { a: Xyz; b: Xyz }[] | null>();
  * @param p - the projector
  * @returns the edges in render pixels, or undefined for a shape with no dent
  */
-function readFigure(mesh: AbstractMesh, p: Projector): [Xy, Xy][] | undefined {
+function readFigure(mesh: Placed, p: Projector): [Xy, Xy][] | undefined {
     const source = sourceOf(mesh);
     let edges = figureEdges.get(source);
     if (edges === undefined) {
@@ -1286,7 +1432,7 @@ function readOuterBorder(node: Node, p: Projector): { border: DrawnBorder; gapPx
     const count = style.count ?? 1;
     const offset = Math.max(0, style.offset ?? 0);
     const width = style.width ?? 0;
-    const at = node.mesh.getAbsolutePosition();
+    const at = node.drawnWorldPosition;
     const o = p.point(at);
     const px = (world: number): number => {
         const x = p.point(at.add(new Vector3(world, 0, 0)));
@@ -1385,7 +1531,7 @@ function readInset(node: Node, p: Projector): number {
     if (inset <= 0) {
         return 0;
     }
-    const at = node.mesh.getAbsolutePosition();
+    const at = node.drawnWorldPosition;
     const o = p.point(at);
     const x = p.point(at.add(new Vector3(inset, 0, 0)));
     return Math.hypot(x.x - o.x, x.y - o.y);
@@ -1433,6 +1579,28 @@ function rampOf(node: Node): DrawnNode["ramp"] {
 }
 
 /**
+ * The color an instance multiplies into its source's material, when its source draws instance colors.
+ * @param mesh - the node's mesh
+ * @param source - its source
+ * @returns the color, 0..1, or undefined
+ */
+function instanceColor(mesh: AbstractMesh, source: AbstractMesh): { r: number; g: number; b: number } | undefined {
+    return (source as Mesh).instancedBuffers?.color !== undefined
+        ? (mesh.instancedBuffers?.color as { r: number; g: number; b: number } | undefined)
+        : undefined;
+}
+
+/**
+ * The color a batch multiplies into a row's material, as an instance's buffer holds it.
+ * @param node - the batched node
+ * @returns the color, 0..1, or undefined when no layer painted one
+ */
+function batchedColor(node: Node): { r: number; g: number; b: number } | undefined {
+    const color = node.drawnInstanceColor;
+    return color === null ? undefined : { r: color.r / 255, g: color.g / 255, b: color.b / 255 };
+}
+
+/**
  * Reads one node off the scene graph.
  * @param node - the node
  * @param p - the projector
@@ -1440,15 +1608,16 @@ function rampOf(node: Node): DrawnNode["ramp"] {
  * @returns the drawn node
  */
 export function readNode(node: Node, p: Projector, rings: readonly Ring[]): DrawnNode {
-    const { mesh } = node;
-    const source: AbstractMesh = mesh instanceof InstancedMesh ? mesh.sourceMesh : mesh;
+    const mesh = bodyOf(node);
+    const source = sourceOf(mesh);
     const box = p.box(mesh);
     const center = p.point(mesh.getAbsolutePosition());
     const base = materialColor(source.material);
-    const buffer =
-        (source as Mesh).instancedBuffers?.color !== undefined
-            ? (mesh.instancedBuffers?.color as { r: number; g: number; b: number } | undefined)
-            : undefined;
+    const buffer = mesh instanceof BatchedBody ? batchedColor(node) : instanceColor(mesh, source);
+    // a batched source is drawn at visibility 0 and its batch at the source's own (`Node.drawnOpacity`)
+    const visibility = mesh instanceof BatchedBody ? node.drawnOpacity : source.visibility;
+    // a batched row is on whenever the node is: its batch draws every row it holds
+    const enabled = mesh instanceof BatchedBody ? node.isDrawn : mesh.isEnabled();
     // a node with no body (shape "none") is a mesh of no faces: its fill is drawn at opacity 0
     const faces = source instanceof Mesh ? source.getTotalIndices() > 0 : true;
     const rgb = base ? new Color3(base.rgb.r, base.rgb.g, base.rgb.b) : null;
@@ -1471,7 +1640,7 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
     const border = outer?.border ?? own ?? (inner?.outline === true ? inner.border : null);
     const grow = outer?.gapPx ?? 0;
     // A node whose fill is transparent (Graphviz's default, unfilled shape) still draws its outline.
-    const ownFace = (mesh.isVisible && source.visibility > 0) || border !== null;
+    const ownFace = ((mesh instanceof BatchedBody || mesh.isVisible) && visibility > 0) || border !== null;
     const pieces = readPieces(node, p);
     // a table label's background on a node that draws no face of its own (Graphviz's `shape=none` round a `<TABLE
     // BGCOLOR>`) is the node's body, as the program's filled table is its node: drawn in the table's box and color
@@ -1524,12 +1693,12 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
         shapeType: node.shapeType,
         polygon: nodeInternals.drawn(node).drawnStyle?.shape?.points,
         fillDrawn: tableFill?.hex ?? ramp?.colors[0] ?? (rgb ? hex(rgb) : null),
-        fillOpacity: tableFill?.opacity ?? (faces ? (base?.alpha ?? 1) * source.visibility : 0),
+        fillOpacity: tableFill?.opacity ?? (faces ? (base?.alpha ?? 1) * visibility : 0),
         gradient: base?.texture === true,
         ramp,
         instanceColor: buffer !== undefined,
-        visible: node.getRenderState() === "visible" && mesh.isEnabled() && shown,
-        shown: node.getRenderState() === "visible" && mesh.isEnabled(),
+        visible: node.getRenderState() === "visible" && enabled && shown,
+        shown: node.getRenderState() === "visible" && enabled,
         ring: ring ?? null,
         insetPx: readInset(node, p),
         border,
@@ -1641,6 +1810,8 @@ export interface DrawnEdge {
      * as a share of the pieces' length, then 1 (`shares`, one more than the colors; equal shares without it), or null for none.
      */
     gradient: { kind: "linear" | "radial"; colors: readonly string[]; shares?: readonly number[] } | null;
+    /** The colors of the parallel strands its line is drawn as (`line.strands`), first on the right; none otherwise. */
+    strands?: readonly string[];
 }
 
 /**
@@ -1938,7 +2109,10 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         taper = asked !== undefined && asked !== 1 && batch.widened ? asked : undefined;
         const askedSource = internal.drawnStyle?.line?.taperSource;
         taperSource = askedSource !== undefined && askedSource !== 1 && batch.widened ? askedSource : undefined;
-        const styled = own?.alpha ?? meta?.lineOpacity;
+        // a line drawn as strands is drawn clear under them: its ink is its strands'
+        const strand = internal.strandRuns[0];
+        const strandInk = strand === undefined ? null : readBand(strand.batch, strand.slots, p);
+        const styled = strandInk?.opacity ?? own?.alpha ?? meta?.lineOpacity;
         // A joined line's shader draws its own `opacity` and never reads the mesh's visibility, which
         // it sets only to be drawn in the transparent pass, so the visibility is not ink.
         const visibility = meta?.joinedLine === true ? 1 : batch.mesh.visibility;
@@ -1965,7 +2139,7 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         color = cssColor(fields.color).hex;
         ({ opacity } = fields);
         dashPx = elementDashes(pm.elements, p);
-    } else if (internal.pulled?.run === null) {
+    } else if (internal.pulled?.curve === false) {
         // a straight line pulled from the row table (`PulledLineBatch`) runs between its two node centers, stopped at
         // a translucent end's outline as its shader stops it (`PULLED_TRIM_GLSL`, the object line's bare ends), in the
         // color, opacity and width its piece carries (`PulledLineBatch.setLook`): the batched path's plain lines
@@ -2085,6 +2259,7 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
                       colors: edge.drawnGradient,
                       shares: gradientShares(internal),
                   },
+        strands: edge.drawnStrands,
     };
 }
 
@@ -2117,6 +2292,8 @@ export interface DrawnAnnotation {
     heads?: ScreenBox[];
     /** A piece over a node's face: its color. */
     fill?: string;
+    /** A picture drawn in a node's label (yEd's label icon), not over its face. */
+    label?: true;
 }
 
 /**
@@ -2190,6 +2367,10 @@ export function readDrawn(graph: Graph): DrawnGraph {
     const pieces = [
         ...shown.flatMap((n) => n.pieces),
         ...shown.flatMap((n) => (n.shadow === undefined ? [] : [{ kind: "image" as const, box: n.shadow }])),
+        // and so is the picture in its label (yEd's label icon)
+        ...shown.flatMap((n) =>
+            n.label?.image === undefined ? [] : [{ kind: "image" as const, box: n.label.image, label: true as const }],
+        ),
         // and so are the shapes it draws beneath and over itself (Cytoscape.js's underlay and overlay)
         ...shown.flatMap((n) => (n.halos ?? []).map((h) => ({ kind: "shape" as const, ...h }))),
     ];

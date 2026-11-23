@@ -48,10 +48,49 @@ const FIRST_VERSION: Readonly<Record<DocumentSection, number>> = {
 type HeldReason = "version" | "extension" | "data" | "kind" | "unknown" | "malformed" | "graphs";
 
 /**
- * The sections that describe one graph. A wrapper carrying the reserved `graphs` member (a later
- * file holding several graphs) holds them all: this reader knows only a file of one graph.
+ * The sections that describe one graph. A wrapper whose `graphs` member this reader cannot read
+ * holds them all.
  */
 const GRAPH_SECTIONS = new Set<string>(["data", "results", "notes", "view"]);
+
+/** A graph id: `graph_` plus a ULID (spec 3.3). */
+const GRAPH_ID = /^graph_[0-9A-HJKMNP-TV-Z]{26}$/;
+
+/**
+ * The later graphs of a file holding several (spec 2.2 rule 4): an ordered list of two or more
+ * objects, each with a graph id and a string `name`, the ids distinct, the first naming the
+ * top-level graph and holding no `sections`, each later one holding a `sections` object. An entry
+ * is open: a member this reader does not know is kept, as the whole list is written back as read.
+ * @param graphs - The wrapper's `graphs` member.
+ * @returns Each later graph's id and sections, or undefined when the member is not that.
+ */
+function laterGraphs(graphs: unknown): { readonly id: string; readonly sections: JsonObject }[] | undefined {
+    if (!Array.isArray(graphs) || graphs.length < 2) {
+        return undefined;
+    }
+
+    const ids = new Set<string>();
+    const later: { id: string; sections: JsonObject }[] = [];
+    for (const [at, entry] of graphs.entries()) {
+        const fits =
+            isJsonObject(entry) &&
+            typeof entry.id === "string" &&
+            GRAPH_ID.test(entry.id) &&
+            !ids.has(entry.id) &&
+            typeof entry.name === "string" &&
+            (at === 0 ? entry.sections === undefined : isJsonObject(entry.sections));
+        if (!fits) {
+            return undefined;
+        }
+
+        ids.add(entry.id as string);
+        if (at > 0) {
+            later.push({ id: entry.id as string, sections: entry.sections as JsonObject });
+        }
+    }
+
+    return later;
+}
 
 /** A section kept verbatim and written back on save. */
 export interface HeldSection {
@@ -259,6 +298,39 @@ export function token(name: string): string {
     return name.replaceAll("~", "~0").replaceAll("/", "~1");
 }
 
+/** An extension name: a reverse-domain name, or the reserved `graphty` (common schema `extensions`). */
+const EXTENSION_NAME = /^([a-z0-9]+(-[a-z0-9]+)*)(\.[a-z0-9]+(-[a-z0-9]+)*)+$|^graphty$/;
+
+/**
+ * Whether a value is a well-formed `extensions` member (spec 3, 10): an object keyed by
+ * reverse-domain names. Its values are never read.
+ * @param value - The member.
+ * @returns True when well formed.
+ */
+export function isExtensions(value: unknown): boolean {
+    return isJsonObject(value) && Object.keys(value).every((name) => EXTENSION_NAME.test(name));
+}
+
+/**
+ * A closed object's `ignorable` member (spec 10, "Must-understand members"): the names of the
+ * members a reader that does not know them may ignore.
+ * @param value - The member.
+ * @returns The names; empty when absent; undefined when malformed (not a list of distinct
+ *     non-empty strings), which counts as an unknown must-understand member.
+ */
+export function ignorableOf(value: unknown): ReadonlySet<string> | undefined {
+    if (value === undefined) {
+        return new Set();
+    }
+
+    if (!Array.isArray(value) || !value.every((name) => typeof name === "string" && name !== "")) {
+        return undefined;
+    }
+
+    const names = new Set<string>(value as string[]);
+    return names.size === value.length ? names : undefined;
+}
+
 /**
  * The refusal of a malformed document.
  * @param details - What was wrong.
@@ -397,6 +469,36 @@ function bodyOf(
 }
 
 /**
+ * A section's `version` as read, or null when it has none.
+ * @param section - The section.
+ * @returns The version.
+ */
+const versionOf = (section: unknown): number | null =>
+    isJsonObject(section) && typeof section.version === "number" ? section.version : null;
+
+/**
+ * What a reader that opens only the first graph reports for each later graph's sections: a graph
+ * section kept, and a key this reader does not know skipped (`W_UNKNOWN_KIND`); both are written
+ * back as read (spec 2.2 rule 4).
+ * @param later - The later graphs.
+ * @returns One problem per section, naming its graph.
+ */
+function keptGraphSections(
+    later: readonly { readonly id: string; readonly sections: JsonObject }[],
+): DocumentProblem[] {
+    return later.flatMap(({ id, sections }) =>
+        Object.entries(sections).map(([key, each]): DocumentProblem =>
+            GRAPH_SECTIONS.has(key)
+                ? {
+                      code: "W_SECTION_KEPT",
+                      params: { section: key, version: versionOf(each), reason: "graphs", graph: id },
+                  }
+                : { code: "W_UNKNOWN_KIND", params: { section: key, graph: id } },
+        ),
+    );
+}
+
+/**
  * Read a parsed version 2 file into the sections to load and the ones held (spec 2, 8.5).
  * @param value - The parsed file, already within the size and depth limits.
  * @param codecs - The codecs, by section.
@@ -453,10 +555,14 @@ export function parseDocument(value: JsonObject, codecs: CodecRegistry): ParsedD
         throw badDocument({ member: "sections" });
     }
 
-    const severalGraphs = "graphs" in wrapper;
+    // The top-level sections are the first graph; this reader opens it and keeps the later ones in
+    // `graphs`, which is written back as read. A `graphs` it cannot read holds the first graph too.
+    const later = "graphs" in wrapper ? laterGraphs(wrapper.graphs) : [];
+    problems.push(...keptGraphSections(later ?? []));
+
     for (const [key, each] of Object.entries(listed)) {
-        if (severalGraphs && GRAPH_SECTIONS.has(key)) {
-            const version = isJsonObject(each) && typeof each.version === "number" ? each.version : null;
+        if (later === undefined && GRAPH_SECTIONS.has(key)) {
+            const version = versionOf(each);
             problems.push({ code: "W_SECTION_KEPT", params: { section: key, version, reason: "graphs" } });
             held.set(key, { value: each, reason: "graphs" });
         } else {
@@ -546,15 +652,6 @@ export function documentStateOf(session: GraphSession): DocumentState {
     }
 
     return state;
-}
-
-/**
- * A fresh id: 128 random bits in hex (`randomUUID` exists only in secure contexts).
- * @returns The id.
- */
-export function newDocumentId(): string {
-    const bytes = globalThis.crypto.getRandomValues(new Uint8Array(16));
-    return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 /**

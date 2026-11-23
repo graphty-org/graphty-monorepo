@@ -228,6 +228,10 @@ consumer's data and catalog names are allowed by `PLAIN_STRING_ALLOWLIST` in `to
 A descriptor's English `description` is deprecated, not catalog data: describe a catalog entry with a
 `descriptionId` (`algorithm.<key>`, `layout.<id>`, ...) the application words. Fields that already exist never fail.
 
+A member added to a closed object of the save file's data or recipe section (spec/README.md section 10) must be
+judged for `ignorable`: list it there only when a reader that ignores it builds the same graph or runs the same
+command.
+
 ### Module System
 
 - ES modules are the default format

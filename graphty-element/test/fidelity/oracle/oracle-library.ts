@@ -23,6 +23,7 @@ import {
 } from "./associate";
 import {
     compareOracle,
+    legiblePx,
     namedCaptions,
     ORACLE_PROPERTIES,
     type OracleReport,
@@ -30,6 +31,7 @@ import {
     specimenSettingNames,
 } from "./compare-oracle";
 import { drawnPrimitives } from "./drawn-primitives";
+import { markHiddenHeads } from "./hidden-heads";
 import { judgesFor, type Reference, SHEET_JUDGES, specificationScene } from "./judges";
 import type { Pixels } from "./picture-gradient";
 import type { PScene } from "./primitives";
@@ -121,6 +123,27 @@ export function oracleFormatOptions(meta: Record<string, unknown>, format: strin
         return { importOptions: { sigmaSettings: meta.settings } };
     }
     return format === "gexf" && typeof preview === "object" && preview !== null ? { gephiPreview: preview } : {};
+}
+
+/**
+ * The canvas graphty draws a sample on: Pajek's Draw window for a Pajek drawing (the canvas it recorded, which Pajek
+ * fits the file's 0..1 square to and graphty's Pajek reader takes as `pajekDraw`), so both frame that square on the
+ * same canvas (issue #8193); {@link ORACLE_CANVAS} for any other.
+ * @param meta - the oracle's metadata
+ * @param format - graph-io's format name of the sample
+ * @returns the canvas size in CSS px
+ */
+export function oracleCanvas(meta: Record<string, unknown>, format: string): { width: number; height: number } {
+    const canvas = meta.canvas as { widthPx?: number; heightPx?: number } | undefined;
+    if (
+        format === "pajek" &&
+        meta.program === "Pajek" &&
+        canvas?.widthPx !== undefined &&
+        canvas.heightPx !== undefined
+    ) {
+        return { width: canvas.widthPx, height: canvas.heightPx };
+    }
+    return ORACLE_CANVAS;
 }
 
 /**
@@ -357,7 +380,7 @@ export async function compareWithOracle(
     const nodes = scene.nodes.map((n) => {
         const d = drawn.nodes.get(n.id);
         const fontPx = (d?.label ?? d?.tableLabel)?.fontPx ?? 0;
-        return n.label === null || fontPx >= 1 ? n : { ...n, label: { ...n.label, visible: false } };
+        return n.label === null || legiblePx(fontPx) ? n : { ...n, label: { ...n.label, visible: false } };
     });
     // An SVG that names no group has a box graphty draws round others read as one by its drawing alone, as the
     // oracle's is, not only where the file nests nodes (the scene's groups, which the reference scenes are judged by);
@@ -459,7 +482,10 @@ export async function judgeDrawing(id: string, graphty: PScene, inputs: JudgeInp
         // the oracle's nodes take graphty's ids, so a caption the program drew as a node is named a caption there too
         const association = {
             ...associated,
-            scene: withoutCovered(namedCaptions(namedCaptions(associated.scene, captionOf), names), graphty),
+            scene: markHiddenHeads(
+                withoutCovered(namedCaptions(namedCaptions(associated.scene, captionOf), names), graphty),
+                read.prims,
+            ),
         };
         const report = compareOracle(
             id,

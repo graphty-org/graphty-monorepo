@@ -170,7 +170,7 @@ describe("list", () => {
         const { run, calls } = runner({ pages });
         const out = main(["list", "--limit", "1"], run, NOW).out.split("\n");
         assert.equal(calls.length, 2);
-        assert.equal(out.length, 2);
+        assert.equal(out.length, 4, "the issue line, the count line, the critical/high line, the owner-rule line");
         assert.match(out[0], /^#1 high other effort:none 32d a$/);
     });
 });
@@ -271,6 +271,46 @@ describe("filter", () => {
     });
 });
 
+describe("critical and high", () => {
+    it("counts open critical/high as queue, alarms and held, and lists owner-gated ones as owner-rule candidates", () => {
+        const pages = [
+            [
+                issue(1, "a", ["bug", "priority:high"]),
+                issue(2, "CI budget: x", ["bug", "ci-budget", "priority:high"]),
+                issue(3, "Nightly held on abc", ["bug", "priority:high"]),
+                issue(4, "b", ["enhancement", "ux-owner", "priority:high"]),
+                issue(5, "c", ["bug", "needs-decision", "priority:critical"]),
+                issue(6, "d", ["bug", "in-progress", "priority:high"]),
+                issue(7, "e", ["bug", "ux-owner", "in-progress", "priority:high"]),
+                issue(8, "f", ["enhancement", "ux-owner", "priority:low"]),
+                issue(9, "g", ["bug", "blocked", "priority:high"]),
+                issue(10, "h", ["enhancement", "ux-owner", "priority:high"], {
+                    comments: { nodes: [{ ...issue(0, ""), body: "issue-round: stays owner's -- Figma-locked" }] },
+                }),
+                issue(11, "i", ["enhancement", "ux-owner", "priority:high"], {
+                    comments: {
+                        nodes: [{ ...issue(0, ""), author: user("mallory"), body: "issue-round: stays owner's -- x" }],
+                    },
+                }),
+            ],
+        ];
+        const r = listJson(pages);
+        assert.deepEqual(r.critHigh, { queue: 1, inProgress: 2, alarms: 2, held: 5 });
+        assert.deepEqual(
+            r.ownerRule.map((i) => [i.number, i.gate]),
+            [
+                [5, "needs-decision"],
+                [4, "ux-owner"],
+                [11, "ux-owner"],
+            ],
+            "blocked is no owner gate; a trusted stays-owner's comment decides one, an untrusted one does not",
+        );
+        const out = main(["list"], runner({ pages }).run, NOW).out;
+        assert.match(out, /critical\/high open 10: in the queue 1, in progress 2, alarms 2, held 5/);
+        assert.match(out, /owner-rule candidates 3 undecided .*\n {2}#5 critical needs-decision/);
+    });
+});
+
 describe("jobs", () => {
     const BUILT = "2026-11-02T11:00:00Z";
     const q = [
@@ -288,6 +328,12 @@ describe("jobs", () => {
         jobs: jobList,
         blocked: [{ issue: 6, prs: [9] }],
         ...extra,
+    });
+
+    it("offers a blocked issue again once its block's due time passed", () => {
+        const due = (t) => cache([], { blocked: [{ issue: 6, prs: [], reason: "re-measure", due: t }] });
+        assert.ok(!JSON.parse(run(due("2026-11-02T13:00:00Z")).out).rescan.includes(6));
+        assert.ok(JSON.parse(run(due("2026-11-02T11:30:00Z")).out).rescan.includes(6));
     });
 
     it("exits stale when the free queue is missing, has no jobs list, or is over 2 hours old", () => {
@@ -692,6 +738,41 @@ describe("claims judged by the work that names them (2026-11-18: 18 live claims 
         assert.equal((sent.match(/addComment/g) ?? []).length, 1);
         assert.match(sent, /subjectId: "I_9001"/);
         for (const n of [8604, 8605, 8606, 8311, 7284]) assert.doesNotMatch(sent, new RegExp(`"I_${n}"`));
+    });
+
+    it("strands, never releases, a claim whose only evidence is a pull request red or conflicting for 6 h (#9136)", () => {
+        const head = (age, state) => ({
+            nodes: [{ commit: { committedDate: new Date(NOW - age).toISOString(), statusCheckRollup: { state } } }],
+        });
+        const pr = (n, extra) => ({ number: n, headRefName: `fix/${n - 1000}-x`, title: "t", body: "", ...extra });
+        const prs = [
+            pr(9001, { mergeable: "MERGEABLE", commits: head(7 * HOUR, "FAILURE") }),
+            pr(9002, { mergeable: "CONFLICTING", commits: head(30 * HOUR, "SUCCESS") }),
+            pr(9003, { mergeable: "MERGEABLE", commits: head(5 * HOUR, "FAILURE") }),
+            pr(9004, { mergeable: "MERGEABLE", commits: head(30 * HOUR, "PENDING") }),
+        ];
+        const issues = [8001, 8002, 8003, 8004].map((n) => bare(n, 3 * HOUR));
+        // the red branch also has a commit of its own in 24 h: that is the same stale work, no new evidence
+        const recent = { name: "fix/8001-x", messages: "fix: x\n\nFixes #8001\n" };
+        const facts = {
+            ...deadFacts,
+            openPrBranches: new Set(),
+            recentBranches: () => [recent],
+            commitsAhead: () => 2,
+        };
+        const mutations = [];
+        const r = main(["claims", "--fix"], fakeRun(issues, prs, mutations), NOW, undefined, {
+            claims: { dir: mkdtempSync(join(tmpdir(), "claims-")), facts },
+        });
+        const by = new Map(r.claims.map((c) => [c.n, c]));
+        assert.equal(by.get(8001).live, false, "red, head 7 h old");
+        assert.equal(by.get(8002).live, false, "conflicting, head 30 h old");
+        assert.equal(by.get(8003).live, true, "red, but a commit 5 h ago");
+        assert.equal(by.get(8004).live, true, "pending checks, not red");
+        for (const n of [8001, 8002])
+            assert.equal(by.get(n).action, "stranded", `#${n} kept: its pull request names it`);
+        assert.match(by.get(8002).why, /open pull request #9002 names it, red or conflicting with no commit for 6 h/);
+        assert.deepEqual(mutations, [], "no label removed, no release comment");
     });
 
     it("never removes a label or posts a release comment on an issue an open pull request names", () => {

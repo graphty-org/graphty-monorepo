@@ -575,7 +575,7 @@ export class DerivedInputs {
                 reject(
                     signal?.reason instanceof Error
                         ? signal.reason
-                        : new DOMException("The run was cancelled.", "AbortError"),
+                        : new DOMException("The run was canceled.", "AbortError"),
                 );
             };
             const done = (): void => {

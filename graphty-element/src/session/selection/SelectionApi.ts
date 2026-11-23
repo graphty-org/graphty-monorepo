@@ -139,7 +139,20 @@ export interface SelectionDelta {
     readonly skipped?: number;
     /** Who asked. */
     readonly cause: SelectionCause;
+    /**
+     * How the canvas input that caused this change was made: `"click"` (a click or tap on a node,
+     * an edge or empty canvas), `"box"` (a region drawn on the canvas) or `"keys"` (a graph key,
+     * such as Escape through `attachKeymap`). Absent for an API call, including one made with
+     * `cause: "user"`.
+     *
+     * OPEN UNION: values may be added in a minor release; handle one you do not know.
+     * @since 3.40.0
+     */
+    readonly via?: "click" | "box" | "keys";
 }
+
+/** How a reader's canvas input changed the selection: {@link SelectionDelta.via}. */
+export type SelectionVia = NonNullable<SelectionDelta["via"]>;
 
 /**
  * A path a rule reads that nothing in this session answers, and the readable values it may have
@@ -464,7 +477,6 @@ export interface SelectionApi {
     previewHover(on: boolean): void;
     /**
      * The elements a {@link SelectionApi.peek} is showing now, or null.
-     * @experimental assistant
      */
     readonly peeked: { readonly nodes: number; readonly edges: number } | null;
     /**
@@ -479,9 +491,7 @@ export interface SelectionApi {
      * ```
      * @param target - What to point at, read as `apply` reads it; null for nothing.
      * @returns How many nodes and edges it names.
-     * @throws A `GraphtyError` coded `E_FEATURE_OFF` while the `assistant` experiment is off, or the
-     *   same error as `apply` for a target it refuses.
-     * @experimental assistant
+     * @throws The same error as `apply` for a target it refuses.
      */
     peek(target: SelectionTarget | null): Promise<{ readonly nodes: number; readonly edges: number }>;
     /**
@@ -540,6 +550,14 @@ export interface SelectionOwner extends SelectionApi {
      * @param cause - Who asked.
      */
     applyAtNextRead(target: SelectionTarget, op: SelectionOp, cause: SelectionCause): void;
+    /**
+     * Run `fn` as the handling of one canvas input: every change it makes with `cause: "user"`,
+     * synchronously, carries `via` on its delta.
+     * @param via - How the input was made.
+     * @param fn - The input's handling.
+     * @returns What `fn` returned.
+     */
+    byInput<T>(via: SelectionVia, fn: () => T): T;
     /**
      * Whether taking edges out of the selection would change nothing: no edge is selected (or,
      * given the edges, none of them is), no change is waiting, and the cap has truncated nothing.
@@ -686,8 +704,6 @@ export interface SelectionSources {
         dirty: { readonly node: readonly number[]; readonly edge: readonly number[] },
         peeked: { readonly nodes: readonly NodeId[]; readonly edges: readonly EdgeId[] } | null,
     ) => void;
-    /** Whether peeking is on: the `assistant` experiment. Absent, it is off. */
-    readonly canPeek?: () => boolean;
     /**
      * Called when the hover preview turns on or off, with the nodes whose hovered state it moved.
      * @param nodes - The selected nodes.
@@ -925,6 +941,9 @@ class Selection implements SelectionOwner {
 
     /** What the last emptying took away, by id; see {@link SelectionApi.previous}. */
     #previous: { readonly nodes: readonly NodeId[]; readonly edges: readonly EdgeId[] } | null = null;
+
+    /** The canvas input being handled, while {@link Selection.byInput} runs. */
+    #via: SelectionVia | undefined = undefined;
 
     /** A change {@link Selection.applyAtNextRead} is holding for the next read. */
     #pending: { readonly target: SelectionTarget; readonly op: SelectionOp; readonly cause: SelectionCause } | null =
@@ -1239,6 +1258,16 @@ class Selection implements SelectionOwner {
         this.#pending = { target, op, cause };
     }
 
+    byInput<T>(via: SelectionVia, fn: () => T): T {
+        const outer = this.#via;
+        this.#via = via;
+        try {
+            return fn();
+        } finally {
+            this.#via = outer;
+        }
+    }
+
     edgeRemovalChangesNothing(ids?: readonly EdgeId[]): boolean {
         if (this.#pending !== null || this.#truncated) {
             return false;
@@ -1305,17 +1334,6 @@ class Selection implements SelectionOwner {
     }
 
     peek(target: SelectionTarget | null): Promise<{ readonly nodes: number; readonly edges: number }> {
-        if (this.#sources.canPeek?.() !== true) {
-            return Promise.reject(
-                new GraphtyError({
-                    code: "E_FEATURE_OFF",
-                    message: `Peeking needs the "assistant" experiment.`,
-                    source: "run",
-                    details: { feature: "assistant", key: "selection.peek" },
-                }),
-            );
-        }
-
         try {
             this.#sync();
             const members = target === null ? null : resolveTarget(target, this.#context());
@@ -1688,6 +1706,7 @@ class Selection implements SelectionOwner {
             unresolvedPaths: Object.freeze([...unresolvedPaths]),
             ...(skipped === undefined ? {} : { skipped }),
             cause,
+            ...(cause === "user" && this.#via !== undefined ? { via: this.#via } : {}),
         });
 
         if (added.length > 0 || removed.length > 0) {
@@ -1892,4 +1911,17 @@ function assertOp(op: SelectionOp): void {
  */
 export function createSelectionApi(sources: SelectionSources): SelectionOwner {
     return new Selection(sources);
+}
+
+/**
+ * Run `fn` as the handling of one canvas input on a session's selection, so its reader changes
+ * carry `via`: {@link SelectionOwner.byInput} when the selection is a session's own, else `fn`
+ * as it is.
+ * @param selection - The selection, as a public session hands it out.
+ * @param via - How the input was made.
+ * @param fn - The input's handling.
+ * @returns What `fn` returned.
+ */
+export function selectByInput<T>(selection: SelectionApi, via: SelectionVia, fn: () => T): T {
+    return selection instanceof Selection ? selection.byInput(via, fn) : fn();
 }

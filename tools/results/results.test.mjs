@@ -210,6 +210,11 @@ describe("client", () => {
             answers(404, 200);
             assert.deepEqual(await call(cfg, "GET", "/v1/candidate"), { ok: false, why: "HTTP 404" });
             assert.equal(globalThis.fetch.mock.callCount(), 1);
+            mock.restoreAll();
+            // the store's daily D1 cap (#9784): unavailable until the next UTC day, so never asked again now
+            answers(429, 200);
+            assert.deepEqual(await call(cfg, "POST", "/v1/invocations", {}), { ok: false, why: "HTTP 429" });
+            assert.equal(globalThis.fetch.mock.callCount(), 1);
         } finally {
             mock.restoreAll();
         }
@@ -1089,6 +1094,56 @@ describe("planRead", () => {
         const one = seen.slice(3).map((v) => v.join(","));
         assert.ok(one.includes("layout|flags=off|whole,layout|flags=off|selected,layout-shots|flags=off|shots"));
         assert.ok(one.includes("layout-storybook|flags=off|whole,layout-storybook|flags=off|selected"));
+    });
+    it("packs a family whose own read failed by the durations snapshot, the store's answer winning (#5404)", async () => {
+        mock.method(globalThis, "fetch", (url) => {
+            const variants = new URL(url).searchParams.get("variants").split(",");
+            const families = new Set(variants.map((v) => v.split("|")[0].replace(/-shots$/, "")));
+            if (families.size > 1) return Promise.resolve(new Response('{"error":"internal error"}', { status: 500 }));
+            if (!families.has("layout")) return Promise.resolve(new Response("refused", { status: 400 }));
+            const fileMs = { "layout/a.test.ts": 5 };
+            return Promise.resolve(
+                new Response(JSON.stringify({ variants: Object.fromEntries(variants.map((v) => [v, { fileMs }])) })),
+            );
+        });
+        const out = join(TMP, "plan-by-family-snapshot");
+        const snapshot = join(TMP, "plan-by-family-snapshot.json");
+        const at = Date.parse("2026-11-19T10:00:00Z");
+        writeFileSync(
+            snapshot,
+            JSON.stringify({
+                at,
+                durations: {
+                    layout: { "layout/a.test.ts": 9 },
+                    "layout-storybook": { "layout/s.test.ts": 700 },
+                    "remote-logger": { "r.test.ts": 1 },
+                },
+            }),
+        );
+        const lines = [];
+        mock.method(console, "log", (line) => lines.push(line));
+        try {
+            await planRead({
+                root: process.cwd(),
+                affected: ["layout"],
+                out,
+                snapshot,
+                env: { RESULTS_URL: "http://store", GRAPHTY_RESULTS_TOKEN: "t" },
+            });
+        } finally {
+            mock.restoreAll();
+        }
+        assert.deepEqual(JSON.parse(readFileSync(join(out, "durations.json"), "utf8")), {
+            layout: { "layout/a.test.ts": 5 },
+            "layout-shots": { "layout/a.test.ts": 5 },
+            "layout-storybook": { "layout/s.test.ts": 700 },
+        });
+        assert.ok(
+            lines.includes(
+                "results store: no file times for layout-storybook; packed by the durations snapshot of 2026-11-19T10:00:00.000Z",
+            ),
+            lines.join("\n"),
+        );
     });
     it("keeps the changed files in an unavailable plan, for run-group.mjs's own read (#8363)", async () => {
         const out = join(TMP, "plan-unavailable-changed");

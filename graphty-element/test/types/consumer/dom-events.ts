@@ -15,6 +15,7 @@ import type {
     GraphtyHistoryChangeDetail,
     GraphtyNoteChangeDetail,
     GraphtyRunChangeDetail,
+    SourceLoaded,
 } from "@graphty/graphty-element";
 
 /** Each listener reads its detail's fields with no cast. */
@@ -51,6 +52,10 @@ export function listenToEveryPrefixedEvent(log: (...values: unknown[]) => void):
     element.addEventListener("graphty-project-status", (e) => {
         const { name, dirty } = e.detail;
         log(name, dirty);
+    });
+    element.addEventListener("graphty-source-loaded", (e) => {
+        const { source, kind, format, mode, sample, callerKey }: SourceLoaded = e.detail;
+        log(source, kind, format, mode, sample, callerKey);
     });
     element.addEventListener("graphty-capabilities-change", (e) => {
         const { capabilities }: GraphtyCapabilitiesChangeDetail = e.detail;
@@ -155,11 +160,6 @@ export function listenToEveryForwardedEvent(element: Graphty, log: (...values: u
         const known: "queue-cleared" | "canceled" = code;
         log(id, known);
     });
-    element.addEventListener("operation-cancelled", (e) => {
-        const { id, code } = e.detail;
-        const known: "queue-cleared" | "cancelled" = code;
-        log(id, known);
-    });
     element.addEventListener("stats-update", (e) => {
         const { totalUpdates, stats } = e.detail;
         log(totalUpdates, stats.numNodes, stats.meshCacheHits);
@@ -215,7 +215,6 @@ export function listenToEveryForwardedEvent(element: Graphty, log: (...values: u
     // The rest carry a type and whatever the emitter added; each is still a typed CustomEvent.
     const rest = [
         "ai-command-canceled",
-        "ai-command-cancelled",
         "ai-stream-tool-call",
         "ai-voice-start",
         "ai-voice-transcript",
@@ -236,7 +235,6 @@ export function listenToEveryForwardedEvent(element: Graphty, log: (...values: u
         "operation-obsoleted",
         "animation-progress",
         "animation-canceled",
-        "animation-cancelled",
         "screenshot-enhancing",
         "screenshot-ready",
         "zoom-to-fit-complete",

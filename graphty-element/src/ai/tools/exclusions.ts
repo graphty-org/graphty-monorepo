@@ -46,7 +46,9 @@ type ExclusionReason =
     /** What a settings panel reads or arranges (folders, pins, hover): it paints nothing a reader asks about. */
     | "panel-state"
     /** The reader's own trust, which the assistant must never decide for them. */
-    | "reader-trust";
+    | "reader-trust"
+    /** Behind an experiment that is off by default; the assistant gets it when the experiment ships. */
+    | "experimental";
 
 /** One thing the assistant does not reach, and why. Names exactly one of root, door, op, catalog or option. */
 export interface Exclusion {
@@ -98,10 +100,12 @@ const CAMERA_VERBS: Readonly<Record<string, readonly string[]>> = {
         "setCameraPan",
         "zoomStep",
         "setCameraMode",
+        // The camera action applies a saved view's camera by name; view.restore brings back the
+        // rest it keeps too, a write.
+        "loadCameraPreset",
     ],
     "view.fit": ["resetCamera", "zoomToFit"],
     "view.zoom_to": ["zoomToSelection", "zoomToNodes"],
-    "view.restore": ["loadCameraPreset"],
 };
 
 /** The assistant's own connection on the graph and the element. */
@@ -169,6 +173,7 @@ const SESSION_NAMESPACES = [
     "styles",
     "views",
     "tours",
+    "graphs",
     "layout",
     "positions",
     "hidden",
@@ -219,6 +224,14 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         owner: "WAIVER_OWNER_UNASSIGNED",
         expires: "2027-01-11",
     },
+    // The table formats' missing-value texts are a list of strings, a type no option schema offers yet.
+    ...["json", "csv", "xlsx"].map((format): Exclusion => ({
+        option: `formats/${format}/missing`,
+        reason: "unoffered-type",
+        kind: "defect",
+        owner: "WAIVER_OWNER_UNASSIGNED",
+        expires: "2027-01-11",
+    })),
 
     // An annotation is a union of shapes (shape, text, arrow, picture) no tool schema offers yet; the
     // assistant reaches the annotations only through a load that writes a file's own.
@@ -245,7 +258,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     ...(["GraphSession", "ElementSession"] as const).flatMap((root): Exclusion[] => [
         {
             root,
-            members: ["assets", "network", "time", "shaders", "features", "groups", "annotations"],
+            members: ["assets", "network", "time", "shaders", "features", "groups", "annotations", "recipes", "files"],
             reason: "namespace",
             kind: BY_DESIGN,
         },
@@ -254,7 +267,14 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     ]),
     {
         root: "ElementSession",
-        members: ["publishModelChange", "emptyClick", "elementClick", "groupOutlineClick", "layoutMotion"],
+        members: [
+            "publishModelChange",
+            "emptyClick",
+            "elementClick",
+            "cameraGestureEnd",
+            "groupOutlineClick",
+            "layoutMotion",
+        ],
         reason: "lifecycle",
         kind: BY_DESIGN,
     },
@@ -324,10 +344,15 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         reason: "panel-state",
         kind: BY_DESIGN,
     },
-    { root: "VisibilityApi", members: ["draft", "notDrawn"], reason: "panel-state", kind: BY_DESIGN },
+    {
+        root: "VisibilityApi",
+        members: ["draft", "draftOf", "openDrafts", "notDrawn"],
+        reason: "panel-state",
+        kind: BY_DESIGN,
+    },
     {
         root: "SessionVisibilityApi",
-        members: ["draft", "openDrafts", "notDrawn"],
+        members: ["draft", "draftOf", "openDrafts", "notDrawn"],
         reason: "panel-state",
         kind: BY_DESIGN,
     },
@@ -387,6 +412,119 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         kind: BY_DESIGN,
     },
     { root: "SessionDataApi", members: ["ignoreIssue"], reason: "covered-by", by: "issues.ignore", kind: BY_DESIGN },
+    // The source-steps experiment's op and doors: refused while the experiment is off, and not
+    // offered to the assistant until the experiment ships.
+    ...[
+        { op: "data.steps-set" },
+        {
+            root: "SessionDataApi",
+            members: [
+                "steps",
+                "staged",
+                "spaces",
+                "types",
+                "edits",
+                "ref",
+                "nodeRef",
+                "stage",
+                "declareType",
+                "removeEdit",
+                "settleEdit",
+                "resolveStep",
+                "merge",
+                "connect",
+                "extract",
+                "moveColumns",
+                "pick",
+                "use",
+                "removeStep",
+                "setStepOff",
+                "add",
+                "lineage",
+                "values",
+                "cell",
+                "conflicts",
+                "draft",
+                "currentDraft",
+                "matchCounts",
+                "matchValues",
+                "sourceTable",
+                "profile",
+                "setMapping",
+            ],
+        },
+        {
+            root: "SourceDraft",
+            members: [
+                "id",
+                "open",
+                "stage",
+                "import",
+                "add",
+                "merge",
+                "connect",
+                "extract",
+                "moveColumns",
+                "renameColumn",
+                "declareType",
+                "pick",
+                "use",
+                "editStep",
+                "removeStep",
+                "moveStep",
+                "removeSource",
+                "removeEdit",
+                "setMapping",
+                "undo",
+                "steps",
+                "types",
+                "edits",
+                "commit",
+                "dispose",
+                "matchCounts",
+                "matchValues",
+                "sourceTable",
+                "profile",
+                "preview",
+                "pickAll",
+                "clearPicks",
+                "exclude",
+                "include",
+                "answerOverlap",
+                "displayed",
+                "side",
+                "display",
+                "show",
+            ],
+        },
+        { root: "SourceTable", members: ["source", "summary", "profile"] },
+        {
+            root: "SourceDraftPreview",
+            members: [
+                "draft",
+                "before",
+                "after",
+                "nodes",
+                "edges",
+                "steps",
+                "sources",
+                "edits",
+                "issues",
+                "rows",
+                "elements",
+                "cells",
+                "questions",
+            ],
+        },
+        { root: "VisibilityApi", members: ["held"] },
+        { root: "SessionVisibilityApi", members: ["held"] },
+    ].map((row): Exclusion => ({
+        ...row,
+        reason: "experimental",
+        kind: "defect",
+        owner: "WAIVER_OWNER_UNASSIGNED",
+        expires: "2027-01-11",
+    })),
     {
         root: "SessionDataApi",
         members: [
@@ -398,6 +536,8 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
             "remap",
             "sourceSettings",
             "sourceInput",
+            "copies",
+            "setCopy",
         ],
         reason: "needs-host",
         kind: BY_DESIGN,
@@ -433,6 +573,8 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         kind: BY_DESIGN,
     },
     { root: "SessionLayout", members: ["play", "pause", "tick", "settle"], reason: "in-flight", kind: BY_DESIGN },
+    // The package versions and hardware that draw the layout: what a save records, not a question a reader asks.
+    { root: "SessionLayout", members: ["provenance"], reason: "internal-handle", kind: BY_DESIGN },
     {
         root: "SessionConfig",
         members: ["backgroundColor"],
@@ -536,7 +678,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { root: "BasemapManager", members: ["dispose"], reason: "lifecycle", kind: BY_DESIGN },
     ...(["StylesApi", "SessionStylesApi"] as const).flatMap((root): Exclusion[] => [
         ...coveredBy(root, {
-            "style.add": ["addRow"],
+            "style.add": ["addRow", "duplicateRow"],
             "style.update": [
                 "writeRow",
                 "updateMany",
@@ -610,7 +752,13 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         reason: "internal-handle",
         kind: BY_DESIGN,
     },
-    { root: "RunsApi", members: ["batch", "sweep"], reason: "covered-by", by: "run_algorithm.run", kind: BY_DESIGN },
+    {
+        root: "RunsApi",
+        members: ["batch", "stability", "sweep"],
+        reason: "covered-by",
+        by: "run_algorithm.run",
+        kind: BY_DESIGN,
+    },
     { root: "RunsApi", members: ["bindings", "painting"], reason: "covered-by", by: "style.list", kind: BY_DESIGN },
     { root: "ScopeApi", members: ["resolve"], reason: "covered-by", by: "query.count", kind: BY_DESIGN },
     { root: "ScopeApi", members: ["remove"], reason: "covered-by", by: "sets.remove", kind: BY_DESIGN },
@@ -632,8 +780,22 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { root: "StepsReading", reason: "panel-state", kind: BY_DESIGN },
     { root: "SetsApi", members: ["pathKind"], reason: "covered-by", by: "sets.get", kind: BY_DESIGN },
     { root: "NotesApi", members: ["toDocument", "mergeDocument"], reason: "whole-document", kind: BY_DESIGN },
-    { root: "ProjectApi", members: ["save", "markSaved", "assetChoices"], reason: "needs-host", kind: BY_DESIGN },
+    {
+        root: "ProjectApi",
+        members: ["save", "markSaved", "assetChoices", "describe", "inspect"],
+        reason: "needs-host",
+        kind: BY_DESIGN,
+    },
     { root: "ProjectApi", members: ["open"], reason: "replaces-project", kind: BY_DESIGN },
+    { root: "RecipesApi", members: ["export", "apply"], reason: "needs-host", kind: BY_DESIGN },
+    { root: "FilesApi", members: ["kindOf"], reason: "needs-host", kind: BY_DESIGN },
+    // Showing another graph replaces the session's graph and starts its history afresh, as an open does.
+    {
+        root: "SessionGraphs",
+        members: ["currentId", "list", "create", "switch"],
+        reason: "replaces-project",
+        kind: BY_DESIGN,
+    },
     { root: "SessionConfig", members: ["acceleration"], reason: "machine-preference", kind: BY_DESIGN },
     {
         root: "SessionDataApi",
@@ -643,6 +805,13 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     },
     { root: "SessionDataApi", members: ["nodes"], reason: "covered-by", by: "query.nodes", kind: BY_DESIGN },
     { root: "SessionDataApi", members: ["edges"], reason: "covered-by", by: "query.edges", kind: BY_DESIGN },
+    {
+        root: "SessionDataApi",
+        members: ["preparePage"],
+        reason: "covered-by",
+        by: "query.nodes",
+        kind: BY_DESIGN,
+    },
     { root: "SessionDataApi", members: ["count"], reason: "covered-by", by: "query.statistics", kind: BY_DESIGN },
     // A node's name, and an edge's as its two ends' names: `query.node` returns each node's name.
     {
@@ -729,7 +898,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     },
     {
         root: "SelectionOwner",
-        members: ["applyNow", "applyAtNextRead", "nodeMembers", "edgeMembers", "remapNodes", "remapEdges"],
+        members: ["applyNow", "applyAtNextRead", "nodeMembers", "edgeMembers", "remapNodes", "remapEdges", "byInput"],
         reason: "internal-handle",
         kind: BY_DESIGN,
     },
@@ -956,7 +1125,12 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         reason: "internal-handle",
         kind: BY_DESIGN,
     },
-    { root: "Graph", members: ["fetchNodes", "fetchEdges"], reason: "needs-host", kind: BY_DESIGN },
+    {
+        root: "Graph",
+        members: ["fetchNodes", "fetchEdges", "fetchNeighborEdges"],
+        reason: "needs-host",
+        kind: BY_DESIGN,
+    },
     {
         root: "Graph",
         members: [
@@ -996,6 +1170,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
             "nodeCache",
             "meshCache",
             "getSnapshot",
+            "builtEdgesOfPairs",
             "positions",
             "updateStyles",
             "setGraphContext",
@@ -1082,7 +1257,9 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
             "loadArrangement",
             "step",
             "stepBatch",
+            "takeFrameHold",
             "updatePositions",
+            "publishOrReport",
             "onRest",
             "restoring",
             "replacing",
@@ -1143,6 +1320,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
             "setHoldMask",
             "wakeForResize",
             "wakeForClusters",
+            "wakeForLift",
         ],
         reason: "internal-handle",
         kind: BY_DESIGN,

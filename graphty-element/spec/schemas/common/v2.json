@@ -4,6 +4,51 @@
     "title": "graphty documents version 2: shared definitions",
     "description": "Definitions the version 2 schemas share: the header, ids, element references, rule trees, style layers and join steps.",
     "$defs": {
+        "engine": {
+            "type": "object",
+            "description": "The code that computed a run or drew a layout (spec 4.5 rule 6): every package whose code could have changed the numbers, at the version that ran, the accelerator, and the method that consumed the seed when it is not the one the record names. Deliberately open: a reader ignores a member it does not know and keeps it.",
+            "required": ["packages"],
+            "properties": {
+                "packages": {
+                    "type": "object",
+                    "description": "Package name to the version that ran, read from the package itself.",
+                    "minProperties": 1,
+                    "propertyNames": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "additionalProperties": {
+                        "type": "string",
+                        "minLength": 1
+                    }
+                },
+                "accelerator": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "cpu, or the backend that computed it, such as webgpu. Open; absent when unknown."
+                },
+                "method": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "The code that consumed the seed, written only when it is not what the record names."
+                }
+            }
+        },
+        "layoutDrawnBy": {
+            "type": "object",
+            "description": "Provenance: the engine that drew a layout, and every option it was given that the arrangement does not list, by the engine's own names (spec 5 rule 9). Deliberately open.",
+            "required": ["engine"],
+            "properties": {
+                "engine": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "A registered engine name."
+                },
+                "options": {
+                    "type": "object"
+                }
+            }
+        },
         "timestamp": {
             "type": "string",
             "description": "A UTC instant as JavaScript's toISOString() writes it, ending Z.",
@@ -36,9 +81,35 @@
         },
         "extensions": {
             "type": "object",
-            "description": "Data for other software, keyed by reverse-domain name. graphty and graphty.* are reserved. Kept unread on re-save.",
+            "description": "Data for other software, keyed by reverse-domain name. graphty and graphty.* are reserved. Kept unread on re-save. Allowed on a section header and on the closed objects of data and recipe (closedSlots).",
             "propertyNames": {
                 "pattern": "^([a-z0-9]+(-[a-z0-9]+)*)(\\.[a-z0-9]+(-[a-z0-9]+)*)+$|^graphty$"
+            }
+        },
+        "ignorable": {
+            "type": "array",
+            "description": "The members of this closed object that a reader that does not know them may ignore: it reports each W_UNKNOWN_MEMBER and keeps it. An unknown member not listed is must-understand.",
+            "items": {
+                "type": "string",
+                "minLength": 1
+            },
+            "uniqueItems": true
+        },
+        "closedSlots": {
+            "description": "The two optional slots of a closed data or recipe object: extensions, and ignorable. An object that carries ignorable validates with members besides its own, since this schema cannot tell an ignorable member from a must-understand one; one without it stays strictly closed (in draft 2020-12 the then branch marks every property evaluated).",
+            "properties": {
+                "extensions": {
+                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/extensions"
+                },
+                "ignorable": {
+                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/ignorable"
+                }
+            },
+            "if": {
+                "required": ["ignorable"]
+            },
+            "then": {
+                "additionalProperties": true
             }
         },
         "author": {
@@ -253,8 +324,11 @@
         },
         "space": {
             "type": "string",
-            "description": "An opaque id space, compared exactly after NFC normalization, never parsed. A type name, shared:<name> and source:<source id> are only the names a writer proposes.",
-            "minLength": 1
+            "description": "An opaque id space, compared exactly after NFC normalization, never parsed. A type name, shared:<name> and source:<source id> are only the names a writer proposes. Names beginning graph: are reserved and refused.",
+            "minLength": 1,
+            "not": {
+                "pattern": "^graph:"
+            }
         },
         "sourceId": {
             "type": "string",
@@ -283,7 +357,7 @@
             "description": "Any string of these characters, in graphty-element's own minted form: <namespace>__<as> for a recipe-made run, the element's own id for a hand-started one.",
             "minLength": 1,
             "maxLength": 128,
-            "pattern": "^[A-Za-z0-9_.:-]+$"
+            "pattern": "^[A-Za-z0-9_:-]+$"
         },
         "setId": {
             "type": "string",
@@ -306,7 +380,7 @@
         },
         "nodeRef": {
             "type": "object",
-            "description": "A node by record key. Closed: a reference with any other shape is kept and reported unbound.",
+            "description": "A node by record key. Closed: a reference with any other shape is kept and reported unbound. A node row of a source with no key column has the key <digest>#<n> (spec 6.1).",
             "required": ["space", "key"],
             "properties": {
                 "space": {
@@ -320,7 +394,7 @@
         },
         "edgeRef": {
             "type": "object",
-            "description": "An edge by record key: load names the source whose row made it, key its edge-id value, a reader-added edge's edge-id value or, with none, a minted ULID, or <copy id>#<row from 0> for a keyless row. Closed.",
+            "description": "An edge by record key: load names the source whose row made it, key its edge-id value, a reader-added edge's edge-id value or, with none, a minted ULID, or <from>|<to>#<n> for a keyless row (spec 6.1), with <part>/ in front for a join.edges step. Closed.",
             "required": ["load", "key"],
             "properties": {
                 "load": {
@@ -390,24 +464,731 @@
         },
         "expression": {
             "type": "string",
-            "description": "A predicate in graphty-element's expression language (a JMESPath subset with no functions) over {data, results}.",
+            "description": "A graphty expression (README 4.8.2).",
             "minLength": 1,
             "maxLength": 1024
         },
         "path": {
             "type": "string",
-            "description": "data.<column> or results.<run>.<field>.",
+            "description": "A raw path (README 4.8.1), never quoted: data.<column>, results.<run>.<field>, graphty.<value> or _source.loads. graphty.types, the saved graph's plural, is reserved and never a path.",
             "minLength": 1,
-            "maxLength": 1024
+            "maxLength": 1024,
+            "pattern": "^(data\\..+|results\\.[^.]+\\..+|graphty\\..+|_source\\.loads)$",
+            "not": {
+                "const": "graphty.types"
+            }
         },
         "edgeReading": {
             "type": "string",
             "description": "Which edges come with a set's nodes: induced, listed, clipped, incident (an open vocabulary).",
             "minLength": 1
         },
+        "ruleLeaf": {
+            "description": "The known rule tree leaves (README 4.8.3), each closed with its members. Leaf kinds are an open vocabulary: an unknown kind matches no case here.",
+            "allOf": [
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "expression"
+                            }
+                        },
+                        "required": ["kind"]
+                    },
+                    "then": {
+                        "properties": {
+                            "kind": true,
+                            "where": {
+                                "$ref": "#/$defs/expression"
+                            }
+                        },
+                        "required": ["where"],
+                        "unevaluatedProperties": false
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "edges"
+                            }
+                        },
+                        "required": ["kind"]
+                    },
+                    "then": {
+                        "properties": {
+                            "kind": true,
+                            "where": {
+                                "$ref": "#/$defs/expression"
+                            }
+                        },
+                        "required": ["where"],
+                        "unevaluatedProperties": false
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "range"
+                            }
+                        },
+                        "required": ["kind"]
+                    },
+                    "then": {
+                        "properties": {
+                            "kind": true,
+                            "attribute": {
+                                "$ref": "#/$defs/path"
+                            },
+                            "min": {
+                                "type": "number"
+                            },
+                            "max": {
+                                "type": "number"
+                            },
+                            "as": {
+                                "const": "time"
+                            },
+                            "nodes": {
+                                "enum": ["all", "ends", "none"]
+                            },
+                            "missing": {
+                                "enum": ["include", "exclude"]
+                            }
+                        },
+                        "required": ["attribute"],
+                        "unevaluatedProperties": false
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "categories"
+                            }
+                        },
+                        "required": ["kind"]
+                    },
+                    "then": {
+                        "properties": {
+                            "kind": true,
+                            "attribute": {
+                                "$ref": "#/$defs/path"
+                            },
+                            "values": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                }
+                            },
+                            "nodes": {
+                                "enum": ["all", "ends", "none"]
+                            },
+                            "missing": {
+                                "enum": ["include", "exclude"]
+                            },
+                            "match": {
+                                "enum": ["any", "all"]
+                            }
+                        },
+                        "required": ["attribute", "values"],
+                        "unevaluatedProperties": false
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "degree"
+                            }
+                        },
+                        "required": ["kind"]
+                    },
+                    "then": {
+                        "properties": {
+                            "kind": true,
+                            "min": {
+                                "type": "number"
+                            },
+                            "max": {
+                                "type": "number"
+                            },
+                            "direction": {
+                                "enum": ["in", "out", "all"]
+                            }
+                        },
+                        "unevaluatedProperties": false
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "component"
+                            }
+                        },
+                        "required": ["kind"]
+                    },
+                    "then": {
+                        "properties": {
+                            "kind": true,
+                            "id": {
+                                "type": "integer",
+                                "minimum": 0
+                            }
+                        },
+                        "required": ["id"],
+                        "unevaluatedProperties": false
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "neighborhood"
+                            }
+                        },
+                        "required": ["kind"]
+                    },
+                    "then": {
+                        "properties": {
+                            "kind": true,
+                            "seeds": {
+                                "type": "array"
+                            },
+                            "depth": {
+                                "type": "integer",
+                                "minimum": 0
+                            }
+                        },
+                        "required": ["seeds", "depth"],
+                        "unevaluatedProperties": false
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "isolated"
+                            }
+                        },
+                        "required": ["kind"]
+                    },
+                    "then": {
+                        "properties": {
+                            "kind": true
+                        },
+                        "unevaluatedProperties": false
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "self-loop"
+                            }
+                        },
+                        "required": ["kind"]
+                    },
+                    "then": {
+                        "properties": {
+                            "kind": true
+                        },
+                        "unevaluatedProperties": false
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "repeated-edge"
+                            }
+                        },
+                        "required": ["kind"]
+                    },
+                    "then": {
+                        "properties": {
+                            "kind": true
+                        },
+                        "unevaluatedProperties": false
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "state"
+                            }
+                        },
+                        "required": ["kind"]
+                    },
+                    "then": {
+                        "properties": {
+                            "kind": true,
+                            "state": {
+                                "enum": ["selected", "hovered", "ghosted", "outsideWindow", "pinned"]
+                            }
+                        },
+                        "required": ["state"],
+                        "unevaluatedProperties": false
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "member"
+                            }
+                        },
+                        "required": ["kind"]
+                    },
+                    "then": {
+                        "properties": {
+                            "kind": true,
+                            "of": {
+                                "description": "A scope form (README 4.3 rule 2, 4.7 rule 5).",
+                                "anyOf": [
+                                    {
+                                        "type": "string",
+                                        "minLength": 1
+                                    },
+                                    {
+                                        "type": "object"
+                                    }
+                                ]
+                            }
+                        },
+                        "required": ["of"],
+                        "unevaluatedProperties": false
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "item"
+                            }
+                        },
+                        "required": ["kind"]
+                    },
+                    "then": {
+                        "properties": {
+                            "kind": true,
+                            "item": {
+                                "type": "object",
+                                "required": ["result", "key"]
+                            }
+                        },
+                        "required": ["item"],
+                        "unevaluatedProperties": false
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "threshold"
+                            }
+                        },
+                        "required": ["kind"]
+                    },
+                    "then": {
+                        "properties": {
+                            "kind": true,
+                            "path": {
+                                "$ref": "#/$defs/path"
+                            },
+                            "top": {
+                                "type": "integer",
+                                "minimum": 0
+                            },
+                            "above": {
+                                "type": "number"
+                            },
+                            "ties": {
+                                "enum": ["fewer", "all"]
+                            },
+                            "percentile": {
+                                "type": "number",
+                                "minimum": 0,
+                                "maximum": 100
+                            },
+                            "from": {
+                                "enum": ["high", "low"]
+                            },
+                            "missing": {
+                                "enum": ["include", "exclude"]
+                            },
+                            "within": {
+                                "enum": ["graph", "visible"]
+                            }
+                        },
+                        "required": ["path"],
+                        "oneOf": [
+                            {
+                                "required": ["top"]
+                            },
+                            {
+                                "required": ["above"]
+                            },
+                            {
+                                "required": ["percentile"]
+                            }
+                        ],
+                        "unevaluatedProperties": false
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "text"
+                            }
+                        },
+                        "required": ["kind"]
+                    },
+                    "then": {
+                        "properties": {
+                            "kind": true,
+                            "reads": {
+                                "anyOf": [
+                                    {
+                                        "$ref": "#/$defs/path"
+                                    },
+                                    {
+                                        "const": "id"
+                                    }
+                                ]
+                            },
+                            "mode": {
+                                "enum": ["substring", "exact", "starts-with", "ends-with", "regex"]
+                            },
+                            "text": {
+                                "type": "string"
+                            },
+                            "caseSensitive": {
+                                "type": "boolean"
+                            },
+                            "nodes": {
+                                "enum": ["all", "ends", "none"]
+                            }
+                        },
+                        "required": ["reads", "mode", "text"],
+                        "unevaluatedProperties": false
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "source"
+                            }
+                        },
+                        "required": ["kind"]
+                    },
+                    "then": {
+                        "properties": {
+                            "kind": true,
+                            "sources": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                }
+                            },
+                            "side": {
+                                "enum": ["nodes", "edges"]
+                            }
+                        },
+                        "required": ["sources"],
+                        "unevaluatedProperties": false
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "union"
+                            }
+                        },
+                        "required": ["kind"]
+                    },
+                    "then": {
+                        "properties": {
+                            "kind": true,
+                            "side": {
+                                "enum": ["nodes", "edges"]
+                            },
+                            "within": {
+                                "enum": ["graph", "visible"]
+                            },
+                            "sources": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                }
+                            },
+                            "branches": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "required": ["start", "steps"],
+                                    "properties": {
+                                        "start": {
+                                            "enum": ["all", "none"]
+                                        },
+                                        "steps": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "required": ["op", "rule"],
+                                                "properties": {
+                                                    "op": {
+                                                        "enum": ["add", "keep", "except"]
+                                                    },
+                                                    "rule": {
+                                                        "type": "object",
+                                                        "required": ["kind"]
+                                                    },
+                                                    "on": {
+                                                        "type": "boolean"
+                                                    },
+                                                    "computedOn": {
+                                                        "enum": ["base", "so-far"]
+                                                    },
+                                                    "ends": {
+                                                        "enum": ["both", "either"]
+                                                    }
+                                                },
+                                                "description": "A step (README 4.8.3 rule 5): op and rule, and optional id, on (absent, on), computedOn, links, ends, frozenFrom and mode."
+                                            }
+                                        },
+                                        "on": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "description": "A branch (README 4.8.3 rule 5): start and steps, and optional id, name, autoName, color and on (absent, on)."
+                                }
+                            }
+                        },
+                        "required": ["side", "within", "branches"],
+                        "unevaluatedProperties": false
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "hops"
+                            }
+                        },
+                        "required": ["kind"]
+                    },
+                    "then": {
+                        "properties": {
+                            "kind": true,
+                            "of": {
+                                "description": "A scope form, or hovered-or-selected or so-far inside a union step.",
+                                "anyOf": [
+                                    {
+                                        "type": "string",
+                                        "minLength": 1
+                                    },
+                                    {
+                                        "type": "object"
+                                    }
+                                ]
+                            },
+                            "max": {
+                                "type": "integer",
+                                "minimum": 0
+                            },
+                            "direction": {
+                                "enum": ["in", "out", "all"]
+                            }
+                        },
+                        "unevaluatedProperties": false
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "touching"
+                            }
+                        },
+                        "required": ["kind"]
+                    },
+                    "then": {
+                        "properties": {
+                            "kind": true,
+                            "of": {
+                                "description": "A scope form, or hovered-or-selected or so-far inside a union step.",
+                                "anyOf": [
+                                    {
+                                        "type": "string",
+                                        "minLength": 1
+                                    },
+                                    {
+                                        "type": "object"
+                                    }
+                                ]
+                            },
+                            "ends": {
+                                "enum": ["either", "both", "one"]
+                            }
+                        },
+                        "required": ["ends"],
+                        "unevaluatedProperties": false
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "nonempty"
+                            }
+                        },
+                        "required": ["kind"]
+                    },
+                    "then": {
+                        "properties": {
+                            "kind": true,
+                            "of": {
+                                "description": "A scope form, or hovered-or-selected or so-far inside a union step.",
+                                "anyOf": [
+                                    {
+                                        "type": "string",
+                                        "minLength": 1
+                                    },
+                                    {
+                                        "type": "object"
+                                    }
+                                ]
+                            }
+                        },
+                        "unevaluatedProperties": false
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "same-value"
+                            }
+                        },
+                        "required": ["kind"]
+                    },
+                    "then": {
+                        "properties": {
+                            "kind": true,
+                            "path": {
+                                "$ref": "#/$defs/path"
+                            },
+                            "as": {
+                                "description": "A scope form, or hovered-or-selected or so-far inside a union step.",
+                                "anyOf": [
+                                    {
+                                        "type": "string",
+                                        "minLength": 1
+                                    },
+                                    {
+                                        "type": "object"
+                                    }
+                                ]
+                            }
+                        },
+                        "required": ["path"],
+                        "unevaluatedProperties": false
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "by-size"
+                            }
+                        },
+                        "required": ["kind"]
+                    },
+                    "then": {
+                        "properties": {
+                            "kind": true,
+                            "path": {
+                                "$ref": "#/$defs/path"
+                            },
+                            "min": {
+                                "type": "number"
+                            },
+                            "max": {
+                                "type": "number"
+                            },
+                            "top": {
+                                "type": "integer",
+                                "minimum": 0
+                            },
+                            "from": {
+                                "enum": ["high", "low"]
+                            },
+                            "ties": {
+                                "enum": ["fewer", "all"]
+                            }
+                        },
+                        "required": ["path"],
+                        "unevaluatedProperties": false
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "measure"
+                            }
+                        },
+                        "required": ["kind"]
+                    },
+                    "then": {
+                        "properties": {
+                            "kind": true,
+                            "algorithm": {
+                                "type": "string",
+                                "minLength": 1
+                            },
+                            "params": {
+                                "type": "object"
+                            },
+                            "bind": {
+                                "type": "object"
+                            },
+                            "field": {
+                                "type": "string",
+                                "minLength": 1
+                            },
+                            "test": {
+                                "type": "object"
+                            },
+                            "scope": {
+                                "description": "A scope form (README 4.3 rule 2, 4.7 rule 5).",
+                                "anyOf": [
+                                    {
+                                        "type": "string",
+                                        "minLength": 1
+                                    },
+                                    {
+                                        "type": "object"
+                                    }
+                                ]
+                            }
+                        },
+                        "required": ["algorithm", "field"],
+                        "unevaluatedProperties": false
+                    }
+                }
+            ]
+        },
         "reusableRuleTree": {
             "type": "object",
-            "description": "A rule tree that names no element. all, any and not combine; every other kind is a leaf (an open vocabulary), passed to graphty-element's rule evaluator as written. No neighborhood seeds, listed nodes or item pinned to one run; source leaves name roles.",
+            "description": "A rule tree that names no element (README 4.8.3). all, any and not combine; every other kind is a leaf (an open vocabulary, each known leaf closed). No neighborhood seeds, listed nodes or item pinned to one run; source leaves name roles.",
             "required": ["kind"],
             "properties": {
                 "kind": {
@@ -416,6 +1197,9 @@
                 }
             },
             "allOf": [
+                {
+                    "$ref": "#/$defs/ruleLeaf"
+                },
                 {
                     "if": {
                         "properties": {
@@ -464,12 +1248,34 @@
                         },
                         "required": ["kind"]
                     }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "source"
+                            }
+                        },
+                        "required": ["kind"]
+                    },
+                    "then": {
+                        "not": {
+                            "anyOf": [
+                                {
+                                    "required": ["match"]
+                                },
+                                {
+                                    "required": ["named"]
+                                }
+                            ]
+                        }
+                    }
                 }
             ]
         },
         "boundRuleTree": {
             "type": "object",
-            "description": "A rule tree in a dataset-bound section: element-naming leaves hold element references; source leaves name source ids.",
+            "description": "A rule tree in a dataset-bound section (README 4.8.3): element-naming leaves hold element references; source leaves name source ids.",
             "required": ["kind"],
             "properties": {
                 "kind": {
@@ -478,6 +1284,9 @@
                 }
             },
             "allOf": [
+                {
+                    "$ref": "#/$defs/ruleLeaf"
+                },
                 {
                     "if": {
                         "properties": {
@@ -541,6 +1350,28 @@
                             }
                         }
                     }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "source"
+                            }
+                        },
+                        "required": ["kind"]
+                    },
+                    "then": {
+                        "not": {
+                            "anyOf": [
+                                {
+                                    "required": ["match"]
+                                },
+                                {
+                                    "required": ["named"]
+                                }
+                            ]
+                        }
+                    }
                 }
             ]
         },
@@ -584,12 +1415,12 @@
         },
         "channelName": {
             "type": "string",
-            "description": "A style channel (node.color) or a shader parameter address (node.shaders.<id>.<param>). An open vocabulary.",
+            "description": "A style channel (node.color) or a shader parameter address (node.shaders.<id>.<param>). An open vocabulary: the built-in channels are those registry/channels.json lists (README 10.1).",
             "pattern": "^(node|edge|graph)\\.[A-Za-z0-9_.-]+$"
         },
         "staticStyle": {
             "type": "object",
-            "description": "Channel values. Channel names are an open vocabulary; a reader fails an unknown channel alone. Values naming built-ins (node.shape, edge.style, arrowheads) are names from spec/builtins.md.",
+            "description": "Channel values. Channel names are an open vocabulary; a reader fails an unknown channel alone. Values naming built-ins (node.shape, edge.style, arrowheads) are names from spec/builtins.md. A channel no layer sets is drawn with the renderer's own look, which is not part of the file's meaning (spec 4.2 rule 9).",
             "propertyNames": {
                 "$ref": "#/$defs/channelName"
             },
@@ -649,6 +1480,7 @@
             }
         },
         "binding": {
+            "description": "How a channel reads its value from the data. A channel no layer sets or binds is drawn with the renderer's own look, which is not part of the file's meaning (spec 4.2 rule 9). Closed: a member no binding has is reported and kept.",
             "oneOf": [
                 {
                     "type": "object",
@@ -761,12 +1593,18 @@
                             "type": "number",
                             "minimum": 0.01,
                             "maximum": 100
+                        },
+                        "unmapped": {
+                            "const": "skip",
+                            "description": "On a map: an element whose value the map does not hold is left as the layers beneath paint it. Absent, the value goes on through the scale."
                         }
                     },
-                    "additionalProperties": false
+                    "additionalProperties": false,
+                    "dependentRequired": {
+                        "unmapped": ["map"]
+                    }
                 }
-            ],
-            "description": "Closed: a member no binding has is reported and kept."
+            ]
         },
         "encoding": {
             "type": "object",
@@ -1151,14 +1989,36 @@
             ],
             "additionalProperties": false
         },
+        "clashRule": {
+            "enum": ["keep", "overwrite", "both", "min", "max", "mean", "vote"],
+            "description": "What a cell an earlier source filled shows: keep the held value (the default), overwrite it, both (the held value, the incoming one as <column> (<source id>)), the min or max (numbers and dates), the mean (numbers), or the value most sources hold (vote; a tie keeps the held value)."
+        },
+        "clash": {
+            "description": "A step's clash rules: one rule for every column it writes, or rules keyed by working column name with \"*\" for the rest. Absent: keep.",
+            "oneOf": [
+                {
+                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/clashRule"
+                },
+                {
+                    "type": "object",
+                    "minProperties": 1,
+                    "propertyNames": {
+                        "minLength": 1
+                    },
+                    "additionalProperties": {
+                        "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/clashRule"
+                    }
+                }
+            ]
+        },
         "joinStep": {
             "type": "object",
-            "description": "A join step: { op, source, ...choices }, naming sources by id in the join history and by role in a recipe. Closed. op is an open vocabulary: an unknown op holds the data section, or stops a recipe's replay.",
+            "description": "A join step: { op, source, ...choices }, naming sources by id in the join history and by role in a recipe. One source may be named by several steps. Closed. op is an open vocabulary: an unknown op holds the data section, or stops a recipe's replay. The members compare, membership and action are reserved and refused.",
             "required": ["op", "source"],
             "properties": {
                 "op": {
                     "type": "string",
-                    "pattern": "^join\\.[a-z][a-z0-9-]*$"
+                    "pattern": "^join\\.[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*)*$"
                 },
                 "source": {
                     "type": "string",
@@ -1172,16 +2032,73 @@
                     "type": "string",
                     "minLength": 1
                 },
-                "clash": true,
-                "repeated": true,
+                "clash": {
+                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/clash"
+                },
+                "repeated": {
+                    "enum": ["first", "last", "both"],
+                    "description": "Rows of one key or one end pair: first or last (both on join.edges only). Absent: first on node steps; on join.edges, the graph's repeatedEdges decides."
+                },
                 "lookup": true,
-                "mapping": true,
+                "mapping": {
+                    "not": {
+                        "type": "object",
+                        "required": ["many"]
+                    },
+                    "description": "The id-mapping table a step translates keys through. Its member many is reserved and refused."
+                },
                 "aggregate": true,
                 "unmatchedFrom": true,
-                "unmatchedRows": true,
-                "compare": true,
-                "membership": true,
-                "names": true
+                "unmatchedRows": {
+                    "enum": ["add", "leave-out"],
+                    "description": "On join.node-values (default leave-out) and join.edges (absent: the source's settings.unmatched)."
+                },
+                "names": true,
+                "read": {
+                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/joinRead"
+                },
+                "part": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "A join.edges step's name among its source's steps: minted by graphty-element, never reused, never derived from a column name. Its edges are keyed under it."
+                },
+                "columns": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "uniqueItems": true,
+                    "description": "The working columns the step brings besides its role columns. Absent: every column (on join.add, every column no other step of the source moves onto nodes); []: none."
+                },
+                "rows": {
+                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/joinRows"
+                },
+                "except": {
+                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/joinRows"
+                },
+                "viaEnd": {
+                    "enum": ["source", "target"],
+                    "default": "target",
+                    "description": "On join.edges: the end via or lookup translates."
+                },
+                "duplicateIds": {
+                    "enum": ["first", "merge", "refuse"],
+                    "description": "On join.add only: repeated keys; absent, the source's settings.duplicateIds decides."
+                },
+                "ignoreCase": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Match keys whatever their letter case. Every step but join.add."
+                },
+                "ignoreSpaces": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Match keys with every white space character removed. Every step but join.add."
+                },
+                "off": {
+                    "const": true,
+                    "description": "Written only by graphty-element: the step is kept and listed but not built (a refresh left it without a column it reads)."
+                }
             },
             "allOf": [
                 {
@@ -1195,6 +2112,155 @@
                     "then": {
                         "required": ["edges"]
                     }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "op": {
+                                "const": "join.add"
+                            }
+                        },
+                        "required": ["op"]
+                    },
+                    "then": {
+                        "not": {
+                            "anyOf": [
+                                {
+                                    "required": ["read"]
+                                },
+                                {
+                                    "required": ["part"]
+                                },
+                                {
+                                    "required": ["via"]
+                                },
+                                {
+                                    "required": ["lookup"]
+                                },
+                                {
+                                    "required": ["mapping"]
+                                },
+                                {
+                                    "required": ["repeated"]
+                                },
+                                {
+                                    "required": ["aggregate"]
+                                },
+                                {
+                                    "required": ["unmatchedFrom"]
+                                },
+                                {
+                                    "required": ["unmatchedRows"]
+                                },
+                                {
+                                    "required": ["rows"]
+                                },
+                                {
+                                    "required": ["except"]
+                                },
+                                {
+                                    "required": ["viaEnd"]
+                                },
+                                {
+                                    "required": ["ignoreCase"]
+                                },
+                                {
+                                    "required": ["ignoreSpaces"]
+                                },
+                                {
+                                    "required": ["edges"]
+                                },
+                                {
+                                    "required": ["names"]
+                                }
+                            ]
+                        }
+                    },
+                    "else": {
+                        "not": {
+                            "anyOf": [
+                                {
+                                    "required": ["duplicateIds"]
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "op": {
+                                "const": "join.edges"
+                            }
+                        },
+                        "required": ["op"]
+                    },
+                    "then": {
+                        "required": ["part"]
+                    },
+                    "else": {
+                        "allOf": [
+                            {
+                                "not": {
+                                    "anyOf": [
+                                        {
+                                            "required": ["part"]
+                                        },
+                                        {
+                                            "required": ["viaEnd"]
+                                        }
+                                    ]
+                                }
+                            },
+                            {
+                                "properties": {
+                                    "repeated": {
+                                        "enum": ["first", "last"]
+                                    },
+                                    "read": {
+                                        "not": {
+                                            "anyOf": [
+                                                {
+                                                    "required": ["weight"]
+                                                },
+                                                {
+                                                    "required": ["weightMeaning"]
+                                                },
+                                                {
+                                                    "required": ["time"]
+                                                },
+                                                {
+                                                    "required": ["timeUnit"]
+                                                }
+                                            ]
+                                        }
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "op": {
+                                "enum": ["join.edges", "join.node-values"]
+                            }
+                        },
+                        "required": ["op"]
+                    },
+                    "else": {
+                        "not": {
+                            "anyOf": [
+                                {
+                                    "required": ["unmatchedRows"]
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/closedSlots"
                 }
             ],
             "unevaluatedProperties": false
@@ -1226,6 +2292,113 @@
             },
             "required": ["where"],
             "unevaluatedProperties": false
+        },
+        "joinRows": {
+            "type": "object",
+            "description": "A step's rows or except: the rows whose cell in column is (rows) or is not (except) one of values, compared as exact strings after NFC, cells turned to text as keys are.",
+            "required": ["column", "values"],
+            "properties": {
+                "column": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "values": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            },
+            "unevaluatedProperties": false,
+            "allOf": [
+                {
+                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/closedSlots"
+                }
+            ]
+        },
+        "joinRead": {
+            "type": "object",
+            "description": "A step's own roles, spelled as a mapping spells them: which table it reads, its key and end columns and their spaces, and on join.edges only its weight and time (null: none; absent: the source's role). A space is written exactly when its column is. Closed.",
+            "properties": {
+                "table": {
+                    "enum": ["nodes", "edges"]
+                },
+                "key": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "space": {
+                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/space"
+                },
+                "edgeId": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "source": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "sourceSpace": {
+                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/space"
+                },
+                "target": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "targetSpace": {
+                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/space"
+                },
+                "weight": {
+                    "type": ["string", "null"],
+                    "minLength": 1
+                },
+                "weightMeaning": {
+                    "type": "string"
+                },
+                "time": {
+                    "type": ["string", "null"],
+                    "minLength": 1
+                },
+                "timeUnit": {
+                    "type": "string"
+                }
+            },
+            "dependentRequired": {
+                "key": ["space"],
+                "space": ["key"],
+                "source": ["sourceSpace"],
+                "sourceSpace": ["source"],
+                "target": ["targetSpace"],
+                "targetSpace": ["target"]
+            },
+            "unevaluatedProperties": false,
+            "allOf": [
+                {
+                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/closedSlots"
+                }
+            ]
+        },
+        "graphId": {
+            "type": "string",
+            "description": "graph_ plus a ULID, minted by graphty-element and never reused; names one graph of a file holding several.",
+            "pattern": "^graph_[0-9A-HJKMNP-TV-Z]{26}$"
+        },
+        "readablePath": {
+            "enum": [
+                "graphty.type",
+                "graphty.load",
+                "_source.loads",
+                "graphty.space",
+                "graphty.key",
+                "graphty.time",
+                "graphty.weight",
+                "graphty.draft"
+            ],
+            "description": "A value graphty-element computes for every node or edge, read by its bare name: the element's one type, the first supplying source, every supplying source in step order, its record key's space and key, its resolved time, an edge's own weight, and its draft state while a draft is displayed."
+        },
+        "draftState": {
+            "enum": ["new", "changed", "merged", "removed", "unchanged"],
+            "description": "The values graphty.draft reads while a draft is displayed. Never saved as data; a layer or filter may test them."
         }
     }
 }

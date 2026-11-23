@@ -532,6 +532,39 @@ describe("a layer row's Values tab on the real element", () => {
         assert.deepEqual(values, [findName(session, layer.row ?? layer.id)]);
     });
 
+    it("Everything's Values tab reads the element's defaults, then the tree's row that paints every node", async () => {
+        const { session, store } = await open();
+        const values = async (): Promise<HTMLElement> => {
+            store.set({ inspected: { kind: "everything-row" } });
+            const inspector = await screen.findByRole("complementary", { name: "Inspector" });
+            await userEvent.click(await within(inspector).findByRole("tab", { name: "Values" }));
+            return inspector;
+        };
+        const matched = async (inspector: HTMLElement): Promise<(string | null)[]> => {
+            const covers = await within(inspector).findByRole("group", { name: "Covers" });
+            return [...covers.querySelectorAll("[data-testid=data-row-value]")].map((v) => v.textContent);
+        };
+        const all = String(session.data.nodes().length);
+
+        // No row of the tree paints every node: the element's own defaults do.
+        assert.isTrue(session.styles.list().some((layer) => layer.selector.match === "everything"));
+        assert.include(await matched(await values()), all, "the defaults match every node");
+
+        // A row of the tree that paints every node: its own counts, and where its color shows.
+        const whole = await session.styles.add({
+            name: "Whole graph",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.color": "#0072B2" },
+        });
+        await session.styles.settled();
+        const inspector = await values();
+        assert.include(await matched(inspector), all);
+        await waitFor(() => {
+            assertPainted(session, inspector, whole);
+        });
+    });
+
     it("a rerun that finds a new group says so under the run's groups", async () => {
         const { session, store } = await open();
         const { runId, layer } = await runLayer(session, "louvain");
@@ -545,6 +578,137 @@ describe("a layer row's Values tab on the real element", () => {
         assert.isDefined(fresh, "the rerun noted a new group");
         const inspector = await openValues(store, layer.row ?? layer.id);
         await within(inspector).findByText(/ is new since the last run$/);
+    });
+
+    it("a rerun after a whole group's characters leave says the group is gone", async () => {
+        const { session, store } = await open();
+        const { runId, layer } = await runLayer(session, "louvain");
+        const run = session.runs.get(runId);
+        const field = run?.fields.find((f) => f.measurement === "categorical")?.name ?? "";
+        const smallest = run?.result?.groups()?.at(-1)?.group;
+        assert.isDefined(smallest, "louvain finds groups");
+        const leaving = (run?.result?.ranking(field) ?? [])
+            .filter((entry) => entry.value === smallest)
+            .map((entry) => entry.id);
+        assert.isNotEmpty(leaving);
+        await session.data.removeNodes(leaving);
+        await session.runs.start("louvain", {}, { as: runId });
+        await session.styles.settled();
+        const gone = (session.styles.get(layer.id)?.unmatched ?? []).find((u) => u.code === "group.gone");
+        assert.isDefined(gone, "the rerun noted a gone group");
+        const inspector = await openValues(store, layer.row ?? layer.id);
+        await within(inspector).findByText(/ is gone since the last run/);
+    });
+
+    it("a row painting nodes and edges covers both, and says where each part's color shows", async () => {
+        const { session, store } = await open();
+        const row = await session.styles.addRow({
+            name: "Both orange",
+            target: "both",
+            selector: { match: "everything" },
+            set: { color: "#ff8800" },
+        });
+        await session.styles.settled();
+        assert.isDefined(row.node);
+        assert.isDefined(row.edge);
+        const nodes = session.styles.counts(row.node ?? "");
+        const edges = session.styles.counts(row.edge ?? "");
+        const inspector = await openValues(store, row.id);
+        const covers = await within(inspector).findByRole("group", { name: "Covers" });
+        assert.equal(statValue(covers, "Matched nodes"), formatNumber(nodes.matched));
+        assert.equal(statValue(covers, "Matched edges"), formatNumber(edges.matched));
+        const shows = within(inspector).getByRole("group", { name: "Where its look shows" });
+        assert.match(
+            statValue(shows, "Edge color"),
+            new RegExp(
+                `^on ${formatNumber(edges.painted["edge.color"] ?? 0)} of ${formatNumber(edges.matched)} edges?$`,
+            ),
+        );
+    });
+
+    it("a look covered by four layers names the top three, then the one more", async () => {
+        const { session, store } = await open();
+        const base = await session.styles.add({
+            name: "Base",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.color": "#ff0000" },
+        });
+        // Each cover wins on nodes of its own, so all four count as covering.
+        const ids = session.data.nodes().map((node) => node.id);
+        for (const [i, name] of ["One", "Two", "Three", "Four"].entries()) {
+            await session.styles.add({
+                name,
+                target: "node",
+                selector: { match: "ids", nodes: ids.slice(i * 2, i * 2 + 2) },
+                set: { "node.color": "#0000ff" },
+            });
+        }
+        await session.styles.settled();
+        const covers = session.styles.counts(base.id).covers["node.color"];
+        assert.equal(covers?.more, 1);
+        const inspector = await openValues(store, base.row ?? base.id);
+        const shows = await within(inspector).findByRole("group", { name: "Where its look shows" });
+        assert.lengthOf(within(shows).getAllByText(/^Covered by /), covers?.layers.length ?? 0);
+        assert.isNotNull(within(shows).getByText("1 more layer"));
+    });
+
+    it("an edge category column lists its groups, and a group's row selects its edges", async () => {
+        const { session, store } = await open();
+        const edges = session.data.edges();
+        await session.data.updateEdges(
+            edges.map((edge, i) => ({ id: edge.id, values: { kind: i < 10 ? "rare" : "common" } })),
+        );
+        const layer = await session.styles.add({
+            name: "By kind",
+            target: "edge",
+            selector: { match: "everything" },
+            encode: { "edge.color": { by: "data.kind", scale: "ordinal", palette: "okabe-ito" } },
+        });
+        await session.styles.settled();
+        const inspector = await openValues(store, layer.row ?? layer.id);
+        const header = await within(inspector).findByText("Groups, largest first");
+        const section = header.closest<HTMLElement>("[role=group]");
+        if (section === null) {
+            throw new Error("the groups have no section");
+        }
+        const reads = within(inspector).getByRole("group", { name: "Values read" });
+        const name = reads.querySelector(".cm-data-row-name")?.textContent ?? "";
+        assert.equal(statValue(reads, name), "Data");
+        const rows = new Map(
+            [...section.querySelectorAll<HTMLElement>("[data-testid=data-row-button]")].map((row) => [
+                row.querySelector(".cm-data-row-name")?.textContent,
+                row,
+            ]),
+        );
+        const value = (name: string): string | undefined =>
+            rows.get(name)?.querySelector("[data-testid=data-row-value]")?.textContent ?? undefined;
+        assert.equal(value("rare"), "10");
+        assert.equal(value("common"), String(edges.length - 10));
+        const rare = rows.get("rare");
+        if (rare === undefined) {
+            throw new Error("no rare row");
+        }
+        await userEvent.click(rare);
+        await waitFor(() => {
+            assert.lengthOf(session.selection.edges, 10, "the rare edges are selected");
+        });
+    });
+
+    it("Selected's Now counts selected edges with no node list", async () => {
+        const { session, store } = await open();
+        await session.config.set({ startingRows: true, editableBase: true });
+        await session.styles.settled();
+        const [a, b] = session.data.edges().map((edge) => edge.id);
+        await session.selection.apply({ edges: [a, b] });
+        const selected = session.styles
+            .list()
+            .find((l) => l.selector.match === "state" && l.selector.state === "selected" && l.target === "node");
+        assert.isDefined(selected, "the starting Selected layer");
+        const inspector = await openValues(store, selected?.row ?? selected?.id ?? "");
+        const now = await within(inspector).findByRole("group", { name: "Now" });
+        assert.equal(statValue(now, "Edges"), "2");
+        assert.isNull(within(now).queryByText(/^\d+ nodes?$/));
     });
 });
 

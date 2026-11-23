@@ -51,7 +51,7 @@ import { applyFlatHalo, flatHaloLift } from "./meshes/flatHalo";
 import { oweLabelAnimations } from "./meshes/labelAnimationDebt";
 import { unfreezeFor } from "./meshes/LabelBatch";
 import { imageAspectExtent, labelFitExtent } from "./meshes/labelFit";
-import { layoutLabelTable, readLabelTable } from "./meshes/labelTable";
+import { layoutLabelTable, readLabelTable, roundedBoxOutline } from "./meshes/labelTable";
 import { drawLast, moveInstance } from "./meshes/moveInstance";
 import type { PieceBox } from "./meshes/nodeDecoration";
 import {
@@ -73,7 +73,14 @@ import { pictureSize } from "./meshes/pictureSize";
 import { readColor } from "./meshes/readColor";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
 import { pixelsPerUnit } from "./meshes/screenSize";
-import { drawnAgainstBox, isFlatShape, type Point2, shapeTexts } from "./meshes/shapeOutlines";
+import {
+    drawnAgainstBox,
+    isFlatShape,
+    isPatternedBorder,
+    PATTERN_UNIT_FLOOR_PX,
+    type Point2,
+    shapeTexts,
+} from "./meshes/shapeOutlines";
 import type { TemplateAnimation } from "./models/animateTemplate";
 import { loadedChunk } from "./models/loadModel";
 import {
@@ -89,7 +96,7 @@ import { noteImageDrawn, publishImageFailure, TextureCache } from "./models/Text
 import { NodeBehavior, NodeDragHandler, nodePointerRosterOf } from "./NodeBehavior";
 import { edgeDrawChanges } from "./render/EdgeIdTarget";
 import { rowScanOf } from "./render/PickService";
-import type { RowTable } from "./render/RowTable";
+import { exactOf, type RowTable } from "./render/RowTable";
 import { dispatcherOf } from "./session/GraphSession";
 import { frozenRecord } from "./session/project/draft";
 import {
@@ -122,6 +129,23 @@ const logger = GraphtyLogger.getLogger(["graphty", "node"]);
  * per node mesh source -- the halo is the node's own geometry -- keyed by the node's cache key.
  */
 export const SELECTION_HALO_MESH = "graphty-selection-halo";
+
+/**
+ * A style less its halo. A built `Node` draws its halo as an overlay of its own, hung from its anchor, whatever
+ * draws its body -- as it does for a selection drawn without the starting rows -- so a halo keeps its body on
+ * the batch. Counted as unbatchable, one selected node put every row of its look back on an instance mesh,
+ * and each such row needed a `Node` built for it (issue #9164).
+ * @param style - The style.
+ * @returns It, without `effect.halo`.
+ */
+function withoutHalo(style: NodeStyleConfig): NodeStyleConfig {
+    if (style.effect?.halo === undefined) {
+        return style;
+    }
+
+    const { halo: _halo, ...effect } = style.effect;
+    return { ...style, effect };
+}
 
 /** The cached source mesh every context point is an instance of. */
 const CONTEXT_POINT_MESH = "graphty-context-point";
@@ -169,6 +193,11 @@ export const XLABEL_UNSHARED = [
     "backgroundColor",
     "backgroundOpacity",
     "backgroundShape",
+    "image",
+    "imageWidth",
+    "imageHeight",
+    "imageOffsetX",
+    "imageOffsetY",
     "borderWidth",
     "borderColor",
     "borderOpacity",
@@ -224,19 +253,20 @@ const TABLE_FIT_SLACK = 1e-3;
  * @param drawn - the laid-out table
  * @param drawn.width - its width
  * @param drawn.height - its height
+ * @param drawn.radius - how round its corners are
  * @param width - the node's width
  * @param height - its height
  * @returns the frame, or none
  */
 function tableOutlineFrame(
     border: number | undefined,
-    drawn: { width: number; height: number },
+    drawn: { width: number; height: number; radius: number },
     width: number,
     height: number,
-): { x: number; y: number; width: number; height: number; border: number }[] {
+): { x: number; y: number; width: number; height: number; border: number; radius: number }[] {
     const inside = drawn.width < width - TABLE_FIT_SLACK || drawn.height < height - TABLE_FIT_SLACK;
     return border !== undefined && border > 0 && inside
-        ? [{ x: 0, y: 0, width: drawn.width, height: drawn.height, border }]
+        ? [{ x: 0, y: 0, width: drawn.width, height: drawn.height, border, radius: drawn.radius }]
         : [];
 }
 
@@ -285,6 +315,11 @@ function groupRegionPaint(meshKey: string, style: NodeStyleConfig): { meshKey: s
 interface NodeOpts {
     /** Whether dropping the node after a drag pins it in place; defaults to true. */
     pinOnDrag?: boolean;
+    /**
+     * When the node arrived, by `performance.now()`, for a `Node` built for a row stored earlier;
+     * now when absent.
+     */
+    arrivedAt?: number;
 }
 
 /** Writes a node's row; see {@link placeNodeRow}. */
@@ -354,6 +389,33 @@ export const nodeInternals = {} as {
  */
 export function nodeRebuildsFor(node: Node, paint: NodePaint): boolean {
     return rebuildsFor(node, paint);
+}
+
+/** Tells a node its geometry changed; see {@link nodeResizedFrom}. */
+let resizeNode: (node: Node) => void;
+
+/**
+ * Tell the layout and a node's edges that it is drawn at another size or shape than its row was
+ * drawn at before the node was built. A row a batch drew is built straight from the paint it is
+ * about to take when that paint does not keep the batch's source (a restyle that borders it), so
+ * painting the new `Node` changes nothing and {@link Node.applySessionPaint} sees no resize; this
+ * tells them what that paint would have.
+ * @param node - The new node.
+ * @param before - The style the batch drew its row with.
+ * @param after - The style it is built with.
+ */
+export function nodeResizedFrom(node: Node, before: NodeStyleConfig, after: NodeStyleConfig): void {
+    const fitsLabel =
+        after.shape?.labelFit !== undefined ||
+        after.shape?.labelTable !== undefined ||
+        after.shape?.imageAspect === true;
+    if (
+        !isEqual(before.shape, after.shape) ||
+        !isEqual(before.border, after.border) ||
+        (fitsLabel && !isEqual(before.label, after.label))
+    ) {
+        resizeNode(node);
+    }
 }
 
 /**
@@ -484,18 +546,6 @@ function hexOf(value: unknown, fallback: string): { hex: string; alpha: number }
 }
 
 /**
- * A batched row's measure as the CPU took it, when the row table's 32-bit copy is that measure rounded: the
- * object path works in the doubles it measured, and a last bit of difference moves a trimmed edge end by a
- * pixel (#6287).
- * @param stored - What the row table holds.
- * @param measured - What the node measured when it wrote the row, or null.
- * @returns The measure, or what the table holds when it holds something else (a shrink part of the way).
- */
-function exactOf(stored: number, measured: number | null): number {
-    return measured !== null && Math.fround(measured) === stored ? measured : stored;
-}
-
-/**
  * Represents a node in the graph visualization with its mesh, label, and associated data.
  * Manages node rendering, styling, drag behavior, and interactions with the layout engine.
  */
@@ -518,6 +568,9 @@ export class Node implements ModelUser {
             node.shaderDrawing?.dataChanged(node);
         };
         ownAnchor = (node) => node.#anchor;
+        resizeNode = (node) => {
+            node.geometryChanged();
+        };
         nodeInternals.drawn = (node) => ({
             border: node.border,
             outerBorder: node.outerBorder,
@@ -558,9 +611,14 @@ export class Node implements ModelUser {
      * @param row - The new row.
      */
     private set index(row: number) {
+        // The edge ID target draws each line from its nodes' rows, so a node that moves to another row moves its
+        // edges' lines. A node built into the row its data already has (from none) moves no line: building one
+        // lazily, for a selection or a hover, must not throw away the target's last read.
+        if (this.row !== INVALID_INDEX && this.row !== row) {
+            edgeDrawChanges.count++;
+        }
+
         this.row = row;
-        // the edge ID target draws each line from its nodes' rows
-        edgeDrawChanges.count++;
     }
 
     /**
@@ -586,6 +644,11 @@ export class Node implements ModelUser {
      * will keep only this once its mesh goes (design/rendering/row-renderer.md, stage 11).
      */
     #anchor!: TransformNode;
+    /**
+     * Whether the constructor has built the mesh: before then it measures a label it fits the shape
+     * to, which has nothing to hang from yet ({@link Node.labelTarget}).
+     */
+    readonly #constructed: boolean = false;
     /** Whether a consumer has read {@link Node.mesh}: the node then keeps drawing with its own mesh. */
     #meshHeld = false;
     /** Whether this node's model carries a silhouette mark (src/models/NodeOutlineLayers.ts). */
@@ -594,21 +657,30 @@ export class Node implements ModelUser {
     #playing: TemplateAnimation | null = null;
     /** The view's scale on this node (`node.sizeSpace`), a shrink left out. */
     #wholeScale = 1;
+    /**
+     * A model's mesh and the scale it was built at: its size (`NodeMesh.createModelInstance`),
+     * which a view's scale multiplies rather than replaces. A shape's mesh is built at its size,
+     * so it has none (issue #9304).
+     */
+    #modelBuilt: { readonly mesh: AbstractMesh; readonly scale: Vector3 } | null = null;
     /** The actions a pick of the node's mesh runs, put back on a mesh rebuilt when a batch lets the row go. */
     #actions: ActionManager | null = null;
 
     /**
      * The node's own mesh, for a consumer. Nothing in graphty-element reads it: the element reads
      * the private field, and every other file a `drawn*` accessor (`local/node-mesh-funnel`).
-     * Under `render-path="batched"`, reading it keeps this node drawn by its own mesh from then on,
-     * never by a node batch, so what a consumer does to the mesh shows. The rest of its look stays
-     * on the batch.
+     * Under `render-path="batched"`, reading it keeps this node's own mesh from then on, and its
+     * look's batch draws the row from that mesh's world matrix and visibility, in the row's own
+     * place among its look, so what a consumer does to the mesh shows as on `"objects"`.
      * @returns The mesh.
      */
     get mesh(): AbstractMesh {
         if (!this.#meshHeld) {
             this.#meshHeld = true;
-            this.holdOffBatch();
+            if (!this.disposed) {
+                this.context.getNodeBatches?.()?.sync(this);
+                this.context.getUpdateManager?.().holdsMesh(this);
+            }
         }
 
         if (this.#mesh === null) {
@@ -834,9 +906,16 @@ export class Node implements ModelUser {
      * What the border was last built from: the mesh key and style, and for a border in screen
      * pixels (`border.screenWidth`) the screen pixels one scene unit was drawn as then, rounded to
      * a step of 1/16 of a doubling, so a zoom that changes the border on screen rebuilds it and one
-     * that does not leaves it alone. Null scale for a border in scene units.
+     * that does not leaves it alone. Null scale for a border in scene units. `dashScale` is the same rounded scale
+     * for a dashed, dotted or dash-dot border (or outer border) too thin for its pattern at that zoom
+     * ({@link Node.dashFloorScale}), null for any other.
      */
-    private borderBuilt: { meshKey: string; style: NodeStyleConfig; scale: number | null } | null = null;
+    private borderBuilt: {
+        meshKey: string;
+        style: NodeStyleConfig;
+        scale: number | null;
+        dashScale: number | null;
+    } | null = null;
 
     /** The mesh {@link Node.roundRadius} was last measured from, so a reshape re-measures. */
     private roundRadiusMesh: TransformNode | null = null;
@@ -998,6 +1077,10 @@ export class Node implements ModelUser {
         this.id = nodeId;
         this.opts = opts;
         this.#record = frozenRecord(data);
+        // A node arriving in a graph already drawing shaders plays the entrances it starts with:
+        // noted before it is drawn, since the first draw decides them (on "batched" it can draw a
+        // shader below), and again at the end for a drawing its own draw made.
+        NodeShaderDrawing.peek(this.context.getScene())?.arrived(this, opts.arrivedAt);
 
         this.meshKey = paint.meshKey;
 
@@ -1012,6 +1095,7 @@ export class Node implements ModelUser {
 
         const fit = this.fitToLabel(paint.meshKey, o);
         const built = this.build(fit.meshKey, fit.style);
+        this.#constructed = true;
 
         // Parent to graph-root for XR gesture support
         // This allows gestures to transform the entire graph by manipulating the root
@@ -1041,8 +1125,7 @@ export class Node implements ModelUser {
 
         NodeBehavior.addDefaultBehaviors(this, this.opts);
 
-        // A node arriving in a graph already drawing shaders plays the entrances it starts with.
-        NodeShaderDrawing.peek(this.context.getScene())?.arrived(this);
+        NodeShaderDrawing.peek(this.context.getScene())?.arrived(this, this.opts.arrivedAt);
     }
 
     /**
@@ -1155,8 +1238,10 @@ export class Node implements ModelUser {
         // decided the zoom: the same file drew two pictures. The cameras' fit padding covers the
         // few pixels.
         const reach = this.sceneBorderReach;
+        // In single precision, as the row table holds a batched row's half extents: counted in double, a graph
+        // loaded as objects framed its camera a float's step from the same graph loaded batched (issue #9626).
         const along = (axis: "x" | "y" | "z", grown: number): number =>
-            ((box.extendSize[axis] * Math.abs(scale[axis])) / grown + reach) * Math.abs(root?.[axis] ?? 1);
+            Math.fround((box.extendSize[axis] * Math.abs(scale[axis])) / grown + reach) * Math.abs(root?.[axis] ?? 1);
         const half = new Vector3(along("x", far), along("y", far), along("z", 1));
         return { min: box.centerWorld.subtract(half), max: box.centerWorld.add(half) };
     }
@@ -1167,7 +1252,17 @@ export class Node implements ModelUser {
      * @returns The reach.
      */
     private get sceneBorderReach(): number {
-        return typeof this.borderBuilt?.scale === "number" ? 0 : this.borderReach;
+        return this.screenBorder ? 0 : this.borderReach;
+    }
+
+    /**
+     * Whether this node's border is drawn in screen pixels (`border.screenWidth`), so {@link Node.borderReach} changes
+     * with the zoom and {@link Node.layoutRadius} leaves it out.
+     * @returns True for a screen-pixel border.
+     * @internal
+     */
+    get screenBorder(): boolean {
+        return typeof this.borderBuilt?.scale === "number";
     }
 
     /**
@@ -1216,6 +1311,62 @@ export class Node implements ModelUser {
     }
 
     /**
+     * What a border is built from at the current zoom: the screen scale of a screen-pixel border, the dash floor's
+     * scale ({@link Node.dashFloorScale}), the border in scene units, its mesh key and its drawn width.
+     * @param meshKey - The source mesh key the node is drawn under.
+     * @param style - The resolved style.
+     * @returns The plan.
+     */
+    private borderPlan(
+        meshKey: string,
+        style: NodeStyleConfig,
+    ): {
+        scale: number | null;
+        dashScale: number | null;
+        border: NodeStyleConfig["border"];
+        key: string;
+        width: number;
+    } {
+        const scale = this.screenScale(style);
+        const perSize = NodeMesh.extentPerSize(style.shape);
+        const { border, key } = this.scaledBorder(meshKey, style.border, scale, perSize);
+        const width = this.drawnBorderWidth(style, border, perSize);
+        const outerWidth = (style.outerBorder?.width ?? 0) * perSize;
+        return { scale, dashScale: this.dashFloorScale(style, width, outerWidth), border, key, width };
+    }
+
+    /**
+     * The shortest one width of the built border's pattern is drawn, in scene units: the floor in screen pixels at
+     * the zoom it was built for, or undefined when its pattern is not floored.
+     * @returns The unit, or undefined.
+     */
+    private get dashUnit(): number | undefined {
+        const dashScale = this.borderBuilt?.dashScale ?? null;
+        return dashScale === null ? undefined : PATTERN_UNIT_FLOOR_PX / dashScale;
+    }
+
+    /**
+     * The screen pixels one scene unit is drawn as here (rounded as {@link Node.screenScale} rounds it) when a dashed,
+     * dotted or dash-dot border or outer border is narrower than {@link PATTERN_UNIT_FLOOR_PX} on screen, so its
+     * pattern is measured in that floor rather than in its width; null when no pattern is that thin.
+     * @param style - The resolved style.
+     * @param width - The border's drawn width, in scene units.
+     * @param outerWidth - The outer border's width, in scene units.
+     * @returns The rounded scale, or null.
+     */
+    private dashFloorScale(style: NodeStyleConfig, width: number, outerWidth: number): number | null {
+        const widths = [
+            isPatternedBorder(style.border?.style) ? width : 0,
+            isPatternedBorder(style.outerBorder?.style) ? outerWidth : 0,
+        ].filter((w) => w > 0);
+        if (widths.length === 0) {
+            return null;
+        }
+        const ppu = this.roundedPixelsPerUnit();
+        return Math.min(...widths) * ppu < PATTERN_UNIT_FLOOR_PX ? ppu : null;
+    }
+
+    /**
      * Build this node's border from its style, as a child of its mesh so it moves, hides and is
      * disposed with the node. Called after every new mesh: the old border went with the old mesh.
      * @param meshKey - The source mesh key the node is drawn under.
@@ -1224,15 +1375,15 @@ export class Node implements ModelUser {
     private syncBorder(meshKey: string, style: NodeStyleConfig): void {
         this.groupBorderSource?.dispose();
         this.groupBorderSource = null;
-        const scale = this.screenScale(style);
-        const perSize = NodeMesh.extentPerSize(style.shape);
-        const { border, key } = this.scaledBorder(meshKey, style.border, scale, perSize);
-
-        this.borderBuilt = { meshKey, style, scale };
-        this.borderWidth = this.drawnBorderWidth(style, border, perSize);
+        const { scale, dashScale, border, key, width } = this.borderPlan(meshKey, style);
+        // a patterned ring drawn with its pattern floored is cached per zoom step, as a screen-pixel border is
+        const styleId = dashScale === null ? key : `${key}|dash${String(dashScale)}`;
+        this.borderBuilt = { meshKey, style, scale, dashScale };
+        const { dashUnit } = this;
+        this.borderWidth = width;
         this.border = NodeMesh.createBorder(
             this.context.getMeshCache(),
-            { styleId: key, is2D: this.context.is2D(), size: this.size },
+            { styleId, is2D: this.context.is2D(), size: this.size, dashUnit },
             { shape: style.shape, border },
             this.#anchor as AbstractMesh,
             this.context.getScene(),
@@ -1249,7 +1400,7 @@ export class Node implements ModelUser {
 
         this.outerBorder = NodeMesh.createOuterBorder(
             this.context.getMeshCache(),
-            { styleId: key, is2D: this.context.is2D(), size: this.size },
+            { styleId, is2D: this.context.is2D(), size: this.size, dashUnit },
             { shape: style.shape, border, outerBorder: style.outerBorder },
             this.#anchor as AbstractMesh,
             this.context.getScene(),
@@ -1354,10 +1505,14 @@ export class Node implements ModelUser {
      * @returns The rounded scale, or null.
      */
     private screenScale(style: NodeStyleConfig): number | null {
-        if (style.border?.screenWidth === undefined) {
-            return null;
-        }
+        return style.border?.screenWidth === undefined ? null : this.roundedPixelsPerUnit();
+    }
 
+    /**
+     * The screen pixels one scene unit is drawn as where this node is, rounded to 1/16 of a doubling.
+     * @returns The rounded scale; 1 with no camera.
+     */
+    private roundedPixelsPerUnit(): number {
         const camera = this.context.getScene().activeCamera;
         // In CSS pixels, as a program drawing on a page counts them: a render pixel is a fraction
         // of one on a high-density screen.
@@ -1372,8 +1527,9 @@ export class Node implements ModelUser {
 
     /**
      * Rebuild a border drawn in screen pixels when the camera now draws it at another width on
-     * screen. Called by the update loop on a frame the camera moved; does nothing for a node
-     * whose border is in scene units.
+     * screen, and a dashed, dotted or dash-dot border whose pattern the zoom took under or over its
+     * floor in screen pixels ({@link Node.dashFloorScale}). Called by the update loop on a frame the
+     * camera moved; does nothing for a node with neither.
      *
      * The ring's reach is where this node's edges end, so the caller re-trims them when this
      * answers true (#3532). A layout is not woken: it spaces nodes by `layoutRadius`,
@@ -1383,17 +1539,25 @@ export class Node implements ModelUser {
      */
     refreshScreenBorder(): boolean {
         const built = this.borderBuilt;
-        if (typeof built?.scale !== "number" || this.#anchor.isDisposed()) {
+        const patterned =
+            isPatternedBorder(built?.style.border?.style) || isPatternedBorder(built?.style.outerBorder?.style);
+        if (built === null || (built.scale === null && !patterned) || this.#anchor.isDisposed()) {
             return false;
         }
 
-        if (this.screenScale(built.style) === built.scale) {
+        const plan = this.borderPlan(built.meshKey, built.style);
+        if (plan.scale === built.scale && plan.dashScale === built.dashScale) {
             return false;
         }
 
         const before = this.borderReach;
         this.border?.dispose();
         this.syncBorder(built.meshKey, built.style);
+        // a group's ring is drawn at its box's size (fitGroupChildren), which the new border is not yet
+        const box = this.drawnAsGroup ? this.context.getLayoutManager().groupBox(this.id) : undefined;
+        if (box !== undefined) {
+            this.drawAsGroup(box);
+        }
         return this.borderReach !== before;
     }
 
@@ -1650,6 +1814,7 @@ export class Node implements ModelUser {
                       { x: width, y: height, z: depth },
                       this.context.is2D(),
                       this.context.getScene(),
+                      this.dashUnit,
                   );
         if (old !== null && ring !== null) {
             // The cached border's material, shared: the ring's own disposal never takes it. The
@@ -1843,7 +2008,21 @@ export class Node implements ModelUser {
         }
 
         this.followedMoves = table.moves;
-        this.#anchor.position.copyFrom(table.centerOf(this.row));
+        const center = table.centerOf(this.row);
+        // A row renumbered by a removal keeps its place: its world matrix is brought up to date only
+        // if something else left it stale, not forced again for each of a hundred thousand nodes
+        // (issue #9164). Stale is asked of the anchor itself: an unforced computeWorldMatrix returns
+        // the cached matrix whenever it already ran in this render id, and before the first frame
+        // every call shares one, so an anchor moved onto its row there kept the template's place.
+        if (this.#anchor.position.equals(center)) {
+            if (!this.#anchor.isSynchronized()) {
+                this.#anchor.computeWorldMatrix(true);
+            }
+
+            return;
+        }
+
+        this.#anchor.position.copyFrom(center);
         // Its world place too, which Babylon would otherwise refresh only at the next frame.
         this.#anchor.computeWorldMatrix(true);
     }
@@ -1900,12 +2079,15 @@ export class Node implements ModelUser {
 
     /**
      * Drop the memos keyed on a mesh or anchor the batch handover just disposed: they would keep
-     * it, and through it its scene data, alive (issue #3247). The next read measures again.
+     * it, and through it its scene data, alive (issue #3247). The next unbatched read measures again.
+     * The measured values stay: a batched read takes them over the row table's 32-bit copy, and a zeroed one made
+     * a batched node's width the rounded copy and its height the double until the next measure (#6287).
      */
     private forgetMeasuredMesh(): void {
         this.roundRadiusMesh = null;
         this.halfExtentsMesh = null;
-        this.halfExtentsValue.x = 0;
+        // a scale nothing equals, so the next unbatched read measures again
+        this.halfExtentsScale.x = Number.NaN;
     }
 
     /**
@@ -2054,13 +2236,12 @@ export class Node implements ModelUser {
         const style = this.drawnStyle ?? null;
         return (
             style !== null &&
-            !this.#meshHeld &&
             // A row the batch draws gave up its instance: only an instance can leave its mesh.
             (this.#mesh === null || this.#mesh instanceof InstancedMesh) &&
             !this.drawnAsGroup &&
             this.drawnModel === null &&
             this.shaderPath === null &&
-            batchableOf({ style }, view)
+            batchableOf({ style: withoutHalo(style) }, view)
         );
     }
 
@@ -2126,12 +2307,14 @@ export class Node implements ModelUser {
     }
 
     /**
-     * The opacity the node is drawn at: its mesh's visibility, or for a row a batch draws, the batch's.
+     * The opacity the node is drawn at: its mesh's visibility, or for a row a batch draws, the batch's,
+     * held rows included, whose mesh shares the source the batch hides.
      * @returns The opacity.
      * @internal
      */
     get drawnOpacity(): number {
-        return this.#mesh?.visibility ?? this.batchOpacity;
+        const mirrored = this.#meshHeld && this.context.getNodeBatches?.()?.mirrors(this) === true;
+        return mirrored ? this.batchOpacity : (this.#mesh?.visibility ?? this.batchOpacity);
     }
 
     /**
@@ -2203,7 +2386,17 @@ export class Node implements ModelUser {
      */
     get drawnScale(): number {
         const scale = this.batchTable?.extentOf(this.row).scale;
-        return scale === undefined ? this.#anchor.scaling.x : exactOf(scale, this.#anchor.scaling.x);
+        const own = this.#anchor.scaling.x / (this.builtScale()?.x ?? 1);
+        return scale === undefined ? own : exactOf(scale, own);
+    }
+
+    /**
+     * The scale the node's mesh was built at, when it is a model's.
+     * @returns The scale, or null for a mesh built at its size.
+     */
+    private builtScale(): Vector3 | null {
+        const built = this.#modelBuilt;
+        return built !== null && built.mesh === this.#anchor ? built.scale : null;
     }
 
     /**
@@ -2242,7 +2435,13 @@ export class Node implements ModelUser {
      * @param whole - Its scale when it is not shrunk.
      */
     private drawScaled(scale: number, whole: number): void {
-        this.#anchor.scaling.setAll(scale);
+        const built = this.builtScale();
+        if (built === null) {
+            this.#anchor.scaling.setAll(scale);
+        } else {
+            built.scaleToRef(scale, this.#anchor.scaling);
+        }
+
         this.measureRow();
         if (this.#wholeScale !== whole) {
             this.#wholeScale = whole;
@@ -2445,11 +2644,13 @@ export class Node implements ModelUser {
      * at the same moment: a session's paint exists from the instant it is bound, and the field is
      * filled by the first frame that drains the dirty set. A rebuild in between -- a 2D/3D switch
      * immediately after a load -- would otherwise find nothing and draw nothing.
+     * A node never painted, rebuilt while a pass is painting, is drawn with the defaults and queued
+     * for the frame after the pass (`StylePainter.settledNodePaint`).
      * @returns The session's paint when one is bound, and the element's own defaults otherwise.
      */
     private currentPaint(): NodePaint {
         const painter = this.context.getStylePainter?.();
-        const painted = painter?.owns === true ? (this.sessionPaint ?? painter.nodePaint(this.index)) : null;
+        const painted = painter?.owns === true ? (this.sessionPaint ?? painter.settledNodePaint(this.index)) : null;
 
         return painted ?? bootstrapNodePaint();
     }
@@ -2906,8 +3107,18 @@ export class Node implements ModelUser {
             });
             // ponytail: one picture per node, the first cell's; a mesh per picture when a file has several
             const [picture] = drawn.images;
+            // a rounded background is drawn as its outline, a gradient one with its colors' ends
             const decoration: TableDecoration = {
-                fills: drawn.fills.map((f) => ({ box: box(f), color: f.color })),
+                fills: drawn.fills.map((f) => ({
+                    box: box(f),
+                    color: f.color,
+                    ...(f.gradient === undefined ? {} : { gradient: f.gradient }),
+                    ...(f.radius === undefined
+                        ? {}
+                        : {
+                              outline: roundedBoxOutline(f, f.radius).map(([x, y]): [number, number] => [fx(x), fy(y)]),
+                          }),
+                })),
                 image:
                     picture === undefined
                         ? null
@@ -2925,8 +3136,9 @@ export class Node implements ModelUser {
             const lines = [
                 ...[...outline, ...drawn.frames].map((f) => {
                     const i = f.border / 2;
-                    const [x0, x1, y0, y1] = [fx(f.x + i), fx(f.x + f.width - i), fy(f.y + i), fy(f.y + f.height - i)];
-                    return `${x0},${y0} ${x1},${y0} ${x1},${y1} ${x0},${y1} ${x0},${y0}`;
+                    const inner = { x: f.x + i, y: f.y + i, width: f.width - f.border, height: f.height - f.border };
+                    const points = roundedBoxOutline(inner, f.radius ?? 0);
+                    return [...points, points[0]].map(([x, y]) => `${fx(x)},${fy(y)}`).join(" ");
                 }),
                 ...drawn.rules.map(([x0, y0, x1, y1]) => `${fx(x0)},${fy(y0)} ${fx(x1)},${fy(y1)}`),
             ];
@@ -2986,7 +3198,9 @@ export class Node implements ModelUser {
         const model = this.modelFor(o);
         if (model !== null) {
             this.setDrawn(model, null);
-            return NodeMesh.createModelInstance(model, o.shape, `node-model-${String(this.id)}`);
+            const mesh = NodeMesh.createModelInstance(model, o.shape, `node-model-${String(this.id)}`);
+            this.#modelBuilt = { mesh, scale: mesh.scaling.clone() };
+            return mesh;
         }
 
         const image = this.imageFor(o);
@@ -2999,65 +3213,16 @@ export class Node implements ModelUser {
     }
 
     /**
-     * Give a held node a source mesh of its own while node batches draw: on a read of its mesh, and
-     * when the graph switches to batched drawing after that read. A batch hides its whole source, so
-     * a held node sharing it took every row of its look off the batch (#8038, #8073).
+     * Whether a consumer read this node's mesh ({@link Node.mesh}), which keeps it from then on.
+     * @returns True when one did.
      * @internal
      */
-    holdOffBatch(): void {
-        const batches = this.disposed ? undefined : this.context.getNodeBatches?.();
-        if (!this.#meshHeld || !batches) {
-            return;
-        }
-
-        batches.leave(this);
-        this.drawFromOwnSource();
-        batches.sync(this);
-    }
-
-    /**
-     * Move a held node's instance onto its own source mesh ({@link Node.sourceArgs}), if it is not there.
-     */
-    private drawFromOwnSource(): void {
-        const mesh = this.#mesh;
-        if (!(mesh instanceof InstancedMesh) || this.drawnModel !== null) {
-            return;
-        }
-
-        const { meshKey, style } = this.#fit;
-        const source = NodeMesh.source(
-            this.context.getMeshCache(),
-            ...this.sourceArgs(meshKey, style, this.drawnImage),
-            this.context.getScene(),
-        );
-        // A group draws from a fill of its own, built over the shared source it stands for (see fitGroupFill)
-        const drawn = mesh.sourceMesh === this.groupFill ? this.groupFillKeep?.sourceMesh : mesh.sourceMesh;
-        if (source !== drawn) {
-            moveInstance(mesh, source);
-            this.#source = source;
-            // A new source has no color buffer until a paint registers one: paint the instance again.
-            this.applyInstancePaint(this.drawnStyle ?? style, this.drawnColor);
-            // and a group's fill is rebuilt over it at once, never drawn stretched until the next frame
-            const box = this.context.getLayoutManager().groupBox(this.id);
-            if (box !== undefined && this.drawnAsGroup) {
-                this.drawAsGroup(box);
-            }
-        }
-    }
-
-    /**
-     * Whether this node draws from a source of its own: a consumer holds its mesh while node batches
-     * draw, which hide the shared source. The objects path keeps sharing.
-     * @returns True when it does.
-     */
-    private drawsOwnSource(): boolean {
-        return this.#meshHeld && !this.disposed && (this.context.getNodeBatches?.() ?? null) !== null;
+    get drawnHeld(): boolean {
+        return this.#meshHeld;
     }
 
     /**
      * What {@link NodeMesh.create} and {@link NodeMesh.source} are asked for this node's source mesh.
-     * A held node under node batches draws from a source of its own, so a batch can keep hiding
-     * the shared one.
      * @param meshKey - The source mesh key.
      * @param o - The resolved style.
      * @param image - The picture on its shape, or null.
@@ -3071,7 +3236,7 @@ export class Node implements ModelUser {
         return [
             // A source mesh with its picture is another source mesh than the one drawn while it loads.
             {
-                styleId: `${meshKey}${image === null ? "" : "|image"}${this.drawsOwnSource() ? "|held" : ""}`,
+                styleId: `${meshKey}${image === null ? "" : "|image"}`,
                 is2D: this.context.is2D(),
                 size: this.size,
             },
@@ -3243,19 +3408,18 @@ export class Node implements ModelUser {
             return;
         }
 
-        // Built `Edge`s only: an edge stored with no `Edge` keeps no cached ends to invalidate.
-        for (const edge of dataManagerInternals.builtEdges(this.context.getDataManager()).values()) {
-            // By id: reading an end's `Node` would build one for a row drawn with none.
-            if (edge.srcId === this.id || edge.dstId === this.id) {
-                edge.invalidatePositionCache();
-            }
+        // Its own built edges measure their ends again and are placed: an edge stored with no `Edge` keeps no
+        // cached ends. Outside a style pass (a model or picture landing on a frame of its own) nothing else makes
+        // the frame loop visit them: it places edges only when a node moved, and this node did not. Without it the
+        // edges kept the ends measured against the placeholder shape whenever the model landed after the last walk,
+        // so one story drew two pictures (#4392). Only this node's: a walk of every edge here made putting one node
+        // back on a million-edge graph place every edge (issue #9164). Measured again here, not only by the update
+        // manager, so a context that has none still draws the ends on the new shape.
+        for (const edge of dataManagerInternals.builtEdgesAt(this.context.getDataManager(), this.id)) {
+            edge.invalidatePositionCache();
         }
 
-        // Outside a style pass (a model or picture landing on a frame of its own) nothing else
-        // makes the frame loop visit the edges: it walks them only when a node moved, and this
-        // node did not. Without it the edges kept the ends measured against the placeholder shape
-        // whenever the model landed after the last walk, so one story drew two pictures (#4392).
-        this.context.getUpdateManager?.().forceEdgeWalk();
+        this.context.getUpdateManager?.().placeEdgesOfNode(this);
     }
 
     /**
@@ -4175,11 +4339,18 @@ export class Node implements ModelUser {
      * @internal
      */
     get surfaceIsClosedForm(): boolean {
-        return (
-            this.drawnModel === null &&
-            CLOSED_FORM_SHAPES.has(this.shapeType ?? "") &&
-            (this.drawnStyle?.shape?.rotation ?? 0) % 360 === 0
-        );
+        return this.drawnModel === null && Node.closedForm(this.shapeType, this.drawnStyle?.shape?.rotation);
+    }
+
+    /**
+     * {@link Node.surfaceIsClosedForm} for a shape with no model, as a row drawn with no `Node` reads it.
+     * @param shape - The shape's type.
+     * @param rotation - Its turn, in degrees.
+     * @returns True for a box or a rectangle left unturned.
+     * @internal
+     */
+    static closedForm(shape: string | undefined, rotation: number | undefined): boolean {
+        return CLOSED_FORM_SHAPES.has(shape ?? "") && (rotation ?? 0) % 360 === 0;
     }
 
     /**
@@ -4783,9 +4954,13 @@ export class Node implements ModelUser {
      * The mesh a label hangs from: the node's own, or for a row a batch draws, its anchor made a
      * geometry-free mesh ({@link Node.boxAnchor}), so the row stays batched. The batch is told
      * first: a paint that keeps its mesh labels the node before it re-sorts it.
-     * @returns The mesh, or undefined for a removed node with no mesh.
+     * @returns The mesh, or undefined for a removed node with no mesh, or one still being built.
      */
     private labelTarget(): AbstractMesh | undefined {
+        if (!this.#constructed) {
+            return undefined;
+        }
+
         if (this.#mesh === null && !this.disposed) {
             this.context.getNodeBatches?.()?.sync(this);
         }

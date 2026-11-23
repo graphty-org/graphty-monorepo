@@ -1,6 +1,7 @@
 import { afterEach, assert, test } from "vitest";
 
 import type { Graph } from "../../../src/Graph.js";
+import { drawnFrames } from "../../helpers/drawn-frames.js";
 import { cleanupTestGraph, createTestGraph } from "../../helpers/testSetup.js";
 
 let graph: Graph;
@@ -41,4 +42,34 @@ test("a camera state's ortho edges set how much a 2D view shows, over its zoom",
 
     await graph.setCameraState({ orthoLeft: -8, orthoRight: 8 }, { animate: true, duration: 100 });
     assert.closeTo(graph.getCameraState().zoom ?? Number.NaN, wide / 2, 1e-6, "an animated move lands on the edges");
+});
+
+test("a 2D zoom draws the same framing on every frame while the data grows (issue #9640)", async () => {
+    graph = await createTestGraph();
+    await graph.setViewMode("2d");
+    // The camera is the caller's: the element does not frame the growing graph on its own.
+    graph.setAutoFrame(false);
+    await graph.addNodes([{ id: "n0" }]);
+    await graph.waitForStableFrame();
+
+    await graph.setCameraState({ zoom: 1.5, pan: { x: 0, y: 0 } }, { skipQueue: true });
+    const drawnZooms: number[] = [];
+    const observer = graph.scene.onAfterRenderObservable.add(() => {
+        drawnZooms.push(graph.getCameraState().zoom ?? Number.NaN);
+    });
+    try {
+        // A growing chain: the layout spreads it wider with every add.
+        for (let i = 1; i <= 5; i++) {
+            await graph.addNodes([{ id: `n${i}` }]);
+            await graph.addEdges([{ src: `n${i - 1}`, dst: `n${i}` }]);
+            await drawnFrames(graph.scene, 5);
+        }
+    } finally {
+        graph.scene.onAfterRenderObservable.remove(observer);
+    }
+
+    assert.isAtLeast(drawnZooms.length, 25, "every add was drawn");
+    for (const zoom of drawnZooms) {
+        assert.closeTo(zoom, 1.5, 1e-9, `drawn zooms: ${drawnZooms.join(", ")}`);
+    }
 });

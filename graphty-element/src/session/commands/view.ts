@@ -24,14 +24,18 @@ import type { ProjectState } from "../project/state";
 import type { SavedView, StartingCamera } from "../types";
 import { renameTourStops } from "./tour";
 
-/** One view to save: a name, and a fixed camera or the camera view it follows. */
-interface ViewEntry {
+/**
+ * One view to save: a name, a fixed camera or the camera view it follows, and the parts it keeps
+ * beside it, already read from the session.
+ */
+interface ViewEntry extends Omit<SavedView, "key"> {
     readonly name: string;
-    readonly camera?: CameraState;
-    readonly follows?: string;
     /** Its key chord; absent keeps the key a view already under the name has, null clears it. */
     readonly key?: string | null;
 }
+
+/** The parts a saved view can keep beside its camera, in the order `views.open` restores them. */
+export const SAVED_VIEW_PARTS = Object.freeze(["filters", "layers", "hidden", "positions", "legend"] as const);
 
 /** `view.save`: keep views under names, replacing any view already under one. */
 interface ViewSaveCommand {
@@ -62,13 +66,15 @@ interface ViewRemoveCommand {
     readonly names: readonly string[];
 }
 
-/** `view.camera`: move the camera to a named view, or to a position and target. */
+/** `view.camera`: move the camera to a named view, to a camera state, or to a position and target. */
 interface ViewCameraCommand {
     readonly op: "view.camera";
     /** A camera view or a saved view, by name. Wins over `position` and `target`. */
     readonly preset?: string;
     readonly position?: Vec3;
     readonly target?: Vec3;
+    /** A whole camera state, as `setCameraState` takes it. Wins over `position` and `target`; `preset` wins over it. */
+    readonly camera?: CameraState;
     /** Animate the move instead of jumping. */
     readonly animate?: boolean;
 }
@@ -131,7 +137,7 @@ export interface CameraService {
  * @param available - The saved names.
  * @returns The error.
  */
-function unknownView(missing: readonly string[], available: readonly string[]): GraphtyError {
+export function unknownView(missing: readonly string[], available: readonly string[]): GraphtyError {
     return new GraphtyError({
         code: "E_BAD_COMMAND",
         message: `No view is saved as "${missing[0]}".`,
@@ -225,6 +231,36 @@ function assertViewEntry(view: ViewEntry): void {
         throw unknownFollowed(view.follows);
     }
     assertKey(view.key);
+    assertParts(view);
+}
+
+/**
+ * Refuse a kept part of the wrong shape.
+ * @param view - The view.
+ * @throws A `GraphtyError` with `E_OPTION_RANGE` `{ option }` naming the part.
+ */
+function assertParts(view: ViewEntry): void {
+    const { filters, layers, hidden, positions, legend } = view;
+    const wrong =
+        (filters !== undefined && !Array.isArray(filters) && "filters") ||
+        (layers !== undefined && (typeof layers !== "object" || layers === null) && "layers") ||
+        (hidden !== undefined && !Array.isArray(hidden) && "hidden") ||
+        (positions !== undefined &&
+            !(
+                Array.isArray(positions.order) &&
+                Array.isArray(positions.xyz) &&
+                positions.xyz.length === positions.order.length * 3
+            ) &&
+            "positions") ||
+        (legend !== undefined && typeof legend !== "boolean" && "legend");
+    if (wrong !== false) {
+        throw new GraphtyError({
+            code: "E_OPTION_RANGE",
+            message: `A saved view's "${wrong}" is not what that part holds.`,
+            source: "view",
+            details: { option: wrong },
+        });
+    }
 }
 
 /**
@@ -412,7 +448,13 @@ const viewSave: UndoableDefinition<ViewSaveCommand> = {
                 order.push(view.name);
             }
             const before = views.get(view.name);
-            const saved: SavedView = view.follows === undefined ? { camera: view.camera } : { follows: view.follows };
+            const kept = Object.fromEntries(
+                SAVED_VIEW_PARTS.flatMap((part) => (view[part] === undefined ? [] : [[part, view[part]]])),
+            );
+            const saved: SavedView = {
+                ...(view.follows === undefined ? { camera: view.camera } : { follows: view.follows }),
+                ...kept,
+            };
             views.set(view.name, Object.freeze(saved));
             giveKey(views, view.name, view.key === undefined ? before?.key : (view.key ?? undefined));
         }

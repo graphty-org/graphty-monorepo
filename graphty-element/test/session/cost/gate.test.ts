@@ -202,6 +202,22 @@ describe("gateRun: above the cap with an approximate method", () => {
         assert.equal(code, "E_BAD_COMMAND");
         assert.deepEqual(details.fields, ["exact", "sample"]);
     });
+
+    it("refuses a sample for an algorithm with no approximate method as a bad call, not a cap it never hit", () => {
+        const decision = gateRun(
+            {
+                algorithm: "betweenness",
+                descriptor: algorithmByKey("betweenness"),
+                statistics: statistics({ nodeCount: 30 }),
+            },
+            { sample: 5 },
+        );
+
+        const { code, details } = refusal(decision);
+        assert.equal(code, "E_BAD_COMMAND");
+        assert.deepEqual(details.fields, ["sample"]);
+        assert.notProperty(details, "capSeconds");
+    });
 });
 
 describe("gateRun: above the cap with no approximate method", () => {
@@ -216,7 +232,7 @@ describe("gateRun: above the cap with no approximate method", () => {
         assert.equal(code, "E_CAP_EXCEEDED");
         assert.equal(details.capSeconds, DEFAULT_EXACT_COMPUTATION_CAP_SECONDS);
         assert.isAbove(details.estimateSeconds as number, DEFAULT_EXACT_COMPUTATION_CAP_SECONDS);
-        assert.equal(details.confidence, "modelled");
+        assert.equal(details.confidence, "modeled");
         assert.isObject(details.basisFacts);
         assert.deepEqual(details.graph, { nodes: 70000, edges: 350000 });
         assert.isFalse(details.approximable);

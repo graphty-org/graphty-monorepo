@@ -477,6 +477,188 @@ describe("ElementPositions", () => {
         assert.deepStrictEqual(Array.from(view), [0, 1, 0]);
         assert.throws(() => p.pinnedView(4), RangeError, undefined, "a short lane is never handed out silently");
     });
+
+    it("reads one row of an owed publish without writing the rest", () => {
+        const p = new ElementPositions(8);
+        p.grow(4);
+        p.write(3, 9, 9, 9);
+        let publishes = 0;
+        let rowsAnswered = 0;
+        const publish = (): void => {
+            publishes++;
+            for (let row = 0; row < 3; row++) {
+                p.write(row, row, 10 * row, 100 * row);
+            }
+        };
+        // rows 0-2 are the publish's; row 3 it leaves where it is
+        p.owe(publish, (row, out) => {
+            rowsAnswered++;
+            if (row === 3) {
+                return false;
+            }
+
+            out.x = row;
+            out.y = 10 * row;
+            out.z = 100 * row;
+            return true;
+        });
+        const { changes } = p;
+        const out = { x: 0, y: 0, z: 0 };
+
+        p.read(2, out);
+        assert.deepStrictEqual(out, { x: 2, y: 20, z: 200 });
+        assert.isTrue(p.isPlaced(1));
+        p.read(3, out);
+        assert.deepStrictEqual(out, { x: 9, y: 9, z: 9 }, "a row the publish leaves reads as the lane holds it");
+        assert.strictEqual(publishes, 0, "a one-row read writes no row");
+        assert.strictEqual(p.changes, changes);
+        assert.strictEqual(rowsAnswered, 3);
+        assert.throws(() => {
+            p.read(4, out);
+        }, RangeError);
+
+        // a whole-lane read writes the publish, and after it a row is read from the lane again
+        p.view(4);
+        assert.strictEqual(publishes, 1);
+        assert.isFalse(p.owesRows);
+        p.read(2, out);
+        assert.deepStrictEqual(out, { x: 2, y: 20, z: 200 });
+        assert.strictEqual(rowsAnswered, 3);
+    });
+
+    it("writes an owed publish once reading it row by row would cost more than writing it", () => {
+        const rows = 32000;
+        const p = new ElementPositions(rows);
+        p.grow(rows);
+        let publishes = 0;
+        let rowsAnswered = 0;
+        const publish = (): void => {
+            publishes++;
+            for (let row = 0; row < rows; row++) {
+                p.write(row, row, row, row);
+            }
+        };
+        const answer = (row: number, out: { x: number; y: number; z: number }): boolean => {
+            rowsAnswered++;
+            out.x = out.y = out.z = row;
+            return true;
+        };
+        p.owe(publish, answer);
+        const out = { x: 0, y: 0, z: 0 };
+        // the same few rows read on every frame of a long landing are answered by the reader: what counts
+        // is distinct rows, so a labeled node read three times a frame never writes the publish
+        for (let i = 0; i < 10 * rows; i++) {
+            p.read(i % 3, out);
+        }
+
+        assert.strictEqual(publishes, 0);
+        // up to a quarter of the lane's distinct rows are answered by the reader...
+        for (let row = 0; row < rows / 4; row++) {
+            p.read(row, out);
+        }
+
+        assert.strictEqual(publishes, 0);
+        // ...and the next new row writes the publish, and every read after it is the lane's own
+        const answered = rowsAnswered;
+        p.read(rows / 4, out);
+        p.read(0, out);
+        assert.strictEqual(publishes, 1);
+        assert.strictEqual(rowsAnswered, answered);
+        assert.deepStrictEqual(out, { x: 0, y: 0, z: 0 });
+
+        // a new landing owed starts the count again, and owedWrites says only what the publish writes
+        p.owe(publish, (row, at) => (row === 3 ? false : answer(row, at)));
+        assert.isTrue(p.owedWrites(2, out));
+        assert.isFalse(p.owedWrites(3, out));
+        assert.strictEqual(publishes, 1);
+        assert.strictEqual(rowsAnswered, answered + 1);
+    });
+
+    it("says when reading rows one at a time would end in writing the publish, so a reader writes it first", () => {
+        // every edge arrowed: each frame reads both ends of every edge, so it asks first and writes the publish
+        // before its first read, answering no row one at a time
+        const rows = 32000;
+        const p = new ElementPositions(rows);
+        p.grow(rows);
+        let publishes = 0;
+        let rowsAnswered = 0;
+        const publish = (): void => {
+            publishes++;
+        };
+        const answer = (row: number, out: { x: number; y: number; z: number }): boolean => {
+            rowsAnswered++;
+            out.x = out.y = out.z = row;
+            return true;
+        };
+        const out = { x: 0, y: 0, z: 0 };
+        for (let landing = 0; landing < 4; landing++) {
+            p.owe(publish, answer);
+            if (p.owedReadsSpill(2 * rows)) {
+                p.settle();
+            }
+
+            for (let row = 0; row < rows; row++) {
+                p.read(row, out);
+            }
+        }
+
+        assert.strictEqual(rowsAnswered, 0);
+        assert.strictEqual(publishes, 4);
+
+        // a few reads fit, counted with the rows already answered; nothing owed, or nothing readable by row, never spills
+        p.owe(publish, answer);
+        assert.isFalse(p.owedReadsSpill(rows / 4));
+        for (let row = 0; row < rows / 8; row++) {
+            p.read(row, out);
+        }
+
+        assert.isTrue(p.owedReadsSpill(rows / 8 + 1));
+        assert.isFalse(p.owedReadsSpill(rows / 8));
+        p.settle();
+        assert.isFalse(p.owedReadsSpill(2 * rows));
+        p.owe(publish);
+        assert.isFalse(p.owedReadsSpill(2 * rows));
+    });
+
+    it("forgets the one-row reader with the publish it came with", () => {
+        const p = new ElementPositions(8);
+        p.grow(2);
+        const publish = (): void => {
+            p.write(0, 1, 1, 1);
+        };
+        p.owe(publish, () => null);
+        assert.isTrue(p.owesRows);
+        assert.isFalse(p.isPlaced(1), "a reader that cannot say for one row writes the publish");
+        assert.isFalse(p.owesRows);
+        p.owe(publish, () => true);
+        assert.isTrue(p.owesRows);
+        p.forgive(publish);
+        assert.isFalse(p.owesRows);
+        p.owe(publish);
+        assert.isFalse(p.owesRows, "a publish owed with no reader is settled by every read");
+        assert.isFalse(p.isPlaced(1));
+        assert.isTrue(p.isPlaced(0));
+    });
+});
+
+describe("ElementPositions.relocations", () => {
+    it("counts a placed row drawn somewhere else, and not a seed, a rewrite or a renumbering (issue #9164)", () => {
+        const p = new ElementPositions(8);
+        p.grow(3);
+        p.write(0, 1, 2, 3);
+        assert.strictEqual(p.relocations, 0, "placing an unplaced row moves nothing that was drawn");
+
+        p.fillUnplaced(1, 4, 5, 6);
+        p.write(0, 1, 2, 3);
+        p.remap(Uint32Array.from([1, 0, 2]), 3);
+        assert.strictEqual(p.relocations, 0, "a seed, the same coordinates again and a renumbering");
+
+        p.write(0, 7, 8, 9);
+        assert.strictEqual(p.relocations, 1, "a placed row written elsewhere");
+
+        p.moved(4, 2);
+        assert.strictEqual(p.relocations, 3, "a batch written into the lent array counts its changed rows");
+    });
 });
 
 describe("ElementPositions against graph-format 1.0.0", () => {

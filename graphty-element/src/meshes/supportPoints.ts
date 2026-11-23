@@ -69,6 +69,14 @@ const THETA = 0.5;
 const REST_SPEED = 0.02;
 /** How many steps in a row every support point must stay under {@link REST_SPEED} to be at rest. */
 const CALM_STEPS = 20;
+/**
+ * How many steps the fastest support point may go without getting slower than it has been before the points are
+ * at rest anyway: swinging in place, not coming to rest. A point beside a cell edge of the Barnes-Hut tree gets a
+ * push that jumps as it crosses the edge, and that keeps it swinging: on one seeded drawing of vis-network's siblings
+ * sample a point swung 7 units back and forth with a period of about 32 steps and never slowed, so every curve ran to
+ * {@link MAX_STEPS_TO_REST}, four times the frames it took before (issue #9280).
+ */
+const STALL_STEPS = 200;
 
 /** A cell of the Barnes-Hut tree: its bodies' count and center of mass, its size, and its four quarters. */
 interface Cell {
@@ -325,6 +333,36 @@ function bodiesOf(
     return { xs, ys, center: [cx, cy] };
 }
 
+/** How a settle is coming to rest, carried from call to call: see {@link stepSupportPoints}. */
+interface Calm {
+    /** Steps in a row every point has stayed under {@link REST_SPEED}. */
+    steps: number;
+    /** The slowest the fastest point has been in this settle. */
+    least: number;
+    /** Steps since it was that slow. */
+    sinceLeast: number;
+}
+
+const newCalm = (): Calm => ({ steps: 0, least: Infinity, sinceLeast: 0 });
+
+/**
+ * Count one step of a settle, and say whether it is still coming to rest.
+ * @param calm - The settle so far; updated.
+ * @param fastest - The fastest point's speed this step.
+ * @returns False once every point has been calm for {@link CALM_STEPS} steps, or the fastest has not slowed for
+ * {@link STALL_STEPS}.
+ */
+function stillMoving(calm: Calm, fastest: number): boolean {
+    calm.steps = fastest > REST_SPEED ? 0 : calm.steps + 1;
+    if (fastest < calm.least) {
+        calm.least = fastest;
+        calm.sinceLeast = 0;
+    } else {
+        calm.sinceLeast++;
+    }
+    return calm.steps < CALM_STEPS && calm.sinceLeast < STALL_STEPS;
+}
+
 /**
  * Step every support point toward where its forces balance, with the nodes held still. The points are read from
  * and written back to `points` (flat x, y per edge, in scene units); `velocities` (the same layout, in the forces'
@@ -338,6 +376,8 @@ function bodiesOf(
  * @param calm - How many steps in a row every point has stayed under the resting speed; carried from call to call,
  * updated.
  * @param calm.steps - The count.
+ * @param calm.least - The slowest the fastest point has been in this settle.
+ * @param calm.sinceLeast - Steps since it was that slow.
  * @returns Whether any support point is still moving after the last step.
  */
 export function stepSupportPoints(
@@ -346,7 +386,7 @@ export function stepSupportPoints(
     points: Float64Array,
     velocities: Float64Array,
     steps: number,
-    calm?: { steps: number },
+    calm?: Calm,
 ): boolean {
     const m = edges.length;
     if (m === 0) {
@@ -360,7 +400,7 @@ export function stepSupportPoints(
         (e) => [e.src.x / unit, e.src.y / unit, e.dst.x / unit, e.dst.y / unit] as [number, number, number, number],
     );
     let moving = false;
-    const counted = calm ?? { steps: 0 };
+    const counted = calm ?? newCalm();
     for (let step = 0; step < steps; step++) {
         for (let j = 0; j < m; j++) {
             xs[n + j] = points[2 * j] / unit;
@@ -383,8 +423,7 @@ export function stepSupportPoints(
             const damping = DAMPING[forces.model];
             fastest = Math.max(fastest, integrate(velocities, points, 2 * j, [px + sx, py + sy], damping, unit));
         }
-        counted.steps = fastest > REST_SPEED ? 0 : counted.steps + 1;
-        moving = counted.steps < CALM_STEPS;
+        moving = stillMoving(counted, fastest);
         if (!moving) {
             break;
         }
@@ -606,7 +645,7 @@ export class SupportPoints<E> {
     /** Steps taken since the nodes last moved. */
     private steps = 0;
     /** How many steps in a row every support point has stayed under the resting speed. */
-    private readonly calm = { steps: 0 };
+    private calm = newCalm();
     /** Each edge's ends and forces at the last call, flat: source x, y, target x, y, then the forces. */
     private lastEnds = new Float64Array(0);
 
@@ -649,7 +688,7 @@ export class SupportPoints<E> {
         // other reason (a repaint of something else) leaves the support points as they are
         if (this.endsChanged(ends)) {
             this.steps = 0;
-            this.calm.steps = 0;
+            this.calm = newCalm();
             this.isResting = false;
             this.seeded = false;
         } else if (!this.isResting && !this.seeded) {
@@ -657,7 +696,7 @@ export class SupportPoints<E> {
             this.rel = new Float64Array(this.rel.length).map((_, i) => (i % 2 === 0 ? 0.5 : 0));
             this.velocities.fill(0);
             this.steps = 0;
-            this.calm.steps = 0;
+            this.calm = newCalm();
             this.seeded = true;
         }
         if (this.isResting) {

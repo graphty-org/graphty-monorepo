@@ -73,6 +73,7 @@ export function sectionCounts(
 ): Readonly<Record<ReportSection, number>> {
     const { nodes, edges } = session.data.count();
     return {
+        image: nodes > 0 ? 1 : 0,
         notes: session.notes.list().length,
         pinned: pinnedRuns(session, pins).length,
         validation: validationIssues(session).length,
@@ -149,7 +150,7 @@ function paramsWords(params: Readonly<Record<string, unknown>>): string {
  */
 function methodLines(session: GraphSession, record: RunRecord): string[] {
     const { engine, scope } = record;
-    const plugins = Object.entries(engine.plugins ?? {}).map(([key, version]) => `, ${key} ${version}`);
+    const versions = Object.entries(engine.packages).map(([name, version]) => `${name} ${version}`);
     return [
         `### ${runName(session, record)}`,
         "",
@@ -161,7 +162,7 @@ function methodLines(session: GraphSession, record: RunRecord): string[] {
         ...(record.durationMs === null ? [] : [`- Took: ${formatNumber(Math.round(record.durationMs))} ms`]),
         ...(record.partial ? ["- Stopped early"] : []),
         ...(record.stale === null ? [] : ["- The data has changed since"]),
-        `- Versions: graphty-element ${engine.element}, algorithms ${engine.algorithms}, layout ${engine.layout}${plugins.join("")}`,
+        `- Versions: ${versions.join(", ")}`,
         "",
     ];
 }
@@ -244,11 +245,12 @@ function section(heading: string, body: readonly string[]): string[] {
 
 /**
  * The report as Markdown: the title and the graph's size, then the summary and findings as the
- * reader wrote them, then each chosen section that holds something.
+ * reader wrote them, then each chosen section that holds something, the image first.
  * @param session - the element's session.
  * @param choices - the reader's choices.
  * @param fallbackTitle - the title when the reader gave none: the project's name.
  * @param pins - the results pinned to the report, in the order pinned.
+ * @param image - the canvas as graphty-element's `captureScreenshot` drew it, as a data URL; left out, no Image section.
  * @returns the document.
  */
 export function reportMarkdown(
@@ -256,6 +258,7 @@ export function reportMarkdown(
     choices: ReportChoices,
     fallbackTitle: string,
     pins: readonly ReportPin[] = [],
+    image?: string,
 ): string {
     const chosen = new Set(choices.sections);
     const { nodeCount, edgeCount } = session.data.statistics({ scope: "all" });
@@ -270,6 +273,9 @@ export function reportMarkdown(
         ...section("Summary", prose(choices.summary)),
         ...section("Findings", prose(choices.findings)),
     ];
+    if (chosen.has("image") && image !== undefined) {
+        lines.push(...section("Image", [`![${title.replaceAll(/[[\]\r\n]/g, "")}](${image})`]));
+    }
     if (chosen.has("notes")) {
         lines.push(
             ...section(

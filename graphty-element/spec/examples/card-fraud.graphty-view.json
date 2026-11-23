@@ -23,12 +23,12 @@
             "y": 1.2,
             "z": 0
         },
-        "pivotRotation": {
-            "x": 0.22,
-            "y": 0,
+        "up": {
+            "x": 0,
+            "y": 1,
             "z": 0
         },
-        "cameraDistance": 17.6
+        "fov": 0.8
     },
     "views": [
         {
@@ -46,12 +46,12 @@
                     "y": 2.4,
                     "z": 0
                 },
-                "pivotRotation": {
-                    "x": 0.1,
-                    "y": 0,
+                "up": {
+                    "x": 0,
+                    "y": 1,
                     "z": 0
                 },
-                "cameraDistance": 6
+                "fov": 0.8
             }
         }
     ],
@@ -69,7 +69,7 @@
         "edges": [
             {
                 "load": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
-                "key": "01JCBQ2F5H7K9M1P3R5T7W9Y2A#3"
+                "key": "acct-1002|dev-9f3#1"
             }
         ]
     },
@@ -197,8 +197,12 @@
             "source": {
                 "by": "run",
                 "runId": "route",
-                "algorithm": "dijkstra",
+                "algorithm": "shortest-path",
                 "params": {
+                    "bidirectional": true,
+                    "direction": "all",
+                    "invertStrength": false,
+                    "method": "dijkstra",
                     "source": {
                         "space": "account",
                         "key": "acct-1002"
@@ -207,7 +211,7 @@
                         "space": "account",
                         "key": "acct-1003"
                     },
-                    "direction": "all"
+                    "timeOrder": null
                 }
             }
         }
@@ -219,7 +223,11 @@
             "as": "pagerank",
             "algorithm": "pagerank",
             "params": {
-                "dampingFactor": 0.85
+                "dampingFactor": 0.85,
+                "directed": true,
+                "maxIterations": 100,
+                "tolerance": 0.000001,
+                "useDelta": true
             },
             "scope": "graph",
             "replayable": false
@@ -230,9 +238,19 @@
             "as": "communities",
             "algorithm": "louvain",
             "params": {
-                "resolution": 1
+                "maxIterations": 100,
+                "resolution": 1,
+                "tolerance": 0.000001,
+                "useOptimized": true
             },
             "seed": 1873,
+            "engine": {
+                "packages": {
+                    "@graphty/graphty-element": "3.39.0",
+                    "@graphty/algorithms": "3.4.22"
+                },
+                "accelerator": "cpu"
+            },
             "scope": {
                 "types": ["account", "device"]
             },
@@ -241,8 +259,12 @@
         {
             "id": "route",
             "name": "Ben Ode to Cy Lam",
-            "algorithm": "dijkstra",
+            "algorithm": "shortest-path",
             "params": {
+                "bidirectional": true,
+                "direction": "all",
+                "invertStrength": false,
+                "method": "dijkstra",
                 "source": {
                     "space": "account",
                     "key": "acct-1002"
@@ -251,22 +273,36 @@
                     "space": "account",
                     "key": "acct-1003"
                 },
-                "direction": "all"
+                "timeOrder": null
             },
             "scope": "graph"
         }
     ],
     "layout": {
         "id": "force",
-        "algorithm": "ngraph",
         "options": {
+            "clusterStrength": 1,
+            "nodeGapFront": false,
             "seed": 52211
+        },
+        "drawnBy": {
+            "engine": "ngraph",
+            "options": {
+                "dragCoefficient": 0.9,
+                "gravity": -12,
+                "springCoefficient": 0.8,
+                "springLength": 10,
+                "theta": 0.8,
+                "timeStep": 0.5
+            }
         },
         "dimension": 3,
         "engine": {
-            "element": "3.40.0",
-            "algorithms": "2.1.2",
-            "layout": "1.10.5"
+            "packages": {
+                "@graphty/graphty-element": "3.39.0",
+                "@graphty/layout": "2.7.1"
+            },
+            "accelerator": "cpu"
         }
     }
 }

@@ -121,6 +121,50 @@ describe("the graph builder on the batched path", () => {
         assert.deepEqual(sorted(graphOf(element)), sorted(want));
         assert.strictEqual(builderRelease(element).revivals, 1, "a rebuilt builder is kept");
     });
+    it("let it go again after a second source merges in, so a graph of several sources holds one copy", async () => {
+        const element = document.createElement("graphty-element");
+        element.renderer = "webgl";
+        element.renderPath = "batched";
+        element.layout = "fixed";
+        element.style.display = "block";
+        element.style.width = "300px";
+        element.style.height = "200px";
+        document.body.appendChild(element);
+        const csv = (prefix: string, count: number): string =>
+            [
+                "source,target",
+                ...Array.from({ length: count }, (_, at) => `${prefix}${at % 20},${prefix}${(at + 3) % 20}`),
+            ].join("\n");
+        await element.session.data.import({ type: "csv", config: { data: csv("a", 60) }, name: "a.csv" });
+        await operationQueueOf(element.graph).waitForCompletion();
+        await element.waitForStableFrame();
+        assert.isTrue(builderRelease(element).released, "the first source let it go");
+
+        // The second source writes into the let-go builder, which rebuilds it once.
+        await element.session.data.import(
+            { type: "csv", config: { data: csv("b", 30) }, name: "b.csv" },
+            { mode: "merge" },
+        );
+        await operationQueueOf(element.graph).waitForCompletion();
+        await element.waitForStableFrame();
+        assert.strictEqual(element.session.data.snapshot().edgeCount, 90, "both sources' edges are in");
+        assert.strictEqual(element.session.data.sources().length, 2);
+        assert.deepEqual(builderRelease(element), { released: true, revivals: 1 });
+
+        // Two more sources: the third rebuilds it and keeps it, the fourth writes with no rebuild and,
+        // having paid for that rebuild, lets it go. Paged or many-source loading must not copy the
+        // whole graph once per load.
+        for (const prefix of ["c", "d"]) {
+            await element.session.data.import(
+                { type: "csv", config: { data: csv(prefix, 30) }, name: `${prefix}.csv` },
+                { mode: "merge" },
+            );
+            await operationQueueOf(element.graph).waitForCompletion();
+            await element.waitForStableFrame();
+        }
+        assert.strictEqual(element.session.data.snapshot().edgeCount, 150);
+        assert.deepEqual(builderRelease(element), { released: true, revivals: 2 });
+    });
     it("let it go again after nodes and edges arrive as two commands, and clear and undo it with no rebuild", async () => {
         const element = await loaded("batched", [], []);
         await element.session.data.addNodes(nodes());
@@ -138,5 +182,24 @@ describe("the graph builder on the batched path", () => {
         await operationQueueOf(element.graph).waitForCompletion();
         assert.deepEqual(sorted(graphOf(element)), sorted(want));
         assert.strictEqual(builderRelease(element).revivals, 1, "the clear set the let-go graph aside unrebuilt");
+    });
+
+    it("keep the builder let go through calls that change nothing, and through reads", async () => {
+        const element = await loaded("batched", nodes(), edges());
+        const { data } = element.session;
+        const step = async (what: string, call: () => unknown): Promise<void> => {
+            await call();
+            await operationQueueOf(element.graph).waitForCompletion();
+            await element.waitForStableFrame();
+            assert.deepEqual(builderRelease(element), { released: true, revivals: 0 }, what);
+        };
+
+        await step("removing a node the graph does not hold", () => data.removeNodes([999]));
+        await step("removing an edge the graph does not hold", () => data.removeEdges(["no-such-edge"]));
+        await step("adding a node the graph holds", () => data.addNodes([{ id: 3, position: { x: 3, y: -3, z: 0 } }]));
+        await step("updating a node to the values it holds", () => data.updateNodes([{ id: 3, values: { id: 3 } }]));
+        await step("reading how many edges join a pair", () =>
+            [...element.graph.getDataManager().edges.values()].slice(0, 5).map((edge) => edge.parallelCount),
+        );
     });
 });

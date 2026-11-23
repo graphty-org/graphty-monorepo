@@ -135,9 +135,10 @@ A red master build comes first: it also blocks canary and the build cache every 
   reopen it as graphty-agent (`gh pr close <n> && gh pr reopen <n>`). When master is green again without it, close
   it with a one-line reason. After three failed fix attempts on one problem, keep master green by reverting the
   culprit and start the next attempt from a different approach, with the earlier attempts' evidence in its prompt.
-- **While master's build is red:** no other pull request is opened (issue-round's `open` jobs wait); the same holds while the
-  newest full run is red. Issue jobs keep working and queue `ready` branches, and master's fix takes a test slot
-  first (see "While master is red" in the shared file).
+- **While master's build is red:** no other pull request is opened (issue-round's `open` jobs wait). While only the
+  newest full run is red, only the pull requests that touch its failing lane wait; the others open as normal (owner,
+  2026-11-20). Issue jobs keep working and queue the held `ready` branches, and master's fix takes a test slot first
+  (see "While master is red" in the shared file).
 - **A critical issue no later step owns** is still this skill's alarm (issue-round also takes free code-work
   `priority:critical` issues first; the `in-progress` label and `taken` marker keep the two off each other): mark it
   and start a fix subagent the same way.
@@ -202,9 +203,13 @@ first-parent merges since the last green full run.
 
 ### 4. Budget alarms
 
-- **`ci-budget` issues**, filed by a run's `timings` job (`tools/ci-budgets.mjs trend`, budgets in `ci-budgets.json`):
-  read the suspect merge range in the issue, find the task or step that slowed, and revert or fix it. A budget
-  raise is never the fix by itself: it is its own pull request with its new measurement, for the owner to review.
+- **`ci-budget` issues**, kept by a run's `timings` job (`tools/ci-budgets.mjs report`, budgets in `ci-budgets.json`):
+  one issue per workflow and run kind lists every key over its line, and each run strikes the keys back under and
+  closes it when none is left. `CI budget: <workflow> (<kind>) keys over the line`: read each key's suspect merge
+  range, find the task or step that slowed, and revert or fix it. `... shared slowdown` (`infrastructure`): the
+  whole run slowed (runner contention, a slower runner class): look at runner wait and queued runs, not the
+  merges. A budget raise is never the fix by itself: it is its own pull request with its new measurement, for the
+  owner to review.
 - A job killed at its `timeout-minutes` (labeled `hung`) is a defect: fix the hang, never re-run or raise it.
 - **`Nightly missed slot <date hh:mm> UTC: <cause>`** (`priority:critical`, from release.yml's slot job): act on
   the cause it names this round (see "Nightly every slot"). **`Nightly stalled since <date>`** (over a slot and a
@@ -292,15 +297,13 @@ Red or conflicting graphty-agent pull requests are issue-round's `fix-red` jobs,
 on 2026-11-17 it reported "nothing has changed" while 59 of 88 pull requests were red, because the work sat here and
 issue-round was forbidden to do it.
 
-**Unarmed agent pull requests**, every round. One GraphQL query lists the open graphty-agent pull requests with
-`autoMergeRequest` and `timelineItems(itemTypes:[AUTO_MERGE_DISABLED_EVENT]){totalCount}`. This rule is only for a
-pull request whose `pr-open.sh` died before it armed auto-merge: one with auto-merge off and a `totalCount` of 0
-(auto-merge was never on). Auto-merge turned off on purpose is a hold (an owner wording approval, an owner budget
-review, an owner decision): any pull request with a non-zero `totalCount`, or with any recorded hold (a comment
-saying auto-merge stays off, or that it needs the owner), is never armed by this rule. For one that qualifies, do
-not copy pr-open.sh's hold rules: re-run `tools/pr-open.sh --proof tmp/pipeline-round/<branch>-proof.md` from the
-branch's worktree; it finds the open pull request and arms it only when none of its own checks (`GUARD_PATHS`,
-breaking commits and footers, `release-not-breaking.json`, renames, large file lists) holds it for the owner. A
+**Unarmed agent pull requests**, every round: `node tools/armable-prs.mjs` (one paged GraphQL query) prints
+`armable: #n <priority>, ...`, the open graphty-agent pull requests that are CLEAN with checks SUCCESS, auto-merge
+off and never turned off (any disable is a hold: pr-open.sh's for the owner, issue-round's send-back for changes),
+with no breaking commit, no file holding an approval the owner keeps and no `GUARD_PATHS` file (the owner merges
+those), critical first, then high, then oldest by the issues each closes; and `green, held for the owner: ...` for
+the rest. While master is green, arm the first (`gh pr merge <n> --auto --merge`) unless a comment on it records a
+hold (auto-merge stays off, or it needs the owner). One at a time: the next round arms the next. A
 green pull request with auto-merge on that conflicts with master gets a fix subagent that merges `origin/master`
 (same as a red one above). The round's last line names every pull request armed and every conflicted one sent to a
 fix, by number.

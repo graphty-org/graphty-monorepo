@@ -210,14 +210,13 @@ describe("EventManager", () => {
             eventManager.removeListener(listenerId);
         });
 
-        it("should emit custom graph events", () => {
-            // Since we can't listen to custom events through the public API,
-            // we'll test this functionality through the generic event mechanism
-            const detail = { customData: "other" };
-            eventManager.emitGraphEvent("custom-event", detail);
+        it("delivers layout-updated under its own name with the node count", () => {
+            const callback = vi.fn();
+            eventManager.addListener("layout-updated", callback);
 
-            // The test verifies the method doesn't throw
-            assert.isNotNull(eventManager);
+            eventManager.emit("layout-updated", { nodeCount: 3 });
+
+            assert.deepEqual(callback.mock.calls, [[{ type: "layout-updated", nodeCount: 3 }]]);
         });
     });
 
@@ -239,7 +238,7 @@ describe("EventManager", () => {
         });
 
         it("should emit node update events", () => {
-            const callback = vi.fn();
+            const callback = vi.fn<EventCallbackType>();
             const listenerId = eventManager.addListener("node-update-after", callback);
 
             const mockNode = { id: "test-node" } as Node;
@@ -271,7 +270,7 @@ describe("EventManager", () => {
         });
 
         it("should emit edge update events", () => {
-            const callback = vi.fn();
+            const callback = vi.fn<EventCallbackType>();
             const listenerId = eventManager.addListener("edge-update-after", callback);
 
             const mockEdge = { id: "test-edge" } as Edge;

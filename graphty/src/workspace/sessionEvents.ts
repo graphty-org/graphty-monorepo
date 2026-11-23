@@ -10,6 +10,7 @@ export const INSPECTOR_EVENTS = [
     "visibility:changed",
     "note:changed",
     "source:refreshed",
+    "source:copy",
 ] as const;
 
 /** The element's events that change what the Graph place reads, undo and redo included. */
@@ -71,14 +72,24 @@ export const TIME_FIELD_EVENTS = [
     "project:changed",
 ] as const;
 
+/** The history moves that follow a `project:changed`, which says what they wrote. */
+const STEP_REASONS: ReadonlySet<string> = new Set(["record", "merge", "undo", "redo", "restore"]);
+
 /**
  * Re-renders the caller after each of the element's events named, so what it reads from the
  * session is read fresh.
  * @param session - the element's session, or null.
  * @param events - the events; pass a module-level list, since a new array re-subscribes.
+ * @param notStyles - skip a `project:changed` that wrote the style layers alone, and the history
+ *     step it made, for a caller that reads nothing from them: an animation's `styles.update` once
+ *     a frame re-rendered it (#9423).
  * @returns a number that changes with each reported event.
  */
-export function useSessionEvents(session: GraphSession | null, events: readonly (keyof SessionEventMap)[]): number {
+export function useSessionEvents(
+    session: GraphSession | null,
+    events: readonly (keyof SessionEventMap)[],
+    notStyles = false,
+): number {
     const [version, setVersion] = useState(0);
     useEffect(() => {
         if (session === null) {
@@ -87,22 +98,59 @@ export function useSessionEvents(session: GraphSession | null, events: readonly 
         const bump = (): void => {
             setVersion((v) => v + 1);
         };
-        const offs = events.map((event) => session.on(event, bump));
+        // Whether the latest project change wrote the style layers alone; its history step
+        // follows it at once.
+        let stylesOnly = false;
+        const offs = [
+            ...(notStyles
+                ? [
+                      session.on("project:changed", ({ slices }) => {
+                          stylesOnly = slices.every((slice) => slice === "styles");
+                          if (!stylesOnly && events.includes("project:changed")) {
+                              bump();
+                          }
+                      }),
+                  ]
+                : []),
+            ...events.flatMap((event) => {
+                if (notStyles && event === "project:changed") {
+                    return [];
+                }
+                if (notStyles && event === "history:changed") {
+                    return [
+                        session.on(event, ({ reason }) => {
+                            if (!(stylesOnly && STEP_REASONS.has(reason))) {
+                                bump();
+                            }
+                        }),
+                    ];
+                }
+                return [session.on(event, bump)];
+            }),
+        ];
         return () => {
             offs.forEach((off) => {
                 off();
             });
         };
-    }, [session, events]);
+    }, [session, events, notStyles]);
     return version;
 }
 
 /**
  * The element's events after which a count over what is shown is read again: visibility, data,
- * and every history step (a filter card that only selects changes no visibility, and its count is
- * read again then).
+ * every history step (a filter card that only selects changes no visibility, and its count is
+ * read again then), a source draft drawn, changed or flipped Before / After (its graph is
+ * drawn with no history step), and a filter draft opened, changed, or opened again by autosave
+ * after a reload.
  */
-export const VISIBILITY_EVENTS = ["visibility:changed", "project:changed", "history:changed"] as const;
+export const VISIBILITY_EVENTS = [
+    "visibility:changed",
+    "project:changed",
+    "history:changed",
+    "data:draft-changed",
+    "visibility:draft-changed",
+] as const;
 
 /** The element's events after which the shader settings read again: a shader's status, the render quality. */
 export const SHADER_EVENTS = ["shader:status", "render:quality"] as const;

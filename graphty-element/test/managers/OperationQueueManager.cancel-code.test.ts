@@ -1,6 +1,6 @@
 import { assert, describe, it } from "vitest";
 
-import type { OperationCancelledEvent } from "../../src/events";
+import type { OperationCanceledEvent } from "../../src/events";
 import { EventManager } from "../../src/managers/EventManager";
 import { OperationQueueManager } from "../../src/managers/OperationQueueManager";
 
@@ -14,7 +14,7 @@ async function startBlockingOperation(queueManager: OperationQueueManager): Prom
         started();
         return new Promise<void>((_resolve, reject) => {
             context.signal.addEventListener("abort", () => {
-                const error = new Error("Cancelled");
+                const error = new Error("Canceled");
                 error.name = "AbortError";
                 reject(error);
             });
@@ -24,17 +24,17 @@ async function startBlockingOperation(queueManager: OperationQueueManager): Prom
     return id;
 }
 
-function collectCancellations(eventManager: EventManager): OperationCancelledEvent[] {
-    const events: OperationCancelledEvent[] = [];
+function collectCancellations(eventManager: EventManager): OperationCanceledEvent[] {
+    const events: OperationCanceledEvent[] = [];
     eventManager.onGraphEvent.add((event) => {
-        if (event.type === "operation-cancelled") {
+        if (event.type === "operation-canceled") {
             events.push(event);
         }
     });
     return events;
 }
 
-describe("operation-cancelled code", () => {
+describe("operation-canceled code", () => {
     it("reports queue-cleared when the whole queue is cleared", async () => {
         const eventManager = new EventManager();
         const queueManager = new OperationQueueManager(eventManager);
@@ -43,13 +43,10 @@ describe("operation-cancelled code", () => {
         const id = await startBlockingOperation(queueManager);
         queueManager.clear();
 
-        assert.deepEqual(
-            events.map((e) => [e.id, e.code]),
-            [[id, "queue-cleared"]],
-        );
+        assert.deepEqual(events, [{ type: "operation-canceled", id, code: "queue-cleared" }]);
     });
 
-    it("reports cancelled when one operation is cancelled", async () => {
+    it("reports canceled when one operation is canceled", async () => {
         const eventManager = new EventManager();
         const queueManager = new OperationQueueManager(eventManager);
         const events = collectCancellations(eventManager);
@@ -57,9 +54,6 @@ describe("operation-cancelled code", () => {
         const id = await startBlockingOperation(queueManager);
         assert.isTrue(queueManager.cancelOperation(id));
 
-        assert.deepEqual(
-            events.map((e) => [e.id, e.code]),
-            [[id, "cancelled"]],
-        );
+        assert.deepEqual(events, [{ type: "operation-canceled", id, code: "canceled" }]);
     });
 });

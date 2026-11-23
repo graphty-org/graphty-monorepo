@@ -211,21 +211,61 @@ export function compare(a, b) {
     );
 }
 
+// The owner labels a standing rule can release (design/owner-standing-rules.md); `blocked` is not one of them.
+const OWNER_GATES = ["ux-owner", "needs-decision"];
+const URGENT = new Set(["priority:critical", "priority:high"]);
+const STAYS_OWNERS = "issue-round: stays owner's";
+// Decided once: a trusted `issue-round: stays owner's` comment among the issue's last ten (LIST_QUERY).
+const decided = (i) => (i.comments?.nodes ?? []).some((c) => trustedText(c) && c.body?.startsWith(STAYS_OWNERS));
+
 /**
- * The queue from every open issue.
+ * The queue from every open issue, plus where the open critical and high issues stand: `critHigh` counts them as
+ * `queue` (offered), `inProgress` (claimed by a job), `alarms` (ci-budget and alarm titles: tools file and close
+ * these, so they are not burn-down work), `held` (everything else); `ownerRule` lists the held ones behind an owner
+ * gate label with no `issue-round: stays owner's` decision yet, for the round to release by a standing rule or to
+ * record once why each stays the owner's.
  * @param issues GraphQL Issues
  * @param now ms
- * @returns `{ queue, untrusted }`, the queue sorted
+ * @returns `{ queue, untrusted, critHigh: { queue, inProgress, alarms, held }, ownerRule }`, the queue sorted
  */
 export function queue(issues, now) {
     const kept = issues.filter(trustedText);
+    const critHigh = { queue: 0, inProgress: 0, alarms: 0, held: 0 };
+    const ownerRule = [];
+    for (const i of kept) {
+        const labels = labelsOf(i);
+        if (!labels.some((l) => URGENT.has(l))) continue;
+        const why = skipReason(i);
+        if (!why) critHigh.queue++;
+        else if (labels.includes("in-progress")) critHigh.inProgress++;
+        else if (labels.includes("ci-budget") || /alarm$/.test(why)) critHigh.alarms++;
+        else {
+            critHigh.held++;
+            const gate = OWNER_GATES.find((l) => labels.includes(l));
+            if (gate && !decided(i)) ownerRule.push({ ...describe(i, now), gate });
+        }
+    }
     return {
         queue: kept
             .filter((i) => !skipReason(i))
             .map((i) => describe(i, now))
             .sort(compare),
         untrusted: issues.length - kept.length,
+        critHigh,
+        ownerRule: ownerRule.sort(compare),
     };
+}
+
+/**
+ * Whether a free-queue `blocked` entry still holds its issue: one with a `due` time stops at that time, so a wait
+ * for a recurrence or a measurement ends and the issue is offered again.
+ * @param b `{ issue, reason, due? }`
+ * @param now ms
+ * @returns true while it holds
+ */
+export function blockHolds(b, now) {
+    const due = Date.parse(b.due);
+    return !b.due || Number.isNaN(due) || due > now;
 }
 
 const ascii = (s) => s.replaceAll(/[^\x20-\x7e\n\t]/g, "?");
@@ -243,6 +283,20 @@ export function listLines(result, limit) {
         return ascii(`#${i.number} ${tag}${i.priority} ${i.type} effort:${i.effort} ${i.ageDays}d ${i.title}`);
     });
     lines.push(`${q.length} issues in the queue; ${untrusted} open issues dropped as untrusted (author or editor)`);
+    if (result.critHigh) {
+        const c = result.critHigh;
+        const open = c.queue + c.inProgress + c.alarms + c.held;
+        lines.push(
+            `critical/high open ${open}: in the queue ${c.queue}, in progress ${c.inProgress}, alarms ${c.alarms}, held ${c.held}`,
+        );
+    }
+    if (result.ownerRule) {
+        lines.push(
+            `owner-rule candidates ${result.ownerRule.length} undecided (release by a standing rule, or write once "${STAYS_OWNERS} -- <reason>")${result.ownerRule.length ? ":" : ""}`,
+        );
+        for (const i of result.ownerRule)
+            lines.push(ascii(`  #${i.number} ${i.priority} ${i.gate} ${i.ageDays}d ${i.title}`));
+    }
     return lines;
 }
 
@@ -323,7 +377,7 @@ export function jobs(cache, q, now) {
         return { stale: `the free queue is older than 2 hours (${cache.builtAt})` };
     const pos = new Map(q.map((i, k) => [i.number, k]));
     const byNumber = new Map(q.map((i) => [i.number, i]));
-    const blocked = new Set((cache.blocked ?? []).map((b) => b.issue));
+    const blocked = new Set((cache.blocked ?? []).filter((b) => blockHolds(b, now)).map((b) => b.issue));
     const seen = new Set();
     const cleaned = cache.jobs
         .flatMap((j) => {
@@ -406,7 +460,10 @@ const LIST_QUERY = `query($owner: String!, $name: String!, $after: String) {
   repository(owner: $owner, name: $name) {
     issues(states: OPEN, first: 100, after: $after) {
       pageInfo { hasNextPage endCursor }
-      nodes { number title createdAt ${TEXT} labels(first: 30) { nodes { name } } }
+      nodes {
+        number title createdAt ${TEXT} labels(first: 30) { nodes { name } }
+        comments(last: 10) { nodes { ${TEXT} } }
+      }
     }
   }
 }`;
@@ -544,7 +601,9 @@ export function claimOf(issue) {
 }
 
 /**
- * Whether a claim is live. Live when ANY holds: an open pull request on its branch; a marker, commit or changed
+ * Whether a claim is live. Live when ANY holds: an open pull request on its branch (claimsCommand leaves out one red or
+ * conflicting with no head commit for 6 hours, stalledPr: with no other evidence that claim is stranded, kept and
+ * never released, since that pull request still names its issue); a marker, commit or changed
  * worktree file in the last 60 minutes; a held or waiting test-slot ticket in its worktree; a subagent transcript of
  * its session naming its branch written in the last 30 minutes; or, for a session other than the round's, that the
  * session is alive and the branch was active in the last 24 hours. The round's own session is always alive, so its
@@ -563,7 +622,11 @@ export function judgeClaim(c, f, now) {
     // that branch still run (a red pull request's own claim used to keep it red).
     const named = f.namedBy?.(c.n);
     if (named) return { live: true, why: named, at: c.at, byWork: true };
-    if (c.kind === "released") return { live: false, why: "released, label left on", at: c.at, labelOnly: true };
+    // Named only by a pull request red or conflicting with no head commit for 6 hours (#9136): not live work, but never
+    // released either, or a second job would start on an issue an open pull request still names: it is stranded.
+    const stale = f.stalledBy?.(c.n);
+    if (c.kind === "released" && !stale)
+        return { live: false, why: "released, label left on", at: c.at, labelOnly: true };
     const at = Math.max(
         c.at || 0,
         c.branch ? f.branchCommitAt(c.branch) : 0,
@@ -578,7 +641,13 @@ export function judgeClaim(c, f, now) {
     if (c.session && c.session !== f.roundSession && now - at < OTHER_SESSION_MS && f.sessionAlive(c.session))
         return { live: true, why: "its session is alive", at };
     const commits = c.branch || c.worktree ? f.commitsAhead(c.branch, c.worktree) : 0;
-    return { live: false, why: `no activity for ${ago}`, at, stranded: commits > 0, commits };
+    return {
+        live: false,
+        why: stale ?? `no activity for ${ago}`,
+        at,
+        stranded: commits > 0 || Boolean(stale),
+        commits,
+    };
 }
 
 // A line that claims work: `Fixes #1`, `Refs #2, #3 and #4`
@@ -719,9 +788,20 @@ const HELD_QUERY = LIST_QUERY.replace(
 );
 const OPEN_PR_QUERY = `query($owner: String!, $name: String!, $after: String) {
   repository(owner: $owner, name: $name) {
-    pullRequests(states: OPEN, first: 100, after: $after) { pageInfo { hasNextPage endCursor } nodes { number headRefName title body } }
+    pullRequests(states: OPEN, first: 100, after: $after) { pageInfo { hasNextPage endCursor } nodes { number headRefName title body mergeable
+      commits(last: 1) { nodes { commit { committedDate statusCheckRollup { state } } } } } }
   }
 }`;
+
+// A pull request red or conflicting with no head commit for 6 hours is no evidence of live work (#9136: about 45 such
+// pull requests kept their claims live for days): their claims are stranded, and issue-groups' `fix-red` takes the
+// agent's own.
+const RED_PR_IDLE_MS = 6 * HOUR;
+const stalledPr = (p, now) => {
+    const head = p.commits?.nodes?.[0]?.commit;
+    if (!head?.committedDate || now - Date.parse(head.committedDate) < RED_PR_IDLE_MS) return false;
+    return ["FAILURE", "ERROR"].includes(head.statusCheckRollup?.state) || p.mergeable === "CONFLICTING";
+};
 
 const paged = (run, query, vars, pick) => {
     const all = [];
@@ -929,10 +1009,18 @@ export function claimsCommand(o = {}) {
         throw new Error("git fetch failed: claims unknown");
     }
     const issues = fetchLabeled("in-progress", run);
-    const prs = paged(run, OPEN_PR_QUERY, {}, (r) => r.pullRequests);
+    const all = paged(run, OPEN_PR_QUERY, {}, (r) => r.pullRequests);
+    const stalled = new Set(all.filter((p) => stalledPr(p, now)).map((p) => p.headRefName));
+    const prs = all.filter((p) => !stalled.has(p.headRefName));
     const machine = o.facts ?? machineFacts(root, new Set(prs.map((p) => p.headRefName)));
-    const named = namedIssues({ prs, branches: machine.recentBranches?.(now) ?? [] });
-    const facts = { ...machine, namedBy: (n) => named.get(n) ?? null };
+    const recent = machine.recentBranches?.(now) ?? [];
+    const named = namedIssues({ prs, branches: recent.filter((b) => !stalled.has(b.name)) });
+    const stale = namedIssues({
+        prs: all.filter((p) => stalled.has(p.headRefName)),
+        branches: recent.filter((b) => stalled.has(b.name)),
+    });
+    const stalledBy = (n) => (stale.has(n) ? `${stale.get(n)}, red or conflicting with no commit for 6 h` : null);
+    const facts = { ...machine, namedBy: (n) => named.get(n) ?? null, stalledBy };
     const { claims } = sweepClaims(issues, facts, now);
     const by = (a) => claims.filter((c) => c.action === a);
     const lines = [];

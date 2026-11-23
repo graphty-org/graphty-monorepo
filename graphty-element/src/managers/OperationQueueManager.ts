@@ -2,7 +2,7 @@ import PQueue from "p-queue";
 import toposort from "toposort";
 
 import { OBSOLESCENCE_RULES } from "../constants/obsolescence-rules";
-import type { OperationCanceledEvent, OperationCancelledEvent } from "../events";
+import type { OperationCanceledEvent } from "../events";
 import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
 import type { OperationMetadata, OperationProgress } from "../types/operations";
 import type { EventManager } from "./EventManager";
@@ -34,6 +34,7 @@ interface Operation {
     reject?: (reason?: unknown) => void;
 }
 
+/** The kind of work a queued operation does, which the queue orders and obsoletes by. */
 export type OperationCategory =
     | "style-init" // Initialize style template
     | "style-apply" // Apply styles to existing elements
@@ -73,6 +74,25 @@ export type OperationCategory =
     | "render-update"; // Update rendering settings
 
 /**
+ * One reading of the work an export or a screenshot is waiting behind, handed to their
+ * `onProgress` option: `operations` queued or running (0 once the queue has drained), and the
+ * `category` and `percent` (0 to 100) of the one running now, or null when none is.
+ */
+export interface PendingWorkProgress {
+    /** Always `PENDING_WORK`. */
+    readonly code: "PENDING_WORK";
+    /** How much is left, and the running operation's category and percent. */
+    readonly params: {
+        /** How many operations are queued or running; 0 when none is left. */
+        readonly operations: number;
+        /** The running operation's category; null when none is running. */
+        readonly category: OperationCategory | null;
+        /** The running operation's progress, 0 to 100; null when none is running. */
+        readonly percent: number | null;
+    };
+}
+
+/**
  * Manages a queue of graph operations with dependency resolution and batching
  * Ensures operations execute in the correct order based on their dependencies
  */
@@ -86,6 +106,8 @@ export class OperationQueueManager implements Manager {
 
     // Progress tracking
     private readonly operationProgress = new Map<string, OperationProgress>();
+    /** Who is watching the pending work: told on every start, finish and progress update. */
+    private readonly workWatchers = new Set<() => void>();
 
     // Active operation controllers for cancellation
     private readonly activeControllers = new Map<string, AbortController>();
@@ -119,7 +141,10 @@ export class OperationQueueManager implements Manager {
         } | null)[]
     >();
 
-    // Check if layout engine exists (will be set by Graph)
+    /**
+     * Whether the graph has a layout engine, set by the graph; while it returns false, finished
+     * operations do not trigger a layout update.
+     */
     hasLayoutEngine?: () => boolean;
 
     // Dependency graph based on actual manager dependencies
@@ -223,6 +248,9 @@ export class OperationQueueManager implements Manager {
         this.queue.on("idle", () => {
             this.eventManager.emit("operation-queue-idle", {});
         });
+
+        this.queue.on("active", this.tellWatchers);
+        this.queue.on("next", this.tellWatchers);
     }
 
     /**
@@ -253,6 +281,7 @@ export class OperationQueueManager implements Manager {
         this.queue.clear();
         this.pendingOperations.clear();
         this.operationProgress.clear();
+        this.workWatchers.clear();
         this.currentBatch.clear();
         this.activeControllers.clear();
         this.runningOperations.clear();
@@ -694,15 +723,15 @@ export class OperationQueueManager implements Manager {
                 this.triggerPostExecutionOperations(operation);
             }
         } catch (error) {
-            // WAS THIS OPERATION CANCELLED, or did it fail? The question is answered by the
+            // WAS THIS OPERATION CANCELED, or did it fail? The question is answered by the
             // operation's own signal, not by the shape of the throw: a body that checks
             // `context.signal.aborted` and gives up throws whatever it likes, and a `fetch` deep
             // inside a body that ran to completion can raise an `AbortError` of its own that has
             // nothing to do with this queue. A canceled operation resolves and is not reported;
             // anything else is the caller's error and the graph's.
-            const cancelled = operation.abortController?.signal.aborted === true;
+            const canceled = operation.abortController?.signal.aborted === true;
 
-            if (cancelled) {
+            if (canceled) {
                 this.settleResolved(operation);
             } else {
                 this.settleRejected(operation, error);
@@ -710,7 +739,7 @@ export class OperationQueueManager implements Manager {
 
             // The name of the error does not decide this either: an `AbortError` the body raised
             // itself, with the operation's signal untouched, is a failure like any other.
-            if (!cancelled) {
+            if (!canceled) {
                 this.handleOperationError(operation, error);
             }
         } finally {
@@ -722,7 +751,7 @@ export class OperationQueueManager implements Manager {
     /**
      * Answer whoever is awaiting this operation, and make sure nothing answers them twice.
      *
-     * A CANCELLED OPERATION RESOLVES. The element cancels an operation when a newer instruction
+     * A CANCELED OPERATION RESOLVES. The element cancels an operation when a newer instruction
      * makes it redundant -- that is what the table in `src/constants/obsolescence-rules.ts` is --
      * so the work not happening is the element's own decision about the caller's own later
      * request, not a failure the caller has to handle. The graph's constructor depends on exactly
@@ -820,6 +849,7 @@ export class OperationQueueManager implements Manager {
      * @param progress - Current progress state
      */
     private emitProgressUpdate(id: string, category: OperationCategory, progress: OperationProgress): void {
+        this.tellWatchers();
         this.eventManager.emit("operation-progress", {
             id,
             category,
@@ -847,6 +877,49 @@ export class OperationQueueManager implements Manager {
             category: operation.category,
             description: operation.metadata?.description,
         });
+    }
+
+    private readonly tellWatchers = (): void => {
+        this.workWatchers.forEach((watcher) => {
+            watcher();
+        });
+    };
+
+    /**
+     * The work queued or running now, as the coded fact `onProgress` receives.
+     * @returns How many operations are left, and the running one's category and percent.
+     */
+    pendingWork(): PendingWorkProgress {
+        const [running] = this.runningOperations.values();
+        return {
+            code: "PENDING_WORK",
+            params: {
+                operations: this.currentBatch.size + this.queue.size + this.queue.pending,
+                category: running?.category ?? null,
+                percent: running === undefined ? null : (this.operationProgress.get(running.id)?.percent ?? 0),
+            },
+        };
+    }
+
+    /**
+     * Report the pending work to `onProgress` now and on every operation start, finish and
+     * progress update, until the returned function is called.
+     * @param onProgress - Told each reading; a throw from it is logged, never passed to the queue.
+     * @returns Stops the reports.
+     */
+    watchPendingWork(onProgress: (fact: PendingWorkProgress) => void): () => void {
+        const watcher = (): void => {
+            try {
+                onProgress(this.pendingWork());
+            } catch (error) {
+                this.logger.warn("onProgress threw", { error: String(error) });
+            }
+        };
+        this.workWatchers.add(watcher);
+        watcher();
+        return () => {
+            this.workWatchers.delete(watcher);
+        };
     }
 
     /**
@@ -894,8 +967,11 @@ export class OperationQueueManager implements Manager {
      * @returns Current queue state including pending operations, size, and pause status
      */
     getStats(): {
+        /** Operations running now. */
         pending: number;
+        /** Operations waiting to start. */
         size: number;
+        /** Whether the queue is paused and starts nothing new. */
         isPaused: boolean;
     } {
         return {
@@ -921,7 +997,7 @@ export class OperationQueueManager implements Manager {
 
     /**
      * Tell listeners an operation was aborted: `operation-canceled`, then the same event under its
-     * deprecated British name `operation-cancelled` (code `"cancelled"`), sent until the next major.
+     * deprecated British name `operation-canceled` (code `"canceled"`), sent until the next major.
      * @param id - The operation's id.
      * @param code - Why it was aborted.
      */
@@ -931,11 +1007,6 @@ export class OperationQueueManager implements Manager {
             id,
             code,
         } satisfies OperationCanceledEvent);
-        this.eventManager.emit("operation-cancelled", {
-            type: "operation-cancelled",
-            id,
-            code: code === "canceled" ? "cancelled" : code,
-        } satisfies OperationCancelledEvent);
     }
 
     /**
@@ -1074,17 +1145,17 @@ export class OperationQueueManager implements Manager {
      * @returns Number of operations canceled
      */
     cancelByCategory(category: OperationCategory): number {
-        let cancelledCount = 0;
+        let canceledCount = 0;
 
         // Running ones too: only looking at the pending ones left a running camera animation going
         // after the camera was placed elsewhere, and it then moved the camera off that placement.
         for (const operation of this.liveOf(new Set([category]), false)) {
             if (this.cancelOperation(operation.id)) {
-                cancelledCount++;
+                canceledCount++;
             }
         }
 
-        return cancelledCount;
+        return canceledCount;
     }
 
     /**

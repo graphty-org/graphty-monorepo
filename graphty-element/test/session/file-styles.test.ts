@@ -517,6 +517,26 @@ describe("a file's styles drawn by the load", () => {
         session.dispose();
     });
 
+    it('frames the 0..1 square Pajek fits to its Draw window with framing: "file", in the unit its vertices are drawn in (#8193)', async () => {
+        const pajek = {
+            type: "pajek",
+            config: { data: '*Vertices 2\n1 "a" 0.2 0.3 0.5\n2 "b" 0.6 0.4 0.5\n*Edges\n1 2\n' },
+        };
+        const session = createGraphSession();
+        await session.data.import(pajek, { styles: "file", styleOptions: { framing: "file" } });
+        const { framing } = session.config;
+        assert.isDefined(framing?.box, "the file's square is framed, not its vertices");
+        assert.strictEqual(framing?.padding, 0, "edge to edge, as Pajek draws its window");
+        const [x0, y0] = framing?.box?.min ?? [0, 0];
+        const [x1, y1] = framing?.box?.max ?? [0, 0];
+        // y down in the file is y up in the drawing: the square runs from y = -side to 0
+        assert.strictEqual(x0, 0);
+        assert.strictEqual(y1, 0);
+        assert.isAbove(x1, 0);
+        assert.closeTo(x1 - x0, y1 - y0, 1e-9, "a square");
+        session.dispose();
+    });
+
     it("draws a Cytoscape font size mapped over a ramp as the whole number Cytoscape draws", async () => {
         const doc = JSON.stringify([
             { CXVersion: "2.0", hasFragments: false },

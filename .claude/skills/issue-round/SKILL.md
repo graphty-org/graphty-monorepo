@@ -55,8 +55,9 @@ them while the job runs.
   `2 fix attempts: close it, branch kept`: close the pull request with `pipeline-round: closed -- <reason>; branch
 kept` and give its issues a `released` marker with the evidence; never split it into a new pull request.
 - `open <branch> <priority> <group> -- ready <sha> <h> h ago, no pull request; issues #a ...`: a finished branch
-  whose ready commit is not on master, with no pull request for 2 hours and no live claim. Only while master is green
-  (step 1's runners check applies too); while it is red, skip it. Its subagent runs, from the branch's worktree (or a
+  whose ready commit is not on master, with no pull request for 2 hours and no live claim. Only while master's build
+  is green and the branch does not touch a red full run's failing lane ("While master is red" in the shared file;
+  step 1's runners check applies too, so `open` jobs go in waves); otherwise skip it. Its subagent runs, from the branch's worktree (or a
   new worktree of the branch), `tools/pr-open.sh --proof tmp/<name>/proof.md` with a Proof that cites the `ready`
   marker and the tests the branch ran, and writes `opened`; a tip that moved past the `ready` sha is opened only when
   every later commit is a merge of master. Exit 2 (a conflict with master): it merges origin/master, settles the
@@ -81,14 +82,15 @@ branches' changed files> --why "combines <branches>"`. Its old branches now read
       and each old `ready` marker; on each merged branch's issues `pipeline-round: superseded <old branch> by <new
 branch>`, then `pipeline-round: ready <new branch> <sha>` (last, so it is the newest marker). A superseded
       branch is folded into its successor and kept, never deleted (design/owner-standing-rules.md). Then, master
-      green, `tools/pr-open.sh`; red, it stops at `ready`.
+      free to open (by the subagent rules' check), `tools/pr-open.sh`; held, it stops at `ready`.
 - [ ] Never a branch the plan refused (open pull request, owner-only member, red-master fix, running job, moved tip),
       never past the family's class cap. Once every issue of an old branch has the new branch's `ready` or `opened`
       as its newest marker, `check --fix` folds its group into the new branch's group.
 
-**While master is red, jobs still start** (see "While master is red" in the shared file): they commit, push and
-write their `ready` marker, and open their pull requests in a later round once master is green. CI's runners are not
-checked for them, since they open nothing.
+**While master is red, jobs still start** (see "While master is red" in the shared file): each commits, pushes and
+writes its `ready` marker, then opens its pull request at once unless master's build is red or its branch touches a
+red full run's failing lane; a held branch opens in a later round. CI's runners are not checked for them while
+master's build is red, since they open nothing.
 
 **Whose jobs count.** The limits below are machine-wide: test slots, load, memory and disk are shared by every
 session. Count every running fix subagent on this machine against them, issue-round's and pipeline-round's alike, not
@@ -102,7 +104,7 @@ Then start no new fix job, and do the no-PR work below instead, when:
 - **the machine is really out of room:** the 1-minute load average is above the core count (`nproc`), `free -g`
   shows under 10 GB available, or `df -BG /home/apowers/Projects/graphty-monorepo` shows under 100 GB free (every job
   adds a worktree with its own dependencies and build output);
-- **CI's runners are backed up** (only while master is green). The `pipeline-health` MCP tool `runners`: `ci.saturated` not ok, or
+- **CI's runners are backed up** (only while master's build is green). The `pipeline-health` MCP tool `runners`: `ci.saturated` not ok, or
   `ci.runner_wait` (the last hour's wait for a runner) red. A new pull request would only queue behind the others.
   `ci.not_assigned` and `ci.longest_queued` alone do not stop a round: they follow GitHub outages and the full run's
   bursts, which pass. When the tool errors or is stale, judge from the running and queued counts in `gh run list`.
@@ -177,6 +179,19 @@ poll; never git stash, reset, restore, clean or check out files. Report the issu
 free; count from labels, `gh issue list -l bug --json number,labels`, never titles or bodies) and put
 the counts in the round's last line. Every free bug must have a reason, a job or a diagnosis. On
 2026-11-01 a round reported an empty queue while 33 open bugs were unclaimed and six of them were takeable.
+
+**Count every red pull request, every round, whatever `jobs` prints.** One GraphQL query over all open pull
+requests (number, author, draft, `mergeStateStatus`, the last commit's date and `statusCheckRollup.state`) gives
+the graphty-agent ones that are red (`FAILURE`) or conflicting (`DIRTY`). Each one that meets the `fix-red`
+definition above (with all its exclusions: never a master-guard revert, no live claim, no `fix attempt` marker in
+the last 6 hours, not inherited, and the 2-attempts close rule) is a fix-red job to start this round, whether or not
+`jobs` printed it, whoever opened it, at its issue's priority. The round's last line names the count and how many
+each exclusion held back (`red agent pull requests 45: 10 sent back, 3 inherited, 2 attempted < 6 h, 1 revert`). A claim is not
+live work just because an open pull request names its issue: one whose pull request is red or conflicting with no
+commit for 6 hours is an abandoned claim. Never report the queue as empty, or the idle line's `startable` count as
+the work left, while this count has untaken entries. On 2026-11-19 about 45 agent pull requests sat red or
+conflicting for 1 to 5 days while `jobs` offered one fix-red job and the rounds reported 4 startable jobs; the
+owner found it from a drop in token use (#9136).
 
 **The round's last line reports the burn-down**, whatever ended the round, for example
 `issue-round: 24 h closed 9, opened 6; open bugs 41 (critical 3, in-progress 12, blocked 5, owner-only 2, free 19);
@@ -256,6 +271,17 @@ rounds had closed 161 low bugs and 160 high ones in 7 days while 13 of 20 open c
       reason one of owner-only, needs-decision, `waits on #<m>` or `file collision with #<m>`. Only when no critical
       or high issue is startable may medium and low jobs start; idle slots go first to diagnoses of the blocked
       critical and high issues (step 1).
+- [ ] An `unjustified blocks:` line from `jobs` names critical or high issues the scan blocked with no `due` time
+      and none of those reasons (nor in flight, an X-exclusion, a tracker or a dependency on an open #m; a wait for
+      a recurrence needs a `due`): give each a diagnosis job this round. An `open-ended waits:` line names critical or
+      high issues a ledger wait with no `due` holds: check its branch or pull request still moves, then `wait` again
+      with `--due` or release it.
+- [ ] `issue-queue.mjs list` ends with `critical/high open N: in the queue Q, in progress W, alarms A, held H` and
+      `owner-rule candidates N undecided` (critical or high issues behind `ux-owner` or `needs-decision` with no
+      `issue-round: stays owner's` comment yet). Release every candidate a standing rule decides (below), and on
+      the rest write once `issue-round: stays owner's -- <reason>`; the tool then stops listing it. The round's last
+      line copies both lines' counts; `alarms` (ci-budget and alarm titles, which tools file and close) are never
+      counted as critical or high work, but the open total is the owner's label count.
 
 A load-sensitive failure (critical by the owner's rule, 2026-10-22) keeps its label: never lower it, and its job
 reproduces it under `taskset -c 0`, names the mechanism and never fixes it with a longer wait. Never lower a priority
@@ -351,7 +377,9 @@ issues: [<n>...], members: [{ n, test, with, class, why, points }], files: [<pat
 prs: [<n>...], group, reason }] }`, listing each job's issues lead first (its `test` is `lead`) and so that every
 member's `with` comes before it: `test` is the rubric test that holds, `with` the member it holds against, `class` docs, tests or source, and `why` that
 member's own reason (never the job's `why`; a member without one is not grouped). Every issue of the queue is in a
-job or in `blocked` (a reason such as owner-only or needs-decision with no pull request is fine)." followed by the
+job or in `blocked` (a reason such as owner-only or needs-decision with no pull request is fine). A block that waits
+for a measurement, a recurrence, a number of merges or a date also carries `due: <ISO time>`, when to look again;
+past it the tools offer the issue again." followed by the
 read-only rules paragraph from step 1. When the scan reports, run `node tools/issue-groups.mjs import-scan`: its jobs
 replace the ledger's proposed groups (a job over the cap is cut into consecutive groups).
 
@@ -413,17 +441,18 @@ origin/master before opening; on a conflict, settle it, or release with `pipelin
 conflicts with #<n>` and remove `in-progress`." Any other overlap defers the job. Either way the round goes on to the
 next job. The free-queue scan applies the same rule.
 
-**While master is red, a finished branch with no pull request takes more work instead of blocking it.** Finished
-branches wait unopened then (`ready`, see "While master is red" in the shared file), and an issue whose files one of
-them changes would otherwise wait for it to open and merge -- hours after master turns green. On 2026-11-16 thirty of
+**While master is red, a held finished branch with no pull request takes more work instead of blocking it.** A
+branch is held while master's build is red, or while it touches a red full run's failing lane (`ready`, see "While
+master is red" in the shared file), and an issue whose files it changes would otherwise wait for it to open and
+merge -- hours after master turns green. On 2026-11-16 thirty of
 thirty-one queued issues sat blocked, most on seven finished branches behind a red master, and the rounds started
 nothing for hours. Such an issue joins that branch:
 
-- **Only when** master is red; the branch has no open pull request; its own issue's (the number in its name) newest
+- **Only when** the branch is held, as above; it has no open pull request; its own issue's (the number in its name) newest
   marker is `ready <branch> <sha>` with `<sha>` equal to `origin/<branch>`'s tip (a `taken` marker after it means
   another job has joined it: wait for its `ready`); and the branch stays within its class cap (step 3), the issues
-  already on it included. One joining job per branch at a time, across all sessions. While master is green, never
-  join: the branch is about to open, or it failed to open and is pipeline-round's.
+  already on it included. One joining job per branch at a time, across all sessions. A branch that is free to open
+  never takes a join: it is about to open, or it failed to open and is pipeline-round's.
 - **Never** for a branch where any issue of its group is owner-only, `needs-decision`, `hold`, `blocked` or
   `priority:critical`, a branch whose job carried `This job fixes the red`, or a branch whose diff touches a
   `GUARD_PATHS` file of `tools/pr-open.sh` (the owner merges those). An issue that is itself a cause of the red never
@@ -482,8 +511,8 @@ shared file verbatim:
 > look for sibling bugs with the same cause in the same package. Follow CLAUDE.md and the package's CLAUDE.md. Run the affected packages' lint, build and tests,
 > and regenerate the records and run the contract tests the rules below name.
 > Commit with one `Fixes #N` line per issue the change finishes (`Refs #N` for one that must stay open). Then comment
-> `pipeline-round: ready <branch> <full sha>` on every issue still in the group; while master is red, stop there (see
-> the rules below); otherwise open the pull request with
+> `pipeline-round: ready <branch> <full sha>` on every issue still in the group; while master's build is red, or
+> a red full run's failing lane includes your branch, stop there (see the rules below); otherwise open the pull request with
 > `tools/pr-open.sh --proof tmp/<name>/proof.md`, comment `pipeline-round: opened <branch> <url>`. On an issue that
 > stays open (`Refs`), also comment `pipeline-round: released -- <done>; left: <checklist>` and remove its
 > `in-progress` label, so the next round picks up the rest. Then stop.

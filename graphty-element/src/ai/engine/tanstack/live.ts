@@ -382,10 +382,10 @@ function setupTaken(connection: RealtimeConnection, signal: AbortSignal): Promis
                 stop();
             }
 
-            signal.removeEventListener("abort", cancelled);
+            signal.removeEventListener("abort", canceled);
             resolve(taken);
         };
-        const cancelled = (): void => {
+        const canceled = (): void => {
             settle(false);
         };
         stops.push(
@@ -397,7 +397,7 @@ function setupTaken(connection: RealtimeConnection, signal: AbortSignal): Promis
                 }
             }),
         );
-        signal.addEventListener("abort", cancelled, { once: true });
+        signal.addEventListener("abort", canceled, { once: true });
     });
 }
 

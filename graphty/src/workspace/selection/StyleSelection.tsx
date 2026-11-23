@@ -42,6 +42,7 @@ export function StyleSelection({
     onWriting?: (on: boolean) => void;
 }>): React.JSX.Element | null {
     // The rule as last edited, until the element holds it: typing is never undone by a write on its way.
+    // on reload: fresh: in flight: an edit on its way to the layer, which holds it once written
     const [local, setLocal] = useState<UnionLeaf | null>(null);
     const busy = useRef<() => boolean>(() => false);
     const writer = useStepWriter(
@@ -65,6 +66,7 @@ export function StyleSelection({
     return (
         <SelectionEditor
             session={session}
+            workspaceKey={`selector:${layer.id}:${side}`}
             rule={local ?? held}
             host="selector"
             ownerName={name}

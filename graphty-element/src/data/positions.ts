@@ -7,6 +7,19 @@ export const POSITION_COMPONENTS = 3;
 export const DEFAULT_CAPACITY = 1024;
 
 /**
+ * Distinct rows an owed publish answers one at a time even in a small lane, before it is written instead: one
+ * line of the row table's position texture (1024 rows), since a row resent to the card sends its whole line and
+ * every row of that line is brought up to the landing first.
+ */
+const OWED_ROWS_FLOOR = 1024;
+/**
+ * An owed publish answers up to one row in 2^this of the lane one at a time (a quarter), and then is written. A
+ * reader that knows it will read more (every placed edge's ends) has it written first:
+ * {@link ElementPositions.owedReadsSpill}.
+ */
+const OWED_ROWS_SHIFT = 2;
+
+/**
  * Reject a row count that is not a non-negative integer.
  *
  * `fill()` and `subarray()` truncate a fractional argument and clamp a negative one, so without
@@ -26,6 +39,16 @@ function requireRowCount(value: number, what: string): number {
 }
 
 /**
+ * One row as an owed publish would write it ({@link ElementPositions.owe}).
+ * @param index - The row.
+ * @param out - Written with the row's scene-unit coordinates when the publish writes the row.
+ * @returns False when the publish leaves the row as it is, null when it cannot say for one row (the
+ *     reader then writes the whole publish).
+ * @internal
+ */
+export type OwedRow = (index: number, out: { x: number; y: number; z: number }) => boolean | null;
+
+/**
  * Whether a coordinate can be STORED, not merely whether it is finite as a double.
  *
  * The backing array is a Float32Array, so the guard has to be f32-shaped: 1e39 passes
@@ -39,6 +62,9 @@ function requireRowCount(value: number, what: string): number {
 export function isStorableCoordinate(value: number): boolean {
     return Number.isFinite(Math.fround(value));
 }
+
+/** The fewest changed rows {@link ElementPositions.rowsChangedSince} keeps before it lets them go. */
+const MOST_LOGGED = 4096;
 
 /**
  * The element-owned node position array (graph-format design 14.4 rule 4).
@@ -125,8 +151,32 @@ export class ElementPositions {
 
     private moves = 0;
     private changeCount = 0;
+    /** See {@link ElementPositions.relocations}. */
+    private relocationCount = 0;
+    /**
+     * The row of each change since `changedFrom`, one entry per {@link ElementPositions.changes},
+     * or null when a write since did not say its rows; see {@link ElementPositions.rowsChangedSince}.
+     */
+    private changedRows: number[] | null = [];
+    /** The {@link ElementPositions.changes} count `changedRows` starts from. */
+    private changedFrom = 0;
     /** A publish a layout owes the rows: see {@link ElementPositions.owe}. */
     private owed: (() => void) | null = null;
+    /** Answers one row as the owed publish would write it: see {@link ElementPositions.owe}. */
+    private owedRow: OwedRow | null = null;
+    /**
+     * The distinct rows `owedRow` answered since the publish was owed. Past a quarter of the lane (and at least
+     * {@link OWED_ROWS_FLOOR}), writing
+     * the publish is cheaper. Distinct rows, not reads: a labeled node read every frame of a long landing
+     * is one row however many frames the landing spans.
+     */
+    private readonly owedAnswered = new Set<number>();
+    private readonly owedScratch = { x: 0, y: 0, z: 0 };
+    /**
+     * Rows an owed publish answered one at a time, ever: what readers of a few rows cost while landings are owed.
+     * @internal
+     */
+    owedRowsRead = 0;
 
     /**
      * Allocate the backing array, every row unplaced and unpinned.
@@ -175,13 +225,70 @@ export class ElementPositions {
     }
 
     /**
+     * Moves when a row that was already placed is drawn somewhere else: a write that changes a
+     * placed row's coordinates, a batch written into the lent array, a publish owed. Seeding an
+     * unplaced row and renumbering rows leave it alone, so a reader that has to find every row
+     * that moved -- the edges at rows drawn with no `Node` -- knows an add or a removal moved none.
+     * @returns the count
+     * @internal
+     */
+    get relocations(): number {
+        return this.relocationCount;
+    }
+
+    /**
      * Say that coordinates were written straight into the lent array.
      * @param written - how many rows were written
      * @param changed - how many of them now hold something else
+     * @param rows - the rows that changed, one per change, when the writer listed them
      */
-    moved(written = 1, changed = written): void {
+    moved(written = 1, changed = written, rows?: readonly number[]): void {
         this.moves += written;
         this.changeCount += changed;
+        this.relocationCount += changed;
+        if (rows?.length === changed) {
+            this.noteChanged(rows);
+        } else if (changed > 0) {
+            this.changedRows = null;
+            this.changedFrom = this.changeCount;
+        }
+    }
+
+    /**
+     * The rows whose coordinates changed since a {@link ElementPositions.changes} count, one entry
+     * per change and a renumbered row under its new number (INVALID_INDEX for one removed since),
+     * so a frame that follows the lane updates those nodes and not every node (issue #9164).
+     * @param changes - The count the reader last followed.
+     * @returns The rows, or null when a write since did not say which rows it changed, or too many
+     *     did, and the reader has to read every row.
+     */
+    rowsChangedSince(changes: number): readonly number[] | null {
+        if (changes === this.changeCount) {
+            return [];
+        }
+
+        if (this.changedRows === null || changes < this.changedFrom || changes > this.changeCount) {
+            return null;
+        }
+
+        return this.changedRows.slice(changes - this.changedFrom);
+    }
+
+    /**
+     * Log the rows a write changed, letting the log go once it is long enough that a reader reads
+     * every row anyway.
+     * @param rows - The rows.
+     */
+    private noteChanged(rows: readonly number[]): void {
+        const log = this.changedRows;
+        if (log !== null && log.length + rows.length <= Math.max(MOST_LOGGED, this.rows >>> 4)) {
+            log.push(...rows);
+            return;
+        }
+
+        // Too many to follow one by one: a reader from before reads every row, and the log starts again.
+        this.changedRows = [];
+        this.changedFrom = this.changeCount;
     }
 
     /**
@@ -191,13 +298,23 @@ export class ElementPositions {
      * for it, so a frame that only checks whether the lane moved writes nothing. Owing moves
      * `generation`, since the coordinates a reader would get have changed; `changes` moves when the
      * publish is written.
+     *
+     * A reader of one row need not write them all: `row` answers one row as the publish would write
+     * it, so a frame that draws a few rows from the CPU (a label, an arrowhead) costs those rows, not
+     * every row of the graph. Once a quarter of the lane's rows were read that way, a read of another row
+     * writes the publish instead, so a landing never costs more than about 1.25 times the publish, and a
+     * reader that asks {@link ElementPositions.owedReadsSpill} first pays the publish alone.
      * @param publish - Writes the rows; null to owe nothing.
+     * @param row - Answers one row as `publish` would write it, or null when every read settles.
      * @internal
      */
-    owe(publish: (() => void) | null): void {
+    owe(publish: (() => void) | null, row: OwedRow | null = null): void {
         this.owed = publish;
+        this.owedRow = publish === null ? null : row;
+        this.owedAnswered.clear();
         if (publish !== null) {
             this.moves++;
+            this.relocationCount++;
         }
     }
 
@@ -230,7 +347,104 @@ export class ElementPositions {
     forgive(publish: () => void): void {
         if (this.owed === publish) {
             this.owed = null;
+            this.owedRow = null;
+            this.owedAnswered.clear();
         }
+    }
+
+    /**
+     * Whether a publish is owed that {@link ElementPositions.readOwed} can read one row at a time.
+     * @returns True when it can.
+     * @internal
+     */
+    get owesRows(): boolean {
+        return this.owed !== null && this.owedRow !== null;
+    }
+
+    /**
+     * Whether reading this many more rows one at a time from the owed publish would end in writing it: a
+     * reader about to read that many (both ends of every placed edge) writes it first instead.
+     * @param reads - Rows about to be read.
+     * @returns True when a publish readable by row is owed and the reads would pass what it answers.
+     * @internal
+     */
+    owedReadsSpill(reads: number): boolean {
+        return this.owesRows && this.owedAnswered.size + reads > this.owedLimit();
+    }
+
+    /**
+     * Distinct rows an owed publish answers one at a time before it is written instead.
+     * @returns The count.
+     */
+    private owedLimit(): number {
+        return Math.max(OWED_ROWS_FLOOR, this.rows >> OWED_ROWS_SHIFT);
+    }
+
+    /**
+     * Read one row as it will stand once the owed publish is written, without writing it: what a
+     * reader of a few rows calls while a publish is owed.
+     * @param index - node index
+     * @param out - the object to fill
+     * @param out.x - receives the scene-unit x
+     * @param out.y - receives the scene-unit y
+     * @param out.z - receives the scene-unit z
+     * @returns False when nothing is owed, or the publish cannot answer one row: read the row as usual,
+     *     which writes the publish.
+     * @internal
+     */
+    readOwed(index: number, out: { x: number; y: number; z: number }): boolean {
+        const written = this.owedAnswer(index, out);
+        if (written === false) {
+            // the publish leaves this row as it is
+            this.copyRow(POSITION_COMPONENTS * index, out);
+        }
+
+        return written !== null;
+    }
+
+    /**
+     * Whether the owed publish writes this row, read without writing it: a row it writes is one a landing
+     * on the card already draws there.
+     * @param index - node index
+     * @param out - the object to fill with the row's place when the publish writes it
+     * @param out.x - receives the scene-unit x
+     * @param out.y - receives the scene-unit y
+     * @param out.z - receives the scene-unit z
+     * @returns True when the publish writes the row; false when nothing is owed, the publish leaves the
+     *     row, or it cannot answer one row.
+     * @internal
+     */
+    owedWrites(index: number, out: { x: number; y: number; z: number }): boolean {
+        return this.owedAnswer(index, out) === true;
+    }
+
+    /**
+     * Ask the owed publish about one row, within the reads it is worth.
+     * @param index - node index
+     * @param out - the object to fill
+     * @param out.x - receives the scene-unit x
+     * @param out.y - receives the scene-unit y
+     * @param out.z - receives the scene-unit z
+     * @returns What {@link OwedRow} answers, or null when it is not asked.
+     */
+    private owedAnswer(index: number, out: { x: number; y: number; z: number }): boolean | null {
+        const row = this.owedRow;
+        if (this.owed === null || row === null || !Number.isInteger(index) || index < 0 || index >= this.rows) {
+            return null;
+        }
+
+        // Reading many rows one at a time costs more than writing them all: past that, write the publish.
+        const answered = this.owedAnswered;
+        if (!answered.has(index)) {
+            if (answered.size >= this.owedLimit()) {
+                return null;
+            }
+
+            answered.add(index);
+        }
+
+        this.owedRowsRead++;
+        return row(index, out);
     }
 
     /**
@@ -245,6 +459,8 @@ export class ElementPositions {
         }
 
         this.owed = null;
+        this.owedRow = null;
+        this.owedAnswered.clear();
         publish();
         return true;
     }
@@ -382,6 +598,9 @@ export class ElementPositions {
         // a pin that stayed on the old row number would hold whichever node inherited that row.
         this.pins = remapArray(this.pins, nodeRemap, nodeCount, 0, 1);
         this.rows = nodeCount;
+        if (this.changedRows !== null) {
+            this.changedRows = this.changedRows.map((row) => (row < nodeRemap.length ? nodeRemap[row] : INVALID_INDEX));
+        }
     }
 
     /**
@@ -479,6 +698,11 @@ export class ElementPositions {
      * @returns true when the row is inside the live count AND carries a storable x
      */
     isPlaced(index: number): boolean {
+        // one row of an owed publish is read without writing the rest
+        if (this.readOwed(index, this.owedScratch)) {
+            return isStorableCoordinate(this.owedScratch.x);
+        }
+
         this.settle();
         if (!Number.isInteger(index) || index < 0 || index >= this.rows) {
             return false;
@@ -497,9 +721,24 @@ export class ElementPositions {
      * @throws RangeError when `index` is not an integer in `[0, count)`
      */
     read(index: number, out: { x: number; y: number; z: number }): void {
+        if (this.readOwed(index, out)) {
+            return;
+        }
+
         this.settle();
-        const base = this.rowBase(index);
-        // The fallbacks are unreachable past rowBase(), and NaN rather than 0 so that a future
+        this.copyRow(this.rowBase(index), out);
+    }
+
+    /**
+     * Copy one row out of the array as it stands.
+     * @param base - The offset of the row's x component.
+     * @param out - The object to fill.
+     * @param out.x - receives the scene-unit x
+     * @param out.y - receives the scene-unit y
+     * @param out.z - receives the scene-unit z
+     */
+    private copyRow(base: number, out: { x: number; y: number; z: number }): void {
+        // The fallbacks are unreachable for a live row, and NaN rather than 0 so that a future
         // change which makes them reachable reports "unplaced" instead of "at the origin".
         out.x = this.array[base] ?? Number.NaN;
         out.y = this.array[base + 1] ?? Number.NaN;
@@ -542,6 +781,8 @@ export class ElementPositions {
             array[base + 2] !== Math.fround(z)
         ) {
             this.changeCount++;
+            this.relocationCount += this.hasStorableX(base) ? 1 : 0;
+            this.noteChanged([index]);
         }
 
         array[base] = x;

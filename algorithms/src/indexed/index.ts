@@ -9,6 +9,7 @@
  */
 
 export { allPairsShortestPath, APSP_DEFAULT_MAX_NODES, type ApspOptions, type ApspResult } from "./all-pairs.js";
+export { articulationPoints, bridges, type EdgeSetResult, type NodeSetResult } from "./articulation.js";
 export { bellmanFord, type BellmanFordResult } from "./bellman-ford.js";
 export {
     betweennessCentrality,
@@ -112,6 +113,13 @@ export { kruskalMST, type MstOptions, type MstResult, primMST, type PrimOptions,
 export { pageRank, type PageRankOptions, type PageRankResult, personalizedPageRank } from "./pagerank.js";
 export { astar, type AstarResult, bidirectionalDijkstra, type PathOptions, type PathResult } from "./point-to-point.js";
 export { condensation, type CondensationResult, stronglyConnectedComponents } from "./scc.js";
+export {
+    countShortestPaths,
+    type CountShortestPathsOptions,
+    timeOrderedPaths,
+    type TimeOrderedPathsOptions,
+    type TimeOrderedPathsResult,
+} from "./shortest-routes.js";
 export {
     allSimplePaths,
     SIMPLE_PATHS_DEFAULT_MAX_PATHS,

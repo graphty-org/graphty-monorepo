@@ -312,7 +312,10 @@ describe("AiController", () => {
 
             await multi.execute("do it");
 
-            assert.strictEqual(JSON.parse(provider.asks[1].at(-1)?.content ?? "{}").success, false);
+            assert.strictEqual(
+                (JSON.parse(provider.asks[1].at(-1)?.content ?? "{}") as { success?: boolean }).success,
+                false,
+            );
             assert.deepStrictEqual(fixed, ["b"]);
         });
 
@@ -620,14 +623,14 @@ describe("AiController", () => {
                 generateStream: () => Promise.reject(new Error("not used")),
                 validateApiKey: () => Promise.resolve(true),
             };
-            const cancelledInputs: string[] = [];
+            const canceledInputs: string[] = [];
             const two = new AiController({
                 provider: thinking,
                 commandRegistry: registry,
                 graph: mockGraph,
                 emitEvent: (event) => {
-                    if (event.type === "ai-command-canceled" || event.type === "ai-command-cancelled") {
-                        cancelledInputs.push(`${event.type} ${event.input}`);
+                    if (event.type === "ai-command-canceled") {
+                        canceledInputs.push(`${event.type} ${event.input}`);
                     }
                 },
             });
@@ -640,15 +643,9 @@ describe("AiController", () => {
             const results = await Promise.all([first, second]);
             assert.deepEqual(
                 results.map((r) => r.code),
-                ["AI_CANCELLED", "AI_CANCELLED"],
+                ["AI_CANCELED", "AI_CANCELED"],
             );
-            // Each under its American name, then its deprecated British one.
-            assert.deepEqual(cancelledInputs, [
-                "ai-command-canceled first",
-                "ai-command-cancelled first",
-                "ai-command-canceled second",
-                "ai-command-cancelled second",
-            ]);
+            assert.deepEqual(canceledInputs, ["ai-command-canceled first", "ai-command-canceled second"]);
             // Messages run one at a time: the second never reached the model.
             assert.strictEqual(asks, 1);
         });

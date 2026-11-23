@@ -46,20 +46,21 @@ describe("dispatch", () => {
         assert.lengthOf(published, 0);
     });
 
-    it("coalesces equal keys within the window, and not after it", async () => {
+    it("coalesces consecutive equal keys however far apart in time, and not across another step", async () => {
         const { dispatcher, clock } = setup();
 
         await dispatcher.dispatch({ op: "fake.config", key: "bg", value: "red" });
-        clock.advance(100);
+        clock.advance(5000);
         await dispatcher.dispatch({ op: "fake.config", key: "bg", value: "blue" });
         assert.lengthOf(dispatcher.history.steps, 1);
 
-        clock.advance(5000);
+        await dispatcher.dispatch({ op: "fake.config", key: "fg", value: "white" });
         await dispatcher.dispatch({ op: "fake.config", key: "bg", value: "green" });
-        assert.lengthOf(dispatcher.history.steps, 2);
+        assert.lengthOf(dispatcher.history.steps, 3);
 
         dispatcher.history.undo();
         assert.strictEqual(dispatcher.state.config.get("bg"), "blue");
+        dispatcher.history.undo();
         dispatcher.history.undo();
         assert.isFalse(dispatcher.state.config.has("bg"));
     });

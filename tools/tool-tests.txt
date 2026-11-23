@@ -8,6 +8,7 @@ design/ui/studio/tool/tier5.test.mjs
 design/ui/studio/tool/tier6.test.mjs
 design/ui/studio/tool/with-browser.test.mjs
 tools/acceptance.test.mjs
+tools/armable-prs.test.mjs
 tools/assemble-pages-site.test.mjs
 tools/bisect-ci.test.mjs
 tools/bisect-core.test.mjs
@@ -56,6 +57,7 @@ tools/dependency-refresh.test.mjs
 tools/design-studio-workflow.test.mjs
 tools/designloom-links.test.mjs
 tools/duplicates-check.test.mjs
+tools/eslint-cache-key.test.mjs
 tools/features-on.test.mjs
 tools/full-run.test.mjs
 tools/gate-inputs.test.mjs
@@ -65,6 +67,8 @@ tools/issue-groups.test.mjs
 tools/issue-queue.test.mjs
 tools/issue-round-idle-hook.test.mjs
 tools/lfs-pre-push.test.mjs
+tools/lib/git.test.mjs
+tools/lib/github.test.mjs
 tools/lint-base-drift.test.mjs
 tools/live.test.mjs
 tools/test-rotation.test.mjs
@@ -82,7 +86,6 @@ tools/pr-review.test.mjs
 tools/publish-hold.test.mjs
 tools/push-base.test.mjs
 tools/push-queue.test.mjs
-tools/queued-push-guard.test.mjs
 tools/release-diff.test.mjs
 tools/release-dry-run.test.mjs
 tools/release-due.test.mjs
@@ -96,7 +99,7 @@ tools/results/results.test.mjs
 tools/scan-secrets.test.mjs
 tools/scratch-ruleset-cases.test.mjs
 tools/shard-verdict.test.mjs
-tools/ship-risks.test.mjs
+tools/stamp-package-version.test.mjs
 tools/step-log.test.mjs
 tools/storybook-brand-theme.test.mjs
 tools/test-changed.test.mjs

@@ -3,8 +3,8 @@
  * holds the same rows) and rebuilds it from the snapshot on the next write, so a graph loaded and
  * only looked at holds one copy of its structure, not two. Counts and contents, no timings.
  */
-import type { GraphSnapshot } from "@graphty/graph-format";
-import { assert, describe, it } from "vitest";
+import { GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
+import { assert, describe, it, vi } from "vitest";
 
 import { GraphStore } from "../../src/data/GraphStore";
 
@@ -109,6 +109,49 @@ describe("letting the builder go after a load", () => {
         assert.strictEqual(release(graphs[1].store).revivals, 0);
     });
 
+    it("brings the builder back with whole columns, not a write per cell (issue #9164)", () => {
+        const store = storeWith(true);
+        load(store, 40, 400);
+        store.getSnapshot();
+        store.releaseIdle();
+        const nodeCells = vi.spyOn(GraphBuilder.prototype, "setNodeValue");
+        const edgeCells = vi.spyOn(GraphBuilder.prototype, "setEdgeValue");
+        try {
+            assert.isNotNull(store.builder);
+            assert.strictEqual(release(store).revivals, 1);
+            // A column with a cell unset is still copied cell by cell, so this bounds rather than
+            // pins: before, every set cell of every column was a call, 400 per edge column.
+            assert.isBelow(edgeCells.mock.calls.length, 400, "edge columns copied whole");
+            assert.isBelow(nodeCells.mock.calls.length, 40, "node columns copied whole");
+        } finally {
+            nodeCells.mockRestore();
+            edgeCells.mockRestore();
+        }
+    });
+
+    it("brings a consumer's numeric column back still inferred, so a value of another type widens it", () => {
+        const store = storeWith(true);
+        load(store, 40, 120);
+        for (let row = 0; row < 40; row++) {
+            store.builder.setNodeValue("group", row, row % 5);
+            store.builder.setEdgeValue("strength", row, row);
+        }
+
+        store.account();
+        store.getSnapshot();
+        store.releaseIdle();
+        assert.isNotNull(store.builder);
+        assert.strictEqual(release(store).revivals, 1);
+        // Before: the revived column was declared i32 and this threw E_COLUMN_TYPE.
+        store.builder.setNodeValue("group", 7, "a");
+        store.builder.setEdgeValue("strength", 3, "b");
+        store.account();
+        const snapshot = store.getSnapshot();
+        assert.strictEqual(snapshot.nodes.value("group", 7), "a");
+        assert.strictEqual(snapshot.nodes.value("group", 8), "3");
+        assert.strictEqual(snapshot.edges.value("strength", 3), "b");
+    });
+
     it("keeps a rebuilt builder: a second edit costs no second rebuild", () => {
         const store = storeWith(true);
         load(store, 20, 40);
@@ -124,6 +167,39 @@ describe("letting the builder go after a load", () => {
         store.getSnapshot();
         store.releaseIdle();
         assert.deepStrictEqual(release(store), { released: false, revivals: 1 });
+    });
+
+    it("lets it go after a merged second source, but rebuilds a few times, not once per page, over many loads", () => {
+        // One load after another, as data.more() pages or merged sources arrive: each page adds
+        // new ids, then the session goes idle and may let the builder go.
+        const page = (store: GraphStore, first: number): void => {
+            store.openLoad();
+            const { builder } = store;
+            for (let id = first; id < first + 20; id++) {
+                const row = builder.addNode(id);
+                builder.setNodeValue(store.seedColumn, row, [id, -id, 0]);
+            }
+            for (let at = 0; at < 60; at++) {
+                const row = builder.addEdge(first + (at % 20), first + ((at * 3 + 1) % 20), 1);
+                store.stampEdgeId(row, store.nextEdgeId());
+            }
+            store.account();
+            store.closeLoad();
+            store.getSnapshot();
+            store.releaseIdle();
+        };
+        const store = storeWith(true);
+        page(store, 0);
+        page(store, 1000);
+        assert.deepStrictEqual(release(store), { released: true, revivals: 1 }, "two sources hold one copy");
+        for (let at = 2; at < 20; at++) {
+            page(store, at * 1000);
+        }
+        // Rebuilds copy at most the rows loaded plus one graph, so the graph doubles between them:
+        // 5 rebuilds over 20 pages, where one per page would be 19.
+        assert.deepStrictEqual(release(store), { released: false, revivals: 5 });
+        assert.strictEqual(store.getSnapshot().nodeCount, 400);
+        assert.strictEqual(store.getSnapshot().edgeCount, 1200);
     });
 
     it("keeps the builder when the option is off (the objects path)", () => {

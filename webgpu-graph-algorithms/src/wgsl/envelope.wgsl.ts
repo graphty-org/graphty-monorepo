@@ -4,7 +4,8 @@
  * 0 (grid-stride, one partial per workgroup): the count, sum, min and max of the finite rows into `partials[3g..3g+2]`;
  * 1 (one workgroup): those partials folded in index order into `env[0..2]` (sum and count, min, max);
  * 2 (grid-stride): the largest squared distance of a finite row from `env[0].xyz / env[0].w` into `partials[3g].x`;
- * 3 (one workgroup): those folded into `env[3].x`. A row is finite when none of its three exponents is all ones, read
+ * 3 (one workgroup): those folded into `env[3].x`, and the mean and the furthest distance into `env[4]` for `to-drawn`
+ * to fit with (issue #9665). A row is finite when none of its three exponents is all ones, read
  * from the bits so no compiler folds the test away. Every fold runs in a fixed order, so two runs are bitwise equal.
  * Body only.
  */
@@ -66,7 +67,11 @@ fn envelope(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id)
         var far = 0.0;
         for (var k = lid.x; k < P.groups; k = k + WG) { far = max(far, partials[3u * k].x); }
         let m = wg_reduce_f32(far, lid.x, 2u);
-        if (lid.x == 0u) { env[3] = vec4f(m, 0.0, 0.0, 0.0); }
+        if (lid.x == 0u) {
+            env[3] = vec4f(m, 0.0, 0.0, 0.0);
+            let total = env[0];
+            env[4] = vec4f(total.xyz / max(total.w, 1.0), sqrt(m));
+        }
     }
 }
 `;

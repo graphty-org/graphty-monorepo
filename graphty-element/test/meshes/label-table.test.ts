@@ -5,7 +5,7 @@
  */
 import { assert, describe, it } from "vitest";
 
-import { type LabelTable, layoutLabelTable, readLabelTable } from "../../src/meshes/labelTable";
+import { type LabelTable, layoutLabelTable, readLabelTable, roundedBoxOutline } from "../../src/meshes/labelTable";
 
 /** Widths Graphviz measured for the words of the sheets, in points. */
 const WIDTHS: Record<string, number> = { a: 6, b: 6, c: 6, x: 6, ab: 12, wide: 23.25, "wide line": 43 };
@@ -243,6 +243,49 @@ describe("layoutLabelTable: backgrounds and pictures", () => {
                 ["#4477aa", 3, 3, 10, 16.75],
             ],
         );
+    });
+
+    it("rounds a rounded table's outline and fill inside the middle of its border, at most a third of its side (n_html3)", () => {
+        const t = table([[cell("a"), cell("b")], [cell("wide", { colspan: 2 })]], {
+            border: 2,
+            radius: 12,
+            width: 60,
+            height: 60,
+            fill: "#ddffdd",
+            fillGradient: "#88cc88",
+            fillGradientAngle: 270,
+        });
+        const drawn = layoutLabelTable(t, measure);
+        assert.strictEqual(drawn.radius, 12);
+        const [own] = drawn.fills;
+        assert.deepEqual(
+            [own.x, own.y, own.width, own.height, own.radius, own.gradient],
+            [1, 1, drawn.width - 2, drawn.height - 2, 12, { to: "#88cc88", angle: 270 }],
+        );
+        // a small table's corners are a third of its shorter side in the middle of its border
+        const small = layoutLabelTable(table([[cell("a")]], { border: 2, radius: 12 }), measure);
+        assert.closeTo(small.radius, (Math.min(small.width, small.height) - 2) / 3, 1e-9);
+        // a square table draws none
+        assert.strictEqual(layoutLabelTable(table([[cell("a")]]), measure).radius, 0);
+    });
+
+    it("lays a rounded box's outline clockwise round its corners, and a square box's as its four corners", () => {
+        const box = { x: 0, y: 0, width: 40, height: 20 };
+        assert.deepEqual(roundedBoxOutline(box, 0), [
+            [0, 0],
+            [40, 0],
+            [40, 20],
+            [0, 20],
+        ]);
+        const round = roundedBoxOutline(box, 5);
+        const near = (p: [number, number], q: [number, number]): boolean =>
+            Math.abs(p[0] - q[0]) < 1e-9 && Math.abs(p[1] - q[1]) < 1e-9;
+        assert.isTrue(near(round[0], [0, 5]));
+        assert.isTrue(round.some((p) => near(p, [5, 0])));
+        assert.isTrue(round.every(([x, y]) => x >= -1e-9 && x <= 40 + 1e-9 && y >= -1e-9 && y <= 20 + 1e-9));
+        // the corner's middle point is the radius from its center
+        const mid = round[4];
+        assert.closeTo(Math.hypot(mid[0] - 5, mid[1] - 5), 5, 1e-9);
     });
 
     it("draws a cell's picture in the box inside its padding, lined up as the cell says (html-img-scale-*)", () => {

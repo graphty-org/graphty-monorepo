@@ -5,19 +5,18 @@
 
 import { assert, describe, it } from "vitest";
 
+import type { AlgorithmHost } from "../../../src/algorithms/host";
 import { PrimAlgorithm } from "../../../src/algorithms/PrimAlgorithm";
-import type { Graph } from "../../../src/Graph";
-import { InputGraph } from "../input/harness";
-import { describeScopedAdapter, runScoped, runWhole } from "./harness";
+import { describeScopedAdapter, runScoped, runWhole, type ScopedGraph, scopedGraph } from "./harness";
 
-const build = (graph: Graph): PrimAlgorithm => new PrimAlgorithm(graph);
+const build = (graph: AlgorithmHost): PrimAlgorithm => new PrimAlgorithm(graph);
 
 describeScopedAdapter("prim", build);
 
 describe("prim over a graph in several pieces", () => {
     /** a - b - c and d - e, joined only through x. */
-    const graph = (): InputGraph =>
-        new InputGraph(
+    const graph = (): Promise<ScopedGraph> =>
+        scopedGraph(
             ["a", "b", "c", "x", "d", "e"],
             [
                 ["a", "b", 1],
@@ -29,7 +28,7 @@ describe("prim over a graph in several pieces", () => {
         );
 
     it("spans every piece of a scope that cuts the graph, as Kruskal does", async () => {
-        const g = graph();
+        const g = await graph();
         const result = await runScoped(build, g, g.scope(["a", "b", "c", "d", "e"]));
 
         assert.deepInclude(result?.graph, { totalWeight: 6 });
@@ -41,7 +40,7 @@ describe("prim over a graph in several pieces", () => {
     });
 
     it("spans every piece of a whole graph that is not connected", async () => {
-        const g = new InputGraph(
+        const g = await scopedGraph(
             ["a", "b", "c", "d"],
             [
                 ["a", "b", 1],
@@ -54,7 +53,7 @@ describe("prim over a graph in several pieces", () => {
     });
 
     it("grows the named start node's piece from it", async () => {
-        const g = graph();
+        const g = await graph();
         const result = await runScoped(
             (h) => new PrimAlgorithm(h, { startNode: "e" }),
             g,

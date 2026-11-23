@@ -614,4 +614,52 @@ describe("Data > Fields' settings rows on the real element", () => {
         // a, b and c, then the groups x and y as the edges' other ends.
         assert.equal(session.data.statistics().nodeCount, 5);
     });
+
+    it("a load of a node file and an edge file reads its edge table again when an edge row changes", async () => {
+        const store = createWorkspaceStore({ project: { name: "Fields", id: 1 }, place: "data" });
+        render(<Workspace store={store} />);
+        const { session } = await openElement();
+        const draft = await session.data.prepare({
+            config: {
+                nodeFile: new File(["id,name\na,Ann\nb,Bo\nc,Cy\n"], "people.csv"),
+                edgeFile: new File(["from,to,group\na,b,x\nb,c,y\n"], "links.csv"),
+            },
+        });
+        await draft.load();
+        const section = await fields();
+        await waitFor(() => {
+            assert.equal(shown(section, "Target"), "to");
+        });
+
+        await choose(section, "Target", "group");
+        await waitFor(() => {
+            assert.equal(shown(section, "Target"), "group");
+        });
+        // a, b and c from the node file, then the groups x and y as the edges' other ends.
+        assert.equal(session.data.statistics().nodeCount, 5);
+        assert.equal(session.data.node("a")?.name, "Ann");
+    });
+
+    it("keeps a one-edge-file load's rows as edges when a node column takes a load role from its header", async () => {
+        // The edge file's own id column shares its name with the nodes' id column.
+        const session = await dropCsv("id,source,target\ne1,a,b\ne2,b,c\n");
+        await waitFor(() => {
+            assert.lengthOf(session.data.edges(), 2);
+        });
+        const steps = session.history.steps.length;
+
+        await userEvent.keyboard("{Shift>}T{/Shift}");
+        const grid = await screen.findByRole("grid", { name: "Nodes" });
+        await userEvent.click(within(grid).getByRole("button", { name: "Options for id" }));
+        await userEvent.hover(await screen.findByRole("menuitem", { name: "Role" }));
+        await userEvent.click(await screen.findByRole("menuitemradio", { name: "Kind" }));
+
+        await waitFor(() => {
+            assert.equal(session.history.steps.length, steps + 1);
+        });
+        // The table is read again as the edges it was: the id column names each edge's kind.
+        assert.equal(Object.values(session.data.sources()[0].mapping?.tables ?? {})[0]?.rowsAre, "edges");
+        assert.lengthOf(session.data.edges(), 2);
+        assert.equal(session.data.statistics().nodeCount, 3);
+    });
 });

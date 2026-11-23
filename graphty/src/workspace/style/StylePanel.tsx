@@ -10,6 +10,7 @@ import React, { useEffect, useId, useRef, useState } from "react";
 import { cosmographOn, fileStylesOn } from "../features";
 import { findTreeRow, isLocked, rowLayers as treeRowLayers } from "../graph-place/rows";
 import { errorWords } from "../project/words";
+import { RenderCount } from "../renderCount";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { type CardField, isBlankRow, writeKind } from "./cards";
@@ -34,7 +35,7 @@ import {
 import { Section } from "./Section";
 import { useFocusLine } from "./useFocusLine";
 import { useLabelColumn } from "./useLabelColumn";
-import { useStyleVersion } from "./useStyleVersion";
+import { useDataVersion, useStyleVersion } from "./useStyleVersion";
 import { WhichPicker } from "./WhichPicker";
 import { sectionsFor } from "./words";
 
@@ -394,10 +395,9 @@ export function RowStyle({
     many?: (side: Target) => Pick<RowContext, "many" | "beneath">;
     panel?: string;
 }>): React.JSX.Element {
-    const { store } = useWorkspace();
+    const { store, element } = useWorkspace();
     const stored = useWorkspaceState((state) => state.styleSide);
     const scope = useFocusLine<HTMLDivElement>(session, panel ?? below ?? row.join(" "));
-    useLabelColumn(scope);
     const sides = offered.filter((t) => fresh !== undefined || rowLayers(session, row, t).length > 0);
     const tabs: readonly Target[] = kinds === undefined ? sides : ["node", "edge"];
     const styled = (side: Target): boolean => (kinds === undefined ? sides.includes(side) : kinds.state(side).on > 0);
@@ -427,33 +427,51 @@ export function RowStyle({
     const beneath = beneathOf(session, treeRow, fresher ? "selection" : "graph");
     const hiddenBy = treeRow === undefined || many !== undefined ? undefined : hiddenByOf(session, treeRow, row);
     const colors = documentColors(session);
+    const dataVersion = useDataVersion(session, element);
+    const ctxOf = (side: Target): RowContext => ({
+        session,
+        row,
+        side,
+        layers: rowLayers(session, row, side),
+        fresh,
+        beneath,
+        hiddenBy,
+        documentColors: colors,
+        ...many?.(side),
+    });
+    // What a kind's sections read, as the element answers it: its layers and their counts, what
+    // lies beneath and over the row per channel, the document's colors, and every change that is
+    // not to the layers alone. Unchanged, the sections are not drawn again: an animation updating
+    // another layer once a frame redrew every section of this one (#9423). Several rows edited
+    // together carry their writes in the context, so they are always drawn again.
+    const signatureOf = (side: Target, ctx: RowContext): string | null =>
+        many === undefined
+            ? JSON.stringify([
+                  row,
+                  side,
+                  fresh,
+                  ctx.layers,
+                  // Its revision moves with every repaint, whatever it painted.
+                  ctx.layers.map((layer) => ({ ...session.styles.counts(layer.id), revision: undefined })),
+                  channelsFor(side).map(({ channel }) => [beneath(channel), hiddenBy?.(channel)]),
+                  colors,
+                  dataVersion,
+                  fileStylesOn(session),
+                  cosmographOn(session),
+              ])
+            : null;
+    const drawn = new Map(
+        offered.map((side) => {
+            const ctx = ctxOf(side);
+            return [side, { ctx, signature: signatureOf(side, ctx) }] as const;
+        }),
+    );
+    // The label column is measured again only when what the sections draw has changed.
+    const signatures = [...drawn.values()].map(({ signature }) => signature);
+    useLabelColumn(scope, signatures.includes(null) ? undefined : JSON.stringify([tab, signatures]));
     const sectionsOf = (side: Target): React.JSX.Element => {
-        const ctx: RowContext = {
-            session,
-            row,
-            side,
-            layers: rowLayers(session, row, side),
-            fresh,
-            beneath,
-            hiddenBy,
-            documentColors: colors,
-            ...many?.(side),
-        };
-        // The file-styles experiment draws both tabs by part of the drawing.
-        if (fileStylesOn(session)) {
-            return <PartsPanel ctx={ctx} />;
-        }
-        return (
-            <section className="ws-style-group" data-group={side}>
-                {sectionsFor(side, { cosmograph: cosmographOn(session) }).map((spec) =>
-                    spec.id === "text" ? (
-                        <LabelSection key={spec.id} ctx={ctx} />
-                    ) : (
-                        <Section key={spec.id} ctx={ctx} spec={spec} />
-                    ),
-                )}
-            </section>
-        );
+        const { ctx, signature } = drawn.get(side) ?? { ctx: ctxOf(side), signature: null };
+        return <SideSections ctx={ctx} signature={signature} />;
     };
     if (tabs.length < 2) {
         return (
@@ -479,11 +497,13 @@ export function RowStyle({
     const elsewhere = (side: Target): Elsewhere => ({
         ...(adding?.side === side ? { adding: adding.path } : {}),
         onElsewhere: (field) => {
+            // The card is asked for before the kind is turned on, so the picker the turn draws
+            // opens with it (#9537).
+            setAdding({ side: field.on, path: field.path });
             void (async () => {
                 if (!styled(field.on)) {
                     await turn(field.on, true);
                 }
-                setAdding({ side: field.on, path: field.path });
                 setTab(field.on);
             })();
         },
@@ -536,6 +556,38 @@ export function RowStyle({
 }
 
 /**
+ * One kind's sections, drawn again only when their signature changes; with no signature, on every
+ * render.
+ * @param props - Component props
+ * @param props.ctx - the kind's row context
+ * @param props.signature - what the sections read, or null to draw them on every render
+ * @returns The sections
+ */
+const SideSections = React.memo(
+    function SideSections({ ctx }: Readonly<{ ctx: RowContext; signature: string | null }>): React.JSX.Element {
+        return (
+            <RenderCount id={`style-sections-${ctx.side}`}>
+                {/* The file-styles experiment draws both tabs by part of the drawing. */}
+                {fileStylesOn(ctx.session) ? (
+                    <PartsPanel ctx={ctx} />
+                ) : (
+                    <section className="ws-style-group" data-group={ctx.side}>
+                        {sectionsFor(ctx.side, { cosmograph: cosmographOn(ctx.session) }).map((spec) =>
+                            spec.id === "text" ? (
+                                <LabelSection key={spec.id} ctx={ctx} />
+                            ) : (
+                                <Section key={spec.id} ctx={ctx} spec={spec} />
+                            ),
+                        )}
+                    </section>
+                )}
+            </RenderCount>
+        );
+    },
+    (before, after) => before.signature !== null && before.signature === after.signature,
+);
+
+/**
  * A kind's switch: "Style edges", or on several layers "Style edges, on in 3 of 10 layers", mixed
  * when some do. A layer keeps at least one kind.
  * @param props - Component props
@@ -563,7 +615,8 @@ function KindSwitch({
         state.of > 1 && state.on > 0 && !all
             ? `Style ${words.many}, on in ${String(state.on)} of ${String(state.of)} layers`
             : `Style ${words.many}`;
-    const fixed = only && all && state.of === 1;
+    // Every layer styles this kind and none the other: a layer keeps its only kind, so none can drop it.
+    const fixed = only && all;
     const other = KIND_WORDS[side === "node" ? "edge" : "node"].many;
     // Why it cannot be cleared, in its tooltip and its description, not as lines on the panel.
     const reason = fixed ? `Stays on: style ${other} first to stop styling ${words.many}` : undefined;

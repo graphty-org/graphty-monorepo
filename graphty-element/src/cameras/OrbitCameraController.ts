@@ -498,6 +498,16 @@ export class OrbitCameraController {
                 : this.camera.position.length() + this.pivot.position.length() + this.farReach.radius;
         this.camera.maxZ = Math.max(DEFAULT_FAR_PLANE, this.cameraDistance + this.#sceneRadius * 2, reach);
         this.camera.minZ = this.#nearPlane();
+
+        // A turn made between frames (a held arrow, A or D turns the pivot in the update pass) must
+        // reach the camera's view matrix before the next frame, or the render loop, which reads it
+        // to tell whether anything moved, rests on the old picture: Babylon hands out the pivot's
+        // matrix as computed for the current render id, and a loop at rest draws no new render. The
+        // camera then moved only when a key's auto-repeat asked for a frame (issue #9620). Rebuilt
+        // only when the pivot changed, so a still scene still reads as still.
+        if (!this.pivot.isSynchronized()) {
+            this.pivot.computeWorldMatrix(true);
+        }
     }
 
     /**
@@ -695,11 +705,19 @@ export class OrbitCameraController {
     }
 
     /**
-     * Zoom the camera to fit a bounding box in view.
-     * Positions the pivot at the center and adjusts camera distance.
+     * Zoom the camera to fit a bounding box in view, the drawing centered on the screen.
+     *
+     * The camera stands as far out as the box's corners need, and sideways where what is drawn
+     * (the spots) sits in the middle of the fit area: the pivot is moved off the box's center by
+     * as much as the perspective needs. A drawing
+     * whose near side lies to one side of the box is drawn larger on that side, so centering the
+     * box's center drew it off-center by up to a twentieth of the canvas (issue #9506). The pivot
+     * keeps the box center's depth, and the graph turns about it as before.
+     *
+     * With `fitBounds` "turning" the pivot stays on the box's center, which the view turns about.
      * @param min - The minimum corner of the bounding box
      * @param max - The maximum corner of the bounding box
-     * @param spots - What the box holds; with `fitBounds` "turning", what is fitted.
+     * @param spots - What the box holds; centered when they fill the box (a map around them does not).
      */
     public zoomToBoundingBox(min: Vector3, max: Vector3, spots?: readonly FramingSpot[]): void {
         const center = min.add(max).scale(0.5);
@@ -708,72 +726,220 @@ export class OrbitCameraController {
 
         this.#sceneRadius = size.length() / 2;
 
-        // Position pivot at center of bounding box
         this.pivot.position.copyFrom(center);
-        this.pivot.computeWorldMatrix(true);
+        const world = this.pivot.computeWorldMatrix(true);
 
         const engine = this.scene.getEngine();
         engine.resize(); // Ensure we have current dimensions
         const { tanX, tanY } = this.#halfFovTangents();
         const free = this.#fitArea();
 
-        // For 3D scenes, we need to account for perspective projection.
-        // Objects at different Z depths will project differently on screen.
-        // The camera is positioned at (0, 0, -distance) relative to pivot,
-        // so objects closer to the camera (negative Z relative to center) appear larger.
-        //
-        // To properly fit all 8 corners of the bounding box, we need to find
-        // the minimum distance that ensures all corners project within the viewport.
-        //
-        // For a point at (x, y, z) relative to center, when viewed from distance d:
-        // - The point is at depth (d - z) from the camera
-        // - It projects to screen_x = x * focal / (d - z)
-        // - It projects to screen_y = y * focal / (d - z)
-        //
-        // To fit within FOV: |screen_x| < tan(fovX/2) * (d - z), etc.
-        //
-        // With view insets the box must fit the free area instead: half as wide as the free share
-        // (`free.width` in NDC) and centered on it. The camera is shifted so the center lands
-        // there, and a corner at depth z then sits (x / tanX - free.x * z) / (d + z) from that
-        // center, so d >= |x / tanX - free.x * z| / free.width - z. No insets gives the old rule.
+        // Every point must be drawn inside the fit area: on each axis, between these tangents of
+        // the line of sight from the camera.
+        const across = { lo: tanX * (free.x - free.width), hi: tanX * (free.x + free.width) };
+        const upward = { lo: tanY * (free.y - free.height), hi: tanY * (free.y + free.height) };
+        const right = Vector3.TransformNormal(Vector3.Right(), world).normalize();
+        const up = Vector3.TransformNormal(Vector3.Up(), world).normalize();
+        const forward = Vector3.TransformNormal(Vector3.Forward(), world).normalize();
+        // As far out as the box needs, as before; then what is drawn is centered.
+        const box = [{ pos: Vector3.Zero(), half: size.scale(0.5) }];
+        const points = blocksIn(min, max, spots);
 
-        const halfWidth = size.x / 2;
-        const halfHeight = size.y / 2;
-        const halfDepth = size.z / 2;
+        const required = turning
+            ? turningFitDistance(center, spots, tanX * free.width, tanY * free.height)
+            : Math.max(
+                  axisFit(box, right, forward, across.lo, across.hi).distance,
+                  axisFit(box, up, forward, upward.lo, upward.hi).distance,
+              );
 
-        let maxRequiredDistance = 0;
-
-        if (turning) {
-            maxRequiredDistance = turningFitDistance(center, spots, tanX * free.width, tanY * free.height);
-        }
-
-        for (const sx of turning ? [] : [-1, 1]) {
-            for (const sy of [-1, 1]) {
-                for (const sz of [-1, 1]) {
-                    const x = sx * halfWidth;
-                    const y = sy * halfHeight;
-                    const z = sz * halfDepth;
-
-                    const distanceForX = Math.abs(x / tanX - free.x * z) / free.width - z;
-                    const distanceForY = Math.abs(y / tanY - free.y * z) / free.height - z;
-
-                    maxRequiredDistance = Math.max(maxRequiredDistance, distanceForX, distanceForY);
-                }
-            }
-        }
-
-        // Apply a reasonable padding factor
-        // Since we already include labels in the bounding box, we only need
-        // a small padding for visual comfort and edge arrows
+        // A small margin for visual comfort and edge arrows; the labels are in the box already.
         // The turning fit is already met only at the worst angle, so it gets no more room.
         const PADDING_PERCENT = turning || this.fitPadding !== undefined ? 0 : 5;
-        const targetDistance = maxRequiredDistance * (1 + PADDING_PERCENT / 100);
 
         // Only the floor applies: a fit that the configured ceiling cut short would put the
         // camera inside the graph. The ceiling stays a zoom-out limit, not a framing limit.
-        this.cameraDistance = this.clampDistance(targetDistance);
+        this.cameraDistance = this.clampDistance(required * (1 + PADDING_PERCENT / 100));
+
+        if (!turning) {
+            // The camera stands `offset` sideways of the center and the pivot is drawn at the fit
+            // area's center, `free.x * tanX * distance` sideways of the camera (updateCameraPosition).
+            const d = this.cameraDistance;
+            const x = centeredOffset(points, right, forward, across.lo, across.hi, d) + free.x * tanX * d;
+            const y = centeredOffset(points, up, forward, upward.lo, upward.hi, d) + free.y * tanY * d;
+            this.pivot.position.addInPlace(right.scale(x)).addInPlace(up.scale(y));
+            this.pivot.computeWorldMatrix(true);
+        }
 
         // Apply the new camera position immediately
         this.updateCameraPosition();
     }
+}
+
+/** A box about a point, relative to the fitted box's center: its middle and its half sides. */
+interface Block {
+    readonly pos: Vector3;
+    readonly half: Vector3;
+}
+
+/**
+ * What a fit centers: each spot cut to the box (a spot is as wide as its node's widest half on every
+ * side, and stands out of a flat or tall node's box), when the spots fill the box; else the box,
+ * as for a map framed around them.
+ * @param min - The box's smallest corner.
+ * @param max - Its largest corner.
+ * @param spots - What the box holds, if known.
+ * @returns The blocks, relative to the box's center.
+ */
+function blocksIn(min: Vector3, max: Vector3, spots: readonly FramingSpot[] | undefined): Block[] {
+    const center = min.add(max).scale(0.5);
+    const whole = [{ pos: Vector3.Zero(), half: max.subtract(min).scale(0.5) }];
+    if (spots === undefined || spots.length === 0) {
+        return whole;
+    }
+
+    const reach = new Vector3(Infinity, Infinity, Infinity);
+    const far = new Vector3(-Infinity, -Infinity, -Infinity);
+    const blocks = spots.map(({ pos, half }) => {
+        const lo = Vector3.Maximize(pos.subtractFromFloats(half, half, half), min);
+        const hi = Vector3.Minimize(pos.add(new Vector3(half, half, half)), max);
+        reach.minimizeInPlace(lo);
+        far.maximizeInPlace(hi);
+        return { pos: lo.add(hi).scale(0.5).subtract(center), half: hi.subtract(lo).scale(0.5) };
+    });
+
+    const slack = 1e-6 * (max.subtract(min).length() + 1);
+    const fills = reach.subtract(min).length() <= slack && max.subtract(far).length() <= slack;
+    return fills ? blocks : whole;
+}
+
+/**
+ * The nearest a perspective camera looking along `forward` can stand, on one screen axis, with
+ * every spot drawn between two tangents of the line of sight, and how far sideways along `axis` it
+ * then stands. A point `x` along the axis and `z` ahead of the center, seen from a camera `offset`
+ * along the axis and `distance` behind the center, is drawn at the tangent
+ * `(x - offset) / (z + distance)`; keeping that within `[lo, hi]` for every corner of every block is
+ * two linear bounds on the camera, met together first at the distance returned. There both the
+ * rightmost and the leftmost point touch the edges, so the drawing is centered.
+ * @param points - The blocks, relative to the center.
+ * @param axis - The screen axis in world space (right or up), a unit vector.
+ * @param forward - The line of sight, a unit vector.
+ * @param lo - The tangent of the area's near edge (left or bottom).
+ * @param hi - The tangent of its far edge.
+ * @returns The distance, and the bounds that give the offset at any distance.
+ */
+function axisFit(
+    points: readonly Block[],
+    axis: Vector3,
+    forward: Vector3,
+    lo: number,
+    hi: number,
+): { distance: number; offset: (distance: number) => number } {
+    const toHi = axis.subtract(forward.scale(hi));
+    const toLo = axis.subtract(forward.scale(lo));
+    // How far a block reaches along a direction past its middle.
+    const reach = (half: Vector3, v: Vector3): number =>
+        Math.abs(half.x * v.x) + Math.abs(half.y * v.y) + Math.abs(half.z * v.z);
+    let p = -Infinity;
+    let q = Infinity;
+    for (const { pos, half } of points) {
+        p = Math.max(p, Vector3.Dot(pos, toHi) + reach(half, toHi));
+        q = Math.min(q, Vector3.Dot(pos, toLo) - reach(half, toLo));
+    }
+
+    return { distance: (p - q) / (hi - lo), offset: (distance) => p - hi * distance };
+}
+
+/**
+ * Every corner of every block, as its place along a screen axis and its depth from a camera
+ * `distance` behind the center: a tangent (x - offset) / depth is widest over a block at one of its
+ * corners.
+ * @param points - The blocks, relative to the center.
+ * @param axis - The screen axis in world space, a unit vector.
+ * @param forward - The line of sight, a unit vector.
+ * @param distance - How far behind the center the camera stands.
+ * @returns The corners.
+ */
+function seenCorners(
+    points: readonly Block[],
+    axis: Vector3,
+    forward: Vector3,
+    distance: number,
+): { x: number; depth: number }[] {
+    const signs = [-1, 1];
+    return points.flatMap(({ pos, half }) =>
+        signs.flatMap((sx) =>
+            signs.flatMap((sy) =>
+                signs.map((sz) => {
+                    const corner = new Vector3(pos.x + sx * half.x, pos.y + sy * half.y, pos.z + sz * half.z);
+                    const depth = Math.max(Vector3.Dot(corner, forward) + distance, Number.EPSILON);
+                    return { x: Vector3.Dot(corner, axis), depth };
+                }),
+            ),
+        ),
+    );
+}
+
+/**
+ * How far sideways along `axis` a camera `distance` behind the center stands to draw the spots
+ * with equal room on both sides of the area's middle: the offset at which the spots' widest
+ * tangents past that middle, one each way, are equal. Found by halving the offset itself, between
+ * the spots' own extremes, down to adjacent numbers, so the answer depends on the spots, the
+ * distance and the area's middle alone and not on how wide the area is. Halving the margin of the
+ * area instead stopped at a step of the area's width: a canvas made shorter, which widens the
+ * area across, moved the camera by about 5e-14 when nothing in the scene had moved.
+ * @param points - The blocks, relative to the center.
+ * @param axis - The screen axis in world space, a unit vector.
+ * @param forward - The line of sight, a unit vector.
+ * @param lo - The tangent of the area's near edge.
+ * @param hi - The tangent of its far edge.
+ * @param distance - How far behind the center the camera stands, at least the fit's own distance.
+ * @returns The offset.
+ */
+function centeredOffset(
+    points: readonly Block[],
+    axis: Vector3,
+    forward: Vector3,
+    lo: number,
+    hi: number,
+    distance: number,
+): number {
+    const corners = seenCorners(points, axis, forward, distance);
+    const middle = (lo + hi) / 2;
+    let low = Infinity;
+    let high = -Infinity;
+    let deepest = 0;
+    for (const { x, depth } of corners) {
+        low = Math.min(low, x);
+        high = Math.max(high, x);
+        deepest = Math.max(deepest, depth);
+    }
+    if (!Number.isFinite(low)) {
+        return 0;
+    }
+
+    // An area whose middle is off the line of sight puts the offset up to that far outside them.
+    low -= Math.abs(middle) * deepest;
+    high += Math.abs(middle) * deepest;
+    // ponytail: a pass over the corners per halving, about 60 for doubles; a closed form per axis if a fit ever shows in a profile.
+    for (let step = 0; step < 200; step++) {
+        const at = (low + high) / 2;
+        if (at <= low || at >= high) {
+            break;
+        }
+
+        let above = -Infinity;
+        let below = -Infinity;
+        for (const { x, depth } of corners) {
+            above = Math.max(above, (x - at) / depth - middle);
+            below = Math.max(below, middle - (x - at) / depth);
+        }
+
+        if (above > below) {
+            low = at;
+        } else {
+            high = at;
+        }
+    }
+
+    return (low + high) / 2;
 }

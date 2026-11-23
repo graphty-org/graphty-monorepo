@@ -10,6 +10,7 @@ import type { LabelDeclutterOrder } from "../catalog/label-style";
 import type { Edge } from "../Edge";
 import type { RichTextLabel } from "../meshes/RichTextLabel";
 import type { Node } from "../Node";
+import type { GraphSceneMetadata } from "../types/sceneMetadata";
 import { animatesEveryFrame } from "./everyFrameAnimations";
 import type { GraphContext } from "./GraphContext";
 import { LabelSampler } from "./LabelSampler";
@@ -74,7 +75,16 @@ export interface NodeLabel {
      * `closeButton`, when the label is not drawn, or when it is behind the camera.
      * @since 3.29.0
      */
-    readonly closeRect?: { readonly x: number; readonly y: number; readonly width: number; readonly height: number };
+    readonly closeRect?: {
+        /** The left edge, in CSS pixels from the canvas's left side. */
+        readonly x: number;
+        /** The top edge, in CSS pixels from the canvas's top. */
+        readonly y: number;
+        /** The width, in CSS pixels. */
+        readonly width: number;
+        /** The height, in CSS pixels. */
+        readonly height: number;
+    };
 }
 
 /** The counts before any label is drawn. */
@@ -226,8 +236,9 @@ const NODE_STRIDE = 5;
  * configuration asks for it (`labels.declutter`, off by default).
  *
  * Every node label is its own billboarded plane, so two labeled nodes that land near each other
- * on screen draw their words over one another. The pass projects each drawn label's WORDS -- not
- * its padded plane -- to a screen rectangle, orders the labels by priority -- a selected node
+ * on screen draw their words over one another. The pass projects what each label DRAWS -- its words
+ * with their outline, and the panel behind them when it has one, not its padded plane -- to a
+ * screen rectangle, orders the labels by priority -- a selected node
  * first, then the node with more edges, then the node id so the answer is stable -- and keeps a
  * label only if its rectangle meets no label already kept. Kept rectangles are bucketed in a
  * screen grid, so each label is tested against its neighbors rather than against every label.
@@ -411,7 +422,7 @@ export class LabelDeclutter {
      */
     static withholds(scene: Scene, context: GraphContext, node: Node, wanted: boolean): boolean {
         if (context.getStyles().config.behavior.labels.sampleCell === undefined) {
-            const declutter: unknown = scene.metadata?.labelDeclutter;
+            const declutter: unknown = (scene.metadata as GraphSceneMetadata | null)?.labelDeclutter;
             return declutter instanceof LabelDeclutter ? declutter.sampler.withholds(node, wanted) : false;
         }
 
@@ -451,11 +462,11 @@ export class LabelDeclutter {
      */
     private static of(scene: Scene, context: GraphContext): LabelDeclutter {
         scene.metadata ??= {};
-        if (!(scene.metadata.labelDeclutter instanceof LabelDeclutter)) {
-            scene.metadata.labelDeclutter = new LabelDeclutter(scene, context);
+        if (!((scene.metadata as GraphSceneMetadata).labelDeclutter instanceof LabelDeclutter)) {
+            (scene.metadata as GraphSceneMetadata).labelDeclutter = new LabelDeclutter(scene, context);
         }
 
-        return scene.metadata.labelDeclutter as LabelDeclutter;
+        return (scene.metadata as GraphSceneMetadata).labelDeclutter as LabelDeclutter;
     }
 
     /** Stop running before frames. */
@@ -464,8 +475,8 @@ export class LabelDeclutter {
         this.releaseFrames?.();
         this.releaseFrames = null;
         this.release();
-        if (this.scene.metadata?.labelDeclutter === this) {
-            this.scene.metadata.labelDeclutter = undefined;
+        if ((this.scene.metadata as GraphSceneMetadata | null)?.labelDeclutter === this) {
+            (this.scene.metadata as GraphSceneMetadata).labelDeclutter = undefined;
         }
     }
 
@@ -964,7 +975,7 @@ export class LabelDeclutter {
         const k = Vector3.TransformCoordinatesToRef(corner, this.worldToPixels, this.cornerOnScreen);
         const across = Math.abs(k.x - c.x);
         const down = Math.abs(k.y - c.y);
-        const words = text.textBounds;
+        const words = text.drawnBounds;
         const { box, viewport } = this;
         box.left = c.x + (2 * words.left - 1) * across;
         box.right = c.x + (2 * words.right - 1) * across;
@@ -1118,7 +1129,7 @@ export class LabelDeclutter {
 
         if (mesh !== entry.mesh && node.label) {
             entry.mesh = mesh;
-            entry.text = node.label.textBounds;
+            entry.text = node.label.drawnBounds;
             entry.home.copyFrom(mesh.position);
             entry.placed = null;
         }

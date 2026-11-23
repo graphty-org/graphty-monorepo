@@ -146,8 +146,9 @@ not layers already in the stack, and it is not saved with the styles.
 ## What the decision does not tell you
 
 - It is a snapshot of the run's first completion. Running the same algorithm again with the same
-  settings keeps the first decision, because a re-run does not repaint. Undo takes the decision
-  away with the run, and redo brings it back.
+  settings keeps the first decision, because a re-run does not repaint. The one exception: once
+  every layer the run added has been removed, starting it again puts those layers back. Undo takes
+  the decision away with the run, and redo brings it back.
 - `"added"` means the layers went on the stack, not that they show now. A layer added later may
   cover them. `session.styles.legend()` describes what the drawing shows now, and
   `session.styles.explain()` says which layer set each channel of one element.
@@ -160,6 +161,13 @@ session.on("run:changed", (change) => {
     if (change.phase === "end") console.log(change.run.id, session.runs.painting(change.run.id)?.state);
 });
 ```
+
+- `change.trigger` says the session started that execution by itself rather than on a caller's
+  request: `"time-window"` when the time window moved, or the time results policy switched to
+  `"rerun"` (see [Timeline](./timeline.md)); `"project"` when opening a project (a file, or
+  restored autosaved work) brought back a run it saved. It is absent for a run a caller started or re-ran,
+  and on a `"removed"` or `"restored"` change made by undo, redo or a restore. More triggers may
+  be added.
 
 All of these types are exported from `@graphty/graphty-element` and
 `@graphty/graphty-element/session`: `RunPainting`, `SuggestionOutcome`, `StyleSuggestion`,

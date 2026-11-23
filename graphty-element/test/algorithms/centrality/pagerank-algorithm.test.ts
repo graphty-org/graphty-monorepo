@@ -1,15 +1,15 @@
 import { assert, describe, it } from "vitest";
 
 import { PageRankAlgorithm } from "../../../src/algorithms/PageRankAlgorithm";
-import { asNumber, createMockGraph, getGraphResult, getNodeResult } from "../../helpers/mockGraph";
+import { asNumber, createSessionGraph, getGraphResult, getNodeResult } from "../../helpers/session-graph";
 
 describe("PageRankAlgorithm", () => {
     it("exists", async () => {
-        new PageRankAlgorithm(await createMockGraph());
+        new PageRankAlgorithm(await createSessionGraph());
     });
 
     it("calculates pagerank scores", async () => {
-        const graph = await createMockGraph({ dataPath: "./data4.json" });
+        const graph = await createSessionGraph({ dataPath: "./data4.json" });
         const pr = new PageRankAlgorithm(graph);
 
         await pr.run();
@@ -40,7 +40,7 @@ describe("PageRankAlgorithm", () => {
     });
 
     it("stores graph-level convergence info", async () => {
-        const graph = await createMockGraph({ dataPath: "./data4.json" });
+        const graph = await createSessionGraph({ dataPath: "./data4.json" });
         const pr = new PageRankAlgorithm(graph);
         await pr.run();
 
@@ -69,7 +69,7 @@ describe("PageRankAlgorithm", () => {
     });
 
     it("handles empty graph gracefully", async () => {
-        const graph = await createMockGraph({
+        const graph = await createSessionGraph({
             nodes: [],
             edges: [],
         });

@@ -607,7 +607,7 @@ if (!check.valid) {
 catalog holds no labels and no order: choose your own.
 
 Every result of `aiCommand()` carries a `code` and its `params`, so you can tell a missing key
-from a cancelled command or a failed tool without reading `result.message`, which is English
+from a canceled command or a failed tool without reading `result.message`, which is English
 for a log and may change. `AI_RESULT_CODES` lists every code this release has. `AiResultCode` is
 an open union: a later minor release may add codes, so handle an unknown code (by `success` alone,
 for example):
@@ -618,7 +618,7 @@ import type { AiResultCode } from "@graphty/graphty-element/catalog";
 // Your words, keyed by code; AI_RESULT_CODES lists every code to fill in.
 const words: Partial<Record<AiResultCode, string>> = {
     AI_KEY_MISSING: "Add an API key in Settings first.",
-    AI_CANCELLED: "Stopped.",
+    AI_CANCELED: "Stopped.",
 };
 
 const result = await graph.aiCommand(text);
@@ -634,7 +634,7 @@ show(result.success ? (result.llmText ?? "Done.") : (words[result.code] ?? "Some
 | `AI_KEY_MISSING`            | false     | `provider`            | The provider needs an API key and has none                                                      |
 | `AI_KEY_REJECTED`           | false     | `provider`, `status`  | The provider refused the key (HTTP 401, 403; Google 400)                                        |
 | `AI_PROVIDER_ERROR`         | false     | `provider`, `status`? | The provider or the network failed                                                              |
-| `AI_CANCELLED`              | false     | `steps`?              | `cancelAiCommand()` ended it; `steps` undo steps taken back, absent when it had changed nothing |
+| `AI_CANCELED`               | false     | `steps`?              | `cancelAiCommand()` ended it; `steps` undo steps taken back, absent when it had changed nothing |
 | `AI_UNDONE`                 | false     |                       | It was undone while it ran; its changes are taken back                                          |
 | `AI_TOOL_UNKNOWN`           | false     | `tool`                | The model called a tool that does not exist                                                     |
 | `AI_TOOL_INVALID_ARGUMENTS` | false     | `tool`                | The model called a tool with arguments it refused                                               |
@@ -702,12 +702,12 @@ all, and one message is one undo step. What the model reads back is a code and i
 the element's English: a large answer comes in pages, and a run's result is summarized.
 Messages run one at a time, in the order they were sent; `cancelAiCommand()` ends the one running
 and every one waiting. While a run the assistant started computes, your own edits go through, and
-cancelling stops the run.
+canceling stops the run.
 
 #### Changes that wait for the reader
 
 A change the reader might not want is held, not made: removing many nodes or edges, changing many
-values, a run estimated to be slow, emptying or replacing the graph, cancelling a run the reader
+values, a run estimated to be slow, emptying or replacing the graph, canceling a run the reader
 started, or loading a URL the reader did not type. The element asks your page, and only your page
 can say yes; the model cannot approve anything.
 
@@ -788,12 +788,18 @@ algorithm class with no descriptor, a command named like a built-in tool.
 restores itself after a reload: a new manager finds the keys an earlier page saved and turns
 remembering back on, so the host only enables, disables and sets keys.
 
+Saved keys are encrypted with the browser's Web Crypto (AES-GCM), which is asynchronous: keys in
+memory change at once and the saved copy follows. `ready()` resolves once everything started so
+far is stored, including the restore a new manager starts, so read restored keys after it.
+`Graph.createApiKeyManager()` and `enableAiControl()` wait for it for you.
+
 ```typescript
 import { ApiKeyManager } from "@graphty/graphty-element/ai";
 
-const keys = new ApiKeyManager(); // restores keys saved by an earlier page
+const keys = new ApiKeyManager();
+await keys.ready(); // keys saved by an earlier page are back
 
-keys.enablePersistence(); // save keys in localStorage, obscured (see below), from now on
+await keys.enablePersistence(); // save keys in localStorage, obscured (see below), from now on
 keys.setKey("anthropic", apiKey);
 keys.setDefaultProvider("anthropic"); // saved with the keys
 
@@ -801,8 +807,12 @@ const provider = keys.getDefaultProvider() ?? keys.getConfiguredProviders()[0];
 
 keys.disablePersistence(); // forget them on the next load (they stay in memory)
 
-keys.forgetKey("anthropic"); // out of memory and both storages, wherever it was kept (experimental)
+await keys.forgetKey("anthropic"); // out of memory and both storages, wherever it was kept
 ```
+
+Keys saved by graphty-element before Web Crypto (with the `encrypt-storage` package) still load:
+the manager reads them under the same encryption key or passphrase and saves them again in the
+new format.
 
 With no argument, `enablePersistence()` uses a built-in key, and that key is public in the
 package's source. **Keys saved that way are obscured, not encrypted**: they are not in plain

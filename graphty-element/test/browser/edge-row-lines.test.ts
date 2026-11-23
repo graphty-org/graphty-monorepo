@@ -316,7 +316,7 @@ describe("an edge stored with no Edge", () => {
         scene.render();
         const read = engine.readPixels(0, 0, engine.getRenderWidth(), engine.getRenderHeight());
         engine.endFrame();
-        assert.equal(overBar(want, { pixels: (await read) as Uint8Array }), 0, "the same picture");
+        assert.equal(overBar(want, { ...want, pixels: (await read) as Uint8Array }), 0, "the same picture");
     });
 
     it("builds its Edge for a paint only an Edge draws", async () => {
@@ -536,6 +536,48 @@ describe("an edge stored with no Edge under a force layout", () => {
                 assert.closeTo(lazy.distance, built.distance, 1e-3 * built.distance);
             });
         }
+    }
+});
+
+// A switch between 2D and 3D disposes every line batch and builds the new view's: an edge drawn as a row line must be
+// drawn again in the new view's batch. It was not, so after College football loaded in 3D on the batched path and the
+// reader switched to 2D, no edge was drawn at all (#9223).
+describe("an edge stored with no Edge across a 2D/3D switch", () => {
+    const EDGES = [
+        { src: 0, dst: 1 },
+        { src: 1, dst: 2 },
+        { src: 2, dst: 0 },
+    ];
+
+    /**
+     * A batched load in 3D, then the view switched to each of the views given, through the public API.
+     * @param edges - The edges.
+     * @param views - The views, in order.
+     * @returns The element.
+     */
+    async function switched(edges: typeof EDGES, views: ("2d" | "3d")[]): Promise<Graphty> {
+        const element = await lazyLoaded(edges, true, { switched: false });
+        for (const view of views) {
+            await element.setViewMode(view);
+            await operationQueueOf(element.graph).waitForCompletion();
+            await element.waitForStableFrame();
+        }
+
+        return element;
+    }
+
+    for (const views of [["2d"], ["2d", "3d"]] as ("2d" | "3d")[][]) {
+        it(`is drawn after a switch to ${views.join(" then ")}`, async () => {
+            const element = await switched(EDGES, views);
+            assert.equal(element.graph.getViewMode(), views.at(-1));
+            assert.equal(dataManagerInternals.edgesBuilt(element.graph.getDataManager()), 0);
+            assert.equal(element.graph.getEdgeRowLines()?.count, EDGES.length);
+            const drawn = await readCanvas(element.graph);
+            document.body.replaceChildren();
+
+            const bare = await switched([], views);
+            assert.isAbove(overBar(drawn, await readCanvas(bare.graph)), 0, "the lines show against no lines");
+        });
     }
 });
 

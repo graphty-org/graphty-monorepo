@@ -18,9 +18,10 @@ Worker holds only their SHA-256 hashes, in the secrets `READ_TOKEN_HASHES` and `
 
 ## Daily caps
 
-Each UTC day the Worker serves at most `CAP_REQUESTS` requests (100,000), `CAP_R2_CLASS_A` PUTs (10,000) and
-`CAP_R2_CLASS_B` GETs and HEADs (100,000), the `[vars]` in `wrangler.toml`. Past a cap it answers 429 without
-touching R2 until 00:00 UTC. CI's probe then turns the cache off, and `tools/nx-cache-proxy.mjs` answers a 429 as a
+Each UTC day the Worker serves requests with a valid token up to `CAP_REQUESTS` requests (100,000), `CAP_R2_CLASS_A` PUTs (10,000) and
+`CAP_R2_CLASS_B` GETs and HEADs (100,000), the `[vars]` in `wrangler.toml`. Past a cap it answers them 429 without
+touching R2 until 00:00 UTC. `/v1/health` and requests without a valid token are not counted, so a stranger cannot
+spend CI's caps; they never touch R2. CI's probe then turns the cache off, and `tools/nx-cache-proxy.mjs` answers a 429 as a
 miss (GET) or a refused store (PUT), so the build goes on without the cache. The day's totals live in one Durable
 Object, `DailyCount`, which each isolate updates once per 50 requests or minute. To change a cap, edit the var
 and let the deploy job redeploy.

@@ -3,7 +3,7 @@
 // - a token whose SHA-256 is in READ_TOKEN_HASHES or WRITE_TOKEN_HASHES may read;
 // - only one in WRITE_TOKEN_HASHES may write (a read token gets 403), and an entry is never replaced (409).
 // GET /v1/health answers anyone, for the deploy job's check (CI's probe reads an entry with its token). Objects expire after 14 days (an R2 lifecycle rule).
-// Every request counts against hard daily caps (src/cap.js, the CAP_* vars in wrangler.toml): requests, R2 Class A
+// Every request with a valid token counts against hard daily caps (src/cap.js, the CAP_* vars in wrangler.toml): requests, R2 Class A
 // operations (a PUT) and R2 Class B operations (a GET, or the HEAD before a PUT). Past one the answer is 429 and R2
 // is not touched; tools/nx-cache-proxy.mjs turns that 429 into a miss, so the build goes on without the cache.
 
@@ -39,14 +39,14 @@ async function access(request, env) {
 const isolateCap = dailyCap();
 
 /**
- * The counts one request charges against the daily caps: every request is one; a GET it may make costs a Class B
- * operation, a PUT it may make a HEAD (Class B) and a PUT (Class A).
+ * The counts one request with a valid token charges against the daily caps: one request, plus a Class B operation
+ * for a GET, or a HEAD (Class B) and a PUT (Class A) for a write token's PUT.
  * @param request the request
  * @param may what its token may do
  * @returns the counts, by cap name
  */
 function costOf(request, may) {
-    if (request.method === "GET" && may) return { REQUESTS: 1, R2_CLASS_B: 1 };
+    if (request.method === "GET") return { REQUESTS: 1, R2_CLASS_B: 1 };
     if (request.method === "PUT" && may === "write") return { REQUESTS: 1, R2_CLASS_A: 1, R2_CLASS_B: 1 };
     return { REQUESTS: 1 };
 }
@@ -61,13 +61,15 @@ function costOf(request, may) {
  */
 export async function handle(request, env, cap = isolateCap) {
     const { pathname } = new URL(request.url);
+    if (pathname === "/v1/health" && request.method === "GET") return Response.json({ ok: true });
     const hash = /^\/v1\/cache\/([^/]+)$/.exec(pathname)?.[1];
-    const may = hash && HASH.test(hash) ? await access(request, env) : undefined;
+    if (!hash || !HASH.test(hash)) return text(404, "not found");
+    const may = await access(request, env);
+    if (!may) return text(401, "missing or unknown token");
+    // Only a valid token's requests count, so a stranger cannot spend CI's caps: theirs touch no R2 object, and
+    // what they cost (a Worker request each) no answer from here could make cheaper.
     const over = await cap.charge(env, costOf(request, may));
     if (over) return text(429, `daily ${over} cap reached; the cache is off until 00:00 UTC`);
-    if (pathname === "/v1/health" && request.method === "GET") return Response.json({ ok: true });
-    if (!hash || !HASH.test(hash)) return text(404, "not found");
-    if (!may) return text(401, "missing or unknown token");
     if (request.method === "GET") {
         const object = await env.CACHE.get(hash);
         if (!object) return text(404, "no such entry");

@@ -125,12 +125,24 @@ describe("nx cache Worker daily caps", () => {
         assert.match(await refused.text(), /R2_CLASS_B/);
     });
 
-    it("caps every request, health included", async () => {
+    it("charges only a valid token's requests: health, strangers and bad paths spend no cap", async () => {
         const env = { ...envWith(), CAP_REQUESTS: 1 };
         const cap = dailyCap();
-        const health = () => handle(new Request("https://c/v1/health"), env, cap);
-        assert.equal((await health()).status, 200);
-        assert.equal((await health()).status, 429);
+        const call = (path, token) =>
+            handle(
+                new Request(`https://c${path}`, { headers: token ? { authorization: `Bearer ${token}` } : {} }),
+                env,
+                cap,
+            );
+        for (let i = 0; i < 3; i++) {
+            assert.equal((await call("/v1/health")).status, 200);
+            assert.equal((await call("/v1/cache/1")).status, 401);
+            assert.equal((await call("/v1/cache/1", "nope")).status, 401);
+            assert.equal((await call("/x", READ)).status, 404);
+        }
+        assert.equal((await call("/v1/cache/1", READ)).status, 404);
+        assert.equal((await call("/v1/cache/1", READ)).status, 429);
+        assert.equal((await call("/v1/health")).status, 200);
     });
 
     it("shares the count across isolates through the Durable Object, writing it once per batch", async () => {

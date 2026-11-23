@@ -214,6 +214,14 @@ export interface DrawnTransform {
     readonly scale: number;
     /** Where `center` is drawn. */
     readonly target: readonly [number, number, number];
+    /**
+     * Draw each batch fitted to its own landing instead of at `center` and `scale`: the mean of its finite rows at
+     * `target`, and its row furthest from that mean `fit` drawn units out (scale 1 when the rows measure as a point).
+     * A batch otherwise draws with the transform set before it was sent, measured over an earlier landing, and an
+     * arrangement that grows quickly between the two is drawn larger than it measures. Ignored unless positive.
+     * `landedDrawnTransform` reports the center and scale such a batch drew with.
+     */
+    readonly fit?: number;
 }
 
 /**

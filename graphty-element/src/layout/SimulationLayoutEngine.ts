@@ -516,6 +516,8 @@ interface DrawnTransform {
     readonly center: readonly [number, number, number];
     readonly scale: number;
     readonly target: readonly [number, number, number];
+    /** Sent only: each batch draws its own landing fitted to this radius, and reports the center and scale it took. */
+    readonly fit?: number;
 }
 
 /**
@@ -1994,14 +1996,23 @@ export class SimulationLayoutEngine extends LayoutEngine {
     }
 
     /**
-     * Sends the transform the next batches draw with: the envelope last measured.
+     * Sends the transform the next batches draw with: the envelope last measured, and, when the publish fits every row
+     * the device measures, the radius each batch fits its own landing to on the card.
+     *
+     * FITTED ON THE CARD, NOT FROM THE LAST LANDING. A batch is sent before the landings ahead of it are published, so
+     * the envelope last measured is a landing or two old, and while ForceAtlas2 ramps its batches up the arrangement
+     * doubles over two batches: two landing in one frame drew the second twice the size the layout measures
+     * (issue #9665). Fitted to its own rows, every landing is drawn at the size `#fitEnvelope` measures for it.
      * @param run - The run.
      */
     #sendDrawnTransform(run: DrawnRun): void {
+        const radius = this.#fitRadius();
+        const fit = this.#fixedRows.size === 0 && this.deviceEnvelope && radius !== null ? radius : undefined;
         const transform: DrawnTransform = {
             center: [this.#simCentre[0], this.#simCentre[1], this.#simCentre[2]],
             scale: this.#envelopeScale,
             target: [this.#targetCentre[0], this.#targetCentre[1], this.#targetCentre[2]],
+            ...(fit === undefined ? {} : { fit }),
         };
         run.simulation.setDrawnTransform(transform);
         const last = run.unstepped.at(-1);

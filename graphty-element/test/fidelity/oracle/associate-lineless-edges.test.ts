@@ -342,5 +342,66 @@ describe("an edge drawn with no line, only its heads", () => {
                 [["target", "tee"]],
             );
         });
+        it("leaves a lone head drawn after a line's own heads to its edge, at an end the file caps on no edge there", () => {
+            // cx-radiation-bibliography: 403->202's line, the dot at its uncapped source end and its target's triangle,
+            // then the triangle of 403->142, an edge with no line between boxes 1.5 px apart, read as 403->202's
+            // source head
+            index = 0;
+            const GREEN = { color: "#009900", opacity: 1, gradient: null };
+            const boxes: typeof BOXES = [
+                ...BOXES.slice(0, 4),
+                ["u", 424.4, 334.6, 477.7, 345.4],
+                ["v", 393.3, 348.4, 446.6, 359.2],
+                ["w", 392.9, 396.6, 446.3, 409.0],
+            ];
+            const prims = [
+                prim({
+                    kind: "path",
+                    closed: false,
+                    corners: 2,
+                    points: [
+                        [447.661, 346.705],
+                        [425.47, 391.081],
+                    ],
+                    stroke: { color: "#009900", opacity: 1, width: 0.389, dash: null, dashClass: "solid" },
+                }),
+                prim({ points: disc(447.67, 346.65, 0.18), fill: GREEN }),
+                prim({
+                    corners: 3,
+                    points: [
+                        [426.689, 391.691],
+                        [423.033, 395.956],
+                        [424.252, 390.472],
+                        [426.689, 391.691],
+                    ],
+                    fill: GREEN,
+                }),
+                prim({
+                    corners: 3,
+                    points: [
+                        [440.083, 346.326],
+                        [434.549, 347.296],
+                        [438.975, 343.836],
+                        [440.083, 346.326],
+                    ],
+                    fill: GREEN,
+                }),
+                ...boxes.map(box),
+            ];
+            const triangle = { length: 2.85, width: 1.42, filled: true, shape: "triangle" as const, color: "#009900" };
+            const o = associate(
+                prims,
+                1200,
+                900,
+                guideOf(boxes, [
+                    { ...edge("u", "w", "#009900"), arrows: [{ end: "target", ...triangle }] },
+                    { ...edge("u", "v", "#009900"), arrows: [{ end: "target", ...triangle }] },
+                ]),
+            ).scene;
+            const ends = (s: string, t: string): string[][] | undefined =>
+                o.edges.find((x) => x.source === s && x.target === t)?.arrows.map((a) => [a.end, a.shape]);
+            assert.deepEqual(ends("u", "w"), [["target", "triangle"]]);
+            assert.deepEqual(ends("u", "v"), [["target", "triangle"]]);
+        });
     });
 });

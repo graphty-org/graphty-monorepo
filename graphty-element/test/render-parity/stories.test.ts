@@ -19,11 +19,13 @@ import "../../src/data/index";
 import "../../src/graphty-element";
 import "../../src/layout/index";
 
+import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import { render } from "lit";
 import { composeStories } from "storybook/preview-api";
 import { afterEach, assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
+import { EdgeShaderDrawing } from "../../src/meshes/EdgeShaderDrawing";
 import { renderPathDefault } from "../../src/meshes/NodeBatch";
 import { antialiasDefault, pulledEdgesDefault } from "../../src/meshes/PulledLineBatch";
 import { type CanvasFrame, pixelsOverBar as overBar, readCanvas } from "../helpers/whole-canvas";
@@ -108,6 +110,8 @@ afterEach(() => {
  * @param pulled - Whether edges are pulled from the row table.
  * @returns The bytes, or null for a story with no element.
  */
+const DIAG = { on: false };
+
 async function picture(story: Composed, path: "objects" | "batched", pulled = false): Promise<CanvasFrame | null> {
     renderPathDefault.value = path;
     pulledEdgesDefault.value = pulled;
@@ -125,7 +129,55 @@ async function picture(story: Composed, path: "objects" | "batched", pulled = fa
         return null;
     }
 
+    const diag = DIAG.on;
+    const order: string[] = [];
+    const scene = element.graph.getScene();
+    const before = scene.onBeforeRenderObservable.add(() => {
+        order.length = 0;
+    });
+    const hooks = scene.meshes.map(
+        (mesh) => (mesh as Partial<Mesh>).onBeforeRenderObservable?.add(() => order.push(mesh.name)) ?? null,
+    );
     const frame = await readCanvas(element.graph);
+    scene.onBeforeRenderObservable.remove(before);
+    scene.meshes.forEach((mesh, i) => (mesh as Partial<Mesh>).onBeforeRenderObservable?.remove(hooks[i] ?? null));
+    if (diag) {
+        const arr = (a: unknown): unknown =>
+            a instanceof Float32Array || a instanceof Float64Array ? Array.from(a) : a;
+        const drawing = EdgeShaderDrawing.peek(scene) as unknown as { made?: Set<Record<string, unknown>> } | undefined;
+        const batches = [...(drawing?.made ?? [])].map((b) => ({
+            name: (b.mesh as { name: string }).name,
+            drawn: (b as unknown as { drawnCount: number }).drawnCount,
+            slots: arr(b.slots),
+            statics: arr(b.statics),
+            colors: arr(b.colors),
+            matrices: arr(b.matrices),
+            hidden: arr(b.hidden),
+        }));
+        const meshes = scene.meshes
+            .filter((m) => m.isEnabled() && m.isVisible)
+            .map((m) => ({
+                name: m.name,
+                vis: m.visibility,
+                group: m.renderingGroupId,
+                alphaIndex: m.alphaIndex,
+                pos: [m.position.x, m.position.y, m.position.z],
+                scale: [m.scaling.x, m.scaling.y, m.scaling.z],
+                thin: (m as { thinInstanceCount?: number }).thinInstanceCount ?? 0,
+                matrix: arr(
+                    (m as unknown as { _thinInstanceDataStorage?: { matrixData?: unknown } })._thinInstanceDataStorage
+                        ?.matrixData,
+                ),
+                verts: arr(m.getVerticesData("position")),
+                buffers: Object.fromEntries(
+                    Object.entries((m as Partial<Mesh>).getVertexBuffers?.() ?? {}).map(([k, v]) => [
+                        k,
+                        arr(v?.getData() ?? null),
+                    ]),
+                ),
+            }));
+        console.log(`DIAG ${path} ${JSON.stringify({ order, batches, meshes })}`);
+    }
     assert.equal(element.graph.renderPath, path);
     assert.equal(
         element.graph.leansLines(),
@@ -166,6 +218,7 @@ describe.each(files)("%s", async (file) => {
             skip(UNSTABLE[id]);
         }
 
+        DIAG.on = /NeonLine/.test(id);
         const objects = await picture(story, "objects");
         if (objects === null) {
             skip("no element");

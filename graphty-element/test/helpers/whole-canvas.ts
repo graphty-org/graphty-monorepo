@@ -38,6 +38,11 @@ export function pixelsOverBar(a: CanvasFrame, b: CanvasFrame): number {
         for (let c = 0; c < 4; c++) {
             if (Math.abs((a.pixels[i + c] ?? 0) - (b.pixels[i + c] ?? 0)) > 1) {
                 over++;
+                // PIXELDBG
+                if (over <= 20)
+                    console.log(
+                        `PIXELDBG i=${i / 4} x=${(i / 4) % 800} yrow=${Math.floor(i / 4 / 800)} a=${Array.from(a.pixels.slice(i, i + 4)).join(",")} b=${Array.from(b.pixels.slice(i, i + 4)).join(",")} len=${a.pixels.length}`,
+                    );
                 break;
             }
         }

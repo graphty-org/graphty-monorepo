@@ -67,6 +67,7 @@ export const columnsTool: ToolDefinition = {
                 { door: "SessionDataApi.hiddenColumns" },
                 { door: "SessionDataApi.loadedWeight" },
                 { door: "SessionDataApi.derivedColumns" },
+                { door: "SessionDataApi.kinds" },
             ],
             run: ({ tx }) =>
                 Promise.resolve(
@@ -76,6 +77,7 @@ export const columnsTool: ToolDefinition = {
                         hidden: list(tx.data.hiddenColumns()),
                         weight: tx.data.loadedWeight(),
                         computed: list(tx.data.derivedColumns()),
+                        kinds: tx.data.kinds(),
                     }),
                 ),
         },

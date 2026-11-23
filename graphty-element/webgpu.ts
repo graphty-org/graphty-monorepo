@@ -29,8 +29,60 @@ import type { AcceleratorFactory } from "./src/acceleration/types";
 import {
     createWebGpuFactory,
     createWebGpuSharesDevice,
+    setMeasureExactMaxNodes,
     WEBGPU_ACCELERATOR_NAME,
 } from "./src/acceleration/webgpuFactory";
+import { GraphtyError } from "./src/errors";
+
+/** What {@link configureWebGpu} accepts. */
+export interface WebGpuOptions {
+    /**
+     * The node count up to which GPU layouts compute every pair of nodes exactly, above which they
+     * approximate (faster on large graphs, slightly less accurate):
+     *
+     * - `"default"` (the default) -- the shipped ceiling of 32,768 nodes, the same on every device.
+     * - `"measured"` -- the element times this device once its first accelerated work has finished
+     *   and uses the crossover it finds, usually far lower on a fast card, so large layouts get
+     *   faster and approximate sooner. The first frame and the first layout never wait for it, and
+     *   the answer is kept for every element on the page that uses the same device. A software
+     *   adapter is never measured and keeps the default.
+     *
+     * `capabilities.acceleration.exactMaxNodes` and `exactMaxNodesBasis` report the ceiling in use.
+     */
+    readonly exactMaxNodes?: "default" | "measured";
+}
+
+/**
+ * Configures the WebGPU integration for the whole page. Optional: every option has a neutral
+ * default. Applies to accelerators built after the call, however the peer was loaded, so call it
+ * next to the import, before an element attaches one.
+ * @example Measuring the exact-tier ceiling on the reader's own GPU
+ * ```js
+ * import "@graphty/graphty-element";
+ * import { configureWebGpu } from "@graphty/graphty-element/webgpu";
+ *
+ * configureWebGpu({ exactMaxNodes: "measured" });
+ * ```
+ * @param options - The options; a member left out keeps its current value.
+ * @throws A `GraphtyError` with `E_OPTION_RANGE` for a value the option does not take.
+ */
+export function configureWebGpu(options: WebGpuOptions): void {
+    const { exactMaxNodes } = options;
+    if (exactMaxNodes === undefined) {
+        return;
+    }
+
+    if (exactMaxNodes !== "default" && exactMaxNodes !== "measured") {
+        throw new GraphtyError({
+            code: "E_OPTION_RANGE",
+            message: `exactMaxNodes must be "default" or "measured", not ${String(exactMaxNodes)}`,
+            source: "acceleration",
+            details: { option: "exactMaxNodes", value: exactMaxNodes, expected: ["default", "measured"] },
+        });
+    }
+
+    setMeasureExactMaxNodes(exactMaxNodes === "measured");
+}
 
 /** The peer's browser module and the factory built over the peer, once, on first use. */
 let loaded:

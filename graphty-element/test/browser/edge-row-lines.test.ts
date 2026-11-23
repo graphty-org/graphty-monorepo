@@ -316,7 +316,7 @@ describe("an edge stored with no Edge", () => {
         scene.render();
         const read = engine.readPixels(0, 0, engine.getRenderWidth(), engine.getRenderHeight());
         engine.endFrame();
-        assert.equal(overBar(want, { pixels: (await read) as Uint8Array }), 0, "the same picture");
+        assert.equal(overBar(want, { ...want, pixels: (await read) as Uint8Array }), 0, "the same picture");
     });
 
     it("builds its Edge for a paint only an Edge draws", async () => {

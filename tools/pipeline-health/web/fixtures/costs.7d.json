@@ -137,6 +137,250 @@
             }
         },
         {
+            "state": "warn",
+            "window": "now",
+            "sla": {
+                "target": {
+                    "code": "sla.projected_within",
+                    "params": {
+                        "usd": 5
+                    }
+                },
+                "red": {
+                    "code": "sla.spent_over",
+                    "params": {
+                        "usd": 5
+                    }
+                }
+            },
+            "link": "/costs",
+            "id": "costs.cloudflare",
+            "value": {
+                "n": 9.8,
+                "unit": "usd"
+            }
+        },
+        {
+            "state": "ok",
+            "window": "7d",
+            "sla": {
+                "target": {
+                    "op": "<",
+                    "n": 50,
+                    "unit": "pct"
+                },
+                "red": {
+                    "op": ">",
+                    "n": 80,
+                    "unit": "pct"
+                }
+            },
+            "link": "/costs",
+            "id": "costs.usage_cf_requests",
+            "value": {
+                "n": 38,
+                "unit": "pct"
+            }
+        },
+        {
+            "state": "bad",
+            "window": "7d",
+            "sla": {
+                "target": {
+                    "op": "<",
+                    "n": 50,
+                    "unit": "pct"
+                },
+                "red": {
+                    "op": ">",
+                    "n": 80,
+                    "unit": "pct"
+                }
+            },
+            "link": "/costs",
+            "id": "costs.usage_cf_d1_rows_read",
+            "value": {
+                "n": 210,
+                "unit": "pct"
+            }
+        },
+        {
+            "state": "bad",
+            "window": "7d",
+            "sla": {
+                "target": {
+                    "op": "<",
+                    "n": 50,
+                    "unit": "pct"
+                },
+                "red": {
+                    "op": ">",
+                    "n": 80,
+                    "unit": "pct"
+                }
+            },
+            "link": "/costs",
+            "id": "costs.usage_cf_d1_rows_written",
+            "value": {
+                "n": 112,
+                "unit": "pct"
+            }
+        },
+        {
+            "state": "ok",
+            "window": "7d",
+            "sla": {
+                "target": {
+                    "op": "<",
+                    "n": 50,
+                    "unit": "pct"
+                },
+                "red": {
+                    "op": ">",
+                    "n": 80,
+                    "unit": "pct"
+                }
+            },
+            "link": "/costs",
+            "id": "costs.usage_cf_r2_class_a",
+            "value": {
+                "n": 9,
+                "unit": "pct"
+            }
+        },
+        {
+            "state": "ok",
+            "window": "7d",
+            "sla": {
+                "target": {
+                    "op": "<",
+                    "n": 50,
+                    "unit": "pct"
+                },
+                "red": {
+                    "op": ">",
+                    "n": 80,
+                    "unit": "pct"
+                }
+            },
+            "link": "/costs",
+            "id": "costs.usage_cf_r2_class_b",
+            "value": {
+                "n": 21,
+                "unit": "pct"
+            }
+        },
+        {
+            "state": "warn",
+            "window": "7d",
+            "sla": {
+                "target": {
+                    "op": "<",
+                    "n": 50,
+                    "unit": "pct"
+                },
+                "red": {
+                    "op": ">",
+                    "n": 80,
+                    "unit": "pct"
+                }
+            },
+            "link": "/costs",
+            "id": "costs.usage_cf_r2_storage_bytes",
+            "value": {
+                "n": 62,
+                "unit": "pct"
+            }
+        },
+        {
+            "state": "bad",
+            "window": "7d",
+            "sla": {
+                "target": {
+                    "op": "<",
+                    "n": 50,
+                    "unit": "pct"
+                },
+                "red": {
+                    "op": ">",
+                    "n": 80,
+                    "unit": "pct"
+                }
+            },
+            "link": "/costs",
+            "id": "costs.usage_aws_dynamo_write_units",
+            "value": {
+                "n": 118,
+                "unit": "pct"
+            }
+        },
+        {
+            "state": "ok",
+            "window": "7d",
+            "sla": {
+                "target": {
+                    "op": "<",
+                    "n": 50,
+                    "unit": "pct"
+                },
+                "red": {
+                    "op": ">",
+                    "n": 80,
+                    "unit": "pct"
+                }
+            },
+            "link": "/costs",
+            "id": "costs.usage_aws_dynamo_read_units",
+            "value": {
+                "n": 14,
+                "unit": "pct"
+            }
+        },
+        {
+            "state": "ok",
+            "window": "7d",
+            "sla": {
+                "target": {
+                    "op": "<",
+                    "n": 50,
+                    "unit": "pct"
+                },
+                "red": {
+                    "op": ">",
+                    "n": 80,
+                    "unit": "pct"
+                }
+            },
+            "link": "/costs",
+            "id": "costs.usage_aws_lambda_invocations",
+            "value": {
+                "n": 6,
+                "unit": "pct"
+            }
+        },
+        {
+            "state": "ok",
+            "window": "7d",
+            "sla": {
+                "target": {
+                    "op": "<",
+                    "n": 50,
+                    "unit": "pct"
+                },
+                "red": {
+                    "op": ">",
+                    "n": 80,
+                    "unit": "pct"
+                }
+            },
+            "link": "/costs",
+            "id": "costs.usage_aws_api_requests",
+            "value": {
+                "n": 4,
+                "unit": "pct"
+            }
+        },
+        {
             "state": "notsetup",
             "window": "now",
             "sla": {

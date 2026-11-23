@@ -19,7 +19,7 @@ import { cacheCounters, type SetsCache } from "../../../src/session/sets/cache";
 import { captureItem } from "../../../src/session/sets/captures";
 import { recordBytes } from "../../../src/session/sets/prepare";
 import type { ElementSession } from "../../../src/session/types";
-import { InputGraph } from "../../algorithms/input/harness";
+import { inputGraph } from "../../algorithms/input/harness";
 import { type Harness, makeSession } from "../helpers";
 import { reachableBytes } from "./bytes";
 
@@ -44,6 +44,8 @@ async function drain(): Promise<void> {
 let h: Harness;
 let frames: (() => void)[];
 let edgeIndexOf: MockInstance;
+/** The lookups a test graph's own loading made, which are not the sets code's. */
+let loaderLookups = 0;
 const live: SetId[] = [];
 
 /**
@@ -298,7 +300,7 @@ describe("the memory budget, at 100k nodes", () => {
         assert.strictEqual(reachableBytes(edges), 20 * edges.length, "five 4-byte columns");
     });
 
-    it("the derived-input cache stays within max(256 MB, 1.5 x the snapshot's bytes)", () => {
+    it("the derived-input cache stays within max(256 MB, 1.5 x the snapshot's bytes)", async () => {
         const full = h.session.data.snapshot().byteLength({ columns: true, ids: true });
         assert.strictEqual(
             new DerivedInputs({ release: () => undefined }).bound,
@@ -312,11 +314,15 @@ describe("the memory budget, at 100k nodes", () => {
         // deriving from the whole one is seconds of work that checks nothing more.
         const small = barabasiAlbertGraph({ n: NODES / 10, m: 5, seed: 1 });
         const ids = Array.from({ length: NODES / 10 }, (_, i) => `n${String(i)}`);
-        const graph = new InputGraph(
+        const before = edgeIndexOf.mock.calls.length;
+        const graph = await inputGraph(
             ids,
             Array.from(small.src, (src, e) => [ids[src], ids[small.dst[e]]] as const),
             false,
         );
+        // Loading the graph through the session and reading its edges back looks each edge up by
+        // id: those lookups are the loader's, not the sets code's, so the check below leaves them out.
+        loaderLookups += edgeIndexOf.mock.calls.length - before;
         const inputs = new DerivedInputs({
             release: () => undefined,
             limit: Math.ceil(1.5 * graph.snapshot().byteLength({ columns: true, ids: true })),
@@ -347,6 +353,6 @@ describe("the memory budget, at 100k nodes", () => {
     });
 
     it("the sets code never built an EdgeIdIndex", () => {
-        assert.strictEqual(edgeIndexOf.mock.calls.length, 0);
+        assert.strictEqual(edgeIndexOf.mock.calls.length - loaderLookups, 0);
     });
 });

@@ -5,7 +5,7 @@
 // Figma tests and their expected values, the measuring harness, the theme's token values -- unless the
 // commit that makes the change carries a `Figma-Approved: <reason>` trailer, which only the owner adds.
 //
-//   node tools/check-figma-lock.mjs   (pnpm run check:figma-lock; tools/prepush-source-checks.sh, ci.yml's Checks job)
+//   node tools/check-figma-lock.mjs   (pnpm run check:figma-lock; ci.yml's Checks job)
 //
 // Every commit from the push base (tools/push-base.mjs) to HEAD is judged on its own for each locked file
 // the push changes, so an approval survives a landing's merge commit and an unapproved commit cannot hide

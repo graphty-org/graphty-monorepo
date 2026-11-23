@@ -24,7 +24,15 @@ import {
     setReaderSignal,
     settledOptionsOf,
 } from "../../data/DataSource";
-import { decideRepeat, edgeCounterOf, edgeIdOf, pairKey, recordType, reducesInto } from "../../data/edgeIdentity";
+import {
+    decideRepeat,
+    duplicateEdgeError,
+    edgeCounterOf,
+    edgeIdOf,
+    pairKey,
+    recordType,
+    reducesInto,
+} from "../../data/edgeIdentity";
 import { readEndpoint, type ResolvedEndpoints, resolveEndpoints, searchRecord } from "../../data/endpoints";
 import { type DataLoadingError, ErrorAggregator } from "../../data/ErrorAggregator";
 import { keepSourceMetaExtra, readerMetaExtra } from "../../data/graph-io-import";
@@ -61,6 +69,7 @@ import {
 import { ISSUES_VALUE, type IssueState, loadFactsOf, withLoadFacts } from "../issues";
 import { DEFAULT_LIMITS, type DefaultableLimits, tooLargeError } from "../limits";
 import type { ProgressChange } from "../shared";
+import { SOURCE_ATTR, sourceLoadsOf } from "../sources/ids";
 import { type Provenance, PROVENANCE_VALUE, provenanceIndex, withSupplied } from "../sources/provenance";
 import { HELD_READERS, type ImportOutcome } from "../styles/fileStyles/apply";
 import type { DataSourceDescriptor, EdgeEnd, LeftOutEdge, LoadedSource, LoadedSourceKind } from "../types";
@@ -88,6 +97,24 @@ const LEFT_OUT_KEPT = 100;
  * identity, so undo and redo, which put the same record objects back, keep the answer right.
  */
 const MADE_RECORDS = new WeakSet();
+
+/**
+ * A node row a merge brings for a node the graph holds, its `_source.loads` joined to the held
+ * node's: a node two network loads bring names both, the first load first.
+ * @param row - The incoming row.
+ * @param held - The node's record, when it has one.
+ * @returns The row, its loads joined when it carries any.
+ */
+function withHeldLoads(
+    row: Record<string, unknown>,
+    held: Readonly<Record<string, unknown>> | undefined,
+): Record<string, unknown> {
+    if (!(SOURCE_ATTR.loads in row)) {
+        return row;
+    }
+
+    return { ...row, [SOURCE_ATTR.loads]: [...new Set([...sourceLoadsOf(held), ...sourceLoadsOf(row)])] };
+}
 
 /**
  * The column an endpoint expression reads: the name itself, or a quoted name unquoted (as a draft
@@ -1459,14 +1486,15 @@ export class Ingest<K extends KnownEdge> {
         // the renderer cannot hold is refused whole, not half-applied.
         // A node an earlier edge created is in the builder, and so in `heldCounts`, without a
         // render object yet: its row is not fresh, or the ceiling counts it twice.
-        const { builder } = this.host.store();
+        // Read without bringing a let-go builder back: a batch refused here writes nothing.
+        const { reads } = this.host.store();
         const ids = nodes.map(
             (node) =>
                 (this.loadTally === null
                     ? searchRecord(node, query)
                     : loadedKey(searchRecord(node, query))) as NodeIdType,
         );
-        const fresh = new Set(ids.filter((id) => !this.hasNode(id) && !(isStorableId(id) && builder.hasNode(id))));
+        const fresh = new Set(ids.filter((id) => !this.hasNode(id) && !(isStorableId(id) && reads.hasNode(id))));
         this.refuseAboveCeiling("nodes", this.heldCounts().nodes, fresh.size, this.ceilings().renderCeiling);
 
         for (const [i, node] of nodes.entries()) {
@@ -1484,7 +1512,11 @@ export class Ingest<K extends KnownEdge> {
                     // its own record, whatever the repeat policy says about a declared one.
                     writer.setAttributes("node", nodeId, frozenRecord(node), true);
                 } else if (this.updateExisting && this.host.hasNode(nodeId)) {
-                    writer.setAttributes("node", nodeId, frozenRecord(node));
+                    writer.setAttributes("node", nodeId, frozenRecord(withHeldLoads(node, writer.nodeRecord(nodeId))));
+                } else if (SOURCE_ATTR.loads in node) {
+                    // A kept node still answers to every load that brought it (issue #9705).
+                    const loads = withHeldLoads(node, writer.nodeRecord(nodeId))[SOURCE_ATTR.loads];
+                    writer.setAttributes("node", nodeId, { [SOURCE_ATTR.loads]: loads });
                 }
 
                 continue;
@@ -2294,15 +2326,7 @@ export class Ingest<K extends KnownEdge> {
         }
 
         if (decision.kind === "refuse") {
-            throw new GraphtyError({
-                code: "E_DUPLICATE_EDGE",
-                source: "data",
-                message:
-                    `Two edges run from ${JSON.stringify(sourceId)} to ${JSON.stringify(targetId)}, and ` +
-                    `data.knownFields.repeatedEdges is "error". Set it to "keep" to hold both, or to ` +
-                    `"first", "last", "sum", "min" or "max" to fold them into one.`,
-                details: { source: sourceId, target: targetId, existing: known.edgeIndex, repeat: record },
-            });
+            throw duplicateEdgeError(sourceId, targetId, record, known.edgeIndex);
         }
 
         if (decision.kind === "drop") {

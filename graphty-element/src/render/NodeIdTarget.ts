@@ -94,11 +94,18 @@ void main(void) {
 #endif
     vec4 worldPos = finalWorld * vec4(position, 1.0);
 #ifdef ROW_PULL
-    int grRow = int(graphtyRow + 0.5);
-    vec4 grPlace = graphtyRow < 0.0 ? vec4(0.0) : texelFetch(rowPosition, ivec2(grRow & 1023, grRow >> 10), 0);
+    // A row written -row - 2 is drawn from its own matrix (\`NodeBatch.own\`), as \`RowPullPlugin\` draws it:
+    // only its hidden flag comes from the table, and its id is still its row's.
+    bool grOwn = graphtyRow < -1.5;
+    float grAt = grOwn ? -2.0 - graphtyRow : graphtyRow;
+    int grRow = int(grAt + 0.5);
+    vec4 grPlace = grAt < 0.0 ? vec4(0.0) : texelFetch(rowPosition, ivec2(grRow & 1023, grRow >> 10), 0);
+    if (grOwn) {
+        grPlace = vec4(0.0, 0.0, 0.0, grPlace.w > 0.0 ? 1.0 : 0.0);
+    }
     vec3 grOrigin = world[3].xyz;
     worldPos = vec4((worldPos.xyz - grOrigin) * grPlace.w + grOrigin + mat3(world) * grPlace.xyz, worldPos.w);
-    vId = graphtyRow + 1.0;
+    vId = grAt + 1.0;
     // A row under MIN_RADIUS_PX in radius is drawn that large around its center, so a pointer on it
     // finds it in the pixel it is in. shapeRadius is the batch's largest half-extent.
     vec3 grCenter = (finalWorld[3].xyz - grOrigin) * grPlace.w + grOrigin + mat3(world) * grPlace.xyz;

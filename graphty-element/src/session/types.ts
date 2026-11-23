@@ -1003,6 +1003,24 @@ export interface ValueCounts {
 }
 
 /**
+ * How many elements there are of each kind (person, account, device), read from the column with
+ * the `kind` role: one entry of {@link GraphKinds}. An element whose value is a list (Neo4j's
+ * `labels`) counts once under each kind it lists, so the counts can add up to more than `total`.
+ */
+export interface ElementKinds extends ValueCounts {
+    /** The column the kinds are read from. */
+    readonly column: string;
+}
+
+/** The kinds of node and of edge the graph holds, as {@link SessionDataApi.kinds} reads them. */
+export interface GraphKinds {
+    /** The node kinds, or null when no node column has the `kind` role. */
+    readonly nodes: ElementKinds | null;
+    /** The edge kinds, or null when no edge column has the `kind` role. */
+    readonly edges: ElementKinds | null;
+}
+
+/**
  * One value that occurs in a group more often than chance: one row of a group's
  * {@link OverRepresentedGroup.values}.
  */
@@ -2322,7 +2340,8 @@ export interface SessionDataApi {
      * - `weight`, for edges: as a load reads one -- a number column named `confidence`, `score`
      *   or `strength`, else the only number column that does not read as time; null when there
      *   are several. Nodes: null, as a load reads no node weight.
-     * - Any other role (`key`, `source`, `target`, `edgeId`, `kind` and the location kinds, which
+     * - `kind`: the first of `type`, `Type`, `kind`, `Kind`, `category` and `Category` holding text.
+     * - Any other role (`key`, `source`, `target`, `edgeId` and the location kinds, which
      *   `session.layout.locationColumns()` detects): null.
      *
      * ```ts
@@ -2552,6 +2571,20 @@ export interface SessionDataApi {
         path: Path,
         options?: { readonly kind?: "node" | "edge"; readonly scope?: "graph" | "visible" } & SourceElementsFilter,
     ): ValueCounts;
+    /**
+     * How many nodes and edges there are of each kind, read from the column with the `kind` role
+     * (`data.setRole(column, "kind")`, a load's `TableMapping.kind`, or a file that declares kinds:
+     * Neo4j's `:LABEL` and `:TYPE`, a column graph-io reads as labels or kind). Counts what
+     * `valueCounts` counts by default: the whole graph, or the working graph while `workingGraph`
+     * is on. Walks the elements on every call.
+     *
+     * ```ts
+     * const { nodes } = session.data.kinds();
+     * nodes?.values; // [{ value: "person", count: 40 }, { value: "account", count: 12 }]
+     * ```
+     * @returns The counts of each kind, most elements first; null for nodes or edges with no kind column.
+     */
+    kinds(): GraphKinds;
     /**
      * Per group, the values of the nodes' categorical and list columns that occur in the group
      * more often than chance: count in the group against the expected count, with the
@@ -3190,8 +3223,9 @@ export interface DraftColumn extends Pick<
 /**
  * What a column can be to a load. `kind` is the column whose values name each row's kind: a
  * node's, which loads as its `kind` attribute and keeps ids of different kinds apart under
- * `LoadChoices.kindIds` `"scoped"`, or an edge's, which loads as its `kind` attribute. The
- * {@link LocationKind}s (`latitude`, `longitude`, `coordinates`, `country`, `region`, `city`) are
+ * `LoadChoices.kindIds` `"scoped"`, or an edge's, which loads as its `kind` attribute. Given in
+ * place (`data.setRole`), `kind` names the column `data.kinds()` counts, without reading the rows
+ * again. The {@link LocationKind}s (`latitude`, `longitude`, `coordinates`, `country`, `region`, `city`) are
  * where a node's location is read from, one column per kind (`data.setRole` only). `x`, `y` and
  * `z` are the columns a node's drawn position is read from (`data.setRole` only): with an `x` and a
  * `y` column, every node whose two values are finite numbers is placed there, as a record's
@@ -6900,6 +6934,18 @@ export interface SessionEventMap {
         readonly notDrawn: readonly HiddenNotDrawn[];
     };
     /**
+     * A filter draft opened, changed, was committed or canceled (`visibility.draft()`), or autosave
+     * opened again the drafts it kept after a restore: a view of the open drafts
+     * (`visibility.openDrafts()`, `visibility.draftOf()`) reads them again.
+     * Experimental: may change or be removed in a minor release.
+     * @since 3.60.0
+     * @beta
+     */
+    "visibility:draft-changed": {
+        /** The ids of the conditions the open drafts hold. */
+        readonly open: readonly string[];
+    };
+    /**
      * The time window moved through `session.time`: where it is now and what entered and left.
      * @beta
      */
@@ -8125,7 +8171,8 @@ export interface SessionLayout {
      * @param options.engine - The engine that draws it, such as `"d3"`.
      * @param options.options - The engine's options.
      * @returns Settles once the step is recorded and the layout has taken its pre-steps.
-     * @throws A `GraphtyError` (as a rejection) with `E_UNKNOWN_LAYOUT`, `E_UNKNOWN_OPTION` or
+     * @throws A `GraphtyError` (as a rejection) with `E_UNKNOWN_LAYOUT` when no layout or engine
+     *     answers to the name, with or without a renderer, and `E_UNKNOWN_OPTION` or
      *     `E_OPTION_RANGE` when the renderer cannot build it; nothing is changed then.
      */
     set(

@@ -8,10 +8,9 @@ failure of the code, and the fix. One entry per mode; newest last. Text from log
 
 - **Symptom:** a step or shard ends with `Terminated`, `Killed`, `exit code 143` or `exit 137`, often several gates
   at once.
-- **Told apart:** the push queue's `KILLED_RE` matches it; on 2026-10-17 a memory-hungry Memgraph query outside the
-  gate drove the machine out of memory and the largest processes were killed.
-- **Fix:** find what used the memory and bound it; then push again (`PUSH_QUEUE_RETRY=1`). Never a code fix in the
-  failing package.
+- **Told apart:** on 2026-10-17 a memory-hungry Memgraph query outside the gate drove the machine out of memory and
+  the largest processes were killed.
+- **Fix:** find what used the memory and bound it; then run it again. Never a code fix in the failing package.
 
 ## node_modules older than the lockfile
 

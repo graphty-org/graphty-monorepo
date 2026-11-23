@@ -16,15 +16,21 @@
  * graph takes about 9 s and the run takes minutes. Measured on the development machine (i9-14900,
  * RTX 4070), 2026-11-02, until waitForPainted(): preview on 22.4 s and 86 frames before the
  * one-batch-a-frame repaint, 7.5 s and 36 frames after; preview off 30.1 s, then 6.8 s. See
- * design/ui/studio/tier5/decided.md, "Speed on 50,000 nodes, round 2".
+ * design/ui/studio/tier5/decided.md, "Speed on 50,000 nodes, round 2". Without a GPU
+ * (`GRAPHTY_BROWSER_GPU` unset, as in CI) it runs at a fifth of the size, 10,000 nodes and 40,000
+ * edges: what is asserted is the same at either size, and at full size the file took about 5 of
+ * Browser Benchmarks' 43 minutes there (#9773).
  */
 
 import { afterAll, assert, beforeAll, describe, it } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
 
-const NODES = 50_000;
-const EDGES = 200_000;
+const GPU = ((import.meta.env as Record<string, string | undefined>).GRAPHTY_BROWSER_GPU ?? "") !== "";
+/** A fifth of the size on the software renderer: see the file comment. */
+const SCALE = GPU ? 1 : 5;
+const NODES = 50_000 / SCALE;
+const EDGES = 200_000 / SCALE;
 const GROUPS = 30;
 
 /** What one step cost. */
@@ -39,7 +45,7 @@ interface Step {
     nodePaintMs: number;
 }
 
-describe("a preview repaint on 50,000 nodes and 200,000 edges", () => {
+describe(`a preview repaint on ${String(NODES)} nodes and ${String(EDGES)} edges`, () => {
     let container: HTMLElement;
     let graph: Graph;
     /** The layers the preview added, which the second step takes away. */

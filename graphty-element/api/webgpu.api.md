@@ -4,6 +4,14 @@
 
 ```ts
 
+// @public
+export function configureWebGpu(options: WebGpuOptions): void;
+
+// @public
+export interface WebGpuOptions {
+    readonly exactMaxNodes?: "default" | "measured";
+}
+
 // (No @packageDocumentation comment for this package)
 
 ```

@@ -505,3 +505,22 @@ describe("StagingColumn: constructor guards", () => {
         expect(list.toColumn(1).dtype).toBe("list");
     });
 });
+
+describe("StagingColumn.gather: a nullable number column", () => {
+    it("keeps each kept row's value and whether it is set, in runs", () => {
+        const column = createStagingColumn("v", "edge", { dtype: "f64", nullable: true }, false);
+        for (let row = 0; row < 100; row++) {
+            if (row % 3 !== 0) {
+                column.write(row, row * 1.5);
+            }
+        }
+        column.ensureLength(100);
+        // Rows 10 and 40 to 44 dropped, the rest kept in order.
+        const origin = Uint32Array.from([...Array(100).keys()].filter((row) => row !== 10 && (row < 40 || row > 44)));
+        const gathered = column.gather(origin, null);
+        origin.forEach((old, row) => {
+            expect(gathered.isSet(row), `row ${String(row)}`).toBe(old % 3 !== 0);
+            expect(gathered.read(row)).toBe(old % 3 !== 0 ? old * 1.5 : column.read(old));
+        });
+    });
+});

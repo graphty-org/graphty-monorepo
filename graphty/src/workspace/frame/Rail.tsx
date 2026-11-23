@@ -54,7 +54,7 @@ function ViewsButton({ active }: Readonly<{ active: boolean }>): React.JSX.Eleme
 /**
  * The rail (tier1-design.md section 2.2): Graph, Data and Notes, with Settings pinned to its foot
  * as the classic shell's activity rail pins it; Views after Data, wearing the Camera tool's glyph (design/ui/camera-views-tours-and-capture.md,
- * section 3.1); and Assistant after them while the element has the assistant experiment on, with a
+ * section 3.1); and Assistant after them, with a
  * neutral dot while a request waits for the reader. Icon buttons
  * with the shared tooltip; only Settings and Assistant have a key. Pressing the active Assistant closes it.
  * @returns The rail

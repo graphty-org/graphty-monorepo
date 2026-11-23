@@ -2257,7 +2257,8 @@ export interface FunctionDescriptor {
  * What a column does for the graph, beyond holding values: the node ids were read from it
  * (`"key"`), nodes are named by it (`"label"`), edge weights were read from it (`"weight"`),
  * edge endpoints (`"source"`, `"target"`), times (`"time"`) or the file's own edge ids
- * (`"edgeId"`), or node locations are read from it, one column per kind (`"latitude"`,
+ * (`"edgeId"`), each element's kind -- person, account, device -- is read from it (`"kind"`), or
+ * node locations are read from it, one column per kind (`"latitude"`,
  * `"longitude"`, `"coordinates"`, `"country"`, `"region"`, `"city"`), or node positions are read from
  * it (`"x"`, `"y"`, `"z"`).
  *
@@ -2271,6 +2272,7 @@ export type AttributeRole =
     | "target"
     | "time"
     | "edgeId"
+    | "kind"
     | "latitude"
     | "longitude"
     | "coordinates"
@@ -2665,7 +2667,13 @@ export type Scope =
  * {@link EdgeId}. Every getter returns the canonical {@link Scope}, with stable members.
  */
 export type ScopeInput =
-    | Exclude<Scope, { define: unknown }>
+    | Exclude<
+          Scope,
+          {
+              /** Leaves out the stored inline form, which this type replaces. */
+              define: unknown;
+          }
+      >
     | {
           /** A set definition, inline, whose edges may be named by session edge id. */
           define: SetDefinitionInput;
@@ -3196,10 +3204,46 @@ export interface BySizeLeaf {
  * @beta
  */
 export type MeasureTest =
-    | Omit<Extract<RuleTree, { kind: "range" }>, "attribute" | "nodes">
-    | Omit<Extract<RuleTree, { kind: "threshold" }>, "path">
-    | Omit<Extract<RuleTree, { kind: "categories" }>, "attribute" | "nodes">
-    | Omit<Extract<RuleTree, { kind: "text" }>, "reads" | "nodes">
+    | Omit<
+          Extract<
+              RuleTree,
+              {
+                  /** Picks the rule tree leaf of this kind. */
+                  kind: "range";
+              }
+          >,
+          "attribute" | "nodes"
+      >
+    | Omit<
+          Extract<
+              RuleTree,
+              {
+                  /** Picks the rule tree leaf of this kind. */
+                  kind: "threshold";
+              }
+          >,
+          "path"
+      >
+    | Omit<
+          Extract<
+              RuleTree,
+              {
+                  /** Picks the rule tree leaf of this kind. */
+                  kind: "categories";
+              }
+          >,
+          "attribute" | "nodes"
+      >
+    | Omit<
+          Extract<
+              RuleTree,
+              {
+                  /** Picks the rule tree leaf of this kind. */
+                  kind: "text";
+              }
+          >,
+          "reads" | "nodes"
+      >
     | Omit<BySizeLeaf, "path">
     | Omit<SameValueLeaf, "path">;
 
@@ -3474,7 +3518,13 @@ export type SetDefinitionInput =
           /** Which edges come with its nodes; `clipped` is stored as `listed`. */
           readonly reading: EdgeReading;
       }
-    | Extract<SetDefinition, { kind: "rule" }>
+    | Extract<
+          SetDefinition,
+          {
+              /** Picks the rule form out of the set definition forms. */
+              kind: "rule";
+          }
+      >
     | {
           /** A walk, in order. */
           readonly kind: "path";

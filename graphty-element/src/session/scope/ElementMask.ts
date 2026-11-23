@@ -281,6 +281,41 @@ export class ElementMask<TId> {
     }
 
     /**
+     * Make every one of `count` rows a member, logging the rows that enter as a rewrite's are, so
+     * a reader of {@link ElementMask.changedSince} follows those rows: what visibility with no
+     * filter writes after each edit, where clearing and filling every row would send the renderer
+     * back over every element of a million-edge graph (issue #9164). Rows past `count` go, and the
+     * rows kept keep their membership whatever renumbered them.
+     * @param count - The row count.
+     * @throws A `RangeError` when `count` is not a non-negative integer.
+     */
+    fillAll(count: number): void {
+        requireRowCount(count, "count");
+        const shrunk = count < this.rows;
+        if (shrunk) {
+            this.array.fill(ABSENT, count, this.rows);
+            this.rows = count;
+        } else {
+            this.grow(count);
+        }
+
+        const entered: number[] = [];
+        for (let row = 0; row < count; row++) {
+            if (this.array[row] !== MEMBER) {
+                this.array[row] = MEMBER;
+                entered.push(row);
+            }
+        }
+
+        this.members = count;
+        if (entered.length > 0 || shrunk) {
+            this.logMove({ entered, left: [] }, Number.POSITIVE_INFINITY);
+            this.revision += 1;
+            this.onVersion?.();
+        }
+    }
+
+    /**
      * Whether one row is in the set.
      * @param index - The dense index.
      * @returns True when the row is inside the live count AND carries the member byte. A row
@@ -462,12 +497,42 @@ export class ElementMask<TId> {
      * @param bytes - One byte per row, `1` for a member.
      */
     load(bytes: U8): void {
+        // Over the same rows, the rows that differ are logged as a rewrite's are, so a reader of
+        // {@link ElementMask.changedSince} -- the renderer, after an undo of a value edit -- follows
+        // those rows instead of reading every row of a million-edge mask again (issue #9164).
+        const moved = bytes.length === this.rows ? this.differingRows(bytes) : null;
         this.grow(bytes.length);
         this.array.set(bytes);
         this.members = this.countMembers();
+        if (moved !== null) {
+            // A move of no rows still moves the version, as below, so caches keyed on it refresh.
+            this.logMove(moved, Number.POSITIVE_INFINITY);
+            this.revision += 1;
+            this.onVersion?.();
+            return;
+        }
+
         // Through `bump`: a history move loads a step's kept masks here, and a session's input
         // tick must move with them, or every cache keyed on it serves the masks before the move.
         this.bump();
+    }
+
+    /**
+     * The rows whose membership `bytes` would change, over rows this mask holds.
+     * @param bytes - One byte per row, as many as this mask holds.
+     * @returns The rows that would enter the set and the rows that would leave it.
+     */
+    private differingRows(bytes: U8): MaskRows {
+        const entered: number[] = [];
+        const left: number[] = [];
+        for (let row = 0; row < bytes.length; row++) {
+            const member = bytes[row] === MEMBER;
+            if (member !== (this.array[row] === MEMBER)) {
+                (member ? entered : left).push(row);
+            }
+        }
+
+        return { entered, left };
     }
 
     /**

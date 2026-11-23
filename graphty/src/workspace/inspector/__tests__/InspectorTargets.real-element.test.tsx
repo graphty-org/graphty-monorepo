@@ -14,6 +14,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { emptyPoint } from "../../../test/empty-point";
 import { act, render, screen, waitFor, type Within, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -134,28 +135,6 @@ async function settledElement(): Promise<HTMLElementTagNameMap["graphty-element"
     await element.waitForSettled();
     await element.waitForStableFrame();
     return element;
-}
-
-/**
- * A point on the canvas that is no node, no edge and no outline, as the element would pick it.
- * @param element - the element.
- * @returns the point, in the element's own pixels.
- */
-async function emptyPoint(element: HTMLElementTagNameMap["graphty-element"]): Promise<{ x: number; y: number }> {
-    return waitFor(() => {
-        const { width, height } = element.getBoundingClientRect();
-        for (const point of [
-            { x: 12, y: height - 12 },
-            { x: width - 12, y: height - 12 },
-            { x: width / 2, y: height - 12 },
-            { x: 12, y: height / 2 },
-        ]) {
-            if (element.elementAt(point) === null && element.groupOutlineAt(point) === null) {
-                return point;
-            }
-        }
-        throw new Error("no empty point on the canvas");
-    });
 }
 
 /**

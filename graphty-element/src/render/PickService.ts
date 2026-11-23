@@ -30,7 +30,7 @@ import { isCloseLabel } from "../meshes/labelClose";
 import { ON_TOP_RENDERING_GROUP } from "../meshes/RichTextLabel";
 import type { NodeIdType } from "../Node";
 import { pickAtLayout, transitionUnderWay } from "../transitions/LayoutTransitionRunner";
-import type { EdgeIdTarget } from "./EdgeIdTarget";
+import type { EdgeCandidates, EdgeIdTarget } from "./EdgeIdTarget";
 import { ID_NONE, ID_OBJECT, type IdDrawn, type IdPick, type NodeIdTarget } from "./NodeIdTarget";
 
 /**
@@ -43,7 +43,18 @@ export const pickWork = { meshPicks: 0, rowScans: 0 };
  * How many edges the exact edge test measured: `measured` on screen, each with a `worldToScreen`
  * per point, and `fromRows` with both ends read from the rows on the `"batched"` path.
  */
-export const edgePickWork = { measured: 0, fromRows: 0 };
+export const edgePickWork = { measured: 0, fromRows: 0, rowLines: 0 };
+
+/**
+ * The edges drawn with no `Edge` on the `"batched"` path (`EdgeRowLines`), as an edge pick reads them: each shown
+ * line's edge row and its two node rows, and the edge id of a row, with no object built per edge.
+ */
+export interface RowLinePicks {
+    /** Visit each shown line, or only those of `only`. */
+    forEachShown(visit: (row: number, source: number, target: number) => void, only?: readonly number[]): void;
+    /** The id of the edge a line draws, or undefined when the row no longer draws one. */
+    idOf(row: number): EdgeId | undefined;
+}
 
 /** How far from a drawn edge's line, in CSS pixels, a click still lands on the edge. */
 const EDGE_PICK_TOLERANCE_PX = 6;
@@ -384,16 +395,7 @@ export class RowScan {
         }
 
         regionWork.rows += this.table.rows;
-        const root = this.rootMatrix();
-        // Root, then view (for the depth) and view and projection (for the screen), as
-        // `screenProjector` and `pickEdgeAt` take them.
-        // The camera's matrices, not the scene's: the scene's are unset until its first frame.
-        const view = root.multiply(camera.getViewMatrix()).m;
-        const clip = root.multiply(camera.getViewMatrix().multiply(camera.getProjectionMatrix())).m;
-        const engine = this.scene.getEngine();
-        const css = engine.getHardwareScalingLevel();
-        const halfWidth = 0.5 * engine.getRenderWidth() * css;
-        const halfHeight = 0.5 * engine.getRenderHeight() * css;
+        const { view, clip, halfWidth, halfHeight } = this.toScreen(camera);
         const box = polygonBox(polygon);
         const { rowBounds: bounds, rows } = this.table;
         for (let row = 0, at = 0; row < rows; row++, at += 4) {
@@ -423,6 +425,96 @@ export class RowScan {
         }
 
         return found;
+    }
+
+    /**
+     * The row line nearest a point, within `best`, in one typed walk: each line runs between its two nodes'
+     * centers, as `PulledLineBatch` draws it, put on screen as {@link screenProjector} does. A line with an end
+     * behind the camera is skipped, as {@link pickEdgeAt} skips such an edge; of lines equally near, the last wins.
+     * @param px - X in render pixels.
+     * @param py - Y in render pixels.
+     * @param best - The farthest a line may be, in the same pixels.
+     * @param lines - The lines.
+     * @param only - Measure only these edge rows.
+     * @returns The edge row and its distance, or null when no line is that near.
+     */
+    nearestRowLine(
+        px: number,
+        py: number,
+        best: number,
+        lines: RowLinePicks,
+        only?: readonly number[],
+    ): { row: number; distance: number } | null {
+        const camera = this.scene.activeCamera;
+        if (!camera) {
+            return null;
+        }
+
+        const { view, clip, halfWidth, halfHeight } = this.toScreen(camera);
+        const { minZ } = camera;
+        const { rowBounds: bounds } = this.table;
+        let nearest = best;
+        let found = -1;
+        let measured = 0;
+        lines.forEachShown((row, source, target) => {
+            measured++;
+            const a = source * 4;
+            const b = target * 4;
+            const ax = bounds[a] ?? 0;
+            const ay = bounds[a + 1] ?? 0;
+            const az = bounds[a + 2] ?? 0;
+            const bx = bounds[b] ?? 0;
+            const by = bounds[b + 1] ?? 0;
+            const bz = bounds[b + 2] ?? 0;
+            if (
+                ax * view[2] + ay * view[6] + az * view[10] + view[14] < minZ ||
+                bx * view[2] + by * view[6] + bz * view[10] + view[14] < minZ
+            ) {
+                return;
+            }
+
+            const aw = ax * clip[3] + ay * clip[7] + az * clip[11] + clip[15];
+            const sax = ((ax * clip[0] + ay * clip[4] + az * clip[8] + clip[12]) / aw + 1) * halfWidth;
+            const say = (1 - (ax * clip[1] + ay * clip[5] + az * clip[9] + clip[13]) / aw) * halfHeight;
+            const bw = bx * clip[3] + by * clip[7] + bz * clip[11] + clip[15];
+            const sbx = ((bx * clip[0] + by * clip[4] + bz * clip[8] + clip[12]) / bw + 1) * halfWidth;
+            const sby = (1 - (bx * clip[1] + by * clip[5] + bz * clip[9] + clip[13]) / bw) * halfHeight;
+            const dx = sbx - sax;
+            const dy = sby - say;
+            const length2 = dx * dx + dy * dy;
+            const t = length2 === 0 ? 0 : Math.max(0, Math.min(1, ((px - sax) * dx + (py - say) * dy) / length2));
+            const distance = Math.hypot(px - (sax + t * dx), py - (say + t * dy));
+            if (distance <= nearest) {
+                nearest = distance;
+                found = row;
+            }
+        }, only);
+        edgePickWork.rowLines += measured;
+        return found === -1 ? null : { row: found, distance: nearest };
+    }
+
+    /**
+     * How a row's center goes to the screen now: root, then view (for the depth), and root, view and projection
+     * (for the screen), as `screenProjector` and `pickEdgeAt` take them, with half the canvas in CSS pixels. The
+     * camera's matrices, not the scene's: the scene's are unset until its first frame.
+     * @param camera - The scene's active camera.
+     * @returns The matrices' values and the half sizes.
+     */
+    private toScreen(camera: Camera): {
+        view: Matrix["m"];
+        clip: Matrix["m"];
+        halfWidth: number;
+        halfHeight: number;
+    } {
+        const root = this.rootMatrix();
+        const engine = this.scene.getEngine();
+        const css = engine.getHardwareScalingLevel();
+        return {
+            view: root.multiply(camera.getViewMatrix()).m,
+            clip: root.multiply(camera.getViewMatrix().multiply(camera.getProjectionMatrix())).m,
+            halfWidth: 0.5 * engine.getRenderWidth() * css,
+            halfHeight: 0.5 * engine.getRenderHeight() * css,
+        };
     }
 
     /**
@@ -865,6 +957,10 @@ export function screenProjector(
  * @param toScreen - A world point's place on screen, in render pixels.
  * @param rowEnds - A straight edge's two ends read from the rows, or null to measure it with
  *   `toScreen` point by point; such ends go through one {@link screenProjector}.
+ * @param rowLines - The edges drawn with no `Edge`, measured after `edges` ({@link RowScan.nearestRowLine}).
+ * @param rowLines.scan - The scan that places their ends.
+ * @param rowLines.lines - The lines.
+ * @param rowLines.only - Measure only these edge rows.
  * @returns The edge's id, or `undefined` when no drawn edge is that close.
  */
 export function pickEdgeAt(
@@ -874,6 +970,7 @@ export function pickEdgeAt(
     y: number,
     toScreen: (point: Vector3) => { x: number; y: number },
     rowEnds?: (edge: Edge) => readonly [Vector3, Vector3] | null,
+    rowLines?: { scan: RowScan; lines: RowLinePicks; only?: readonly number[] },
 ): EdgeId | undefined {
     const camera = scene.activeCamera;
     // Nothing is drawn before the first frame, and the scene's view matrix is unset until
@@ -929,19 +1026,24 @@ export function pickEdgeAt(
         }
     }
 
-    return found;
+    const line = rowLines?.scan.nearestRowLine(px, py, best, rowLines.lines, rowLines.only) ?? null;
+    const lineId = line === null ? undefined : rowLines?.lines.idOf(line.row);
+    return lineId ?? found;
 }
 
 /**
  * {@link pickEdgeAt}, with every straight edge between two batched rows measured from the row
  * table in one typed walk on the `"batched"` path: no `worldToScreen` and no new vector per edge.
  * The ends it reads are the ones `Node.drawnWorldPosition` answers, so the answer is the same.
- * Off the `"batched"` path it is {@link pickEdgeAt}.
+ * There the edges drawn with no `Edge` are measured too, from the rows. Off the `"batched"` path
+ * it is {@link pickEdgeAt}.
  * @param scene - The scene.
- * @param edges - The edges to measure.
+ * @param edges - The `Edge`s to measure.
  * @param x - X in CSS pixels.
  * @param y - Y in CSS pixels.
  * @param toScreen - A world point's place on screen, for the edges the rows cannot place.
+ * @param lines - The edges drawn with no `Edge`, or null when there are none.
+ * @param only - Measure only these of `lines`' edge rows; all of them when absent.
  * @returns The edge's id, or `undefined`.
  */
 export function pickEdgeId(
@@ -950,6 +1052,8 @@ export function pickEdgeId(
     x: number,
     y: number,
     toScreen: (point: Vector3) => { x: number; y: number },
+    lines: RowLinePicks | null = null,
+    only?: readonly number[],
 ): EdgeId | undefined {
     const scan = rowScanOf(scene);
     if (!edgeIdTargets.has(scene) || scan === undefined) {
@@ -958,18 +1062,26 @@ export function pickEdgeId(
 
     const root = scan.rootMatrix();
     const ends: [Vector3, Vector3] = [new Vector3(), new Vector3()];
-    return pickEdgeAt(scene, edges, x, y, toScreen, (edge) => {
-        // Rows, not Nodes: measuring every edge must build no Node for an end drawn without one (issue #9166).
-        const src = edge.batchEndRow("source");
-        const dst = src === INVALID_INDEX ? INVALID_INDEX : edge.batchEndRow("target");
-        if (dst === INVALID_INDEX || edge.drawnCurve !== null) {
-            return null;
-        }
+    return pickEdgeAt(
+        scene,
+        edges,
+        x,
+        y,
+        toScreen,
+        (edge) => {
+            // Rows, not Nodes: measuring every edge must build no Node for an end drawn without one (issue #9166).
+            const src = edge.batchEndRow("source");
+            const dst = src === INVALID_INDEX ? INVALID_INDEX : edge.batchEndRow("target");
+            if (dst === INVALID_INDEX || edge.drawnCurve !== null) {
+                return null;
+            }
 
-        scan.worldCenterToRef(src, root, ends[0]);
-        scan.worldCenterToRef(dst, root, ends[1]);
-        return ends;
-    });
+            scan.worldCenterToRef(src, root, ends[0]);
+            scan.worldCenterToRef(dst, root, ends[1]);
+            return ends;
+        },
+        lines === null ? undefined : { scan, lines, only },
+    );
 }
 
 /** Each scene's edge ID target, while its graph draws on the `"batched"` path. */
@@ -1001,6 +1113,7 @@ export function useEdgeIdTarget(scene: Scene, target: EdgeIdTarget | null): void
  * @param x - X in CSS pixels.
  * @param y - Y in CSS pixels.
  * @param toScreen - A world point's place on screen, in render pixels.
+ * @param lines - The edges drawn with no `Edge`, or null when there are none.
  * @returns The edge's id or `undefined`, now or once read.
  */
 export function hoverEdgeAt(
@@ -1009,15 +1122,91 @@ export function hoverEdgeAt(
     x: number,
     y: number,
     toScreen: (point: Vector3) => { x: number; y: number },
+    lines: RowLinePicks | null = null,
 ): EdgeId | undefined | Promise<EdgeId | undefined> {
-    const target = edgeIdTargets.get(scene);
-    // The window must hold every pixel within the tolerance of the pointer's pixel center.
-    const radius = Math.ceil(EDGE_PICK_TOLERANCE_PX / scene.getEngine().getHardwareScalingLevel()) + 1;
-    const near = target === undefined || transitionUnderWay(scene) ? null : target.candidates(x, y, radius);
+    const near = edgesNear(scene, x, y);
     if (near === null) {
-        return pickEdgeId(scene, edges(), x, y, toScreen);
+        return pickEdgeId(scene, edges(), x, y, toScreen, lines);
     }
 
-    const measure = (candidates: Edge[]): EdgeId | undefined => pickEdgeId(scene, candidates, x, y, toScreen);
-    return Array.isArray(near) ? measure(near) : near.then(measure);
+    const measure = (candidates: EdgeCandidates): EdgeId | undefined =>
+        pickEdgeId(scene, candidates.edges, x, y, toScreen, lines, candidates.rows);
+    return near instanceof Promise ? near.then(measure) : measure(near);
+}
+
+/**
+ * The drawn edge `elementAt` at a canvas point finds: {@link pickEdgeAt}'s answer, now. On the `"batched"` path it
+ * measures only the edges the edge ID target draws near the point, and those it cannot draw, as {@link hoverEdgeAt}
+ * does, so it costs the same at a million edges as at a thousand. WebGL reads the target now. WebGPU reads it back
+ * only asynchronously, so there it takes the edges near the point from the last read: the hover's window where the
+ * pointer rests, or else the newest whole read of the target, drawn from what is drawn now, from the picture on
+ * screen or from the one before it ({@link EdgeIdTarget.held}). A click does not use this, see {@link clickEdgeAt}.
+ * ponytail: an answer no read can give is one typed walk over every row line, with no object per line: the first
+ * `elementAt` on WebGPU (or the first after the target stopped whole reads, {@link EdgeIdTarget.held}), one right
+ * after the lines or the canvas changed and before a frame drew them, one from an older picture whose edges near the
+ * point are no longer under it, before the target is ready, or with no target. In a layout transition it walks too:
+ * there every pick answers at the layout's end, which `pickAtLayout` reaches by moving every moving node there and
+ * back, so the pick is a walk over the nodes whatever the edges cost. A CPU index of the lines if that matters.
+ * @param args - {@link hoverEdgeAt}'s: the scene, the graph's edges, x and y, toScreen and the row lines.
+ * @returns The edge's id, or `undefined`.
+ */
+export function pressEdgeAt(...args: Parameters<typeof hoverEdgeAt>): EdgeId | undefined {
+    const [scene, edges, x, y, toScreen, lines = null] = args;
+    const near = scene.getEngine().isWebGPU ? heldNear(scene, x, y, true) : edgesNear(scene, x, y);
+    if (near === null || near instanceof Promise) {
+        return pickEdgeId(scene, edges(), x, y, toScreen, lines);
+    }
+
+    const found = pickEdgeId(scene, near.edges, x, y, toScreen, lines, near.rows);
+    // A read of an older picture may miss the edge that moved under the point since: measure every edge then.
+    return found === undefined && near.stale === true ? pickEdgeId(scene, edges(), x, y, toScreen, lines) : found;
+}
+
+/**
+ * The drawn edge a click at a canvas point lands on. As {@link pressEdgeAt}, except that on WebGPU, where the last
+ * read does not answer for the point, it waits for the edge ID target's read instead of walking every line, as a
+ * hover does: a click on a graph whose layout is still moving its rows, or at a point the pointer never rested on,
+ * costs a window's read, not a walk over a million lines.
+ * @param args - {@link hoverEdgeAt}'s.
+ * @returns The edge's id or `undefined`, now or once read.
+ */
+export function clickEdgeAt(...args: Parameters<typeof hoverEdgeAt>): EdgeId | undefined | Promise<EdgeId | undefined> {
+    const [scene, , x, y, toScreen, lines = null] = args;
+    const near = scene.getEngine().isWebGPU ? heldNear(scene, x, y) : null;
+    return near === null ? hoverEdgeAt(...args) : pickEdgeId(scene, near.edges, x, y, toScreen, lines, near.rows);
+}
+
+/**
+ * The edges the edge ID target names within the pick tolerance of a canvas point.
+ * @param scene - The scene.
+ * @param x - X in CSS pixels.
+ * @param y - Y in CSS pixels.
+ * @returns They, now or once read; null with no target, during a layout transition, or before it can answer.
+ */
+function edgesNear(scene: Scene, x: number, y: number): EdgeCandidates | Promise<EdgeCandidates> | null {
+    const target = edgeIdTargets.get(scene);
+    return target === undefined || transitionUnderWay(scene) ? null : target.candidates(x, y, pickRadius(scene));
+}
+
+/**
+ * {@link edgesNear} from the last read only, for a press on WebGPU.
+ * @param scene - The scene.
+ * @param x - X in CSS pixels.
+ * @param y - Y in CSS pixels.
+ * @param whole - Also answer from the target's whole reads, as `elementAt` does ({@link EdgeIdTarget.held}).
+ * @returns The edges, or null when no read answers for the point now.
+ */
+function heldNear(scene: Scene, x: number, y: number, whole = false): EdgeCandidates | null {
+    const target = edgeIdTargets.get(scene);
+    return target === undefined || transitionUnderWay(scene) ? null : target.held(x, y, pickRadius(scene), whole);
+}
+
+/**
+ * The edge ID target window's half-width: it must hold every pixel within the tolerance of the pointer's pixel
+ * center.
+ * @param scene - The scene.
+ * @returns The half-width, in render pixels.
+ */
+function pickRadius(scene: Scene): number {
+    return Math.ceil(EDGE_PICK_TOLERANCE_PX / scene.getEngine().getHardwareScalingLevel()) + 1;
 }

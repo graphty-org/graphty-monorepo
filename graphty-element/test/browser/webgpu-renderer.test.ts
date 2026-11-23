@@ -15,7 +15,7 @@
 
 import "../../src/graphty-element";
 
-import { type Effect, EngineStore, Mesh, Tools, Vector3, WebGPUEngine } from "@babylonjs/core";
+import { CreateScreenshotAsync, type Effect, EngineStore, Mesh, Tools, Vector3, WebGPUEngine } from "@babylonjs/core";
 import { afterEach, assert, describe, it, vi } from "vitest";
 import { commands, userEvent } from "vitest/browser";
 
@@ -63,14 +63,18 @@ afterEach(() => {
 /**
  * Builds a graph asking for a renderer and initializes it.
  * @param renderer - What to ask for; left out, nothing is asked.
+ * @param options - How the engine is built.
  * @returns The graph.
  */
-async function open(renderer?: "webgl" | "webgpu" | "auto"): Promise<Graph> {
+async function open(
+    renderer?: "webgl" | "webgpu" | "auto",
+    options?: ConstructorParameters<typeof Graph>[1],
+): Promise<Graph> {
     const container = document.createElement("div");
     container.style.width = `${String(WIDTH)}px`;
     container.style.height = `${String(HEIGHT)}px`;
     document.body.appendChild(container);
-    const graph = new Graph(container);
+    const graph = new Graph(container, options);
     mounted.push({ graph, container });
     if (renderer !== undefined) {
         graph.setRenderer(renderer);
@@ -131,25 +135,47 @@ async function animateEdges(graph: Graph): Promise<void> {
 }
 
 /**
- * Waits for the picture to be final and takes a screenshot the way the element does.
+ * Waits for the picture to be final and takes a screenshot with the element's own
+ * `captureScreenshot`.
  *
- * Babylon's own `CreateScreenshotAsync`, the call `captureScreenshot` makes, rather than
- * `captureScreenshot` itself: test/setup.ts replaces that call with a one-pixel stub for every
- * other test, so the real one is imported past the mock here. The PNG is kept under
- * tmp/webgpu-renderer/ for a person to look at.
+ * test/setup.ts replaces Babylon's `CreateScreenshotAsync`, the call `captureScreenshot` makes,
+ * with a one-pixel stub for every other test, so the real one stands in for the stub once here.
+ * The PNG is kept under tmp/webgpu-renderer/ for a person to look at.
  * @param graph - The graph to read.
  * @param name - The PNG's name.
+ * @param skipCopyTick - Whether the loop's tick that ends with the copy draws nothing, as a tick
+ *     skipped while the GPU is behind does.
  * @returns The RGBA pixels.
  */
-async function screenshot(graph: Graph, name: string): Promise<Uint8ClampedArray> {
+async function screenshot(graph: Graph, name: string, skipCopyTick = false): Promise<Uint8ClampedArray> {
     await graph.waitForStableFrame();
-    const { CreateScreenshotAsync } = await vi.importActual<typeof import("@babylonjs/core")>("@babylonjs/core");
-    const camera = graph.scene.activeCamera;
-    assert.isNotNull(camera);
-    const dataUrl = await CreateScreenshotAsync(graph.engine, camera, { width: WIDTH, height: HEIGHT });
+    const real = await vi.importActual<typeof import("@babylonjs/core")>("@babylonjs/core");
+    vi.mocked(CreateScreenshotAsync).mockImplementationOnce((engine, ...rest) => {
+        if (skipCopyTick) {
+            const loop = renderManagerOf(graph);
+            const { drawHeld } = loop;
+            loop.drawHeld = () => true;
+            engine.onEndFrameObservable.addOnce(() => {
+                loop.drawHeld = drawHeld;
+            });
+        }
+
+        return real.CreateScreenshotAsync(engine, ...rest);
+    });
+    const { blob } = await graph.captureScreenshot();
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            resolve(typeof reader.result === "string" ? reader.result : "");
+        };
+        reader.onerror = () => {
+            reject(reader.error ?? new Error("the screenshot could not be read"));
+        };
+        reader.readAsDataURL(blob);
+    });
     await commands.writeFile(`tmp/webgpu-renderer/${name}.png`, dataUrl.slice(dataUrl.indexOf(",") + 1), "base64");
 
-    const bitmap = await createImageBitmap(await (await fetch(dataUrl)).blob());
+    const bitmap = await createImageBitmap(blob);
     const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
     const context = canvas.getContext("2d");
     assert.isNotNull(context);
@@ -174,12 +200,31 @@ function compare(one: Uint8ClampedArray, other: Uint8ClampedArray): { differ: nu
         }
 
         differ += largest > PIXEL_TOLERANCE ? 1 : 0;
-        // The default background is #F5F5F5.
-        ink += Math.abs(one[at] - 0xf5) + Math.abs(one[at + 1] - 0xf5) + Math.abs(one[at + 2] - 0xf5) > 24 ? 1 : 0;
+        // The default background is #F5F5F5. A transparent pixel is no picture at all, not ink.
+        ink +=
+            one[at + 3] > 0 &&
+            Math.abs(one[at] - 0xf5) + Math.abs(one[at + 1] - 0xf5) + Math.abs(one[at + 2] - 0xf5) > 24
+                ? 1
+                : 0;
     }
 
     const pixels = one.length / 4;
     return { differ: differ / pixels, ink: ink / pixels };
+}
+
+/**
+ * The share of a picture's pixels that are fully opaque: a copy of a canvas that held no frame is
+ * transparent black.
+ * @param pixels - The picture's RGBA bytes.
+ * @returns The share, of the whole picture.
+ */
+function opaque(pixels: Uint8ClampedArray): number {
+    let count = 0;
+    for (let at = 3; at < pixels.length; at += 4) {
+        count += pixels[at] === 255 ? 1 : 0;
+    }
+
+    return count / (pixels.length / 4);
 }
 
 /**
@@ -348,6 +393,12 @@ vec4 shade(NodeInput n) {
 }
 `);
         assert.deepEqual(added.ok ? [] : added.problems, []);
+    });
+
+    it("copies a drawn frame from a WebGL canvas that keeps none, when the copy's tick draws nothing", async () => {
+        const graph = await open("webgl", { preserveDrawingBuffer: false });
+        await drawStyledRing(graph);
+        assert.isAbove(opaque(await screenshot(graph, "webgl-skipped-tick", true)), 0.99);
     });
 
     it.skipIf(GPU_LANE)("draws with WebGL and says why when WebGPU is asked for and absent", async () => {
@@ -693,6 +744,14 @@ describe.skipIf(!GPU_LANE)(`the WebGPU renderer on a real adapter (${ADAPTER})`,
         assert.deepEqual(shaderFailures(webgpu), []);
     });
 
+    it("copies a drawn frame when the tick the copy is asked in draws nothing", async () => {
+        // A WebGPU canvas holds a picture only at the end of a frame that drew one, and the loop
+        // ends ticks without drawing: one skipped while the GPU is behind ends as this held one does.
+        const graph = await open("webgpu");
+        await drawStyledRing(graph);
+        assert.isAbove(opaque(await screenshot(graph, "webgpu-skipped-tick", true)), 0.99);
+    });
+
     it("draws a Cytoscape session with labels too small for one texture pixel", async () => {
         const element = document.createElement("graphty-element");
         element.style.cssText = `display:block;width:${String(WIDTH)}px;height:${String(HEIGHT)}px`;
@@ -741,7 +800,7 @@ describe.skipIf(!GPU_LANE)(`the WebGPU renderer on a real adapter (${ADAPTER})`,
         const height = HEIGHT + 100;
         // The element's own ResizeObserver calls graph.resize(); this one stands in for it and
         // reads the canvas in the same rendering step, before it is painted.
-        const opaque = new Promise<number>((resolve) => {
+        const painted = new Promise<number>((resolve) => {
             const observer = new ResizeObserver(([entry]) => {
                 if (entry.contentRect.height !== height) {
                     return;
@@ -755,19 +814,13 @@ describe.skipIf(!GPU_LANE)(`the WebGPU renderer on a real adapter (${ADAPTER})`,
                 const context = copy.getContext("2d");
                 assert.isNotNull(context);
                 context.drawImage(graph.canvas, 0, 0);
-                const pixels = context.getImageData(0, 0, copy.width, copy.height).data;
-                let count = 0;
-                for (let at = 3; at < pixels.length; at += 4) {
-                    count += pixels[at] === 255 ? 1 : 0;
-                }
-
-                resolve(count / (pixels.length / 4));
+                resolve(opaque(context.getImageData(0, 0, copy.width, copy.height).data));
             });
             observer.observe(container);
         });
         container.style.height = `${String(height)}px`;
 
-        assert.isAbove(await opaque, 0.99, "the canvas holds a frame, not the texture the resize cleared");
+        assert.isAbove(await painted, 0.99, "the canvas holds a frame, not the texture the resize cleared");
         // The frame drawn for the resize ended inside its own frame, so the loop's next frames
         // reach the canvas too: no command buffer refers to a texture already presented.
         await drawnFrames(graph.scene, 2);

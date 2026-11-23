@@ -21,6 +21,7 @@ import { conflictReport, readableRecord, type StepsOutcome } from "./provenance"
 import { applyRefreshEdit, editStates, missingColumns, type RefreshEdit, type RefreshIssue } from "./refresh";
 import {
     type Aggregate,
+    type BuildInput,
     type BuildResult,
     type BuiltEdge,
     type BuiltNode,
@@ -110,6 +111,11 @@ export interface SourceSteps {
     readonly types: readonly TypeEntry[];
     /** The reader source's operations, in the order made. */
     readonly reader: readonly ReaderOp[];
+    /**
+     * The graph's `data.knownFields.repeatedEdges` as of the last edit, which the build reduces
+     * repeated edges by; absent keeps them. Session state, not saved: an edit sets it from the setting.
+     */
+    readonly repeatedEdges?: BuildInput["repeatedEdges"];
     /**
      * The build stamp, a ULID minted by each build that changed the graph, so a run made over one
      * build reads stale after a later one, even when a refresh brings the same rows back (8.6).

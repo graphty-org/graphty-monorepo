@@ -76,7 +76,7 @@ export function UseParams({ ctx, entry }: Readonly<{ ctx: RowContext; entry: Sha
             values={paramsOf(entry)}
             bindings={bindingsOf(ctx, entry)}
             facts={false}
-            unsetEmpty
+            unsetRemoves
             onChange={(param, value) => {
                 writeParam(ctx, entry, param, value).catch(fail);
             }}

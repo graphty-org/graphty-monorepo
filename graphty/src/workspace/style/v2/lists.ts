@@ -197,13 +197,14 @@ export const ITEM_LISTS: Partial<Readonly<Record<Channel, ItemList>>> = Object.f
             { channel: "node.shapePoints", kind: "points", name: "Points", item: "Point", fresh: "0,0" },
             { channel: "edge.bends", kind: "points", name: "Bends", item: "Bend", fresh: "0.5,0" },
             // A field with no point: graphty-element places it a line below the one before.
-            { channel: "node.shapeTexts", kind: "texts", name: "Fields", item: "Field", fresh: '[[""]]' },
+            { channel: "node.shapeTexts", kind: "texts", name: "Fields", item: "Field", fresh: '[["Field 1"]]' },
             {
                 channel: "edge.labelTable",
                 kind: "table",
                 name: "Rows",
                 item: "Row",
-                fresh: '{"rows":[{"cells":[{"lines":[{"text":""}]}]}]}',
+                // A new item has words, never an empty input (design "Input rules").
+                fresh: '{"rows":[{"cells":[{"lines":[{"text":"Cell"}]}]}]}',
             },
             { channel: "edge.arrowHeadStack", kind: "caps", name: "Stack", item: "Cap", fresh: "normal" },
             { channel: "edge.arrowTailStack", kind: "caps", name: "Stack", item: "Cap", fresh: "normal" },

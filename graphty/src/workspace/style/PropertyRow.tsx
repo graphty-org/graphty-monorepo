@@ -1570,18 +1570,9 @@ export function Field({
                 >
                     {control}
                 </div>
-                {thing?.slot === undefined ? (
-                    <>
-                        <span className="ws-slot ws-vary">{shownVary}</span>
-                        <span className="ws-slot">{minus}</span>
-                    </>
-                ) : (
-                    // A Style panel v2 row: `[-] [...]`, its settings "..." at the far right (E550).
-                    <>
-                        <span className="ws-slot">{minus}</span>
-                        <span className="ws-slot ws-vary">{thing.slot}</span>
-                    </>
-                )}
+                {/* `[link or ...] [-]`: right after the control, the minus right-most (design "Input rules"). */}
+                <span className="ws-slot ws-vary">{thing?.slot ?? shownVary}</span>
+                <span className="ws-slot">{minus}</span>
             </FieldLine>
             {asset?.extras}
             {pendingVary === null ? null : (

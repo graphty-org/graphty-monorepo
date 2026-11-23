@@ -138,6 +138,34 @@ function valueOf(style: Readonly<LabelStyle>, field: LabelField): unknown {
 }
 
 /**
+ * The value a field's control shows: the one written, else graphty-element's default (design "Input rules":
+ * every input has a value).
+ * @param style - the label style.
+ * @param field - the field.
+ * @returns the value shown.
+ */
+function shownOf(style: Readonly<LabelStyle>, field: LabelField): unknown {
+    return valueOf(style, field) ?? labelFieldDescriptor(field)?.default;
+}
+
+/** A drop-down's option for an unset field that draws nothing: never one of the element's values. */
+const NONE = "(none)";
+
+/** The weights a weight's words stand for, for its number line. */
+const WEIGHT_NUMBERS: Readonly<Record<string, number>> = { normal: 400, bold: 700 };
+
+/**
+ * A number line's value: a weight's word as its number.
+ * @param style - the label style.
+ * @param field - the field.
+ * @returns the value shown.
+ */
+function numberShown(style: Readonly<LabelStyle>, field: LabelField): unknown {
+    const value = shownOf(style, field);
+    return field === "weight" && typeof value === "string" ? WEIGHT_NUMBERS[value] : value;
+}
+
+/**
  * A number, a pair of numbers with their letters (R5), or a number split into its sides (R6 sides).
  * @param args - the line.
  * @param args.label - the line's label
@@ -150,13 +178,14 @@ function valueOf(style: Readonly<LabelStyle>, field: LabelField): unknown {
  */
 function numberControl({ label, line, field, descriptor, name, split }: LineControlArgs): React.ReactNode {
     const percent = field.endsWith("pacity");
-    const one = (which: LabelField, letter: string | undefined, words: string): React.JSX.Element => (
+    const one = (which: LabelField, letter: string | undefined, words: string, slider = false): React.JSX.Element => (
         <NumberLine
             descriptor={describedField(label, which) ?? descriptor}
             label={words}
             percent={percent}
-            value={valueOf(label.style, which)}
+            value={numberShown(label.style, which)}
             letter={letter}
+            slider={slider}
             onWrite={(next) => {
                 label.write({ [which]: next });
             }}
@@ -169,7 +198,7 @@ function numberControl({ label, line, field, descriptor, name, split }: LineCont
                 <NumberLine
                     descriptor={descriptor}
                     label={name}
-                    value={valueOf(label.style, sides[0])}
+                    value={shownOf(label.style, sides[0])}
                     onWrite={(next) => {
                         label.write(Object.fromEntries(sides.map((each) => [each, next])));
                     }}
@@ -196,7 +225,7 @@ function numberControl({ label, line, field, descriptor, name, split }: LineCont
         );
     }
     if (line.pair === undefined) {
-        return one(field, undefined, name);
+        return one(field, undefined, name, true);
     }
     const [a, b] = line.letters ?? ["", ""];
     // A lettered pair's fields are the line's name and its letter ("Node label pointer size H"); else the second's own.
@@ -229,7 +258,8 @@ function unitControl({ label, line, name }: LineControlArgs): React.ReactNode {
         <SegmentsLine
             label={name}
             options={units.map((unit) => ({ value: unit.field, name: unit.name }))}
-            value={held?.field ?? ""}
+            // Unset, the first unit (graphty-element's default: Graph) is the one drawn.
+            value={held?.field ?? units.at(0)?.field ?? ""}
             onPick={(to) => {
                 const picked = units.find((unit) => unit.field === to);
                 if (picked === undefined || picked === held) {
@@ -259,16 +289,21 @@ function unitControl({ label, line, name }: LineControlArgs): React.ReactNode {
  * @returns The control
  */
 function selectControl({ label, field, descriptor, name }: LineControlArgs): React.ReactNode {
-    const value = valueOf(label.style, field);
+    const value = shownOf(label.style, field);
+    // A field with no default draws nothing while unset: "None", which picking unsets (design "Input rules").
+    const none = labelFieldDescriptor(field)?.default === undefined ? [{ value: NONE, label: "None" }] : [];
     return (
         <PanelField
             label={name}
             kind="select"
             width="fill"
-            data={(descriptor.values ?? []).map((each) => ({ value: each, label: optionWord(field, each) }))}
-            value={typeof value === "string" ? value : null}
+            data={[
+                ...none,
+                ...(descriptor.values ?? []).map((each) => ({ value: each, label: optionWord(field, each) })),
+            ]}
+            value={typeof value === "string" ? value : NONE}
             onChange={(next) => {
-                label.write({ [field]: String(next) });
+                label.write({ [field]: next === NONE ? undefined : String(next) });
             }}
         />
     );
@@ -314,9 +349,10 @@ function placeAt(grid: "outside" | "inside", cell: string): LabelLocation | unde
  * @returns The control
  */
 function locationControl({ label, field, name }: LineControlArgs): React.ReactNode {
-    const value = valueOf(label.style, field);
+    const value = shownOf(label.style, field);
     const place = LABEL_LOCATION_PLACES.find((each) => each.id === value);
-    const grid = place === undefined ? undefined : gridOf(place);
+    // Unset with no default, graphty-element picks the place: Auto.
+    const grid = place === undefined ? "auto" : gridOf(place);
     const cell = place?.row === undefined ? "top-center" : `${place.row}-${String(place.column)}`;
     const grids: readonly LocationGrid[] =
         label.ctx.side === "edge" ? ["outside", "auto"] : ["outside", "inside", "auto"];
@@ -332,7 +368,7 @@ function locationControl({ label, field, name }: LineControlArgs): React.ReactNo
             <SegmentsLine
                 label={name}
                 options={grids.map((each) => ({ value: each, name: GRID_WORDS[each] }))}
-                value={grid ?? ""}
+                value={grid}
                 onPick={(picked) => {
                     const next =
                         picked === "auto" ? "automatic" : placeAt(picked === "inside" ? "inside" : "outside", cell);
@@ -413,8 +449,8 @@ function fontToggles(args: LineControlArgs): React.ReactNode {
  * @returns The control
  */
 function controlOf(args: LineControlArgs, rule: string): React.ReactNode {
-    const { label, line, field, descriptor, name, set } = args;
-    const value = valueOf(label.style, field);
+    const { label, line, field, descriptor, name } = args;
+    const value = shownOf(label.style, field);
     const write = (next: unknown): void => {
         label.write({ [field]: next });
     };
@@ -443,7 +479,7 @@ function controlOf(args: LineControlArgs, rule: string): React.ReactNode {
                     size="xs"
                     label={line.name ?? descriptor.plainName}
                     // Unset, it shows what is drawn (a label with words is shown: `enabled` defaults to true).
-                    checked={value === undefined ? labelFieldDescriptor(field)?.default === true : value === true}
+                    checked={value === true}
                     onChange={(event) => {
                         write(event.currentTarget.checked);
                     }}
@@ -486,9 +522,8 @@ function controlOf(args: LineControlArgs, rule: string): React.ReactNode {
                 <ValueField
                     descriptor={descriptor}
                     label={name}
-                    value={value}
-                    shown={undefined}
-                    waiting={!set}
+                    value={valueOf(label.style, field)}
+                    shown={value}
                     swatches={label.ctx.documentColors}
                     onChange={write}
                 />

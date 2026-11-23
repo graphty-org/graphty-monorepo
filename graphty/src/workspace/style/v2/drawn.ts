@@ -99,6 +99,21 @@ export function rowReader(ctx: RowContext): (other: Channel) => unknown {
 }
 
 /**
+ * What an unset line shows (design "Input rules": every input has a value): what the layers beneath paint,
+ * else what graphty-element draws by default for the row.
+ * @param ctx - the row.
+ * @param channel - the channel.
+ * @returns the value drawn, or undefined when graphty-element names none.
+ */
+export function drawnValue(ctx: RowContext, channel: Channel): unknown {
+    return (
+        ctx.beneath(channel).value ??
+        ctx.session.styles.defaultValue(channel, undefined, rowReader(ctx)) ??
+        channelDescriptor(channel)?.default
+    );
+}
+
+/**
  * Why a channel draws nothing with what the row holds now in the view shown now, or undefined when it draws.
  * @param ctx - the row.
  * @param channel - the channel.

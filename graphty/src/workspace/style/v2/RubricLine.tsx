@@ -1,11 +1,11 @@
 /**
  * One line of Style panel v2 (design/ui/style-panel-v2/design.md, sections 2.2, 2.5, 2.6 and 6):
- * a name, the control its rubric rule picks, a modifier slot and a minus. Unset, the control is
- * drawn empty with no minus; writing a value sets it and shows the minus, which unsets it. A
+ * a name, the control its rubric rule picks, a modifier slot and a minus. Unset, the control shows the
+ * value drawn (design "Input rules") with no minus; writing a value sets it and shows the minus, which unsets it. A
  * value bound to data, a list, an asset or a text source keeps today's field.
  */
 
-import { ComboInput, PanelField, SegmentedControl } from "@graphty/compact-mantine";
+import { ComboInput, PanelField, SegmentedControl, Slider, ToggleIconButton } from "@graphty/compact-mantine";
 import {
     type Channel,
     type ChannelDescriptor,
@@ -24,12 +24,21 @@ import { Field, FieldLine, type RowContext, VarySlot, type VaryTarget } from "..
 import { lineIn, needsFor, writeIn } from "../row";
 import { ValueField } from "../ValueField";
 import { channelWord, failureWords, fieldName, FONTS, isPercent, scrubLetter, takesBinding } from "../words";
-import { dimOf, rowReader, valueDimOf } from "./drawn";
+import { InAdvanced } from "./advanced";
+import { dimOf, drawnValue, valueDimOf } from "./drawn";
 import { PointPair } from "./ItemFields";
 import { ItemListEditor } from "./ItemListEditor";
 import { moveUnit, ruleOf, unsetIn } from "./lineWrites";
 import { coordinateDescriptor, ITEM_LISTS } from "./lists";
-import { isPictured, lineChannels, type LineSpec, type Rule, segmentOptions, VALUE_GLYPHS } from "./rubric";
+import {
+    isPictured,
+    lineChannels,
+    type LineSpec,
+    OPTION_NAMES,
+    type Rule,
+    segmentOptions,
+    VALUE_GLYPHS,
+} from "./rubric";
 import { setOn } from "./things";
 import { sectionsOf } from "./valueSections";
 
@@ -42,12 +51,16 @@ export interface RowSlots {
     readonly onOpen?: () => void;
 }
 
+/** What an unset number shows where graphty-element names no one value: it picks one for each element. */
+const AUTO = "Auto";
+
 /**
  * A number field as the rubric draws one (R5), Figma's number input (design/ui/figma, "Scrubbable number
  * input"): its slot at the left -- a letter, as Figma's "W" and "X", never an icon (E674: no line carries a glyph
  * the others lack) -- is the scrub handle, the arrow
- * keys step by 1 and Shift by 10, typing applies on Enter, Tab or blur; no caret, no stepper buttons, empty
- * when unset; clearing it unsets.
+ * keys step by 1 and Shift by 10, typing applies on Enter, Tab or blur; no caret, no stepper buttons; unset, it
+ * shows the value drawn, or "Auto" where graphty-element picks one for each element (design "Input rules": no
+ * input is empty); clearing it unsets.
  * @param props - Component props
  * @param props.descriptor - its channel, or a label style field described as one
  * @param props.label - its accessible name, when not its channel's
@@ -55,6 +68,7 @@ export interface RowSlots {
  * @param props.value - the value set, if any
  * @param props.letter - its slot's letter (a pair's "X" or "W"), else its name's initial
  * @param props.onWrite - writes a number, or undefined to unset
+ * @param props.slider - a number with a fixed minimum and maximum is a slider
  * @returns The field
  */
 export function NumberLine({
@@ -63,6 +77,7 @@ export function NumberLine({
     percent,
     value,
     letter,
+    slider = false,
     onWrite,
 }: Readonly<{
     descriptor: ChannelDescriptor;
@@ -70,11 +85,28 @@ export function NumberLine({
     percent?: boolean;
     value: unknown;
     letter?: string;
+    /** A number with a fixed minimum and maximum is a slider (design "Input rules"); not in a pair. */
+    slider?: boolean;
     onWrite: (value: number | undefined) => void;
 }>): React.JSX.Element {
     const scale = (percent ?? isPercent(descriptor)) ? 100 : 1;
     const { min, max } = descriptor;
     const name = label ?? fieldName(descriptor.channel);
+    if (slider && typeof value === "number" && min !== undefined && max !== undefined) {
+        return (
+            <SliderLine
+                name={name}
+                min={min * scale}
+                max={max * scale}
+                step={descriptor.step === undefined ? ((max - min) * scale) / 100 : descriptor.step * scale}
+                suffix={scale === 100 ? "%" : ""}
+                value={Math.round(value * scale * 100) / 100}
+                onWrite={(next) => {
+                    onWrite(next / scale);
+                }}
+            />
+        );
+    }
     // Emptied and Enter unsets the line (design 2.2): the number field commits no empty text itself.
     const onEmptyEnter = (event: React.KeyboardEvent<HTMLDivElement>): void => {
         const input = event.target;
@@ -91,7 +123,7 @@ export function NumberLine({
                 numeric
                 options={[]}
                 glyph={letter ?? scrubLetter(name)}
-                value={typeof value === "number" ? Math.round(value * scale * 100) / 100 : ""}
+                value={typeof value === "number" ? Math.round(value * scale * 100) / 100 : AUTO}
                 suffix={scale === 100 ? "%" : undefined}
                 min={min === undefined ? undefined : min * scale}
                 max={max === undefined ? undefined : max * scale}
@@ -105,6 +137,59 @@ export function NumberLine({
                 }}
             />
         </div>
+    );
+}
+
+/**
+ * A number in a fixed range (R5s): compact-mantine's slider, its value on its thumb while dragged and in its
+ * tooltip, written when the drag ends.
+ * @param props - Component props
+ * @param props.name - its accessible name
+ * @param props.min - its least value, as shown
+ * @param props.max - its greatest value, as shown
+ * @param props.step - one step
+ * @param props.suffix - after the value ("%")
+ * @param props.value - the value shown
+ * @param props.onWrite - writes a value, as shown
+ * @returns The slider
+ */
+function SliderLine({
+    name,
+    min,
+    max,
+    step,
+    suffix,
+    value,
+    onWrite,
+}: Readonly<{
+    name: string;
+    min: number;
+    max: number;
+    step: number;
+    suffix: string;
+    value: number;
+    onWrite: (value: number) => void;
+}>): React.JSX.Element {
+    const [moving, setMoving] = React.useState<number | undefined>(undefined);
+    return (
+        <Tooltip label={`${name}: ${String(moving ?? value)}${suffix}`}>
+            <div>
+                <Slider
+                    size="compact"
+                    min={min}
+                    max={max}
+                    step={step}
+                    value={moving ?? value}
+                    thumbLabel={name}
+                    label={(shown) => `${String(Math.round(shown * 100) / 100)}${suffix}`}
+                    onChange={setMoving}
+                    onChangeEnd={(next) => {
+                        setMoving(undefined);
+                        onWrite(next);
+                    }}
+                />
+            </div>
+        </Tooltip>
     );
 }
 
@@ -262,7 +347,8 @@ function unitControl(args: ControlArgs): React.ReactNode {
         <SegmentsLine
             label={`${label} unit`}
             options={segmentOptions(line, []) ?? []}
-            value={units.find((c) => setOn(ctx, c)) ?? ""}
+            // Unset, the first unit (graphty-element's default: Graph) is the one drawn.
+            value={units.find((c) => setOn(ctx, c)) ?? units.at(0) ?? ""}
             onPick={(to) => {
                 const start = ctx.session.styles.defaultValue(to as Channel) ?? descriptor.default;
                 moveUnit(ctx, to as Channel, units, start).catch(fail);
@@ -279,14 +365,12 @@ function unitControl(args: ControlArgs): React.ReactNode {
 function segmentsControl(args: ControlArgs): React.ReactNode {
     const { ctx, line, descriptor, value, label, write } = args;
     const boolean = descriptor.accepts === "boolean";
-    const values = boolean ? ["true", "false"] : (descriptor.values ?? []);
+    // An option named "" is what is drawn while nothing is set: shown then, and picking it unsets.
+    const unsetNamed = OPTION_NAMES[descriptor.channel]?.[""] !== undefined;
+    const values = [...(boolean ? ["true", "false"] : (descriptor.values ?? [])), ...(unsetNamed ? [""] : [])];
     // Unset, the segment drawn now is shown: what the layers beneath paint, else graphty-element's default (E495:
     // picking the value already drawn is never mistaken for an option that does nothing).
-    const shown =
-        value ??
-        ctx.beneath(descriptor.channel).value ??
-        ctx.session.styles.defaultValue(descriptor.channel, undefined, rowReader(ctx)) ??
-        descriptor.default;
+    const shown = value ?? drawnValue(ctx, descriptor.channel);
     // A value graphty-element draws only in the other view (`valueViews`: a node size's Pivot in 2D) is dimmed.
     const options = (segmentOptions(line, values) ?? []).map((option) => {
         const dimmed = valueDimOf(ctx, descriptor, option.value);
@@ -298,6 +382,10 @@ function segmentsControl(args: ControlArgs): React.ReactNode {
             options={options}
             value={typeof shown === "string" || typeof shown === "boolean" ? String(shown) : ""}
             onPick={(picked) => {
+                if (picked === "") {
+                    write(descriptor.channel, undefined);
+                    return;
+                }
                 write(descriptor.channel, boolean ? picked === "true" : picked);
             }}
         />
@@ -310,14 +398,35 @@ function segmentsControl(args: ControlArgs): React.ReactNode {
  * @returns The control
  */
 function checkboxControl(args: ControlArgs): React.ReactNode {
-    const { line, descriptor, value, write } = args;
+    const { ctx, line, descriptor, value, write } = args;
     return (
         <Checkbox
             size="xs"
             label={line.name ?? channelWord(descriptor.channel)}
-            checked={value === true}
+            checked={(value ?? drawnValue(ctx, descriptor.channel)) === true}
             onChange={(event) => {
                 write(descriptor.channel, event.currentTarget.checked);
+            }}
+        />
+    );
+}
+
+/**
+ * Bold (R7t) on a weight channel (a glyph's): a text editor's toggle, pressed from 600, writing 700 or 400; the
+ * number itself is the Advanced dialog's.
+ * @param args - the line.
+ * @returns The toggle
+ */
+function boldControl(args: ControlArgs): React.ReactNode {
+    const { ctx, descriptor, value, write } = args;
+    const weight = value ?? drawnValue(ctx, descriptor.channel);
+    return (
+        <ToggleIconButton
+            label="Bold"
+            icon={<GLYPHS.fontBold size={14} aria-hidden />}
+            checked={typeof weight === "number" && weight >= 600}
+            onChange={(on) => {
+                write(descriptor.channel, on ? 700 : 400);
             }}
         />
     );
@@ -337,7 +446,7 @@ function numberControl(args: ControlArgs): React.ReactNode {
         return (
             <NumberLine
                 descriptor={descriptor}
-                value={value}
+                value={value ?? drawnValue(ctx, channel)}
                 onWrite={(next) => {
                     const done =
                         next === undefined
@@ -352,7 +461,8 @@ function numberControl(args: ControlArgs): React.ReactNode {
         return (
             <NumberLine
                 descriptor={descriptor}
-                value={value}
+                value={value ?? drawnValue(ctx, channel)}
+                slider
                 onWrite={(next) => {
                     write(channel, next);
                 }}
@@ -365,7 +475,7 @@ function numberControl(args: ControlArgs): React.ReactNode {
         <Group grow gap={4} wrap="nowrap">
             <NumberLine
                 descriptor={descriptor}
-                value={value}
+                value={value ?? drawnValue(ctx, channel)}
                 letter={a === "" ? undefined : a}
                 onWrite={(next) => {
                     write(channel, next);
@@ -374,7 +484,7 @@ function numberControl(args: ControlArgs): React.ReactNode {
             {second === undefined ? null : (
                 <NumberLine
                     descriptor={second}
-                    value={lineIn(ctx, second.channel)?.value}
+                    value={lineIn(ctx, second.channel)?.value ?? drawnValue(ctx, second.channel)}
                     letter={b === "" ? undefined : b}
                     onWrite={(next) => {
                         write(second.channel, next);
@@ -397,7 +507,7 @@ function presetControl(args: ControlArgs): React.ReactNode {
             ctx={ctx}
             descriptor={descriptor}
             presets={line.presets}
-            value={value}
+            value={value ?? drawnValue(ctx, descriptor.channel)}
             onWrite={(next) => {
                 write(descriptor.channel, next);
             }}
@@ -428,7 +538,7 @@ function listControl(args: ControlArgs): React.ReactNode {
             descriptor={descriptor}
             label={label}
             value={value}
-            shown={undefined}
+            shown={drawnValue(ctx, descriptor.channel)}
             sections={sectionsOf(descriptor.channel)}
             counts={false}
             icons={icons}
@@ -440,19 +550,18 @@ function listControl(args: ControlArgs): React.ReactNode {
 }
 
 /**
- * Today's color (R1) and select (R9) fields, empty while unset.
+ * Today's color (R1) and select (R9) fields; unset, they show the value drawn.
  * @param args - the line.
  * @returns The control
  */
 function valueControl(args: ControlArgs): React.ReactNode {
-    const { ctx, descriptor, value, set, label, write } = args;
+    const { ctx, descriptor, value, label, write } = args;
     return (
         <ValueField
             descriptor={descriptor}
             label={label}
             value={value}
-            shown={undefined}
-            waiting={!set}
+            shown={drawnValue(ctx, descriptor.channel)}
             swatches={ctx.documentColors}
             onChange={(next) => {
                 write(descriptor.channel, next);
@@ -497,11 +606,11 @@ export function FontSelect({
  * @returns The control
  */
 function fontControl(args: ControlArgs): React.ReactNode {
-    const { descriptor, value, label, write } = args;
+    const { ctx, descriptor, value, label, write } = args;
     return (
         <FontSelect
             label={label}
-            value={value}
+            value={value ?? drawnValue(ctx, descriptor.channel)}
             onPick={(font) => {
                 write(descriptor.channel, font);
             }}
@@ -556,7 +665,7 @@ function SidesLines({
     set: boolean;
     write: (text: string | undefined) => void;
 }>): React.JSX.Element {
-    const raw = lineIn(ctx, descriptor.channel)?.value;
+    const raw = lineIn(ctx, descriptor.channel)?.value ?? drawnValue(ctx, descriptor.channel);
     const sides = typeof raw === "string" ? raw.trim().split(/\s+/) : [];
     const number = { ...descriptor, accepts: "number" as const, min: 0, max: 1, step: 0.05 };
     const field = (at: number): React.JSX.Element => {
@@ -568,7 +677,8 @@ function SidesLines({
                 descriptor={number}
                 label={`${line.name ?? channelWord(descriptor.channel)} ${side.toLowerCase()}`}
                 percent={false}
-                value={sides.at(at) === undefined || !Number.isFinite(now) ? undefined : now}
+                // A side with no frame draws none: 0.
+                value={sides.at(at) === undefined || !Number.isFinite(now) ? 0 : now}
                 onWrite={(next) => {
                     const typed = next === undefined ? "" : String(next);
                     const all = SIDES.map((_, i) => (i === at ? typed : (sides[i] ?? "")));
@@ -624,8 +734,8 @@ const CONTROLS: Readonly<Record<Exclude<Rule, "field" | "R15" | "R17">, (args: C
     R5: numberControl,
     R5b: presetControl,
     R7: checkboxControl,
-    // Font style toggles (R7t) are a label style's only: a channel's flag stays a checkbox.
-    R7t: checkboxControl,
+    // Font style toggles (R7t): a number channel's is Bold (a glyph's weight); a flag stays a checkbox.
+    R7t: (args) => (args.descriptor.accepts === "number" ? boldControl(args) : checkboxControl(args)),
     R8: segmentsControl,
     R8f: segmentsControl,
     R9: valueControl,
@@ -1133,6 +1243,7 @@ export function LineFrame({
     /** Drawn under the switch line above it ("Opacity" under Letter outline): its name is indented. */
     under?: boolean;
 }>): React.JSX.Element {
+    const advanced = React.useContext(InAdvanced);
     return (
         <div
             className="ws-row"
@@ -1145,11 +1256,12 @@ export function LineFrame({
         >
             <FieldLine name={name} settings={null}>
                 <div className="ws-field-control">{control}</div>
-                {/* `[-] [...]`: the settings "..." is always at the far right of a row (E550). */}
+                {/* `[link or ...] [-]`: the link or settings button right after its control, the minus right-most
+                    (owner's input rules, design "Input rules"). */}
+                <span className="ws-slot ws-vary">{advanced && rule !== "R15" ? null : modifier}</span>
                 <span className="ws-slot">
                     {removeName === undefined ? null : <RemoveButton label={removeName} onClick={onRemove} />}
                 </span>
-                <span className="ws-slot ws-vary">{modifier}</span>
             </FieldLine>
         </div>
     );

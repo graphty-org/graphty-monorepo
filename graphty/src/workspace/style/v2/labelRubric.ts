@@ -58,6 +58,11 @@ export interface LabelLineSpec {
     readonly sides?: readonly [LabelField, LabelField, LabelField, LabelField];
     /** R7t: the flags drawn as icon toggles after the line's own field, on one line (Bold, Italic, ...). */
     readonly toggles?: readonly LabelField[];
+    /**
+     * In the pop-over's Advanced dialog, under its group's name (design "Input rules": a pop-over over 6 lines
+     * moves its rare settings there). The dialog is the last pop-out level: never a color, a list or a picker.
+     */
+    readonly advanced?: true;
 }
 
 /** One sub-group of a label's pop-over. */
@@ -140,14 +145,14 @@ export const LABEL_RUBRIC: LabelRubric = {
         { field: "color", name: "Color" },
     ],
     main: [
-        { field: "enabled", name: "Show" },
+        { field: "enabled", name: "Show", advanced: true },
         { field: "font", name: "Font", rule: "R13" },
         // Bold, Italic, Underline and Strikethrough as a text editor's toggles (owner, 2026-11-23); Bold writes the
         // weight, whose number is the Letters group's.
         { field: "weight", name: "Style", rule: "R7t", toggles: ["italic", "underline", "strikethrough"] },
         { field: "textAlign", name: "Align", rule: "R8" },
         { field: "location", name: "Location", rule: "R2" },
-        { field: "size", name: "Unit", fullName: "Size unit", rule: "R8f", unit: SIZE_UNIT },
+        { field: "size", name: "Unit", fullName: "Size unit", rule: "R8f", unit: SIZE_UNIT, advanced: true },
     ],
     // ia-design.md "Label settings groups": nine groups by how often files vary them, a divider between tiers.
     groups: [
@@ -155,56 +160,77 @@ export const LABEL_RUBRIC: LabelRubric = {
             name: "Position",
             divider: true,
             lines: [
-                { field: "attachOffset", name: "Distance" },
-                { field: "offsetX", name: "Offset", pair: "offsetY", letters: XY },
-                { field: "box", name: "Box", rule: "R8f" },
-                { field: "onTop", name: "On top" },
-                { field: "shiftX", name: "Shift", pair: "shiftY", letters: XY },
-                { field: "shiftOf", name: "Shift of", rule: "R8" },
-                { field: "gapOf", name: "Gap of", rule: "R8" },
-                { field: "keepInView", name: "Keep in view" },
+                { field: "attachOffset", name: "Distance", advanced: true },
+                { field: "offsetX", name: "Offset", pair: "offsetY", letters: XY, advanced: true },
+                { field: "box", name: "Box", rule: "R8f", advanced: true },
+                { field: "onTop", name: "On top", advanced: true },
+                { field: "shiftX", name: "Shift", pair: "shiftY", letters: XY, advanced: true },
+                { field: "shiftOf", name: "Shift of", rule: "R8", advanced: true },
+                { field: "gapOf", name: "Gap of", rule: "R8", advanced: true },
+                { field: "keepInView", name: "Keep in view", advanced: true },
             ],
         },
         {
             name: "Letters",
             lines: [
-                { field: "weight", name: "Weight", rule: "R5b" },
-                { field: "opacity", name: "Opacity" },
-                { field: "lineHeight", name: "Line height" },
-                { field: "rotation", name: "Rotation" },
-                { field: "runAlign", name: "Run align", rule: "R8f" },
+                // The number of the weight (Bold is the Style line's toggle): a number, as a preset list would open a third level.
+                { field: "weight", name: "Weight", rule: "R5", advanced: true },
+                { field: "opacity", name: "Opacity", advanced: true },
+                { field: "lineHeight", name: "Line height", advanced: true },
+                { field: "rotation", name: "Rotation", advanced: true },
+                { field: "runAlign", name: "Run align", rule: "R8f", advanced: true },
                 // The letters' own stroke; the box's is Box stroke (ia-design: no look has two homes).
                 // Its Width and Opacity follow it and read as its, as the shadows' lines follow their switches.
                 { field: "outline", name: "Letter outline" },
-                { field: "outlineWidth", name: "Width", fullName: "Letter outline width", under: true },
-                { field: "outlineOpacity", name: "Opacity", fullName: "Letter outline opacity", under: true },
+                { field: "outlineWidth", name: "Width", fullName: "Letter outline width", under: true, advanced: true },
+                {
+                    field: "outlineOpacity",
+                    name: "Opacity",
+                    fullName: "Letter outline opacity",
+                    under: true,
+                    advanced: true,
+                },
             ],
         },
         {
             name: "Wrap",
             lines: [
-                { field: "wrapWidth", name: "Wrap", pair: "maxLines" },
-                { field: "wrapAnywhere", name: "Break anywhere" },
-                { field: "wrapEllipsis", name: "Cut long lines" },
-                { field: "maxLinesEllipsis", name: "Ellipsis at max lines" },
-                { field: "keepBlankLines", name: "Keep blank lines" },
-                { field: "wrapTrailingSpace", name: "Trailing space" },
-                { field: "wrapSkipEndSpace", name: "Skip end space" },
-                { field: "wrapSpaceCount", name: "Space count" },
+                { field: "wrapWidth", name: "Wrap", pair: "maxLines", advanced: true },
+                { field: "wrapAnywhere", name: "Break anywhere", advanced: true },
+                { field: "wrapEllipsis", name: "Cut long lines", advanced: true },
+                { field: "maxLinesEllipsis", name: "Ellipsis at max lines", advanced: true },
+                { field: "keepBlankLines", name: "Keep blank lines", advanced: true },
+                { field: "wrapTrailingSpace", name: "Trailing space", advanced: true },
+                { field: "wrapSkipEndSpace", name: "Skip end space", advanced: true },
+                { field: "wrapSpaceCount", name: "Space count", advanced: true },
             ],
         },
         {
             name: "Background",
             lines: [
                 { field: "background", name: "Color", fullName: "Background color" },
-                { field: "backgroundOpacity", name: "Opacity", fullName: "Background opacity" },
-                { field: "backgroundShape", name: "Shape", rule: "R8" },
-                { field: "cornerRadius", name: "Corners" },
-                { field: "padding", name: "Padding", units: ["boxPadding"] },
-                { field: "padding", name: "Unit", fullName: "Padding unit", rule: "R8", unit: PADDING_UNIT },
+                { field: "backgroundOpacity", name: "Opacity", fullName: "Background opacity", advanced: true },
+                { field: "backgroundShape", name: "Shape", rule: "R8", advanced: true },
+                { field: "cornerRadius", name: "Corners", advanced: true },
+                { field: "padding", name: "Padding", units: ["boxPadding"], advanced: true },
+                {
+                    field: "padding",
+                    name: "Unit",
+                    fullName: "Padding unit",
+                    rule: "R8",
+                    unit: PADDING_UNIT,
+                    advanced: true,
+                },
                 // The lines under the Gradient switch read as its: "Kind" is the gradient's kind.
                 { field: "gradient", name: "Gradient" },
-                { field: "gradientType", name: "Kind", fullName: "Gradient kind", under: true, rule: "R8" },
+                {
+                    field: "gradientType",
+                    name: "Kind",
+                    fullName: "Gradient kind",
+                    under: true,
+                    rule: "R8",
+                    advanced: true,
+                },
                 { field: "gradientColors", name: "Colors", fullName: "Gradient colors", under: true },
                 {
                     field: "gradientDirection",
@@ -212,6 +238,7 @@ export const LABEL_RUBRIC: LabelRubric = {
                     fullName: "Gradient direction",
                     under: true,
                     rule: "R8f",
+                    advanced: true,
                 },
             ],
         },
@@ -219,17 +246,18 @@ export const LABEL_RUBRIC: LabelRubric = {
             name: "Box stroke",
             divider: true,
             lines: [
-                { field: "borderWidth", name: "Width", fullName: "Box stroke width" },
+                { field: "borderWidth", name: "Width", fullName: "Box stroke width", advanced: true },
                 { field: "borderColor", name: "Color", fullName: "Box stroke color" },
-                { field: "borderOpacity", name: "Opacity", fullName: "Box stroke opacity" },
-                { field: "borderAlign", name: "Align", fullName: "Box stroke align", rule: "R8" },
-                { field: "borderStyle", name: "Style", fullName: "Box stroke style", rule: "R8" },
-                { field: "lineBox", name: "Line box", rule: "R8f" },
+                { field: "borderOpacity", name: "Opacity", fullName: "Box stroke opacity", advanced: true },
+                { field: "borderAlign", name: "Align", fullName: "Box stroke align", rule: "R8", advanced: true },
+                { field: "borderStyle", name: "Style", fullName: "Box stroke style", rule: "R8", advanced: true },
+                { field: "lineBox", name: "Line box", rule: "R8f", advanced: true },
                 // Margin is the space outside the stroke, so it sits with it.
                 {
                     field: "marginTop",
                     name: "Margin",
                     sides: ["marginTop", "marginRight", "marginBottom", "marginLeft"],
+                    advanced: true,
                 },
             ],
         },
@@ -239,7 +267,7 @@ export const LABEL_RUBRIC: LabelRubric = {
                 // Each look's switch leads its lines, which read as its (ia-design: "Text shadow ...", "Box shadow ...").
                 { field: "shadow", name: "Text shadow" },
                 { field: "shadowColor", name: "Color", fullName: "Text shadow color", under: true },
-                { field: "shadowBlur", name: "Blur", fullName: "Text shadow blur", under: true },
+                { field: "shadowBlur", name: "Blur", fullName: "Text shadow blur", under: true, advanced: true },
                 {
                     field: "shadowOffsetX",
                     name: "Offset",
@@ -247,10 +275,11 @@ export const LABEL_RUBRIC: LabelRubric = {
                     under: true,
                     pair: "shadowOffsetY",
                     letters: XY,
+                    advanced: true,
                 },
                 { field: "panelShadow", name: "Box shadow" },
                 { field: "panelShadowColor", name: "Color", fullName: "Box shadow color", under: true },
-                { field: "panelShadowBlur", name: "Blur", fullName: "Box shadow blur", under: true },
+                { field: "panelShadowBlur", name: "Blur", fullName: "Box shadow blur", under: true, advanced: true },
                 {
                     field: "panelShadowOffsetX",
                     name: "Offset",
@@ -258,6 +287,7 @@ export const LABEL_RUBRIC: LabelRubric = {
                     under: true,
                     pair: "panelShadowOffsetY",
                     letters: XY,
+                    advanced: true,
                 },
             ],
         },
@@ -265,47 +295,54 @@ export const LABEL_RUBRIC: LabelRubric = {
             name: "Callout",
             on: "pointer",
             lines: [
-                { field: "pointer", name: "Pointer" },
-                { field: "pointerDirection", name: "Direction", fullName: "Pointer direction", rule: "R8f" },
+                { field: "pointer", name: "Pointer", advanced: true },
+                {
+                    field: "pointerDirection",
+                    name: "Direction",
+                    fullName: "Pointer direction",
+                    rule: "R8f",
+                    advanced: true,
+                },
                 {
                     field: "pointerWidth",
                     name: "Size",
                     fullName: "Pointer size",
                     pair: "pointerHeight",
                     letters: ["W", "H"],
+                    advanced: true,
                 },
-                { field: "pointerOffset", name: "Offset", fullName: "Pointer offset" },
-                { field: "pointerCurve", name: "Curved" },
+                { field: "pointerOffset", name: "Offset", fullName: "Pointer offset", advanced: true },
+                { field: "pointerCurve", name: "Curved", advanced: true },
             ],
         },
         {
             name: "Badge",
             lines: [
                 { field: "badge", name: "Badge", rule: "R9" },
-                { field: "icon", name: "Icon", fullName: "Icon beside text", rule: "R14" },
-                { field: "iconPosition", name: "Icon side", rule: "R8" },
+                { field: "icon", name: "Icon", fullName: "Icon beside text", rule: "R14", advanced: true },
+                { field: "iconPosition", name: "Icon side", rule: "R8", advanced: true },
                 // A picture in the label beside or behind its words (yEd's label icon), its size and where it sits.
-                { field: "image", name: "Image", fullName: "Label image", rule: "R14" },
-                { field: "imageWidth", name: "Image size", pair: "imageHeight", letters: WH },
-                { field: "imageOffsetX", name: "Image offset", pair: "imageOffsetY", letters: XY },
-                { field: "progress", name: "Progress" },
-                { field: "maxNumber", name: "Max number" },
-                { field: "overflowSuffix", name: "Suffix", rule: "R14" },
-                { field: "smartOverflow", name: "Shorten large numbers" },
+                { field: "image", name: "Image", fullName: "Label image", rule: "R14", advanced: true },
+                { field: "imageWidth", name: "Image size", pair: "imageHeight", letters: WH, advanced: true },
+                { field: "imageOffsetX", name: "Image offset", pair: "imageOffsetY", letters: XY, advanced: true },
+                { field: "progress", name: "Progress", advanced: true },
+                { field: "maxNumber", name: "Max number", advanced: true },
+                { field: "overflowSuffix", name: "Suffix", rule: "R14", advanced: true },
+                { field: "smartOverflow", name: "Shorten large numbers", advanced: true },
             ],
         },
         {
             name: "Behavior",
             lines: [
-                { field: "minScreenSize", name: "Min size" },
-                { field: "declutter", name: "Declutter", rule: "R8" },
-                { field: "minNodeScreenSize", name: "Min node" },
-                { field: "depthFade", name: "Depth fade" },
-                { field: "depthFadeNear", name: "Fade", pair: "depthFadeFar" },
+                { field: "minScreenSize", name: "Min size", advanced: true },
+                { field: "declutter", name: "Declutter", rule: "R8", advanced: true },
+                { field: "minNodeScreenSize", name: "Min node", advanced: true },
+                { field: "depthFade", name: "Depth fade", advanced: true },
+                { field: "depthFadeNear", name: "Fade", pair: "depthFadeFar", advanced: true },
                 { field: "animation", name: "Animation", rule: "R9" },
-                { field: "animationSpeed", name: "Speed" },
-                { field: "pickable", name: "Pickable" },
-                { field: "closeButton", name: "Close button" },
+                { field: "animationSpeed", name: "Speed", advanced: true },
+                { field: "pickable", name: "Pickable", advanced: true },
+                { field: "closeButton", name: "Close button", advanced: true },
             ],
         },
     ],
@@ -451,7 +488,8 @@ export function linkedFields(
         return [];
     }
     const units = [editing, ...[line.field, ...(line.units ?? [])].filter((each) => each !== editing)];
-    return [...units, ...(line.pair === undefined ? [] : [line.pair])].flatMap((field) => {
+    // A font style line's toggles (Italic, ...) vary by data from its link too, each its own choice.
+    return [...units, ...(line.toggles ?? []), ...(line.pair === undefined ? [] : [line.pair])].flatMap((field) => {
         const channel = flatOf(side, style, field);
         return channel === undefined ? [] : [{ field, channel }];
     });

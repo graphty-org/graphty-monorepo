@@ -31,8 +31,8 @@ import { sectionsOf } from "./valueSections";
 /** A point at the middle. */
 const ORIGIN: ChannelPoint = { x: 0, y: 0 };
 
-/** A table cell with empty words. */
-const NEW_CELL = { lines: [{ text: "" }] };
+/** A new cell: words, never an empty input (design "Input rules"). */
+const NEW_CELL = { lines: [{ text: "Cell" }] };
 
 /** What each kind's lines need. */
 interface KindArgs {
@@ -226,7 +226,8 @@ function textsKind(args: KindArgs): { lines: React.ReactNode; add: () => void } 
     return {
         add: () => {
             // No point: graphty-element places a field a line below the one before (the app places none).
-            put([...texts, { text: "" }]);
+            // A new field has words, never an empty input (design "Input rules").
+            put([...texts, { text: `Field ${String(texts.length + 1)}` }]);
         },
         lines: texts.flatMap((field, at) => {
             const name = `${list.item} ${String(at + 1)}`;

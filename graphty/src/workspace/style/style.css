@@ -90,10 +90,18 @@
     min-height: 24px;
 }
 
-/* The vary glyph is drawn at rest, dim, and full on hover and focus. */
+/* The link and settings buttons are hidden until the line is hovered or holds focus, and stay shown while
+   their pop-out is open (design "Input rules"). A list's "+" in the slot is not a link: it stays shown.
+   The slot keeps its 24px, so the control never changes width. Devices without hover (an iPad) always
+   show them. */
 @media (hover: hover) {
-    .ws-varies:not(:hover, :focus-within) .ws-vary:not(:has([aria-expanded="true"])) button {
-        color: var(--cm-icon-secondary, var(--mantine-color-dimmed));
+    :is([data-style-panel-v2], [data-thing-popover], [data-graph-settings-v2])
+        :is(.ws-row, .ws-member, .ws-varies):not(:hover, :focus-within)
+        .ws-vary:not(:has([aria-expanded="true"], .cm-section-add, .ws-row-add))
+        > * {
+        /* Transparent, not hidden: still a named, clickable button for a screen reader and a pointer that
+           lands on it (which hovers the line and shows it anyway). */
+        opacity: 0;
     }
 }
 
@@ -868,9 +876,9 @@
 
 /* Style panel v2: a text's source (R12) never cuts its row's name or its own words ("Node id, above"),
    which at the default inspector width do not fit on one line beside the name, the link and chevron
-   glyphs and the Clear and settings columns (E206, E265). So the row is two lines: the name, uncut,
-   with Clear and settings at the far right (E550), and under it the source across the row's whole
-   width. Words longer than the whole width end in an ellipsis. */
+   glyphs and the Clear and settings columns (E206, E265). So the row is two lines: the name, uncut, as a
+   small label, and under it the source with its link or settings button and its Clear right after it.
+   Words longer than the whole width end in an ellipsis. */
 /* A named full-width segment line in a pop-over (R8f, R2: a label's Location, Unit, Direction) is two
    lines the same way: its name, then its segments across the line (E674: every line is named). */
 [data-style-panel-v2] .ws-row[data-rule="R12"] > .ws-field[data-named],
@@ -882,19 +890,13 @@
 
 [data-style-panel-v2] .ws-row[data-rule="R12"] > .ws-field[data-named] > .ws-field-label,
 [data-thing-popover] .ws-row:is([data-rule="R8f"], [data-rule="R2"]) > .ws-field[data-named] > .ws-field-label {
-    flex: 1 0 auto;
+    flex: 0 0 100%;
     min-height: 24px;
-}
-
-[data-style-panel-v2] .ws-row[data-rule="R12"] > .ws-field[data-named] > .ws-slot,
-[data-thing-popover] .ws-row:is([data-rule="R8f"], [data-rule="R2"]) > .ws-field[data-named] > .ws-slot {
-    order: 1;
 }
 
 [data-style-panel-v2] .ws-row[data-rule="R12"] > .ws-field[data-named] > .ws-field-control,
 [data-thing-popover] .ws-row:is([data-rule="R8f"], [data-rule="R2"]) > .ws-field[data-named] > .ws-field-control {
-    flex: 0 0 100%;
-    order: 2;
+    flex: 1 1 0;
 }
 
 /* Style panel v2's shader rows (Shaders, group outlines): the empty place column gives its width to

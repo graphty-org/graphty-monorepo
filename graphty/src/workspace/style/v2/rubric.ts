@@ -73,6 +73,12 @@ interface LineChoice {
 export interface SubGroup {
     readonly name: string;
     readonly lines: readonly LineSpec[];
+    /**
+     * In the pop-over's Advanced dialog (design "Input rules": a pop-over over 6 lines tall moves its rare
+     * settings there), always shown there, never in the "+" menu. The dialog is the last pop-out level, so its
+     * lines draw no link and are each a number, a slider, segments or a checkbox: never a color, a list or a picker.
+     */
+    readonly advanced?: true;
 }
 
 /** One thing's rubric. */
@@ -127,7 +133,14 @@ export const OPTION_NAMES: Partial<Readonly<Record<Channel, Readonly<Record<stri
     "node.modelFit": { contain: { name: "Contain" }, stretch: { name: "Stretch" } },
     "node.modelCenter": { bounds: { name: "Bounds" }, origin: { name: "Origin" } },
     "node.modelDoubleSided": { file: { name: "File" }, true: { name: "On" }, false: { name: "Off" } },
-    "node.labelFit": { inside: { name: "Inside" }, bounds: { name: "Bounds" } },
+    // "": the option drawn while nothing is set, which picking unsets (design "Input rules": no empty line).
+    "node.labelFit": { inside: { name: "Inside" }, bounds: { name: "Bounds" }, "": { name: "Off" } },
+    "node.imageFit": {
+        contain: { name: "Inside" },
+        cover: { name: "Cover" },
+        fill: { name: "Fill" },
+        none: { name: "None" },
+    },
     "node.visible": { true: { name: "Shown" }, false: { name: "Hidden" } },
     "node.wireframe": { true: { name: "On" }, false: { name: "Off" } },
     "edge.gradientKind": {
@@ -136,11 +149,22 @@ export const OPTION_NAMES: Partial<Readonly<Record<Channel, Readonly<Record<stri
         none: { name: "None", glyph: "gradientNone" },
     },
     "edge.supportScale": { unit: { name: "Unit" }, drawing: { name: "Drawing" } },
+    "edge.colorFrom": { none: { name: "Own" }, source: { name: "Source" }, target: { name: "Target" } },
+    "edge.bendCurve": {
+        corners: { name: "Corners", glyph: "bendCorners" },
+        midpoints: { name: "Midpoints", glyph: "bendMidpoints" },
+        bezier: { name: "Bezier", glyph: "bendBezier" },
+        arc: { name: "Arc", glyph: "routeArc" },
+    },
     "edge.visible": { true: { name: "Shown" }, false: { name: "Hidden" } },
     ...Object.fromEntries(
         (["arrowHead", "arrowTail", "arrowMiddleHead", "arrowMiddleTail"] as const).map((end) => [
             `edge.${end}Side`,
-            { left: { name: "Left", glyph: "sideLeft" }, right: { name: "Right", glyph: "sideRight" } },
+            {
+                left: { name: "Left", glyph: "sideLeft" },
+                right: { name: "Right", glyph: "sideRight" },
+                "": { name: "Both", glyph: "sideBoth" },
+            },
         ]),
     ),
 };
@@ -156,7 +180,6 @@ export const VALUE_GLYPHS: Partial<Readonly<Record<Channel, Readonly<Record<stri
         "great-circle": "routeGreatCircle",
         bundled: "routeBundled",
     },
-    "edge.bendCurve": { corners: "bendCorners", midpoints: "bendMidpoints", bezier: "bendBezier", arc: "routeArc" },
     "node.chartKind": {
         bar: "chartBar",
         "stacked-bar": "chartStackedBar",
@@ -200,17 +223,24 @@ export const SIZE_CHANNELS: readonly Channel[] = [
 const SIZE_RUBRIC: ThingRubric = {
     main: [
         { channel: "node.sizeSpace", name: "Unit", rule: "R8f" },
-        { channel: "node.sizeMode", rule: "R8f" },
         { channel: "node.width", name: "Size", pair: "node.height", letters: ["W", "H"] },
-        { channel: "node.depth" },
-        { channel: "node.relativeExtents" },
-        { channel: "node.planar" },
     ],
     groups: [
         {
-            name: "Fit to label",
+            name: "Extents",
+            advanced: true,
             lines: [
-                { channel: "node.labelFit", name: "Fit", rule: "R8" },
+                { channel: "node.sizeMode", name: "Mode", rule: "R8f" },
+                { channel: "node.depth" },
+                { channel: "node.relativeExtents" },
+                { channel: "node.planar" },
+            ],
+        },
+        {
+            name: "Fit to label",
+            advanced: true,
+            lines: [
+                { channel: "node.labelFit", name: "Fit", rule: "R8f" },
                 {
                     channel: "node.labelPaddingX",
                     name: "Padding",
@@ -340,22 +370,30 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
     image: {
         common: [{ channel: "node.imageOpacity", name: "Opacity" }],
         main: [
-            // Off places the picture on the node, on wraps it over the 3D surface: the value moves between the two.
-            {
-                channel: "node.image",
-                name: "Wrap around shape",
-                rule: "R7",
-                unit: [
-                    ["Off", "node.image"],
-                    ["On", "node.texture"],
-                ],
-            },
-            { channel: "node.imageFit", name: "Fit", rule: "R9" },
+            { channel: "node.imageFit", name: "Fit", rule: "R8f" },
             { channel: "node.imageFallback", name: "Fallback", rule: "field" },
         ],
         groups: [
             {
+                name: "Surface",
+                advanced: true,
+                lines: [
+                    // Off places the picture on the node, on wraps it over the 3D surface: the value moves between
+                    // the two.
+                    {
+                        channel: "node.image",
+                        name: "Wrap around shape",
+                        rule: "R7",
+                        unit: [
+                            ["Off", "node.image"],
+                            ["On", "node.texture"],
+                        ],
+                    },
+                ],
+            },
+            {
                 name: "Size",
+                advanced: true,
                 lines: [
                     {
                         channel: "node.imageWidth",
@@ -366,11 +404,12 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
                     // A modifier is a checkbox line of its own (design 2.6, E674), never a toggle beside a line.
                     { channel: "node.imageAspect", name: "Node takes picture shape" },
                     { channel: "node.imagePixelSize", name: "Pixel size" },
-                    { channel: "node.imageAutoSize", name: null, rule: "R8f" },
+                    { channel: "node.imageAutoSize", name: "Auto size", rule: "R8f" },
                 ],
             },
             {
                 name: "Place",
+                advanced: true,
                 lines: [
                     {
                         channel: "node.imagePositionX",
@@ -383,6 +422,7 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
             },
             {
                 name: "Tiling",
+                advanced: true,
                 lines: [
                     { channel: "node.imageRepeat", name: "Repeat", rule: "R8" },
                     { channel: "node.imageClip", name: "Clip", rule: "R8" },
@@ -394,12 +434,12 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
     pie: {
         // The slices' colors, shares and opacities are the list editor's (R15, `colorItems.tsx`).
         rowOwns: ["node.pieSizes", "node.pieOpacities"],
-        main: [],
+        main: [{ channel: "node.pieHole", name: "Hole" }],
         groups: [
             {
                 name: "Disc",
+                advanced: true,
                 lines: [
-                    { channel: "node.pieHole", name: "Hole" },
                     { channel: "node.pieRadius", name: "Radius" },
                     { channel: "node.pieRotation", name: "Rotation" },
                     { channel: "node.pieFitBox" },
@@ -414,15 +454,35 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
             { channel: "node.stripeDirection", name: "Direction", rule: "R8" },
             { channel: "node.stripeSize", name: "Size" },
         ],
-        groups: [{ name: "Frame", lines: [{ channel: "node.stripeFrame", name: "Frame", rule: "R17" }] }],
+        groups: [
+            { name: "Frame", advanced: true, lines: [{ channel: "node.stripeFrame", name: "Frame", rule: "R17" }] },
+        ],
     },
     chart: {
+        // A drop-down though under six options: five icons (140 px) do not fit beside the row's name (96 px).
         row: { channel: "node.chartKind", name: "Chart", rule: "R10" },
         rowOwns: ["node.chartValues", "node.chartColors"],
-        main: [{ channel: "node.chartMin", name: "Range", pair: "node.chartMax" }, { channel: "node.chartHorizontal" }],
+        main: [],
         groups: [
             {
+                name: "Axis",
+                advanced: true,
+                lines: [
+                    { channel: "node.chartMin", name: "Range", pair: "node.chartMax" },
+                    { channel: "node.chartHorizontal" },
+                ],
+            },
+            // The colors stay here: a color picker in the Advanced dialog would open a third level.
+            {
+                name: "Strokes",
+                lines: [
+                    { channel: "node.chartBorderColor", name: "Border" },
+                    { channel: "node.chartBackgroundColor", name: "Background" },
+                ],
+            },
+            {
                 name: "Box",
+                advanced: true,
                 lines: [
                     { channel: "node.chartSize", name: "Size" },
                     { channel: "node.chartWidth", name: "Box", pair: "node.chartHeight", letters: ["W", "H"] },
@@ -432,13 +492,12 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
                 ],
             },
             {
-                name: "Strokes",
+                name: "Stroke widths",
+                advanced: true,
                 lines: [
                     { channel: "node.chartLineWidth", name: "Line width" },
-                    { channel: "node.chartBorderColor", name: null },
-                    { channel: "node.chartBorderWidth", name: "Border" },
-                    { channel: "node.chartBackgroundColor", name: null },
-                    { channel: "node.chartBackgroundOpacity", name: "Background" },
+                    { channel: "node.chartBorderWidth", name: "Border width" },
+                    { channel: "node.chartBackgroundOpacity", name: "Background opacity" },
                 ],
             },
         ],
@@ -446,14 +505,19 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
     border: {
         common: [{ channel: "node.borderWidth", name: "Width", units: ["node.borderScreenWidth"] }],
         main: [
-            { channel: "node.borderWidth", name: "Unit", unit: BORDER_UNIT },
             { channel: "node.borderOpacity", name: "Opacity" },
             { channel: "node.borderStyle", name: "Style", rule: "R10" },
             { channel: "node.borderPosition", name: "Position", rule: "R8" },
         ],
         groups: [
             {
+                name: "Width unit",
+                advanced: true,
+                lines: [{ channel: "node.borderWidth", name: "Unit", unit: BORDER_UNIT }],
+            },
+            {
                 name: "Waves",
+                advanced: true,
                 lines: [
                     {
                         channel: "node.borderWaveAmplitude",
@@ -502,16 +566,10 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
         ],
         main: [
             { channel: "node.glyphFont", name: "Font", rule: "R13" },
-            {
-                channel: "node.glyphWeight",
-                name: "Weight",
-                rule: "R5b",
-                presets: [
-                    { id: "400", plainName: "Regular" },
-                    { id: "700", plainName: "Bold" },
-                ],
-            },
+            // Bold as a text editor's toggle (owner, 2026-11-23), as a text label's.
+            { channel: "node.glyphWeight", name: "Style", rule: "R7t" },
         ],
+        groups: [{ name: "Letters", advanced: true, lines: [{ channel: "node.glyphWeight", name: "Weight" }] }],
     },
     record: {
         // The fields are the list editor's (R15, `ItemList.tsx`), under Main.
@@ -525,8 +583,10 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
  * An edge line's lines after its color or stops: thing-wide across Solid and Gradient (design 5).
  * Solid's opacity is its color field's; a gradient's is a line of its own.
  */
-const LINE_MAIN: readonly LineSpec[] = [
-    { channel: "edge.taper", name: "Taper" },
+const LINE_MAIN: readonly LineSpec[] = [{ channel: "edge.taper", name: "Taper" }];
+
+/** An edge line's rare lines, in its Advanced dialog (design "Input rules"). */
+const LINE_MORE: readonly LineSpec[] = [
     { channel: "edge.taperSource", name: "Source taper" },
     { channel: "edge.minScreenWidth", name: "Min width" },
     { channel: "edge.blending" },
@@ -534,10 +594,12 @@ const LINE_MAIN: readonly LineSpec[] = [
     { channel: "edge.lift", name: "Lift" },
 ];
 
-/** An edge line's sub-groups (design 7.2). */
+/** An edge line's sub-groups (design 7.2), all in its Advanced dialog. */
 const LINE_GROUPS: readonly SubGroup[] = [
+    { name: "Shape", advanced: true, lines: LINE_MORE },
     {
         name: "Fade",
+        advanced: true,
         lines: [
             { channel: "edge.fadeStart", name: "Fade", pair: "edge.fadeEnd" },
             { channel: "edge.fadeOpacity", name: "Opacity" },
@@ -574,21 +636,23 @@ function edgeEnd(end: EdgeEnd): ThingRubric {
             { channel: at("Size"), name: "Size" },
             { channel: at("Color"), name: "Color" },
         ],
-        main: [
-            { channel: at("Width"), name: "Width" },
-            { channel: at("Opacity"), name: "Opacity" },
-            { channel: at("Side"), name: "Side", rule: "R8" },
-        ],
+        main: [],
         groups: [
+            // The fill color stays here: a color picker in the Advanced dialog would open a third level.
+            { name: "Open caps", lines: [{ channel: at("FillColor"), name: "Fill" }] },
             {
-                name: "Open caps",
+                name: "Cap",
+                advanced: true,
                 lines: [
+                    { channel: at("Width"), name: "Width" },
+                    { channel: at("Opacity"), name: "Opacity" },
+                    { channel: at("Side"), name: "Side", rule: "R8" },
                     { channel: at("OutlineWidth"), name: "Outline" },
-                    { channel: at("FillColor"), name: null },
                 ],
             },
             {
                 name: "Place",
+                advanced: true,
                 lines: [
                     { channel: at("Position"), name: "Position" },
                     ...(middle ? [] : [{ channel: at("Gap"), name: "Gap" }]),
@@ -596,6 +660,7 @@ function edgeEnd(end: EdgeEnd): ThingRubric {
             },
             {
                 name: middle ? "Picture" : "Stack",
+                advanced: true,
                 lines: [
                     ...(middle ? [] : [{ channel: at("Stack"), name: "Stack", rule: "R15" as const }]),
                     { channel: at("Image"), name: "Image", rule: "field" },
@@ -614,18 +679,20 @@ export const EDGE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
     line: {
         common: [{ channel: "edge.width", name: "Width" }],
         // A solid line's color may come from an end node's, in place of its own (graphty-element's `edge.colorFrom`).
-        main: [{ channel: "edge.colorFrom", name: "Color from", rule: "R10" }, ...LINE_MAIN],
-        groups: LINE_GROUPS,
+        main: LINE_MAIN,
+        groups: [
+            { name: "Color", advanced: true, lines: [{ channel: "edge.colorFrom", name: "Color from", rule: "R8f" }] },
+            ...LINE_GROUPS,
+        ],
     },
     "line:edge.gradientColors": {
         common: [{ channel: "edge.width", name: "Width" }],
         rowOwns: ["edge.gradientStops"],
-        main: [
-            { channel: "edge.gradientKind", name: "Kind", rule: "R8" },
-            { channel: "edge.opacity", name: "Opacity" },
-            ...LINE_MAIN,
+        main: [{ channel: "edge.opacity", name: "Opacity" }, ...LINE_MAIN],
+        groups: [
+            { name: "Gradient", advanced: true, lines: [{ channel: "edge.gradientKind", name: "Kind", rule: "R8" }] },
+            ...LINE_GROUPS,
         ],
-        groups: LINE_GROUPS,
     },
     // Strands: the row is their colors (`lists.ts`), the pop-over their spacing.
     "line:edge.strandColors": {
@@ -634,9 +701,8 @@ export const EDGE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
         main: [
             { channel: "edge.strandSpacing", name: "Spacing" },
             { channel: "edge.opacity", name: "Opacity" },
-            ...LINE_MAIN,
         ],
-        groups: LINE_GROUPS,
+        groups: [{ name: "Taper", advanced: true, lines: LINE_MAIN }, ...LINE_GROUPS],
     },
     // The row is the sectioned pattern list; its settings the count, and dashes and waves (ia-design 2).
     pattern: {
@@ -687,6 +753,7 @@ export const EDGE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
         groups: [
             {
                 name: "Bundling",
+                advanced: true,
                 lines: [
                     { channel: "edge.bundleStrength", name: "Strength" },
                     { channel: "edge.bundleIterations", name: "Iterations" },
@@ -694,6 +761,7 @@ export const EDGE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
             },
             {
                 name: "Parallel edges",
+                advanced: true,
                 lines: [
                     { channel: "edge.fanned", name: "Fanned" },
                     { channel: "edge.fanSpacing", name: "Spacing" },
@@ -701,13 +769,15 @@ export const EDGE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
             },
             {
                 name: "Bends",
+                advanced: true,
                 lines: [
                     { channel: "edge.bends", name: "Bends", rule: "R15" },
-                    { channel: "edge.bendCurve", name: "Curve", rule: "R10" },
+                    { channel: "edge.bendCurve", name: "Curve", rule: "R8" },
                 ],
             },
             {
                 name: "Gaps",
+                advanced: true,
                 lines: [
                     { channel: "edge.nodeGap", name: "Gap" },
                     { channel: "edge.sourceNodeGap", name: "Ends", pair: "edge.targetNodeGap" },
@@ -715,6 +785,7 @@ export const EDGE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
             },
             {
                 name: "Ports",
+                advanced: true,
                 lines: [
                     { channel: "edge.sourcePort", name: "Source", rule: "XY" },
                     { channel: "edge.targetPort", name: "Target", rule: "XY" },

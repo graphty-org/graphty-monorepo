@@ -78,7 +78,12 @@ describe("Style panel v2's control rubric", () => {
         assert.isAbove(segments.length, 10);
         for (const { thing, line, place } of segments) {
             const descriptor = channelDescriptor(line.channel);
-            const values = descriptor?.accepts === "boolean" ? ["true", "false"] : (descriptor?.values ?? []);
+            // An option named "" is the one drawn while nothing is set (design "Input rules").
+            const unsetNamed = OPTION_NAMES[line.channel]?.[""] === undefined ? [] : [""];
+            const values = [
+                ...(descriptor?.accepts === "boolean" ? ["true", "false"] : (descriptor?.values ?? [])),
+                ...unsetNamed,
+            ];
             if (line.unit === undefined) {
                 assert.sameMembers(
                     Object.keys(OPTION_NAMES[line.channel] ?? {}),

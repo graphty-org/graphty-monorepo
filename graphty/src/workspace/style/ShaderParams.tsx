@@ -1,4 +1,4 @@
-import { ComboInput, CompactColorInput, PanelField, useScrub } from "@graphty/compact-mantine";
+import { ComboInput, CompactColorInput, PanelField, SegmentedControl, useScrub } from "@graphty/compact-mantine";
 import {
     type ShaderClockBinding,
     type ShaderDescriptor,
@@ -46,10 +46,10 @@ interface ShaderParamsProps {
     /** Whether its Uses and Cost lines are drawn under the parameters (not in Style panel v2, #8739). */
     readonly facts?: boolean;
     /**
-     * Style panel v2: a parameter the use does not set is drawn empty, never with its default as a
-     * value, and the minus of one it sets reads Remove.
+     * Style panel v2: the minus of a parameter the use sets reads Remove (an unset one shows its default,
+     * design "Input rules": every input has a value).
      */
-    readonly unsetEmpty?: boolean;
+    readonly unsetRemoves?: boolean;
 }
 
 /** How far a whole bounded range is scrubbed across, in CSS pixels. */
@@ -242,21 +242,17 @@ function listValue(option: ShaderParamDescriptor, value: unknown): string | null
     return typeof value === "string" ? value : null;
 }
 
-/** The minus's word: Remove where an unset parameter is empty, else Reset to the default. */
+/** The minus's word: Remove where unsetting removes the parameter (Style panel v2), else Reset to the default. */
 const MINUS_WORDS: Readonly<Record<string, string>> = { true: "Remove", false: "Reset" };
 
 /**
- * The value a parameter's control shows: the one the use sets, else its default unless unset is empty.
+ * The value a parameter's control shows: the one the use sets, else its default.
  * @param option - the parameter.
  * @param value - the value the use sets.
- * @param unsetEmpty - whether an unset parameter is drawn empty.
  * @returns the value shown.
  */
-function shownValue(option: ShaderParamDescriptor, value: Value | undefined, unsetEmpty: boolean): Value | undefined {
-    if (value !== undefined || unsetEmpty) {
-        return value;
-    }
-    return option.default as Value | undefined;
+function shownValue(option: ShaderParamDescriptor, value: Value | undefined): Value | undefined {
+    return value ?? (option.default as Value | undefined);
 }
 
 /** Props for one parameter's row. */
@@ -269,7 +265,7 @@ interface ParamRowProps {
     readonly binding: DataBinding | undefined;
     readonly onChange: (name: string, value: Value | undefined) => void;
     readonly onUnbind: ((name: string) => void) | undefined;
-    readonly unsetEmpty: boolean;
+    readonly unsetRemoves: boolean;
 }
 
 /**
@@ -285,7 +281,7 @@ interface ParamRowProps {
  * @param props.binding - the parameter's binding to data
  * @param props.onChange - sets or clears it
  * @param props.onUnbind - stops it varying
- * @param props.unsetEmpty - an unset parameter is drawn empty, never with its default, and its minus reads Remove
+ * @param props.unsetRemoves - its minus reads Remove, not Reset
  * @returns The row
  */
 function ParamRow({
@@ -297,13 +293,13 @@ function ParamRow({
     binding,
     onChange,
     onUnbind,
-    unsetEmpty,
+    unsetRemoves,
 }: Readonly<ParamRowProps>): React.JSX.Element {
     const { store } = useWorkspace();
     const label = option.plainName;
     const lower = option.plainName.toLowerCase();
-    const shown = shownValue(option, value, unsetEmpty);
-    const minusWord = MINUS_WORDS[String(unsetEmpty)];
+    const shown = shownValue(option, value);
+    const minusWord = MINUS_WORDS[String(unsetRemoves)];
     const set = value !== undefined;
     const write = (next: Value): void => {
         onChange(option.name, next);
@@ -407,16 +403,7 @@ function ParamRow({
             </NumberParam>
         );
     } else {
-        const control = (
-            <ParamControl
-                ctx={ctx}
-                option={option}
-                label={label}
-                shown={shown}
-                write={write}
-                empty={unsetEmpty && !set}
-            />
-        );
+        const control = <ParamControl ctx={ctx} option={option} label={label} shown={shown} write={write} />;
         body = (
             <>
                 {name()}
@@ -444,7 +431,6 @@ function ParamRow({
  * @param props.label - its name
  * @param props.shown - the value shown
  * @param props.write - sets it
- * @param props.empty - unset and drawn empty: a color shows an empty swatch, whose picker opens on the default
  * @returns The control
  */
 export function ParamControl({
@@ -453,14 +439,12 @@ export function ParamControl({
     label,
     shown,
     write,
-    empty = false,
 }: Readonly<{
     ctx: RowContext | undefined;
     option: ShaderParamDescriptor;
     label: string;
     shown: unknown;
     write: (next: Value) => void;
-    empty?: boolean;
 }>): React.ReactNode {
     let control: React.ReactNode;
     if (option.choices !== undefined) {
@@ -471,17 +455,15 @@ export function ParamControl({
         control = (
             <CompactColorInput
                 aria-label={label}
-                valueText={empty ? undefined : colorName(hex)}
+                valueText={colorName(hex)}
                 width="100%"
-                color={empty ? undefined : hex}
+                color={hex}
                 defaultColor={hex}
-                emptySwatch={empty}
-                emptyText={empty ? "" : undefined}
                 showOpacity={false}
                 showReset={false}
                 swatches={ctx?.documentColors}
                 onChangeEnd={(next) => {
-                    if (next !== undefined && (empty || next.toUpperCase() !== hex)) {
+                    if (next !== undefined && next.toUpperCase() !== hex) {
                         write(next.toUpperCase());
                     }
                 }}
@@ -495,20 +477,34 @@ export function ParamControl({
                       { value: "off", label: "Off" },
                   ]
                 : (option.values ?? []).map(({ value: v }) => ({ value: v, label: enumWords(v) }));
-        control = (
-            <PanelField
-                label={label}
-                kind="select"
-                width="fill"
-                value={listValue(option, shown)}
-                data={data}
-                onChange={(picked) => {
-                    if (typeof picked === "string") {
-                        write(option.type === "boolean" ? picked === "on" : picked);
-                    }
-                }}
-            />
-        );
+        const pick = (picked: string): void => {
+            write(option.type === "boolean" ? picked === "on" : picked);
+        };
+        // Fewer than six choices are grouped buttons, six or more a drop-down (design "Input rules").
+        control =
+            data.length < 6 ? (
+                <SegmentedControl
+                    label={label}
+                    fullWidth
+                    size="xs"
+                    value={listValue(option, shown) ?? ""}
+                    data={data}
+                    onChange={pick}
+                />
+            ) : (
+                <PanelField
+                    label={label}
+                    kind="select"
+                    width="fill"
+                    value={listValue(option, shown)}
+                    data={data}
+                    onChange={(picked) => {
+                        if (typeof picked === "string") {
+                            pick(picked);
+                        }
+                    }}
+                />
+            );
     }
     return control;
 }
@@ -559,7 +555,7 @@ function FactRow({
  * @param props.onChange - sets or clears one parameter
  * @param props.onUnbind - stops one varying
  * @param props.facts - whether its Uses and Cost lines are drawn
- * @param props.unsetEmpty - an unset parameter is drawn empty, never with its default, and its minus reads Remove
+ * @param props.unsetRemoves - a set parameter's minus reads Remove, not Reset
  * @returns The rows
  */
 export function ShaderParams({
@@ -571,7 +567,7 @@ export function ShaderParams({
     onChange,
     onUnbind,
     facts = true,
-    unsetEmpty = false,
+    unsetRemoves = false,
 }: Readonly<ShaderParamsProps>): React.JSX.Element {
     const box = useRef<HTMLDivElement>(null);
     // The pop-out puts focus on the field marked to take it: the first parameter's.
@@ -591,7 +587,7 @@ export function ShaderParams({
                     binding={bindings[option.name]}
                     onChange={onChange}
                     onUnbind={onUnbind}
-                    unsetEmpty={unsetEmpty}
+                    unsetRemoves={unsetRemoves}
                 />
             ))}
             {facts && (

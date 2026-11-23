@@ -53,6 +53,7 @@ import {
     MASTER_CHANNELS,
     MASTER_LABEL_FIELDS,
     OWNER_REQUESTED,
+    OWNER_REQUESTED_LABEL_FIELDS,
 } from "./allowed-styles";
 import { openProject, openStyle, sectionOf, written } from "./v2Harness";
 
@@ -559,7 +560,11 @@ vec4 shade(NodeInput n) {
             ...OWNER_REQUESTED.map(({ channel }) => channel),
             ...FILE_TEXT_LOOKS,
         ]);
-        const fields = new Set<string>([...BASE_LABEL_FIELDS, ...MASTER_LABEL_FIELDS]);
+        const fields = new Set<string>([
+            ...BASE_LABEL_FIELDS,
+            ...MASTER_LABEL_FIELDS,
+            ...OWNER_REQUESTED_LABEL_FIELDS.map(({ field }) => field),
+        ]);
         // What v2 writes: every channel it has a control for, and the companions a "+" starts with.
         const writes = (side: Side): readonly string[] => [
             ...HOMED[side],

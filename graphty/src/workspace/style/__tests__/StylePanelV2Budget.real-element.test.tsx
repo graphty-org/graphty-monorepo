@@ -83,7 +83,7 @@ describe("Style panel v2's budget", () => {
         assert.isAtMost(marksIn(tab), 8);
     });
 
-    it("the minus is the far-right slot of every set line but its modifier slot ('...' or the by-data link, E550)", async () => {
+    it("the minus is the far-right slot of every set line, after its '...' or by-data link (design \"Input rules\")", async () => {
         const { session, id } = await openProject();
         await session.styles.update(id, {
             set: { "node.color": "#E8590C", "node.shape": "star", "node.size": 2, "node.borderColor": "#111111" },
@@ -97,9 +97,8 @@ describe("Style panel v2's budget", () => {
         });
         for (const line of lines) {
             const buttons = [...line.querySelectorAll<HTMLElement>("button")];
-            // A row's main line ends [-] [...] (design 2.4, E550): its settings sit right of its minus.
-            const settings = / settings$/.test(buttons.at(-1)?.getAttribute("aria-label") ?? "");
-            const last = settings ? buttons.at(-2) : buttons.at(-1);
+            // A line ends [link or ...] [-] (design "Input rules"): its minus is right-most.
+            const last = buttons.at(-1);
             assert.match(
                 last?.getAttribute("aria-label") ?? "",
                 /^Remove /,
@@ -110,7 +109,6 @@ describe("Style panel v2's budget", () => {
                 // a box holding the minus (the field around the whole line) is not right of it
                 .filter(
                     (each) =>
-                        each.closest(".ws-vary") === null &&
                         last?.contains(each) !== true &&
                         !each.contains(last ?? null) &&
                         each.getBoundingClientRect().right > edge,

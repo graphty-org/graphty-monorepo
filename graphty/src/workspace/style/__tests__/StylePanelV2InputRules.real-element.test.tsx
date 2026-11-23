@@ -41,20 +41,12 @@ type Side = "node" | "edge";
 
 /** Pop-overs more than 6 lines tall with every sub-group shown. */
 const KNOWN_TALL: readonly string[] = [
-    "edge.arrow",
     "edge.endCaption",
     "edge.label",
-    "edge.line",
-    "edge.route",
     "edge.tooltip",
     "edge.xlabel",
-    "node.border",
     "node.chart",
-    "node.image",
     "node.label",
-    "node.pie",
-    "node.size",
-    "node.stripes",
     "node.tooltip",
     "node.xlabel",
 ];
@@ -70,140 +62,19 @@ const KNOWN_THIRD_LEVEL: readonly string[] = ["edge.arrow", "edge.pattern", "nod
 const COMPONENT_OWN: readonly string[] = ["Color format"];
 
 /** Rows and pop-overs with a line whose minus is not its right-most button. */
-const KNOWN_MINUS_NOT_LAST: readonly string[] = [
-    "edge.animation",
-    "edge.arrow",
-    "edge.bundling",
-    "edge.endCaption",
-    "edge.label",
-    "edge.line",
-    "edge.outline",
-    "edge.pattern",
-    "edge.record",
-    "edge.route",
-    "edge.tooltip",
-    "edge.visibility",
-    "edge.xlabel",
-    "node.border",
-    "node.chart",
-    "node.fill",
-    "node.finish",
-    "node.glow",
-    "node.image",
-    "node.label",
-    "node.pie",
-    "node.plate",
-    "node.raised",
-    "node.record",
-    "node.rings",
-    "node.shadow",
-    "node.size",
-    "node.stripes",
-    "node.tooltip",
-    "node.visibility",
-    "node.wireframe",
-    "node.xlabel",
-];
+const KNOWN_MINUS_NOT_LAST: readonly string[] = [];
 
 /** Rows and pop-overs with a link or settings button not on its control's line, right after it. */
-const KNOWN_SLOT_NOT_AFTER_CONTROL: readonly string[] = [
-    "edge.animation",
-    "edge.arrow",
-    "edge.bundling",
-    "edge.endCaption",
-    "edge.label",
-    "edge.outline",
-    "edge.pattern",
-    "edge.record",
-    "edge.route",
-    "edge.tooltip",
-    "edge.visibility",
-    "edge.xlabel",
-    "node.border",
-    "node.chart",
-    "node.finish",
-    "node.image",
-    "node.label",
-    "node.pie",
-    "node.plate",
-    "node.raised",
-    "node.record",
-    "node.rings",
-    "node.shadow",
-    "node.size",
-    "node.stripes",
-    "node.tooltip",
-    "node.visibility",
-    "node.wireframe",
-    "node.xlabel",
-];
+const KNOWN_SLOT_NOT_AFTER_CONTROL: readonly string[] = [];
 
 /** Rows and pop-overs with a link or settings button shown with the pointer elsewhere and no focus in its line. */
-const KNOWN_SHOWN_AT_REST: readonly string[] = [
-    "edge.arrow",
-    "edge.bundling",
-    "edge.endCaption",
-    "edge.label",
-    "edge.line",
-    "edge.outline",
-    "edge.pattern",
-    "edge.record",
-    "edge.route",
-    "edge.tooltip",
-    "edge.visibility",
-    "edge.xlabel",
-    "node.border",
-    "node.chart",
-    "node.fill",
-    "node.glow",
-    "node.image",
-    "node.label",
-    "node.pie",
-    "node.plate",
-    "node.raised",
-    "node.record",
-    "node.rings",
-    "node.shadow",
-    "node.size",
-    "node.stripes",
-    "node.tooltip",
-    "node.visibility",
-    "node.wireframe",
-    "node.xlabel",
-];
+const KNOWN_SHOWN_AT_REST: readonly string[] = [];
 
 /** Rows and pop-overs with an empty input. */
-const KNOWN_EMPTY: readonly string[] = [
-    "edge.arrow",
-    "edge.bundling",
-    "edge.endCaption",
-    "edge.label",
-    "edge.line",
-    "edge.outline",
-    "edge.pattern",
-    "edge.record",
-    "edge.route",
-    "edge.tooltip",
-    "edge.xlabel",
-    "node.border",
-    "node.chart",
-    "node.glow",
-    "node.image",
-    "node.label",
-    "node.pie",
-    "node.plate",
-    "node.raised",
-    "node.record",
-    "node.rings",
-    "node.shadow",
-    "node.size",
-    "node.stripes",
-    "node.tooltip",
-    "node.xlabel",
-];
+const KNOWN_EMPTY: readonly string[] = ["edge.pattern", "node.image", "node.record"];
 
 /** The stylesheet rule hiding the link and settings buttons is missing or not limited to hover devices and no focus. */
-const KNOWN_HOVER_RULE_MISSING = true;
+const KNOWN_HOVER_RULE_MISSING = false;
 
 // ------------------------------------------------------------------------------------------------
 // The things walked: every thing of the section table but the shader gallery.
@@ -324,9 +195,23 @@ function minusNotLast(lines: readonly HTMLElement[]): string[] {
         if (minus === undefined) {
             return [];
         }
-        const edge = minus.getBoundingClientRect().right - 1;
-        const beyond = buttons.filter((each) => each !== minus && each.getBoundingClientRect().left >= edge);
-        return beyond.length === 0 ? [] : [nameOf(line)];
+        const box = minus.getBoundingClientRect();
+        const edge = box.right - 1;
+        // Right of the minus on its own line (a two-line row's name line above holds no buttons).
+        const beyond = buttons.filter((each) => {
+            const at = each.getBoundingClientRect();
+            return each !== minus && at.left >= edge && at.top < box.bottom && at.bottom > box.top;
+        });
+        return beyond.length === 0
+            ? []
+            : [
+                  `${nameOf(line)} (${String(minus.getAttribute("aria-label"))} at ${String(Math.round(edge))}: ${beyond
+                      .map(
+                          (each) =>
+                              `${each.getAttribute("aria-label") ?? ""} at ${String(Math.round(each.getBoundingClientRect().left))}`,
+                      )
+                      .join("; ")})`,
+              ];
     });
 }
 
@@ -364,12 +249,16 @@ function shownAtRest(lines: readonly HTMLElement[]): string[] {
         if (line.contains(document.activeElement)) {
             return [];
         }
-        const shown = own(line, ".ws-vary button").filter((button) => {
+        // A list's "+" in the slot is not a link or settings button: it stays shown.
+        const shown = own(line, ".ws-vary button:not([aria-label^='Add '])").filter((button) => {
             const style = getComputedStyle(button);
+            // The rule makes the slot's child transparent: opacity is not inherited, so read it there too.
+            const slotChild = button.closest(".ws-vary > *");
             return (
                 button.getAttribute("aria-expanded") !== "true" &&
                 style.visibility !== "hidden" &&
-                Number(style.opacity) > 0
+                Number(style.opacity) > 0 &&
+                (slotChild === null || Number(getComputedStyle(slotChild).opacity) > 0)
             );
         });
         return shown.length === 0 ? [] : [nameOf(line)];
@@ -415,7 +304,7 @@ async function openedBy(trigger: HTMLElement): Promise<HTMLElement> {
 
 /** What one thing's walk finds, by rule. */
 interface Found {
-    tall?: number;
+    tall?: string;
     third: string[];
     minus: string[];
     slot: string[];
@@ -536,15 +425,15 @@ async function thirdLevels(pop: HTMLElement, reopen: () => Promise<HTMLElement>)
  * @param found - the things that break it, with details.
  * @param known - its known-violations list.
  */
-function compare(rule: string, found: ReadonlyMap<string, string>, known: readonly string[]): void {
+function compare(
+    rule: string,
+    found: ReadonlyMap<string, string>,
+    known: readonly string[],
+): { rule: string; fixed: string[]; added: string[] } {
     const now = [...found.keys()].sort();
     const fixed = known.filter((key) => !found.has(key));
-    const added = now.filter((key) => !known.includes(key));
-    assert.deepEqual(
-        { fixed, added: added.map((key) => `${key}: ${found.get(key) ?? ""}`) },
-        { fixed: [], added: [] },
-        `${rule}: take "fixed" off its known list; fix "added"`,
-    );
+    const added = now.filter((key) => !known.includes(key)).map((key) => `${key}: ${found.get(key) ?? ""}`);
+    return { rule, fixed, added };
 }
 
 describe("Style panel v2's input rules (owner, 2026-11-23)", () => {
@@ -559,15 +448,21 @@ describe("Style panel v2's input rules (owner, 2026-11-23)", () => {
             const row = await addThing(session, layer, tab, walk);
             await userEvent.keyboard("{Escape}");
 
+            // Found by label: a settings button hidden until hover has no accessible name.
+            const settingsButtons = (): HTMLElement[] =>
+                [...row.querySelectorAll<HTMLElement>("button[aria-label]")].filter((each) =>
+                    / settings( has configured values)?$/.test(each.getAttribute("aria-label") ?? ""),
+                );
             const openSettings = async (): Promise<HTMLElement> => {
-                const button = within(row).getAllByRole("button", { name: / settings( has configured values)?$/ })[0];
+                const button = settingsButtons()[0];
                 assert.isDefined(button, `${walk.key} has a settings button`);
-                await userEvent.hover(row);
+                // Shown on hover of its line, as a reader meets it.
+                await userEvent.hover(button.closest<HTMLElement>(".ws-row, .ws-member") ?? row);
                 await userEvent.click(button);
                 return openedBy(button);
             };
             // A row with no settings (a basic Shape: its drop-down is its settings) is checked alone.
-            const settings = within(row).queryAllByRole("button", { name: / settings( has configured values)?$/ });
+            const settings = settingsButtons();
             const pop = settings.length === 0 ? null : await openSettings();
             if (pop !== null) {
                 await addEveryGroup(pop);
@@ -579,7 +474,12 @@ describe("Style panel v2's input rules (owner, 2026-11-23)", () => {
             await userEvent.hover(away);
             const lines = [...linesIn(row), ...(pop === null ? [] : linesIn(pop))];
             const found: Found = {
-                tall: tall > 6 ? tall : undefined,
+                tall:
+                    tall > 6
+                        ? `${String(tall)}: ${linesIn(pop ?? row)
+                              .map(nameOf)
+                              .join(", ")}`
+                        : undefined,
                 minus: minusNotLast(lines),
                 slot: slotNotAfterControl(lines),
                 rest: shownAtRest(lines),
@@ -587,13 +487,21 @@ describe("Style panel v2's input rules (owner, 2026-11-23)", () => {
                 third: [],
             };
             // Hovering a line shows its buttons.
-            const hidden = lines.find((line) =>
-                own(line, ".ws-vary button").some((button) => getComputedStyle(button).visibility === "hidden"),
-            );
+            const shownNow = (button: HTMLElement): boolean => {
+                const style = getComputedStyle(button);
+                // The rule hides a slot's child, so a button reads its opacity from there.
+                const slotChild = button.closest(".ws-vary > *");
+                return (
+                    style.visibility !== "hidden" &&
+                    Number(style.opacity) > 0 &&
+                    (slotChild === null || Number(getComputedStyle(slotChild).opacity) > 0)
+                );
+            };
+            const hidden = lines.find((line) => own(line, ".ws-vary button").some((button) => !shownNow(button)));
             if (hidden !== undefined) {
                 await userEvent.hover(hidden);
                 for (const button of own(hidden, ".ws-vary button")) {
-                    assert.notStrictEqual(getComputedStyle(button).visibility, "hidden", `${nameOf(hidden)} on hover`);
+                    assert.isTrue(shownNow(button), `${nameOf(hidden)} on hover`);
                 }
             }
             found.third = pop === null ? [] : await thirdLevels(pop, openSettings);
@@ -606,12 +514,21 @@ describe("Style panel v2's input rules (owner, 2026-11-23)", () => {
         await session.runs.start("degree");
         const tab = await openStyle("Key people");
         const openSettings = async (): Promise<HTMLElement> => {
-            const button = within(tab).getByRole("button", { name: /^Node fill settings/ });
+            const row = tab.querySelector<HTMLElement>('[data-thing="fill"]');
+            assert.isNotNull(row, "the fill row");
+            // Its settings button shows on hover, as a reader meets it.
+            await userEvent.hover(row);
+            const button = within(row).getByRole("button", { name: /^Node fill settings/ });
             await userEvent.click(button);
             return openedBy(button);
         };
         const pop = await openSettings();
-        await userEvent.click(within(pop).getByRole("button", { name: "Node color by attribute" }));
+        // The link button shows when its line is hovered.
+        // (A hidden button has no accessible name, so it is found by its label.)
+        const line = pop.querySelector<HTMLElement>('.ws-row:has([aria-label="Node color by attribute"])');
+        assert.isNotNull(line, "the color line");
+        await userEvent.hover(line);
+        await userEvent.click(within(line).getByRole("button", { name: "Node color by attribute" }));
         await userEvent.click(within(await findValuePicker()).getByRole("option", { name: /^Degree(,|$)/ }));
         await waitFor(() => {
             const bound = session.styles.get(nodes)?.encode?.["node.color"];
@@ -655,45 +572,49 @@ describe("Style panel v2's input rules (owner, 2026-11-23)", () => {
 
     it("every rule's findings match its known-violations list", () => {
         assert.lengthOf([...FOUND.keys()], WALKED.length + 1, "every thing was walked");
-        const by = (pick: (found: Found) => string[] | number | undefined): Map<string, string> =>
+        const by = (pick: (found: Found) => string[] | string | undefined): Map<string, string> =>
             new Map(
                 [...FOUND].flatMap(([key, found]) => {
                     const value = pick(found);
                     if (value === undefined || (Array.isArray(value) && value.length === 0)) {
                         return [];
                     }
-                    return [[key, Array.isArray(value) ? value.join(", ") : `${String(value)} lines`]];
+                    return [[key, Array.isArray(value) ? value.join(", ") : `${value} lines`]];
                 }),
             );
-        compare(
-            "Pop-overs over 6 lines tall",
-            by((found) => found.tall),
-            KNOWN_TALL,
-        );
-        compare(
-            "Pop-outs nested three deep",
-            by((found) => found.third),
-            KNOWN_THIRD_LEVEL,
-        );
-        compare(
-            "Minus not the right-most button",
-            by((found) => found.minus),
-            KNOWN_MINUS_NOT_LAST,
-        );
-        compare(
-            "Link or settings not right after its control",
-            by((found) => found.slot),
-            KNOWN_SLOT_NOT_AFTER_CONTROL,
-        );
-        compare(
-            "Link or settings shown at rest",
-            by((found) => found.rest),
-            KNOWN_SHOWN_AT_REST,
-        );
-        compare(
-            "Empty inputs",
-            by((found) => found.empty),
-            KNOWN_EMPTY,
-        );
+        // Every rule at once: take "fixed" off its known list; fix "added".
+        const results = [
+            compare(
+                "Pop-overs over 6 lines tall",
+                by((found) => found.tall),
+                KNOWN_TALL,
+            ),
+            compare(
+                "Pop-outs nested three deep",
+                by((found) => found.third),
+                KNOWN_THIRD_LEVEL,
+            ),
+            compare(
+                "Minus not the right-most button",
+                by((found) => found.minus),
+                KNOWN_MINUS_NOT_LAST,
+            ),
+            compare(
+                "Link or settings not right after its control",
+                by((found) => found.slot),
+                KNOWN_SLOT_NOT_AFTER_CONTROL,
+            ),
+            compare(
+                "Link or settings shown at rest",
+                by((found) => found.rest),
+                KNOWN_SHOWN_AT_REST,
+            ),
+            compare(
+                "Empty inputs",
+                by((found) => found.empty),
+                KNOWN_EMPTY,
+            ),
+        ].filter((each) => each.fixed.length > 0 || each.added.length > 0);
+        assert.deepEqual(results, []);
     });
 });

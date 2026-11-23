@@ -65,6 +65,14 @@ const OVERFLOW_WORDS = {
     ],
 } as const;
 
+/** Style panel v2's short words for what happens past the palette, as grouped buttons. */
+const OVERFLOW_SHORT: Readonly<Record<string, string>> = {
+    other: "Other",
+    shape: "Shape",
+    pattern: "Pattern",
+    extend: "Extend",
+};
+
 /** How a number meets what the layers beneath painted, in today's words (`COMBINE_WORDS`). */
 const COMBINE_SELECT = Object.entries(COMBINE_WORDS).map(([value, { word }]) => ({ value, label: word }));
 
@@ -225,7 +233,13 @@ export function BindingPopover(props: Readonly<BindingPopoverProps>): React.JSX.
                 <Range key={String(binding.range)} descriptor={descriptor} range={binding.range} patch={patch} />
             ) : null}
             {detail || !parts.noValue ? null : (
-                <NoValue session={session} descriptor={descriptor} missing={binding.missing ?? "skip"} patch={patch} />
+                <NoValue
+                    session={session}
+                    descriptor={descriptor}
+                    missing={binding.missing ?? "skip"}
+                    patch={patch}
+                    segments={v2}
+                />
             )}
             {numberParts && !v2 ? <CombineField name={name} binding={binding} patch={patch} /> : null}
         </Stack>
@@ -306,6 +320,26 @@ function OverflowField({
     parts,
 }: Readonly<{ session: GraphSession; descriptor: ChannelDescriptor; parts: Parts }>): React.JSX.Element {
     const { binding, patch } = parts;
+    const pick = (overflow: string): void => {
+        // Keep the palette the groups are drawn in: with none named, the element picks its own for the new
+        // overflow (a ramp for number groups), and "Extend the palette" would not extend the one shown.
+        const shown = session.catalog.palettes().find((p) => p.kind === "categorical" && p.id === parts.palette)?.id;
+        patch({ overflow: overflow as LayerBinding["overflow"], palette: binding.palette ?? shown });
+    };
+    if (stylePanelV2On(session)) {
+        // Three choices are grouped buttons (design "Input rules"), with short words; the long ones are tooltips.
+        return (
+            <SegmentsLine
+                label={`More ${parts.noun} than colors`}
+                options={OVERFLOW_WORDS[descriptor.target].map((each) => ({
+                    value: each.value,
+                    name: OVERFLOW_SHORT[each.value] ?? each.label,
+                }))}
+                value={binding.overflow ?? "other"}
+                onPick={pick}
+            />
+        );
+    }
     return (
         <PanelLabelsProvider showLabels>
             <FieldRow>
@@ -316,16 +350,7 @@ function OverflowField({
                     data={[...OVERFLOW_WORDS[descriptor.target]]}
                     value={binding.overflow ?? "other"}
                     onChange={(overflow) => {
-                        // Keep the palette the groups are drawn in: with none named, the
-                        // element picks its own for the new overflow (a ramp for number
-                        // groups), and "Extend the palette" would not extend the one shown.
-                        const shown = session.catalog
-                            .palettes()
-                            .find((p) => p.kind === "categorical" && p.id === parts.palette)?.id;
-                        patch({
-                            overflow: String(overflow) as LayerBinding["overflow"],
-                            palette: binding.palette ?? shown,
-                        });
+                        pick(String(overflow));
                     }}
                 />
             </FieldRow>
@@ -1189,6 +1214,7 @@ function Range({
  * @param props.descriptor - the bound property
  * @param props.missing - the binding's `missing`
  * @param props.patch - writes a change
+ * @param props.segments - draws the two choices as grouped buttons (Style panel v2)
  * @returns The control
  */
 function NoValue({
@@ -1196,11 +1222,14 @@ function NoValue({
     descriptor,
     missing,
     patch,
+    segments,
 }: Readonly<{
     session: GraphSession;
     descriptor: ChannelDescriptor;
     missing: NonNullable<DataBinding["missing"]>;
     patch: (change: Partial<LayerBinding>) => void;
+    /** Style panel v2: two choices are grouped buttons (design "Input rules"). */
+    segments: boolean;
 }>): React.JSX.Element {
     const given = missing === "skip" ? null : missing.value;
     // One value starts where a new line of this property would: the element's default for it.
@@ -1220,6 +1249,25 @@ function NoValue({
                 }}
             />
         );
+    const pick = (choice: string): void => {
+        patch({ missing: choice === "value" ? { value: start } : "skip" });
+    };
+    if (segments) {
+        return (
+            <Stack gap={4}>
+                <SegmentsLine
+                    label="No value"
+                    options={[
+                        { value: "skip", name: "Leave as is" },
+                        { value: "value", name: "One value" },
+                    ]}
+                    value={given === null ? "skip" : "value"}
+                    onPick={pick}
+                />
+                {field}
+            </Stack>
+        );
+    }
     return (
         <Stack gap={4}>
             <PanelLabelsProvider showLabels>
@@ -1235,7 +1283,7 @@ function NoValue({
                         ]}
                         value={given === null ? "skip" : "value"}
                         onChange={(choice) => {
-                            patch({ missing: choice === "value" ? { value: start } : "skip" });
+                            pick(String(choice));
                         }}
                     />
                 </FieldRow>

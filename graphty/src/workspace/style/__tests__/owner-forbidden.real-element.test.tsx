@@ -41,7 +41,7 @@ interface Seen {
     readonly oddSlots?: Set<string>;
     /** How many number fields the walk saw. */
     numbers?: number;
-    /** Every row whose settings "..." is not its last control (E550: always at the far right). */
+    /** Every row whose settings "..." is not right before its minus, or last (design "Input rules"). */
     readonly settingsNotLast?: Set<string>;
     /** How many rows with a settings "..." the walk saw. */
     settingsRows?: number;
@@ -98,7 +98,9 @@ function look(seen: Seen, root: HTMLElement): void {
         }
         seen.settingsRows = (seen.settingsRows ?? 0) + 1;
         const controls = [...row.querySelectorAll("button, input, [role='button'], [role='combobox']")];
-        if (controls.at(-1) !== more) {
+        // `[...] [-]`: the settings "..." is last, or only the minus follows it (design "Input rules").
+        const after = controls.slice(controls.indexOf(more) + 1);
+        if (after.some((each) => !/^Remove /.test(each.getAttribute("aria-label") ?? "")) || after.length > 1) {
             seen.settingsNotLast?.add(row.getAttribute("data-line") ?? more.getAttribute("aria-label") ?? "?");
         }
     }
@@ -238,7 +240,11 @@ async function walkPopovers(seen: Seen): Promise<void> {
             look(seen, each);
         }
         // A family row's kinds are its pop-over's first line, the Kind select.
-        const kind = screen.queryByRole("combobox", { name: "Kind" });
+        // The pop-over's own Kind (a basic Shape row draws one in the panel too).
+        const kind =
+            floating()
+                .map((each) => within(each).queryByRole("combobox", { name: "Kind" }))
+                .find((each) => each !== null) ?? null;
         if (kind !== null) {
             await userEvent.click(kind);
             const list = await screen.findByRole("listbox");
@@ -336,7 +342,7 @@ describe("nothing the owner ordered out of the Style panel comes back", () => {
         assert.deepEqual(
             [...(seen.settingsNotLast ?? [])],
             [],
-            'every row\'s settings "..." is its last control (E550)',
+            'every row\'s settings "..." is right before its minus (design "Input rules")',
         );
         const information = forbiddenBy("approved-controls");
         assert.deepEqual([...(seen.unapproved ?? [])], [], `${information.what} (${information.ledger})`);

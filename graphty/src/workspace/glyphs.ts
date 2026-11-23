@@ -57,6 +57,7 @@ import {
     Combine,
     Copy,
     CornerUpRight,
+    createLucideIcon,
     Database,
     Disc,
     Divide,
@@ -99,6 +100,7 @@ import {
     Lock,
     LockKeyhole,
     LockKeyholeOpen,
+    type LucideIcon,
     MapPin,
     Maximize2,
     Menu,
@@ -119,8 +121,8 @@ import {
     PanelLeft,
     PanelRight,
     Pause,
-    PenTool,
     Pencil,
+    PenTool,
     Pin,
     PinOff,
     Play,
@@ -151,8 +153,9 @@ import {
     Square,
     SquareArrowOutUpRight,
     SquareDashed,
-    SquareSquare,
     SquaresIntersect,
+    SquareSplitHorizontal,
+    SquareSquare,
     SquaresSubtract,
     SquaresUnite,
     StepBack,
@@ -178,8 +181,6 @@ import {
     X,
     Zap,
     ZoomOut,
-    createLucideIcon,
-    type LucideIcon,
 } from "lucide-react";
 
 import type { InspectedKindId } from "./inspector/inspected";
@@ -466,6 +467,7 @@ export const GLYPHS = {
     // Which side of its line a one-sided arrowhead sits on.
     sideLeft: PanelLeft,
     sideRight: PanelRight,
+    sideBoth: SquareSplitHorizontal,
     // A gradient's kind: along a direction, out from a center, or none (an edge's flat color).
     gradientLinear: MoveRight,
     gradientRadial: Target,

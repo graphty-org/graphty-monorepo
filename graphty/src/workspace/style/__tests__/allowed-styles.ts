@@ -533,6 +533,17 @@ interface Requested {
     readonly date: string;
 }
 
+/** The label style fields the owner asked for by name, beyond the two lists above. */
+export const OWNER_REQUESTED_LABEL_FIELDS: readonly {
+    readonly field: keyof LabelStyle;
+    readonly quote: string;
+    readonly date: string;
+}[] = (["underline", "strikethrough"] as const).map((field) => ({
+    field,
+    quote: "Font styles should be the typical wysiwyg buttons: bold, italic, underline, etc.",
+    date: "2026-11-23",
+}));
+
 /** The styles the owner asked for by name, beyond the two lists above. */
 export const OWNER_REQUESTED: readonly Requested[] = [
     // Nodes and edges carry zero, one or many labels (requirement 41 of the v5 feedback ledger).

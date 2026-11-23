@@ -14,18 +14,21 @@ import { findNodes } from "../../../src/ai/commands/QueryCommands";
 import { CONNECTED_BY_SYNTAX, nodeScopeOf, SELECTOR_SYNTAX } from "../../../src/ai/commands/selectors";
 import type { CommandContext } from "../../../src/ai/commands/types";
 import type { Graph } from "../../../src/Graph";
-import { createMockContext, createMockTestGraph } from "../../helpers/test-graph";
+import { createCommandGraph } from "../../helpers/session-graph";
+import { createMockContext } from "../../helpers/test-graph";
 import { makeSession } from "../../session/helpers";
 
 describe("AI command selectors", () => {
     let graph: Graph;
     let context: CommandContext;
 
-    beforeEach(() => {
-        graph = createMockTestGraph({
-            nodes: 6,
-            edges: 3,
+    beforeEach(async () => {
+        graph = await createCommandGraph({
+            nodeCount: 6,
+            edgeCount: 3,
             nodeData: (i) => ({ type: i % 2 === 0 ? "server" : "database", age: i * 10 }),
+            // A headless session has no camera; zoomToNodes only hands it the nodes it matched.
+            renderer: { applyCameraView: () => Promise.resolve() },
         });
         context = createMockContext(graph);
     });
@@ -47,7 +50,7 @@ describe("AI command selectors", () => {
     });
 
     it("connectedBy picks the nodes at an end of a matching edge, and the selector narrows them", async () => {
-        // The mock's edges run node-i to node-(i+1) with weight i / 10: only edge-2 is above 0.15.
+        // The edges run node-i to node-(i+1) with weight i / 10: only the third is above 0.15.
         const ends = await findNodes.execute(graph, { selector: "", connectedBy: "data.weight > `0.15`" }, context);
         const servers = await findNodes.execute(
             graph,
@@ -84,9 +87,11 @@ describe("AI command selectors", () => {
         assert.deepStrictEqual([...servers.nodes], ["a"]);
     });
 
-    it("a bare field matches nothing and the answer says to write data.", async () => {
-        const found = await findNodes.execute(graph, { selector: "type == 'server'" }, context);
-        const zoomed = await zoomToNodes.execute(graph, { selector: "type == 'server'" }, context);
+    // A bare name the graph carries as a data column reads that column, as a style rule reads it
+    // (#9654), so the field here is one nothing carries.
+    it("a field nothing carries matches nothing and the answer says to write data.", async () => {
+        const found = await findNodes.execute(graph, { selector: "kind == 'server'" }, context);
+        const zoomed = await zoomToNodes.execute(graph, { selector: "kind == 'server'" }, context);
 
         assert.strictEqual((found.data as { total: number }).total, 0);
         assert.include(found.message, "data.type");

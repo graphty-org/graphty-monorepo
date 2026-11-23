@@ -3,6 +3,11 @@
 // - a token whose SHA-256 is in READ_TOKEN_HASHES or WRITE_TOKEN_HASHES may read;
 // - only one in WRITE_TOKEN_HASHES may write (a read token gets 403), and an entry is never replaced (409).
 // GET /v1/health answers anyone, for the deploy job's check (CI's probe reads an entry with its token). Objects expire after 14 days (an R2 lifecycle rule).
+// Every request counts against hard daily caps (src/cap.js, the CAP_* vars in wrangler.toml): requests, R2 Class A
+// operations (a PUT) and R2 Class B operations (a GET, or the HEAD before a PUT). Past one the answer is 429 and R2
+// is not touched; tools/nx-cache-proxy.mjs turns that 429 into a miss, so the build goes on without the cache.
+
+import { dailyCap } from "./cap.js";
 
 const HASH = /^[A-Za-z0-9_-]{1,128}$/;
 
@@ -31,18 +36,37 @@ async function access(request, env) {
     return listed(env.READ_TOKEN_HASHES, hash) ? "read" : undefined;
 }
 
+const isolateCap = dailyCap();
+
+/**
+ * The counts one request charges against the daily caps: every request is one; a GET it may make costs a Class B
+ * operation, a PUT it may make a HEAD (Class B) and a PUT (Class A).
+ * @param request the request
+ * @param may what its token may do
+ * @returns the counts, by cap name
+ */
+function costOf(request, may) {
+    if (request.method === "GET" && may) return { REQUESTS: 1, R2_CLASS_B: 1 };
+    if (request.method === "PUT" && may === "write") return { REQUESTS: 1, R2_CLASS_A: 1, R2_CLASS_B: 1 };
+    return { REQUESTS: 1 };
+}
+
 /**
  * Handles one request.
  * @param request the request
- * @param env the bindings: CACHE (the R2 bucket), READ_TOKEN_HASHES, WRITE_TOKEN_HASHES
+ * @param env the bindings: CACHE (the R2 bucket), DAILY_COUNT (the cap counter), READ_TOKEN_HASHES,
+ *     WRITE_TOKEN_HASHES and the CAP_* caps
+ * @param [cap] the daily cap counter (tests pass their own)
  * @returns the response
  */
-export async function handle(request, env) {
+export async function handle(request, env, cap = isolateCap) {
     const { pathname } = new URL(request.url);
-    if (pathname === "/v1/health" && request.method === "GET") return Response.json({ ok: true });
     const hash = /^\/v1\/cache\/([^/]+)$/.exec(pathname)?.[1];
+    const may = hash && HASH.test(hash) ? await access(request, env) : undefined;
+    const over = await cap.charge(env, costOf(request, may));
+    if (over) return text(429, `daily ${over} cap reached; the cache is off until 00:00 UTC`);
+    if (pathname === "/v1/health" && request.method === "GET") return Response.json({ ok: true });
     if (!hash || !HASH.test(hash)) return text(404, "not found");
-    const may = await access(request, env);
     if (!may) return text(401, "missing or unknown token");
     if (request.method === "GET") {
         const object = await env.CACHE.get(hash);

@@ -456,6 +456,25 @@ requests an hour, shared by everything acting as it. Until the limit resets, eve
   time; when calls fail while it reports requests left (the secondary limit), retry every 10 minutes.
 - A prompt that starts an agent which talks to GitHub carries these rules.
 
+## Cloud routes
+
+Our cloud bills twice ran 5 to 10 times their estimates (2026-11): the estimates counted bytes stored, not rows
+read per call. So every new or changed route on a Cloudflare Worker or the AWS health API ships with:
+
+- **Its cap**, enforced in the service: a hard daily limit on requests and on the billed operations it causes (D1
+  rows, R2 Class A and B operations, DynamoDB reads and writes), set in config (`wrangler.toml` vars, or
+  `tools/pipeline-health/config/slas.json`). Past it the route answers 429. A Worker with only crons has no public
+  URL (`workers_dev = false`) instead.
+- **Its usage counter**: the cap's own count, cheap enough not to be a cost of its own (batched, never one storage
+  write per request), and a line on the health dashboard's measured usage.
+- **A rows-per-call bound**: every query has a `LIMIT` or reads by key, and its test checks the plan or the count.
+- **A caller that fails open on 429**: it carries on without the service (a cache miss, a skipped post), once, with
+  no retry loop.
+
+A cost estimate for a route states its calls per day and rows (or operations) per call, and multiplies them.
+`tools/nx-cache-worker/test/index.test.mjs` and `tools/release-scheduler/test/index.test.mjs` fail when a counted
+operation has no cap in `wrangler.toml`, or when the scheduler gains a URL or a cron.
+
 ## Design Documents
 
 The `design/` directory contains architecture documentation:

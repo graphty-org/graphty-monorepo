@@ -16,6 +16,15 @@ Tokens are sent as `Authorization: Bearer <token>` (nx's `NX_SELF_HOSTED_REMOTE_
 Worker holds only their SHA-256 hashes, in the secrets `READ_TOKEN_HASHES` and `WRITE_TOKEN_HASHES`
 (comma-separated, so a new token can be added before the old one is removed).
 
+## Daily caps
+
+Each UTC day the Worker serves at most `CAP_REQUESTS` requests (100,000), `CAP_R2_CLASS_A` PUTs (10,000) and
+`CAP_R2_CLASS_B` GETs and HEADs (100,000), the `[vars]` in `wrangler.toml`. Past a cap it answers 429 without
+touching R2 until 00:00 UTC. CI's probe then turns the cache off, and `tools/nx-cache-proxy.mjs` answers a 429 as a
+miss (GET) or a refused store (PUT), so the build goes on without the cache. The day's totals live in one Durable
+Object, `DailyCount`, which each isolate updates once per 50 requests or minute. To change a cap, edit the var
+and let the deploy job redeploy.
+
 ## Who writes
 
 Only master. The write token is the secret `NX_CACHE_TOKEN` of the GitHub environment `nx-cache-write`,

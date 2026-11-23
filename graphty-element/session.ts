@@ -258,6 +258,7 @@ export type {
     SourceExtractOptions,
     SourceField,
     SourceHubValue,
+    SourceJoinAct,
     SourceJoinInto,
     SourceLineage,
     SourceLoaded,

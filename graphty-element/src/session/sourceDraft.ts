@@ -60,6 +60,7 @@ import type {
     SourceDraftPreview,
     SourceElementRef,
     SourceExtractOptions,
+    SourceJoinAct,
     SourceMappingPatch,
     SourceMatchCounts,
     SourceMatchOptions,
@@ -440,6 +441,11 @@ export class SourceDraftHandle implements SourceDraft {
     /** @inheritdoc */
     moveStep(index: number, to: number): void {
         this.stepsAct("moveStep", { act: "move-step", index, to });
+    }
+
+    /** @inheritdoc */
+    replaceStep(index: number, act: SourceJoinAct): void {
+        this.stepsAct("replaceStep", { act: "replace-step", index, with: act });
     }
 
     /** @inheritdoc */

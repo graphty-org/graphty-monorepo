@@ -29,9 +29,13 @@ const ENTRIES = "entry,badge,door\nE1,B1,D1\nE2,B1,D2\nE3,B2,D1\nE4,B9,D1\nE6,B2
  * People in the graph as type person, entries.csv dropped and staged, and the workspace opened
  * with Shift+J.
  * @param strict - mount the app under StrictMode, as main.tsx does in development.
+ * @param also - another file to drop and stage before the entries.
  * @returns the store, the session, the staged entries' key and the modal.
  */
-async function opened(strict = false): Promise<{
+async function opened(
+    strict = false,
+    also?: { readonly name: string; readonly text: string },
+): Promise<{
     store: WorkspaceStore;
     session: GraphSession;
     entries: string;
@@ -44,9 +48,14 @@ async function opened(strict = false): Promise<{
         { key: "badge", type: "person" },
     );
     store.set({ dockOpen: false, dockMaximized: false });
+    if (also !== undefined) {
+        drop(also.name, also.text);
+        await screen.findByRole("region", { name: also.name });
+    }
+    // The entries are staged last: the workspace opens on the last staged source's card.
     drop("entries.csv", ENTRIES);
     await screen.findByRole("region", { name: "entries.csv" });
-    const entries = session.data.staged()[0]?.key ?? "";
+    const entries = session.data.staged().at(-1)?.key ?? "";
     (document.activeElement as HTMLElement | null)?.blur();
     await userEvent.keyboard("{Shift>}J{/Shift}");
     const modal = await screen.findByRole("dialog", { name: "Join" });
@@ -206,5 +215,58 @@ describe("the join workspace (source-steps)", () => {
         await waitFor(() => {
             assert.strictEqual(cardCount(modal), 2, "only the removed card is gone");
         });
+    });
+
+    it("expanding a second card opens it while the first is open", async () => {
+        const { modal } = await opened();
+        await userEvent.click(within(modal).getByRole("button", { name: /^\+ Join/ }));
+        await waitFor(() => {
+            assert.strictEqual(cardCount(modal), 2);
+        });
+        // The new card is open: expand the first again, then the second.
+        const cards = (): HTMLElement[] => [...modal.querySelectorAll<HTMLElement>("[data-join-card]")];
+        const open = (card: HTMLElement | undefined): boolean =>
+            card !== undefined && within(card).queryByRole("combobox", { name: "Incoming field" }) !== null;
+        for (const at of [0, 1]) {
+            const expand = within(modal).getAllByRole("button", { name: /^Expand / })[0];
+            await userEvent.click(expand);
+            await waitFor(() => {
+                assert.isTrue(open(cards()[at]), `card ${String(at + 1)} opens`);
+            });
+        }
+    });
+
+    it("graph keys pressed inside the workspace never reach the graph's history", async () => {
+        const { session, modal } = await opened();
+        let calls = 0;
+        const redo = session.redo.bind(session);
+        session.redo = async (...args: Parameters<GraphSession["redo"]>) => {
+            calls++;
+            return redo(...args);
+        };
+        within(modal).getByRole("button", { name: "Done" }).focus();
+        await userEvent.keyboard("{Control>}y{/Control}");
+        await userEvent.keyboard("{Control>}{Shift>}z{/Shift}{/Control}");
+        assert.strictEqual(calls, 0, "no redo reached the session");
+        assert.isTrue(session.data.currentDraft()?.open === true, "the workspace's draft is still open");
+    });
+
+    it("Connect with an other end makes each entry an edge between a person and a door", async () => {
+        const { session, modal } = await opened(false, { name: "doors.csv", text: "door,name\nD1,North\nD2,South" });
+        await userEvent.click(within(modal).getByRole("button", { name: "+ Match" }));
+        await choose(modal, "Other end field", "door");
+        await choose(modal, "Other end type", "doors.csv");
+        await connect(modal, session);
+        const act = session.data.currentDraft()?.steps().at(-1)?.act;
+        assert.strictEqual(act?.to?.field, "door", "the step reads its other end back");
+        await userEvent.click(within(modal).getByRole("button", { name: "Done" }));
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("dialog", { name: "Join" }));
+        });
+        const edges = session.data.edges();
+        assert.strictEqual(edges.length, 4, "one per entry naming a person: E4's B9 names no one");
+        for (const edge of edges) {
+            assert.notStrictEqual(String(edge.source), String(edge.target), "no edge from a node to itself");
+        }
     });
 });

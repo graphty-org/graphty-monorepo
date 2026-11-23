@@ -1300,6 +1300,7 @@ export const READ_ONLY: readonly string[] = [
     "SourceDraft.removeEdit",
     "SourceDraft.removeSource",
     "SourceDraft.removeStep",
+    "SourceDraft.replaceStep",
     "SourceDraft.renameColumn",
     "SourceDraft.setMapping",
     "SourceDraft.stage",

@@ -5087,6 +5087,13 @@ export interface SourceStepAct {
     readonly unmatched?: "skip" | "add";
     /** Make an edge: one edge per pair of ends, as `connect` takes it. */
     readonly perPair?: boolean;
+    /** Make an edge with each row an edge between two named nodes: the other end, as `connect` takes it. */
+    readonly to?: {
+        /** The column naming it. */
+        readonly field: string;
+        /** The space its nodes live in. */
+        readonly into: { readonly space: SourceSpaceName };
+    };
 }
 
 /**
@@ -5336,6 +5343,11 @@ export interface SourceMatchOptions {
     readonly ignoreCase?: boolean;
     /** Compare keys ignoring spaces. */
     readonly ignoreSpaces?: boolean;
+    /**
+     * Count against the graph as the steps before this place build it, so a step's own match is
+     * counted without its own result (such as the nodes its merge kept); absent counts every step.
+     */
+    readonly before?: number;
 }
 
 /**
@@ -5455,6 +5467,11 @@ export interface SourceMergeOptions {
     readonly clash?: SourceClashRule | Readonly<Record<string, SourceClashRule>>;
     /** Two rows naming one node: `"first"` (default) or `"last"` wins. */
     readonly repeated?: "first" | "last";
+    /**
+     * Per column, how the rows naming one node reduce into one value, as `draft.editStep` takes it;
+     * `"*"` sets every column but the one matched on, such as `{ "*": "list" }`.
+     */
+    readonly aggregate?: Readonly<Record<string, JoinReduce>>;
     /** Rows that stay their own nodes. */
     readonly except?: SourceRowFilter;
     /** Match keys ignoring case. */
@@ -5488,6 +5505,21 @@ export interface SourceConnectOptions {
      * names and the edge to it.
      */
     readonly unmatched?: "skip" | "add";
+    /**
+     * The other end. Given, each row becomes an edge between the node `from.field` names and the
+     * node `to.field` names, and the row makes no node of its own:
+     *
+     * ```ts
+     * draft.connect({
+     *     from: { source: entries, field: "person_id" },
+     *     into: { space: "person" },
+     *     to: { field: "building_id", into: { source: buildings } },
+     * });
+     * ```
+     *
+     * `to.into` names its nodes by their key; a staged source it names is added first.
+     */
+    readonly to?: { readonly field: string; readonly into: SourceJoinInto };
 }
 
 /**
@@ -5528,6 +5560,14 @@ export interface SourceMoveColumnsOptions {
               readonly space: SourceSpaceName;
           };
 }
+
+/**
+ * A join act as `draft.replaceStep` takes it.
+ * @experimental source-steps
+ */
+export type SourceJoinAct =
+    | { readonly act: "merge"; readonly options: SourceMergeOptions }
+    | { readonly act: "connect"; readonly options: SourceConnectOptions };
 
 /**
  * `draft.editStep`: the choices of one step a draft may change. `null` or `false` takes a choice off.
@@ -5997,6 +6037,19 @@ export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "match
      *   `"order"` when a step would read a source before the step that adds it.
      */
     moveStep(index: number, to: number): void;
+    /**
+     * Make a join act again in one step's place, as one act: a changed field, result or option
+     * keeps the step's place, its rows left out and its clash rules (unless the act names its own).
+     *
+     * ```ts
+     * draft.replaceStep(2, { act: "connect", options: { from: { source: entries, field: "badge" }, into: { space: "person" } } });
+     * ```
+     * @param index - The step's place, as {@link SourceDraft.steps} lists it.
+     * @param act - The act, as `merge` or `connect` takes its options.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` (`details.reason` `"no-step"`) for no such place,
+     *   or whatever the act itself refuses.
+     */
+    replaceStep(index: number, act: SourceJoinAct): void;
     /**
      * Take out one source and every step that reads it.
      * @param source - The source.

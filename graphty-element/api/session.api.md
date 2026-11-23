@@ -7704,6 +7704,10 @@ export interface SourceConnectOptions {
     readonly ignoreSpaces?: boolean;
     readonly into: SourceJoinInto;
     readonly perPair?: boolean;
+    readonly to?: {
+        readonly field: string;
+        readonly into: SourceJoinInto;
+    };
     readonly unmatched?: "skip" | "add";
 }
 
@@ -7784,6 +7788,7 @@ export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "match
     renameColumn(column: ColumnRef, name: string, options: {
         readonly source: SourceKey;
     }): void;
+    replaceStep(index: number, act: SourceJoinAct): void;
     setMapping(source: SourceKey, patch: SourceMappingPatch): void;
     show(side: "before" | "after"): Promise<void>;
     readonly side: "before" | "after";
@@ -8147,6 +8152,15 @@ export { SourceIssueCode }
 export { SourceIssueParams }
 
 // @public
+export type SourceJoinAct = {
+    readonly act: "merge";
+    readonly options: SourceMergeOptions;
+} | {
+    readonly act: "connect";
+    readonly options: SourceConnectOptions;
+};
+
+// @public
 export type SourceJoinInto = {
     readonly source: SourceKey;
     readonly field?: string;
@@ -8276,6 +8290,7 @@ export interface SourceMatchCounts {
 
 // @public
 export interface SourceMatchOptions {
+    readonly before?: number;
     readonly ignoreCase?: boolean;
     readonly ignoreSpaces?: boolean;
 }
@@ -8315,6 +8330,7 @@ export interface SourceMatchValuesOptions extends SourceMatchOptions {
 
 // @public
 export interface SourceMergeOptions {
+    readonly aggregate?: Readonly<Record<string, JoinReduce>>;
     readonly clash?: SourceClashRule | Readonly<Record<string, SourceClashRule>>;
     readonly except?: SourceRowFilter;
     readonly from: SourceField;
@@ -8545,6 +8561,12 @@ export interface SourceStepAct {
     };
     readonly perPair?: boolean;
     readonly repeated: "first" | "last" | "both" | null;
+    readonly to?: {
+        readonly field: string;
+        readonly into: {
+            readonly space: SourceSpaceName;
+        };
+    };
     readonly unmatched?: "skip" | "add";
     readonly unmatchedFrom?: "keep" | "drop";
 }

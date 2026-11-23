@@ -602,7 +602,7 @@ export const ON_RELOAD = {
     editingJoin: "gap #9660: an edit in progress on the join screen",
     ends: "gap #9660: a half-made choice of edge ends",
     sourceCard: "gap #9660: its draft lives in the element, whose autosave does not keep source drafts",
-    joinWorkspace: "kept",
+    joinWorkspace: "fresh: in flight: an edit under way in an element draft, which a reload discards (see gap #9660)",
     readerEditsOpen: "fresh: pointer: a list opened for a look",
     stagedEnds: "gap #9660: a half-made choice of edge ends",
     draftOpen: "gap #9660: a question about a draft a reload discarded",

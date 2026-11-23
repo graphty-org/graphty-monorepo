@@ -1041,6 +1041,8 @@ interface StepAct {
     readonly unmatchedFrom?: "keep" | "drop";
     readonly unmatched?: "skip" | "add";
     readonly perPair?: boolean;
+    /** Each row an edge between node 1 and the node its `field` names in `into.space`. */
+    readonly to?: { readonly field: string; readonly into: { readonly space: string } };
 }
 
 /**
@@ -1074,16 +1076,16 @@ function stepAct(value: SourceSteps, step: Step): StepAct | null {
         };
     }
     const src = value.sources[step.source] as Source | undefined;
-    if (
-        step.op !== "join.edges" ||
-        step.read.table !== "nodes" ||
-        step.read.edgeId === undefined ||
-        src === undefined
-    ) {
+    if (step.op !== "join.edges" || step.read.table !== "nodes" || src === undefined) {
         return null;
     }
     const { read } = step;
-    const intoFrom = read.target === read.edgeId && read.targetSpace === nodeSpace(src);
+    // The row's own node is one end, keyed by the row's key; else each row is an edge between two
+    // nodes it names, made by `connect` with `to`.
+    const key = src.mapping.nodes?.key;
+    const own = (col: string, space: string): boolean => col === key && space === nodeSpace(src);
+    const rowsOnly = !own(read.target, read.targetSpace) && !own(read.source, read.sourceSpace);
+    const intoFrom = rowsOnly ? step.viaEnd !== "target" : own(read.target, read.targetSpace);
     const edgeType = value.types.find(
         (t) => t.kind === "edge" && t.rules.some((r) => r.source === step.source && r.part === step.part),
     )?.name;
@@ -1098,6 +1100,13 @@ function stepAct(value: SourceSteps, step: Step): StepAct | null {
         aggregate: step.aggregate ?? null,
         unmatched: step.unmatchedRows === "add" ? "add" : "skip",
         perPair: step.repeated === "first",
+        ...(rowsOnly
+            ? {
+                  to: intoFrom
+                      ? { field: read.target, into: { space: read.targetSpace } }
+                      : { field: read.source, into: { space: read.sourceSpace } },
+              }
+            : {}),
     };
 }
 

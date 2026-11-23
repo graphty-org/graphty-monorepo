@@ -9,6 +9,8 @@
 import type {
     JoinReduce,
     SourceDraft,
+    SourceJoinAct,
+    SourceJoinInto,
     SourceKey,
     SourceMatchCounts,
     SourceMatchPair,
@@ -17,7 +19,10 @@ import type {
 
 import { columnsOf } from "./join";
 
-/** The node 1 side of a match: a space's keys, or a column of a source that supplied it. */
+/**
+ * The node 1 side of a match: a space's keys, a column of a source that supplied it, or (with an
+ * empty `space`) a staged source's keys.
+ */
 export interface CardInto {
     readonly space: string;
     readonly source?: SourceKey;
@@ -31,6 +36,8 @@ export interface CardPicks {
     readonly into: CardInto | null;
     readonly ignoreCase: boolean;
     readonly ignoreSpaces: boolean;
+    /** Connect's second match: the incoming field naming the other end, and the nodes it names. */
+    readonly to?: { readonly field?: string; readonly into: CardInto | null } | null;
 }
 
 /** A card's result and its options, as the draft's step carries them. */
@@ -111,11 +118,12 @@ export function cardsOf(draft: SourceDraft, pending: readonly PendingCard[]): Jo
             act.into.source === undefined || act.into.field === undefined
                 ? { space: act.into.space }
                 : { space: act.into.space, source: act.into.source, field: act.into.field };
+        const to = act.to === undefined ? {} : { to: { field: act.to.field, into: { space: act.to.into.space } } };
         return [
             {
                 id: stepCardId(row.index),
                 step: row,
-                picks: { from: act.from, into, ignoreCase: act.ignoreCase, ignoreSpaces: act.ignoreSpaces },
+                picks: { from: act.from, into, ignoreCase: act.ignoreCase, ignoreSpaces: act.ignoreSpaces, ...to },
                 result: {
                     result: act.act,
                     many: manyOf(act.aggregate, act.repeated),
@@ -137,8 +145,7 @@ export function cardsOf(draft: SourceDraft, pending: readonly PendingCard[]): Jo
 }
 
 /**
- * A merge step's "many rows" choice, from the aggregate the card wrote (one reduction for every
- * column) or its repeated rule.
+ * A merge step's "many rows" choice, from its aggregate for every column or its repeated rule.
  * @param aggregate - The step's aggregate.
  * @param repeated - The step's repeated rule.
  * @returns The choice.
@@ -147,7 +154,7 @@ function manyOf(
     aggregate: Readonly<Record<string, JoinReduce>> | null,
     repeated: "first" | "last" | "both" | null,
 ): CardResult["many"] {
-    const reduce = aggregate === null ? undefined : Object.values(aggregate)[0];
+    const reduce = aggregate?.["*"];
     if (reduce === "list" || reduce === "count") {
         return reduce;
     }
@@ -161,7 +168,32 @@ function manyOf(
  * @returns True when they do.
  */
 export function samePicks(a: CardPicks, b: CardPicks): boolean {
-    return JSON.stringify(pairOf(a)) === JSON.stringify(pairOf(b));
+    return JSON.stringify([pairOf(a), toPairOf(a)]) === JSON.stringify([pairOf(b), toPairOf(b)]);
+}
+
+/**
+ * A card's node 1 side as the element takes it.
+ * @param into - The side.
+ * @returns The side.
+ */
+function intoOf(into: CardInto): SourceJoinInto {
+    if (into.source !== undefined && into.field !== undefined) {
+        return { source: into.source, field: into.field };
+    }
+    return into.source !== undefined && into.space === "" ? { source: into.source } : { space: into.space };
+}
+
+/**
+ * The second match a Connect card's picks make, once both its fields are picked.
+ * @param picks - The picks.
+ * @returns The pair, or null.
+ */
+export function toPairOf(picks: CardPicks): SourceMatchPair | null {
+    const { from, to } = picks;
+    if (from === null || to?.field === undefined || to.into === null) {
+        return null;
+    }
+    return { from: { source: from.source, field: to.field }, into: intoOf(to.into) };
 }
 
 /**
@@ -184,26 +216,33 @@ export function pairOf(picks: CardPicks): SourceMatchPair | null {
     if (from?.field === undefined || into === null) {
         return null;
     }
-    const one =
-        into.source === undefined || into.field === undefined
-            ? { space: into.space }
-            : { source: into.source, field: into.field };
-    return { from: { source: from.source, field: from.field }, into: one };
+    return { from: { source: from.source, field: from.field }, into: intoOf(into) };
 }
 
 /**
- * The live counts of a card's match, in the open draft.
+ * The live counts of a card's match, in the open draft: a step card's against the graph as the
+ * steps before it build it, so its own result is never counted.
  * @param draft - The open draft.
  * @param picks - The picks.
+ * @param step - The card's step place, if it has one.
+ * @param pair - The match to count; default the card's first.
  * @returns The counts, or null while a field is unpicked or the draft refuses the pair.
  */
-export function countsOf(draft: SourceDraft, picks: CardPicks): SourceMatchCounts | null {
-    const pair = pairOf(picks);
+export function countsOf(
+    draft: SourceDraft,
+    picks: CardPicks,
+    step?: number,
+    pair: SourceMatchPair | null = pairOf(picks),
+): SourceMatchCounts | null {
     if (pair === null) {
         return null;
     }
     try {
-        return draft.matchCounts(pair, { ignoreCase: picks.ignoreCase, ignoreSpaces: picks.ignoreSpaces });
+        return draft.matchCounts(pair, {
+            ignoreCase: picks.ignoreCase,
+            ignoreSpaces: picks.ignoreSpaces,
+            ...(step === undefined ? {} : { before: step }),
+        });
     } catch {
         return null;
     }
@@ -221,43 +260,45 @@ export function draftColumns(draft: SourceDraft, source: SourceKey, table?: "nod
 }
 
 /**
- * Make a card's act in the draft.
- * @param draft - The open draft.
+ * A card's act, as the draft makes it.
  * @param pair - The match.
  * @param picks - The picks.
  * @param result - The result and its options.
+ * @returns The act.
  */
-function makeAct(draft: SourceDraft, pair: SourceMatchPair, picks: CardPicks, result: CardResult): void {
+function actOf(pair: SourceMatchPair, picks: CardPicks, result: CardResult): SourceJoinAct {
     const matching = { ignoreCase: picks.ignoreCase, ignoreSpaces: picks.ignoreSpaces };
     if (result.result === "merge") {
         const { many } = result;
-        draft.merge({
+        return {
+            act: "merge",
+            options: {
+                ...pair,
+                ...matching,
+                unmatchedFrom: result.unmatchedFrom,
+                ...(many === "last" ? { repeated: "last" } : {}),
+                ...(many === "list" || many === "count" ? { aggregate: { "*": many } } : {}),
+            },
+        };
+    }
+    const to = toPairOf(picks);
+    return {
+        act: "connect",
+        options: {
             ...pair,
             ...matching,
-            unmatchedFrom: result.unmatchedFrom,
-            ...(many === "last" ? { repeated: "last" } : {}),
-        });
-        if (many === "list" || many === "count") {
-            const columns = draftColumns(draft, pair.from.source).filter((column) => column !== pair.from.field);
-            draft.editStep(draft.steps().length - 1, {
-                aggregate: Object.fromEntries(columns.map((column) => [column, many])),
-            });
-        }
-        return;
-    }
-    draft.connect({
-        ...pair,
-        ...matching,
-        direction: result.direction,
-        perPair: result.perPair,
-        unmatched: result.unmatched,
-        ...(result.edgeType === "" ? {} : { edgeType: result.edgeType }),
-    });
+            direction: result.direction,
+            perPair: result.perPair,
+            unmatched: result.unmatched,
+            ...(result.edgeType === "" ? {} : { edgeType: result.edgeType }),
+            ...(to === null ? {} : { to: { field: to.from.field, into: to.into } }),
+        },
+    };
 }
 
 /**
- * Write a card into the draft as ONE undo entry: a pending card's step is made at the end, a
- * step card's step is made again at its own place.
+ * Write a card into the draft as ONE undo entry: a pending card's act is made at the end, a step
+ * card's act is made again in its step's place.
  * @param draft - The open draft.
  * @param at - The card's step place, or null for a pending card.
  * @param picks - The picks.
@@ -269,18 +310,19 @@ export function writeCard(draft: SourceDraft, at: number | null, picks: CardPick
     if (pair === null) {
         return null;
     }
-    return draft.batch(() => {
-        if (at !== null) {
-            draft.removeStep(at);
-        }
-        makeAct(draft, pair, picks, result);
-        const made = draft.steps().length - 1;
-        if (at !== null && made !== at) {
-            draft.moveStep(made, at);
-            return at;
-        }
-        return made;
-    });
+    const act = actOf(pair, picks, result);
+    const before = draft.steps().length;
+    if (at !== null) {
+        draft.replaceStep(at, act);
+        // A staged source the act adds lands just before its step.
+        return at + draft.steps().length - before;
+    }
+    if (act.act === "merge") {
+        draft.merge(act.options);
+    } else {
+        draft.connect(act.options);
+    }
+    return draft.steps().length - 1;
 }
 
 /**

@@ -3,6 +3,9 @@
 The performance matrix of both render paths, and its regression gate, use the same page and runner: see
 `PERF-MATRIX.md`.
 
+Whether a build still behaves as the one from before the renderer optimizations did (pictures, test outcomes, older
+tests, edges following their nodes frame by frame): `PARITY-VS-REFERENCE.md`.
+
 Measures one build of graphty-element against cosmos.gl 3.5.1 with the same harness as the baseline in
 `benchmarks/results/baseline/`. Everything below is run from `benchmarks/compare/` unless it says otherwise.
 

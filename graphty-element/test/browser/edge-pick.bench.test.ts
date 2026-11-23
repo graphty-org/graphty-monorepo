@@ -26,6 +26,13 @@
  * from asking for the frame until the GPU has finished it, before any `elementAt`; `panFrameAsked*` times the same
  * frames between the moving `elementAt`s, which on WebGPU also draw the edge ID target and read it back whole.
  *
+ * Without a GPU (`GRAPHTY_BROWSER_GPU` unset, as in CI) only the 10,000-edge cases run, with 5 pan frames instead of
+ * 20. Every frame here draws all the lines, and the software renderer's time for that grows with the edges, not
+ * with either path: 1.2 s a frame at 10,000 on a fast CPU (6.4 s on a CI runner), 11 s at 100,000, while the frame's
+ * own CPU work stays near 10 ms. About 45 frames a case put 100,000 edges past the file's 26-minute guard on CI
+ * (issue #9738), and at that size the frame numbers mean nothing anyway. The larger cases need the GPU:
+ * `GRAPHTY_BROWSER_GPU=nvidia npx vitest run --project=browser-bench test/browser/edge-pick.bench.test.ts`.
+ *
  * Also printed: how many picks named an edge (each point is on one, unless a node covers it), how many row lines a
  * pick measured, and the first hover, which rebuilds the edge ID target's line list. Nothing is asserted but that
  * the picks found edges: the times are printed as `[edge-pick]` and as `bench-row` lines.
@@ -114,9 +121,12 @@ const CASES: { path: "objects" | "batched"; edges: number; renderer: "webgl" | "
     { path: "batched", edges: 1_000_000, renderer: "webgpu" },
 ];
 
+/** The most edges a case draws on the software renderer; see the file comment. */
+const SOFTWARE_EDGES = 10_000;
+
 describe("edge pick cost", () => {
     for (const { path, edges, renderer } of CASES) {
-        it.skipIf(renderer === "webgpu" && ADAPTER === "")(
+        it.skipIf(ADAPTER === "" && (renderer === "webgpu" || edges > SOFTWARE_EDGES))(
             `${path}, ${renderer}, ${String(edges)} plain edges`,
             async () => {
                 (globalThis as { __GRAPHTY_STRICT_STATE__?: boolean }).__GRAPHTY_STRICT_STATE__ = false;
@@ -194,7 +204,7 @@ describe("edge pick cost", () => {
                     await queue?.onSubmittedWorkDone();
                     return performance.now() - start;
                 };
-                const MOVES = 20;
+                const MOVES = ADAPTER === "" ? 5 : 20;
                 // Before any elementAt: no whole reads of the edge ID target.
                 const quietFrames: number[] = [];
                 for (let i = 0; i < MOVES; i++) {

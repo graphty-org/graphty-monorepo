@@ -26,7 +26,7 @@ describe("Style panel v2's link dialog on a number", () => {
         await userEvent.click(await within(tab).findByRole("button", { name: "Node border width by attribute" }));
         await userEvent.click(within(await findValuePicker()).getByRole("option", { name: /^Degree(,|$)/ }));
         const bound = (): Record<string, unknown> | undefined =>
-            session.styles.get(nodes)?.encode?.["node.borderWidth"] as Record<string, unknown> | undefined;
+            session.styles.get(nodes)?.encode?.["node.borderWidth"];
         await waitFor(() => {
             assert.isDefined(bound()?.by, "the width is bound");
         });

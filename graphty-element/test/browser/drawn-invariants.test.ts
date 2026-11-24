@@ -264,6 +264,22 @@ describe.each(
         await assertAllDrawn(element, "after a halo on node 0");
     });
 
+    // #9868: on the batched path a node a style hid took every edge touching it off the canvas; the objects path
+    // draws them on to the hidden node's center.
+    it("keeps drawing the edges of a node a style hides", async () => {
+        const element = await ring(path, view, edges, rows);
+        assertLazy(element, path, edges);
+        await element.session.styles.add({
+            name: "Hide 0",
+            target: "node",
+            selector: { match: "ids", nodes: ["0"] },
+            set: { "node.visible": false },
+        });
+        await settle(element);
+        assert.deepEqual(await undrawnNodes(element, IDS.slice(1)), [], "nodes not drawn after node 0 was hidden");
+        assert.deepEqual(await undrawnEdges(element, PAIRS), [], "edges not drawn after node 0 was hidden");
+    });
+
     // #9223: a switch between 2D and 3D on the batched path left plain edges in disposed batches.
     it("draws every edge again after a switch to the other view and back", async () => {
         const element = await ring(path, view, edges, rows);

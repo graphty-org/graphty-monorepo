@@ -19,6 +19,7 @@ import type { ElementPositions } from "../data/positions";
 import type { Xyz } from "../meshes/edgeRoute";
 import {
     ROW_EXTENT_ELLIPSE,
+    ROW_EXTENT_HIDDEN_PLACED,
     ROW_EXTENT_ROUND,
     ROW_EXTENT_SCREEN_BORDER,
     ROW_EXTENT_SEEN_THROUGH,
@@ -715,6 +716,8 @@ export class RowTable {
         const flags = this.flags[row] ?? 0;
         const next = atLane ? flags & ~HELD : flags | HELD;
         this.flags[row] = next;
+        // a held row has a place
+        this.markHiddenPlaced(row, (next & HIDDEN) !== 0);
         // A node that follows its lane row each frame (a labeled one) changes nothing a skip walk reads.
         this.ownRowWrites += next === flags ? 0 : 1;
         const base = row * POSITION_FLOATS;
@@ -819,12 +822,14 @@ export class RowTable {
         }
 
         this.flags[row] = hidden ? flags | HIDDEN : flags & ~HIDDEN;
+        const placed = (flags & HELD) !== 0 || this.lane().isPlaced(row);
+        this.markHiddenPlaced(row, hidden && placed);
         if (!hidden && (flags & (HIDDEN | SHRUNK)) === SHRUNK) {
             // Still drawn, part of the way through a shrink: its W is the shrink's.
             return;
         }
 
-        this.writeW(row, !hidden && ((flags & HELD) !== 0 || this.lane().isPlaced(row)) ? 1 : 0);
+        this.writeW(row, !hidden && placed ? 1 : 0);
     }
 
     /**
@@ -836,6 +841,7 @@ export class RowTable {
             this.hiddenCount += ((this.flags[row] ?? 0) & HIDDEN) === 0 ? 1 : 0;
             this.ownRowWrites++;
             this.flags[row] = HIDDEN;
+            this.markHiddenPlaced(row, false);
             this.writeW(row, 0);
         }
     }
@@ -860,7 +866,9 @@ export class RowTable {
             (round === null ? 0 : ROW_EXTENT_ROUND) |
             (node.shapeType === "ellipse" ? ROW_EXTENT_ELLIPSE : 0) |
             (node.paintedOpacity < 1 ? ROW_EXTENT_SEEN_THROUGH : 0) |
-            (node.screenBorder === true ? ROW_EXTENT_SCREEN_BORDER : 0);
+            (node.screenBorder === true ? ROW_EXTENT_SCREEN_BORDER : 0) |
+            // not a measure: hide and place keep it
+            ((this.extents.floats[base + 3] ?? 0) & ROW_EXTENT_HIDDEN_PLACED);
         this.extents.floats.set(
             [
                 node.drawnScale,
@@ -1139,7 +1147,9 @@ export class RowTable {
         const { floats } = this.positions;
         const { bounds } = this;
         const placed = Number.isFinite(x);
-        const w = placed && ((this.flags[row] ?? 0) & HIDDEN) === 0 ? 1 : 0;
+        const hidden = ((this.flags[row] ?? 0) & HIDDEN) !== 0;
+        const w = placed && !hidden ? 1 : 0;
+        this.markHiddenPlaced(row, placed && hidden);
         const nx = placed ? x : 0;
         const ny = placed ? y : 0;
         const nz = placed && !this.twoD ? z : 0;
@@ -1158,6 +1168,22 @@ export class RowTable {
         }
 
         return moved;
+    }
+
+    /**
+     * Say whether a row is hidden with a place (`ROW_EXTENT_HIDDEN_PLACED`): its w is 0 either way, and the edge
+     * programs still draw its lines and caps to its center, as the objects path does, but none to a row with no place.
+     * @param row - The row.
+     * @param on - True when it is hidden and placed.
+     */
+    private markHiddenPlaced(row: number, on: boolean): void {
+        const at = row * EXTENT_FLOATS + 3;
+        const { floats } = this.extents;
+        const flags = floats[at] ?? 0;
+        if (((flags & ROW_EXTENT_HIDDEN_PLACED) !== 0) !== on) {
+            floats[at] = on ? flags | ROW_EXTENT_HIDDEN_PLACED : flags & ~ROW_EXTENT_HIDDEN_PLACED;
+            this.extents.touch(row);
+        }
     }
 
     private writeW(row: number, w: number): void {

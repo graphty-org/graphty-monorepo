@@ -898,6 +898,7 @@ export type {
     ChannelShare,
     ColorWrite,
     ColumnEncodingSpec,
+    DraftView,
     DrawnValue,
     ElementLayerSpec,
     EncodingOptions,

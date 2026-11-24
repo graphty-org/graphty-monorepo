@@ -3,7 +3,7 @@
  * (design/data/multiple-data-sources-design.md, sections 5.3 and 5.4), driven by clicks, typing and
  * keys, in the owner's founding example. Door entries made into edges "entered" to the people who
  * badged in: Preview counts the element's new edges, B flips Before / After (the Overview and the
- * legend follow it), Enter commits one undo step and the notice's Undo returns the entries to
+ * join preview's dashed edges follow it), Enter commits one undo step and the notice's Undo returns the entries to
  * staged. HR's list merged into people: a click on Preview previews and commits nothing, dept differs
  * on two people, the rule Use 2 is written to the draft, Min is offered only where the element says
  * the column takes it, and Undo inside the card takes back the rule, then the act. Only 2 Keep counts
@@ -14,7 +14,7 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import type { GraphSession, SourceDraft } from "@graphty/graphty-element/session";
+import type { ExplainTarget, GraphSession, SourceDraft } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
@@ -46,8 +46,7 @@ const HR_REPEATS = "badge,dept\nB1,Operations\nB1,Research\nB2,Lab";
 async function withStaged(name: string, text: string): Promise<{ store: WorkspaceStore; session: GraphSession }> {
     await page.viewport(1440, 900);
     const project = await emptyProject();
-    // The app's starting rows, which a test's own project leaves to the test: the Draft row keys a
-    // drawn draft in the legend.
+    // The app's starting rows, which a test's own project leaves to the test.
     await project.session.config.set({ startingRows: true, editableBase: true, runPlacement: "top" });
     await project.session.data.import(
         { type: "csv", config: { data: PEOPLE }, name: "people.csv" },
@@ -99,12 +98,17 @@ function overview(name: string): string {
 }
 
 /**
- * The legend card's sections, each as its name and its rows' text.
- * @returns the card's text.
+ * What graphty-element draws as the join preview: the nodes it rings (what the commit merges) and
+ * the edges it dashes (what the commit adds).
+ * @param session - the session.
+ * @returns the two counts.
  */
-async function legendText(): Promise<string> {
-    const legend = await screen.findByRole("region", { name: "Legend" });
-    return legend.textContent ?? "";
+function joinPreviewDrawn(session: GraphSession): { ringed: number; dashed: number } {
+    const look = (target: ExplainTarget): Readonly<Record<string, unknown>> => session.styles.explain(target).merged;
+    return {
+        ringed: session.data.nodes().filter((node) => look({ node: node.id })["node.haloOpacity"] === 1).length,
+        dashed: session.data.edges().filter((edge) => look({ edge: edge.id })["edge.style"] === "dash").length,
+    };
 }
 
 /**
@@ -157,14 +161,14 @@ describe("the Join card's Preview (source-steps)", () => {
         await waitFor(() => {
             assert.strictEqual(overview("Edges"), "4");
         });
-        // The legend keys the draft in words, not the layer's border widths.
-        const keyed = await legendText();
-        // Titled by the path the Draft row reads, as its technical name: a legend field carries no
-        // plain name, and the element names graphty.draft nowhere the app reads one.
-        assert.include(keyed, "Halo: draft");
-        assert.include(keyed, "new");
-        assert.notInclude(keyed, "graphty.draft");
-        assert.notInclude(keyed, "Border width");
+        // The join preview: each new edge drawn dashed, by a view and not a layer.
+        await waitFor(() => {
+            assert.strictEqual(joinPreviewDrawn(session).dashed, 4);
+        });
+        assert.notInclude(
+            session.styles.tree().map((row) => row.name),
+            "Draft",
+        );
         (document.activeElement as HTMLElement | null)?.blur();
         await userEvent.keyboard("b");
         await waitFor(() => {
@@ -192,6 +196,9 @@ describe("the Join card's Preview (source-steps)", () => {
         assert.strictEqual(session.data.statistics({ scope: "all" }).edgeCount, 4);
         assert.isNull(session.data.currentDraft());
         assert.isNull(screen.queryByRole("radiogroup", { name: "Before / After" }), "the chip goes with the draft");
+        await waitFor(() => {
+            assert.strictEqual(joinPreviewDrawn(session).dashed, 0, "Commit takes the join preview off");
+        });
         assert.isFalse(store.get().dockOpen, "the dock as it was");
 
         // The notice's Undo: the entries are staged again.
@@ -319,17 +326,15 @@ describe("the Join card's Preview (source-steps)", () => {
         );
     });
 
-    it("Only 2 Keep counts the node the merge adds, Drop none; the legend counts what merges", async () => {
+    it("Only 2 Keep counts the node the merge adds, Drop none; the preview rings what merges until Esc", async () => {
         const { session } = await withStaged("hr.csv", HR);
         const { card, section } = await previewMerge(session);
         const draft = draftOf(session);
         const added = (): number => draft.preview().after.nodes - draft.preview().before.nodes;
         assert.strictEqual(added(), 1, "B7");
         assert.strictEqual(count(section, "new"), String(added()));
-        await waitFor(async () => {
-            const keyed = await legendText();
-            assert.include(keyed, "merged");
-            assert.notInclude(keyed, "graphty.draft");
+        await waitFor(() => {
+            assert.strictEqual(joinPreviewDrawn(session).ringed, 3, "B1, B2 and B3 merge");
         });
         // Only 2 is a segmented control: its radio is hidden, a reader clicks the label.
         const drop = within(card).getByRole<HTMLInputElement>("radio", { name: "Drop" });
@@ -339,6 +344,18 @@ describe("the Join card's Preview (source-steps)", () => {
         });
         await waitFor(() => {
             assert.strictEqual(count(section, "new"), "0");
+        });
+
+        // Esc closes the card and takes the join preview off.
+        within(card)
+            .getByRole("button", { name: /^Commit/ })
+            .focus();
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("form", { name: "Join" }));
+        });
+        await waitFor(() => {
+            assert.strictEqual(joinPreviewDrawn(session).ringed, 0);
         });
     });
 

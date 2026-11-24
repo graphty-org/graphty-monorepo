@@ -41,14 +41,14 @@
  * SHARDS is also exported: tools/run-tests.sh imports it to run a shard locally with the exact
  * command CI runs, so the two cannot drift. Importing the file runs nothing.
  *
- * A shard's "local" field is what the pre-push gate (tools/prepush-tests.mjs) does with it; CI
- * ignores it and runs every shard of an affected package:
+ * A shard's "local" field is what a run on this machine does with it (tools/test-changed.mjs and
+ * tools/test-select-mutate.mjs skip "never"); CI ignores it and runs every shard of an affected package:
  *   "always" (the default)  run it whenever its package is affected
  *   "when-paths-change"     run it only when the push changes a file the shard tests: a test file
  *                           its vitest command selects (with its own --shard slice), a setup or
  *                           config file of those vitest projects, or a path in "local-paths"
  *                           (repo-relative; a trailing "/" means everything under it, test files
- *                           of the other shards excepted). The gate asks vitest for the first two.
+ *                           of the other shards excepted).
  *   "never"                 never run it locally
  */
 
@@ -240,7 +240,7 @@ const OFF_SHARDS = [
     // cytoscape-extensions - single shard (Node.js, headless Cytoscape); resolves the graphty packages through their dist.
     // --exclude-task-dependencies: its coverage target depends on build and ^build, and nx replays a cached build by
     // deleting that package's dist and copying it back, so the shard briefly removed graph-format/dist (and the rest)
-    // while the shards beside it in the pre-push gate were reading them (issue #2859: graphty's Vite dependency scan
+    // while shards running beside it on the same checkout were reading them (issue #2859: graphty's Vite dependency scan
     // failed on it, reloaded the browser page and lost a test file). The build step before the tests made them already.
     {
         shard: "cytoscape-extensions",
@@ -321,7 +321,7 @@ const OFF_SHARDS = [
     // part's time is its real-element files, run one at a time (about 20 minutes each by 2026-11-09), so
     // graphty/test/story-shards.ts splits those by time rather than by vitest's path hash, which once gave
     // graphty-4 25 minutes of them and ran it into its deadline (#6373). Each part writes its coverage
-    // to its own .coverage-parts/<shard> (COVERAGE_DIR), so the parts' reports stay apart in the pre-push gate too; "coverage-file" says
+    // to its own .coverage-parts/<shard> (COVERAGE_DIR), so the parts' reports stay apart when they run side by side; "coverage-file" says
     // where for the upload. The On twins (tools/features-on.mjs) exist only under GRAPHTY_FEATURES_ON=1, which
     // these commands never set. The projects are named one by one because vitest runs a project that any one
     // --project matches, so a second "!name" would select the project the first one left out.
@@ -441,7 +441,7 @@ const OFF_SHARDS = [
         // Minutes of three engines for a change a pull request rarely makes: the 6-hour full run tests it
         // (design/ci/channels-pipeline/merging.md 4.1), never a pull request.
         "full-run-only": true,
-        // Never in the pre-push gate: it launches three engines for minutes, and WebKit needs system
+        // Never in a local run: it launches three engines for minutes, and WebKit needs system
         // packages a workstation may lack. Run it by hand with tools/run-tests.sh graphty-element-lifecycle.
         local: "never",
     },
@@ -770,8 +770,8 @@ export function groupEntry(name, members) {
 
 /**
  * A shard's command as CI's test job runs it: through tools/results/run-group.mjs, which runs it through the
- * quarantine wrapper (tools/test-quarantine.mjs runShard()) as the pre-push gate does, so a flaky or quarantined
- * test fails neither (the checkout's tools/test-quarantine.json; the failed test files are run once more), and
+ * quarantine wrapper (tools/test-quarantine.mjs runShard()), so a flaky or quarantined
+ * test does not fail the shard (the checkout's tools/test-quarantine.json; the failed test files are run once more), and
  * then writes one record per try to the results store when RESULTS_URL is set. On unless
  * GRAPHTY_TEST_QUARANTINE=0, which CI does not set: then the wrapper only runs the command.
  * @param shard a SHARDS entry

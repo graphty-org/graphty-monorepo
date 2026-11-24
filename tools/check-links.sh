@@ -28,8 +28,8 @@
 #                                         For the weekly workflow, not for a gate: another site's
 #                                         outage is not a reason to fail anyone's pull request
 #
-# CI runs the --site form (.github/workflows/ci.yml, job "Links"); the pre-push gate runs
-# --offline. Every other external link is checked weekly by .github/workflows/links-weekly.yml,
+# CI runs the --site form (.github/workflows/ci.yml, job "Links"); check:quick
+# (tools/check-quick.sh) runs --offline. Every other external link is checked weekly by .github/workflows/links-weekly.yml,
 # which files an issue instead of failing anyone's pull request.
 #
 # Configuration: lychee.toml and .lycheeignore at the repository root.

@@ -368,7 +368,7 @@ jobs:
                       node tools/visual-capture-plan.mjs "$all" "$affected" | tee -a "$GITHUB_OUTPUT"
 
             # The light check's optional jobs (design/ci/channels-pipeline/merging.md 4.1): on a pull request, Docs runs
-            # only when a docs input changed (the pre-push gate's rule: docs/, a package's docs/ that
+            # only when a docs input changed (docs/, a package's docs/ that
             # tools/copy-docs-content.js copies in, that script, tools/sanitize-api-docs.js, or an affected package
             # with a root `docs:api:<package>` script, or a file a docs page pulls in with `<!--@include: ...-->`);
             # (the CI workflow tests run on every pull request: they read files all over the repository);
@@ -2076,7 +2076,7 @@ jobs:
 
             # VITEST_BUDGET_CHECK reports every passing test over 10 s, or over 3 times its median in
             # VITEST_DURATION_HISTORY (tools/vitest-time-budget.mjs), as a warning; it never fails the shard.
-            # Only here, not in the pre-push gate, whose machine runs several shards at once.
+            # Only here, not in local runs, where the machine runs several test runs at once.
             - name: Run tests
               id: tests
               run: ${{ matrix.test-command }}

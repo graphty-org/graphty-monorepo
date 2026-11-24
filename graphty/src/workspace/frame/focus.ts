@@ -67,7 +67,7 @@ export const INSPECTOR_TITLE_ID = "ws-inspector-title";
 export function focusOpenedGraph(readerStayed = false): void {
     const active = document.activeElement;
     const inDrawing = !readerStayed && active?.tagName === "GRAPHTY-ELEMENT";
-    if (inDrawing || (active?.closest('[role="dialog"]') ?? null) !== null) {
+    if (inDrawing || (active?.closest('[role="dialog"]') ?? null) !== null || typing()) {
         return;
     }
     // The graph's heading, or the heading of the layer row an open selects (#3409).
@@ -128,6 +128,9 @@ export function focusInspectorTitle(): void {
  */
 export function focusMainHeading(): void {
     const title = (): HTMLElement | null => document.getElementById(INSPECTOR_TITLE_ID);
+    if (typing()) {
+        return;
+    }
     if (title() !== null) {
         title()?.focus();
         return;
@@ -145,6 +148,15 @@ export function focusMainHeading(): void {
     };
     document.addEventListener("focusin", stop);
     observer.observe(document.body, { childList: true, subtree: true });
+}
+
+/**
+ * Whether focus is in a text field, as in a name being edited in place or a note being written
+ * that a reload put back (issues #9661, #9662): leaving it would end the edit.
+ * @returns true when it is.
+ */
+function typing(): boolean {
+    return document.activeElement?.matches("input:not([type=checkbox]):not([type=radio]), textarea") === true;
 }
 
 /** Everything that can take focus, before the checks `canFocus` makes. */

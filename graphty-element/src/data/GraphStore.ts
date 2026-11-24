@@ -2002,10 +2002,11 @@ export class GraphStore {
      * @returns Their rows.
      */
     private nodeRowsOf(nodeIds: readonly NodeId[]): Set<number> {
-        const builder = this.current;
+        // `reads`, not `current`: a hover's incident-edge lookup must not rebuild a let-go builder (#9834).
+        const { reads } = this;
         const nodeRows = new Set<number>();
         for (const id of nodeIds) {
-            const row = builder.indexOf(id);
+            const row = reads.indexOf(id);
             if (row !== INVALID_INDEX) {
                 nodeRows.add(row);
             }
@@ -2032,13 +2033,18 @@ export class GraphStore {
      * @returns The edge rows.
      */
     private edgeRowsOf(edgeIds: readonly number[], nodeRows: ReadonlySet<number>): Set<number> {
-        const builder = this.current;
         const edgeRows = new Set<number>();
         for (const edgeId of edgeIds) {
             const row = this.edgeIndexOf(edgeId);
             if (row !== INVALID_INDEX) {
                 edgeRows.add(row);
             }
+        }
+
+        const builder = this.held;
+        if (builder === null) {
+            this.snapshotIncidentRows(nodeRows, edgeRows);
+            return edgeRows;
         }
 
         for (const row of nodeRows) {
@@ -2054,6 +2060,24 @@ export class GraphStore {
         }
 
         return edgeRows;
+    }
+
+    /**
+     * The edge rows attached to the given node rows, read from the snapshot while the builder is let
+     * go: the snapshot holds the same rows, so its adjacency answers without a rebuild (#9834).
+     * @param nodeRows - The node rows.
+     * @param into - Where the edge rows go.
+     */
+    private snapshotIncidentRows(nodeRows: ReadonlySet<number>, into: Set<number>): void {
+        const snapshot = this.cache as GraphSnapshot;
+        for (const view of snapshot.directed ? [snapshot, snapshot.reverse()] : [snapshot]) {
+            const { rowPtr, arcToEdge } = view;
+            for (const row of nodeRows) {
+                for (let arc = rowPtr[row]; arc < rowPtr[row + 1]; arc++) {
+                    into.add(arcToEdge[arc]);
+                }
+            }
+        }
     }
 
     /**

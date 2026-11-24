@@ -550,6 +550,12 @@ export interface PEdge {
      * hidden. Judged only beside graphty's head at the same end hidden too (`withoutHiddenInBoth`). Absent: none.
      */
     hiddenEnds?: ArrowEnd[];
+    /**
+     * The oracle's: the tip of each hidden end's piece (`hiddenEnds`) past the line's end, where the route is carried on
+     * to as to a head read (associate.ts `extendToTip`), only where graphty's head there is hidden too
+     * (`toHiddenTips`). Absent: none.
+     */
+    hiddenTips?: { source?: Pt; target?: Pt };
 }
 
 /** A group box as drawn. */

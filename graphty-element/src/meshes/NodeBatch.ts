@@ -20,7 +20,7 @@ import { batchUploadFrames } from "./FrameRoster";
 import { handOverTogether } from "./handOverTogether";
 import type { MeshCache } from "./MeshCache";
 import { NodeMesh, styleOpacity } from "./NodeMesh";
-import { attachRowPull } from "./RowPullPlugin";
+import { attachRowPull, glowRowsInPlace } from "./RowPullPlugin";
 import type { Point2 } from "./shapeOutlines";
 
 /**
@@ -137,6 +137,8 @@ export class NodeBatch {
         if (source.material) {
             attachRowPull(source.material);
         }
+
+        glowRowsInPlace(this.mesh);
 
         this.setBuffers();
     }

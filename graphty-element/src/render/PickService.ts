@@ -537,6 +537,18 @@ export class RowScan {
     }
 
     /**
+     * The world point at a canvas point, as {@link pickWorldPoint} answers it: Babylon's pick
+     * among the meshes the scan does not cover, and the nearer of that and the rows.
+     * @param x - X in CSS pixels.
+     * @param y - Y in CSS pixels.
+     * @returns The point, or null when nothing is there.
+     */
+    pointAt(x: number, y: number): Vector3 | null {
+        const info = this.scene.pick(x, y, (mesh) => drawnPickable(mesh) && !this.covers(mesh));
+        return this.nearer(info, this.shapeRayHit(x, y)).point;
+    }
+
+    /**
      * What a world ray lands on, as {@link pickRayAsDrawn} answers it.
      * @param ray - The ray.
      * @returns The mesh and point.
@@ -886,7 +898,9 @@ export function pickCloseLabel(scene: Scene, x: number, y: number): AbstractMesh
  * @returns The point, or null when nothing is there.
  */
 export function pickWorldPoint(scene: Scene, x: number, y: number): { x: number; y: number; z: number } | null {
-    const point = scene.pick(x, y).pickedPoint;
+    // A row drawn by a batch has no pickable mesh of its own, so the row scan answers it (issue #9861).
+    const scan = rowScans.get(scene);
+    const point = scan === undefined ? scene.pick(x, y).pickedPoint : scan.pointAt(x, y);
     return point === null ? null : { x: point.x, y: point.y, z: point.z };
 }
 

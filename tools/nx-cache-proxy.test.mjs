@@ -23,6 +23,8 @@ describe("nx-cache-proxy", () => {
                 res.writeHead(200).write("part");
                 return stalled.push(res);
             }
+            if (hash === "capped") return res.writeHead(429).end("daily REQUESTS cap reached");
+            if (hash === "broken") return res.writeHead(502).end();
             if (hash === "reset-body") {
                 res.writeHead(200).write("part");
                 return res.destroy();
@@ -88,6 +90,17 @@ describe("nx-cache-proxy", () => {
         assert.equal((await put("new", "w")).status, 200);
         assert.equal((await put("new", "r")).status, 403);
         assert.equal((await put("stall-headers", "w", stallingUrl)).status, 403);
+    });
+
+    it("answers the Worker's daily cap (429) and a 5xx as a miss for a GET and a refused store for a PUT", async () => {
+        assert.equal((await get("capped")).status, 404);
+        assert.equal((await get("broken")).status, 404);
+        const put = await fetch(`${url}/v1/cache/capped`, {
+            method: "PUT",
+            body: "x",
+            headers: { authorization: "Bearer w" },
+        });
+        assert.equal(put.status, 403);
     });
 
     it("answers a GET whose upstream resets mid-body as a miss, on a connection it then closes", async () => {

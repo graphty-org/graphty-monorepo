@@ -15,7 +15,7 @@ import { assert, describe, it } from "vitest";
 
 import type { Graph } from "../../src/Graph";
 import { checkDrawnFrames, describeFrames, faulty, type FrameReport } from "../helpers/frame-recorder";
-import { copied, deviceOf, landed, layoutOf, nextFrame, running, textureDiff } from "./shared-device";
+import { copied, deviceOf, landed, layoutOf, nextFrame, running, textureDiff, toldRowsLanded } from "./shared-device";
 
 /** Nodes the shared-device graph holds (shared-device.ts), and its edges. */
 const IDS = Array.from({ length: 200 }, (_, i) => `n${String(i)}`);
@@ -108,8 +108,9 @@ describe("GPU landings as drawn", () => {
         await inked(graph);
         await copied(graph);
         await graph.addNodes([{ id: "late" }]);
-        await landed(graph);
-        await landed(graph);
+        // the load's first landing goes up by upload (the ring is attached a batch after a load), and the added row,
+        // told to the ring as the layout places it, is sent again over the landings of the batches then in flight
+        await toldRowsLanded(graph);
         const table = graph.getRowTable();
         assert.isNotNull(table);
         const { copies } = table;

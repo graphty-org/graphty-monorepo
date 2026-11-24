@@ -550,14 +550,27 @@ export interface DraftView {
      * or a list of element references. Read when the view is shown: show it again after the draft
      * changes.
      */
-    readonly mark?: { readonly step: number } | { readonly refs: readonly SourceElementRef[] };
+    readonly mark?:
+        | {
+              /** The step's place in `draft.steps()`. */
+              readonly step: number;
+          }
+        | {
+              /** The elements to mark. */
+              readonly refs: readonly SourceElementRef[];
+          };
     /**
      * Colors by step instead of by what the commit does: each listed step's merged nodes get a ring,
      * its new nodes and edges a dashed border, and its untouched nodes a dotted border, all in the
      * step's color; `merged`, `new` and `untouched` then draw only what no listed step drew. Read
      * when the view is shown: show it again after the draft changes.
      */
-    readonly steps?: readonly { readonly step: number; readonly color: string }[];
+    readonly steps?: readonly {
+        /** The step's place in `draft.steps()`. */
+        readonly step: number;
+        /** The step's color, any CSS color. */
+        readonly color: string;
+    }[];
 }
 
 /**
@@ -606,7 +619,10 @@ export interface StylesApi {
      * @returns Ends the view, the stack's picture back in the same repaint.
      * @beta
      */
-    showDraft(view: DraftView): { end(): void };
+    showDraft(view: DraftView): {
+        /** Ends the view, the stack's picture back in the same repaint. */
+        end(): void;
+    };
     /**
      * The draft view drawn now, as it was given, or null: what a key beside the canvas describes.
      * Experimental: may change or be removed in a minor release.
@@ -4740,7 +4756,10 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             };
         },
 
-        showDraft(view: DraftView): { end(): void } {
+        showDraft(view: DraftView): {
+            /** Ends the view, the stack's picture back in the same repaint. */
+            end(): void;
+        } {
             const layers = draftLayers(view, current(), check, sources.draftIds);
             const replaced = branchesShown?.view ?? null;
             const before = painting(current());

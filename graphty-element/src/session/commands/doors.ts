@@ -3716,6 +3716,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             clearPicks: DRAFT_ACT,
             exclude: DRAFT_ACT,
             include: DRAFT_ACT,
+            batch: DRAFT_ACT,
+            suggestMatches: READ,
             commit: SOURCE_STEPS_WRITE,
             dispose: exempt("closes the draft, writing nothing"),
             displayed: READ,
@@ -3758,6 +3760,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             rows: READ,
             elements: READ,
             cells: READ,
+            marks: READ,
+            ids: READ,
         },
     },
     {

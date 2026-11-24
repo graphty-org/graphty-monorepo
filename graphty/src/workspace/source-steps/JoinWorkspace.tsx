@@ -785,32 +785,40 @@ function TablePane({
  * @param props.start - the incoming source the opener named, if any
  * @returns the modal, drawn over the canvas column
  */
-export function JoinWorkspace({
+function JoinWorkspace({
     session,
     start,
 }: Readonly<{ session: GraphSession; start?: string }>): React.JSX.Element | null {
     const { store, element } = useWorkspace();
     const titleId = useId();
     const box = useRef<HTMLDialogElement>(null);
-    // on reload: gap #9660: the draft lives in the element, whose autosave does not keep source drafts
-    const [draft] = useState<SourceDraft | null>(() => {
-        try {
-            return session.data.currentDraft() ?? session.data.draft();
-        } catch (error) {
-            store.set({ notice: { message: refusedWords(error), error: true }, joinWorkspace: false });
-            return null;
-        }
-    });
+    // on reload: fresh: in flight: the element draft being edited, which a reload discards along with the closed workspace
+    const [opened, setOpened] = useState<{ readonly draft: SourceDraft | null } | null>(null);
+    const draft = opened?.draft ?? null;
     const nextId = useRef(0);
-    // on reload: gap #9660: picks of cards with no step, which belong to the draft a reload discards
-    const [pending, setPending] = useState<readonly PendingCard[]>(() => {
-        const source = start ?? session.data.staged().at(-1)?.key;
-        return draft === null || source === undefined ? [] : [newCard(draft, "new:0", source)];
-    });
+    // on reload: fresh: in flight: picks of cards with no step yet, part of the discarded draft
+    const [pending, setPending] = useState<readonly PendingCard[]>([]);
     // on reload: fresh: pointer: the card opened for a look
-    const [open, setOpen] = useState<string | null>(pending[0]?.id ?? null);
+    const [open, setOpen] = useState<string | null>(null);
     // on reload: fresh: pointer: what the table lists for a look
     const [shows, setShows] = useState<TableShows | null>(null);
+    // Opened after the first render: opening a draft tells every listener, which must not happen while rendering.
+    useEffect(() => {
+        if (opened !== null) {
+            return;
+        }
+        try {
+            const opening = session.data.currentDraft() ?? session.data.draft();
+            const source = start ?? session.data.staged().at(-1)?.key;
+            const first = source === undefined ? [] : [newCard(opening, "new:0", source)];
+            setPending(first);
+            setOpen(first[0]?.id ?? null);
+            setOpened({ draft: opening });
+        } catch (error) {
+            setOpened({ draft: null });
+            store.set({ notice: { message: refusedWords(error), error: true }, joinWorkspace: false });
+        }
+    }, [opened, session, start, store]);
     // on reload: fresh: pointer: the rows picked for a look
     const [marked, setMarked] = useState<readonly SourceElementRef[]>([]);
     // on reload: fresh: pointer: the preview's look, picked for a look

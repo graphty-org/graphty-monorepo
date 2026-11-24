@@ -167,7 +167,7 @@ function manyOf(
  * @param b - The other's.
  * @returns True when they do.
  */
-export function samePicks(a: CardPicks, b: CardPicks): boolean {
+function samePicks(a: CardPicks, b: CardPicks): boolean {
     return JSON.stringify([pairOf(a), toPairOf(a)]) === JSON.stringify([pairOf(b), toPairOf(b)]);
 }
 

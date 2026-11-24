@@ -5553,7 +5553,12 @@ export interface SourceConnectOptions {
      *
      * `to.into` names its nodes by their key; a staged source it names is added first.
      */
-    readonly to?: { readonly field: string; readonly into: SourceJoinInto };
+    readonly to?: {
+        /** The column of each row naming the other end's node. */
+        readonly field: string;
+        /** Where the other end's nodes are: a source or a node kind. */
+        readonly into: SourceJoinInto;
+    };
 }
 
 /**

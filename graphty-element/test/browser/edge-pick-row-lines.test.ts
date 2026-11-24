@@ -82,11 +82,12 @@ async function plainEdges(
  * @param point - Where, in CSS pixels.
  * @param options - Modifier keys.
  * @param options.shift - Hold Shift.
+ * @param options.ctrl - Hold Ctrl.
  */
 async function clickSettled(
     element: Graphty,
     point: { x: number; y: number },
-    options?: { shift?: boolean },
+    options?: { shift?: boolean; ctrl?: boolean },
 ): Promise<void> {
     await click(element, point, options);
     const target = element.graph.getEdgeIdTarget();
@@ -195,6 +196,10 @@ describe("picking a plain edge with a real pointer", () => {
                 // Shift adds the other edge.
                 await clickSettled(element, top, { shift: true });
                 assert.sameMembers([...element.session.selection.edges], [ab, cd], "shift adds the top edge");
+
+                // Ctrl takes a selected edge out again.
+                await clickSettled(element, bottom, { ctrl: true });
+                assert.deepEqual(element.session.selection.edges, [ab], "ctrl takes the bottom edge out");
             },
         );
     }

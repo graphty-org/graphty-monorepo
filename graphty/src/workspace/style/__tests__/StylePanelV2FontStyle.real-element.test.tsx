@@ -1,7 +1,8 @@
 /**
  * Style panel v2's label font style on the REAL graphty-element (owner, 2026-11-23): Bold, Italic, Underline and
  * Strikethrough are a text editor's toggle buttons on one line of the label's pop-over; each press writes its label
- * style field, Bold writes the weight, and the numeric weight is the Letters group's.
+ * style field, Bold writes the weight, and the numeric weight is the Letters group's. The toggles end before the
+ * line's link button, so a press on Strikethrough never opens the link dialog.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -64,7 +65,15 @@ describe("Style panel v2's label font style", () => {
             assert.strictEqual(style().weight, "bold", "Bold writes the weight");
         });
         await userEvent.click(within(toggles).getByRole("button", { name: "Italic" }));
-        await userEvent.click(within(toggles).getByRole("button", { name: "Strikethrough" }));
+        // The toggles end before the line's link slot, with room for a finger's target (32 px over a 24 px
+        // button, 4 px past each side), so the link, shown on hover, never sits on Strikethrough.
+        const line = toggles.closest<HTMLElement>(".ws-row");
+        assert.isNotNull(line);
+        await userEvent.hover(line);
+        const strike = within(toggles).getByRole("button", { name: "Strikethrough" });
+        const link = within(line).getByRole("button", { name: "Node label weight by attribute" });
+        assert.isAtMost(strike.getBoundingClientRect().right + 4, link.getBoundingClientRect().left - 4);
+        await userEvent.click(strike);
         await waitFor(() => {
             assert.isTrue(style().italic);
             assert.isTrue(style().strikethrough);

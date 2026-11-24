@@ -413,7 +413,8 @@ function fontToggles(args: LineControlArgs): React.ReactNode {
     const { label, line } = args;
     const fields = [line.field, ...(line.toggles ?? [])];
     return (
-        <Group gap={2} wrap="nowrap" data-font-style="">
+        // 8 apart: under a finger each toggle's target is 32 px wide, so 2 apart they would take each other's taps.
+        <Group gap={8} wrap="nowrap" data-font-style="">
             {fields.map((field) => {
                 const toggle = FONT_TOGGLES[field];
                 if (toggle === undefined) {

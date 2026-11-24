@@ -320,10 +320,97 @@ function signalGroup(child, signal) {
 }
 
 /**
+ * The available memory, in MB, under which a run in CI's test job says what it was running (#10008). A hosted
+ * runner (16 GB) that runs out of memory can freeze whole: the deadline above never fires, GitHub cancels the job
+ * late and keeps no log, but the annotations it already received stay on the job.
+ */
+export const LOW_MEMORY_MB = [2048, 1024, 512];
+/** How often the memory watch reads /proc/meminfo. */
+const MEMORY_SAMPLE_MS = 5000;
+
+/**
+ * The machine's memory from /proc/meminfo, in MB.
+ * @returns `{ available, total }`, or null where there is no /proc/meminfo
+ */
+function readMeminfo() {
+    let text;
+    try {
+        text = readFileSync("/proc/meminfo", "utf8");
+    } catch {
+        return null;
+    }
+    const mb = (key) => Math.round(Number(new RegExp(String.raw`^${key}:\s+(\d+)`, "m").exec(text)?.[1] ?? 0) / 1024);
+    return { available: mb("MemAvailable"), total: mb("MemTotal") };
+}
+
+/**
+ * The three processes with the most resident memory, as `name pid MB`; shared pages count in each.
+ * @returns the list, joined
+ */
+function largestProcesses() {
+    const rows = [];
+    for (const pid of readdirSync("/proc").filter((p) => /^\d+$/.test(p))) {
+        try {
+            const status = readFileSync(`/proc/${pid}/status`, "utf8");
+            const rss = Number(/^VmRSS:\s+(\d+)/m.exec(status)?.[1] ?? 0);
+            if (rss) rows.push({ name: /^Name:\s+(.*)$/m.exec(status)?.[1], pid, mb: Math.round(rss / 1024) });
+        } catch {
+            // the process has ended
+        }
+    }
+    return rows
+        .sort((a, b) => b.mb - a.mb)
+        .slice(0, 3)
+        .map((r) => `${r.name} ${r.pid} ${r.mb} MB`)
+        .join(", ");
+}
+
+/**
+ * Watches the machine's memory while a run goes (#10008). Each time the available memory first falls under one of
+ * LOW_MEMORY_MB it writes a `[LOW-MEMORY]` warning annotation naming the files and tests running and the largest
+ * processes; `stop()` writes the run's low point as a log line, so every run shows how close it came.
+ * @param running the record of tools/running-tests.mjs
+ * @param [o] what it reads and writes, for tests
+ * @param [o.read] readMeminfo()
+ * @param [o.top] largestProcesses()
+ * @param [o.log] where it writes
+ * @returns `{ sample, stop }`
+ */
+export function memoryWatch(running, { read = readMeminfo, top = largestProcesses, log = console.log } = {}) {
+    const floors = [...LOW_MEMORY_MB];
+    let low = null;
+    const what = () => {
+        const names = stillRunning(running);
+        return names.length > 0 ? names.join("; ") : "no test running";
+    };
+    return {
+        sample() {
+            const m = read();
+            if (!m) return;
+            if (!low || m.available < low.available) low = { ...m, running: what() };
+            if (floors.length === 0 || m.available >= floors[0]) return;
+            while (floors.length > 0 && m.available < floors[0]) floors.shift();
+            log(
+                `::warning::[LOW-MEMORY] ${m.available} MB of ${m.total} MB available; running: ${low.running}; ` +
+                    `largest processes: ${top()}`,
+            );
+        },
+        stop() {
+            if (low) {
+                log(
+                    `test-quarantine: memory low point ${low.available} MB of ${low.total} MB, running: ${low.running}`,
+                );
+            }
+        },
+    };
+}
+
+/**
  * Runs a shell command, its output passed through and kept. It ends when the command has exited and its output is
  * read; a process the command left behind can hold the pipes open for ever, so that wait is PIPE_DRAIN_MS at most.
  * With DEADLINE_ENV set (run-group.mjs, in CI's test job) the command is stopped at that time and exits HANG_CODE,
- * with what was running named (and returned as `hung`); past that time it does not start (`hung` is empty).
+ * with what was running named (and returned as `hung`); past that time it does not start (`hung` is empty). Such a
+ * run also has its memory watched (memoryWatch()).
  * @param command the command
  * @param env its environment
  * @param cwd its directory
@@ -354,10 +441,16 @@ function sh(command, env, cwd) {
         const timers = [];
         let hung = false;
         let finished = false;
+        const memory = running ? memoryWatch(running) : null;
+        const watch = memory ? setInterval(memory.sample, MEMORY_SAMPLE_MS).unref() : null;
         const finish = (code, signal) => {
             if (finished) return;
             finished = true;
             timers.forEach(clearTimeout);
+            if (memory) {
+                clearInterval(watch);
+                memory.stop();
+            }
             child.stdout.destroy();
             child.stderr.destroy();
             const names = hung ? reportHang(running, chunks, deadline) : undefined;

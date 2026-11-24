@@ -297,7 +297,9 @@ function behavior(args) {
                     `${x.failBoth.length} fail on both, ${x.failHeadOnly.length} fail on HEAD and did not run on the ` +
                     `reference, ${x.fixedOrNew.length} pass on HEAD only, ${x.same} same`,
             );
-        const found = (x) => x.regressed.length + x.failHeadOnly.length;
+        // a case that also fails on the reference (it reads internals the reference lacks) still counts: the
+        // reference cannot vouch for it, so a failure on HEAD is a finding on its own
+        const found = (x) => x.regressed.length + x.failHeadOnly.length + x.failBoth.length;
         return found(d) + found(db) ? 1 : 0;
     } finally {
         git(REF_DIR, "checkout", "--", "graphty-element/test");

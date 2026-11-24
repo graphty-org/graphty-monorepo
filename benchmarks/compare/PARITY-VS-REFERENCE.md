@@ -50,7 +50,9 @@ the build. `--with-baselines` still compares HEAD's capture with them (`pictures
 files (and its test helpers) are copied over the reference checkout, run there under the `browser` and
 `interactions` projects, and put back. On HEAD they run under the same projects and under `forced-batched`.
 A test that passes on the reference and fails on HEAD is a regression. A file that needs an API the reference
-lacks fails to load there and shows as "pass on HEAD only". With no files named it runs the tests of the
+lacks fails to load there and shows as "pass on HEAD only". A test that fails on HEAD fails the stage even when
+it failed on the reference too: a case that reads internals the reference lacks always fails there, so the
+reference cannot vouch for it, and HEAD's own failure is the finding. With no files named it runs the tests of the
 reported risks (edges during transitions, hover and click, `elementAt`, pointer on rows), and the suite files
 of the parity plan once they land (`BEHAVIOR_FILES`).
 

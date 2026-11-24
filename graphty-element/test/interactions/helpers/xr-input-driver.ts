@@ -59,6 +59,13 @@ export interface XRInputDriver {
      * @returns the node, as the element draws it
      */
     putNodeOnRay: (handedness: Handedness, id: string, distance: number) => Promise<Node>;
+    /**
+     * The point `distance` along a hand's pointer ray, without adding or building anything there.
+     * @param handedness - whose ray
+     * @param distance - how far along the ray
+     * @returns the point, in the scene's coordinates
+     */
+    pointOnRay: (handedness: Handedness, distance: number) => { x: number; y: number; z: number };
     /** Let the session render frames, so Babylon delivers the inputs set and the handler reads them. */
     frame: () => Promise<void>;
     /** Leave VR, remove the element and put the browser's WebXR back. */
@@ -143,10 +150,23 @@ export async function createXRInputDriver(
     // The handler binds a controller's thumbstick once its motion controller is ready.
     await frames(2);
 
+    const pointOnRay = (handedness: Handedness, distance: number): { x: number; y: number; z: number } => {
+        const source = element
+            .getXRSessionManager()
+            ?.getXRHelper()
+            ?.input.controllers.find((controller) => controller.inputSource.handedness === handedness);
+        assert.exists(source, `the ${handedness} input is not tracked`);
+        const ray = new Ray(Vector3.Zero(), Vector3.Forward());
+        source.getWorldPointerRayToRef(ray);
+        const on = ray.origin.add(ray.direction.scale(distance));
+        return { x: on.x, y: on.y, z: on.z };
+    };
+
     return {
         element,
         graph,
         iwer,
+        pointOnRay,
         handler: controller().getInputHandler(),
         pivot: controller().getPivotController(),
         setStick: (handedness, x, y) => {
@@ -163,15 +183,7 @@ export async function createXRInputDriver(
             hand.setPinchValueImmediate(pinchValueFor(pinchDistance));
         },
         putNodeOnRay: async (handedness, id, distance) => {
-            const source = element
-                .getXRSessionManager()
-                ?.getXRHelper()
-                ?.input.controllers.find((controller) => controller.inputSource.handedness === handedness);
-            assert.exists(source, `the ${handedness} input is not tracked`);
-            const ray = new Ray(Vector3.Zero(), Vector3.Forward());
-            source.getWorldPointerRayToRef(ray);
-            const on = ray.origin.add(ray.direction.scale(distance));
-            await element.session.data.addNodes([{ id, position: { x: on.x, y: on.y, z: on.z } }]);
+            await element.session.data.addNodes([{ id, position: pointOnRay(handedness, distance) }]);
             await graph.setLayout("fixed", { dim: 3 });
             await operationQueueOf(graph).waitForCompletion();
             await frames(2);

@@ -400,6 +400,8 @@ export function PictureLine({
     const ref = typeof value === "string" && value !== "" ? value : undefined;
     const close = (): void => {
         setOpen(false);
+        // Focus goes back to the field it opened from, so Escape and Tab carry on from the line.
+        box.current?.querySelector<HTMLElement>('input:not([type="hidden"]), button')?.focus();
     };
     return (
         <div ref={box}>

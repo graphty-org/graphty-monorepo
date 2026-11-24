@@ -168,9 +168,12 @@ export function PopPanel(props: Readonly<PanelProps>): React.JSX.Element | null 
     useEffect(() => {
         const trigger = pop?.trigger.current;
         return () => {
-            // Going back puts focus where the reader drilled from.
+            // Going back puts focus where the reader drilled from, once the pop-over's own content shows again
+            // (it is still hidden while this view goes).
             if (open && trigger?.isConnected === true) {
-                trigger.focus();
+                requestAnimationFrame(() => {
+                    trigger.focus();
+                });
             }
         };
     }, [open, pop?.trigger]);

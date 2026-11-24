@@ -19,6 +19,7 @@ import { screen, waitFor, within } from "../../../test/test-utils";
 import colormapUrl from "../__fixtures__/car-kit/Textures/colormap.png?url";
 import { choose } from "./modelHarness";
 import {
+    closeSettings,
     openAdvanced,
     openGraph,
     openKind,
@@ -183,5 +184,8 @@ describe("Style panel v2's Image wraps around the shape", () => {
         await waitFor(async () => {
             assert.isAbove(pixelsApart(before, await picture(element)), 0, "the label draws its picture");
         });
+        // Focus is back on the field, so Escape goes back from the Advanced view, then closes the pop-over.
+        assert.strictEqual(document.activeElement, field, "focus is back on the Label image field");
+        await closeSettings();
     });
 });

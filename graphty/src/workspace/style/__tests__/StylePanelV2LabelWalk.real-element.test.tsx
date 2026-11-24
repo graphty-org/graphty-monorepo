@@ -618,6 +618,10 @@ describe("every label field is reachable from the Label row and draws (E673)", (
                             const dialog = await screen.findByRole("dialog", { name: "Picture" });
                             const file = new File([await (await fetch(colormapUrl)).arrayBuffer()], "colormap.png");
                             await choose(dialog, "Choose picture", [file]);
+                            // The picture is picked once it is accepted: the pop-over then closes.
+                            await waitFor(() => {
+                                assert.isFalse(dialog.isConnected, "the Picture pop-over closes on the pick");
+                            });
                             return undefined;
                         } else {
                             await typeIn(inputs()[0], String(test.value));

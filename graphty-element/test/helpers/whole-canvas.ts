@@ -59,7 +59,7 @@ const NAMED = 20;
  * @param pixels - Bytes to draw instead of the frame's own.
  * @returns The data URL.
  */
-function png(frame: CanvasFrame, pixels = frame.pixels): string {
+export function png(frame: CanvasFrame, pixels = frame.pixels): string {
     const canvas = document.createElement("canvas");
     canvas.width = frame.width;
     canvas.height = frame.height;

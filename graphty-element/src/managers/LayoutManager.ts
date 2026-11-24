@@ -776,7 +776,8 @@ export class LayoutManager implements Manager {
 
     /**
      * Set while the running layout's arrangement is the layout's own work: it was built, forward,
-     * and nothing but its own steps has placed a node since -- no `positions.set`, no restore.
+     * and nothing but its own steps has placed a node since -- no `positions.set`, no restore, no
+     * node removed.
      * While it holds, a seeded layout starts over when data arrives. See
      * {@link LayoutManager.restartsForNewData}.
      */
@@ -1045,6 +1046,14 @@ export class LayoutManager implements Manager {
         const observer = this.eventManager.onGraphEvent.add((event) => {
             if (event.type === "snapshot-replaced") {
                 this.onSnapshotReplaced(event);
+            }
+
+            // A node removed ends the arrangement being the layout's own: a seeded start over places
+            // bodies from the seed in row order, so each node after the removed one would take the
+            // place drawn for the node before it (issue #9918). Data arriving later is placed around
+            // the nodes where they are.
+            if (event.type === "elements-removed" && event.nodes.length > 0) {
+                this.ownArrangement = false;
             }
         });
         this.unsubscribeSnapshot = (): void => {
@@ -3023,7 +3032,7 @@ export class LayoutManager implements Manager {
      * same seed draws over the same data in one write.
      *
      * Only while the arrangement is the layout's own work: once a consumer has placed nodes, or a
-     * restore has, newcomers are placed around them. Only a SEEDED layout, which is the one that
+     * restore has, or a node was removed, newcomers are placed around them. Only a SEEDED layout, which is the one that
      * promises a picture; an unseeded one keeps the graph the reader has been watching. Not while
      * pre-steps are owed, because the first frame spends them over everything there is by then.
      * Not while a new layout waits its turn, which is built over the whole graph anyway, nor while
@@ -3835,6 +3844,14 @@ export class LayoutManager implements Manager {
         // whatever part of the graph has arrived -- the nodes without their edges, when the edges
         // come in a later pass -- and start the pre-steps from a different arrangement: the same
         // data and seed then settled somewhere else than when the layout was built over it.
+        // Batched: a row drawn with no `Node` reaches a static engine only through the freeze, which
+        // marks it stale; with no freeze here the engine published its old answer and the add's
+        // placement -- and a refusal of it, such as bfs over a disconnected graph -- fell to a later
+        // frame, after the awaited add had resolved. Objects told it by `addNode` and keeps master's path.
+        if (this.dataManager.renderLimits?.batched() === true) {
+            wholeGraph(this.dataManager);
+        }
+
         try {
             if (!this.preStepsOwed) {
                 this.layoutEngine.updatePositions(nodes);

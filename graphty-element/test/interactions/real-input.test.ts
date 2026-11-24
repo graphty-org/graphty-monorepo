@@ -436,6 +436,22 @@ describe("the mouse", () => {
             assert.closeTo(now.y, to.y, 3);
         });
 
+        it.each([
+            ["Ctrl", { ctrl: true }],
+            ["Cmd", { meta: true }],
+        ])("%s-click adds a node to the selection, and takes it out again", async (_name, modifier) => {
+            const element = await mounted(viewMode);
+
+            await click(element, at(element, "a"));
+            await click(element, at(element, "b"), modifier);
+            await applied(element);
+            assert.sameMembers([...element.session.selection.nodes], ["a", "b"], "the click added b to a");
+
+            await click(element, at(element, "a"), modifier);
+            await applied(element);
+            assert.sameMembers([...element.session.selection.nodes], ["b"], "a second click took a out");
+        });
+
         it("a click on empty canvas is published, with or without a selection", async () => {
             const element = await mounted(viewMode);
             let heard = 0;

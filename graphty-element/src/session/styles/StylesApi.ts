@@ -2450,6 +2450,23 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
     /** The last bindings each layer was painted with, by its first version, for {@link steadyEncodingOf}. */
     const lastPainted = new WeakMap<CompiledLayer, readonly PreparedBinding[]>();
+    /**
+     * The layer versions a finished repaint has passed over. A version not in it was written after
+     * the last pass, and its repaint is still to come (issue #9981).
+     */
+    const repainted = new WeakSet<CompiledLayer>();
+    /**
+     * Note the layer versions a pass has painted; a failed pass painted none of them.
+     * @param stack - The stack the pass painted.
+     * @param failure - What the pass threw, or null.
+     */
+    const markRepainted = (stack: readonly CompiledLayer[], failure: unknown): void => {
+        if (failure === null) {
+            for (const entry of stack) {
+                repainted.add(entry);
+            }
+        }
+    };
 
     /**
      * The bindings one layer was painted from, by the id its readers know it by.
@@ -2475,10 +2492,12 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             return prepared;
         }
         // A layer edited while a branches view suspends it is not painted until the view ends and
-        // its repaint lands, so until then the stack's readings (counts, agreement, the legend)
-        // read what it last painted, never "nothing" -- which would read it as covered by a layer
-        // below on every element it matches.
-        return branchesShown === null && viewPending === 0 ? prepared : (lastPainted.get(versionsOf(own)) ?? prepared);
+        // its repaint lands, and nor is one edited since the last pass (an edit that records an
+        // undo step tells `history:changed` before its repaint, issue #9981). Until then the
+        // stack's readings (counts, agreement, the legend) read what it last painted, never
+        // "nothing" -- which would read it as covered by a layer below on every element it matches.
+        const steady = branchesShown === null && viewPending === 0 && repainted.has(own);
+        return steady ? prepared : (lastPainted.get(versionsOf(own)) ?? prepared);
     };
 
     /**
@@ -4467,6 +4486,8 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 failure = error;
             }
         }
+
+        markRepainted(target.styles, failure);
 
         lastPass = {
             reason: request.reason,

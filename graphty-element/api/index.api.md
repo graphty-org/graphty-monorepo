@@ -4579,6 +4579,13 @@ export type GraphtyErrorCode =
 */
 | "E_XR_SESSION_FAILED"
 /**
+* Something run for one frame of an immersive session threw: Babylon.js's own XR input, or
+* code observing the frame. The session keeps drawing; the step that threw is skipped for that
+* frame. `details.mode` is `"vr"` or `"ar"` and `cause` carries what was thrown. Reported once
+* per session for each distinct message, as `graph-error` (context `"xr"`), never thrown.
+*/
+| "E_XR_FRAME_FAILED"
+/**
 * A feature the caller asked for needs an optional peer package that is not installed.
 * `details.package` names the package to install and `details.feature` the feature that
 * needs it (for the in-browser AI provider, `"webllm"`; for acceleration, `"webgpu"`). The
@@ -5139,6 +5146,13 @@ export type GraphtyWarningCode =
 * Since 3.40.0.
 */
 | "W_FILTER_DRAFT_DROPPED"
+/**
+* The draft of the sources and steps autosave kept could not be opened again after a restore
+* (the source-steps experiment is off, or the rows it read are gone), so it was dropped. In an
+* autosave restore's report; no params.
+* Since 3.40.0.
+*/
+| "W_SOURCE_DRAFT_DROPPED"
 /**
 * A style layer's `{ match: "ids" }` selector names ids no element of the layer's target answers
 * to, by either spelling of an integer id, so they paint nothing. `params.target` is `"node"` or
@@ -8293,6 +8307,7 @@ export class RenderManager implements Manager {
     init(): Promise<void>;
     // @internal
     pickGroupOutline(x: number, y: number): GroupOutlinePick | null;
+    relightBatches(): void;
     requestFrame(): void;
     // @internal
     resize(): void;
@@ -9393,6 +9408,8 @@ export class UpdateManager implements Manager {
     placeBuiltNode(node: Node_2): void;
     // @internal
     placeEdgesOfNode(node: Node_2): void;
+    // @internal
+    placeEdgesOfRow(row: number): void;
     // @internal
     plainLabelRows(): {
         row: number;

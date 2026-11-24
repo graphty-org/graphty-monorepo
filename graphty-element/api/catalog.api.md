@@ -3142,6 +3142,7 @@ export const STYLE_PATCH_ACTIONS: readonly ["add", "update", "remove", "move", "
 
 // @public
 export interface StyleDocument {
+    ids?: readonly (LayerId | undefined)[];
     labelLooks?: readonly LabelLookDescriptor[];
     layers: readonly LayerSpec[];
     palettes?: readonly PaletteDescriptor[];
@@ -3159,6 +3160,7 @@ export type StyleDocumentRow = ({
     layer: number;
 } | {
     folder: string;
+    id?: StyleRowId;
     children: readonly StyleDocumentRow[];
 }) & {
     pin?: "top" | "bottom" | "none";

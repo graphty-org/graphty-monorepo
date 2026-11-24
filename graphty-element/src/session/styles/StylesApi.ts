@@ -1958,6 +1958,9 @@ const NOTHING_PAINTED: RepaintReport = Object.freeze({ nodes: 0, edges: 0 });
 /** What every folder id starts with, which no layer id can (a layer id has no colon). */
 const FOLDER = "folder:";
 
+/** A saved layer or folder id a document may give back: the form {@link mintLayerId} writes. */
+const SAVED_ID = /^[a-z][a-z0-9_-]*$/;
+
 /** The tree a consumer reads, per stack, so the same array comes back until the stack changes. */
 const treeCache = new WeakMap<readonly CompiledLayer[], readonly StyleRow[]>();
 
@@ -2872,6 +2875,37 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     };
 
     /**
+     * The ids a document's layers get: each one's saved id when it is a legible id no layer in the
+     * session (nor an earlier layer of the document) holds, else one minted from its name. The
+     * saved ids are claimed first, so a minted id never takes one a later layer saved.
+     * @param document - The document.
+     * @returns The ids, by place.
+     */
+    const documentIds = (document: StyleDocument): LayerId[] => {
+        const taken = new Set(byId().keys());
+        const kept = document.layers.map((_spec, index) => {
+            const saved = document.ids?.[index];
+            if (typeof saved !== "string" || !SAVED_ID.test(saved) || taken.has(saved)) {
+                return undefined;
+            }
+
+            taken.add(saved);
+            return saved;
+        });
+
+        return document.layers.map((spec, index) => {
+            const own = kept[index];
+            if (own !== undefined) {
+                return own;
+            }
+
+            const id = mintLayerId(typeof spec.name === "string" ? spec.name : "", taken);
+            taken.add(id);
+            return id;
+        });
+    };
+
+    /**
      * The id a new layer gets, which is free of every id the stack already holds.
      * @param name - What the layer is called.
      * @returns The minted id.
@@ -3569,11 +3603,10 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         checkDocument(document);
         const index = templateIndex(at);
 
-        const id = minter();
         const imported: ImportedLayer[] = [];
         const unresolved = new Set<Path>();
         const warnings: CodedFact<GraphtyWarningCode>[] = [];
-        const ids = document.layers.map((spec) => id(spec.name));
+        const ids = documentIds(document);
         const rowKeys = documentRowKeys(document.layers, ids);
 
         for (const [index, saved] of document.layers.entries()) {
@@ -3895,10 +3928,11 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * @param rows - The rows whose folder ids are taken.
      * @returns A function that mints one free folder id per call.
      */
-    const folderMinter = (rows: Rows): ((name: string) => StyleRowId) => {
+    const folderMinter = (rows: Rows): ((name: string, saved?: string) => StyleRowId) => {
         const taken = new Set(folderIdsOf(rows).map((id) => id.slice(FOLDER.length)));
-        return (name: string): StyleRowId => {
-            const id = mintLayerId(name, taken);
+        return (name: string, saved?: string): StyleRowId => {
+            const own = typeof saved === "string" && saved.startsWith(FOLDER) ? saved.slice(FOLDER.length) : "";
+            const id = SAVED_ID.test(own) && !taken.has(own) ? own : mintLayerId(name, taken);
             taken.add(id);
             return `${FOLDER}${id}`;
         };
@@ -5629,12 +5663,13 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             const problems = [...named]
                 .filter((id) => !dispatcher.state.shaders.has(id))
                 .map((id): ShaderProblem => Object.freeze({ code: "shader.not-saved", params: { id } }));
-            // Saved by place, since an opened document mints new layer ids.
+            // Rows name layers by place; each layer's id travels beside it in `ids`.
             const tree = documentRows(rowsOf(current()), (key) => mine.findIndex((entry) => entry.layer.id === key));
 
             return Object.freeze({
                 version: DOCUMENT_VERSION,
                 layers: Object.freeze(layers),
+                ids: Object.freeze(mine.map((entry) => entry.layer.id)),
                 // Every palette and label look a layer names, built-ins included, so a later build
                 // that no longer ships one, or ships it changed, paints what this one did.
                 ...(carried.palettes.length === 0 ? {} : { palettes: Object.freeze(carried.palettes) }),
@@ -5646,7 +5681,9 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         },
 
         toFile(): StyleFileDocument {
-            return Object.freeze({ kind: "graphty-style", ...api.toDocument() });
+            // A style file is a look to share, not this session's work: its layers get new ids where it opens.
+            const { ids: _ids, ...document } = api.toDocument();
+            return Object.freeze({ kind: "graphty-style", ...document });
         },
     };
 

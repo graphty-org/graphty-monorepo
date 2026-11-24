@@ -751,7 +751,10 @@ A style section holds `layers` (REQUIRED), `palettes`, `shaders`, `tree`, `value
 6. **Data built-ins are carried.** Every palette a binding names MUST be in `palettes`; every shader
    a layer, encode key or background names MUST be in `shaders` as `{ "id", "text" }`.
 7. `tree` holds the style tree, bottom first: rows `{ "layer": <layer id> }` or
-   `{ "folder", "children" }`, each with optional `pin`, `locked` and `hidden`.
+   `{ "folder", "children" }`, each with optional `pin`, `locked` and `hidden`; a folder row
+   has an optional `id`. A reader gives each layer its `id`, and each folder its `id`, when no
+   row it already holds has it, and reports a layer it had to give a new one (`W_LAYER_ID_CHANGED`,
+   params `{ section, from, to }`).
 8. `valueLabels` lists `{ path, value, label }`, `path` a value path (`data.<column>`,
    `results.<as>.<field>`).
 9. **Unset channels.** A channel no layer sets is drawn with the renderer's own look. That look is
@@ -1870,6 +1873,7 @@ application words them.
 | `W_LAYOUT_ENGINE_UNAVAILABLE` | a layout's `drawnBy` names an engine the reader cannot draw that arrangement with; its default engine drew it             | `section`, `layout`, `engine`                                                                              |
 | `W_LAYOUT_OPTION_NOT_APPLIED` | a layout option the arrangement or the drawing engine does not take was left out                                          | `section`, `layout`, `engine`, `option`                                                                    |
 | `W_NAME_UPGRADED`             | a former algorithm key or option name was read as its current name (10.1)                                                 | `section`, `pointer`, `from`, `to`                                                                         |
+| `W_LAYER_ID_CHANGED`          | a style layer's saved id was taken here, so it was given a new one (section 4.2 rule 7)                                   | `section`, `from`, `to`                                                                                    |
 
 ## 14. Files in this directory
 

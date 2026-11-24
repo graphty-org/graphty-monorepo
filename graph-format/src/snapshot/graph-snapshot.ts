@@ -641,6 +641,38 @@ export class GraphSnapshot implements GraphSnapshotContract {
     }
 
     /**
+     * Every logical edge's weight at full precision, in edge order: the exact value each edge was
+     * given, where `edgeList().weights` holds 32-bit floats (0.1 reads back as 0.10000000149011612).
+     * Reads the role-"weight" f64 edge column when the builder kept one (some weight was not exact
+     * as a 32-bit float), else widens the 32-bit weights, which are then exact. A fresh array on
+     * every call.
+     * @example
+     * ```ts
+     * const b = new GraphBuilder({ directed: true, weightDtype: "f64" });
+     * b.addEdge("a", "b", 0.1);
+     * b.freeze().edgeWeights(); // Float64Array [ 0.1 ]
+     * ```
+     * @returns Float64Array(edgeCount), or null when the graph is unweighted
+     */
+    edgeWeights(): F64 | null {
+        const { weights } = this.edgeList();
+        if (weights === null) {
+            return null;
+        }
+        const out = Float64Array.from(weights);
+        const exact = this.edges.byRole("weight");
+        if (exact?.dtype === "f64") {
+            for (let e = 0; e < out.length; e++) {
+                const v = exact.value(e);
+                if (typeof v === "number") {
+                    out[e] = v;
+                }
+            }
+        }
+        return out;
+    }
+
+    /**
      * rowPtr differences materialized; a self-loop counted once. Cached and shared: call `.slice()`
      * before writing.
      * @returns Uint32Array(n)

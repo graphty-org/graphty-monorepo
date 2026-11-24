@@ -2038,6 +2038,79 @@ describe("story captures (design/visual-testing/early-capture.md, 4c)", () => {
         assert.equal((await call("GET", `/v1/story-reach?shas=${many}`, { token: LOCAL_TOKEN })).status, 400);
     });
 
+    it("#9974: a read touches only each story's and unit's newest row, however many slices are stored", async () => {
+        // window functions and a self-join over a week of story_capture rows read about 750,000 rows a call, and
+        // some 900 calls a day spent the daily D1 read cap
+        const { call, env } = service();
+        const one = (story, status) => ({ project: "graphty", story, status, hash: status });
+        for (let run = 4001; run <= 4040; run++)
+            await call("POST", "/v1/story-captures", {
+                token: slices({ run_id: String(run) }),
+                body: slice({
+                    captures: [one("a", "changed"), one("b", "unchanged")],
+                    units: [{ project: "graphty", unit: "u" }],
+                }),
+            });
+        assert.equal(env.DB.sqlite.prepare("SELECT count(*) AS n FROM story_capture").get().n, 80);
+        const seen = [];
+        const prepare = env.DB.prepare;
+        env.DB.prepare = (sql) => (seen.push(sql), prepare(sql));
+        const { body } = await call("GET", "/v1/story-captures", { token: LOCAL_TOKEN });
+        assert.deepEqual(
+            body.captures.map((c) => [c.story, c.runId, c.status]),
+            [
+                ["a", 4040, "changed"],
+                ["b", 4040, "unchanged"],
+            ],
+        );
+        assert.equal(body.units.length, 1);
+        const history = seen.filter((sql) => /\b(story_capture|story_unit)\b/.test(sql));
+        assert.deepEqual(history, []);
+    });
+
+    it("#9974: migration 0014 fills the newest rows from the captures already stored", async () => {
+        const { DatabaseSync } = await import("node:sqlite");
+        const { readdirSync } = await import("node:fs");
+        const dir = new URL("../migrations/", import.meta.url);
+        const sqlite = new DatabaseSync(":memory:");
+        const files = readdirSync(dir).sort();
+        const at = files.indexOf("0014_story_newest.sql");
+        for (const f of files.slice(0, at)) sqlite.exec(readFileSync(new URL(f, dir), "utf8"));
+        const add = sqlite.prepare(
+            `INSERT INTO story_capture (project, story, mode, sha, baselines_tree, run_id, attempt, artifact, status, at)
+             VALUES ('p', ?, '', ?, ?, ?, 1, 'x', ?, 0)`,
+        );
+        // the pick-rule test's history: a changed under OLD then under T; b changed, unchanged, changed; c clear now
+        for (const [story, sha, tree, run, status] of [
+            ["a", "o", "OLD", 4001, "changed"],
+            ["a", "a", "T", 4010, "changed"],
+            ["b", "a", "T", 4010, "changed"],
+            ["c", "a", "T", 4010, "changed"],
+            ["a", "b", "T", 4020, "new"],
+            ["b", "b", "T", 4020, "unchanged"],
+            ["c", "b", "T", 4020, "unchanged"],
+            ["a", "c", "T", 4030, "changed"],
+            ["b", "c", "T", 4030, "changed"],
+        ])
+            add.run(story, sha, tree, run, status);
+        sqlite.exec(
+            "INSERT INTO story_unit (project, unit, sha, run_id, attempt, at) VALUES ('p', 'u', 'a', 4010, 1, 0), ('p', 'u', 'b', 4020, 1, 0)",
+        );
+        sqlite.exec(readFileSync(new URL(files[at], dir), "utf8"));
+        assert.deepEqual(
+            sqlite
+                .prepare("SELECT story, sha, first_unapproved AS first FROM story_newest ORDER BY story")
+                .all()
+                .map((r) => ({ ...r })),
+            [
+                { story: "a", sha: "c", first: "a" },
+                { story: "b", sha: "c", first: "c" },
+                { story: "c", sha: "b", first: null },
+            ],
+        );
+        assert.deepEqual({ ...sqlite.prepare("SELECT unit, sha FROM unit_newest").get() }, { unit: "u", sha: "b" });
+    });
+
     it("is read by no file under tools/ but the store and the consumers the design names", async () => {
         const { execFileSync } = await import("node:child_process");
         const root = new URL("../../../", import.meta.url).pathname;
@@ -2198,8 +2271,8 @@ describe("#9784: the daily D1 caps and GET /v1/usage", () => {
 // only when it stays small, and says why here.
 const SMALL_TABLES = {
     quarantine: "the entries in force and those that left: a few dozen a month",
-    story_capture: "pruned on every write to each story's newest row plus 7 days",
-    story_unit: "pruned on every write to each unit's newest row plus 7 days",
+    story_newest: "one row per story and mode, kept on write (#9974)",
+    unit_newest: "one row per slice unit, kept on write (#9974)",
     story_notify: "one row per notice kind (2)",
     candidate: "one row at most",
     duration_backfill: "one row",

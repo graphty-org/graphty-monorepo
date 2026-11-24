@@ -522,10 +522,15 @@ export interface SimulationEngineInit {
 const STRENGTH_COLUMN = "graphty.layoutStrength";
 
 /**
- * Slots in the drawn ring. A landed slot is copied at the publish after the frame's step, so it must
- * outlive every batch in flight plus that one (the GPU layouts' default `maxInFlight` is 2).
+ * Drawn ring slots beyond the batches a simulation keeps in flight. A landed slot is copied at the
+ * publish after the frame's step, and that step may already have submitted a batch in the landed
+ * batch's place, so the ring must hold every batch in flight plus the landed one: a ring of four
+ * at `maxInFlight` 4 handed the batch submitted after a landing the slot the publish then copied.
+ * Two keeps the ring of four the GPU layouts' default `maxInFlight` of 2 has always had.
  */
-const DRAWN_SLOTS = 4;
+const DRAWN_SPARE_SLOTS = 2;
+/** The GPU layouts' `maxInFlight` when the options leave it unset. */
+const DEFAULT_MAX_IN_FLIGHT = 2;
 
 /** drawn = (simulation - center) * scale + target: what the drawn ring and a publish apply. */
 interface DrawnTransform {
@@ -674,6 +679,11 @@ export class SimulationLayoutEngine extends LayoutEngine {
     readonly #drawnTarget: () => DrawnTarget | null;
     /** The simulation filling the row table on the card, or null on the upload path. */
     #drawn: DrawnRun | null = null;
+    /**
+     * The rows a ring waits for the table to grow to, or -1. A freeze that adds nodes reloads the layout before the
+     * graph grows its row table (observers run in subscription order), so the ring is attached at the next step.
+     */
+    #drawnShort = -1;
     /**
      * The `weight` the running simulation was built with, or undefined for a simulation that reads
      * no weight: a load whose answer differs rebuilds it.
@@ -1296,6 +1306,8 @@ export class SimulationLayoutEngine extends LayoutEngine {
             return;
         }
 
+        this.#attachShort();
+
         const iterations = this.#batchIterations();
         const arrangement = this.#arrangement;
         const batch = simulation.step(iterations);
@@ -1378,6 +1390,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
             this.#applyCollision(this.#snapshot.nodeCount);
         }
 
+        this.#attachShort();
         this.#iterationsDone += iterations;
         this.#syncWork();
         try {
@@ -1903,12 +1916,16 @@ export class SimulationLayoutEngine extends LayoutEngine {
             target.table.rows < nodeCount ||
             this.#origin !== null
         ) {
+            if (drawn !== null && target !== null && target.table.rows < nodeCount && this.#origin === null) {
+                this.#drawnShort = nodeCount;
+            }
+
             return;
         }
 
         try {
             drawn.setDrawn({
-                slots: DRAWN_SLOTS,
+                slots: (this.#options.maxInFlight ?? DEFAULT_MAX_IN_FLIGHT) + DRAWN_SPARE_SLOTS,
                 rows: target.table.rowPosition.subarray(0, 4 * nodeCount),
                 // On another device than the texture's, each landed slot comes back in the batch's readback.
                 readBack: target.device === null,
@@ -1942,10 +1959,18 @@ export class SimulationLayoutEngine extends LayoutEngine {
         this.#sendDrawnTransform(run);
     }
 
+    /** Attaches the ring a load left waiting for the table to grow, before the next batch or publish. */
+    #attachShort(): void {
+        if (this.#drawnShort >= 0) {
+            this.#attachDrawn(this.#drawnShort);
+        }
+    }
+
     /** Back to the upload path: the ring stops, and the table tells no simulation of its writes. */
     #detachDrawn(): void {
         const run = this.#drawn;
         this.#drawn = null;
+        this.#drawnShort = -1;
         if (run === null) {
             return;
         }
@@ -1970,6 +1995,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * @returns The run, or null.
      */
     #drawnRun(): DrawnRun | null {
+        this.#attachShort();
         const run = this.#drawn;
         if (run === null) {
             return null;

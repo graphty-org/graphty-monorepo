@@ -2419,6 +2419,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             takeLateEdgeRows: RENDER,
             notePainted: RENDER,
             notePaintDrawn: RENDER,
+            notePaintQueued: RENDER,
             drawHeld: READ,
             addNode: calls([{ id: "door-c" }], [addNodes({ id: "door-c" })]),
             addNodes: calls([[{ id: "door-d" }]], [addNodes({ id: "door-d" })]),

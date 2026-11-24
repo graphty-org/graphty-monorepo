@@ -3891,8 +3891,13 @@ export class UpdateManager implements Manager {
             this.updateRoster(roster);
         }
 
-        // The rows drawn with no Node, which no walk above reaches, move by their rows.
+        // The rows drawn with no Node, which no walk above reaches, move by their rows. A transition's write is a
+        // `RowTable.place`, which says no row moved but by its own Node, and the lane under it is already at the new
+        // layout: noted here, so the edge walk lays the placed edges at those rows from where they are drawn now.
+        const table = this.graphContext.getRowTable?.();
+        const moves = table?.moves;
         transitionsOf(this.layoutManager)?.placeRows();
+        this.transitionRowsMoved ||= moves !== undefined && table?.moves !== moves;
         if (roster === null) {
             this.nodesFollowed = writableLane(this.dataManager)?.changes ?? -1;
             this.engineFollowed = this.layoutManager.layoutEngine;
@@ -4398,6 +4403,9 @@ export class UpdateManager implements Manager {
     /** Whether the row table moved a row since the last edge walk while some row has no Node. */
     private unbuiltRowsMoved = false;
 
+    /** Whether a layout transition moved a row with no Node since the last walk of the nodes. */
+    private transitionRowsMoved = false;
+
     /** The lane rows that moved since the last walk of the nodes, when the lane could say; see {@link nodesMoved}. */
     private unbuiltRowsChanged: readonly number[] | null = null;
 
@@ -4779,10 +4787,20 @@ export class UpdateManager implements Manager {
         const relocations = lane?.relocations ?? Number.NaN;
         const laneMoved = relocations !== this.lastLaneRelocations;
         this.lastLaneRelocations = relocations;
-        this.unbuiltRowsChanged = lane?.rowsChangedSince(this.lastLaneChanges) ?? null;
+        const listed = lane?.rowsChangedSince(this.lastLaneChanges) ?? null;
+        // A GPU landing owes the lane its publish (ElementPositions.owe): its rows moved, but `changes` waits for the
+        // publish, so the lane lists none of them, and placing the edges of no row left every arrowed edge between
+        // rows with no Node where it was first drawn. A move the lane cannot list asks every placed edge.
+        this.unbuiltRowsChanged = laneMoved && listed?.length === 0 ? null : listed;
         this.lastLaneChanges = lane?.changes ?? -1;
         this.unbuiltRowsMoved =
-            rowsMoved && laneMoved && total === undefined && nodeCount < this.dataManager.nodes.size;
+            this.transitionRowsMoved ||
+            (rowsMoved && laneMoved && total === undefined && nodeCount < this.dataManager.nodes.size);
+        if (this.transitionRowsMoved) {
+            // The lane names none of the rows a transition moved: every placed edge is asked.
+            this.unbuiltRowsChanged = null;
+            this.transitionRowsMoved = false;
+        }
         // A share of the graph's nodes, not of the `Node`s walked: under "batched" one built `Node` that moved
         // was every `Node`, and walked every edge (issue #9164).
         nodeCount = total ?? Math.max(nodeCount, this.dataManager.nodes.size);

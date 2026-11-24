@@ -830,6 +830,12 @@
     padding-inline: 6px;
 }
 
+/* Its value ends at that inset, without the label's own end margin on top: beside a picture, in a
+   field on the narrow field column, the margin left a short value cut short ("So..." for Solid). */
+.ws-value-listbox .cm-button-label {
+    margin-inline-end: 0;
+}
+
 /* A value picker's picture, at the size of the field's text. */
 .ws-value-glyph {
     display: inline-flex;

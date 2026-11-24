@@ -35,17 +35,24 @@ export function screenFingerprint() {
     };
     // What no reader sees: a hidden subtree. (An inert one is seen: the panels under an open
     // selection workspace are inert and still show the picked row.)
-    // A menu or a picker's list held open over the page closes on any reload, as it does on a click
-    // elsewhere: the reader did not leave it open, the pointer did ("fresh: pointer" in fresh-kinds.json).
+    // A menu, a picker's list or a pop-over held open over the page by the control that opened it
+    // (aria-haspopup with aria-controls) closes on any reload, as it does on a click elsewhere: the
+    // reader did not leave it open, the pointer did ("fresh: pointer" in fresh-kinds.json).
     const popupIds = new Set(
         [...document.querySelectorAll("[aria-haspopup][aria-controls], [role=combobox][aria-controls]")].flatMap(
             (each) => (each.getAttribute("aria-controls") ?? "").split(/\s+/),
         ),
     );
+    const inPopup = (element) => {
+        for (let each = element; each !== null; each = each.parentElement) {
+            if (each.id !== "" && popupIds.has(each.id)) return true;
+        }
+        return false;
+    };
     const transient = (element) =>
         element.matches("[aria-haspopup]:not([aria-haspopup=false])") ||
         element.closest('[role="menu"]') !== null ||
-        [element, element.closest('[role="listbox"]')].some((each) => each !== null && popupIds.has(each.id));
+        inPopup(element);
     const unseen = (element) =>
         transient(element) || element.closest('[hidden], [aria-hidden="true"], [role="status"], [role="log"]') !== null;
     const seen = new Set();

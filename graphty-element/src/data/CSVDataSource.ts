@@ -13,6 +13,7 @@ import { detectFormats } from "../catalog/detect";
 import type { AdHocData } from "../config";
 import { GraphtyError } from "../errors";
 import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "./DataSource.js";
+import { declareKinds } from "./declaredKinds.js";
 import type { DataLoadingError } from "./ErrorAggregator.js";
 import {
     addErrorOrStop,
@@ -618,6 +619,8 @@ export class CSVDataSource extends DataSource {
             id,
             data: Array.isArray(labels) ? { ...data, label: labels.join(";") } : data,
         }));
+        // :LABEL and :TYPE say what kind each node and relationship is.
+        declareKinds(this, { node: "label", edge: "type" });
         yield* this.emit(nodes, imported.edges);
     }
 

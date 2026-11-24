@@ -17,6 +17,7 @@
 #   algorithms/storybook-static         -> /storybook/algorithms/
 #   layout/storybook-static             -> /storybook/layout/
 #   cytoscape-extensions/storybook-static -> /storybook/cytoscape-extensions/  (the demo)
+#   babylonjs-models/storybook-static   -> /storybook/babylonjs-models/
 #   graph-io/fidelity-stories/storybook-static -> /storybook/graph-io-fidelity/  (style fidelity side by side)
 #   algorithms/gh-pages                 -> /algorithms/          landing page
 #   layout/gh-pages                     -> /layout/              examples
@@ -70,6 +71,7 @@ copy compact-mantine/storybook-static storybook/compact-mantine
 copy algorithms/storybook-static storybook/algorithms
 copy layout/storybook-static storybook/layout
 copy cytoscape-extensions/storybook-static storybook/cytoscape-extensions
+copy babylonjs-models/storybook-static storybook/babylonjs-models
 copy graph-io/fidelity-stories/storybook-static storybook/graph-io-fidelity
 copy algorithms/gh-pages algorithms
 copy layout/gh-pages layout
@@ -153,6 +155,10 @@ cat > "$OUT/storybook/index.html" << 'EOF'
     <li>
       <a href="/storybook/cytoscape-extensions/">cytoscape-extensions</a>
       <div class="desc">Every graphty layout and algorithm running in Cytoscape.js, on the CPU and the GPU</div>
+    </li>
+    <li>
+      <a href="/storybook/babylonjs-models/">babylonjs-models</a>
+      <div class="desc">3D models loaded into Babylon.js scenes, and their files checked</div>
     </li>
   </ul>
   <p><a href="/">&larr; Back to graphty.app</a></p>

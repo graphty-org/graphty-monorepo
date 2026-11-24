@@ -2,7 +2,7 @@
 // The duplicate code check: jscpd (configured by .jscpd.json) scans the checkout and the push base, and
 // the check fails on an exact clone the base did not have, when both its sides are non-test code and one
 // of them holds lines this push adds. A new clone that touches a test, story, fixture or benchmark is
-// printed and does not fail. Run by tools/prepush-source-checks.sh, tools/check-quick.sh and CI's Checks job.
+// printed and does not fail. Run by tools/check-quick.sh and CI's Checks job.
 //
 //   node tools/duplicates-check.mjs   (the base: tools/push-base.mjs, or $PUSH_BASE_REF)
 //

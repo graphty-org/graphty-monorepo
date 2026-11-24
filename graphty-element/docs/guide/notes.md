@@ -133,6 +133,8 @@ open union: a later release may add kinds, so show a kind you do not know by its
   plus the file's edge id or, for an edge without one, its position among the edges joining the
   same two nodes, counted when you call `toDocument()`, so edges added or removed before then do
   not move the note. An edge your code added without an id is saved by its position too. Give your edges ids when notes about them matter.
+  Element ids are this page's only: to hold a target across a page load (a note still being
+  written), keep `session.notes.savedTarget(target)` instead, which returns that saved form.
 - **An item** is pinned to the run it was written against. Community numbers mean nothing across
   runs, so after a re-run its status says `earlier-run` rather than moving to whatever is
   numbered the same now. Leave out `run` to mean the result's current run.

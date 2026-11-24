@@ -245,9 +245,9 @@ describe("the post-commit push", () => {
     it("merges the branch's newer commits on GitHub (the owner's Finish, a merge of master) before it pushes", async () => {
         const other = join(dir, "push-other");
         git(dir, "clone", "-q", "-b", "feat/512-thing", join(dir, "push.git"), other);
-        writeFileSync(join(other, "synced.txt"), "from golden\n");
+        writeFileSync(join(other, "synced.txt"), "from master\n");
         git(other, "add", "synced.txt");
-        git(other, "commit", "-q", "-m", "Merge golden");
+        git(other, "commit", "-q", "-m", "Merge master");
         git(other, "push", "-q", "origin", "feat/512-thing");
         const theirs = git(other, "rev-parse", "HEAD");
         const n = (logText().match(/^finished /gm) ?? []).length;
@@ -263,7 +263,7 @@ describe("the post-commit push", () => {
         // With uncommitted changes nothing is merged: the push fails and says why.
         writeFileSync(join(other, "synced2.txt"), "again\n");
         git(other, "add", "synced2.txt");
-        git(other, "commit", "-q", "-m", "Merge golden again");
+        git(other, "commit", "-q", "-m", "Merge master again");
         git(other, "pull", "-q", "--no-rebase", "--no-edit", "origin", "feat/512-thing");
         git(other, "push", "-q", "origin", "feat/512-thing");
         writeFileSync(join(repo, "a.txt"), "edited, not committed\n");
@@ -451,9 +451,9 @@ describe("tools/worktree-new.sh", () => {
         assert.equal(gh().calls.length, 0);
     });
 
-    it("starts a new branch from master even when GitHub has golden-verified", () => {
-        git(repo, "commit", "-q", "--allow-empty", "-m", "verified on golden");
-        git(repo, "push", "-q", "origin", "HEAD:golden-verified");
+    it("starts a new branch from master even when GitHub has other branches ahead of it", () => {
+        git(repo, "commit", "-q", "--allow-empty", "-m", "ahead of master");
+        git(repo, "push", "-q", "origin", "HEAD:feat/515-ahead");
         const r = make("feat/513-on-master");
         assert.equal(r.status, 0, r.stderr);
         const master = git(repo, "rev-parse", "origin/master");
@@ -462,12 +462,12 @@ describe("tools/worktree-new.sh", () => {
         assert.equal(git(repo, "config", "--default", "", "branch.feat/513-on-master.prBase"), "");
     });
 
-    it("starts from golden-verified when asked, measured as a branch of golden", () => {
-        const verified = git(repo, "rev-parse", "origin/golden-verified");
-        const r = make("feat/516-on-verified", "origin/golden-verified");
+    it("starts from another branch when asked, measured as a branch stacked on it", () => {
+        const ahead = git(repo, "rev-parse", "origin/feat/515-ahead");
+        const r = make("feat/516-stacked", "origin/feat/515-ahead");
         assert.equal(r.status, 0, r.stderr);
-        assert.equal(git(join(repo, ".worktrees/feat-516-on-verified"), "rev-parse", "HEAD"), verified);
-        assert.equal(git(repo, "config", "branch.feat/516-on-verified.prBase"), "golden");
+        assert.equal(git(join(repo, ".worktrees/feat-516-stacked"), "rev-parse", "HEAD"), ahead);
+        assert.equal(git(repo, "config", "branch.feat/516-stacked.prBase"), "feat/515-ahead");
     });
 
     it("hands itself to the live copy with the same arguments and directory, passing its exit code", () => {
@@ -559,13 +559,6 @@ describe("tools/worktree-new.sh", () => {
             assert.equal(git(repo, "config", `branch.feat/${n}-par.issue`), String(n));
             assert.deepEqual(gh().issues[n].labels, ["in-progress"]);
         }
-    });
-
-    it("makes golden's worktree with no issue and no push", () => {
-        const r = make("golden", "origin/master", "golden-local");
-        assert.equal(r.status, 0, r.stderr);
-        assert.equal(run(repo, "git", "rev-parse", "-q", "--verify", "origin/golden").status, 1);
-        assert.equal(gh().calls.length, 0);
     });
 });
 

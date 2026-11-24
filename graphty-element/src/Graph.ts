@@ -941,6 +941,15 @@ export class Graph implements GraphContext {
         this.session.cameraGestureEnd(kind);
     };
 
+    /**
+     * Hooks a new scene to the session: the scene names it for the pictures drawn in it (a label's image), and its
+     * camera's reader input goes to it.
+     */
+    #hookScene(): void {
+        holdSceneSession(this.scene, () => this.session);
+        this.#hookCamera();
+    }
+
     /** Hooks the render manager's camera's reader input to the session. */
     #hookCamera(): void {
         this.camera.onReaderMove = this.#readerMovedCamera;
@@ -1394,9 +1403,8 @@ export class Graph implements GraphContext {
         // Get references from RenderManager for backward compatibility
         this.engine = this.renderManager.engine;
         this.scene = this.renderManager.scene;
-        holdSceneSession(this.scene, () => this.session);
         this.camera = this.renderManager.camera;
-        this.#hookCamera();
+        this.#hookScene();
 
         // Initialize StatsManager
         this.statsManager = new StatsManager(this.eventManager);
@@ -2766,9 +2774,8 @@ export class Graph implements GraphContext {
         });
         this.engine = this.renderManager.engine;
         this.scene = this.renderManager.scene;
-        holdSceneSession(this.scene, () => this.session);
         this.camera = this.renderManager.camera;
-        this.#hookCamera();
+        this.#hookScene();
         this.camera.setViewInsets(this.#viewInsets);
         this.camera.setZoomToPointer(this.#zoomToPointer);
         this.camera.setInstantGlides(this.#cameraMoveMs() === 0);

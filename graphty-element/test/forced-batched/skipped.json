@@ -1,4 +1,5 @@
 [
+    { "file": "test/interactions/pick-parity.test.ts", "reason": "Sets each case's render path by hand" },
     { "file": "test/browser/drawn-invariants.test.ts", "reason": "Sets each case's render path by hand" },
     { "file": "test/browser/edges-follow-running-layout.test.ts", "reason": "Sets each case's render path by hand" },
     {

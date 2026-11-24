@@ -73,7 +73,8 @@ Checks that hover, the `graphty-node-hover` event, `elementAt`, `screenToWorld`,
 click's selection agree with each other, on `renderPath: "objects"` and `"batched"`, for nodes of
 every size and place, every kind of edge, shift, ctrl and right-click selection, the Hovered and
 Selected layers' pixels on a plain edge, a hover on every node of a seeded 200-node graph, a hover
-while a force layout moves the node, and a click on a settled layout. Each case sets its own render
+while a force layout moves the node, a click on a settled layout, and hover, click and `elementAt` on
+nodes whose rows were renumbered by a removal (and its undo) while a force layout ran. Each case sets its own render
 path, so the forced-batched project skips the file. It runs with the rest of this project on pull
 requests (about two and a half minutes, most of it the 200-node hover):
 

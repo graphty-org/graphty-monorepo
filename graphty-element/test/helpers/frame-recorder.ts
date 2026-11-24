@@ -18,6 +18,7 @@
 import { assert, vi } from "vitest";
 
 import type { Graph } from "../../src/Graph";
+import { drawnFrames } from "./drawn-frames";
 
 /** One frame copied off the canvas in the task that drew it. */
 export interface DrawnFrame {
@@ -574,4 +575,31 @@ export function describeFrames(reports: readonly FrameReport[]): string {
             ? ""
             : `; first faulty frame #${String(first.index)}: nodes off ${JSON.stringify(first.nodesOff.slice(0, 8))}, edges off ${JSON.stringify(first.edgesOff.slice(0, 8))}, stray ink at ${JSON.stringify(first.stray)}, node ink ${String(first.nodeInk)} px`
     }`;
+}
+
+/** Frames read after a layout stops. */
+export const STILL_CHECKED = 10;
+
+/**
+ * Reads {@link STILL_CHECKED} frames of a graph at rest, or fewer when one shows a node moved. A graph at rest draws
+ * on demand, so each frame is asked for, as any frame wait asks.
+ * @param graph - The graph.
+ * @param ids - Every node shown.
+ * @param pairs - Every edge shown.
+ * @returns The frames.
+ */
+export async function stillFrames(
+    graph: Graph,
+    ids: readonly string[],
+    pairs: readonly (readonly [string, string])[],
+): Promise<FrameReport[]> {
+    let finished = false;
+    const recording = checkDrawnFrames(graph, ids, pairs, 1, { max: STILL_CHECKED }).finally(() => {
+        finished = true;
+    });
+    while (!finished) {
+        await drawnFrames(graph.scene, 1);
+    }
+
+    return recording;
 }

@@ -839,6 +839,43 @@ function chainFixture(): { nodes: NodeIn[]; edges: EdgeIn[] } {
 }
 
 /**
+ * Move the real pointer onto a point while a layout moves the nodes, and read what is hovered once the frame is
+ * stable, beside the node that was drawn under the point when the browser handed the move over: the contract is
+ * that hover names that node.
+ * @param element - The element.
+ * @param nodes - The nodes that may be under the point.
+ * @param point - Where the pointer goes.
+ * @returns The node under the point when the move arrived (or `none`), what was hovered, and whether the layout
+ *     was running then.
+ */
+async function hoverWhileMoving(
+    element: Graphty,
+    nodes: readonly NodeIn[],
+    point: Point,
+): Promise<{ want: string; hovered: string; running: boolean }> {
+    const canvas = element.graph.engine.getInputElement();
+    assert.isNotNull(canvas);
+    let under: string | null = null;
+    let running = false;
+    const onMove = (): void => {
+        running = element.isRunning();
+        let best = Infinity;
+        for (const node of nodes) {
+            const at = element.nodeScreenPosition(node.id);
+            const d = at === undefined ? Infinity : Math.hypot(at.x - point.x, at.y - point.y);
+            if (at !== undefined && d <= (at.radius ?? 0) && d < best) {
+                best = d;
+                under = node.id;
+            }
+        }
+    };
+    canvas?.addEventListener("pointermove", onMove, { once: true });
+    await hover(element, point);
+    await element.waitForStableFrame();
+    return { want: under ?? "none", hovered: String(element.session.selection.hovered ?? "none"), running };
+}
+
+/**
  * Draw frames until the layout reports it is no longer running.
  * @param element - The element.
  */
@@ -871,31 +908,10 @@ describe.each(PATHS.flatMap((path) => VIEWS.map((view) => ({ path, view }))))(
                 if (fixture === "pairs") {
                     assertLazy(element, path, nodes.length);
                 }
-                const canvas = element.graph.engine.getInputElement();
-                assert.isNotNull(canvas);
                 await element.setLayout(layout, { seed: 5 });
                 await drawnFrames(element.graph.scene, 1);
                 const point = spot(element, id);
-                // What was under the point as drawn when the browser handed the move over.
-                let under: string | null = null;
-                let running = false;
-                const onMove = (): void => {
-                    running = element.isRunning();
-                    let best = Infinity;
-                    for (const node of nodes) {
-                        const at = element.nodeScreenPosition(node.id);
-                        const d = at === undefined ? Infinity : Math.hypot(at.x - point.x, at.y - point.y);
-                        if (at !== undefined && d <= (at.radius ?? 0) && d < best) {
-                            best = d;
-                            under = node.id;
-                        }
-                    }
-                };
-                canvas?.addEventListener("pointermove", onMove, { once: true });
-                await hover(element, point);
-                await element.waitForStableFrame();
-                const hovered = String(element.session.selection.hovered ?? "none");
-                const want = under ?? "none";
+                const { want, hovered, running } = await hoverWhileMoving(element, nodes, point);
                 const now = want === "none" ? point : spot(element, want);
                 const moved = Math.hypot(now.x - point.x, now.y - point.y);
                 if (running && want !== "none" && moved > (element.nodeScreenPosition(want)?.radius ?? 0)) {
@@ -964,6 +980,88 @@ describe.each(PATHS.flatMap((path) => VIEWS.map((view) => ({ path, view }))))(
 
                 record(`${view} ${layout} settled after click`, path, moved);
                 assert.deepEqual(moved, []);
+            },
+        );
+    },
+);
+
+/** The nodes pointed at after a removal: rows after the removed one, near and far, and one in the last pair. */
+const MOVED_ROWS = ["m1", "m5", "m13", "m23"];
+
+describe.each(PATHS.flatMap((path) => VIEWS.map((view) => ({ path, view }))))(
+    "pointing after a removal while a force layout runs on $path in $view",
+    ({ path, view }) => {
+        // Removing the first node renumbers every row after it on the batched path while the layout still places
+        // nodes by row; undo brings the row back through the records. Hover answers from the ID buffer by row and a
+        // click names a row's node, so an old row number names the wrong node or none.
+        it.each(["removed", "removed and the removal undone"] as const)(
+            "hover, its event, elementAt and a click name each node once m0 is %s mid-run",
+            async (how) => {
+                const { nodes, edges } = motionFixture();
+                const element = await mount(path, view, nodes, edges);
+                assertLazy(element, path, nodes.length);
+                const scene = element.graph.getScene();
+                // hovered and selected, so a hover or a selection left on the removed node shows
+                await hover(element, spot(element, "m0"));
+                await click(element, spot(element, "m0"));
+                await settle(element);
+                assert.strictEqual(selection(element), "node:m0", "m0 is selected before the run");
+                await element.setLayout("ngraph", { seed: 5 });
+                await drawnFrames(scene, 3);
+                await element.session.data.removeNodes(["m0"]);
+                const runningAtRemoval = element.isRunning();
+                await drawnFrames(scene, 1);
+                const left = {
+                    hovered: String(element.session.selection.hovered ?? "none"),
+                    selected: selection(element),
+                };
+                // still running, on the renumbered rows: the node under the pointer when the move arrives is hovered
+                const moving = await hoverWhileMoving(
+                    element,
+                    nodes.filter(({ id }) => id !== "m0"),
+                    spot(element, "m13"),
+                );
+                if (how !== "removed") {
+                    await drawnFrames(scene, 2);
+                    await element.session.undo();
+                }
+
+                await untilSettled(element);
+                const ids = how === "removed" ? MOVED_ROWS : ["m0", ...MOVED_ROWS];
+                const wrong: string[] = [];
+                const answers: string[] = [];
+                for (const id of ids) {
+                    const a = await answer(element, spot(element, id));
+                    answers.push(`${id}: ${JSON.stringify(a)}`);
+                    wrong.push(...disagreements(id, a));
+                    if (a.at !== `node:${id}`) {
+                        wrong.push(`${id}: elementAt gives ${a.at} at the node's own center`);
+                    }
+                }
+
+                // The last pair's edge, at the middle of its two drawn ends: edge ids do not move with rows.
+                const [a, b] = [spot(element, "m22"), spot(element, "m23")];
+                const edge = await answer(element, { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+                answers.push(`me11: ${JSON.stringify(edge)}`);
+                wrong.push(...disagreements("me11", edge));
+                if (edge.at !== "edge:me11") {
+                    wrong.push(`me11: elementAt gives ${edge.at} at the middle of the edge`);
+                }
+
+                record(`${view} pointing after m0 ${how} mid-run`, path, { left, moving, answers });
+                assert.isTrue(runningAtRemoval, "the layout was running when m0 was removed");
+                assert.strictEqual(
+                    moving.hovered,
+                    moving.want,
+                    `hover mid-run names the node under the pointer when the move arrived (running ${String(moving.running)})`,
+                );
+                assert.notStrictEqual(left.hovered, "m0", "hover does not name the removed node");
+                assert.notInclude(left.selected, "node:m0", "the selection does not name the removed node");
+                if (how === "removed") {
+                    assert.isUndefined(element.nodeScreenPosition("m0"), "the removed node is not placed");
+                }
+
+                assert.deepEqual(wrong, [], answers.join("\n"));
             },
         );
     },

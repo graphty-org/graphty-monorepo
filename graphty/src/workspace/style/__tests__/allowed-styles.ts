@@ -565,4 +565,11 @@ export const OWNER_REQUESTED: readonly Requested[] = [
     // The Route row's Bundling (edge.route "bundled") and its two settings.
     { channel: "edge.bundleStrength", quote: "edge bundling doesn't do anything, fix it", date: "2026-11-18" },
     { channel: "edge.bundleIterations", quote: "edge bundling doesn't do anything, fix it", date: "2026-11-18" },
+    // A node's Pie, Chart and Record drawn from data: the entries-first pickers the owner chose (option C of
+    // tmp/data-for-nodes/designs.md, built to tmp/entries-first/spec.md).
+    ...(["node.pieData", "node.chartData", "node.recordData"] as const).map((channel) => ({
+        channel,
+        quote: "entries first: a pie, a chart and a record each draw an ordered list of entries picked from data",
+        date: "2026-11-24",
+    })),
 ];

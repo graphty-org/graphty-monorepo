@@ -512,7 +512,10 @@ describe.each([
 
             const scene = element.graph.getScene();
             const edge = [...element.graph.getDataManager().edges.values()][0];
-            assert.isNull(edgeInternals.drawn(edge).pulled, "the dashed line is laid on the CPU, not pulled");
+            assert.isNull(
+                edgeModule.edgeInternals.drawn(edge).pulled,
+                "the dashed line is laid on the CPU, not pulled",
+            );
             const runner = (): ReturnType<typeof transitionsOf> => transitionsOf(element.graph.getLayoutManager());
             const misses: string[] = [];
             let moving = 0;

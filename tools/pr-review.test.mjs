@@ -190,6 +190,44 @@ describe("pr-review.sh", () => {
         assert.match(readFileSync(promptLog, "utf8"), /^===== ISSUE #1234 \(Refs\) \[/m);
     });
 
+    // #10005: a full-run red issue failed on two tests; another merged pull request fixed one, this branch the other.
+    it("hands the reviewer the commits master already holds for a full-run red member", () => {
+        git(work, "checkout", "-q", "master");
+        writeFileSync(join(work, "m.txt"), "m\n");
+        git(work, "add", "m.txt");
+        git(work, "commit", "-q", "-m", "test: the other failure\n\nRefs #2\nFixes #7");
+        writeFileSync(join(work, "n.txt"), "n\n");
+        git(work, "add", "n.txt");
+        git(work, "commit", "-q", "-m", "chore: names #21 only");
+        git(work, "push", "-q", "origin", "master");
+        git(work, "checkout", "-q", "fix/1234-thing");
+        git(work, "merge", "-q", "--no-edit", "origin/master");
+        group();
+        writeIssue("graphty-agent", 1, "Full run red: CI on abc", join(dir, "issue-1.json"));
+        writeIssue("graphty-agent", 2, "Full run red: CI on def", join(dir, "issue-2.json"));
+        const r = run(["--proof", proof, "--dry-run"]);
+        assert.equal(r.code, 0, r.out);
+        const tag = r.stdout.match(/^===== PROOF \[([0-9a-f]{16})\] =====$/m)?.[1];
+        const sections = r.stdout.split(new RegExp(`^===== (.*) \\[${tag}\\] =====$`, "m"));
+        const names = sections.filter((_, i) => i % 2 === 1);
+        assert.deepEqual(names.slice(0, 7), [
+            "ISSUE #1234 (Fixes)",
+            "ISSUE #1 (Fixes)",
+            "ALREADY ON MASTER FOR #1",
+            "ISSUE #2 (Fixes)",
+            "ALREADY ON MASTER FOR #2",
+            "ISSUE #3 (Refs)",
+            "PROOF",
+        ]);
+        const forOne = sections[2 * names.indexOf("ALREADY ON MASTER FOR #1") + 2];
+        const forTwo = sections[2 * names.indexOf("ALREADY ON MASTER FOR #2") + 2];
+        assert.match(forOne, /no commit on origin\/master names #1/);
+        assert.match(forTwo, /^commit [0-9a-f]+ test: the other failure$/m);
+        assert.match(forTwo, /^Fixes #7$/m);
+        assert.ok(!forTwo.includes("names #21"), "#21 is not #2");
+        assert.match(sections[0], /Full run red: \.\.\.[\s\S]*neither the DIFF nor a listed commit fixes/);
+    });
+
     it("refuses a group whose fixed member is untrusted, and withholds an untrusted Refs member", () => {
         group();
         writeMember(2, "someone-else");

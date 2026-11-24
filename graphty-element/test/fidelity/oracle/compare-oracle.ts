@@ -12,7 +12,7 @@
  * same inputs give a byte-identical report. Pure: no DOM.
  */
 import { apply, deltaE, fitSimilarity, frechet, iou, resample } from "../../../../graph-io/test/fidelity/compare";
-import { withoutHiddenInBoth } from "./hidden-heads";
+import { toHiddenTips, withoutHiddenInBoth } from "./hidden-heads";
 import {
     boxOfPoints,
     compareIds,
@@ -2915,9 +2915,13 @@ export function compareOracle(
             `${e.source}->${e.target}`,
         );
     }
-    for (const [o, g] of edgePairs) {
+    for (const [drawn, g] of edgePairs) {
+        const flipped = flips(drawn, g);
+        const swap = { source: "target", target: "source", middle: "middle" } as const;
+        const flip = (a: PArrow): PArrow => (flipped ? { ...a, end: swap[a.end] } : a);
+        // a head both drawings hide: the oracle's route judged to its tip, as graphty's is (`toHiddenTips`)
+        const o = toHiddenTips(drawn, g.arrows.map(flip));
         const { id } = o;
-        const flipped = flips(o, g);
         const framed = fit !== null && !(transform?.unrelatedLayout ?? false);
         const [vo, vg] = visible(o, g);
         // a route of no length is no route: a raster oracle records a self-loop by its one node, not the loop it drew
@@ -3019,8 +3023,6 @@ export function compareOracle(
         // a band under the line and one over it, each judged wherever either side draws one
         judgeBand(j, "edge.outline", id, [o.outline, g.outline], lengthScale);
         judgeBand(j, "edge.overlay", id, [o.overlay, g.overlay], lengthScale);
-        const swap = { source: "target", target: "source", middle: "middle" } as const;
-        const flip = (a: PArrow): PArrow => (flipped ? { ...a, end: swap[a.end] } : a);
         // a head a third node hides in both drawings is seen in neither, and left out of both together
         const [oArrows, ga] = withoutHiddenInBoth(o, g.arrows.map(flip));
         // a line wholly under its two nodes on both sides (two nodes drawn over one another) shows no head a reader

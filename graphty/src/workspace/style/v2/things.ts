@@ -139,8 +139,21 @@ export const SECTIONS: Readonly<Record<"node" | "edge", readonly SectionThings[]
                 // ia-design 2's order: stripes are set in more files than pies.
                 [
                     { id: "stripes", name: "Stripes", items: ["stripes"], main: ["node.stripeColors"] },
-                    { id: "pie", name: "Pie", items: ["pie"], main: ["node.pieColors"] },
-                    { id: "chart", name: "Chart", items: ["chart"], main: ["node.chartKind"] },
+                    // A pie, chart or record draws from data entries or fixed values: its row's main control picks (DataRow.tsx).
+                    {
+                        id: "pie",
+                        name: "Pie",
+                        items: ["pie"],
+                        main: ["node.pieData", "node.pieColors"],
+                        start: "node.pieColors",
+                    },
+                    {
+                        id: "chart",
+                        name: "Chart",
+                        items: ["chart"],
+                        main: ["node.chartData", "node.chartKind"],
+                        start: "node.chartKind",
+                    },
                     // How light falls on the surface (3D only): the Shape keeps its mesh (ia-design 2).
                     { id: "finish", name: "Finish", items: [], main: FINISH_CHANNELS, own: FINISH_CHANNELS },
                 ],
@@ -165,7 +178,8 @@ export const SECTIONS: Readonly<Record<"node" | "edge", readonly SectionThings[]
                         id: "record",
                         name: "Record",
                         items: ["record"],
-                        main: ["node.shapeTexts"],
+                        main: ["node.recordData", "node.shapeTexts"],
+                        start: "node.shapeTexts",
                         hint: "A table of fields inside the node",
                     },
                     { id: "xlabel", name: "External label", items: ["xlabel"], main: ["node.xlabel"] },

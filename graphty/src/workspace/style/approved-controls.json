@@ -52,6 +52,11 @@
             "dom": ".mantine-InputWrapper-root"
         },
         {
+            "name": "DataFieldPicker",
+            "from": "@graphty/compact-mantine",
+            "dom": ".cm-panel-field"
+        },
+        {
             "name": "CompactColorInput",
             "from": "@graphty/compact-mantine",
             "dom": ".cm-paint"

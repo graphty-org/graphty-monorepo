@@ -2605,3 +2605,101 @@ export function scrubLetter(name: string): string {
     const words = name.trim().split(/\s+/);
     return (words.at(-1) ?? "").charAt(0).toUpperCase();
 }
+
+/** A coded fact as graphty-element reports one: a code and its params. */
+interface CodedWords {
+    readonly code: string;
+    readonly params: Readonly<Record<string, unknown>>;
+}
+
+/** A Graph value's definition, as much as its sentence reads. */
+interface GraphWords {
+    readonly over: string;
+    readonly measure: string;
+    readonly direction?: string;
+    readonly of?: { readonly path: string };
+    readonly groupBy?: { readonly by: string; readonly path?: string; readonly period?: string };
+}
+
+/**
+ * Why a node draws nothing from a pie, chart or record data spec (graphty-element's `DataFacts.undrawn`), in words.
+ * @param fact - the code and its params.
+ * @returns the words.
+ */
+export function dataUndrawnWords(fact: CodedWords): string {
+    const { params } = fact;
+    switch (fact.code) {
+        case "data.noEntries":
+            return "nothing picked";
+        case "data.noValues":
+            return "no values";
+        case "data.notNumbers":
+            return `${String(params.path).replace(/^data\./u, "")} holds words, not amounts`;
+        case "data.zeroTotal":
+            return "the values add up to 0";
+        case "data.nothingOver":
+            return `no ${String(params.over)}`;
+        case "data.patternEmpty":
+            return `no column starts with "${String(params.pattern)}"`;
+        case "data.paintedOver":
+            return "a layer above draws over it";
+        case "data.notPainted":
+            return "the layer is hidden";
+        default:
+            return "draws nothing";
+    }
+}
+
+/**
+ * Why a value cannot go in a pie or chart (graphty-element's `dataFit`), in words.
+ * @param code - the fit code.
+ * @returns the words.
+ */
+export function dataFitWords(code: string): string {
+    return code === "data.wrongHalf" ? "An edge value" : "Holds words, not amounts";
+}
+
+/** What each Graph value measure is called. */
+const MEASURE_WORDS: Readonly<Record<string, string>> = {
+    count: "Count",
+    sum: "Sum",
+    mean: "Mean",
+    min: "Min",
+    max: "Max",
+    mode: "Most common",
+};
+
+/**
+ * A path's plain last name ("data.amount" -> "amount").
+ * @param path - the path.
+ * @returns the name.
+ */
+function lastName(path: string): string {
+    return (
+        path
+            .replace(/^data\./u, "")
+            .split(".")
+            .at(-1) ?? path
+    );
+}
+
+/**
+ * A Graph value's sentence ("Count of neighbors by community", "Sum of amount, out edges"), from its definition.
+ * @param graph - the Graph value.
+ * @returns the sentence.
+ */
+export function graphValueWords(graph: GraphWords): string {
+    const what = graph.of === undefined ? graph.over : lastName(graph.of.path);
+    const directed = graph.direction !== undefined && graph.direction !== "both";
+    const where = directed ? `, ${graph.direction ?? ""} ${graph.over}` : "";
+    const from = graph.of === undefined || (graph.over === "edges" && directed) ? "" : `, ${graph.over}`;
+    const by = graph.groupBy;
+    let group = "";
+    if (by?.by === "direction") {
+        group = " by direction";
+    } else if (by?.path !== undefined) {
+        const period = by.by === "time" ? ` per ${String(by.period)}` : "";
+        group = ` by ${lastName(by.path)}${period}`;
+    }
+    return `${MEASURE_WORDS[graph.measure] ?? graph.measure} of ${what}${from}${where}${group}`;
+}

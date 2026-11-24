@@ -33,6 +33,7 @@ import { AddButton, type AddOption } from "../Section";
 import { useShaderList } from "../shaderList";
 import { focusLineNext } from "../useFocusLine";
 import { channelWord, experimentChannelsOff, failureWords } from "../words";
+import { dataChannelOf } from "./dataEntries";
 import { viewDim } from "./drawn";
 import { replaceUse } from "./families";
 import { kindGroupOf, type KindMember, kindsShown, kindStarts, lineWidthOf, ownsOf, PLAIN_LOOK } from "./kindGroups";
@@ -110,7 +111,11 @@ function thingChannels(
     const items = source.items.filter((item) => thing.items.includes(item.id)).flatMap((item) => itemChannels(item));
     // A channel another thing owns (Fit to label is the Size row's, not the Label's) is that thing's alone.
     const own = (thing.own ?? []).filter((c) => kindChannels.has(c));
-    return [...new Set([...items.filter((c) => offered.has(c)), ...own])].filter((c) => !taken.has(c));
+    // A pie's, chart's or record's data spec is its own, though no `parts.ts` item lists it (DataRow.tsx).
+    const data = dataChannelOf(ctx, thing.id);
+    return [...new Set([...items.filter((c) => offered.has(c)), ...own, ...(data === undefined ? [] : [data])])].filter(
+        (c) => !taken.has(c),
+    );
 }
 
 /**

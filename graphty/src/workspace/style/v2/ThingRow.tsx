@@ -26,6 +26,8 @@ import {
 } from "../shaderSlots";
 import { failureWords } from "../words";
 import { swatchesOf } from "./colorItems";
+import { dataChannelOf } from "./dataEntries";
+import { DataRow } from "./DataRow";
 import { dimOf } from "./drawn";
 import { familyOf, pickReplace, replaceUse } from "./families";
 import { ItemListEditor } from "./ItemListEditor";
@@ -350,6 +352,41 @@ function switchTo(ctx: RowContext, thing: ThingSpec, kind: KindMember | undefine
 }
 
 /**
+ * A thing's rubric: the Shape's while a shader draws in the shapes' place, else its own for its main channel.
+ * @param ctx - the row.
+ * @param thing - the thing's id.
+ * @param main - its main channel.
+ * @param replacing - whether a shader draws in the shapes' place.
+ * @returns the rubric, or undefined.
+ */
+function rubricFor(ctx: RowContext, thing: string, main: Channel, replacing: boolean): ThingRubric | undefined {
+    return replacing ? SHAPE_REPLACE_RUBRIC : rubricOf(ctx.side, thing, main);
+}
+
+/**
+ * A thing's set lines its rubric has no line for (or, with no rubric yet, every other set line).
+ * @param ctx - the row.
+ * @param channels - every channel the thing holds.
+ * @param main - its main channel.
+ * @param covered - the channels its rubric has lines for.
+ * @returns their descriptors.
+ */
+function othersOf(
+    ctx: RowContext,
+    channels: readonly Channel[],
+    main: Channel,
+    covered: ReadonlySet<Channel>,
+): ChannelDescriptor[] {
+    return channels.flatMap((channel) => {
+        const descriptor =
+            channel === main || covered.has(channel) || !setOn(ctx, channel)
+                ? undefined
+                : shownChannel(ctx.session, ctx.side, channel, true);
+        return descriptor?.renderable === true ? [descriptor] : [];
+    });
+}
+
+/**
  * One thing's row: see the file header.
  * @param props - Component props
  * @param props.ctx - the row and kind
@@ -412,18 +449,12 @@ export function ThingRow({
     const list = listOf(ctx.side, thing.id, main.channel);
     // A shader drawn in the shapes' place is the Shape row's member (design 5): its row names it.
     const replacing = thing.id === "shape" ? replaceUse(ctx) : undefined;
-    const rubric = replacing === undefined ? rubricOf(ctx.side, thing.id, main.channel) : SHAPE_REPLACE_RUBRIC;
+    const rubric = rubricFor(ctx, thing.id, main.channel, replacing !== undefined);
     const covered = new Set(rubric === undefined ? [] : rubricChannels(rubric));
     // Every channel the minus takes off: the thing's own and every line of its rubric.
     const all = [...new Set([...channels, ...covered])];
     // The thing's set lines its rubric has no line for (or, with no rubric yet, every other set line).
-    const others = channels.flatMap((channel) => {
-        const descriptor =
-            channel === main.channel || covered.has(channel) || !setOn(ctx, channel)
-                ? undefined
-                : shownChannel(ctx.session, ctx.side, channel, true);
-        return descriptor?.renderable === true ? [descriptor] : [];
-    });
+    const others = othersOf(ctx, channels, main.channel, covered);
     const common = rubric?.common ?? [];
     // A label row (its Glyph kind here) always draws its Size and Color lines (ia-design 2).
     const setLines = setLinesOf(ctx, rubric, main.channel, thing.id === "label");
@@ -476,6 +507,28 @@ export function ThingRow({
             });
     };
     const removeLabel = `Remove ${title.toLowerCase()}`;
+    // A node's Pie, Chart or Record: its row picks data entries or Fixed, and draws its entries under it.
+    const data = dataChannelOf(ctx, thing.id, entry?.id);
+    if (data !== undefined) {
+        return (
+            <div ref={box} data-thing={thing.id}>
+                <DataRow
+                    ctx={ctx}
+                    thing={thing.id}
+                    start={thing.start ?? main.channel}
+                    channel={data}
+                    name={name}
+                    title={title}
+                    fixedSettings={settings}
+                    removeLabel={removeLabel}
+                    onRemove={remove}
+                    fixedLines={setLines.map((line) => (
+                        <RubricLine key={line.channel} ctx={ctx} line={line} named />
+                    ))}
+                />
+            </div>
+        );
+    }
     if (text?.words === main.channel) {
         return (
             <div data-thing={thing.id} data-label-entry={entry?.id}>

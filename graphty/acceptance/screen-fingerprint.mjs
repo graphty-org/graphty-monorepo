@@ -8,7 +8,7 @@
  * sends its text to the page, so it may not use anything from outside its own body.
  *
  * Counts, timings and the canvas change on their own, so they are left out: nothing is read from
- * a live region, a status bar, a progress bar or the drawing.
+ * a live region, a status bar, a progress bar or the drawing, and a number in a name reads as "#".
  * @returns the entries, sorted, each once: "<what>: <name>" (dialog, list, region, pressed,
  *   selected, current, expanded, checked) or "value: <name> = <value>".
  */
@@ -49,9 +49,12 @@ export function screenFingerprint() {
     const unseen = (element) =>
         transient(element) || element.closest('[hidden], [aria-hidden="true"], [role="status"], [role="log"]') !== null;
     const seen = new Set();
+    // A name's counts ("Busy, node layer, 41 nodes", "A, 41 of 77 nodes") settle on their own time
+    // after a change, so a number in a name is read as "#"; a field's value keeps its digits.
+    const counted = (name) => name.replaceAll(/\d[\d,.]*/g, "#");
     const add = (what, selector) => {
         for (const element of document.querySelectorAll(selector)) {
-            const name = nameOf(element);
+            const name = counted(nameOf(element));
             if (name !== "" && !unseen(element)) seen.add(`${what}: ${name}`);
         }
     };
@@ -79,9 +82,9 @@ export function screenFingerprint() {
         const name = nameOf(each);
         if (name === "" || unseen(each)) continue;
         if (each.type === "checkbox" || each.type === "radio") {
-            if (each.checked) seen.add(`checked: ${name}`);
+            if (each.checked) seen.add(`checked: ${counted(name)}`);
         } else if (each.value !== "") {
-            seen.add(`value: ${name} = ${each.value}`);
+            seen.add(`value: ${counted(name)} = ${each.value}`);
         }
     }
     return [...seen].sort();

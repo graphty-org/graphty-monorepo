@@ -657,11 +657,11 @@ export function SelectionEditor({
     useEffect(
         () => () => {
             queueMicrotask(() => {
-                if (mounted.current || workspaceUnmounting(store)) {
+                if (mounted.current) {
                     return;
                 }
                 endVisit("done");
-                if (store.get().selectionWorkspace?.owner === owner) {
+                if (!workspaceUnmounting(store) && store.get().selectionWorkspace?.owner === owner) {
                     store.set({ selectionWorkspace: null });
                 }
             });

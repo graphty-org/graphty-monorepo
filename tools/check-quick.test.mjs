@@ -41,7 +41,17 @@ function sandbox({ affected = "graph-format", env = {}, args = [], files = {} } 
     mkdirSync(join(repo, "graph-format"));
     writeFileSync(join(repo, "graph-format/package.json"), "{}");
     mkdirSync(join(repo, "graphty/acceptance"), { recursive: true });
+    // one record per walk, named by its arguments: the canvas test walks once as is, once per --features
+    const perWalk = (script, name) =>
+        writeFileSync(
+            join(repo, `graphty/acceptance/${script}`),
+            envDump(out(`${name}.json`), "STUB_RC_DRYRUN").replace(
+                JSON.stringify(out(`${name}.json`)),
+                `${JSON.stringify(out(name))} + process.argv.slice(2).join("-") + ".json"`,
+            ),
+        );
     writeFileSync(join(repo, "graphty/acceptance/run.mjs"), envDump(out("dryrun.json"), "STUB_RC_DRYRUN"));
+    perWalk("canvas-uat.mjs", "canvas");
     writeFileSync(join(repo, "package.json"), "{}");
     writeFileSync(
         join(dir, "bin/pnpm"),
@@ -89,6 +99,8 @@ function sandbox({ affected = "graph-format", env = {}, args = [], files = {} } 
         gpu: read("gpu.json"),
         integrity: read("integrity.json"),
         dryRun: read("dryrun.json"),
+        canvas: read("canvas.json"),
+        canvasBatched: read("canvas--features-cosmograph.json"),
         budgets: read("budgets.json"),
         steps: (() => {
             try {
@@ -220,11 +232,13 @@ describe("tools/check-quick.sh", () => {
     });
 
     it("with --with-dry-run, builds the app and walks every route of the dry run", () => {
-        const { r, pnpm, dryRun } = sandbox({ args: ["--with-dry-run"] });
+        const { r, pnpm, dryRun, canvas, canvasBatched } = sandbox({ args: ["--with-dry-run"] });
         assert.equal(r.status, 0, r.stdout + r.stderr);
         assert.match(pnpm, /^exec nx run graphty:build$/m);
         assert.ok(dryRun, "the dry run ran");
         assert.deepEqual(dryRun.argv, []);
+        assert.deepEqual(canvas?.argv, [], "the canvas test ran");
+        assert.deepEqual(canvasBatched?.argv, ["--features", "cosmograph"], "and on the batched render path");
         assert.match(r.stdout, /\[PASS\] Dry run of the graphty app/);
     });
 
@@ -235,6 +249,7 @@ describe("tools/check-quick.sh", () => {
         const unbuilt = sandbox({ args: ["--with-dry-run"], env: { STUB_RC_APP: "1" } });
         assert.equal(unbuilt.r.status, 1);
         assert.equal(unbuilt.dryRun, undefined, "no walk of an old build");
+        assert.equal(unbuilt.canvas, undefined, "no canvas test of an old build");
     });
 
     it("runs ci.yml's Checks job steps, the package-only ones only for an affected package", () => {

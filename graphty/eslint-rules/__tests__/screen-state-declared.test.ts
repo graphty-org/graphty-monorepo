@@ -24,7 +24,7 @@ const KINDS = ["request", "in flight", "notice", "read", "derived", "pointer"];
  * The most `// on reload: gap #N` declarations graphty/src may hold: state the reader made that a
  * reload drops, each tracked by its issue. Only lower it.
  */
-const MAX_COMPONENT_GAPS = 8;
+const MAX_COMPONENT_GAPS = 5;
 
 const tester = new RuleTester({
     languageOptions: { parser: tseslint.parser, parserOptions: { ecmaFeatures: { jsx: true } } },

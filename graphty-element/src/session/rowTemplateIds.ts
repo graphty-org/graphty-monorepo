@@ -2,7 +2,7 @@
  * @file The built-in row template ids, for the saved-name scan. Kept out of styles/ because it only
  * lists the ids a save file may name; it never treats a layer differently from another.
  */
-import { LEGACY_GHOST_ROW_ID, startingRows } from "./styles/rows";
+import { LEGACY_DRAFT_ROW_ID, LEGACY_GHOST_ROW_ID, startingRows } from "./styles/rows";
 
 /**
  * The built-in row templates code branches on, for the saved-name scan: a save file that names one by id depends on this
@@ -18,10 +18,10 @@ export function builtInIdsForTesting(): { kind: string; ids: readonly string[] }
             ...startingRows({
                 selection: { color: "", scale: 0, edgeColor: "", edgeScale: 0 },
                 pinned: { color: "", scale: 0, opacity: 0 },
-                draft: true,
             }).map((row) => row.templateId),
             ...startingRows({ timelineHidden: "hidden" }).map((row) => row.templateId),
             LEGACY_GHOST_ROW_ID,
+            LEGACY_DRAFT_ROW_ID,
         ],
     };
 }

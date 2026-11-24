@@ -66,15 +66,7 @@ import {
 import { linksIssue, skipReason } from "./pr-issue-link.mjs";
 import { fetchAll, summarize } from "./pr-status-broker.mjs";
 import { BIN_LIMIT_MS, binCost, packBins } from "./test-select.mjs";
-import {
-    fingerprint,
-    inputKey,
-    outputHash,
-    partitionByPasses,
-    passStore,
-    related,
-    testsPassed,
-} from "./prepush-inputs.mjs";
+import { inputKey, outputHash, related } from "./prepush-inputs.mjs";
 import {
     buildNotReusable,
     decide as reuseDecide,
@@ -324,25 +316,22 @@ describe("the push tools", () => {
         assert.equal(run.status, 0, run.stdout + run.stderr);
     });
 
-    describe("tools/visual-preview.sh --head, against a throwaway repository", () => {
+    describe("tools/visual-preview.sh, against a throwaway repository", () => {
         const realGit = spawnSync("bash", ["-c", "command -v git"], { encoding: "utf8" }).stdout.trim();
         const realDate = spawnSync("bash", ["-c", "command -v date"], { encoding: "utf8" }).stdout.trim();
         const realTimeout = spawnSync("bash", ["-c", "command -v timeout"], { encoding: "utf8" }).stdout.trim();
         // With STUB_CLOCK (a file holding the epoch second), date +%s reads that file and timeout runs its
         // command with no limit, except a capture under STUB_HANG: that one spends its whole limit on the
         // clock and exits 124, as a stuck capture does. So a limit is stepped, never waited out (#5832).
-        // Stubs for everything outside git: gh finds no pull request, or with STUB_GH_DIR lists pull
-        // request 7 at STUB_OLD_HEAD for the first STUB_OLD_TIMES asks and at STUB_NEW_HEAD after
-        // (counted in $STUB_GH_DIR/calls); pnpm installs nothing and says project p is affected; node's capture writes a results.json with the story status asked for;
-        // every other node command runs; git passes through, except `lfs` and a forced merge-tree exit code.
+        // Stubs for everything outside git: gh lists every pull request as open, in this repository, at
+        // STUB_HEAD; pnpm installs nothing and says project p is affected; node's capture writes a
+        // results.json with the story status asked for; every other node command runs; git passes
+        // through, except `lfs`.
         const STUBS = {
             gh: `#!/bin/bash
-[ -n "$STUB_GH_DIR" ] || exit 0
-n=$(( $(cat "$STUB_GH_DIR/calls" 2>/dev/null || echo 0) + 1 )); echo "$n" > "$STUB_GH_DIR/calls"
-head="$STUB_NEW_HEAD"
 case "$*" in
-    *@tsv*) [ "$n" -le "$STUB_OLD_TIMES" ] && head="$STUB_OLD_HEAD"; printf 'open\to/r\to/r\t%s\n' "$head" ;;
-    *) echo "$head" ;;
+    *@tsv*) printf 'open\\to/r\\to/r\\t%s\\n' "$STUB_HEAD" ;;
+    *) echo "$STUB_HEAD" ;;
 esac
 `,
             pnpm: '#!/bin/sh\ncase "$*" in *"show projects"*) echo \'["p"]\';; esac\n',
@@ -372,13 +361,13 @@ exec "$@"
             git: `#!/bin/bash
 case " $* " in
     *" lfs "*) exit 0 ;;
-    *" merge-tree "*) [ -n "$STUB_MERGE_TREE_RC" ] && exit "$STUB_MERGE_TREE_RC" ;;
     *" fetch "*)
-        # A concurrent fetch holding origin/master's ref lock, for the first STUB_FETCH_LOCKED fetches:
+        # A concurrent fetch holding the preview ref's lock, for the first STUB_FETCH_LOCKED fetches:
         # real git then fails exactly as it does when it loses the race.
         n=$(( $(cat "$2/fetches" 2>/dev/null || echo 0) + 1 )); echo "$n" > "$2/fetches"
         if [ "$n" -le "\${STUB_FETCH_LOCKED:-0}" ]; then
-            lock="$2/.git/refs/remotes/origin/master.lock"
+            mkdir -p "$2/.git/refs/visual-preview"
+            lock="$2/.git/refs/visual-preview/7.lock"
             touch "$lock"; ${realGit} "$@"; rc=$?; rm -f "$lock"; exit $rc
         fi ;;
 esac
@@ -437,26 +426,29 @@ exec ${realGit} "$@"
                 git("add", "b.txt");
                 git("commit", "-qm", "feat", "--no-verify");
                 const head = git("rev-parse", "HEAD");
+                const origin = join(t, "origin.git");
+                // GitHub's merge ref of pull request n: the tree (the head's by default) on master, as
+                // its second parent the head.
+                const pr = (n, h = head, tree = `${h}^{tree}`) =>
+                    git(
+                        "push",
+                        "-q",
+                        "-f",
+                        origin,
+                        `${git("commit-tree", tree, "-p", "master", "-p", h, "-m", "merge")}:refs/pull/${n}/merge`,
+                    );
+                pr(7);
                 const run = (extra, ...args) =>
                     spawnSync("bash", [join(main, "tools/visual-preview.sh"), ...args], {
                         cwd: main,
-                        env: { ...env, ...extra },
+                        env: { ...env, STUB_HEAD: head, ...extra },
                         encoding: "utf8",
                     });
-                // Master moves on the remote (pushed by URL, so origin/master here is not updated), so
-                // the next fetch must lock and write refs/remotes/origin/master.
-                const origin = join(t, "origin.git");
-                git(
-                    "push",
-                    "-q",
-                    origin,
-                    `${git("commit-tree", "master^{tree}", "-p", "master", "-m", "m2")}:refs/heads/master`,
-                );
                 // The same, in the background: resolves to its exit code and output once it ends.
                 const start = (extra, ...args) => {
                     const child = spawn("bash", [join(main, "tools/visual-preview.sh"), ...args], {
                         cwd: main,
-                        env: { ...env, ...extra },
+                        env: { ...env, STUB_HEAD: head, ...extra },
                     });
                     let out = "";
                     child.stdout.on("data", (b) => (out += b));
@@ -464,53 +456,25 @@ exec ${realGit} "$@"
                     const done = new Promise((resolve) => child.on("close", (status) => resolve({ status, out })));
                     return { child, done, output: () => out };
                 };
-                await fn({ run, start, git, head, origin, main, local: join(main, "tmp/visual-review/local") });
+                await fn({ run, start, git, pr, head, origin, main, local: join(main, "tmp/visual-review/local") });
             } finally {
                 rmSync(t, { recursive: true, force: true });
             }
         };
 
-        it("stages a capture with changed images, passes, and promotes or discards it on request", () => {
+        it("captures a pull request's merge with changed images and passes", () => {
             return sandbox(({ run, head, local }) => {
-                // An exported BRANCH (common in CI and agent shells) must not change the mode.
-                const r = run({ STUB_STATUS: "changed", BRANCH: "something" }, "--head", head);
+                const r = run({ STUB_STATUS: "changed" }, "7");
                 assert.equal(r.status, 0, r.stdout + r.stderr);
-                assert.ok(existsSync(join(local, `.pending-${head}/p/results.json`)), "staged under the commit");
-                assert.ok(!existsSync(join(local, "branch-feat")), "nothing promoted before the push passed");
-                assert.equal(run({}, "--promote", head).status, 0);
-                assert.ok(existsSync(join(local, "branch-feat/p/results.json")));
-                assert.ok(!existsSync(join(local, `.pending-${head}`)));
-                assert.equal(run({ STUB_STATUS: "changed" }, "--head", head).status, 0);
-                assert.equal(run({}, "--discard", head).status, 0);
-                assert.ok(!existsSync(join(local, `.pending-${head}`)));
-                assert.ok(existsSync(join(local, "branch-feat/p/results.json")), "the promoted preview is kept");
-            });
-        });
-
-        it("captures for the pull request of VISUAL_PREVIEW_BRANCH and leaves it staged on --promote, for land.mjs", () => {
-            sandbox(({ run, head, main, local }) => {
-                // The detached check worktree has no branch: land.mjs names the one it pushes to.
-                mkdirSync(join(main, "tmp/pr-status"), { recursive: true });
-                writeFileSync(
-                    join(main, "tmp/pr-status/status.json"),
-                    JSON.stringify({ pullRequests: [{ head: "golden", number: 7 }] }),
-                );
-                const named = { VISUAL_PREVIEW_BRANCH: "golden" };
-                const r = run({ ...named, STUB_STATUS: "changed" }, "--head", head);
-                assert.equal(r.status, 0, r.stdout + r.stderr);
-                const staged = join(local, `.pending-${head}`);
-                const status = JSON.parse(readFileSync(join(staged, "status.json"), "utf8"));
+                assert.ok(existsSync(join(local, "7/p/results.json")));
+                const status = JSON.parse(readFileSync(join(local, "7/status.json"), "utf8"));
                 assert.deepEqual([status.state, status.pr, status.head], ["done", 7, head]);
-                assert.equal(run(named, "--promote", head).status, 0);
-                assert.ok(existsSync(join(staged, "p/results.json")), "still staged: pending push");
-                assert.ok(!existsSync(join(local, "7")), "never the pull request's preview before the push");
-                assert.equal(run(named, "--discard", head).status, 0);
-                assert.ok(!existsSync(staged));
+                assert.equal(run({}, "--head", head).status, 1, "a pull request number only");
             });
         });
 
         it("does not count the wait for a browser slot against its limit, but times out a stuck capture", () => {
-            return sandbox(({ run, head, main, local }) => {
+            return sandbox(({ run, main, local }) => {
                 // The browser cap, held by someone else for longer than the whole limit (#1820). The limit
                 // runs on a stepped clock, so a slow machine spends none of it (#5832).
                 mkdirSync(join(main, "tmp"), { recursive: true });
@@ -530,16 +494,15 @@ exec ${realGit} "$@"
                         STUB_SLOT_WAIT: "11",
                         WITH_BROWSER: wrapper,
                     },
-                    "--head",
-                    head,
+                    "7",
                 );
                 assert.equal(waited.status, 0, waited.stdout + waited.stderr);
                 assert.match(waited.stdout, /p: waiting for a browser slot \(not counted against 10s\)/);
                 assert.match(waited.stdout, /p: capturing \(10s left\)/);
 
                 // A capture that holds its slot and never finishes still fails, once its limit is spent
-                // (the finished capture of the same head is discarded first, or it would be reused).
-                assert.equal(run({}, "--discard", head).status, 0);
+                // (the finished capture of the same head is removed first, or it would be reused).
+                rmSync(join(local, "7"), { recursive: true, force: true });
                 const stuck = run(
                     {
                         STUB_HANG: "1",
@@ -548,67 +511,23 @@ exec ${realGit} "$@"
                         STUB_SLOT_WAIT: "0",
                         WITH_BROWSER: wrapper,
                     },
-                    "--head",
-                    head,
+                    "7",
                 );
                 assert.equal(stuck.status, 1, stuck.stdout + stuck.stderr);
                 assert.match(stuck.stdout, /p: capturing \(2s left\)/);
                 assert.match(stuck.stdout, /p: timed out: the capture ran past what was left of 2s/);
                 assert.match(stuck.stderr, /capture failed: p/);
-                const status = JSON.parse(readFileSync(join(local, `.pending-${head}/status.json`), "utf8"));
+                const status = JSON.parse(readFileSync(join(local, "7/status.json"), "utf8"));
                 assert.equal(status.state, "failed");
             });
         });
 
-        it("gives the cut's capture the high browser lane, and only the cut's", () =>
-            sandbox(({ run, head, main }) => {
-                mkdirSync(join(main, "tmp"), { recursive: true });
-                const wrapper = join(main, "tmp/with-browser.sh");
-                const lanes = join(main, "tmp/lanes");
-                writeFileSync(wrapper, `#!/bin/sh\necho "\${BROWSER_SLOT_PRIORITY:-none}" >> ${lanes}\nexec "$@"\n`, {
-                    mode: 0o755,
-                });
-                const ordinary = run({ STUB_STATUS: "changed", WITH_BROWSER: wrapper }, "--head", head);
-                assert.equal(ordinary.status, 0, ordinary.stdout + ordinary.stderr);
-                // Discarded first, or a finished capture of the same head would be reused.
-                assert.equal(run({}, "--discard", head).status, 0);
-                const cut = run(
-                    { STUB_STATUS: "changed", WITH_BROWSER: wrapper, VISUAL_PREVIEW_PRIORITY: "cut" },
-                    "--head",
-                    head,
-                );
-                assert.equal(cut.status, 0, cut.stdout + cut.stderr);
-                assert.equal(readFileSync(lanes, "utf8"), "none\nhigh\n");
-            }));
-
-        it("--expect waits until GitHub lists the pushed commit as the pull request's head, then captures it", () => {
-            return sandbox(({ run, head, origin, main, local }) => {
-                const git = (...a) => spawnSync(realGit, a, { cwd: main, encoding: "utf8" }).stdout.trim();
-                // GitHub's merge ref of the new head, as it builds it once it has seen the push.
-                const merge = git("commit-tree", `${head}^{tree}`, "-p", "master", "-p", head, "-m", "merge");
-                git("push", "-q", origin, `${merge}:refs/pull/7/merge`);
-                const gh = join(main, "gh-calls");
-                mkdirSync(gh);
-                const old = git("rev-parse", "master");
-                const r = run(
-                    {
-                        STUB_STATUS: "changed",
-                        STUB_GH_DIR: gh,
-                        STUB_OLD_HEAD: old,
-                        STUB_NEW_HEAD: head,
-                        STUB_OLD_TIMES: "2",
-                        VISUAL_PREVIEW_POLL: "0",
-                    },
-                    "7",
-                    "--expect",
-                    head,
-                );
-                assert.equal(r.status, 0, r.stdout + r.stderr);
-                assert.match(r.stdout, new RegExp(`waiting for GitHub to list ${head.slice(0, 10)} as the head of #7`));
-                // Two answers with the old head, one with the new, and the check that it did not move.
-                assert.equal(readFileSync(join(gh, "calls"), "utf8").trim(), "4");
-                const status = JSON.parse(readFileSync(join(local, "7/status.json"), "utf8"));
-                assert.deepEqual([status.state, status.head], ["done", head]);
+        it("refuses a merge ref GitHub has not yet built from the pull request's head", () => {
+            return sandbox(({ run, pr, head, git }) => {
+                pr(7, git("rev-parse", "master"));
+                const r = run({ STUB_STATUS: "changed" }, "7");
+                assert.equal(r.status, 1);
+                assert.match(r.stderr, new RegExp(`is not built from the head ${head}`));
             });
         });
 
@@ -624,25 +543,25 @@ exec ${realGit} "$@"
         };
 
         it("waits its turn behind an earlier preview, first come first served, and skips a dead waiter", () =>
-            sandbox(async ({ run, start, head, local }) => {
+            sandbox(async ({ run, start, local }) => {
                 const earlier = holder();
                 try {
                     ticket(local, `1-1-${earlier.pid}`);
                     ticket(local, `1-2-${deadPid()}`);
-                    const p = start({ STUB_STATUS: "changed", VISUAL_PREVIEW_POLL: "0.05" }, "--head", head);
+                    const p = start({ STUB_STATUS: "changed", VISUAL_PREVIEW_POLL: "0.05" }, "7");
                     await until(() => /waiting for the previews ahead of it/.test(p.output()));
-                    assert.ok(!existsSync(join(local, `.pending-${head}/p/results.json`)), "nothing captured yet");
+                    assert.ok(!existsSync(join(local, "7/p/results.json")), "nothing captured yet");
                     earlier.kill();
                     const r = await p.done;
                     assert.equal(r.status, 0, r.out);
-                    assert.ok(existsSync(join(local, `.pending-${head}/p/results.json`)));
+                    assert.ok(existsSync(join(local, "7/p/results.json")));
                     assert.deepEqual(readdirSync(join(local, ".queue")), [], "every ticket is gone, the dead one too");
                     // One that arrived after this one never holds it up.
-                    assert.equal(run({}, "--discard", head).status, 0);
+                    rmSync(join(local, "7"), { recursive: true, force: true });
                     const later = holder();
                     try {
                         ticket(local, `1-99999999999999999999-${later.pid}`);
-                        assert.equal(run({ STUB_STATUS: "changed" }, "--head", head).status, 0);
+                        assert.equal(run({ STUB_STATUS: "changed" }, "7").status, 0);
                     } finally {
                         later.kill();
                     }
@@ -651,65 +570,34 @@ exec ${realGit} "$@"
                 }
             }));
 
-        it("puts the cut's preview ahead of every waiting one, but never ahead of one already working", () =>
-            sandbox(async ({ run, start, head, local }) => {
-                const waiting = holder();
-                const working = holder();
-                try {
-                    ticket(local, `1-1-${waiting.pid}`);
-                    const cut = { STUB_STATUS: "changed", VISUAL_PREVIEW_PRIORITY: "cut", VISUAL_PREVIEW_POLL: "0.05" };
-                    assert.equal(run(cut, "--head", head).status, 0, "ahead of a waiting preview");
-                    assert.equal(run({}, "--discard", head).status, 0);
-                    // A working preview's ticket is rank 0 as of its start.
-                    ticket(local, `0-2-${working.pid}`);
-                    const p = start(cut, "--head", head);
-                    await until(() => /waiting for the previews ahead of it/.test(p.output()));
-                    working.kill();
-                    const r = await p.done;
-                    assert.equal(r.status, 0, r.out);
-                } finally {
-                    waiting.kill();
-                    working.kill();
-                }
-            }));
-
         it("reuses a finished capture of the same head and trees, and only that", () =>
-            sandbox(({ run, git, head, origin, main, local }) => {
+            sandbox(({ run, git, pr, head, main, local }) => {
                 const captures = join(main, "captures");
                 const count = () => (existsSync(captures) ? readFileSync(captures, "utf8").split("\n").length - 1 : 0);
                 const env = { STUB_STATUS: "changed", STUB_CAPTURES: captures };
-                assert.equal(run(env, "--head", head).status, 0);
-                assert.equal(run({}, "--promote", head).status, 0);
+                assert.equal(run(env, "7").status, 0);
                 assert.equal(count(), 1);
-                const source = join(local, "branch-feat/p/results.json");
+                const source = join(local, "7/p/results.json");
                 const before = readFileSync(source, "utf8");
 
-                // Pull request 7 at the same head: GitHub's merge ref has the same tree on the same base.
-                git("fetch", "-q", "origin", "master");
-                const pr = (tree) => {
-                    const merge = git("commit-tree", tree, "-p", "origin/master", "-p", head, "-m", "merge");
-                    git("push", "-q", "-f", origin, `${merge}:refs/pull/7/merge`);
-                };
-                const gh = join(main, "gh-calls");
-                mkdirSync(gh);
-                const prEnv = { ...env, STUB_GH_DIR: gh, STUB_NEW_HEAD: head, STUB_OLD_TIMES: "0" };
-                pr(`${head}^{tree}`);
-                const reused = run(prEnv, "7");
+                // Pull request 8 at the same head: GitHub's merge ref has the same tree on the same base.
+                pr(8);
+                const reused = run(env, "8");
                 assert.equal(reused.status, 0, reused.stdout + reused.stderr);
-                assert.match(reused.stdout, /reused the capture of branch-feat/);
+                assert.match(reused.stdout, /reused the capture of 7/);
                 assert.equal(count(), 1, "no capture made");
-                const status = JSON.parse(readFileSync(join(local, "7/status.json"), "utf8"));
+                const status = JSON.parse(readFileSync(join(local, "8/status.json"), "utf8"));
                 assert.deepEqual(
                     [status.state, status.head, status.reusedFrom, status.projects],
-                    ["done", head, "branch-feat", ["p"]],
+                    ["done", head, "7", ["p"]],
                 );
-                const results = JSON.parse(readFileSync(join(local, "7/p/results.json"), "utf8"));
-                assert.deepEqual([results.pr, results.headSha], [7, head], "named for its own pull request");
+                const results = JSON.parse(readFileSync(join(local, "8/p/results.json"), "utf8"));
+                assert.deepEqual([results.pr, results.headSha], [8, head], "named for its own pull request");
                 assert.ok(results.local.preview, "decidable on the review page");
                 assert.equal(readFileSync(source, "utf8"), before, "the source capture is unchanged");
                 // Run again, it sees its own finished capture and does nothing.
-                const again = run(prEnv, "7");
-                assert.match(again.stdout, /7 at [0-9a-f]{10} is already captured/);
+                const again = run(env, "8");
+                assert.match(again.stdout, /8 at [0-9a-f]{10} is already captured/);
                 assert.equal(count(), 1);
 
                 // Other baselines (any other merge tree): captured again.
@@ -724,59 +612,47 @@ exec ${realGit} "$@"
                     ],
                     { cwd: main, env: { ...process.env, GIT_INDEX_FILE: index }, encoding: "utf8" },
                 ).stdout.trim();
-                pr(tree);
-                const other = run(prEnv, "7");
+                pr(9, head, tree);
+                const other = run(env, "9");
                 assert.equal(other.status, 0, other.stdout + other.stderr);
                 assert.equal(count(), 2, "captured, not reused");
-                assert.equal(JSON.parse(readFileSync(join(local, "7/status.json"), "utf8")).reusedFrom, null);
+                assert.equal(JSON.parse(readFileSync(join(local, "9/status.json"), "utf8")).reusedFrom, null);
 
                 // Another head with the very same tree: captured again.
                 const twin = git("commit-tree", `${head}^{tree}`, "-p", `${head}^`, "-m", "twin");
-                assert.equal(run(env, "--head", twin).status, 0);
+                pr(10, twin);
+                assert.equal(run({ ...env, STUB_HEAD: twin }, "10").status, 0);
                 assert.equal(count(), 3);
             }));
 
         it("fails on a story that failed to render", () => {
-            return sandbox(({ run, head }) => {
-                const r = run({ STUB_STATUS: "failed" }, "--head", head);
+            return sandbox(({ run }) => {
+                const r = run({ STUB_STATUS: "failed" }, "7");
                 assert.equal(r.status, 1);
                 assert.match(r.stderr, /stories failed to capture/);
             });
         });
 
         it("retries a fetch that lost a ref-lock race with another fetch (#1548)", () => {
-            return sandbox(({ run, head }) => {
-                const r = run({ STUB_STATUS: "changed", STUB_FETCH_LOCKED: "2" }, "--head", head);
+            return sandbox(({ run }) => {
+                const r = run({ STUB_STATUS: "changed", STUB_FETCH_LOCKED: "2" }, "7");
                 assert.equal(r.status, 0, r.stdout + r.stderr);
             });
         });
 
         it("fails a fetch that keeps failing with git's own message", () => {
-            return sandbox(({ run, head, local, origin }) => {
+            return sandbox(({ run, local, origin }) => {
                 rmSync(origin, { recursive: true, force: true });
-                const r = run({ STUB_STATUS: "changed" }, "--head", head);
+                const r = run({ STUB_STATUS: "changed" }, "7");
                 assert.equal(r.status, 1);
                 assert.match(
                     r.stderr,
-                    /cannot fetch master: fatal: '.*origin\.git' does not appear to be a git repository/,
+                    /cannot fetch \+refs\/pull\/7\/merge:refs\/visual-preview\/7: fatal: '.*origin\.git' does not appear to be a git repository/,
                 );
-                const status = JSON.parse(readFileSync(join(local, `.pending-${head}/status.json`), "utf8"));
+                const status = JSON.parse(readFileSync(join(local, "7/status.json"), "utf8"));
                 assert.equal(status.state, "failed");
-                assert.equal(status.step, "fetching origin/master");
+                assert.equal(status.step, "fetching refs/pull/7/merge");
                 assert.match(status.log, /does not appear to be a git repository/);
-            });
-        });
-
-        it("skips a conflicting merge but fails on a merge-tree error", () => {
-            return sandbox(({ run, head, local }) => {
-                const conflict = run({ STUB_MERGE_TREE_RC: "1" }, "--head", head);
-                assert.equal(conflict.status, 0, conflict.stderr);
-                assert.match(conflict.stdout, /conflicts with origin\/master/);
-                const error = run({ STUB_MERGE_TREE_RC: "128" }, "--head", head);
-                assert.equal(error.status, 1);
-                assert.match(error.stderr, /merge-tree failed \(exit 128\)/);
-                const status = JSON.parse(readFileSync(join(local, `.pending-${head}/status.json`), "utf8"));
-                assert.equal(status.state, "failed");
             });
         });
     });
@@ -6667,7 +6543,7 @@ describe("tests that run git", () => {
     });
 });
 
-describe("pre-push shards skipped on inputs that already passed (tools/prepush-inputs.mjs)", () => {
+describe("a test shard's input key (tools/prepush-inputs.mjs)", () => {
     const shard = (name, pkg = name) => ({ shard: name, package: pkg, "test-command": "true", "needs-browser": false });
     const roots = new Map([
         ["graph-format", "graph-format"],
@@ -6690,42 +6566,7 @@ describe("pre-push shards skipped on inputs that already passed (tools/prepush-i
     const key = (changes, outputs = new Map([["graph-format/dist", "x"]])) =>
         inputKey(shard("graphty-element-default", "graphty-element"), files(changes), roots, include, outputs, {});
 
-    it("runs a shard that never passed, and one whose key is unknown", () => {
-        const shards = [shard("a"), shard("b")];
-        const { run, skipped } = partitionByPasses(
-            shards,
-            new Map([
-                ["a", "k"],
-                ["b", null],
-            ]),
-            (key) => (key === null ? { key: null, sha: "s", at: "t" } : null),
-        );
-        assert.deepEqual(run, shards);
-        assert.deepEqual(skipped, []);
-    });
-
-    it("skips only a shard whose recorded pass has exactly this key", () => {
-        const shards = [shard("same"), shard("changed")];
-        const passes = { k1: { key: "k1", sha: "s", at: "t" }, old: { key: "old", sha: "s", at: "t" } };
-        const { run, skipped } = partitionByPasses(
-            shards,
-            new Map([
-                ["same", "k1"],
-                ["changed", "new"],
-            ]),
-            (key) => passes[key] ?? null,
-        );
-        assert.deepEqual(
-            run.map((s) => s.shard),
-            ["changed"],
-        );
-        assert.deepEqual(
-            skipped.map((s) => s.shard.shard),
-            ["same"],
-        );
-    });
-
-    it("re-runs when the package, a dependency, a root file or a dependency's build output changes", () => {
+    it("changes when the package, a dependency, a root file or a dependency's build output changes", () => {
         const base = key({});
         assert.notEqual(key({ "graphty-element/src/b.ts": "b" }), base, "its own source");
         assert.notEqual(key({ "graphty-element/test/new.test.ts": "n" }), base, "a new file");
@@ -6773,54 +6614,15 @@ describe("pre-push shards skipped on inputs that already passed (tools/prepush-i
         assert.deepEqual([...related("graph-format", deps, refs)], ["graph-format"]);
     });
 
-    it("hashes the checkout as it is on disk: edits and untracked files count, ignored ones do not", () => {
+    it("hashes a build output by content, and a missing one as absent", () => {
         const dir = mkdtempSync(join(tmpdir(), "prepush-inputs-"));
         try {
-            const git = (...args) => assert.equal(spawnSync("git", args, { cwd: dir }).status, 0, args.join(" "));
-            git("init", "-q");
-            writeFileSync(join(dir, ".gitignore"), "dist/\n");
-            writeFileSync(join(dir, "a.ts"), "a\n");
-            git("add", ".");
-            git("commit", "-q", "-m", "a");
-            const before = fingerprint(dir);
             mkdirSync(join(dir, "dist"));
             writeFileSync(join(dir, "dist/out.js"), "x\n");
-            assert.equal(fingerprint(dir), before, "an ignored file");
-            writeFileSync(join(dir, "new.ts"), "n\n");
-            const untracked = fingerprint(dir);
-            assert.notEqual(untracked, before, "an untracked file");
-            writeFileSync(join(dir, "a.ts"), "b\n");
-            assert.notEqual(fingerprint(dir), untracked, "an edit");
             assert.notEqual(outputHash(join(dir, "dist")), outputHash(join(dir, "missing")));
             const out = outputHash(join(dir, "dist"));
             writeFileSync(join(dir, "dist/out.js"), "y\n");
             assert.notEqual(outputHash(join(dir, "dist")), out, "a changed build output");
-        } finally {
-            rmSync(dir, { recursive: true, force: true });
-        }
-    });
-
-    it("counts the passed tests of a shard's log, so a run that passed none is never recorded", () => {
-        assert.equal(testsPassed("No test files found, exiting with code 0\n"), 0);
-        assert.equal(testsPassed(" Test Files  1 passed (1)\n      Tests  0 passed (0)\n"), 0);
-        assert.equal(testsPassed("\x1b[2m      Tests \x1b[22m \x1b[1m\x1b[32m6 passed\x1b[39m\x1b[22m (6)\n"), 6);
-        assert.equal(testsPassed("      Tests  12 passed | 1 skipped (13)\n...\n      Tests  3 passed (3)\n"), 15);
-        assert.equal(testsPassed("      Tests  2 failed | 5 passed (7)\n"), 5);
-    });
-
-    it("records passes by kind and key, for every branch, and reads them back", () => {
-        const dir = mkdtempSync(join(tmpdir(), "prepush-passes-"));
-        try {
-            const k1 = "1".repeat(64);
-            const k2 = "2".repeat(64);
-            const store = passStore(dir);
-            assert.equal(store.get("shard", k1), null);
-            store.record("shard", k1, { shard: "a", branch: "tools/x", sha: "s", at: "t" });
-            store.record("shard", k2, { shard: "b", branch: "other", sha: "s", at: "t" });
-            assert.equal(passStore(dir).get("shard", k1).shard, "a");
-            assert.equal(passStore(dir).get("shard", k2).key, k2);
-            assert.equal(passStore(dir).get("gate", k1), null, "another kind");
-            assert.throws(() => store.record("shard", "../x", {}), /not a pass kind and key/);
         } finally {
             rmSync(dir, { recursive: true, force: true });
         }

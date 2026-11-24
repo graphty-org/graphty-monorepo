@@ -10,7 +10,7 @@
 //   tmp/issue-round/grouping-metrics.jsonl (tools/issue-groups.mjs metrics --append, once a day)
 //                                             -> POST <HEALTH_API_URL>/v1/local/grouping
 // Nothing appends to tmp/push-log.jsonl any more (the retired push checks did), so it only holds history
-// already posted, and nothing writes ledger records except tools/test-ledger-import.mjs, run by hand.
+// already posted, and the ledger records it reads are history too.
 // Every body is { rows: [...] }, at most 200 rows and 1 MB. Every row has an id derived from its
 // content, so a retried post is harmless. Host paths, gate logs, cwd and session ids are never
 // posted.

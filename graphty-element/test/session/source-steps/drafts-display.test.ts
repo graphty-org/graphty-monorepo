@@ -2,8 +2,8 @@
  * @file Drawing a source draft (design 5.3, 5.6, 10 row 12): `draft.display(on)` makes every
  * element read `graphty.draft` as what the commit would do to it, so an ordinary style layer can
  * show it; `draft.show("before" | "after")` picks the side, After drawing the graph the commit would
- * leave (what it adds drawn and counted, what it removes gone) and Before the graph as it is; the
- * Draft starting row rings what the commit merges and dashes the edges it adds; and none of it
+ * leave (what it adds drawn and counted, what it removes gone) and Before the graph as it is;
+ * `styles.showDraft` rings what the commit merges and dashes the edges it adds; and none of it
  * reaches the history or a saved file, and the digest is the same once it comes off. Ports the
  * reference model's phase 5 `display()` assertion (merged count equals the matched keys).
  */
@@ -359,32 +359,23 @@ describe("source-steps drafts: drawing a draft", () => {
         session.dispose();
     });
 
-    it("the Draft starting row rings what a displayed draft merges and dashes what it adds, only under the experiment", async () => {
+    it("showDraft rings what a displayed draft merges and dashes what it adds, over a suspended stack", async () => {
         const session = createGraphSession({ features: ["source-steps"] });
         const { a } = await renamedAndStaged(session);
         await session.config.set({ startingRows: true });
         await session.styles.settled();
         assert.deepStrictEqual(
             session.styles.tree().map((each) => each.name),
-            ["Everything", "Draft", "Selected", "Hovered"],
+            ["Everything", "Selected", "Hovered"],
+            "no Draft row: the preview is a view, not a layer",
         );
-        const parts = session.styles.list().filter((each) => each.name === "Draft");
-        assert.sameMembers(
-            parts.map((each) => each.target),
-            ["node", "edge"],
-        );
-        const node = parts.find((each) => each.target === "node");
-        assert.strictEqual(node?.source.by, "template");
-        assert.strictEqual(session.styles.counts(node?.id ?? "").matched, 0, "matches nothing until a draft is drawn");
+        const layers = session.styles.list();
         const d = session.data.draft();
         d.merge({ from: { source: a, field: "account_id" }, into: { space: "account" } });
         await d.display(true);
+        const steps = session.history.steps.length;
+        const view = session.styles.showDraft({ merged: "#7048E8", new: "#E8590C" });
         await session.styles.settled();
-        assert.strictEqual(
-            session.styles.counts(node?.id ?? "").matched,
-            3,
-            "After marks two merged accounts and one new",
-        );
         const look = (id: string): { halo: unknown; border: unknown } => {
             const merged = session.styles.explain({ node: id }).merged as Readonly<Record<string, unknown>>;
             const width = merged["node.borderWidth"];
@@ -395,33 +386,57 @@ describe("source-steps drafts: drawing a draft", () => {
         };
         assert.deepStrictEqual(look("A-1"), { halo: 1, border: "none" }, "a merged account is ringed");
         assert.deepStrictEqual(look("A-9"), { halo: 0, border: "dashed" }, "a new account is dashed, not ringed");
-        await d.show("before");
+        assert.isFalse(session.styles.showingBranches, "not a branches view");
+        assert.strictEqual(session.styles.list(), layers, "the layer list is unchanged");
+        assert.strictEqual(session.history.steps.length, steps, "no undo step");
+        view.end();
         await session.styles.settled();
-        assert.strictEqual(session.styles.counts(node?.id ?? "").matched, 2, "Before has no new account to ring");
+        assert.deepStrictEqual(look("A-1"), { halo: 0, border: "none" }, "ending the view takes the ring off");
         d.dispose();
         session.dispose();
     });
 
-    it("the Draft starting row dashes the edges the founding example's joins add", async () => {
+    it("showDraft dashes the edges the founding example's joins add, in the new color", async () => {
         const { session, d } = await foundingDraft();
-        await session.config.set({ startingRows: true });
-        await session.styles.settled();
-        const edge = session.styles.list().find((each) => each.name === "Draft" && each.target === "edge");
         await d.display(true);
+        const view = session.styles.showDraft({ merged: "#7048E8", new: "#E8590C" });
         await session.styles.settled();
-        assert.strictEqual(session.styles.counts(edge?.id ?? "").matched, d.preview().edges.added);
+        const dashed = (): number =>
+            session.data.edges().filter((edge) => {
+                const merged = session.styles.explain({ edge: edge.id }).merged as Readonly<Record<string, unknown>>;
+                return merged["edge.style"] === "dash";
+            }).length;
+        assert.strictEqual(dashed(), d.preview().edges.added);
         await d.show("before");
         await session.styles.settled();
-        assert.strictEqual(session.styles.counts(edge?.id ?? "").matched, 0);
+        assert.strictEqual(dashed(), 0, "Before adds no edge");
+        view.end();
+        await session.styles.settled();
         d.dispose();
         session.dispose();
     });
-    it("the legend keys the Draft row by what the draft does, counted, in the row's color", async () => {
+
+    it("a saved project's Draft row stays an ordinary layer: the legend keys it by what the draft does", async () => {
         const { session, d } = await foundingDraft();
-        await session.config.set({ startingRows: true });
+        // The row as projects created while the starting rows wrote it hold it.
+        const row = await session.styles.addRow({
+            name: "Draft",
+            target: "both",
+            selector: { match: "expression", where: "graphty.draft == 'merged' || graphty.draft == 'new'" },
+            set: {
+                "node.haloColor": "#7048E8",
+                "node.haloScale": 1.4,
+                "node.borderColor": "#7048E8",
+                "node.borderStyle": "dashed",
+                "edge.style": "dash",
+            },
+            encode: {
+                "node.haloOpacity": { by: "graphty.draft", map: { merged: 1, new: 0 } },
+                "node.borderWidth": { by: "graphty.draft", map: { merged: 0, new: 0.1 } },
+            },
+        });
         await session.styles.settled();
-        const node = session.styles.list().find((each) => each.name === "Draft" && each.target === "node");
-        const keyOf = (): LegendBlock[] => session.styles.legend().filter((block) => block.layerId === node?.id);
+        const keyOf = (): LegendBlock[] => session.styles.legend().filter((block) => block.layerId === row.node);
         assert.deepStrictEqual(keyOf(), [], "nothing to key until a draft is drawn");
         await d.display(true);
         await session.styles.settled();

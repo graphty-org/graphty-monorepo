@@ -172,6 +172,8 @@ export interface RunInput {
      * @returns The scope.
      */
     scope(): ResolvedInputScope | null;
+    /** Aborted when the run is canceled, or undefined when nobody can cancel it. */
+    readonly signal?: AbortSignal;
 }
 
 /** Which classes declare that they compute over their run's scope. OPEN UNION; "mask" is later. */
@@ -236,6 +238,16 @@ export function runInputOf(algorithm: object): RunInput | undefined {
  */
 export function runScopeOf(algorithm: object): ResolvedInputScope | null {
     return bindings.get(algorithm)?.scope() ?? null;
+}
+
+/**
+ * The signal of the run an algorithm is publishing for, so work it hands elsewhere (a Worker) can
+ * be stopped when the run is canceled.
+ * @param algorithm - The instance.
+ * @returns The run's signal, or undefined outside a run.
+ */
+export function runSignalOf(algorithm: object): AbortSignal | undefined {
+    return bindings.get(algorithm)?.signal;
 }
 
 /**
@@ -889,7 +901,7 @@ function estimateOf(scope: ResolvedInputScope): number {
  * @param algorithm - The instance.
  * @param owner - The graph it runs on.
  * @param scope - The run's scope over the current snapshot, or null for the whole graph.
- * @param signal - Aborts a wait for room.
+ * @param signal - Aborts a wait for room, and the work handed to a Worker.
  * @param work - The work.
  * @returns What the work returned.
  */
@@ -902,7 +914,7 @@ export async function withRunInput<T>(
 ): Promise<T> {
     const inputs = derivedInputsOf(owner);
     const holder = {};
-    bindings.set(algorithm, { inputs, holder, scope });
+    bindings.set(algorithm, { inputs, holder, scope, ...(signal === undefined ? {} : { signal }) });
     try {
         if (computesOverScope(algorithm)) {
             const resolved = scope();

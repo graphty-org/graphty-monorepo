@@ -1,9 +1,12 @@
+import type { EffectLayer } from "@babylonjs/core/Layers/effectLayer.js";
+import type { GlowLayer } from "@babylonjs/core/Layers/glowLayer.js";
 import type { Material } from "@babylonjs/core/Materials/material.js";
 import { MaterialPluginBase } from "@babylonjs/core/Materials/materialPluginBase.js";
 import { ShaderLanguage } from "@babylonjs/core/Materials/shaderLanguage.js";
 import type { RawTexture } from "@babylonjs/core/Materials/Textures/rawTexture.js";
 import type { UniformBuffer } from "@babylonjs/core/Materials/uniformBuffer.js";
 import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import type { SubMesh } from "@babylonjs/core/Meshes/subMesh.js";
 import type { Scene } from "@babylonjs/core/scene.js";
 
@@ -255,4 +258,30 @@ export function attachRowPull(material: Material): void {
     if (frozen) {
         material.freeze();
     }
+}
+
+/**
+ * Let a GlowLayer draw a batch where its rows are. A glow layer draws a mesh into its own target
+ * with a shader of its own, which knows nothing of this plugin, so every row of a batch landed
+ * wherever its bare instance matrix put it and lit empty background (issue #9867). Asked to draw
+ * the mesh with its own material, the layer draws the rows in place, in the color they show.
+ * Every glow layer of the scene is told, the ones there now and the ones a consumer adds later.
+ * @param mesh - The batch mesh.
+ */
+export function glowRowsInPlace(mesh: Mesh): void {
+    const scene = mesh.getScene();
+    const reference = (layer: EffectLayer): void => {
+        // By name, not instanceof: importing GlowLayer would load it for every consumer.
+        if (layer.getEffectName() === "GlowLayer") {
+            (layer as GlowLayer).referenceMeshToUseItsOwnMaterial(mesh);
+        }
+    };
+    for (const layer of scene.effectLayers) {
+        reference(layer);
+    }
+
+    const added = scene.onNewEffectLayerAddedObservable.add(reference);
+    mesh.onDisposeObservable.addOnce(() => {
+        scene.onNewEffectLayerAddedObservable.remove(added);
+    });
 }

@@ -419,6 +419,12 @@ describe("a reload while this tab's work is being reopened", () => {
         assert.strictEqual(items.get(`graphty-autosave:own:${key}`), entry);
         assert.isFalse(items.has(`graphty-autosave:own-before:${key}`));
         assert.strictEqual(reopenSession.project.name, "The reader's work");
+        // The page's setup entry is gone, not kept as replaced work: loading the page sets it up
+        // again (issue #9978).
+        assert.deepEqual(
+            (await store.list(key)).map((meta) => meta.id),
+            [entry],
+        );
         reopening.depart();
     });
 });

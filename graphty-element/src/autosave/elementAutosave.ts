@@ -1007,6 +1007,9 @@ export class ElementAutosave {
 
         // Every change made so far is the page's setup, not the reader's new work.
         this.#startRevision = saver.status.revision;
+        if (restored === null) {
+            saver.endSetup();
+        }
         this.#finish(restored);
         this.#checkAtRisk(saver.status);
     }

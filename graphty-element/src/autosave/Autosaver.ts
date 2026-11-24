@@ -529,6 +529,12 @@ export class Autosaver {
     /** The restored entry, until the first change or the first page load after the restore. */
     #absorb: AutosaveEntryMeta | null = null;
     #restored: AutosaveRestored | null = null;
+    /**
+     * The entry started by the page's own setup while autosave started, until a change of the
+     * reader's: a boundary drops it rather than keeping it as replaced work, since loading the page
+     * again sets it up again (issue #9978).
+     */
+    #setupOnly: EntryState | null = null;
 
     /**
      * Start writing a session's work. Nothing is written until the first change.
@@ -917,7 +923,7 @@ export class Autosaver {
         }
 
         this.#absorb = null;
-        const replaces = this.#entry.started;
+        const replaces = this.#entry.started && this.#entry !== this.#setupOnly;
         // Ended here, before the load runs, whatever the load does to the graph.
         this.#boundary();
         this.#source = slot === "whole" ? { whole: digest } : { ...this.#source, [slot]: digest };
@@ -1859,6 +1865,10 @@ export class Autosaver {
             this.#absorb = null;
         }
 
+        if (counted || tags.includes("stash") || tags.includes("drafts")) {
+            this.#setupOnly = null;
+        }
+
         const entry = this.#entry;
         if (!entry.started) {
             // A new entry holds nothing yet, so its first write carries everything.
@@ -1949,6 +1959,11 @@ export class Autosaver {
             return;
         }
 
+        if (entry === this.#setupOnly) {
+            this.#dropSetup(entry);
+            return;
+        }
+
         // Everything not known to be committed: what is unwritten, and what the write in flight
         // carries (it may yet fail). Built now, before the replacing change runs.
         const tags = new Set(entry.unwritten);
@@ -1967,6 +1982,34 @@ export class Autosaver {
         this.#endings.push({ entry, meta: this.#metaOf(entry, sizesAfter(entry.sizes, parts)), parts });
         this.#entry = this.#newEntry();
         this.#kick();
+    }
+
+    /**
+     * The autosave start is decided with nothing restored: an entry started so far holds only the
+     * page's own setup, until a change of the reader's.
+     */
+    endSetup(): void {
+        this.#setupOnly = this.#entry.started ? this.#entry : null;
+    }
+
+    /**
+     * Leave an entry that holds only the page's setup without keeping it: no ending is written, and
+     * once the write in flight (which may be its own) settles, it is deleted.
+     * @param entry - The entry.
+     */
+    #dropSetup(entry: EntryState): void {
+        this.#setupOnly = null;
+        entry.unwritten.clear();
+        this.#entry = this.#newEntry();
+        logger.info("setup entry dropped", { entry: entry.id });
+        void this.settled()
+            .then(async () => {
+                entry.release?.();
+                entry.release = null;
+                await this.#store.remove(entry.id);
+            })
+            // ponytail: best effort; a setup entry left behind is clutter, never lost work.
+            .catch(() => undefined);
     }
 
     /**

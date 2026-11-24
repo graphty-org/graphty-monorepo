@@ -934,7 +934,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
     /**
      * A settled layout rebuilt on another accelerator stays at rest: see {@link replaceSimulation}. The new
      * simulation is loaded from the start of its schedule, so it reads settled only through this until
-     * something wakes it -- a load, a reload, a reheat or a drag.
+     * something wakes it -- a load, a reload, a reheat, a drag, a move, a pin or a hold.
      */
     #heldAtRest = false;
     #iterations = 1;
@@ -1522,6 +1522,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
      */
     override setHoldMask(mask: NodeMask | null, rows: number): void {
         super.setHoldMask(mask, rows);
+        this.#heldAtRest = false;
         this.#applyPins();
     }
 
@@ -1531,6 +1532,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * @param p - Where it moved to.
      */
     protected setNodePosition(n: Node, p: Position): void {
+        this.#heldAtRest = false;
         const z = p.z ?? 0;
 
         // The simulations THROW for a row outside [0, nodeCount) or a coordinate that is not
@@ -2972,6 +2974,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * @param fixed - Whether the simulation must hold it still.
      */
     #setFixed(index: number, fixed: boolean): void {
+        this.#heldAtRest = false;
         const mask = this.#mask;
         const simulation = this.#simulation;
         const row = this.#simRow(index);

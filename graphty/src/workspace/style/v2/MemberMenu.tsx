@@ -469,9 +469,17 @@ export function MemberMenu({
             boxRef={box}
             attribute={{ "data-member-menu": family.id }}
             form={inRow ? "select" : "strip"}
-            members={tabs}
-            now={tabNow}
-            onChoose={onTab}
+            // Under a row, a drop-down lists every member, each shader by its name.
+            members={inRow ? members : tabs}
+            now={inRow ? now : tabNow}
+            onChoose={(picked) => {
+                const member = members.find((each) => each.key === picked.key);
+                if (inRow && member !== undefined) {
+                    choose(member);
+                } else {
+                    onTab(picked);
+                }
+            }}
         >
             {picking?.pick === "model" && (
                 <ModelsPopover

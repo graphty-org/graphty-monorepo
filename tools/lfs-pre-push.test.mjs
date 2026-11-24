@@ -73,8 +73,8 @@ function run(cwd, args, env) {
 }
 
 // A repository with one commit holding an LFS pointer (its object in .git/lfs), a bare remote, and
-// a pre-push hook that runs `hook`. isolatedGitEnv() keeps the developer's config and, under the
-// pre-push gate, the hook's GIT_DIR away from it.
+// a pre-push hook that runs `hook`. isolatedGitEnv() keeps the developer's config and, when this
+// test runs inside a git hook, the hook's GIT_DIR away from it.
 async function setup(lfsUrl, hook) {
     const dir = mkdtempSync(join(TMP, "lfs-pre-push-"));
     const repo = join(dir, "repo");

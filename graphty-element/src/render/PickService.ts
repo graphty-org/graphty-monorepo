@@ -327,6 +327,23 @@ export class RowScan {
     }
 
     /**
+     * Whether a canvas point lands on one row's own shape, tested as {@link RowScan.shapeRayHit} tests
+     * each row, with no walk over the others.
+     * @param row - The row.
+     * @param x - X in CSS pixels.
+     * @param y - Y in CSS pixels.
+     * @returns Whether it does, or undefined for a row the scan leaves to Babylon's pick.
+     */
+    hitsRowAt(row: number, x: number, y: number): boolean | undefined {
+        const { scene, rowRay } = this;
+        const hit = this.narrow(row, this.root?.computeWorldMatrix() ?? this.identity, (world) => {
+            scene.createPickingRayToRef(x, y, world, rowRay, null, false);
+            return rowRay;
+        });
+        return hit === null ? undefined : hit.hit;
+    }
+
+    /**
      * The row a world ray hits: {@link RowScan.shapeRayHit} for what has no screen point.
      * @param ray - The ray.
      * @returns The nearest row hit, or null.
@@ -534,6 +551,18 @@ export class RowScan {
     pickPoint(x: number, y: number): TransformNode | null {
         const { info, onTop } = pickMeshes(this.scene, x, y, (mesh) => drawnPickable(mesh) && !this.covers(mesh));
         return onTop ? info.pickedMesh : this.nearer(info, this.shapeRayHit(x, y)).mesh;
+    }
+
+    /**
+     * The world point at a canvas point, as {@link pickWorldPoint} answers it: Babylon's pick
+     * among the meshes the scan does not cover, and the nearer of that and the rows.
+     * @param x - X in CSS pixels.
+     * @param y - Y in CSS pixels.
+     * @returns The point, or null when nothing is there.
+     */
+    pointAt(x: number, y: number): Vector3 | null {
+        const info = this.scene.pick(x, y, (mesh) => drawnPickable(mesh) && !this.covers(mesh));
+        return this.nearer(info, this.shapeRayHit(x, y)).point;
     }
 
     /**
@@ -843,6 +872,15 @@ export function hoverNodeId(scene: Scene, x: number, y: number): HoverPick | Pro
             return { id: pickNodeId(scene, x, y) };
         }
 
+        // The target draws a row smaller than a pixel larger than it is, and answers for a whole pixel, so a
+        // pointer up to about a pixel off a row's shape can read it there. A read answered from the frame on
+        // screen (WebGL: no `drawn`) is checked against the row's own shape, and a miss asks the pick a click
+        // asks, so hover never names a node where a click and elementAt find none (#9915). Only that row is
+        // tested; the walk happens only on a miss, along a node's rim.
+        if (texel >= 0 && drawn === undefined && rowScans.get(scene)?.hitsRowAt(texel, x, y) === false) {
+            return { id: pickNodeId(scene, x, y) };
+        }
+
         const id = texel === ID_NONE ? undefined : ids.nodeIdAt(texel);
         return id === undefined || drawn === undefined ? { id } : { id, drawn };
     };
@@ -886,7 +924,9 @@ export function pickCloseLabel(scene: Scene, x: number, y: number): AbstractMesh
  * @returns The point, or null when nothing is there.
  */
 export function pickWorldPoint(scene: Scene, x: number, y: number): { x: number; y: number; z: number } | null {
-    const point = scene.pick(x, y).pickedPoint;
+    // A row drawn by a batch has no pickable mesh of its own, so the row scan answers it (issue #9861).
+    const scan = rowScans.get(scene);
+    const point = scan === undefined ? scene.pick(x, y).pickedPoint : scan.pointAt(x, y);
     return point === null ? null : { x: point.x, y: point.y, z: point.z };
 }
 

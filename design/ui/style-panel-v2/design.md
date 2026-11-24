@@ -156,7 +156,8 @@ refuses nesting).
   the thing has groups of settings (Input rules, '"..." menu and group pop-overs'). There is no "+" in the
   popover except on a list.
 - **Tabs**: a family's members or a kind group's kinds whose settings differ are the popover's first row, a tab
-  strip (Input rules, "Tabs"); the same choice shown under a row with no popover (a basic Shape) is a drop-down.
+  strip (Input rules, "Tabs"); the same choice shown under a row with no popover (a basic Shape) is the same
+  choices in the same words, as grouped buttons named above them (owner, 2026-11-24: one control, one wording).
 - **First lines**: there is no separate By data line. Every line, the main value's included, carries its own
   by-data link in its trailing slot; a line that holds no value of its own (a Unit line) draws none. A line of two
   values (a pair) has one link whose list opens with a "Which value" choice (E680). For a switchable thing, a **Show** line (R7 checkbox, the one control for
@@ -222,7 +223,8 @@ Size (`x-size-labelfit`). In the "+" lists below, `|` is a divider between tiers
 - **Size**: the shape's size, its own row, so "size by degree" needs no Shape row (E189).
 - **Shape** (kinds Basic shape, Model, and every shader that declares place "replace", built-in or custom, with
   "New shader..." in the same list). A Basic shape row has no settings pop-over (owner, 2026-11-23): its
-  drop-down picks the shape and its Kind line sits under it; Rotation, Corners and Custom shape values a layer
+  drop-down picks the shape and its Kind line sits under it, grouped buttons in the same words as a Model's or
+  shader's tab strip (Basic, Model, Shader; Shader opens the gallery); Rotation, Corners and Custom shape values a layer
   already sets (an imported file's) are drawn under the row with their minus, and are not offered to add. A
   Model or a replace shader keeps its pop-over. Mesh detail is not offered: the Graph
   settings hold the drawing's detail (owner, 2026-11-23). Wireframe is an Effects option and writes the low
@@ -501,7 +503,8 @@ thing's groups when it has more than one, and each opens a new pop-over.
   back buttons. The link dialog opens as a pop-out of its own: from a sidebar line, beside the panel; from a line
   in a pop-over (a group pop-over included), beside that pop-over.
 - **Height.** "Components tall" counts lines from top to bottom with every sub-group shown: two inputs on one
-  line count once, a Kind line and a Combine or operation line count, each list item counts. A caption line above an
+  line count once, a Kind line and a Combine or operation line count, each list item counts, and a 3 x 3 grid (a
+  label's Location cells) counts as its own row unless it sits beside the line's other control. A caption line above an
   input does not count as a row toward the six-row pop-over limit. Over 6, the rarer
   or optional lines move to a group in the "..." menu. A tab strip counts as a line; the "..." sits in the header
   and is no line.
@@ -574,8 +577,8 @@ thing's groups when it has more than one, and each opens a new pop-over.
   label's Icon is a character drawn beside its words (graphty-element's `icon`), not a file, so it stays text.
 - **Sidebar rows with a pictured list or a drop-down** (Pattern, Arrow, Route, Force curves) draw their name above
   and the value across the row, so a value is never cut ("Triangle", "Barnes hut").
-- **A basic Shape row** has no settings pop-over: its Kind drop-down is the line under it, so the Shape section
-  draws two carets (its list and its Kind), every other section one at most.
+- **A basic Shape row** has no settings pop-over: its Kind line is under it, the pop-over's tabs as grouped buttons
+  in the same words (Basic, Model, Shader).
 - **Unset values.** A number graphty-element names no one value for (it picks one per element: a node's width
   follows its shape) reads "Auto". A segment line whose unset state is none of the element's values has an option
   for it ("Off" for Fit to label, "Both" for an arrow's side), shown while unset; picking it unsets. A drop-down

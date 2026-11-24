@@ -135,7 +135,7 @@ async function readLines(tab: HTMLElement, seen: Map<string, Line>, links: Links
                 kind: `${kindOf(line.dataset.line ?? "")} ${line.dataset.rule ?? ""}`.trim(),
                 widgets: widgetsOf(line),
             });
-            // An Advanced dialog's lines draw no link: it would open a third pop-out level (design "Input rules").
+            // An Advanced view's lines draw no link (design "Input rules", Advanced view).
             if (where !== "advanced" && bindsOwnValue(line)) {
                 links.set(`${where} ${line.dataset.line ?? ""}`, line.querySelector(LINK) !== null);
             }
@@ -144,7 +144,8 @@ async function readLines(tab: HTMLElement, seen: Map<string, Line>, links: Links
             if (/number$/.test(kindOf(line.dataset.line ?? "")) && !/^R8/.test(line.dataset.rule ?? "")) {
                 assert.isNotNull(slot, `${String(line.dataset.line)}: a number field has its scrub slot`);
             }
-            if (slot !== null) {
+            // A picture's field (R16) shows the picture in its slot: it is no number's scrub slot.
+            if (slot !== null && line.dataset.rule !== "R16") {
                 assert.isNull(slot.querySelector("svg"), `${String(line.dataset.line)}: the scrub slot is no icon`);
                 assert.match(slot.textContent.trim(), /^[A-Z]$/i, `${String(line.dataset.line)}: one letter`);
             }

@@ -291,17 +291,8 @@ describe("Style panel v2's edge things", () => {
         });
         await userEvent.click(within(row).getByRole("button", { name: /^Edge target settings/ }));
         const pop = await found(document, "[data-thing-popover]");
-        await userEvent.click(within(pop).getByRole("button", { name: "Add to edge target settings" }));
-        // A caption offers the label's groups too, in their tiers (ia-design "Label settings groups"); the groups
-        // all of whose lines are rare (Position, Wrap, Callout) are its Advanced dialog's (design "Input rules").
-        const menu = await screen.findByRole("menu");
-        assert.deepEqual(
-            [...menu.querySelectorAll('[role="menuitem"], .mantine-Menu-divider')].map((item) =>
-                item.getAttribute("role") === "menuitem" ? (item.textContent ?? "") : "|",
-            ),
-            ["Letters", "Background", "Box stroke", "|", "Label shadow", "Badge", "Behavior"],
-        );
-        await userEvent.keyboard("{Escape}");
+        // A caption's label groups are all its Advanced view's, as a label's are (design "Input rules"): no "+".
+        assert.isNull(within(pop).queryByRole("button", { name: "Add to edge target settings" }));
         const position = await within(await openAdvanced(pop)).findByRole("group", { name: "Position" });
         await typeInto(await found(position, '.ws-row[data-line="edge.arrowHeadTextDistance"]'), "0.5");
         await waitFor(() => {
@@ -313,6 +304,8 @@ describe("Style panel v2's edge things", () => {
             assert.isUndefined(written(session, id, "edge.arrowHeadTextDistance"), "the distance goes");
         });
         assert.deepEqual(written(session, id, "edge.arrowHeadTextStyle"), { size: 12 }, "the size stays");
+        // Escape goes back from the Advanced view, then closes the pop-over.
+        await userEvent.keyboard("{Escape}");
         await userEvent.keyboard("{Escape}");
         await undo();
         await waitFor(() => {

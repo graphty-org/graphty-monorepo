@@ -286,9 +286,17 @@ export async function pickKind(row: HTMLElement, title: string | RegExp, kind: s
 }
 
 /**
- * Closes the open settings pop-over with Escape, as a reader does.
+ * Closes the open settings pop-over with Escape, as a reader does: a view drilled into it (its Advanced view) goes
+ * back first, on an Escape of its own when focus is in it.
  */
 export async function closeSettings(): Promise<void> {
+    const drilled = document.querySelector("[data-drill-view]:not([hidden])");
+    if (drilled?.contains(document.activeElement) === true) {
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isFalse(drilled.isConnected && !drilled.hasAttribute("hidden"), "the drilled view went back");
+        });
+    }
     await userEvent.keyboard("{Escape}");
     await waitFor(() => {
         // A basic Shape row's own Kind line stays in the panel: the pop-over is what closes.

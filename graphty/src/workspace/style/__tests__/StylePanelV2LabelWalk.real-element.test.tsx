@@ -21,6 +21,7 @@ import { userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
+import colormapUrl from "../__fixtures__/car-kit/Textures/colormap.png?url";
 import {
     LABEL_OPTION_NAMES,
     LABEL_RUBRIC,
@@ -29,6 +30,7 @@ import {
     type LabelGroup,
     type LabelLineSpec,
 } from "../v2/labelRubric";
+import { choose } from "./modelHarness";
 import { openAdvanced, openGraph, openStyle, pickKind, picture, pixelsApart, sectionOf, written } from "./v2Harness";
 
 type Style = Partial<Record<LabelField, unknown>>;
@@ -610,6 +612,13 @@ describe("every label field is reachable from the Label row and draws (E673)", (
                     case "text":
                         if (rule === "R13") {
                             await pickOption(line, "Monospace");
+                        } else if (rule === "R16") {
+                            // A picture (R16): chosen in the Picture pop-over, written as the picture's asset.
+                            await userEvent.click(inputs()[0]);
+                            const dialog = await screen.findByRole("dialog", { name: "Picture" });
+                            const file = new File([await (await fetch(colormapUrl)).arrayBuffer()], "colormap.png");
+                            await choose(dialog, "Choose picture", [file]);
+                            return undefined;
                         } else {
                             await typeIn(inputs()[0], String(test.value));
                         }

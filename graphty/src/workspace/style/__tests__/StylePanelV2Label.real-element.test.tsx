@@ -2,8 +2,8 @@
  * Style panel v2's Text section on the REAL graphty-element, driven by real clicks and typing
  * (design/ui/style-panel-v2/design.md, sections 2.4, 7.3 and 12 check 9): Label is added from the
  * Text section's "+", its source list opens and a pick binds the words; its Size and color common
- * lines write fields of the layer's label style object; its pop-over's "+" adds Background, whose
- * corner radius is written and taken off again by the line's minus; Label stays in "+", enabled,
+ * lines write fields of the layer's label style object; its pop-over's Advanced view holds Background, whose
+ * corner radius is written and taken off again by the line's minus, and every other sub-group; Label stays in "+", enabled,
  * while set (it adds a further label); and a label color set on a second layer over one node draws one
  * label per node.
  */
@@ -160,7 +160,7 @@ describe("Style panel v2's Text section", () => {
         await userEvent.keyboard("{Escape}");
     });
 
-    it("the pop-over adds Background from '+'; the corner radius line writes and its minus takes the key off", async () => {
+    it("the Advanced view holds Background; the corner radius line writes and its minus takes the key off", async () => {
         const { session, id } = await openProject();
         const tab = await openStyle("Key people");
         const row = await addLabel(tab);
@@ -170,8 +170,8 @@ describe("Style panel v2's Text section", () => {
             assert.isNotNull(found);
             return found;
         });
-        assert.isNull(within(pop).queryByRole("group", { name: "Background" }), "Background waits for '+'");
-        // Corners is a rare Background line: in the pop-over's Advanced dialog, always shown (design "Input rules").
+        assert.isNull(within(pop).queryByRole("group", { name: "Background" }), "Background is not the pop-over's");
+        // Background is a rare group: in the pop-over's Advanced view, always shown (design "Input rules").
         const background = await within(await openAdvanced(pop)).findByRole("group", { name: "Background" });
         const corners = await lineOf(background, "node.labelStyle.cornerRadius");
         await typeInto(corners, "4");
@@ -186,7 +186,7 @@ describe("Style panel v2's Text section", () => {
         assert.isDefined(session.styles.get(id)?.encode?.["node.label"], "the label stays");
     });
 
-    it("every sub-group of the pop-over's '+' adds, switches on what it switches on, and its minus unsets it", async () => {
+    it("every label sub-group is in the Advanced view, named uncut; a look's line switches it on; a minus unsets it", async () => {
         const { session, id } = await openProject();
         const tab = await openStyle("Key people");
         const row = await addLabel(tab);
@@ -196,57 +196,28 @@ describe("Style panel v2's Text section", () => {
             assert.isNotNull(found);
             return found;
         });
-        // ia-design's groups, in their tiers; a group all of whose lines are rare (Position, Wrap, Callout) is the
-        // Advanced dialog's alone (design "Input rules").
-        await userEvent.click(within(pop).getByRole("button", { name: "Add to node label settings" }));
-        const menu = await screen.findByRole("menu");
-        const order = [...menu.querySelectorAll('[role="menuitem"], .mantine-Menu-divider')].map((item) =>
-            item.getAttribute("role") === "menuitem" ? (item.textContent ?? "") : "|",
-        );
-        assert.deepEqual(order, ["Letters", "Background", "Box stroke", "|", "Label shadow", "Badge", "Behavior"]);
-        await userEvent.keyboard("{Escape}");
+        // The pop-over keeps its everyday lines (6 tall at most, owner's input rules); every sub-group is its
+        // Advanced view's, which drills into the pop-over in place, so it has no "+".
+        assert.isNull(within(pop).queryByRole("button", { name: "Add to node label settings" }));
         assertNamedUncut(within(pop).getByRole("group", { name: "Main" }));
-        const shown = LABEL_RUBRIC.groups
-            .map((group) => ({ ...group, lines: group.lines.filter((line) => line.advanced !== true) }))
-            .filter((group) => group.lines.length > 0);
-        for (const group of shown) {
-            await userEvent.click(within(pop).getByRole("button", { name: "Add to node label settings" }));
-            await userEvent.click(await screen.findByRole("menuitem", { name: group.name }));
-            const legend = await within(pop).findByRole("group", { name: group.name });
-            // Each of its lines is drawn under its legend, named, with its whole name shown (E674, E599).
-            assert.isAtLeast(legend.querySelectorAll(".ws-row[data-line]").length, group.lines.length, group.name);
-            assertNamedUncut(legend);
-            // A line under its look's switch is indented under it, so "Opacity" under Letter outline reads as its.
-            for (const line of group.lines.filter((each) => each.unit === undefined)) {
-                const name = (await lineOf(legend, `node.labelStyle.${line.field}`)).querySelector(".ws-field-name");
-                if (name === null) {
-                    continue; // a switch: its name is its checkbox's
-                }
-                const indent = Number.parseFloat(getComputedStyle(name).paddingInlineStart);
-                assert.equal(indent > 0, line.under === true, `${line.field} is indented only under its switch`);
-            }
-            if (group.name === "Label shadow") {
-                // A Text shadow color set while its switch is off switches the shadow on (no tick first).
-                const color = await lineOf(legend, "node.labelStyle.shadowColor");
-                await userEvent.click(within(color).getByRole("textbox"));
-                await userEvent.keyboard("{Control>}a{/Control}FF0000{Enter}");
-                await waitFor(() => {
-                    assert.isTrue(labelStyle(session, id).shadow, "the color switches the text shadow on");
-                });
-            }
-            if (group.on !== undefined) {
-                await waitFor(() => {
-                    assert.isTrue(labelStyle(session, id)[group.on ?? ""], `${group.name} switches on`);
-                });
-            }
-            await userEvent.click(within(legend).getByRole("button", { name: `Remove ${group.name.toLowerCase()}` }));
-            await waitFor(() => {
-                assert.isNull(within(pop).queryByRole("group", { name: group.name }), `${group.name} goes`);
-                if (group.on !== undefined) {
-                    assert.notProperty(labelStyle(session, id), group.on, `${group.name} switched off`);
-                }
-            });
-        }
+        const advanced = await openAdvanced(pop);
+        const legends = [...advanced.querySelectorAll('[data-testid="control-group-label"]')].map(
+            (legend) => legend.textContent,
+        );
+        assert.deepEqual(legends, ["Main", ...LABEL_RUBRIC.groups.map((group) => group.name)]);
+        assertNamedUncut(advanced);
+        // A Text shadow color set while its switch is off switches the shadow on (no tick first).
+        const shadow = within(advanced).getByRole("group", { name: "Label shadow" });
+        const color = await lineOf(shadow, "node.labelStyle.shadowColor");
+        await userEvent.click(within(color).getByRole("textbox"));
+        await userEvent.keyboard("{Control>}a{/Control}FF0000{Enter}");
+        await waitFor(() => {
+            assert.isTrue(labelStyle(session, id).shadow, "the color switches the text shadow on");
+        });
+        await userEvent.click(within(shadow).getByRole("button", { name: "Remove label shadow" }));
+        await waitFor(() => {
+            assert.notProperty(labelStyle(session, id), "shadow", "the minus unsets the group");
+        });
     });
 
     it("a label color on a layer over one node draws one label per node", async () => {

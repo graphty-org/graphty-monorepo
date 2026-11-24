@@ -89,15 +89,7 @@ describe("Style panel v2: options that would change nothing", () => {
         const tab = await openStyle("Key people");
         const pop = await openSettings(sectionOf(tab, "node-shape"), "size", "Node size settings");
 
-        // Unset, the mode and the unit show what is drawn: graphty-element's defaults, Scale and Graph. The mode and
-        // the depth are rare settings: the pop-over's Advanced dialog's (design "Input rules").
-        const advanced = await openAdvanced(pop);
-        const scale = within(
-            within(advanced).getByRole("radiogroup", { name: "Node size mode" }),
-        ).getByRole<HTMLInputElement>("radio", {
-            name: "Scale",
-        });
-        assert.isTrue(scale.checked, "Scale, the default, is the mode shown");
+        // Unset, the mode and the unit show what is drawn: graphty-element's defaults, Scale and Graph.
         const graph = within(
             within(pop).getByRole("radiogroup", { name: "Node size space" }),
         ).getByRole<HTMLInputElement>("radio", {
@@ -116,6 +108,15 @@ describe("Style panel v2: options that would change nothing", () => {
         assert.isUndefined(optionDim(pop, "Node size space", "Screen"));
         // What a number does with the value underneath is chosen in the link dialog only (owner, 2026-11-23).
         assert.isNull(within(pop).queryByRole("radiogroup", { name: "Combine" }), "no Combine on a plain size");
+        // The mode and the depth are rare settings: the pop-over's Advanced view's, drilled into it in place
+        // (design "Input rules").
+        const advanced = await openAdvanced(pop);
+        const scale = within(
+            within(advanced).getByRole("radiogroup", { name: "Node size mode" }),
+        ).getByRole<HTMLInputElement>("radio", {
+            name: "Scale",
+        });
+        assert.isTrue(scale.checked, "Scale, the default, is the mode shown");
         // Uniform draws the default icosphere at the extent Scale draws it at already (valueDrawn).
         assert.match(optionDim(advanced, "Node size mode", "Uniform") ?? "", /^Only when /);
         assert.isUndefined(optionDim(advanced, "Node size mode", "Diameter"));
@@ -200,11 +201,13 @@ describe("Style panel v2: options that would change nothing", () => {
             assert.isNotNull(found);
             return found;
         });
-        // graphty-element draws a unit scale once a unit is set and the scale is not (drawnDefault).
-        const scale = within(pop).getByRole("radiogroup", { name: "Edge support scale" });
+        // graphty-element draws a unit scale once a unit is set and the scale is not (drawnDefault). Curve is a rare
+        // group: the pop-over's Advanced view's.
+        const curve = await openAdvanced(pop);
+        const scale = within(curve).getByRole("radiogroup", { name: "Edge support scale" });
         const unit = within(scale).getByRole<HTMLInputElement>("radio", { name: "Unit" });
         assert.isTrue(unit.checked, "Unit, what is drawn, is the scale shown");
-        assert.isUndefined(lineDim(pop, "edge.supportUnit"), "the unit draws");
+        assert.isUndefined(lineDim(curve, "edge.supportUnit"), "the unit draws");
 
         const drawing = within(scale).getByRole<HTMLInputElement>("radio", { name: "Drawing" });
         await userEvent.click(drawing.labels?.[0] ?? drawing);
@@ -212,10 +215,11 @@ describe("Style panel v2: options that would change nothing", () => {
             assert.strictEqual(written(session, edges, "edge.supportScale"), "drawing");
         });
         await waitFor(() => {
-            const open = document.querySelector<HTMLElement>("[data-thing-popover]");
+            const open = document.querySelector<HTMLElement>("[data-drill-view] [data-thing-popover]");
             assert.isNotNull(open);
             assert.match(lineDim(open, "edge.supportUnit") ?? "", /^Only when .+ is Unit$/);
         });
+        await userEvent.keyboard("{Escape}");
         await userEvent.keyboard("{Escape}");
     });
 

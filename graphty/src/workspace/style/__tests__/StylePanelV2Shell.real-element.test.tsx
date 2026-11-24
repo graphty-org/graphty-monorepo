@@ -304,8 +304,9 @@ describe("Style panel v2's '+' lists", () => {
             await onlyPlusAdds(session, section, section.textContent ?? "a section");
         }
 
-        // A pop-over's group: a Chart, added from Fill's menu, has sub-groups its "+" adds (Size's are all rare now,
-        // in its Advanced dialog).
+        // A pop-over's groups: a Chart, added from Fill's menu. Its sub-groups are all rare now, in its Advanced view
+        // (owner's input rules), so a group holding a "+" is checked as a "+" list, and every other one too: its
+        // title and bar add nothing.
         const chartFill = sectionOf(tab, "node-fill");
         await userEvent.click(within(chartFill).getByRole("button", { name: "Add to node fill" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Chart" }));
@@ -332,7 +333,17 @@ describe("Style panel v2's '+' lists", () => {
                 ...document.querySelectorAll<HTMLElement>('[data-thing-popover] [data-plus-list="group"]'),
             ].find((each) => groupTitle(each) === title);
             assert.isDefined(group, `Chart's ${title} group`);
-            if (group !== undefined) {
+            if (group === undefined) {
+                continue;
+            }
+            if (group.querySelector("[data-plus]") === null) {
+                const before = layersNow(session);
+                const label = group.querySelector<HTMLElement>('[data-testid="control-group-label"]');
+                assert.isNotNull(label, `Chart's ${title} has a title`);
+                await userEvent.click(label);
+                assert.isNull(screen.queryByRole("menu"), `Chart's ${title}: no menu from its title`);
+                assert.equal(layersNow(session), before, `Chart's ${title}: its title adds nothing`);
+            } else {
                 await onlyPlusAdds(session, group, `Chart's ${title}`);
             }
         }

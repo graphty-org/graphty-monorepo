@@ -13,7 +13,7 @@ import { useWorkspace } from "../../state/WorkspaceContext";
 import { PaletteSelect } from "../BindingPopover";
 import type { RowContext } from "../PropertyRow";
 import { failed, pruned, type Spec, word } from "./dataEntries";
-import { CommitText, PopLine, Segments } from "./dataLines";
+import { CommitText, PopLine, Segments, WordNumber } from "./dataLines";
 import { GroupMenu, type MenuGroup } from "./GroupMenu";
 import { unsetIn } from "./lineWrites";
 import { lineChannels, rubricOf, type SubGroup } from "./rubric";
@@ -203,6 +203,7 @@ export function KeepLine({ args }: Readonly<{ args: GroupArgs }>): React.JSX.Ele
             />
             {keep === undefined ? null : (
                 <PanelField
+                    width="fill"
                     label="N"
                     kind="number"
                     value={keep}
@@ -331,6 +332,7 @@ function ScaleLines({ args }: Readonly<{ args: GroupArgs }>): React.JSX.Element 
             {fixed ? (
                 <PopLine line="data.range" name="Min / Max" wide>
                     <PanelField
+                        width="fill"
                         label="Min"
                         kind="number"
                         value={scale.min ?? 0}
@@ -339,6 +341,7 @@ function ScaleLines({ args }: Readonly<{ args: GroupArgs }>): React.JSX.Element 
                         }}
                     />
                     <PanelField
+                        width="fill"
                         label="Max"
                         kind="number"
                         value={scale.max ?? 1}
@@ -364,14 +367,12 @@ function ScaleLines({ args }: Readonly<{ args: GroupArgs }>): React.JSX.Element 
                 </PopLine>
             ) : null}
             <PopLine line="data.center" name="Center">
-                <PanelField
+                <WordNumber
                     label="Center"
-                    kind="number"
-                    width="fill"
-                    value={scale.center ?? null}
-                    placeholder="Auto"
-                    onChange={(next) => {
-                        putScale(args, { center: typeof next === "number" ? next : undefined });
+                    value={scale.center}
+                    unset="Auto"
+                    onWrite={(center) => {
+                        putScale(args, { center });
                     }}
                 />
             </PopLine>

@@ -12,7 +12,7 @@ import React from "react";
 
 import { readableName, valueFact } from "../words";
 import { pruned, TYPES } from "./dataEntries";
-import { PopLine, Segments } from "./dataLines";
+import { PopLine, Segments, WordNumber } from "./dataLines";
 import { walkingOver } from "./graphWalks";
 
 /** A Graph value's parts the lines change, each optional so a line can take one off. */
@@ -165,8 +165,9 @@ function DirectionLine({ args }: Readonly<{ args: CalcArgs }>): React.JSX.Elemen
         );
     }
     return (
-        <PopLine line="calc.direction" name="Hops / Direction" wide>
+        <PopLine line="calc.direction" name="Hops / Direction" wide first={48}>
             <PanelField
+                width="fill"
                 label="Hops"
                 kind="number"
                 value={graph.hops ?? 1}
@@ -228,17 +229,18 @@ function WhereLine({ args }: Readonly<{ args: CalcArgs }>): React.JSX.Element {
                 }}
             />
             {value?.kind === "number" ? (
-                <PanelField
+                <WordNumber
                     label="At least"
-                    kind="number"
-                    value={where?.kind === "range" ? (where.min ?? null) : null}
-                    onChange={(next) => {
-                        set({ where: { kind: "range", attribute: value.path, min: Number(next) } });
+                    value={where?.kind === "range" ? where.min : undefined}
+                    unset="Any"
+                    onWrite={(min) => {
+                        set({ where: pruned({ kind: "range" as const, attribute: value.path, min }) });
                     }}
                 />
             ) : null}
             {value !== undefined && value.kind !== "number" ? (
                 <PanelField
+                    width="fill"
                     label="Is"
                     kind="select"
                     value={where?.kind === "categories" ? (where.values.at(0) ?? null) : null}
@@ -267,6 +269,7 @@ function MeasureLine({ args }: Readonly<{ args: CalcArgs }>): React.JSX.Element 
     return (
         <PopLine line="calc.measure" name="Measure / Of" wide={measure !== "count"}>
             <PanelField
+                width="fill"
                 label="Measure"
                 kind="select"
                 value={measure}
@@ -341,6 +344,7 @@ function GroupLine({ args }: Readonly<{ args: CalcArgs }>): React.JSX.Element {
             />
             {byTime === undefined ? null : (
                 <PanelField
+                    width="fill"
                     label="Period"
                     kind="select"
                     value={byTime.period}
@@ -369,14 +373,13 @@ function WindowLine({ args }: Readonly<{ args: CalcArgs }>): React.JSX.Element |
     const { window, ...rest } = byTime;
     return (
         <PopLine line="calc.window" name="Window" wide>
-            <PanelField
+            <WordNumber
                 label="Last"
-                kind="number"
-                value={window?.last ?? null}
-                placeholder="All"
+                value={window?.last}
+                unset="All"
                 min={1}
-                onChange={(next) => {
-                    const last = Math.round(Number(next));
+                onWrite={(next) => {
+                    const last = Math.round(next ?? 0);
                     set({ groupBy: last >= 1 ? { ...rest, window: { last, from: window?.from ?? "newest" } } : rest });
                 }}
             />

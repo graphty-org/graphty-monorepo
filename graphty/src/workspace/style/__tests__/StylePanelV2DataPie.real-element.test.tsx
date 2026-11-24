@@ -244,8 +244,9 @@ describe("Style panel v2's data entries", () => {
         await userEvent.click(within(colors).getByRole("combobox", { name: "Category" }));
         await userEvent.click(await screen.findByRole("option", { name: "dog" }));
         const name = within(colors).getByRole("textbox", { name: "Name" });
-        await userEvent.click(name);
-        await userEvent.keyboard("Dogs{Enter}");
+        assert.strictEqual((name as HTMLInputElement).value, "dog", "unset, the name shows the key as its value");
+        await userEvent.clear(name);
+        await userEvent.type(name, "Dogs{Enter}");
         await waitFor(() => {
             const spec = written(session, layer, "node.pieData") as { categories?: unknown };
             assert.deepEqual(spec.categories, { dog: { label: "Dogs" } });

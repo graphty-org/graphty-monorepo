@@ -41,7 +41,7 @@ import {
     writeSpec,
 } from "./dataEntries";
 import { DataGroups, KeepLine } from "./DataGroups";
-import { BesideMore, BesidePopover, CommitText, PopLine, Segments } from "./dataLines";
+import { BesideMore, BesidePopover, CommitText, PopLine, Segments, WordNumber } from "./dataLines";
 import { FormatLines } from "./FormatPopover";
 import { firstColors, LISTS, type ListSpec } from "./lists";
 import { lineFor } from "./rubric";
@@ -742,6 +742,7 @@ function PieLines({ args }: Readonly<{ args: SpecArgs }>): React.JSX.Element {
                     <PanelField
                         label="Max"
                         kind="number"
+                        width="fill"
                         value={whole.max}
                         onChange={(next) => {
                             put({ whole: Number(next) > 0 ? { ...whole, max: Number(next) } : undefined });
@@ -890,15 +891,13 @@ function RecordLines({ args }: Readonly<{ args: SpecArgs }>): React.JSX.Element 
                 />
             </PopLine>
             <PopLine line="data.most" name="Most rows">
-                <PanelField
+                <WordNumber
                     label="Most rows"
-                    kind="number"
-                    width="fill"
-                    value={typeof spec.most === "number" ? spec.most : null}
-                    placeholder="All"
+                    value={typeof spec.most === "number" ? spec.most : undefined}
+                    unset="All"
                     min={1}
-                    onChange={(next) => {
-                        put({ most: Number(next) >= 1 ? Math.round(Number(next)) : undefined });
+                    onWrite={(most) => {
+                        put({ most: most !== undefined && most >= 1 ? Math.round(most) : undefined });
                     }}
                 />
             </PopLine>

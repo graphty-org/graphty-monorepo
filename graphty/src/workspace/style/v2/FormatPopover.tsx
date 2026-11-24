@@ -127,6 +127,7 @@ export function FormatLines({
     };
     const decimals = (
         <PanelField
+            width="fill"
             label="Decimals"
             kind="select"
             value={format?.maximumFractionDigits === undefined ? "auto" : String(format.maximumFractionDigits)}
@@ -171,7 +172,7 @@ export function FormatLines({
                 </PopLine>
             ) : null}
             {numeric && (tab === "number" || tab === "percent") ? (
-                <PopLine line="format.digits" name="Decimals / Notation" wide>
+                <PopLine line="format.digits" name="Decimals / Notation" wide first={64}>
                     {decimals}
                     <Segments
                         label="Notation"

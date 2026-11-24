@@ -3,8 +3,8 @@
  * a text field that writes once, and a pop-over opened beside the one it sits in (an entry's Format and Calculate).
  */
 
-import { PanelField, Popout, SegmentedControl } from "@graphty/compact-mantine";
-import { ActionIcon } from "@mantine/core";
+import { ComboInput, PanelField, Popout, SegmentedControl } from "@graphty/compact-mantine";
+import { ActionIcon, Group } from "@mantine/core";
 import React, { useState } from "react";
 
 import { GLYPHS } from "../../glyphs";
@@ -17,6 +17,7 @@ import { LineFrame } from "./RubricLine";
  * @param props.name - its name
  * @param props.wide - two inputs on the line: its name above them and they across the line
  * @param props.modifier - its "..." slot
+ * @param props.first - a wide line's first control's width in px, when it is a short field beside a wider one
  * @param props.children - its control
  * @returns The line
  */
@@ -25,21 +26,45 @@ export function PopLine({
     name,
     wide,
     modifier,
+    first,
     children,
 }: Readonly<{
     line: string;
     name: string | null;
     wide?: boolean;
     modifier?: React.ReactNode;
+    first?: number;
     children: React.ReactNode;
 }>): React.JSX.Element {
+    // Two inputs side by side across the line, each half of it, as a rubric line's number and its unit sit.
+    const parts = React.Children.toArray(children);
+    const control =
+        wide === true && parts.length > 1 ? (
+            <Group gap={8} wrap="nowrap">
+                {parts.map((part, at) => (
+                    // eslint-disable-next-line react/no-array-index-key -- the line's controls, fixed in place
+                    <div
+                        key={at}
+                        style={
+                            at === 0 && first !== undefined
+                                ? { flex: `0 0 ${String(first)}px` }
+                                : { flex: 1, minWidth: 0 }
+                        }
+                    >
+                        {part}
+                    </div>
+                ))}
+            </Group>
+        ) : (
+            children
+        );
     return (
         <LineFrame
             line={line}
             name={name}
             set
             rule="R12"
-            control={children}
+            control={control}
             modifier={modifier ?? null}
             removeName={undefined}
             onRemove={() => undefined}
@@ -105,9 +130,12 @@ export function CommitText({
     onCommit: (words: string) => void;
 }>): React.JSX.Element {
     const [typed, setTyped] = useState<string | null>(null);
+    // Unset, the field shows the default as its value (design "Input rules": every input shows a value); words that
+    // are still the default write nothing.
+    const shown = value ?? unset;
     const commit = (): void => {
-        if (typed !== null && typed !== (value ?? "")) {
-            onCommit(typed);
+        if (typed !== null && typed !== shown) {
+            onCommit(typed === unset && value === undefined ? "" : typed);
         }
         setTyped(null);
     };
@@ -125,10 +153,64 @@ export function CommitText({
                 label={label}
                 kind="text"
                 width="fill"
-                value={typed ?? value ?? ""}
-                placeholder={unset}
+                value={typed ?? shown}
                 onChange={(next) => {
                     setTyped(String(next));
+                }}
+            />
+        </div>
+    );
+}
+
+/**
+ * A number field that may be unset: it shows its default word ("Auto", "All") as its value while unset, as the
+ * rubric's number lines do (design "Input rules": no input is empty); emptied and Enter unsets it.
+ * @param props - Component props
+ * @param props.label - its name
+ * @param props.value - the number set, if any
+ * @param props.unset - the word it shows while unset
+ * @param props.min - its least value
+ * @param props.onWrite - writes a number, or undefined to unset
+ * @returns The field
+ */
+export function WordNumber({
+    label,
+    value,
+    unset,
+    min,
+    onWrite,
+}: Readonly<{
+    label: string;
+    value: number | undefined;
+    unset: string;
+    min?: number;
+    onWrite: (value: number | undefined) => void;
+}>): React.JSX.Element {
+    return (
+        // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- only hears Enter bubbling from its own field
+        <div
+            style={{ display: "contents" }}
+            onKeyDown={(event) => {
+                const input = event.target;
+                if (event.key === "Enter" && input instanceof HTMLInputElement && input.value.trim() === "") {
+                    onWrite(undefined);
+                }
+            }}
+        >
+            <ComboInput
+                label={label}
+                width="100%"
+                numeric
+                options={[]}
+                glyph={label.charAt(0)}
+                value={value ?? unset}
+                min={min}
+                onChange={(next) => {
+                    if (typeof next === "number") {
+                        onWrite(next);
+                    } else if (next === "") {
+                        onWrite(undefined);
+                    }
                 }}
             />
         </div>

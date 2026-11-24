@@ -196,7 +196,8 @@ export interface SessionShaders {
      * nothing is written unless that passes.
      * @param text - The shader text: GLSL with a `graphty-shader 1` header, or a header-less body.
      * @param options - Who supplied it, where it is added, what to do when its id is taken, where to apply it.
-     * @returns The shader, or every problem found.
+     * @returns The shader, or every problem found. Rejects (never throws) with a `GraphtyError`
+     *   `E_UNKNOWN_LAYER` when `apply` names no layer, or `E_SHADER_KIND` for a background applied to one.
      */
     add(text: ShaderText, options?: ShaderAddOptions): Promise<ShaderAddResult>;
     /**
@@ -1602,19 +1603,20 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
     };
 
     const api: SessionShaders = {
-        add(text, options = {}) {
+        // Async so a refusal (`E_UNKNOWN_LAYER`, `E_SHADER_KIND`) rejects rather than throws; the
+        // body still runs synchronously up to its first await, so a held add stays one dispatch.
+        async add(text, options = {}) {
             const first = readText(text, options);
             if (Array.isArray(first)) {
-                return Promise.resolve({ ok: false, problems: first as readonly ShaderProblem[] });
+                return { ok: false, problems: first as readonly ShaderProblem[] };
             }
 
             const read = first as ReadText;
             // ponytail: a copy of a catalog shader is decided after its body loads, so a held add of one
             // is not synchronous; every other add is.
             if (options.asNew !== true && namesCatalog(read)) {
-                return copyOfCatalog(read).then((copy) =>
-                    copy === undefined ? addNew(read, text, options) : addCopy(copy, options),
-                );
+                const copy = await copyOfCatalog(read);
+                return copy === undefined ? addNew(read, text, options) : addCopy(copy, options);
             }
 
             return addNew(read, text, options);

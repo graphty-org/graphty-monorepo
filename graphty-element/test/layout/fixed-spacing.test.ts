@@ -4,7 +4,8 @@
  * Many files store coordinates on unit spacing, and a default node is about one scene unit
  * across, so drawn as given the nodes touch and an edge between neighbors has no room. The
  * layout multiplies every position by one factor so the median edge is `spacing` node widths
- * long, keeping the drawing's proportions, unless the reader set a scale or `spacing: 0`.
+ * long, keeping the drawing's proportions, unless the reader set a scale. The default `spacing` is 0, which
+ * draws positions as given (issue #9931).
  */
 import "../../src/layout";
 
@@ -71,8 +72,14 @@ function layOut(
 }
 
 describe("the fixed layout keeps neighbors apart", () => {
-    it("spreads unit-spaced positions to three node widths, in proportion", () => {
-        const { xs, spread, undirected } = layOut(1);
+    it("draws positions as given by default", () => {
+        const { xs, spread } = layOut(1);
+        assert.deepEqual(xs, [0, 1, 2]);
+        assert.strictEqual(spread, 1);
+    });
+
+    it("spreads unit-spaced positions to three node widths, in proportion, with spacing 3", () => {
+        const { xs, spread, undirected } = layOut(1, { spacing: 3 });
         assert.deepEqual(xs, [0, 3, 6]);
         assert.strictEqual(spread, 3);
         assert.strictEqual(undirected, 0, "reads the stored edges, never the undirected graph");

@@ -666,7 +666,7 @@ describe("the fixed layout puts nodes where their data says", () => {
             { id: "b", position: { x: 1, y: 0, z: 0 } },
         ]);
         harness.dataManager.addEdges([{ src: "a", dst: "b" }]);
-        await layoutManagerInternals.setLayout(harness.layoutManager, "fixed", {});
+        await layoutManagerInternals.setLayout(harness.layoutManager, "fixed", { spacing: 3 });
         const node = (id: string): Node => harness?.dataManager.nodes.get(id) as Node;
         assert.deepStrictEqual(harness.coordsOf(node("b")), { x: 3, y: 0, z: 0 }, "unit spacing spread three times");
 

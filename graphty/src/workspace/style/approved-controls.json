@@ -72,6 +72,11 @@
             "dom": ".mantine-Menu-item"
         },
         {
+            "name": "MenuGroupItem",
+            "from": "@graphty/compact-mantine",
+            "dom": ".mantine-Menu-item"
+        },
+        {
             "name": "Popout",
             "from": "@graphty/compact-mantine",
             "dom": ".cm-popout"

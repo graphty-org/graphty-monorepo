@@ -3,7 +3,7 @@ import { Tooltip } from "@mantine/core";
 import React, { createContext, useContext } from "react";
 
 import { GLYPHS } from "../glyphs";
-import { useHeaderAction } from "./useHeaderAction";
+import { useHeaderMore } from "./useHeaderMore";
 
 /** Whether this part of the tree is already inside a settings popover. */
 const InSettings = createContext(false);
@@ -67,7 +67,7 @@ export function SettingsPopout({
     icon = <GLYPHS.settings size={14} aria-hidden />,
     children,
 }: Readonly<SettingsPopoutProps>): React.JSX.Element {
-    const header = useHeaderAction();
+    const header = useHeaderMore();
     if (useContext(InSettings) && import.meta.env.DEV) {
         throw new Error(`The ${label} popover is inside another settings popover: draw its settings flat there.`);
     }
@@ -84,7 +84,7 @@ export function SettingsPopout({
                 alignment="start"
                 boundaryTop={boundaryTop}
                 header={{ variant: "title", title }}
-                actions={header.actions}
+                more={header.more}
                 closeLabel={`Close ${title}`}
             >
                 <Popout.Content>

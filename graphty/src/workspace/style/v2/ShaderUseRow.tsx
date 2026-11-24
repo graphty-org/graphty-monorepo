@@ -95,7 +95,6 @@ export function ShaderUseRow({ ctx, entry }: Readonly<{ ctx: RowContext; entry: 
             >
                 <PopoverShell
                     ctx={ctx}
-                    title={title}
                     groups={[]}
                     isSet={() => false}
                     onUnset={() => undefined}

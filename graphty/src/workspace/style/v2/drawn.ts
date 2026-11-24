@@ -2,8 +2,9 @@
  * Style panel v2's dimmed lines and "+" items (design/ui/style-panel-v2/design.md, "a style that only does
  * anything in one view stays visible in the other view but is dimmed there"): whether graphty-element draws
  * a channel or a label field with what the row holds now and in the view shown now, read from the element's
- * own facts (`channelDrawn`, `labelFieldDrawn`), and the tooltip words saying why not. Nothing is hidden,
- * reordered or removed for it.
+ * own facts (`channelDrawn`, `labelFieldDrawn`), and the tooltip words saying why not. A pop-over line ruled out
+ * by another setting of the row (`ruledOut`) is not drawn until it applies (design "Input rules", "Tabs"); one ruled
+ * out only by the view is dimmed.
  */
 
 import {
@@ -159,6 +160,59 @@ function unitWords(side: string, channel: Channel, read: (other: Channel) => unk
 }
 
 /**
+ * What a label style holds for a field: the layer's own, else what the layers beneath give.
+ * @param ctx - the row.
+ * @param styleChannel - the text kind's label style channel.
+ * @param style - the layer's own label style.
+ * @returns the reader.
+ */
+function labelReader(
+    ctx: RowContext,
+    styleChannel: Channel,
+    style: Readonly<LabelStyle>,
+): (field: keyof LabelStyle) => unknown {
+    const beneath = ctx.beneath(styleChannel).value;
+    const below = typeof beneath === "object" && beneath !== null ? (beneath as Readonly<Record<string, unknown>>) : {};
+    return (other) => (style as Readonly<Record<string, unknown>>)[other] ?? below[other];
+}
+
+/**
+ * Whether a pop-over line is ruled out by another setting of the row (a wave's size on a solid border), not by the
+ * view: such a line is drawn only once it applies, or while the layer sets it (design "Input rules", "Tabs").
+ * @param ctx - the row.
+ * @param channel - the line's channel.
+ * @param own - the channels of the thing's pop-over.
+ * @returns true when another setting rules it out.
+ */
+export function ruledOut(ctx: RowContext, channel: Channel, own: readonly Channel[]): boolean {
+    if (channelDescriptor(channel) === undefined) {
+        return false;
+    }
+    const found = channelDrawn(channel, rowReader(ctx), ctx.session.layout);
+    // Only a setting of the same pop-over: what another thing rules out (a fit to a label the node lacks) stays dimmed.
+    return !found.drawn && "channel" in found.unmet && own.includes(found.unmet.channel);
+}
+
+/**
+ * Whether a label style field is ruled out by another field of the style, not by the view (see `ruledOut`).
+ * @param ctx - the row.
+ * @param styleChannel - the text kind's label style channel.
+ * @param style - the layer's own label style.
+ * @param field - the field.
+ * @returns true when another field rules it out.
+ */
+export function labelRuledOut(
+    ctx: RowContext,
+    styleChannel: Channel,
+    style: Readonly<LabelStyle>,
+    field: keyof LabelStyle,
+): boolean {
+    const read = labelReader(ctx, styleChannel, style);
+    const found = labelFieldDrawn(field, read, viewOf(ctx.session));
+    return !found.drawn && !("dimension" in found.unmet);
+}
+
+/**
  * Why a label style field draws nothing with what the row holds now in the view shown now, or undefined.
  * @param ctx - the row.
  * @param styleChannel - the text kind's label style channel.
@@ -172,10 +226,7 @@ export function labelDimOf(
     style: Readonly<LabelStyle>,
     field: keyof LabelStyle,
 ): string | undefined {
-    const beneath = ctx.beneath(styleChannel).value;
-    const below = typeof beneath === "object" && beneath !== null ? (beneath as Readonly<Record<string, unknown>>) : {};
-    const read = (other: keyof LabelStyle): unknown =>
-        (style as Readonly<Record<string, unknown>>)[other] ?? below[other];
+    const read = labelReader(ctx, styleChannel, style);
     const found = labelFieldDrawn(field, read, viewOf(ctx.session));
     if (found.drawn) {
         return undefined;

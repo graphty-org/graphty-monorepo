@@ -1,71 +1,53 @@
 /**
- * A thing's settings pop-over in Style panel v2 (design/ui/style-panel-v2/design.md, section 2.6):
- * its Main sub-group, always shown, then each other sub-group the layer sets or the reader added
- * from the "+" on Main's legend, each under a legend whose minus unsets every line in it. The
- * pop-over opens scrolled to its first set line. `PopoverShell` is that frame, shared by every
- * thing's pop-over (a label's too).
+ * A thing's settings pop-over in Style panel v2 (design/ui/style-panel-v2/design.md, section 2.6 and "Input rules"):
+ * its first row (a tab strip or a Kind line, and Combine), its main lines, always shown, and the "..." in its header
+ * listing its groups of settings, each opening its own pop-over beside it (`GroupMenu`). The pop-over opens scrolled
+ * to its first set line. `PopoverShell` is that frame, shared by every thing's pop-over (a label's too).
  */
 
 import { type ChannelDescriptor, combineDrawn } from "@graphty/graphty-element/catalog";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef } from "react";
 
-import { AdvancedPop } from "../../options/AdvancedPop";
 import { useWorkspace } from "../../state/WorkspaceContext";
 import { Field, type RowContext } from "../PropertyRow";
 import { lineIn, writeIn } from "../row";
-import { AddButton } from "../Section";
 import { channelWord, COMBINE_OPTIONS, combineOf, failureWords } from "../words";
-import { dimOf } from "./drawn";
+import { dimOf, ruledOut } from "./drawn";
+import { GroupMenu, type MenuGroup } from "./GroupMenu";
 import { groupSet, unsetIn } from "./lineWrites";
-import { PlusList } from "./PlusList";
-import { lineChannels, type LineSpec, type SubGroup, type ThingRubric } from "./rubric";
-import { LineFrame, RemoveButton, RubricLine, SegmentsLine } from "./RubricLine";
-
-/** A sub-group "+" can add: its name, and whether a divider follows it in the menu (a rarer tier next). */
-interface ShellGroup {
-    readonly name: string;
-    readonly divider?: true;
-}
+import { lineChannels, type LineSpec, rubricChannels, type SubGroup, type ThingRubric } from "./rubric";
+import { LineFrame, RubricLine, SegmentsLine } from "./RubricLine";
+import { setOn } from "./things";
 
 /** Props for PopoverShell. */
-interface PopoverShellProps<G extends ShellGroup> {
+interface PopoverShellProps<G extends MenuGroup> {
     readonly ctx: RowContext;
-    /** The thing's name with its kind ("Node border"). */
-    readonly title: string;
-    /** Every sub-group "+" can add, in its menu's order. */
+    /** The thing's groups of settings, in "..." menu order. */
     readonly groups: readonly G[];
-    /** Whether the layer sets a line of a sub-group, so it shows without being added. */
+    /** Whether the layer sets a line of a group: its mark in the menu. */
     readonly isSet: (group: G) => boolean;
-    /** Called when "+" adds a sub-group. */
-    readonly onAdd?: (group: G) => void;
-    /** Takes every line of a sub-group off the layer. */
+    /** Takes every line of a group off the layer. */
     readonly onUnset: (group: G) => void;
-    /** Main's lines. */
+    /** The main lines. */
     readonly main: React.ReactNode;
-    /** Set lines of the thing no line names, drawn as today's fields at the end of Main. */
+    /** Set lines of the thing no line names, drawn as today's fields after the main lines. */
     readonly others: readonly ChannelDescriptor[];
-    /** A sub-group's lines. */
+    /** A group's lines. */
     readonly linesOf: (group: G) => React.ReactNode;
-    /** Lines above Main (design 2.6): Combine. */
+    /** The first row: a tab strip or Kind line, and Combine. */
     readonly first?: React.ReactNode;
-    /** More lines at the end of Main (a replace shader's parameters). */
+    /** More lines after the main lines (a replace shader's parameters). */
     readonly extra?: React.ReactNode;
-    /** A sub-group always shown after Main (a list thing's list, R15). */
+    /** A list always shown after the main lines (a list thing's list, R15). */
     readonly after?: React.ReactNode;
-    /** Why a sub-group draws nothing in this view, for its dimmed "+" item (every line of it a 3D-only one). */
-    readonly dimmedOf?: (group: G) => string | undefined;
-    /** Its Advanced pop-over (`AdvancedLine`), when it has rare settings: a "..." in the header, no line. */
-    readonly advanced?: React.ReactNode;
 }
 
 /**
  * A pop-over's frame: see the file header.
  * @param props - Component props
  * @param props.ctx - see PopoverShellProps
- * @param props.title - see PopoverShellProps
  * @param props.groups - see PopoverShellProps
  * @param props.isSet - see PopoverShellProps
- * @param props.onAdd - see PopoverShellProps
  * @param props.onUnset - see PopoverShellProps
  * @param props.main - see PopoverShellProps
  * @param props.others - see PopoverShellProps
@@ -73,16 +55,12 @@ interface PopoverShellProps<G extends ShellGroup> {
  * @param props.first - see PopoverShellProps
  * @param props.extra - see PopoverShellProps
  * @param props.after - see PopoverShellProps
- * @param props.dimmedOf - see PopoverShellProps
- * @param props.advanced - see PopoverShellProps
  * @returns The contents
  */
-export function PopoverShell<G extends ShellGroup>({
+export function PopoverShell<G extends MenuGroup>({
     ctx,
-    title,
     groups,
     isSet,
-    onAdd,
     onUnset,
     main,
     others,
@@ -90,138 +68,22 @@ export function PopoverShell<G extends ShellGroup>({
     first,
     extra,
     after,
-    dimmedOf,
-    advanced,
 }: PopoverShellProps<G>): React.JSX.Element {
-    const [added, setAdded] = useState<readonly string[]>([]);
     const box = useRef<HTMLDivElement>(null);
     useEffect(() => {
         box.current?.querySelector("[data-set]")?.scrollIntoView({ block: "nearest" });
     }, []);
-    const shown = groups.filter((group) => added.includes(group.name) || isSet(group));
-    const mainEmpty =
-        Array.isArray(main) && main.length === 0 && others.length === 0 && (extra === undefined || extra === null);
-    const addable = groups.filter((group) => !shown.includes(group));
-    const plus =
-        addable.length === 0 ? undefined : (
-            <AddButton
-                kind={ctx.side}
-                title={`${title.replace(/^(Node|Edge) /, "")} settings`}
-                groups={groups
-                    .reduce<G[][]>(
-                        (tiers, group) => {
-                            tiers.at(-1)?.push(group);
-                            return group.divider === true ? [...tiers, []] : tiers;
-                        },
-                        [[]],
-                    )
-                    .map((tier) =>
-                        tier
-                            .filter((group) => addable.includes(group))
-                            .map((group) => ({ key: group.name, label: group.name, dimmed: dimmedOf?.(group) })),
-                    )}
-                alwaysMenu
-                onAdd={(name) => {
-                    setAdded((now) => [...now, name]);
-                    const group = groups.find((each) => each.name === name);
-                    if (group !== undefined) {
-                        onAdd?.(group);
-                    }
-                }}
-            />
-        );
     return (
         <div ref={box} data-thing-popover="">
             {first}
-            {/* An empty Main with nothing to add draws no legend (Solid fill). */}
-            {mainEmpty && plus === undefined ? null : (
-                <PlusList level="group" title="Main" add={plus}>
-                    {main}
-                    {others.map((descriptor) => (
-                        <Field key={descriptor.channel} ctx={ctx} descriptor={descriptor} />
-                    ))}
-                    {extra}
-                </PlusList>
-            )}
-            {after}
-            {shown.map((group) => (
-                <PlusList
-                    key={group.name}
-                    level="group"
-                    title={group.name}
-                    add={undefined}
-                    remove={
-                        <RemoveButton
-                            label={`Remove ${group.name.toLowerCase()}`}
-                            onClick={() => {
-                                setAdded((now) => now.filter((each) => each !== group.name));
-                                onUnset(group);
-                            }}
-                        />
-                    }
-                >
-                    {linesOf(group)}
-                </PlusList>
+            {main}
+            {others.map((descriptor) => (
+                <Field key={descriptor.channel} ctx={ctx} descriptor={descriptor} />
             ))}
-            {advanced}
+            {extra}
+            {after}
+            <GroupMenu groups={groups} isSet={isSet} onUnset={onUnset} linesOf={linesOf} />
         </div>
-    );
-}
-
-/**
- * A pop-over's rare settings (design "Input rules"): the "..." in its header opens them in a pop-over of their own
- * beside it (`AdvancedPop`). Every group there is always shown, under its legend, with a minus once set; its lines
- * carry their link: the link dialog is a dedicated component, so it may open from there as a third level (owner,
- * 2026-11-24).
- * @param props - Component props
- * @param props.title - the thing's name with its kind ("Node size")
- * @param props.groups - its advanced sub-groups
- * @param props.isSet - whether the layer sets a line of a group
- * @param props.onUnset - takes every line of a group off the layer
- * @param props.linesOf - a group's lines
- * @returns The Advanced pop-over, or nothing without groups
- */
-export function AdvancedLine<G extends ShellGroup>({
-    title,
-    groups,
-    isSet,
-    onUnset,
-    linesOf,
-}: Readonly<{
-    title: string;
-    groups: readonly G[];
-    isSet: (group: G) => boolean;
-    onUnset: (group: G) => void;
-    linesOf: (group: G) => React.ReactNode;
-}>): React.JSX.Element | null {
-    if (groups.length === 0) {
-        return null;
-    }
-    return (
-        <AdvancedPop title={`${title} advanced`} changed={groups.some((group) => isSet(group))}>
-            <div data-thing-popover="" data-advanced="">
-                {groups.map((group) => (
-                    <PlusList
-                        key={group.name}
-                        level="group"
-                        title={group.name}
-                        add={undefined}
-                        remove={
-                            isSet(group) ? (
-                                <RemoveButton
-                                    label={`Remove ${group.name.toLowerCase()}`}
-                                    onClick={() => {
-                                        onUnset(group);
-                                    }}
-                                />
-                            ) : undefined
-                        }
-                    >
-                        {linesOf(group)}
-                    </PlusList>
-                ))}
-            </div>
-        </AdvancedPop>
     );
 }
 
@@ -229,7 +91,6 @@ export function AdvancedLine<G extends ShellGroup>({
  * The pop-over's contents: see the file header.
  * @param props - Component props
  * @param props.ctx - the row
- * @param props.title - the thing's name with its kind ("Node border")
  * @param props.rubric - the thing's rubric
  * @param props.others - set lines of the thing its rubric has no line for, drawn as today's fields
  * @param props.first - lines above Main: Combine
@@ -240,7 +101,6 @@ export function AdvancedLine<G extends ShellGroup>({
  */
 export function ThingPopover({
     ctx,
-    title,
     rubric,
     others,
     first,
@@ -249,7 +109,6 @@ export function ThingPopover({
     head,
 }: Readonly<{
     ctx: RowContext;
-    title: string;
     rubric: ThingRubric;
     others: readonly ChannelDescriptor[];
     first?: React.ReactNode;
@@ -260,8 +119,17 @@ export function ThingPopover({
     const { store } = useWorkspace();
     // Main starts with the row's main value, which binds from its by-data link like every line (design 2.6).
     const lines = [...(rubric.common ?? []), ...rubric.main];
+    // The tab strip shows the row's main value when it is the same channel (a route): no line of its own then.
     const mainLines =
-        head === undefined || lines.some((line) => line.channel === head.channel) ? lines : [head, ...lines];
+        head === undefined ||
+        head.channel === rubric.strip?.channel ||
+        lines.some((line) => line.channel === head.channel)
+            ? lines
+            : [head, ...lines];
+    // A line another setting of the row rules out appears once it applies (design "Input rules", "Tabs").
+    const own = [...rubricChannels(rubric), ...(head === undefined ? [] : [head.channel])];
+    const shown = (line: LineSpec): boolean =>
+        !ruledOut(ctx, line.channel, own) || lineChannels(line).some((channel) => setOn(ctx, channel));
     const groups = rubric.groups ?? [];
     const onUnset = (group: SubGroup): void => {
         unsetIn(
@@ -272,34 +140,33 @@ export function ThingPopover({
         });
     };
     const linesOf = (group: SubGroup): React.ReactNode =>
-        group.lines.map((line) => <RubricLine key={`${group.name}-${line.channel}`} ctx={ctx} line={line} />);
+        group.lines
+            .filter((line) => shown(line))
+            .map((line) => <RubricLine key={`${group.name}-${line.channel}`} ctx={ctx} line={line} />);
     return (
         <PopoverShell
             ctx={ctx}
-            title={title}
-            first={first}
+            first={
+                <>
+                    {first}
+                    {rubric.strip === undefined ? null : (
+                        <div data-strip="">
+                            <RubricLine ctx={ctx} line={rubric.strip} />
+                        </div>
+                    )}
+                </>
+            }
             extra={extra}
             after={after}
-            groups={groups.filter((group) => group.advanced !== true)}
+            groups={groups}
             isSet={(group) => groupSet(ctx, group)}
-            dimmedOf={(group) => {
-                const why = group.lines.map((line) => dimOf(ctx, line.channel));
-                return why.every((each) => each !== undefined) ? why[0] : undefined;
-            }}
             onUnset={onUnset}
-            advanced={
-                <AdvancedLine
-                    title={title}
-                    groups={groups.filter((group) => group.advanced === true)}
-                    isSet={(group) => groupSet(ctx, group)}
-                    onUnset={onUnset}
-                    linesOf={linesOf}
-                />
-            }
-            // The row's common lines lead Main: under the row only once set, here always (design 2.5).
-            main={mainLines.map((line) => (
-                <RubricLine key={`main-${line.channel}-${line.name ?? ""}`} ctx={ctx} line={line} />
-            ))}
+            // The row's common lines lead the main lines: under the row only once set, here always (design 2.5).
+            main={mainLines
+                .filter((line) => shown(line))
+                .map((line) => (
+                    <RubricLine key={`main-${line.channel}-${line.name ?? ""}`} ctx={ctx} line={line} />
+                ))}
             others={others}
             linesOf={linesOf}
         />

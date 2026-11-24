@@ -336,19 +336,17 @@ function textThingOf(
  * A row's Switch to: its graphty-element family's members, or its kind group's kinds.
  * @param ctx - the row.
  * @param thing - the thing.
- * @param title - its name with its kind ("Node fill").
  * @param kind - the kind the row draws, for a kind group's row.
+ * @param inRow - drawn under the row (a basic shape's, with no pop-over), not as a pop-over's tabs.
  * @returns the menu, or nothing for a thing with neither.
  */
-function switchTo(ctx: RowContext, thing: ThingSpec, title: string, kind: KindMember | undefined): React.ReactNode {
+function switchTo(ctx: RowContext, thing: ThingSpec, kind: KindMember | undefined, inRow: boolean): React.ReactNode {
     const family = familyOf(ctx.side, thing.id);
     if (family !== undefined) {
-        return <MemberMenu ctx={ctx} family={family} title={title} />;
+        return <MemberMenu ctx={ctx} family={family} inRow={inRow} />;
     }
     const kinds = kindGroupOf(ctx.side, thing.id);
-    return kinds === undefined || kind === undefined ? undefined : (
-        <KindMenu ctx={ctx} group={kinds} now={kind} title={title} />
-    );
+    return kinds === undefined || kind === undefined ? undefined : <KindMenu ctx={ctx} group={kinds} now={kind} />;
 }
 
 /**
@@ -410,11 +408,7 @@ export function ThingRow({
     const text = textThingOf(ctx, thing, kind, main.channel);
     const { name, title } = rowNames(ctx, thing, kind, entry);
     const member =
-        entry === undefined ? (
-            switchTo(ctx, thing, title, kind)
-        ) : (
-            <EntryLookMenu ctx={ctx} entry={entry.id} title={title} />
-        );
+        entry === undefined ? switchTo(ctx, thing, kind, false) : <EntryLookMenu ctx={ctx} entry={entry.id} />;
     const list = listOf(ctx.side, thing.id, main.channel);
     // A shader drawn in the shapes' place is the Shape row's member (design 5): its row names it.
     const replacing = thing.id === "shape" ? replaceUse(ctx) : undefined;
@@ -456,7 +450,6 @@ export function ThingRow({
             ) : (
                 <ThingPopover
                     ctx={ctx}
-                    title={title}
                     rubric={rubric}
                     others={others}
                     first={
@@ -554,7 +547,7 @@ export function ThingRow({
                 slots={slots}
             />
             {/* With no pop-over, a basic shape's Kind (Basic shape, Model, a shader) is the line under its row. */}
-            {plainShape && member}
+            {plainShape && switchTo(ctx, thing, kind, true)}
             {/* Every line of the thing the layer sets, in the pop-over's order, named, each with its minus (design 2.5). */}
             {setLines.map((line) => (
                 <RubricLine key={line.channel} ctx={ctx} line={line} named />

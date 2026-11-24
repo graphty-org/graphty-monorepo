@@ -58,20 +58,13 @@ export interface LabelLineSpec {
     readonly sides?: readonly [LabelField, LabelField, LabelField, LabelField];
     /** R7t: the flags drawn as icon toggles after the line's own field, on one line (Bold, Italic, ...). */
     readonly toggles?: readonly LabelField[];
-    /**
-     * In the pop-over's Advanced view, under its group's name (design "Input rules": a pop-over over 6 lines
-     * moves its rare settings there). An input's own picker is part of the input, so it may hold colors and lists.
-     */
-    readonly advanced?: true;
 }
 
-/** One sub-group of a label's pop-over. */
+/** One group of a label's settings: an entry of its pop-over's "..." menu, under its heading (design "Input rules"). */
 export interface LabelGroup {
     readonly name: string;
-    /** The field that switches it on: adding the sub-group writes it true. */
-    readonly on?: LabelField;
-    /** A divider follows it in the "+" menu: the next group is of a rarer tier (ia-design.md). */
-    readonly divider?: true;
+    /** The menu heading it is listed under. */
+    readonly heading: string;
     readonly lines: readonly LabelLineSpec[];
 }
 
@@ -145,132 +138,78 @@ export const LABEL_RUBRIC: LabelRubric = {
         { field: "color", name: "Color" },
     ],
     main: [
-        { field: "enabled", name: "Show", advanced: true },
+        { field: "enabled", name: "Show" },
         { field: "font", name: "Font", rule: "R13" },
         // Bold, Italic, Underline and Strikethrough as a text editor's toggles (owner, 2026-11-23); Bold writes the
         // weight, whose number is the Letters group's.
         { field: "weight", name: "Style", rule: "R7t", toggles: ["italic", "underline", "strikethrough"] },
-        // Rarer than where the label sits: in Advanced, so the pop-over stays 6 lines tall (owner's input rules).
-        { field: "textAlign", name: "Align", rule: "R8", advanced: true },
         { field: "location", name: "Location", rule: "R2" },
-        { field: "size", name: "Unit", fullName: "Size unit", rule: "R8f", unit: SIZE_UNIT, advanced: true },
     ],
-    // ia-design.md "Label settings groups": nine groups by how often files vary them, a divider between tiers. Every
-    // group is in Advanced, its own pop-over beside the pop-over, so the pop-over keeps its everyday lines and
-    // stays 6 lines tall (owner's input rules, 2026-11-23).
+    // Sixteen groups under four headings in the pop-over's "..." menu, each its own pop-over of at most 6 rows (owner's
+    // input rules, 2026-11-24).
     groups: [
         {
             name: "Position",
-            divider: true,
+            heading: "Placement",
             lines: [
-                { field: "attachOffset", name: "Distance", advanced: true },
-                { field: "offsetX", name: "Offset", pair: "offsetY", letters: XY, advanced: true },
-                { field: "box", name: "Box", rule: "R8f", advanced: true },
-                { field: "onTop", name: "On top", advanced: true },
-                { field: "shiftX", name: "Shift", pair: "shiftY", letters: XY, advanced: true },
-                { field: "shiftOf", name: "Shift of", rule: "R8", advanced: true },
-                { field: "gapOf", name: "Gap of", rule: "R8", advanced: true },
-                { field: "keepInView", name: "Keep in view", advanced: true },
+                { field: "attachOffset", name: "Distance" },
+                { field: "offsetX", name: "Offset", pair: "offsetY", letters: XY },
+                { field: "onTop", name: "On top" },
+                { field: "keepInView", name: "Keep in view" },
+            ],
+        },
+        {
+            name: "Alignment",
+            heading: "Placement",
+            lines: [
+                { field: "box", name: "Box", rule: "R8f" },
+                { field: "textAlign", name: "Align", rule: "R8" },
+                { field: "shiftX", name: "Shift", pair: "shiftY", letters: XY },
+                { field: "shiftOf", name: "Shift of", rule: "R8" },
+                { field: "gapOf", name: "Gap of", rule: "R8" },
+            ],
+        },
+        {
+            name: "Hiding",
+            heading: "Placement",
+            lines: [
+                { field: "minScreenSize", name: "Min size" },
+                { field: "minNodeScreenSize", name: "Min node" },
+                { field: "declutter", name: "Declutter", rule: "R8" },
+                { field: "depthFade", name: "Depth fade" },
+                { field: "depthFadeNear", name: "Fade", pair: "depthFadeFar" },
             ],
         },
         {
             name: "Letters",
+            heading: "Letters",
             lines: [
+                { field: "size", name: "Unit", fullName: "Size unit", rule: "R8f", unit: SIZE_UNIT },
                 // The number of the weight (Bold is the Style line's toggle).
-                { field: "weight", name: "Weight", rule: "R5", advanced: true },
-                { field: "opacity", name: "Opacity", advanced: true },
-                { field: "lineHeight", name: "Line height", advanced: true },
-                { field: "rotation", name: "Rotation", advanced: true },
-                { field: "runAlign", name: "Run align", rule: "R8f", advanced: true },
-                // The letters' own stroke; the box's is Box stroke (ia-design: no look has two homes).
-                // Its Width and Opacity follow it and read as its, as the shadows' lines follow their switches.
-                { field: "outline", name: "Letter outline", advanced: true },
-                { field: "outlineWidth", name: "Width", fullName: "Letter outline width", under: true, advanced: true },
-                {
-                    field: "outlineOpacity",
-                    name: "Opacity",
-                    fullName: "Letter outline opacity",
-                    under: true,
-                    advanced: true,
-                },
+                { field: "weight", name: "Weight", rule: "R5" },
+                { field: "opacity", name: "Opacity" },
+                { field: "lineHeight", name: "Line height" },
+                { field: "rotation", name: "Rotation" },
+                { field: "runAlign", name: "Run align", rule: "R8f" },
             ],
         },
         {
-            name: "Wrap",
+            // The letters' own stroke; the box's is Box stroke (ia-design: no look has two homes).
+            name: "Letter outline",
+            heading: "Letters",
             lines: [
-                { field: "wrapWidth", name: "Wrap", pair: "maxLines", advanced: true },
-                { field: "wrapAnywhere", name: "Break anywhere", advanced: true },
-                { field: "wrapEllipsis", name: "Cut long lines", advanced: true },
-                { field: "maxLinesEllipsis", name: "Ellipsis at max lines", advanced: true },
-                { field: "keepBlankLines", name: "Keep blank lines", advanced: true },
-                { field: "wrapTrailingSpace", name: "Trailing space", advanced: true },
-                { field: "wrapSkipEndSpace", name: "Skip end space", advanced: true },
-                { field: "wrapSpaceCount", name: "Space count", advanced: true },
+                { field: "outline", name: "Letter outline" },
+                { field: "outlineWidth", name: "Width", fullName: "Letter outline width", under: true },
+                { field: "outlineOpacity", name: "Opacity", fullName: "Letter outline opacity", under: true },
             ],
         },
         {
-            name: "Background",
+            name: "Text shadow",
+            heading: "Letters",
             lines: [
-                { field: "background", name: "Color", fullName: "Background color", advanced: true },
-                { field: "backgroundOpacity", name: "Opacity", fullName: "Background opacity", advanced: true },
-                { field: "backgroundShape", name: "Shape", rule: "R8", advanced: true },
-                { field: "cornerRadius", name: "Corners", advanced: true },
-                { field: "padding", name: "Padding", units: ["boxPadding"], advanced: true },
-                {
-                    field: "padding",
-                    name: "Unit",
-                    fullName: "Padding unit",
-                    rule: "R8",
-                    unit: PADDING_UNIT,
-                    advanced: true,
-                },
-                // The lines under the Gradient switch read as its: "Kind" is the gradient's kind.
-                { field: "gradient", name: "Gradient", advanced: true },
-                {
-                    field: "gradientType",
-                    name: "Kind",
-                    fullName: "Gradient kind",
-                    under: true,
-                    rule: "R8",
-                    advanced: true,
-                },
-                { field: "gradientColors", name: "Colors", fullName: "Gradient colors", under: true, advanced: true },
-                {
-                    field: "gradientDirection",
-                    name: "Direction",
-                    fullName: "Gradient direction",
-                    under: true,
-                    rule: "R8f",
-                    advanced: true,
-                },
-            ],
-        },
-        {
-            name: "Box stroke",
-            divider: true,
-            lines: [
-                { field: "borderWidth", name: "Width", fullName: "Box stroke width", advanced: true },
-                { field: "borderColor", name: "Color", fullName: "Box stroke color", advanced: true },
-                { field: "borderOpacity", name: "Opacity", fullName: "Box stroke opacity", advanced: true },
-                { field: "borderAlign", name: "Align", fullName: "Box stroke align", rule: "R8", advanced: true },
-                { field: "borderStyle", name: "Style", fullName: "Box stroke style", rule: "R8", advanced: true },
-                { field: "lineBox", name: "Line box", rule: "R8f", advanced: true },
-                // Margin is the space outside the stroke, so it sits with it.
-                {
-                    field: "marginTop",
-                    name: "Margin",
-                    sides: ["marginTop", "marginRight", "marginBottom", "marginLeft"],
-                    advanced: true,
-                },
-            ],
-        },
-        {
-            name: "Label shadow",
-            lines: [
-                // Each look's switch leads its lines, which read as its (ia-design: "Text shadow ...", "Box shadow ...").
-                { field: "shadow", name: "Text shadow", advanced: true },
-                { field: "shadowColor", name: "Color", fullName: "Text shadow color", under: true, advanced: true },
-                { field: "shadowBlur", name: "Blur", fullName: "Text shadow blur", under: true, advanced: true },
+                { field: "shadow", name: "Text shadow" },
+                { field: "shadowColor", name: "Color", fullName: "Text shadow color", under: true },
+                { field: "shadowBlur", name: "Blur", fullName: "Text shadow blur", under: true },
                 {
                     field: "shadowOffsetX",
                     name: "Offset",
@@ -278,11 +217,80 @@ export const LABEL_RUBRIC: LabelRubric = {
                     under: true,
                     pair: "shadowOffsetY",
                     letters: XY,
-                    advanced: true,
                 },
-                { field: "panelShadow", name: "Box shadow", advanced: true },
-                { field: "panelShadowColor", name: "Color", fullName: "Box shadow color", under: true, advanced: true },
-                { field: "panelShadowBlur", name: "Blur", fullName: "Box shadow blur", under: true, advanced: true },
+            ],
+        },
+        {
+            name: "Wrap",
+            heading: "Letters",
+            lines: [
+                { field: "wrapWidth", name: "Wrap", pair: "maxLines" },
+                { field: "wrapAnywhere", name: "Break anywhere" },
+                { field: "wrapEllipsis", name: "Cut long lines" },
+                { field: "maxLinesEllipsis", name: "Ellipsis at max lines" },
+            ],
+        },
+        {
+            name: "Wrap spacing",
+            heading: "Letters",
+            lines: [
+                { field: "keepBlankLines", name: "Keep blank lines" },
+                { field: "wrapTrailingSpace", name: "Trailing space" },
+                { field: "wrapSkipEndSpace", name: "Skip end space" },
+                { field: "wrapSpaceCount", name: "Space count" },
+            ],
+        },
+        {
+            // Its Solid, Linear and Radial tab strip (LabelPopover.tsx) writes `gradient` and `gradientType`.
+            name: "Background",
+            heading: "Box",
+            lines: [
+                { field: "background", name: "Color", fullName: "Background color" },
+                { field: "gradientColors", name: "Colors", fullName: "Gradient colors" },
+                {
+                    field: "gradientDirection",
+                    name: "Direction",
+                    fullName: "Gradient direction",
+                    rule: "R8f",
+                },
+                { field: "backgroundOpacity", name: "Opacity", fullName: "Background opacity" },
+                { field: "backgroundShape", name: "Shape", rule: "R8" },
+                { field: "cornerRadius", name: "Corners" },
+            ],
+        },
+        {
+            name: "Box size",
+            heading: "Box",
+            lines: [
+                { field: "lineBox", name: "Line box", rule: "R8f" },
+                { field: "padding", name: "Padding", units: ["boxPadding"] },
+                { field: "padding", name: "Unit", fullName: "Padding unit", rule: "R8", unit: PADDING_UNIT },
+                // Margin is the space outside the stroke.
+                {
+                    field: "marginTop",
+                    name: "Margin",
+                    sides: ["marginTop", "marginRight", "marginBottom", "marginLeft"],
+                },
+            ],
+        },
+        {
+            name: "Box stroke",
+            heading: "Box",
+            lines: [
+                { field: "borderWidth", name: "Width", fullName: "Box stroke width" },
+                { field: "borderColor", name: "Color", fullName: "Box stroke color" },
+                { field: "borderOpacity", name: "Opacity", fullName: "Box stroke opacity" },
+                { field: "borderAlign", name: "Align", fullName: "Box stroke align", rule: "R8" },
+                { field: "borderStyle", name: "Style", fullName: "Box stroke style", rule: "R8" },
+            ],
+        },
+        {
+            name: "Box shadow",
+            heading: "Box",
+            lines: [
+                { field: "panelShadow", name: "Box shadow" },
+                { field: "panelShadowColor", name: "Color", fullName: "Box shadow color", under: true },
+                { field: "panelShadowBlur", name: "Blur", fullName: "Box shadow blur", under: true },
                 {
                     field: "panelShadowOffsetX",
                     name: "Offset",
@@ -290,62 +298,57 @@ export const LABEL_RUBRIC: LabelRubric = {
                     under: true,
                     pair: "panelShadowOffsetY",
                     letters: XY,
-                    advanced: true,
                 },
             ],
         },
         {
             name: "Callout",
-            on: "pointer",
+            heading: "Extras",
             lines: [
-                { field: "pointer", name: "Pointer", advanced: true },
-                {
-                    field: "pointerDirection",
-                    name: "Direction",
-                    fullName: "Pointer direction",
-                    rule: "R8f",
-                    advanced: true,
-                },
+                { field: "pointer", name: "Pointer" },
+                { field: "pointerDirection", name: "Direction", fullName: "Pointer direction", rule: "R8f" },
                 {
                     field: "pointerWidth",
                     name: "Size",
                     fullName: "Pointer size",
                     pair: "pointerHeight",
                     letters: ["W", "H"],
-                    advanced: true,
                 },
-                { field: "pointerOffset", name: "Offset", fullName: "Pointer offset", advanced: true },
-                { field: "pointerCurve", name: "Curved", advanced: true },
+                { field: "pointerOffset", name: "Offset", fullName: "Pointer offset" },
+                { field: "pointerCurve", name: "Curved" },
             ],
         },
         {
             name: "Badge",
+            heading: "Extras",
             lines: [
-                { field: "badge", name: "Badge", rule: "R9", advanced: true },
-                { field: "icon", name: "Icon", fullName: "Icon beside text", rule: "R14", advanced: true },
-                { field: "iconPosition", name: "Icon side", rule: "R8", advanced: true },
-                // A picture in the label beside or behind its words (yEd's label icon), its size and where it sits.
-                { field: "image", name: "Image", fullName: "Label image", rule: "R16", advanced: true },
-                { field: "imageWidth", name: "Image size", pair: "imageHeight", letters: WH, advanced: true },
-                { field: "imageOffsetX", name: "Image offset", pair: "imageOffsetY", letters: XY, advanced: true },
-                { field: "progress", name: "Progress", advanced: true },
-                { field: "maxNumber", name: "Max number", advanced: true },
-                { field: "overflowSuffix", name: "Suffix", rule: "R14", advanced: true },
-                { field: "smartOverflow", name: "Shorten large numbers", advanced: true },
+                { field: "badge", name: "Badge", rule: "R9" },
+                { field: "progress", name: "Progress" },
+                { field: "maxNumber", name: "Max number" },
+                { field: "overflowSuffix", name: "Suffix", rule: "R14" },
+                { field: "smartOverflow", name: "Shorten large numbers" },
             ],
         },
         {
-            name: "Behavior",
+            name: "Icon and image",
+            heading: "Extras",
             lines: [
-                { field: "minScreenSize", name: "Min size", advanced: true },
-                { field: "declutter", name: "Declutter", rule: "R8", advanced: true },
-                { field: "minNodeScreenSize", name: "Min node", advanced: true },
-                { field: "depthFade", name: "Depth fade", advanced: true },
-                { field: "depthFadeNear", name: "Fade", pair: "depthFadeFar", advanced: true },
-                { field: "animation", name: "Animation", rule: "R9", advanced: true },
-                { field: "animationSpeed", name: "Speed", advanced: true },
-                { field: "pickable", name: "Pickable", advanced: true },
-                { field: "closeButton", name: "Close button", advanced: true },
+                { field: "icon", name: "Icon", fullName: "Icon beside text", rule: "R14" },
+                { field: "iconPosition", name: "Icon side", rule: "R8" },
+                // A picture in the label beside or behind its words (yEd's label icon), its size and where it sits.
+                { field: "image", name: "Image", fullName: "Label image", rule: "R16" },
+                { field: "imageWidth", name: "Image size", pair: "imageHeight", letters: WH },
+                { field: "imageOffsetX", name: "Image offset", pair: "imageOffsetY", letters: XY },
+            ],
+        },
+        {
+            name: "Animation and clicks",
+            heading: "Extras",
+            lines: [
+                { field: "animation", name: "Animation", rule: "R9" },
+                { field: "animationSpeed", name: "Speed" },
+                { field: "pickable", name: "Pickable" },
+                { field: "closeButton", name: "Close button" },
             ],
         },
     ],
@@ -429,13 +432,19 @@ export function labelLineFields(line: LabelLineSpec): readonly LabelField[] {
     ];
 }
 
+/** The label group whose tab strip is Solid, Linear or Radial. */
+export const BACKGROUND = "Background";
+
 /**
- * Every field a sub-group's lines and its on field edit.
- * @param group - the sub-group.
+ * Every field a group's lines edit, and the Background group's gradient fields its tab strip writes.
+ * @param group - the group.
  * @returns the fields.
  */
 export function labelGroupFields(group: LabelGroup): readonly LabelField[] {
-    return [...(group.on === undefined ? [] : [group.on]), ...group.lines.flatMap((line) => labelLineFields(line))];
+    return [
+        ...(group.name === BACKGROUND ? (["gradient", "gradientType"] as const) : []),
+        ...group.lines.flatMap((line) => labelLineFields(line)),
+    ];
 }
 
 /** Every field the panel places somewhere: the rubric's, and the look, a kind in a text row's Switch to (E196). */

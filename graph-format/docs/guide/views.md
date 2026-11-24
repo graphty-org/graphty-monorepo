@@ -25,6 +25,11 @@ need a copy to change.
 `prepare(names)` computes a list of views ahead of time, `dropCaches()` frees them and
 `cachedViews()` lists the ones in memory.
 
+`edgeList().weights` stores 32-bit floats, which is what algorithms read: `0.1` reads back as
+`0.10000000149011612`. When you show, sum or compare weights, call `edgeWeights()` instead: it
+returns each edge's weight exactly as it was given, as a new `Float64Array` (not cached), or `null`
+for an unweighted graph.
+
 ## Derived graphs
 
 A **derived graph** is a new snapshot made from an existing one. Each method returns a

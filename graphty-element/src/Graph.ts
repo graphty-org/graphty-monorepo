@@ -7178,12 +7178,20 @@ export class Graph implements GraphContext {
         // The cache took every row's source with it: each row drawn with no `Node` is painted
         // again onto the new dimension's source at the next frame.
         const painter = this.getStylePainter();
-        for (const row of dataManagerInternals.unbuiltRows(this.dataManager)) {
+        const unbuilt = dataManagerInternals.unbuiltRows(this.dataManager);
+        for (const row of unbuilt) {
             painter.queue("node", row);
         }
 
         for (const row of lineRows) {
             painter.queue("edge", row);
+        }
+
+        // No frame draws until every row queued here is drawn on its new source: a frame drawn part
+        // way, when the repaint is split across frames, showed every edge and a few nodes (#9866).
+        // Only the batched path has such rows; every `Node` and `Edge` was drawn again above.
+        if (unbuilt.length > 0 || lineRows.length > 0) {
+            this.dataManager.notePaintQueued();
         }
 
         this.updateManager.meshesAdded();

@@ -293,11 +293,13 @@ describe("layout transitions", () => {
         { path: "objects", view: "2d", edge: "arrow" },
         { path: "objects", view: "2d", edge: "no-head" },
         { path: "objects", view: "2d", edge: "undirected" },
+        { path: "objects", view: "3d", edge: "arrow" },
         { path: "objects", view: "3d", edge: "no-head" },
         { path: "objects", view: "3d", edge: "undirected" },
         { path: "batched", view: "2d", edge: "arrow" },
         { path: "batched", view: "2d", edge: "no-head" },
         { path: "batched", view: "2d", edge: "undirected" },
+        { path: "batched", view: "3d", edge: "arrow" },
         { path: "batched", view: "3d", edge: "no-head" },
         { path: "batched", view: "3d", edge: "undirected" },
     ] as const)("an edge ($edge) on the $path path in $view", (setup) => {

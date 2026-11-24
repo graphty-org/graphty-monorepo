@@ -1,6 +1,7 @@
 [
     { "file": "test/interactions/pick-parity.test.ts", "reason": "Sets each case's render path by hand" },
     { "file": "test/browser/drawn-invariants.test.ts", "reason": "Sets each case's render path by hand" },
+    { "file": "test/browser/edges-follow-running-layout.test.ts", "reason": "Sets each case's render path by hand" },
     {
         "file": "test/browser/edge-trim-mirror.test.ts",
         "reason": "Holds the row trim against the mesh path's, which a batched row no longer has a mesh for"
@@ -18,5 +19,6 @@
     {
         "file": "test/browser/time-ghost.test.ts",
         "reason": "Reads mesh.visibility, which a hidden proxy answers with 0 until stage 11"
-    }
+    },
+    { "file": "test/browser/view-switch-draws-every-node.test.ts", "reason": "Sets each case's render path by hand" }
 ]

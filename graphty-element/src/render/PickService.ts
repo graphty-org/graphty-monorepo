@@ -431,8 +431,8 @@ export class RowScan {
      * The row line nearest a point, within `best`, in one typed walk: each line runs between its two nodes'
      * centers, as `PulledLineBatch` draws it, put on screen as {@link screenProjector} does. A line with an end
      * behind the camera is skipped, as {@link pickEdgeAt} skips such an edge; of lines equally near, the last wins.
-     * @param px - X in render pixels.
-     * @param py - Y in render pixels.
+     * @param px - X in CSS pixels.
+     * @param py - Y in CSS pixels.
      * @param best - The farthest a line may be, in the same pixels.
      * @param lines - The lines.
      * @param only - Measure only these edge rows.
@@ -968,7 +968,7 @@ export function screenProjector(
  * @param edges - The graph's edges.
  * @param x - X in CSS pixels from the canvas's left edge.
  * @param y - Y in CSS pixels from the canvas's top edge.
- * @param toScreen - A world point's place on screen, in render pixels.
+ * @param toScreen - A world point's place on screen, in CSS pixels (`Graph.worldToScreen`).
  * @param rowEnds - A straight edge's two ends read from the rows, or null to measure it with
  *   `toScreen` point by point; such ends go through one {@link screenProjector}.
  * @param rowLines - The edges drawn with no `Edge`, measured after `edges` ({@link RowScan.nearestRowLine}).
@@ -993,12 +993,12 @@ export function pickEdgeAt(
         return undefined;
     }
 
-    // worldToScreen answers in render pixels; Babylon's own picking divides CSS pixels by the
-    // hardware scaling level the same way.
-    const scaling = scene.getEngine().getHardwareScalingLevel();
-    const px = x / scaling;
-    const py = y / scaling;
-    let best = EDGE_PICK_TOLERANCE_PX / scaling;
+    // Everything here is in CSS pixels: the point, the tolerance, `toScreen` (`Graph.worldToScreen`),
+    // `screenProjector` and the row lines. Dividing by the hardware scaling level here lost every edge
+    // at a pixel ratio other than 1 (issue #9917).
+    const px = x;
+    const py = y;
+    let best = EDGE_PICK_TOLERANCE_PX;
     let found: EdgeId | undefined;
     const view = scene.getViewMatrix().m;
     const inFront = (p: Vector3): boolean => p.x * view[2] + p.y * view[6] + p.z * view[10] + view[14] >= camera.minZ;
@@ -1126,7 +1126,7 @@ export function useEdgeIdTarget(scene: Scene, target: EdgeIdTarget | null): void
  * @param edges - The graph's edges, for the full walk.
  * @param x - X in CSS pixels.
  * @param y - Y in CSS pixels.
- * @param toScreen - A world point's place on screen, in render pixels.
+ * @param toScreen - A world point's place on screen, in CSS pixels (`Graph.worldToScreen`).
  * @param lines - The edges drawn with no `Edge`, or null when there are none.
  * @returns The edge's id or `undefined`, now or once read.
  */

@@ -39,6 +39,8 @@ const HOOK_ORDER: readonly DerivedSlice[] = [
     "shaders",
     // Before styles: a node draws its model with the model's own settings under its layers'.
     "modelDefaults",
+    // Before styles: a label's font face is on the page before the label is built.
+    "fonts",
     "runs",
     // After runs, which a set may read; before styles and visibility, which read sets.
     "sets",
@@ -78,7 +80,8 @@ type KeyedSlice =
     | "attributes"
     | "valueLabels"
     | "shaders"
-    | "modelDefaults";
+    | "modelDefaults"
+    | "fonts";
 
 /** A copy of every keyed slice, owned by the lane and written by nothing else. */
 type Copies = { [S in KeyedSlice]: Map<unknown, unknown> | Set<unknown> };
@@ -100,6 +103,7 @@ function copyAll(state: ProjectState): Copies {
         valueLabels: new Map(state.valueLabels),
         shaders: new Map(state.shaders),
         modelDefaults: new Map(state.modelDefaults),
+        fonts: new Map(state.fonts),
     };
 }
 

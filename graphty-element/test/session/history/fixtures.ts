@@ -1165,6 +1165,21 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         },
     },
     {
+        name: "font.set",
+        tags: ["session"],
+        command: {
+            op: "font.set",
+            family: "Fixture Font",
+            font: {
+                family: "Fixture Font",
+                sha256: "0".repeat(64),
+                format: "woff2",
+                byteLength: 4,
+                data: "d09GMg==",
+            },
+        },
+    },
+    {
         name: "asset.defaults",
         tags: BOTH,
         command: { op: "asset.defaults", id: "asset:fixture", patch: { style: { "node.modelTurn": 90 } } },

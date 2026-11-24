@@ -12,10 +12,12 @@
  * find. Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
+import { sha256HexSync } from "@graphty/graph-io";
+
 import { labelLook, type LabelLookDescriptor } from "../../catalog/label-looks";
 import type { LabelStyle } from "../../catalog/label-style";
 import { paletteDescriptor } from "../../catalog/palettes";
-import type { LayerSpec, PaletteDescriptor } from "../../catalog/types";
+import type { LayerSpec, PaletteDescriptor, StyleDocumentFont } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
 
 /** What a session holds because a file carried it, by id. */
@@ -38,6 +40,53 @@ function badCommand(message: string, details: Readonly<Record<string, unknown>>)
 export interface CarriedDocument {
     readonly palettes?: readonly PaletteDescriptor[];
     readonly labelLooks?: readonly LabelLookDescriptor[];
+    readonly fonts?: readonly StyleDocumentFont[];
+}
+
+const FONT_FORMATS: ReadonlySet<unknown> = new Set(["ttf", "otf", "woff", "woff2"]);
+
+/**
+ * Refuse a font entry that is not shaped like one: a family, a 64-digit digest, a format, a byte
+ * count and base64 of that many bytes.
+ * @param font - The entry, as data off a disk or a journal.
+ * @param family - The family the entry must carry, when it is held under one.
+ * @throws `E_BAD_COMMAND` naming the family.
+ */
+export function checkFontEntry(font: unknown, family?: unknown): void {
+    const entry = (font ?? {}) as Partial<Record<keyof StyleDocumentFont, unknown>>;
+    const ok =
+        typeof entry.family === "string" &&
+        entry.family.trim() !== "" &&
+        (family === undefined || family === entry.family) &&
+        typeof entry.sha256 === "string" &&
+        /^[0-9a-f]{64}$/.test(entry.sha256) &&
+        FONT_FORMATS.has(entry.format) &&
+        Number.isSafeInteger(entry.byteLength) &&
+        (entry.byteLength as number) > 0 &&
+        typeof entry.data === "string" &&
+        entry.data.length === 4 * Math.ceil((entry.byteLength as number) / 3);
+    if (!ok) {
+        throw badCommand("A font is a family, a sha256, a format, a byteLength and its bytes as base64.", {
+            family: typeof entry.family === "string" ? entry.family : null,
+        });
+    }
+}
+
+/**
+ * The bytes a font entry carries, when they hash to its digest.
+ * @param font - A well-formed entry ({@link checkFontEntry}).
+ * @returns The bytes, or null when the data is not base64 of bytes with that digest.
+ */
+export function fontEntryBytes(font: StyleDocumentFont): Uint8Array | null {
+    let binary: string;
+    try {
+        binary = atob(font.data);
+    } catch {
+        return null;
+    }
+
+    const bytes = Uint8Array.from(binary, (char) => char.codePointAt(0) ?? 0);
+    return bytes.length === font.byteLength && sha256HexSync(bytes) === font.sha256 ? bytes : null;
 }
 
 /**
@@ -166,6 +215,32 @@ export function checkCarried(document: CarriedDocument): void {
         if (typeof id !== "string" || typeof style !== "object" || style === null || Array.isArray(style)) {
             throw badCommand("A style document carries a label look that is not an id and a style.", {
                 look: typeof id === "string" ? id : null,
+            });
+        }
+    }
+
+    checkCarriedFonts(document);
+}
+
+/**
+ * Refuse a carried font that is not well formed, or whose bytes do not hash to its digest.
+ * @param document - The carried parts.
+ * @throws `E_BAD_COMMAND` for a malformed entry, `E_BAD_DOCUMENT` for a digest that does not match.
+ */
+function checkCarriedFonts(document: CarriedDocument): void {
+    const { fonts } = document;
+    if (fonts !== undefined && !Array.isArray(fonts)) {
+        throw badCommand("A style document's fonts are a list.", { family: null });
+    }
+
+    for (const font of document.fonts ?? []) {
+        checkFontEntry(font);
+        if (fontEntryBytes(font) === null) {
+            throw new GraphtyError({
+                code: "E_BAD_DOCUMENT",
+                message: "A style document carries a font whose bytes do not hash to its sha256.",
+                source: "style",
+                details: { family: font.family },
             });
         }
     }

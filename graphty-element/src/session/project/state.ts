@@ -21,6 +21,7 @@ import type {
     RunId,
     Scope,
     SetId,
+    StyleDocumentFont,
 } from "../../catalog/types";
 import type { ModelDefaults } from "../assets/AssetsApi";
 import type { Note, NoteId, NoteStatus } from "../notes/types";
@@ -212,6 +213,8 @@ export interface ProjectState {
     readonly shaders: ReadonlyMap<string, ProjectShaderEntry>;
     /** Each model's own settings (`session.assets.setDefaults`), by its asset id. */
     readonly modelDefaults: ReadonlyMap<string, ModelDefaults>;
+    /** The fonts the project holds (`session.fonts`), by family, in the order added. */
+    readonly fonts: ReadonlyMap<string, StyleDocumentFont>;
 }
 
 /** One saved camera tour: its name and the tour. */
@@ -272,5 +275,6 @@ export function createProjectState(init: Partial<ProjectState> = {}): ProjectSta
         valueLabels: new Map(init.valueLabels),
         shaders: new Map(init.shaders),
         modelDefaults: new Map(init.modelDefaults),
+        fonts: new Map(init.fonts),
     };
 }

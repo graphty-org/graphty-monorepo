@@ -144,6 +144,12 @@ const SLICES: Record<ProjectSlice, SliceCase> = {
         },
         read: (session) => session.assets.list().map((record) => record.defaults),
     },
+    fonts: {
+        // A WOFF2 signature is all a session with no FontFace reads.
+        change: (session) =>
+            session.fonts.add(new Uint8Array([0x77, 0x4f, 0x46, 0x32, 1, 2]), { family: "Members Font" }),
+        read: (session) => session.fonts.list(),
+    },
 };
 
 /**

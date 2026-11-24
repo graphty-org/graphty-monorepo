@@ -4465,6 +4465,21 @@ export type GraphtyErrorCode =
 */
 | "E_BAD_DOCUMENT"
 /**
+* `session.fonts.add` was handed bytes that are not a TrueType, OpenType, WOFF or WOFF2 font,
+* or that the browser could not read as one. `details.family`. Nothing was added.
+*/
+| "E_FONT_PARSE"
+/**
+* `session.fonts.add` was handed a font file over the limit (10 MiB). `details.byteLength`,
+* `details.limit`. Nothing was added.
+*/
+| "E_FONT_TOO_LARGE"
+/**
+* `session.fonts.add` named a family another font of the project holds (compared without
+* case). `details.family` is the holder's. Nothing was added; pass another `family`.
+*/
+| "E_FONT_FAMILY_TAKEN"
+/**
 * A saved document, or a member of one, has a `version` this release does not read.
 * `details` are `{ kind, found, reads }`. Nothing in the session changed. The caller opens it
 * with a release that reads that version; it is never guessed at.
@@ -5507,6 +5522,11 @@ export type GraphtyWarningCode =
 * without asking. `params.kind` is the member, `"graphty-session"`.
 */
 | "W_NETWORK_POLICY_IGNORED"
+/**
+* A font a project or style file carries could not be read by this browser. Labels in its
+* family draw in the fallback face; the rest of the file opened. `params.family`.
+*/
+| "W_FONT_NOT_LOADED"
 /**
 * A model or picture a project keeps by URL loaded from that URL, and is not the file the
 * project was saved with: the file at the URL changed. It is drawn. `params.url`,

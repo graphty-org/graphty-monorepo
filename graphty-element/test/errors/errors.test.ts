@@ -107,6 +107,9 @@ const CODES_FROM_THE_DESIGN = [
     "E_UNKNOWN_ELEMENT",
     "E_HOST_NOT_FOUND",
     "E_BAD_DOCUMENT",
+    "E_FONT_PARSE",
+    "E_FONT_TOO_LARGE",
+    "E_FONT_FAMILY_TAKEN",
     "E_UNSUPPORTED_VERSION",
     "E_UNSAVED_CHANGES",
     "E_AUTOSAVE_ENTRY_TAKEN",
@@ -274,6 +277,9 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_PATH_COUNT_OVERFLOW":
         case "E_INTERNAL":
             return "refused";
+        case "E_FONT_PARSE":
+        case "E_FONT_TOO_LARGE":
+        case "E_FONT_FAMILY_TAKEN":
         case "E_MODEL_FETCH":
         case "E_MODEL_URL_BLOCKED":
         case "E_MODEL_TOO_LARGE":

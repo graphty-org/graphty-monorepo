@@ -1,0 +1,1 @@
+No counted-work test yet: its cost grows with the font's bytes, not with the graph.

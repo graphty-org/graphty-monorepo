@@ -49,6 +49,7 @@ import type { AssetCommand } from "./commands/assets";
 import type { ConfigSetCommand } from "./commands/config";
 import type { DataCommand } from "./commands/data";
 import type { DataDeriveCommand } from "./commands/derive";
+import type { FontCommand } from "./commands/fonts";
 import type { BatchCommand } from "./commands/index";
 import type { LayoutCommand, LayoutSetCommand } from "./commands/layout";
 import type { NoteCommand } from "./commands/notes";
@@ -144,6 +145,7 @@ export type SessionCommand =
     | StyleCommand
     | ShaderCommand
     | AssetCommand
+    | FontCommand
     | VisibilityCommand
     | SetCommand
     | NoteCommand

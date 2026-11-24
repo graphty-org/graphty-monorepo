@@ -359,6 +359,7 @@ function tagsOf(slices: readonly ProjectSlice[]): PartTag[] {
             case "notes":
             case "attributes":
             case "shaders":
+            case "fonts":
                 tags.push("rest");
                 break;
             default:

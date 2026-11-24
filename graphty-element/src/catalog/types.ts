@@ -1767,12 +1767,34 @@ export interface StyleDocument {
         readonly text: ShaderText;
     }[];
     /**
+     * The fonts the project holds (`session.fonts`), each with its bytes, so a label naming one
+     * draws in it wherever the document opens. Absent when the project holds none.
+     */
+    fonts?: readonly StyleDocumentFont[];
+    /**
      * What `toDocument` found wrong while writing: `shader.not-saved` with `id`, a shader a layer,
      * an encode key or the background names that the document does not carry. An element bug,
      * never expected; ignored on reading. Absent when nothing is wrong.
      * @since 3.36.0
      */
     problems?: readonly ShaderProblem[];
+}
+
+/** The kinds of font file `session.fonts` reads, as told from the file's first bytes. */
+export type FontFormat = "ttf" | "otf" | "woff" | "woff2";
+
+/** One font a style document carries: its family, its digest and its bytes. */
+export interface StyleDocumentFont {
+    /** The CSS family labels name it by. */
+    readonly family: string;
+    /** SHA-256 of the bytes, as 64 hex digits. */
+    readonly sha256: string;
+    /** What kind of font file the bytes are. */
+    readonly format: FontFormat;
+    /** How many bytes the file is. */
+    readonly byteLength: number;
+    /** The bytes, as base64. */
+    readonly data: string;
 }
 
 /** One row of a saved style tree: a layer, by its place in the document, or a folder. */

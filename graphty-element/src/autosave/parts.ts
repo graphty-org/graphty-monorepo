@@ -10,12 +10,12 @@
  * | `arrangement` | the `graphty-arrangement` member |
  * | `run:<id>` | one run of the `graphty-results` member (their order is the meta's `runs`) |
  * | `rest` | the document's head, the session, style, notes and view-state members, the results' head, the assets member without its files |
- * | `asset:<sha256>` | the files of one embedded model, written once per digest |
+ * | `asset:<sha256>` | the files of one embedded model, or the base64 of one uploaded font, written once per digest |
  * | `stash` | the consumer's stash |
  * @module autosave
  */
 
-import type { RunId } from "../catalog/types";
+import type { RunId, StyleDocumentFont } from "../catalog/types";
 import { assetsMember } from "../session/assets/projectMember";
 import { dispatcherOf, sessionRunsOf } from "../session/dispatchers";
 import {
@@ -51,6 +51,7 @@ interface RestPart {
     readonly head: Record<string, unknown>;
     readonly session: Record<string, unknown>;
     readonly results: Record<string, unknown>;
+    /** The style member, each font's `data` in its own `asset:<sha256>` part. */
     readonly style: Record<string, unknown>;
     readonly notes: Record<string, unknown>;
     readonly viewState: Record<string, unknown>;
@@ -143,11 +144,21 @@ function buildRestPart(
 
             return entry;
         });
+        // Each font's bytes once, in the same kind of part: a style change rewrites none of them.
+        const style = styleMember(session);
+        const fonts = (style.fonts as StyleDocumentFont[] | undefined)?.map(({ data, ...font }) => {
+            held.add(font.sha256);
+            if (!writtenAssets.has(font.sha256)) {
+                parts[`asset:${font.sha256}`] = attempt(`asset:${font.sha256}`, () => JSON.stringify(data));
+            }
+
+            return font;
+        });
         const rest: RestPart = {
             head: documentAround(session, [], {}),
             session: sessionMember(sources),
             results: resultsMember(session, []),
-            style: styleMember(session),
+            style: fonts === undefined ? style : { ...style, fonts },
             notes: notesMember(session),
             viewState: viewStateMember(session, idsNow),
             ...(member === null ? {} : { assets: { ...member, assets: entries } }),
@@ -299,12 +310,23 @@ export function reassemble(meta: AutosaveEntryMeta, parts: AutosaveParts): Recor
                       }),
                   },
               ];
+    const fonts = rest.style.fonts as Record<string, unknown>[] | undefined;
+    const style =
+        fonts === undefined
+            ? rest.style
+            : {
+                  ...rest.style,
+                  fonts: fonts.map((font) => ({
+                      ...font,
+                      data: JSON.parse(textOf(parts, `asset:${String(font.sha256)}`)) as unknown,
+                  })),
+              };
     const members = [
         JSON.parse(textOf(parts, "data")) as Record<string, unknown>,
         rest.session,
         JSON.parse(textOf(parts, "arrangement")) as Record<string, unknown>,
         { ...rest.results, runs },
-        rest.style,
+        style,
         rest.notes,
         rest.viewState,
         ...assets,

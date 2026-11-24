@@ -1213,6 +1213,21 @@ export type GraphtyErrorCode =
 */
 | "E_BAD_DOCUMENT"
 /**
+* `session.fonts.add` was handed bytes that are not a TrueType, OpenType, WOFF or WOFF2 font,
+* or that the browser could not read as one. `details.family`. Nothing was added.
+*/
+| "E_FONT_PARSE"
+/**
+* `session.fonts.add` was handed a font file over the limit (10 MiB). `details.byteLength`,
+* `details.limit`. Nothing was added.
+*/
+| "E_FONT_TOO_LARGE"
+/**
+* `session.fonts.add` named a family another font of the project holds (compared without
+* case). `details.family` is the holder's. Nothing was added; pass another `family`.
+*/
+| "E_FONT_FAMILY_TAKEN"
+/**
 * A saved document, or a member of one, has a `version` this release does not read.
 * `details` are `{ kind, found, reads }`. Nothing in the session changed. The caller opens it
 * with a release that reads that version; it is never guessed at.
@@ -3504,6 +3519,7 @@ export const STYLE_PATCH_ACTIONS: readonly ["add", "update", "remove", "move", "
 
 // @public
 export interface StyleDocument {
+    fonts?: readonly StyleDocumentFont[];
     labelLooks?: readonly LabelLookDescriptor[];
     layers: readonly LayerSpec[];
     palettes?: readonly PaletteDescriptor[];

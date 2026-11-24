@@ -396,9 +396,12 @@ export const MUTATING: readonly string[] = [
     "SessionShaders.fromCatalog",
     "SessionShaders.remove",
     "SessionShaders.replace",
+    "FontsApi.add",
+    "FontsApi.remove",
 ];
 
 export const READ_ONLY: readonly string[] = [
+    "FontsApi.list",
     // whether a patterned line was disposed, as a mesh answers it
     "PatternedLineMesh.isDisposed",
     "EnabledFeatures.has",

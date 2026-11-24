@@ -340,6 +340,9 @@ if ((await second.files.kindOf(text)) === "recipe") {
 `apply` runs the recipe's steps in order, then adds its style layers, as one undoable step; it never
 replaces the data. What the recipe could not do on this data is listed in `report.problems`.
 
+Fonts the reader uploaded (`session.fonts`) are saved in the file with their bytes; see
+[Uploaded Fonts](./fonts.md).
+
 ## What is not saved
 
 - **The live camera.** Save a named view with `session.views.save` to keep a camera position.

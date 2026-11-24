@@ -88,6 +88,7 @@ describe("project:derived", () => {
             config: true,
             attributes: true,
             valueLabels: true,
+            fonts: true,
             shaders: true,
             modelDefaults: true,
             runs: true,

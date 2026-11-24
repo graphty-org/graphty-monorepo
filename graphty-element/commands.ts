@@ -159,6 +159,11 @@ export const COMMANDS = Object.freeze({
         /** "undoable": a step in the history. */
         undo: "undoable",
     },
+    /** `font.set`: add an uploaded font to the project, or remove it with null. */
+    "font.set": {
+        /** "undoable": a step in the history. */
+        undo: "undoable",
+    },
     /** `visibility.set`: apply a filter, or clear it with null. */
     "visibility.set": {
         /** "undoable": a step in the history. */

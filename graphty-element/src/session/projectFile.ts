@@ -59,6 +59,7 @@ import { DTYPES, newDocumentId } from "./document2/basics";
 import type { ProjectFileHandle } from "./document2/codecs/fileHandles";
 import type { ProjectFileFacts, ProjectSaveFacts } from "./document2/facts";
 import type { DocumentCode, DocumentProblem, DocumentSection, SourceStorage } from "./document2/types";
+import { loadDocumentFonts } from "./fonts";
 import { expandedGraph, type SavedCollapse } from "./groups";
 import { ISSUES_VALUE, type IssueState } from "./issues";
 import { loadLineOf } from "./loadLine";
@@ -2053,6 +2054,11 @@ async function clearInto(tx: TransactionScope, playback: unknown): Promise<void>
 
     await clearStyleRows(tx);
 
+    // So no uploaded font carries from one project into the next.
+    for (const font of tx.fonts.list()) {
+        await tx.fonts.remove(font.family);
+    }
+
     for (const set of tx.sets.list()) {
         tx.sets.remove(set.id);
     }
@@ -2407,6 +2413,8 @@ async function addStylesAndNotes(
     const { tx, problems } = opening;
     for (const { kind: _kind, ...style } of members.get("graphty-style") ?? []) {
         await attempt(opening, "styles", async () => {
+            // Its fonts' faces load first, so the first label built in one already has it.
+            problems.push(...(await loadDocumentFonts(style.fonts as StyleDocument["fonts"])));
             const report = await tx.styles.applyTemplate(remap(style) as never);
             for (const fact of report.shaders ?? []) {
                 if (fact.code === "shader.unknown") {

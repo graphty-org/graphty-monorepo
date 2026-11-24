@@ -135,6 +135,7 @@ const KINDS: Readonly<Record<SessionCommand["op"], JournalEntry["kind"]>> = {
     "data.label": "data",
     "shader.set": "style",
     "asset.defaults": "style",
+    "font.set": "style",
     "data.columns": "data",
     "data.derive": "data",
     "layout.scope": "layout",

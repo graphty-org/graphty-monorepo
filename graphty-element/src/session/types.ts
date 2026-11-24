@@ -72,6 +72,7 @@ import type { DrawnAnnotation } from "./annotations";
 import type { AssetId, AssetsApi } from "./assets/AssetsApi";
 import type { CostEstimate, CostGateLimits, CostMeasurement, MachineCalibration } from "./cost";
 import type { FilesApi } from "./files/kindOf";
+import type { FontsApi } from "./fonts";
 import type { SessionGraphs } from "./graphs/GraphsApi";
 import type { GroupsApi } from "./groups";
 import type { DataIssue, FixCode, FixResult, IssueId } from "./issues";
@@ -7312,7 +7313,8 @@ export type ProjectSlice =
     | "attributes"
     | "valueLabels"
     | "shaders"
-    | "modelDefaults";
+    | "modelDefaults"
+    | "fonts";
 
 /** What moved project state: a command, a history move, or a failed command being reverted. */
 export type HistoryCause = "command" | "undo" | "redo" | "restore" | "rollback";
@@ -7525,6 +7527,8 @@ export type HistoryCode =
     | "shader.replace"
     | "shader.remove"
     | "asset.defaults"
+    | "font.add"
+    | "font.remove"
     | "visibility.filter"
     | "visibility.clear-filter"
     | "visibility.window"
@@ -7806,6 +7810,8 @@ export interface CommandOutcomeMap {
     "shader.set": Promise<void>;
     /** Settles once the model's settings are recorded and the pass that repaints its nodes has run. */
     "asset.defaults": Promise<void>;
+    /** Settles once the font is recorded and its face is on the page. */
+    "font.set": Promise<void>;
     /** Settles once the filter is recorded and the pass that evaluates the masks has run. */
     "visibility.set": Promise<void>;
     /** Settles once the window is recorded and the pass that evaluates the masks has run. */
@@ -8704,6 +8710,12 @@ export interface GraphSession {
      * @since 3.36.0
      */
     readonly shaders: SessionShaders;
+    /**
+     * Font files the reader uploaded: add one from its bytes, and labels naming its family draw
+     * in it. Each font is saved with the project and in style files; adding and removing are
+     * undoable steps.
+     */
+    readonly fonts: FontsApi;
     /**
      * The saved camera views, by name: camera states kept under a name of the consumer's
      * choosing. Saving and removing one are undoable steps; moving the camera to one is not.

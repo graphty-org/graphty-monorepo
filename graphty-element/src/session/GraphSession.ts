@@ -115,6 +115,7 @@ import {
 
 export { dispatcherOf, sessionDataOf, sessionRunsOf } from "./dispatchers";
 import { ANNOTATIONS_VALUE, type DrawnAnnotation, type DrawnAnnotations, drawnAnnotationsOf } from "./annotations";
+import { createFontsApi, type FontsApi, syncFontFaces } from "./fonts";
 import { graphsOf, type SessionGraphs } from "./graphs/GraphsApi";
 import { boundaryOf, projectBoundary } from "./project/boundary";
 import { dataDigest } from "./project/digest";
@@ -446,6 +447,7 @@ const TX_PARTS = [
     "styles",
     "shaders",
     "assets",
+    "fonts",
     "time",
     "views",
     "tours",
@@ -632,6 +634,7 @@ class Session implements ElementSession {
     readonly time: TimeApi;
     readonly styles: SessionStylesApi;
     readonly shaders: SessionShaders;
+    readonly fonts: FontsApi;
     readonly views: SessionViews;
     readonly tours: SessionTours;
     readonly graphs: SessionGraphs;
@@ -770,6 +773,11 @@ class Session implements ElementSession {
             read: (id) => this.dispatcher.state.modelDefaults.get(id),
             dispatch: (command) => this.dispatcher.dispatch(command),
         });
+        // An uploaded font's face is on the page before the labels naming it are built.
+        this.fonts = createFontsApi(this.dispatcher);
+        this.dispatcher.lane.register("fonts", (rendered, target, dirty) =>
+            syncFontFaces(rendered.fonts, target.fonts, dirty),
+        );
         this.dispatcher.lane.register("modelDefaults", (rendered, target, dirty) => {
             assets.refreshDefaults(
                 [...dirty].filter((id) => rendered.modelDefaults.get(id) !== target.modelDefaults.get(id)),

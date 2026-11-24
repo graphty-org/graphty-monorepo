@@ -386,6 +386,10 @@ export type {
 } from "./src/session";
 export { DEFAULT_MODEL_LIMITS, isAssetId, MODEL_DEFAULT_CHANNELS } from "./src/session";
 
+/** Uploaded font files labels draw in, saved with the project (`session.fonts`). */
+export type { FontAddOptions, FontRecord, FontsApi, FontSource } from "./src/session";
+export { FONT_BYTE_LIMIT } from "./src/session";
+
 /**
  * The fetches the page's code did not ask for -- a model URL from a project file, an AI command or
  * the data, a reopened project's network-source loads -- waiting for the reader's answer
@@ -779,7 +783,15 @@ export type {
 // Asking what something would do and cost, before doing it
 // ---------------------------------------------------------------------------------------------
 
-export type { AlgorithmRunCommand, AssetCommand, Plan, PlanBlock, PlanEffect, SessionCommand } from "./src/session";
+export type {
+    AlgorithmRunCommand,
+    AssetCommand,
+    FontCommand,
+    Plan,
+    PlanBlock,
+    PlanEffect,
+    SessionCommand,
+} from "./src/session";
 export type {
     SavedTour,
     TourCommand,
@@ -826,6 +838,7 @@ export type {
     FieldBand,
     FieldDescriptor,
     FieldInterpretation,
+    FontFormat,
     GroupMatchCode,
     ItemKey,
     LayerId,
@@ -863,6 +876,7 @@ export type {
     StaticStyle,
     StructureValue,
     StyleDocument,
+    StyleDocumentFont,
     StyleDocumentRow,
     TopTies,
 } from "./src/catalog/types";

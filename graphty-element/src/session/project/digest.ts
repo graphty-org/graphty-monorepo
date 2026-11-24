@@ -163,6 +163,8 @@ export function stateDigest(state: ProjectState, options: DigestOptions = {}): s
         ...(state.shaders.size === 0 ? [] : [`shaders=${canonical(state.shaders, path)}`]),
         // And for the models' own settings.
         ...(state.modelDefaults.size === 0 ? [] : [`modelDefaults=${canonical(state.modelDefaults, path)}`]),
+        // And for uploaded fonts.
+        ...(state.fonts.size === 0 ? [] : [`fonts=${canonical(state.fonts, path)}`]),
     ];
     if (options.snapshot !== undefined) {
         parts.push(

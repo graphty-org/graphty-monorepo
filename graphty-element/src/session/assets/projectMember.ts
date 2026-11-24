@@ -84,7 +84,7 @@ function assetsOf(session: GraphSession): AssetsApiInternal {
  * @param bytes - The bytes.
  * @returns Base64.
  */
-function toBase64(bytes: Uint8Array): string {
+export function toBase64(bytes: Uint8Array): string {
     let binary = "";
     for (let at = 0; at < bytes.length; at += 0x8000) {
         binary += String.fromCodePoint(...bytes.subarray(at, at + 0x8000));

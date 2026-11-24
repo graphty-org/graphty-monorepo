@@ -19,7 +19,7 @@
  * patch beside them (`./arrangement.ts`); the history, not the draft, restores them.
  */
 
-import type { MeasurementDeclaration, RunId, SetId } from "../../catalog/types";
+import type { MeasurementDeclaration, RunId, SetId, StyleDocumentFont } from "../../catalog/types";
 import { isPlainObject } from "../../utils/isPlainObject";
 import type { ModelDefaults } from "../assets/AssetsApi";
 import { retentionOf } from "../results/RunResult";
@@ -60,7 +60,8 @@ type ValueSlice =
     | "attributes"
     | "valueLabels"
     | "shaders"
-    | "modelDefaults";
+    | "modelDefaults"
+    | "fonts";
 
 /** One key a patch wrote: what it held before, and what the patch left in it. */
 interface PatchEntry {
@@ -350,6 +351,7 @@ export interface Draft {
     readonly valueLabels: KeyedWriter<string, string>;
     readonly shaders: KeyedWriter<string, ProjectShaderEntry>;
     readonly modelDefaults: KeyedWriter<string, ModelDefaults>;
+    readonly fonts: KeyedWriter<string, StyleDocumentFont>;
     readonly visibility: {
         set<K extends keyof VisibilityState>(key: K, value: VisibilityState[K]): void;
     };
@@ -460,6 +462,7 @@ export function createProjectStore(
         valueLabels: state.valueLabels as Map<string, unknown>,
         shaders: state.shaders as Map<string, unknown>,
         modelDefaults: state.modelDefaults as Map<string, unknown>,
+        fonts: state.fonts as Map<string, unknown>,
     };
     /** Which open draft holds each key, by `slice/key`. */
     const owners = new Map<string, OpenDraft>();
@@ -645,6 +648,7 @@ export function createProjectStore(
                 valueLabels: keyed(draft, "valueLabels"),
                 shaders: keyed(draft, "shaders"),
                 modelDefaults: keyed(draft, "modelDefaults"),
+                fonts: keyed(draft, "fonts"),
                 visibility: {
                     set: (key, value) => {
                         write(draft, "visibility", key, value);

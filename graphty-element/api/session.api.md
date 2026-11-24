@@ -686,6 +686,7 @@ export interface CommandOutcomeMap {
     "data.setSource": Promise<void>;
     "data.source-expand": Promise<void>;
     "data.steps-set": Promise<void>;
+    "font.set": Promise<void>;
     "layout.rerun": Promise<void>;
     "layout.scope": Promise<void>;
     "layout.set": Promise<void>;
@@ -1746,6 +1747,46 @@ export interface FixResult {
 }
 
 // @public
+export const FONT_BYTE_LIMIT: number;
+
+// @public
+export interface FontAddOptions {
+    readonly family?: string;
+}
+
+// @public
+export interface FontCommand {
+    readonly family: string;
+    readonly font: StyleDocumentFont | null;
+    readonly op: "font.set";
+}
+
+// @public
+export type FontFormat = "ttf" | "otf" | "woff" | "woff2";
+
+// @public
+export interface FontRecord {
+    readonly byteLength: number;
+    readonly family: string;
+    readonly format: FontFormat;
+    readonly sha256: string;
+}
+
+// @public
+export interface FontsApi {
+    add(source: FontSource, options?: FontAddOptions): Promise<FontRecord>;
+    list(): readonly FontRecord[];
+    remove(family: string): Promise<void>;
+}
+
+// @public
+export type FontSource = Uint8Array | ArrayBuffer | {
+    readonly name?: string;
+    readonly size: number;
+    arrayBuffer(): Promise<ArrayBuffer>;
+};
+
+// @public
 export type FramingExtent = (typeof FRAMING_EXTENT_VALUES)[number];
 
 // @public
@@ -1796,6 +1837,7 @@ export interface GraphSession {
     readonly files: FilesApi;
     find(text: string, options?: FindOptions): FindResult;
     fingerprint(): string;
+    readonly fonts: FontsApi;
     readonly graphs: SessionGraphs;
     // @beta
     readonly groups: GroupsApi;
@@ -2077,6 +2119,21 @@ export type GraphtyErrorCode =
 * it again fails the same way. (design/documents/README.md, "Error and warning codes")
 */
 | "E_BAD_DOCUMENT"
+/**
+* `session.fonts.add` was handed bytes that are not a TrueType, OpenType, WOFF or WOFF2 font,
+* or that the browser could not read as one. `details.family`. Nothing was added.
+*/
+| "E_FONT_PARSE"
+/**
+* `session.fonts.add` was handed a font file over the limit (10 MiB). `details.byteLength`,
+* `details.limit`. Nothing was added.
+*/
+| "E_FONT_TOO_LARGE"
+/**
+* `session.fonts.add` named a family another font of the project holds (compared without
+* case). `details.family` is the holder's. Nothing was added; pass another `family`.
+*/
+| "E_FONT_FAMILY_TAKEN"
 /**
 * A saved document, or a member of one, has a `version` this release does not read.
 * `details` are `{ kind, found, reads }`. Nothing in the session changed. The caller opens it
@@ -3092,6 +3149,11 @@ export type GraphtyWarningCode =
 */
 | "W_NETWORK_POLICY_IGNORED"
 /**
+* A font a project or style file carries could not be read by this browser. Labels in its
+* family draw in the fallback face; the rest of the file opened. `params.family`.
+*/
+| "W_FONT_NOT_LOADED"
+/**
 * A model or picture a project keeps by URL loaded from that URL, and is not the file the
 * project was saved with: the file at the URL changed. It is drawn. `params.url`,
 * `params.expected` and `params.found` (SHA-256 digests).
@@ -3363,7 +3425,7 @@ export interface HistoryClearOptions {
 }
 
 // @public
-export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.move" | "algo.rename" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.fix-issue" | "data.ignore-issue" | "data.ignore-issues" | "data.issues" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.merge-nodes" | "groups.collapse" | "groups.expand" | "data.import" | "data.import-source" | "data.steps-set" | "data.expand" | "data.source-expand" | "data.collapse" | "data.declare" | "data.set-source" | "data.remove-source" | "data.replace-source" | "data.join" | "data.edit-join" | "data.label" | "data.set-role" | "data.set-type" | "data.rename-column" | "data.hide-columns" | "data.show-columns" | "data.columns" | "data.derive" | "annotations.set" | "annotations.patch" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "style.add-folder" | "style.rename-row" | "style.move-row" | "style.pin-row" | "style.lock-row" | "style.hide-row" | "style.delete-row" | "style.duplicate-row" | "style.add-default-rows" | "shader.add" | "shader.replace" | "shader.remove" | "asset.defaults" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.condition-add" | "visibility.condition-edit" | "visibility.condition-on" | "visibility.condition-off" | "visibility.condition-remove" | "visibility.steps" | "visibility.playback" | "visibility.hide-nodes" | "visibility.show-nodes" | "time.field" | "time.clear-field" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.rename" | "view.move" | "view.key" | "view.starting" | "view.open" | "tour.save" | "tour.remove" | "tour.rename" | "tour.move" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.rerun" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
+export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.move" | "algo.rename" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.fix-issue" | "data.ignore-issue" | "data.ignore-issues" | "data.issues" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.merge-nodes" | "groups.collapse" | "groups.expand" | "data.import" | "data.import-source" | "data.steps-set" | "data.expand" | "data.source-expand" | "data.collapse" | "data.declare" | "data.set-source" | "data.remove-source" | "data.replace-source" | "data.join" | "data.edit-join" | "data.label" | "data.set-role" | "data.set-type" | "data.rename-column" | "data.hide-columns" | "data.show-columns" | "data.columns" | "data.derive" | "annotations.set" | "annotations.patch" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "style.add-folder" | "style.rename-row" | "style.move-row" | "style.pin-row" | "style.lock-row" | "style.hide-row" | "style.delete-row" | "style.duplicate-row" | "style.add-default-rows" | "shader.add" | "shader.replace" | "shader.remove" | "asset.defaults" | "font.add" | "font.remove" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.condition-add" | "visibility.condition-edit" | "visibility.condition-on" | "visibility.condition-off" | "visibility.condition-remove" | "visibility.steps" | "visibility.playback" | "visibility.hide-nodes" | "visibility.show-nodes" | "time.field" | "time.clear-field" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.rename" | "view.move" | "view.key" | "view.starting" | "view.open" | "tour.save" | "tour.remove" | "tour.rename" | "tour.move" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.rerun" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
 
 // @public
 export type HistoryOutcome = {
@@ -5167,7 +5229,7 @@ export interface ProjectShader {
 }
 
 // @public
-export type ProjectSlice = "graph" | "config" | "layout" | "pins" | "arrangement" | "runs" | "styles" | "visibility" | "sets" | "views" | "tours" | "notes" | "attributes" | "valueLabels" | "shaders" | "modelDefaults";
+export type ProjectSlice = "graph" | "config" | "layout" | "pins" | "arrangement" | "runs" | "styles" | "visibility" | "sets" | "views" | "tours" | "notes" | "attributes" | "valueLabels" | "shaders" | "modelDefaults" | "fonts";
 
 // @public
 export type ProjectSource = Blob | Uint8Array | string;
@@ -6767,7 +6829,7 @@ export type SessionCapabilities = Pick<Capabilities, "acceleration" | "xr" | "ca
 export type SessionCatalogApi = Omit<CatalogApi, DeprecatedCatalogMethod>;
 
 // @public
-export type SessionCommand = AlgorithmRunCommand | AlgoLegacyCommand | AlgoRemoveCommand | AlgoMoveCommand | AlgoRenameCommand | DataCommand | DataDeriveCommand | DataIssuesCommand | SourceExpandOpCommand | DataStepsSetCommand | StyleCommand | ShaderCommand | AssetCommand | VisibilityCommand | SetCommand | NoteCommand | ViewCommand | TourCommand | AnnotationsCommand | ConfigSetCommand | PositionsCommand | LayoutCommand | BatchCommand;
+export type SessionCommand = AlgorithmRunCommand | AlgoLegacyCommand | AlgoRemoveCommand | AlgoMoveCommand | AlgoRenameCommand | DataCommand | DataDeriveCommand | DataIssuesCommand | SourceExpandOpCommand | DataStepsSetCommand | StyleCommand | ShaderCommand | AssetCommand | FontCommand | VisibilityCommand | SetCommand | NoteCommand | ViewCommand | TourCommand | AnnotationsCommand | ConfigSetCommand | PositionsCommand | LayoutCommand | BatchCommand;
 
 // @public
 export interface SessionConfig extends ProjectConfig {
@@ -8891,6 +8953,7 @@ export interface StyleCounts {
 
 // @public
 export interface StyleDocument {
+    fonts?: readonly StyleDocumentFont[];
     labelLooks?: readonly LabelLookDescriptor[];
     layers: readonly LayerSpec[];
     palettes?: readonly PaletteDescriptor[];
@@ -8901,6 +8964,15 @@ export interface StyleDocument {
     }[];
     tree?: readonly StyleDocumentRow[];
     version: 1;
+}
+
+// @public
+export interface StyleDocumentFont {
+    readonly byteLength: number;
+    readonly data: string;
+    readonly family: string;
+    readonly format: FontFormat;
+    readonly sha256: string;
 }
 
 // @public

@@ -159,6 +159,8 @@ element.layoutBehavior = { labels: { labelText: "glyphs" } }; // "canvas" by def
 - `declutter`, `avoidNodesAndEdges` and `sampleCell` work on glyph labels as on any other.
 - It applies to labels built after it is set. A preference of the view, like `declutter`.
 
+To draw labels in a font file the reader uploads, see [Uploaded Fonts](./fonts.md).
+
 ## Label markup
 
 A label's words may carry markup tags, each closed by its own end tag: `<bold>`, `<italic>`,

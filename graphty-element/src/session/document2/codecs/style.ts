@@ -15,11 +15,13 @@ import type {
     NodeId,
     PaletteDescriptor,
     StyleDocument,
+    StyleDocumentFont,
     StyleDocumentRow,
 } from "../../../catalog/types";
 import { isGraphtyError } from "../../../errors/GraphtyError";
 import { assetsMember, restoreAssets, withAcceptedAssetIds } from "../../assets/projectMember";
 import { dispatcherOf } from "../../dispatchers";
+import { loadDocumentFonts } from "../../fonts";
 import { channelDescriptor, isEnumCount } from "../../styles/channels";
 import { quotePath, renamePaths, renameRunInPath } from "../../styles/predicate";
 import type { GraphSession } from "../../types";
@@ -593,6 +595,7 @@ function compose(session: GraphSession, problems: DocumentProblem[], toView = fa
     const body: JsonObject = {
         ...(palettes.length === 0 ? {} : { palettes }),
         ...(document.shaders === undefined ? {} : { shaders: document.shaders.map(({ id, text }) => ({ id, text })) }),
+        ...fontsMember(document),
         layers,
         ...(tree === undefined ? {} : { tree }),
         ...(valueLabels.length === 0 ? {} : { valueLabels }),
@@ -1043,6 +1046,52 @@ function setIdsOf(session: GraphSession): (id: string) => string | undefined {
 }
 
 /**
+ * The `fonts` member a style section writes: every font the document carries, with its bytes.
+ * @param document - The session's style document.
+ * @returns The member, or nothing when it carries none.
+ */
+function fontsMember(document: StyleDocument): { fonts?: JsonObject[] } {
+    return document.fonts === undefined ? {} : { fonts: document.fonts.map((font) => ({ ...font })) };
+}
+
+/**
+ * A document of no layers carrying another's shaders and fonts, so they land when its layers are
+ * applied one by one.
+ * @param document - The document.
+ * @returns The document, or null when it carries neither.
+ */
+function carriedOnly(document: StyleDocument): StyleDocument | null {
+    const { shaders, fonts } = document;
+    if (shaders === undefined && fonts === undefined) {
+        return null;
+    }
+
+    return {
+        version: 1,
+        layers: [],
+        ...(shaders === undefined ? {} : { shaders }),
+        ...(fonts === undefined ? {} : { fonts }),
+    };
+}
+
+/**
+ * The fonts a style section carries, their faces loaded first; a font this browser cannot read is
+ * reported and its labels fall back. One that is not a well-formed entry refuses the section's
+ * layers with the rest of a bad document.
+ * @param body - The section's body.
+ * @param problems - Collects each font that did not load.
+ * @returns The document's `fonts` member, empty when it carries none.
+ */
+async function sectionFonts(
+    body: JsonObject,
+    problems: ReadContext["problems"],
+): Promise<{ fonts?: StyleDocumentFont[] }> {
+    const fonts = (Array.isArray(body.fonts) ? body.fonts.filter(isObject) : []) as unknown as StyleDocumentFont[];
+    problems.push(...(await loadDocumentFonts(fonts)));
+    return fonts.length === 0 ? {} : { fonts };
+}
+
+/**
  * Add the prepared layers in one call; when the session refuses that, one call per layer, so a
  * refused layer is kept alone (the tree is then not restored).
  * @param context - The open.
@@ -1065,8 +1114,9 @@ async function apply(
         }
     }
 
-    if (document.shaders !== undefined) {
-        await context.tx.styles.applyTemplate({ version: 1, layers: [], shaders: document.shaders });
+    const carried = carriedOnly(document);
+    if (carried !== null) {
+        await context.tx.styles.applyTemplate(carried);
     }
 
     for (const [at, spec] of document.layers.entries()) {
@@ -1165,6 +1215,7 @@ async function read(section: ReadSection, context: ReadContext): Promise<void> {
         version: 1,
         layers: specs,
         ...(shaders.length === 0 ? {} : { shaders }),
+        ...(await sectionFonts(body, problems)),
         ...(body.tree === undefined ? {} : { tree: readTree(body.tree, placeOf) }),
     };
     for (const [index, code] of await apply(context, document, indexes)) {
@@ -1258,7 +1309,7 @@ export const styleCodec: SectionCodec = {
     version: 2,
     reads: [2],
     bound: false,
-    members: ["palettes", "shaders", "layers", "tree", "valueLabels", "assets"],
+    members: ["palettes", "shaders", "fonts", "layers", "tree", "valueLabels", "assets"],
     write(context: WriteContext) {
         return Promise.resolve(compose(context.session, context.problems, context.sections.has("view")));
     },

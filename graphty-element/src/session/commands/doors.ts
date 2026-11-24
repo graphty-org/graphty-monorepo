@@ -29,7 +29,7 @@
  */
 
 import { fromEdgeArrays } from "@graphty/graph-format";
-import { defineSource, registerSource, registry } from "@graphty/graph-io";
+import { defineSource, registerSource, registry, sha256HexSync } from "@graphty/graph-io";
 
 import type { LayerSpec } from "../../catalog/types";
 import type { DrawnAnnotation } from "../annotations";
@@ -1003,6 +1003,7 @@ const SESSION: Readonly<Record<string, Door>> = {
     time: READ,
     styles: READ,
     shaders: READ,
+    fonts: READ,
     views: READ,
     tours: READ,
     graphs: READ,
@@ -1342,6 +1343,43 @@ function onDoorShader(args: readonly unknown[], expect: readonly SessionCommand[
         expect,
     };
 }
+
+/** The bytes of the door font: a WOFF2 signature, which is all a session with no FontFace reads. */
+const DOOR_FONT = new Uint8Array([0x77, 0x4f, 0x46, 0x32, 0, 0, 0, 0]);
+
+/** The command adding the door font. */
+const DOOR_FONT_SET = {
+    op: "font.set",
+    family: "Door",
+    font: {
+        family: "Door",
+        sha256: sha256HexSync(DOOR_FONT),
+        format: "woff2",
+        byteLength: DOOR_FONT.length,
+        data: btoa(String.fromCodePoint(...DOOR_FONT)),
+    },
+} as const;
+
+/** The rows of `session.fonts`. */
+const FONTS_API: Readonly<Record<string, Door>> = {
+    add: calls(() => [DOOR_FONT, { family: "Door" }], [DOOR_FONT_SET]),
+    list: READ,
+    remove: {
+        kind: "dispatches",
+        op: "font.set",
+        call: {
+            kind: "call",
+            args: ["Door"],
+            around: async (target) => {
+                await (target as { add(bytes: Uint8Array, options: object): PromiseLike<unknown> }).add(DOOR_FONT, {
+                    family: "Door",
+                });
+                return () => Promise.resolve();
+            },
+        },
+        expect: [{ op: "font.set", family: "Door", font: null }],
+    },
+};
 
 /** The rows of `session.shaders`. */
 const SHADERS_API: Readonly<Record<string, Door>> = {
@@ -4449,6 +4487,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         file: "src/session/shaders.ts",
         half: "session",
         doors: SHADERS_API,
+    },
+    {
+        name: "FontsApi",
+        file: "src/session/fonts.ts",
+        half: "session",
+        doors: FONTS_API,
     },
     {
         name: "SessionStylesApi",

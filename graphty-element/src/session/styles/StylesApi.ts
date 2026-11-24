@@ -124,6 +124,7 @@ import {
     type StylePatchCommand,
 } from "../commands/style";
 import { Dispatcher } from "../project/Dispatcher";
+import type { Draft } from "../project/draft";
 import type { ProjectState } from "../project/state";
 import { resultPath, type RunRef } from "../results/types";
 import {
@@ -4492,6 +4493,19 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         });
     };
 
+    /**
+     * A document's fonts join the project; a family the project holds keeps its own font.
+     * @param document - The document.
+     * @param draft - The step's draft.
+     */
+    const addDocumentFonts = (document: StyleDocument, draft: Draft): void => {
+        for (const font of document.fonts ?? []) {
+            if (!dispatcher.state.fonts.has(font.family)) {
+                draft.fonts.set(font.family, Object.freeze({ ...font }));
+            }
+        }
+    };
+
     // The style ops of this dispatcher compile against this session.
     dispatcher.services.styles = {
         previewColumn: (binding, channel, column) => previewColumn(binding, channel, column),
@@ -4517,6 +4531,8 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 for (const { id, text } of writes) {
                     draft.shaders.set(id, Object.freeze({ text }));
                 }
+
+                addDocumentFonts(command.document, draft);
             }
 
             const stack = current();
@@ -5839,6 +5855,10 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 ...(carried.palettes.length === 0 ? {} : { palettes: Object.freeze(carried.palettes) }),
                 ...(carried.labelLooks.length === 0 ? {} : { labelLooks: Object.freeze(carried.labelLooks) }),
                 ...(shaders.length === 0 ? {} : { shaders: Object.freeze(shaders) }),
+                // Every font the project holds, with its bytes: the reader uploaded it into it.
+                ...(dispatcher.state.fonts.size === 0
+                    ? {}
+                    : { fonts: Object.freeze([...dispatcher.state.fonts.values()]) }),
                 ...(tree === undefined ? {} : { tree }),
                 ...(problems.length === 0 ? {} : { problems: Object.freeze(problems) }),
             });

@@ -27,6 +27,9 @@ interface SceneFonts {
 
 const scenes = new WeakMap<Scene, SceneFonts>();
 
+/** The scenes with a watcher: the ones {@link fontAdded} tells. */
+const watched = new Set<SceneFonts>();
+
 /**
  * A scene's font loads, made on first use.
  * @param scene - The scene.
@@ -81,8 +84,7 @@ export function noteLabelFont(scene: Scene, style: string, list: string): void {
             continue;
         }
 
-        // ponytail: a face added to the page after its family was found loaded here is not waited
-        // for; clear `loaded` when the page's FontFaceSet changes if that case appears.
+        // A face added to the page after its family was found loaded here is told by fontAdded.
         if (set.check(spec)) {
             fonts.loaded.add(spec);
             continue;
@@ -115,11 +117,38 @@ export function noteLabelFont(scene: Scene, style: string, list: string): void {
 export function watchFontLoads(scene: Scene, onLoaded: (families: ReadonlySet<string>) => void): () => void {
     const fonts = fontsOf(scene);
     fonts.onLoaded = onLoaded;
+    watched.add(fonts);
     return () => {
         if (fonts.onLoaded === onLoaded) {
             fonts.onLoaded = undefined;
+            watched.delete(fonts);
         }
     };
+}
+
+/**
+ * A face for a family was added to the page or taken off it (`session.fonts`): every watched
+ * scene forgets that it found the family loaded and rebuilds the labels drawn in it. Needed because
+ * `document.fonts.check()` answers true for a family the page has no face for, so a label drawn
+ * before its face arrived was recorded as loaded and would never be redrawn.
+ * @param family - The family, in any case and with or without quotes.
+ */
+export function fontAdded(family: string): void {
+    const [name] = fontFamilies(family);
+    if (name === undefined) {
+        return;
+    }
+
+    forgetFontBoxes();
+    for (const fonts of watched) {
+        for (const spec of fonts.loaded) {
+            if (spec.endsWith(` 16px "${name}"`)) {
+                fonts.loaded.delete(spec);
+            }
+        }
+
+        fonts.onLoaded?.(new Set([name]));
+    }
 }
 
 /**

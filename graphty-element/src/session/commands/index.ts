@@ -17,6 +17,7 @@ import { ASSET_DEFINITIONS } from "./assets";
 import { CONFIG_DEFINITIONS } from "./config";
 import { DATA_DEFINITIONS } from "./data";
 import { DERIVE_DEFINITIONS } from "./derive";
+import { FONT_DEFINITIONS } from "./fonts";
 import { LAYOUT_DEFINITIONS } from "./layout";
 import { NOTE_DEFINITIONS } from "./notes";
 import { POSITIONS_DEFINITIONS } from "./positions";
@@ -110,6 +111,7 @@ export const DEFINITIONS: readonly CommandDefinition<SessionCommand>[] = [
     ...STYLE_DEFINITIONS,
     ...SHADER_DEFINITIONS,
     ...ASSET_DEFINITIONS,
+    ...FONT_DEFINITIONS,
     ...VISIBILITY_DEFINITIONS,
     ...SET_DEFINITIONS,
     ...NOTE_DEFINITIONS,

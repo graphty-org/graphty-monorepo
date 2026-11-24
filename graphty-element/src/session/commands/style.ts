@@ -455,8 +455,8 @@ const styleTemplate: UndoableDefinition<StyleTemplateCommand> = {
         label: () => "Applied a style document",
         fact: () => ({ code: "style.template", params: {} }),
     },
-    // Its document's shaders join the project in the same step.
-    keys: () => ["styles", "shaders"],
+    // Its document's shaders and fonts join the project in the same step.
+    keys: () => ["styles", "shaders", "fonts"],
     execute: (command, ctx) => required(ctx.services.styles).execute(command, ctx.draft),
 };
 

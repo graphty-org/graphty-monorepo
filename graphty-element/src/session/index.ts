@@ -20,6 +20,7 @@ export { DEFAULT_BACKGROUND_IMAGE_SIZE, prepareBackgroundImage } from "./backgro
 export type { BrowserProjects, BrowserProjectSaveOptions, StoredProject } from "./browserProjects";
 export { browserProjects } from "./browserProjects";
 export type { AssetCommand } from "./commands/assets";
+export type { FontCommand } from "./commands/fonts";
 export type {
     TourCommand,
     TourMoveCommand,
@@ -29,6 +30,8 @@ export type {
 } from "./commands/tour";
 export { COLUMN_ROLES } from "./data";
 export { LOAD_ROLES } from "./draft";
+export type { FontAddOptions, FontRecord, FontsApi, FontSource } from "./fonts";
+export { FONT_BYTE_LIMIT } from "./fonts";
 export { createElementSession, createGraphSession } from "./GraphSession";
 export type { CollapsedGroup, GroupRef, GroupsApi, GroupValue } from "./groups";
 export type { KeymapOptions, KeymapReport, KeymapRoot, KeymapSession } from "./keymap";

@@ -1322,7 +1322,8 @@ export class NodeBatches {
         this.paintedBehindEdges ||= (paint.style.shape?.zIndex ?? 0) < 0;
         // what a fit, an edge's trim and a layout's gap read of the row, which no `Node` measures
         this.host.places.measure(row);
-        if (had === undefined || !sameSize(had, row)) {
+        // a new source is a new outline (a star's, not the sphere's it was painted over), even at the same size (#9872)
+        if (had === undefined || !sameSize(had, row) || had.paintedSourceMesh !== source) {
             // as `Node` tells the layout when it is resized: nothing else re-reads a row's size
             this.host.resized?.(index);
         }

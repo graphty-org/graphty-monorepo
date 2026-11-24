@@ -40,6 +40,7 @@ import {
     faulty,
     type FrameReport,
     inkedPixels,
+    isBlue,
     recordDrawnFrames,
 } from "../helpers/frame-recorder";
 import { drag, hover } from "../helpers/real-input";
@@ -240,6 +241,92 @@ function assertAccelerated(statuses: readonly AccelerationStatus[]): void {
     );
 }
 
+/** Frames a hover may take to be answered before the check gives up on it. */
+const HOVER_FRAMES = 60;
+
+/** What one drawn frame shows at the pointer. */
+interface PointerFrame {
+    /** The frame's place among the frames drawn since the recording started. */
+    readonly seq: number;
+    /** Whose ink is on top at the pointer: the green target, another (blue) node, or neither (an edge, nothing). */
+    readonly onTop: "target" | "other" | "neither";
+    /** The nodes the element placed under the pointer in that frame. */
+    readonly under: string[];
+}
+
+/**
+ * Points a real mouse at a still point while a layout moves the other nodes, and checks the answer against the
+ * frames drawn from just before the move until just after the answer: the hovered node must be under the pointer
+ * in one of them and, where the picture says whose ink is on top there, be that node. A moving node passing over
+ * the pinned one is rightly hovered when it is drawn in front; a hover answered from a frame that was never drawn,
+ * or naming a node drawn behind another, fails. The target must be drawn green and every other node blue.
+ * @param element - The element.
+ * @param ids - Every node.
+ * @param target - The green node.
+ * @param point - Where the pointer goes, in CSS pixels.
+ * @returns The hovered node.
+ */
+async function hoverAgainstFrames(
+    element: Graphty,
+    ids: readonly string[],
+    target: string,
+    point: { x: number; y: number },
+): Promise<string> {
+    let drawn = 0;
+    let moveSeq = -1;
+    let answer: { id: string; seq: number } | undefined;
+    const frames: PointerFrame[] = [];
+    let firstFrame: () => void = () => undefined;
+    const started = new Promise<void>((resolve) => {
+        firstFrame = resolve;
+    });
+    const stopHover = element.session.on("selection:hover-changed", ({ after }) => {
+        if (answer === undefined && after !== null && moveSeq >= 0) {
+            answer = { id: String(after), seq: drawn };
+        }
+    });
+    const { done } = recordDrawnFrames(
+        element.graph,
+        (frame, _index, read) => {
+            const d = frame.pixels;
+            const i = (Math.round(point.y * frame.scale) * frame.width + Math.round(point.x * frame.scale)) * 4;
+            let onTop: PointerFrame["onTop"] = isBlue(d, i) ? "other" : "neither";
+            if (d[i + 1] > d[i] + 60 && d[i + 1] > d[i + 2] + 40) {
+                onTop = "target";
+            }
+
+            frames.push({ seq: read.seq, onTop, under: read.under });
+            firstFrame();
+            // on until a frame after the answer is in, or the answer is long overdue
+            return answer === undefined ? moveSeq < 0 || read.seq - moveSeq < HOVER_FRAMES : read.seq <= answer.seq;
+        },
+        () => ({
+            seq: drawn++,
+            under: ids.filter((id) => {
+                const at = element.nodeScreenPosition(id);
+                return at !== undefined && at.visible && Math.hypot(at.x - point.x, at.y - point.y) <= at.radius + 1;
+            }),
+        }),
+    );
+    await started;
+    moveSeq = drawn;
+    await hover(element, point);
+    await done;
+    stopHover();
+    assert.isDefined(answer, `hover answered within ${String(HOVER_FRAMES)} frames drawn`);
+    const { id, seq } = answer;
+    const window = frames.filter((f) => f.seq >= moveSeq - 1 && f.seq <= seq + 1);
+    const shown = window.map((f) => `${String(f.seq)}:${f.onTop}[${f.under.join(",")}]`).join(" ");
+    console.log(`[gpu-landings] hover ${id}, moved at ${String(moveSeq)}, answered at ${String(seq)}: ${shown}`);
+    assert.isTrue(
+        window.some(
+            (f) => f.under.includes(id) && (f.onTop === "neither" || (f.onTop === "target") === (id === target)),
+        ),
+        `the hovered node ${id} is drawn on top at the pointer in a frame from the move to the answer: ${shown}`,
+    );
+    return id;
+}
+
 const GPU_CASES = ADAPTER === "" ? describe.skip : describe;
 
 GPU_CASES.each(["batched", "objects"] as const)("GPU layout landings drawn on %s", (path) => {
@@ -371,17 +458,21 @@ GPU_CASES.each(["batched", "objects"] as const)("GPU layout landings drawn on %s
             // the camera stops reframing each landing, so the pinned node stays under a still pointer
             element.autoFrame = false;
             await framesOf(element, graph.ids, graph.pairs, 3);
+            // green, so a frame says whether the pinned node or another one is drawn on top at the pointer
+            await element.session.styles.add({
+                name: "Pinned green",
+                target: "node",
+                selector: { match: "ids", nodes: [target] },
+                set: { "node.color": "#20c040" },
+            });
+            await framesOf(element, graph.ids, graph.pairs, 1, { faults: () => ({ ownColor: [target] }) });
             const at = element.nodeScreenPosition(target);
             assert.isDefined(at);
-            await hover(element, { x: at.x, y: at.y });
+            const answer = await hoverAgainstFrames(element, graph.ids, target, { x: at.x, y: at.y });
             const reports = await framesOf(element, graph.ids, graph.pairs, 10, {
                 faults: () => ({ ownColor: [target] }),
             });
-            assert.strictEqual(
-                element.session.selection.hovered,
-                target,
-                "the pinned node under the pointer is hovered",
-            );
+            assert.strictEqual(element.session.selection.hovered, answer, "the hover holds while the pointer is still");
             assertGoodFrames(reports, `${path} ${renderer} while hovering a pinned node`, 10);
         });
 

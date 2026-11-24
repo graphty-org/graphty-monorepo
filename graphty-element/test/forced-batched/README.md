@@ -9,8 +9,10 @@ shards.
 ## The files here
 
 - `skipped.json`: files left out of the project, each with the reason.
-- `builds-objects.json`: files that read `node.mesh`, `getNode`, `getEdges` or `edges.values()`, which
-  builds Node and Edge objects on a batched graph, without asserting `rowCounts.batchedNodes`. They
+- `builds-objects.json`: files that read `node.mesh`, `getNode(s)`, `getEdge(s)`, the data manager's
+  `nodes`/`edges` maps or `nodesByIndex`/`edgesByIndex`, which build Node and Edge objects on a batched
+  graph, without an `assert` or `expect` that pins `rowCounts.batchedNodes` to a count (a mention in a
+  comment, a read with no assertion, a check of the total or of an empty batch does not count). They
   predate `test/contracts/forced-batched-honesty.test.ts`, which fails on a new such file and on an
   entry that no longer needs to be listed. The list only shrinks: make a file assert the batched row
   count, or move it to `skipped.json` with a reason.

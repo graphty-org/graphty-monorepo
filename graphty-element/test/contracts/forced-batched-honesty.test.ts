@@ -50,10 +50,63 @@ function matches(file: string, pattern: string): boolean {
     return suffix === undefined ? file === pattern : file.startsWith(prefix) && file.endsWith(suffix);
 }
 
-/** What builds `Node` or `Edge` objects on a batched graph. */
-const BUILDS_OBJECTS = /\.mesh\b|\.getNode\(|\.getEdges\(|edges\.values\(\)/u;
-/** What proves a file's rows are still batched. */
-const ASSERTS_BATCHED = /\bbatchedNodes\b/u;
+/**
+ * What builds `Node` or `Edge` objects on a batched graph: a mesh, the object getters, and the
+ * data manager's maps and index arrays, which build every object they hand out.
+ */
+const BUILDS_OBJECTS =
+    /\.mesh\b|\.get(?:Node|Edge)s?\(|\b(?:nodes|edges|nodeCache|edgeCache)\.(?:values|get|forEach|entries)\(|\b(?:nodesByIndex|edgesByIndex)\b/u;
+
+/**
+ * The text of a file without its comments, so a mention in prose neither builds objects nor
+ * proves anything. A `//` straight after a colon is a URL, not a comment.
+ * @param text - A file's source.
+ * @returns The source with block and line comments blanked.
+ */
+function code(text: string): string {
+    return text.replaceAll(/\/\*[\s\S]*?\*\//gu, "").replaceAll(/(?<!:)\/\/.*$/gmu, "");
+}
+
+/**
+ * Whether the code asserts that a batch draws some rows: an `assert` or `expect` call over
+ * `batchedNodes` that pins it to a count, not one that only checks a total
+ * (`batchedNodes + objectNodes`) or that the batch is empty (`equal(batchedNodes, 0)`).
+ * @param source - Comment-free code.
+ * @returns True when some assertion proves rows are batched.
+ */
+function assertsBatched(source: string): boolean {
+    for (const { index } of source.matchAll(/\bbatchedNodes\b/gu)) {
+        const before = source.slice(0, index);
+        const start = Math.max(before.lastIndexOf("assert"), before.lastIndexOf("expect("));
+        if (start < 0 || before.slice(start).includes(";")) {
+            continue;
+        }
+
+        const end = source.indexOf(";", index);
+        const call = source.slice(start, end < 0 ? undefined : end);
+        if (/batchedNodes\s*[+-]|[+-]\s*[\w.]*batchedNodes/u.test(call)) {
+            continue;
+        }
+
+        if (/(?:equal|strictEqual)\(\s*[\w.]*batchedNodes\s*,\s*0\s*[,)]/u.test(call)) {
+            continue;
+        }
+
+        return true;
+    }
+
+    return false;
+}
+
+/**
+ * Whether a file's source reaches for objects without proving its rows are batched.
+ * @param text - A file's source.
+ * @returns True when the code builds objects and never asserts a batched row count.
+ */
+function buildsObjectsUncheckedIn(text: string): boolean {
+    const source = code(text);
+    return BUILDS_OBJECTS.test(source) && !assertsBatched(source);
+}
 
 function filesRun(): string[] {
     const skip = new Set(skipped.map(({ file }) => file));
@@ -73,9 +126,30 @@ function filesRun(): string[] {
  * @returns True when the file builds objects and never asserts a batched row count.
  */
 function buildsObjectsUnchecked(file: string): boolean {
-    const text = readFileSync(path.join(ROOT, file), "utf8");
-    return BUILDS_OBJECTS.test(text) && !ASSERTS_BATCHED.test(text);
+    return buildsObjectsUncheckedIn(readFileSync(path.join(ROOT, file), "utf8"));
 }
+
+describe("the check reads a file the way it means to", () => {
+    const cases: [string, string, boolean][] = [
+        ["a mesh read", "const m = node.mesh;", true],
+        ["getNodes", "const all = element.getNodes();", true],
+        ["getEdge", "graph.getEdge(id);", true],
+        ["a data manager map", "graph.dataManager.nodes.get(1);", true],
+        ["an index array", "const e = dm.edgesByIndex[0];", true],
+        ["a read only in a comment", "// node.mesh is not read here\nconst x = 1;", false],
+        ["a pinned batched count", "node.mesh;\nassert.equal(graph.rowCounts.batchedNodes, 9);", false],
+        ["a positive batched count", "node.mesh;\nassert.isAbove(counts.batchedNodes, 0, 'some');", false],
+        ["a count named only in a comment", "node.mesh;\n// assert rowCounts.batchedNodes", true],
+        ["a count read but never asserted", "node.mesh;\nconst { batchedNodes } = element.rowCounts;", true],
+        ["only the total", "node.mesh;\nassert.equal(c.batchedNodes + c.objectNodes, 9);", true],
+        ["an empty batch", "node.mesh;\nassert.strictEqual(element.rowCounts.batchedNodes, 0);", true],
+    ];
+    for (const [name, text, unchecked] of cases) {
+        it(name, () => {
+            assert.equal(buildsObjectsUncheckedIn(text), unchecked);
+        });
+    }
+});
 
 describe("forced-batched tests batched rows", () => {
     it("runs files", () => {
@@ -95,14 +169,14 @@ describe("forced-batched tests batched rows", () => {
         assert.deepEqual(
             unlisted,
             [],
-            "these files build Node or Edge objects under forced-batched: assert rowCounts.batchedNodes, " +
-                "or add them to test/forced-batched/skipped.json with a reason",
+            `these files build Node or Edge objects under forced-batched: assert rowCounts.batchedNodes, ` +
+                `or add them to test/forced-batched/skipped.json with a reason:\n${unlisted.join("\n")}`,
         );
     });
 
     it("builds-objects.json lists only files that still build objects unchecked", () => {
         const running = new Set(filesRun());
         const stale = legacy.filter((file) => !running.has(file) || !buildsObjectsUnchecked(file));
-        assert.deepEqual(stale, [], "take these off test/forced-batched/builds-objects.json");
+        assert.deepEqual(stale, [], `take these off test/forced-batched/builds-objects.json:\n${stale.join("\n")}`);
     });
 });

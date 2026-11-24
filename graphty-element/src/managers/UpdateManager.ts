@@ -4790,7 +4790,11 @@ export class UpdateManager implements Manager {
         const relocations = lane?.relocations ?? Number.NaN;
         const laneMoved = relocations !== this.lastLaneRelocations;
         this.lastLaneRelocations = relocations;
-        this.unbuiltRowsChanged = lane?.rowsChangedSince(this.lastLaneChanges) ?? null;
+        const listed = lane?.rowsChangedSince(this.lastLaneChanges) ?? null;
+        // A GPU landing owes the lane its publish (ElementPositions.owe): its rows moved, but `changes` waits for the
+        // publish, so the lane lists none of them, and placing the edges of no row left every arrowed edge between
+        // rows with no Node where it was first drawn. A move the lane cannot list asks every placed edge.
+        this.unbuiltRowsChanged = laneMoved && listed?.length === 0 ? null : listed;
         this.lastLaneChanges = lane?.changes ?? -1;
         this.unbuiltRowsMoved =
             rowsMoved && laneMoved && total === undefined && nodeCount < this.dataManager.nodes.size;

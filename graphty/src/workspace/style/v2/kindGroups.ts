@@ -425,7 +425,11 @@ export const KIND_GROUPS: readonly KindGroup[] = [
                 hint: "Character or icon",
                 owns: (channel) => channel.startsWith("node.glyph"),
                 slots: { color: ["node.glyphColor"], size: ["node.glyphSize"] },
-                start: () => ({ "node.glyphColor": channelDescriptor("node.glyphColor")?.default }),
+                // graphty-element's starting glyph, so the row draws one at once (an unset glyph draws nothing).
+                start: () => ({
+                    "node.glyph": channelDescriptor("node.glyph")?.start,
+                    "node.glyphColor": channelDescriptor("node.glyphColor")?.default,
+                }),
             },
         ],
     },
@@ -718,6 +722,11 @@ export async function switchKind(ctx: RowContext, group: KindGroup, from: KindMe
             ),
             encode: carried(left.encode, from, to, toOwns),
         };
+    }
+    // A kind whose start names its main value draws it however it was reached (a Glyph's letter).
+    const head = to.start()[to.head];
+    if (next.set[to.head] === undefined && head !== undefined) {
+        next = { ...next, set: { ...next.set, [to.head]: head } };
     }
     const off = [...fromOwns, ...toOwns];
     await ctx.session.transaction(`switching ${group.plainName.toLowerCase()} to ${to.plainName.toLowerCase()}`, (tx) =>

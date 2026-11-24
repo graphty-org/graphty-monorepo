@@ -887,7 +887,7 @@
 [data-style-panel-v2] .ws-row:is([data-rule="R12"], [data-wide]) > .ws-field[data-named],
 [data-style-panel-v2] .ws-member > .ws-field[data-named],
 [data-thing-popover]
-    .ws-row:is([data-rule="R8f"], [data-rule="R2"], [data-rule="R7t"], [data-wide])
+    .ws-row:is([data-rule="R8f"], [data-rule="R2"], :has([data-font-style]), [data-wide])
     > .ws-field[data-named] {
     display: flex;
     flex-wrap: wrap;
@@ -897,7 +897,7 @@
 [data-style-panel-v2] .ws-row:is([data-rule="R12"], [data-wide]) > .ws-field[data-named] > .ws-field-label,
 [data-style-panel-v2] .ws-member > .ws-field[data-named] > .ws-field-label,
 [data-thing-popover]
-    .ws-row:is([data-rule="R8f"], [data-rule="R2"], [data-rule="R7t"], [data-wide])
+    .ws-row:is([data-rule="R8f"], [data-rule="R2"], :has([data-font-style]), [data-wide])
     > .ws-field[data-named]
     > .ws-field-label {
     flex: 0 0 100%;
@@ -907,7 +907,7 @@
 [data-style-panel-v2] .ws-row:is([data-rule="R12"], [data-wide]) > .ws-field[data-named] > .ws-field-control,
 [data-style-panel-v2] .ws-member > .ws-field[data-named] > .ws-field-control,
 [data-thing-popover]
-    .ws-row:is([data-rule="R8f"], [data-rule="R2"], [data-rule="R7t"], [data-wide])
+    .ws-row:is([data-rule="R8f"], [data-rule="R2"], :has([data-font-style]), [data-wide])
     > .ws-field[data-named]
     > .ws-field-control {
     /* The line's width less its two 24px slots, which follow it on the same line. */

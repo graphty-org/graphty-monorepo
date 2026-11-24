@@ -5,7 +5,8 @@
  * and a file whose styles write a glyph (a vis-network icon node, through graph-io) opens as one Label row of
  * kind Glyph showing its character, drawn on the graph. A vis-network file stands in for the plan's Cytoscape.js
  * one: graph-io's Cytoscape.js styles write no node.glyph (Cytoscape.js has no glyph), vis-network's icons do.
- * Every line of the Label's pop-over, of either kind, shows its name or a tooltip (E269).
+ * Every line of the Label's pop-over, of either kind, shows its name or a tooltip (E269). Changing the kind in the
+ * pop-over keeps it open on the new kind's settings, and a Glyph starts with a letter and shows its font.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -20,6 +21,7 @@ import { screen, waitFor, within } from "../../../test/test-utils";
 import {
     closeSettings,
     kindOf,
+    openAdvanced,
     openGraph,
     openProject,
     openStyle,
@@ -151,10 +153,15 @@ describe("a node's Label is Text or Glyph", () => {
             assert.isNotNull(within(glyphRow).queryByRole("button", { name }), String(name));
         }
         assert.isNull(within(glyphRow).queryByRole("button", { name: /node label/i }), "no button says label");
-        await userEvent.click(field);
-        await userEvent.keyboard("A{Enter}");
+        // The Glyph starts as graphty-element's starting letter, so the box is never empty.
         await waitFor(() => {
             assert.equal(written(session, nodes, "node.glyph"), "A");
+            assert.equal(field.value, "A");
+        });
+        await userEvent.fill(field, "B");
+        await userEvent.keyboard("{Enter}");
+        await waitFor(() => {
+            assert.equal(written(session, nodes, "node.glyph"), "B");
         });
         await session.styles.settled();
         assert.equal(glyphsDrawn(session), 3, "every node draws the glyph");
@@ -169,6 +176,42 @@ describe("a node's Label is Text or Glyph", () => {
             assert.isUndefined(written(session, nodes, "node.glyphColor"));
         });
         assert.equal(await kindOf(await labelRow(tab), LABEL_SETTINGS), "Label");
+    });
+
+    it("changing a Label's kind keeps its pop-over open on the new kind, and a Glyph shows its letter and font", async () => {
+        const { session, nodes } = await openGraph();
+        await session.styles.update(nodes, { set: { ...session.styles.get(nodes)?.set, "node.label": "Hi" } });
+        await session.styles.settled();
+        const tab = await openStyle("Key people");
+        const settings = within(await labelRow(tab)).getByRole("button", { name: LABEL_SETTINGS });
+        await userEvent.click(settings);
+        const panelOf = async (): Promise<HTMLElement> =>
+            waitFor(() => {
+                const found = document.querySelector<HTMLElement>("[data-thing-popover]");
+                assert.isNotNull(found, "the pop-over is open");
+                return found;
+            });
+        for (const kind of ["Card", "Pill", "Glyph"]) {
+            await userEvent.click(await within(await panelOf()).findByRole("combobox", { name: "Kind" }));
+            await userEvent.click(within(await screen.findByRole("listbox")).getByRole("option", { name: kind }));
+            await waitFor(async () => {
+                const box = await within(await panelOf()).findByRole<HTMLInputElement>("combobox", { name: "Kind" });
+                assert.equal(box.value, kind, `the pop-over stays open, on ${kind}`);
+            });
+        }
+        const pop = await panelOf();
+        const glyph = within(pop).getByRole<HTMLInputElement>("textbox", { name: "Node glyph" });
+        assert.equal(glyph.value, "A", "the glyph shows its letter");
+        // At most 6 lines tall (owner's input rules): Kind, Glyph, Size, Color, Style, Advanced.
+        const tops = new Set(
+            [...pop.querySelectorAll<HTMLElement>(".ws-row, .ws-member")]
+                .filter((line) => line.parentElement?.closest(".ws-row") === null && line.checkVisibility())
+                .map((line) => Math.round(line.getBoundingClientRect().top)),
+        );
+        assert.isAtMost(tops.size, 6, "the Glyph pop-over is 6 lines tall at most");
+        const advanced = await openAdvanced(pop);
+        const font = within(advanced).getByRole<HTMLInputElement>("combobox", { name: "Node glyph font" });
+        assert.equal(font.value, "Sans serif", "the font shows what an unset glyph is drawn in");
     });
 
     it("a file writing a glyph opens as one Label row of kind Glyph, its character shown and drawn", async () => {

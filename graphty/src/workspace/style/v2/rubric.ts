@@ -570,12 +570,19 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
             { channel: "node.glyphSize", name: "Size" },
             { channel: "node.glyphColor", name: "Color" },
         ],
-        main: [
-            { channel: "node.glyphFont", name: "Font", rule: "R13" },
-            // Bold as a text editor's toggle (owner, 2026-11-23), as a text label's.
-            { channel: "node.glyphWeight", name: "Style", rule: "R7t" },
+        // Bold as a text editor's toggle (owner, 2026-11-23), as a text label's; the font is rarer, in Advanced, so
+        // the pop-over stays 6 lines tall.
+        main: [{ channel: "node.glyphWeight", name: "Style", rule: "R7t" }],
+        groups: [
+            {
+                name: "Letters",
+                advanced: true,
+                lines: [
+                    { channel: "node.glyphFont", name: "Font", rule: "R13" },
+                    { channel: "node.glyphWeight", name: "Weight" },
+                ],
+            },
         ],
-        groups: [{ name: "Letters", advanced: true, lines: [{ channel: "node.glyphWeight", name: "Weight" }] }],
     },
     record: {
         // The fields are the list editor's (R15, `ItemList.tsx`), under Main.

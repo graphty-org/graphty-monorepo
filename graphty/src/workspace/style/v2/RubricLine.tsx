@@ -604,7 +604,13 @@ export function FontSelect({
 }: Readonly<{ label: string; value: unknown; onPick: (font: string) => void }>): React.JSX.Element {
     const held = typeof value === "string" && value !== "" ? value : undefined;
     const fonts: readonly (readonly [string, string])[] = FONTS;
-    const listed = held === undefined || fonts.some(([font]) => font === held) ? fonts : [...fonts, [held, held]];
+    // A font stack ("Verdana, sans-serif") reads as its first family, so it fits the line.
+    const first = held
+        ?.split(",")[0]
+        ?.trim()
+        .replace(/^["']|["']$/g, "");
+    const listed =
+        held === undefined || fonts.some(([font]) => font === held) ? fonts : [...fonts, [held, first ?? held]];
     return (
         <PanelField
             label={label}

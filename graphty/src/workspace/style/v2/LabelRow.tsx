@@ -152,6 +152,9 @@ interface LabelRowProps {
     readonly onRemove: () => void;
     /** A further label's id (labelEntries.ts): the row edits that entry of the label list, not the main label. */
     readonly entry?: string;
+    /** Whether its settings pop-over is open: held by the row, so a change of kind keeps it open. */
+    readonly open?: boolean;
+    readonly onOpenChange?: (open: boolean) => void;
 }
 
 /**
@@ -185,6 +188,8 @@ function partnersOf(style: Readonly<LabelStyle>, patch: LabelPatch): LabelPatch 
  * @param props.removeLabel - see LabelRowProps
  * @param props.onRemove - see LabelRowProps
  * @param props.entry - see LabelRowProps
+ * @param props.open - see LabelRowProps
+ * @param props.onOpenChange - see LabelRowProps
  * @returns The row and its common lines
  */
 export function LabelRow({
@@ -198,6 +203,8 @@ export function LabelRow({
     removeLabel,
     onRemove,
     entry,
+    open,
+    onOpenChange,
 }: LabelRowProps): React.JSX.Element {
     const { store } = useWorkspace();
     const styleLine = entry === undefined ? lineIn(ctx, kind.style) : undefined;
@@ -315,7 +322,13 @@ export function LabelRow({
         return true;
     });
     const settings = (
-        <RowSettings label={`${title} settings`} title={title} changed={changed}>
+        <RowSettings
+            label={`${title} settings`}
+            title={title}
+            changed={changed}
+            opened={open}
+            onOpenChange={onOpenChange}
+        >
             <LabelPopover label={label} others={others} first={member} />
         </RowSettings>
     );

@@ -304,6 +304,25 @@ function waitKeyOf({ thing, kind, entry }: ThingRowOf): string {
 }
 
 /**
+ * A row's React key: its wait key, but one key for every kind of a row whose kinds replace each other in place (a
+ * label's looks and its Glyph, a tooltip's looks), so changing its kind keeps the row, and its open pop-over, open.
+ * @param row - the row.
+ * @returns the key.
+ */
+function rowKeyOf(row: ThingRowOf): string {
+    const { thing, kind, entry } = row;
+    if (entry !== undefined || kind === undefined) {
+        return waitKeyOf(row);
+    }
+    // A Label is one row whatever its kind; another text's looks share their style's row.
+    if (thing.id === "label") {
+        return thing.id;
+    }
+    return kind.look === undefined ? waitKeyOf(row) : `${thing.id}:${kind.look.style}`;
+    return waitKeyOf(row);
+}
+
+/**
  * A Label's rows: the main label's (by kind), when the row sets it or "+" added it, then one per further label
  * (labelEntries.ts) the row sets or "+" added and waits on, each numbered from 2 as on every layer.
  * @param ctx - the row.
@@ -653,7 +672,7 @@ function ThingSection({
                         const key = waitKeyOf(row);
                         return (
                             <ThingRow
-                                key={key}
+                                key={rowKeyOf(row)}
                                 ctx={ctx}
                                 thing={thing}
                                 channels={channels}

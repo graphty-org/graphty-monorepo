@@ -525,6 +525,8 @@ export function ThingRow({
                     removeLabel={removeLabel}
                     onRemove={remove}
                     entry={entry?.id}
+                    open={open}
+                    onOpenChange={setOpen}
                 />
             </div>
         );

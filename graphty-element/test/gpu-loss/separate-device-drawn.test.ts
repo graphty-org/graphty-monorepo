@@ -274,14 +274,21 @@ describe("the layout filling the row table from a separate device", () => {
         });
         extension?.loseContext();
         await lost;
-        const firstFrame = new Promise<Float32Array>((resolve) => {
+        // The expected rows are taken in the same callback that issues the read: a batch already in flight can land
+        // while the read is pending, and the texture read is queued ahead of any later upload.
+        const firstFrame = new Promise<{ drawn: Float32Array; rows: Float32Array }>((resolve) => {
             graph.canvas.addEventListener(
                 "webglcontextrestored",
                 () => {
                     graph.scene.onAfterRenderObservable.addOnce(() => {
                         graph.engine.stopRenderLoop();
-                        void table.positionTexture.readPixels()?.then((pixels) => {
-                            resolve(pixels as Float32Array);
+                        const read = table.positionTexture.readPixels();
+                        // Where the lane puts every row: the owed landing, written.
+                        lane.settle();
+                        table.flush();
+                        const rows = table.rowPosition.slice(0, 4 * table.rows);
+                        void read?.then((pixels) => {
+                            resolve({ drawn: pixels as Float32Array, rows });
                         });
                     });
                 },
@@ -289,12 +296,8 @@ describe("the layout filling the row table from a separate device", () => {
             );
         });
         await graph.restartRenderer();
-        const drawn = await firstFrame;
+        const { drawn, rows } = await firstFrame;
 
-        // Where the lane puts every row: the owed landing, written.
-        lane.settle();
-        table.flush();
-        const rows = table.rowPosition;
         let worst = 0;
         for (let i = 0; i < 4 * table.rows; i++) {
             const want = rows[i] ?? 0;

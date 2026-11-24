@@ -25,6 +25,26 @@ export const ROW_EXTENT_SEEN_THROUGH = 4;
  * its scene width at the zoom it was built for, which edges stop at but layout and framing leave out.
  */
 export const ROW_EXTENT_SCREEN_BORDER = 8;
+/**
+ * The `rowExtent` flag of a row a style or filter hides (`rowPosition` w 0) that still has a place: a line or cap to it
+ * is drawn, ending at its center as the objects path ends it, where a line to a row with no place is not. The w alone
+ * cannot tell the two apart. `RowTable` writes it; {@link ROW_END_GLSL} reads it.
+ */
+export const ROW_EXTENT_HIDDEN_PLACED = 16;
+
+/**
+ * GLSL: whether a line reaches a row, given its `rowPosition` texel: drawn (w not 0), or hidden with a place
+ * ({@link ROW_EXTENT_HIDDEN_PLACED}). Needs `uniform highp sampler2D rowExtent;` declared before it.
+ */
+export const ROW_END_GLSL = `
+bool rowEnds(vec4 place, int row) {
+    if (place.w != 0.0) {
+        return true;
+    }
+    int i = row * 3;
+    return (int(texelFetch(rowExtent, ivec2(i & 1023, i >> 10), 0).w + 0.5) & ${String(ROW_EXTENT_HIDDEN_PLACED)}) != 0;
+}
+`;
 
 /** {@link TrimEnd.measured} of an end {@link surfaceReach} works out. */
 export const TRIM_CLOSED = -1;

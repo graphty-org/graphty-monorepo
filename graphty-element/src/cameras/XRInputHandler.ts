@@ -1,5 +1,4 @@
-import type { WebXRInputSource } from "@babylonjs/core";
-import { Ray } from "@babylonjs/core/Culling/ray.js";
+import type { AbstractMesh, WebXRInputSource } from "@babylonjs/core";
 import { Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder.js";
@@ -10,7 +9,6 @@ import type { NodeId } from "../catalog/types";
 import type { XRControllerButton } from "../config/XRConfig";
 import { GraphtyLogger, type Logger } from "../logging";
 import type { NodeDragHandler } from "../NodeBehavior";
-import { pickRayAsDrawn } from "../render/PickService";
 import { isPinching, pinchStrength, thumbstickDeltas } from "./InputUtils";
 import type { PivotController } from "./PivotController";
 import { twoHandGestureDelta } from "./twoHandGesture";
@@ -684,14 +682,25 @@ export class XRInputHandler {
     }
 
     /**
+     * The mesh a controller's laser is on: the one Babylon's pointer selection picked in this
+     * frame's XR callback and drew the beam and dot to. A second cast here, in the render, would
+     * see the rows after the layout's step in this frame moved them, so a tap could select a row
+     * the laser was not on, or nothing (issue #9959). A batch's meshless row is under the laser as
+     * its stand-in (`laserOnRows`), which carries the row's metadata.
+     * @param controller - The controller.
+     * @returns The mesh, or null when the laser is on nothing.
+     */
+    private underLaser(controller: WebXRInputSource): AbstractMesh | null {
+        return this.xr.pointerSelection.getMeshUnderPointer(controller.uniqueId);
+    }
+
+    /**
      * Report the node each ray points at, when it changes.
      * @param assistant - The bindings.
      */
     private reportPointed(assistant: XRAssistantInput): void {
-        const ray = new Ray(Vector3.Zero(), Vector3.Forward(), 100);
         for (const controller of this.xr.input.controllers) {
-            controller.getWorldPointerRayToRef(ray);
-            const { mesh } = pickRayAsDrawn(this.scene, ray);
+            const mesh = this.underLaser(controller);
             const id = (mesh?.metadata as { graphNode?: { id?: NodeId } } | null | undefined)?.graphNode?.id;
             if (id !== undefined && this.pointedBy.get(controller.uniqueId) !== id) {
                 this.pointedBy.set(controller.uniqueId, id);
@@ -1019,27 +1028,7 @@ export class XRInputHandler {
             return;
         }
 
-        // Get the controller's pointer ray using Babylon.js's proper method
-        // This gives us the actual ray the WebXR system uses for interaction
-        const ray = new Ray(Vector3.Zero(), Vector3.Forward(), 100);
-
-        // Try to get the world pointer ray from the controller
-        const controllerWithRay = controller as unknown as {
-            getWorldPointerRayToRef?: (ray: Ray) => void;
-        };
-
-        if (controllerWithRay.getWorldPointerRayToRef) {
-            controllerWithRay.getWorldPointerRayToRef(ray);
-        } else {
-            // Fallback: Use pointer node (always available) or grip node
-            const pointerNode = controller.grip ?? controller.pointer;
-            ray.origin = pointerNode.position.clone();
-            ray.direction = pointerNode.forward.clone();
-        }
-
-        // Pick meshes in the scene
-        // Only pick node meshes (they have dragHandler in metadata or on the node)
-        const { mesh: picked, point: pickedPoint } = pickRayAsDrawn(this.scene, ray);
+        const picked = this.underLaser(controller);
         if (picked === null) {
             return;
         }
@@ -1058,7 +1047,6 @@ export class XRInputHandler {
             handedness,
             handPos: { x: handPosition.x, y: handPosition.y, z: handPosition.z },
             nodePos: { x: nodeMeshPosition.x, y: nodeMeshPosition.y, z: nodeMeshPosition.z },
-            pickPt: pickedPoint ? { x: pickedPoint.x, y: pickedPoint.y, z: pickedPoint.z } : null,
         });
 
         this.isDraggingNode = true;

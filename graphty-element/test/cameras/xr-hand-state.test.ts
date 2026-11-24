@@ -101,6 +101,8 @@ describe("XRInputHandler hand state", () => {
                     getEnabledFeature: (name: string) => (name === "xr-hand-tracking" && handTracking ? feature : null),
                 },
             },
+            // The laser on nothing.
+            pointerSelection: { getMeshUnderPointer: () => null },
             input: {
                 controllers: sources,
                 onControllerAddedObservable: { add: () => undefined, remove: () => undefined },

@@ -1537,6 +1537,8 @@ const STYLES_API: Readonly<Record<string, Door>> = {
     legendOf: READ,
     newLabelId: READ,
     labelsBeneath: READ,
+    dataFacts: READ,
+    dataSample: READ,
     resolveToStatic: calls(
         ["no-such-layer", "node.color"],
         [{ op: "style.patch", action: "resolveToStatic", id: "no-such-layer", channel: "node.color" }],

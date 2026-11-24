@@ -362,6 +362,10 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.labelStyle": "content",
     // Further labels: per element, drawn by `Node.syncLabel` and `Edge.syncContent` like the label.
     "node.labels": "content",
+    // A data spec is never drawn itself: the lists it fills carry their own roles.
+    "node.pieData": "content",
+    "node.chartData": "content",
+    "node.recordData": "content",
     "edge.labels": "content",
     // A label field lands in its label style's column and is drawn with it.
     "node.labelColor": "content",

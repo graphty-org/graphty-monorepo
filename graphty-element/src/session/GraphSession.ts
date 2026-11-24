@@ -4860,6 +4860,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             measured: elements.measured,
             scales,
             fileStyles: fileStylesOn,
+            // What a data spec's pattern entries match, and the names its parts go by.
+            columns: (target) => answerablePaths(data, runs, target),
+            plainName: (path, target) => fieldWordsOf(data, runs)(path, target)?.plainName,
             // With the base look in the Everything row, what no shown layer paints is not drawn.
             hideUnpainted: () => dispatcher.state.config.get("editableBase") === true,
             ...(internals.now === undefined ? {} : { now: internals.now }),

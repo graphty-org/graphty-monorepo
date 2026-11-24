@@ -51,13 +51,23 @@ is drawn at. The same unit applies to a bound label size channel such as `node.l
 
 ## Number format
 
-`format` takes three fields, each the `Intl.NumberFormat` option of the same name:
+`format` takes these fields, each the `Intl.NumberFormat` option of the same name unless noted:
 
-| Field                      | Example                                          |
-| -------------------------- | ------------------------------------------------ |
-| `maximumFractionDigits`    | `2` writes 129.64334 as 129.64                   |
-| `maximumSignificantDigits` | `3` writes 129.64334 as 130, 0.0123456 as 0.0123 |
-| `locale`                   | `"de-DE"` writes 1504.5 as 1.504,5               |
+| Field                      | Example                                                                                              |
+| -------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `maximumFractionDigits`    | `2` writes 129.64334 as 129.64                                                                       |
+| `minimumFractionDigits`    | `2` writes 34 as 34.00                                                                               |
+| `maximumSignificantDigits` | `3` writes 129.64334 as 130, 0.0123456 as 0.0123                                                     |
+| `useGrouping`              | `false` writes 12345 as 12345                                                                        |
+| `style`                    | `"percent"` writes 0.25 as 25%; `"currency"` with `currency: "USD"` writes 12.5 as $12.50            |
+| `notation`                 | `"compact"` writes 12345 as 12K, `"scientific"` as 1.235E4                                           |
+| `signDisplay`              | `"always"` writes 3 as +3                                                                            |
+| `prefix`, `suffix`         | text around the number (not an Intl option): `{ prefix: "#" }` writes #3                             |
+| `date`                     | an instant as a date, in UTC: `{ style: "absolute", dateStyle: "short" }` or `{ style: "relative" }` |
+| `locale`                   | `"de-DE"` writes 1504.5 as 1.504,5                                                                   |
+
+`formatValue(value, format)` from `@graphty/graphty-element/catalog` is the same formatter, for an
+editor that previews a format.
 
 Without `locale`, the runtime's own locale chooses the decimal and grouping marks. Text values are
 never reformatted, and `format` is ignored on channels that do not carry text. A format that

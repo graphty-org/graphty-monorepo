@@ -648,6 +648,8 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "styles.move()": "writes",
     "styles.moveRow()": "writes",
     "styles.labelsBeneath()": "not the graph",
+    "styles.dataFacts()": "names its target",
+    "styles.dataSample()": "names its target",
     "styles.newLabelId()": "not the graph",
     "styles.parts()": "not the graph",
     "styles.pinRow()": "writes",

@@ -98,6 +98,7 @@ function entryOf(
         ...(column.runId === undefined ? {} : { runId: column.runId }),
         kind,
         valueKind: valueKindOf(column, declaration, field),
+        ...spreadOf(column),
         ...(facts === undefined ? {} : { facts }),
         ...(kind === "number" && column.min !== undefined && column.max !== undefined
             ? { range: Object.freeze({ min: column.min, max: column.max }) }
@@ -111,6 +112,23 @@ function entryOf(
         ...(usedBy === undefined || usedBy.length === 0 ? {} : { usedBy: Object.freeze([...usedBy]) }),
         tests: testsOf(kind, column.path, column.uniqueCount !== undefined),
     });
+}
+
+/**
+ * How a list or group-object column spreads into a pie's, chart's or record's parts.
+ * @param column - The column.
+ * @returns `{ spread }`, or nothing for a single value.
+ */
+function spreadOf(column: AttributeDescriptor): { readonly spread?: "categories" | "numbers" } {
+    const lists = column.sampleValues.filter(
+        (value): value is object => typeof value === "object" && value !== null && !(value instanceof Date),
+    );
+    if (lists.length === 0) {
+        return {};
+    }
+
+    const items = lists.flatMap((value) => (Array.isArray(value) ? value : Object.values(value)) as unknown[]);
+    return { spread: items.every((item) => typeof item === "number") ? "numbers" : "categories" };
 }
 
 /**

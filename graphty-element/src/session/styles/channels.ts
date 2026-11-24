@@ -45,6 +45,7 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
+import type { ChartData, PieData, RecordData } from "../../catalog/data-lists";
 import { leavingLook } from "../../catalog/label-looks";
 import {
     LABEL_CAP,
@@ -733,6 +734,9 @@ export interface ChannelValues {
     "edge.shaders": readonly ShaderUse[];
     "node.labels": readonly LabelEntry[];
     "edge.labels": readonly LabelEntry[];
+    "node.pieData": PieData;
+    "node.chartData": ChartData;
+    "node.recordData": RecordData;
     "edge.taper": number;
     "edge.taperSource": number;
     "edge.lift": number;
@@ -879,7 +883,12 @@ export type ChannelValueKind =
      * A list of labels ({@link LabelEntry}), merged across layers by id: see `node.labels`.
      * @since 3.63.0
      */
-    | "labelEntries";
+    | "labelEntries"
+    /**
+     * A pie's, chart's or record's data spec ({@link PieData}, {@link ChartData}, {@link RecordData}), which fills
+     * the fixed lists at the layer's place: see `node.pieData`. @since 3.68.0
+     */
+    | "dataSpec";
 
 /**
  * Whether a value is the whole number an "enum" channel with a `min` takes beside its words: a
@@ -1315,6 +1324,35 @@ const NODE_CHART_CAVEAT =
     "`node.chartGap` between them, both shares of that side. `node.chartLineWidth` is a line's and a " +
     "whisker's width, `node.chartBorderWidth` and `node.chartBorderColor` a bar's and a box's outline, and " +
     "`node.chartBackgroundColor` at `node.chartBackgroundOpacity` fills the plot box under the chart (unset, none).";
+
+/**
+ * A data channel's descriptor: it takes a data spec and fills the fixed lists it names.
+ * @param channel - The channel.
+ * @param plainName - Its name.
+ * @param shortName - Its short name.
+ * @param group - Its group.
+ * @param caveat - What it fills.
+ * @returns The descriptor.
+ */
+function dataChannel(
+    channel: Channel,
+    plainName: string,
+    shortName: string,
+    group: ChannelGroup,
+    caveat: string,
+): ChannelDescriptor {
+    return {
+        channel,
+        target: "node",
+        plainName,
+        shortName,
+        group,
+        accepts: "dataSpec",
+        stylePath: `data.${channel.slice("node.".length)}`,
+        renderable: true,
+        caveat,
+    };
+}
 
 const NODE_PIE_CAVEAT =
     "A pie chart over the node's face: `node.pieColors` are CSS colors separated by spaces, one slice " +
@@ -4342,6 +4380,34 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "(`node.shapeLineWidth` wide, else the cell's border), each text line in its place. With " +
             "`node.labelFit` the table is the label's box the node grows round.",
     },
+    "node.pieData": dataChannel(
+        "node.pieData",
+        "Node Pie Data",
+        "Pie data",
+        "shape",
+        "A pie from data: an ordered list of entries (columns, a pattern of columns, fixed values), each a slice, " +
+            "a list value spreading into one slice per value. It fills `node.pieColors`, `node.pieSizes` and " +
+            "`node.pieOpacities` (and appends slice texts to `node.shapeTexts`) at this layer's place, so a layer " +
+            "above writing one of those wins it; a layer does not hold both. See docs/guide/data-lists.md.",
+    ),
+    "node.chartData": dataChannel(
+        "node.chartData",
+        "Node Chart Data",
+        "Chart data",
+        "shape",
+        "A chart from data: an ordered list of entries, each a bar (a list value or a pattern of columns one " +
+            "bar per item). It fills `node.chartValues`, `node.chartColors`, `node.chartMin` and `node.chartMax` " +
+            "at this layer's place; `node.chartKind` stays its own channel. See docs/guide/data-lists.md.",
+    ),
+    "node.recordData": dataChannel(
+        "node.recordData",
+        "Node Record Data",
+        "Record data",
+        "text",
+        "A record from data: an ordered list of rows, each a name and a value in its format. It fills " +
+            "`node.labelTable` (layout table) or `node.shapeTexts` (layout points) at this layer's place. See " +
+            "docs/guide/data-lists.md.",
+    ),
     "node.shapeLineWidth": {
         channel: "node.shapeLineWidth",
         target: "node",

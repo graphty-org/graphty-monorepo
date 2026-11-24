@@ -79,7 +79,13 @@ export function refusedSpec(name: string, result: ValidationResult): GraphtyErro
         code: first?.code ?? "E_BAD_LAYER",
         message: `"${name}" cannot be a style layer: ${first?.message ?? "the specification is malformed."}`,
         source: "style",
-        details: { errors: result.errors, unresolvedPaths: result.unresolvedPaths },
+        details: {
+            errors: result.errors,
+            unresolvedPaths: result.unresolvedPaths,
+            // A refused data spec says why as a reason an editor switches on.
+            ...(first?.reason === undefined ? {} : { reason: first.reason }),
+            ...(first?.channels === undefined ? {} : { channels: first.channels }),
+        },
     });
 }
 

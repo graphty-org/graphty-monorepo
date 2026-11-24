@@ -149,6 +149,21 @@ export function withLabelLook(style: LabelStyle, carried: CarriedLooks): LabelSt
 }
 
 /**
+ * Add the name one `set` value gives under a key, when its channel ends as given.
+ * @param channel - The channel.
+ * @param value - Its value.
+ * @param ending - How the channel's name ends.
+ * @param key - The key that names a look or a palette.
+ * @param into - Where the name is added.
+ */
+function namedIn(channel: string, value: unknown, ending: string, key: string, into: Set<string>): void {
+    const name = channel.endsWith(ending) ? (value as Record<string, unknown> | null)?.[key] : undefined;
+    if (typeof name === "string") {
+        into.add(name);
+    }
+}
+
+/**
  * The palette and label look names these layers use.
  * @param specs - The layers.
  * @returns The names, each in the order first named.
@@ -164,10 +179,9 @@ function namedLooks(specs: readonly LayerSpec[]): { palettes: Set<string>; label
         }
 
         for (const [channel, value] of Object.entries(spec.set ?? {})) {
-            const look = channel.endsWith("Style") ? (value as { look?: unknown } | null)?.look : undefined;
-            if (typeof look === "string") {
-                labelLooks.add(look);
-            }
+            // A label style names its look; a pie's, chart's or record's data spec names its palette as a binding does.
+            namedIn(channel, value, "Style", "look", labelLooks);
+            namedIn(channel, value, "Data", "palette", palettes);
         }
     }
 

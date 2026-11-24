@@ -28,6 +28,7 @@ import type { CodedFact } from "../session/shared";
 import type { ChannelDescriptor } from "../session/styles/channels";
 import type { TransitionDescriptor } from "../transitions/registry";
 import type { ChannelValueDescriptor } from "./channelValues";
+import type { ChartData, PieData, RecordData } from "./data-lists";
 import type { LabelLookDescriptor } from "./label-looks";
 import type { LabelEntry, LabelStyle } from "./label-style";
 import type { ModelDescriptor } from "./models";
@@ -1090,6 +1091,9 @@ export type Channel =
     | "edge.shaders"
     | "node.labels"
     | "edge.labels"
+    | "node.pieData"
+    | "node.chartData"
+    | "node.recordData"
     | "edge.taper"
     | "edge.taperSource"
     | "edge.lift"
@@ -1203,7 +1207,17 @@ export type { LabelStyle } from "./label-style";
  * a list of {@link ShaderUse}; the label lists (`node.labels`, `edge.labels`) a list of
  * {@link LabelEntry}.
  */
-export type ChannelValue = string | number | boolean | LabelStyle | Rgba | readonly ShaderUse[] | readonly LabelEntry[];
+export type ChannelValue =
+    | string
+    | number
+    | boolean
+    | LabelStyle
+    | Rgba
+    | readonly ShaderUse[]
+    | readonly LabelEntry[]
+    | PieData
+    | ChartData
+    | RecordData;
 
 /**
  * An `encode` key that binds one shader parameter per element:
@@ -1270,6 +1284,54 @@ export interface BindingNumberFormat {
      * @since 3.40.0
      */
     useGrouping?: boolean;
+    /**
+     * The fewest digits after the decimal point, 0 to 100: `2` writes 34 as 34.00.
+     * @since 3.68.0
+     */
+    minimumFractionDigits?: number;
+    /**
+     * `"percent"` writes 0.25 as 25%, `"currency"` writes it in `currency`. Absent, a plain number.
+     * @since 3.68.0
+     */
+    style?: "decimal" | "percent" | "currency";
+    /**
+     * An ISO 4217 code, such as `"USD"`, for `style: "currency"`.
+     * @since 3.68.0
+     */
+    currency?: string;
+    /**
+     * `"compact"` writes 12345 as 12K, `"scientific"` as 1.235E4.
+     * @since 3.68.0
+     */
+    notation?: "standard" | "compact" | "scientific";
+    /**
+     * When a sign is written: `"always"` writes +3, `"exceptZero"` +3 and 0, `"never"` 3 for -3.
+     * @since 3.68.0
+     */
+    signDisplay?: "auto" | "always" | "exceptZero" | "never";
+    /**
+     * Text written before the value, such as `"("` or `"#"`. Text and yes-no values take it too.
+     * @since 3.68.0
+     */
+    prefix?: string;
+    /**
+     * Text written after the value, such as `")"` or `" kg"`.
+     * @since 3.68.0
+     */
+    suffix?: string;
+    /**
+     * Write an instant (a Date, milliseconds or text `Date.parse` reads) as a date, in UTC:
+     * `"absolute"` through `Intl.DateTimeFormat` (`dateStyle` default "medium"), `"relative"` through
+     * `Intl.RelativeTimeFormat`, measured against the newest date in the data.
+     * @since 3.68.0
+     */
+    date?:
+        | {
+              style: "absolute";
+              dateStyle?: "short" | "medium" | "long";
+              timeStyle?: "short" | "medium";
+          }
+        | { style: "relative" };
 }
 
 /**
@@ -2474,6 +2536,13 @@ export interface ReadableValue {
      * @beta
      */
     readonly valueKind?: ValueKind;
+    /**
+     * Set when the value is a list or a group object, which a pie, chart or record spreads into one
+     * part per item: `"categories"` for a list of words (counted per distinct value), `"numbers"` for a
+     * list or object of numbers. Absent for a single value.
+     * @since 3.68.0
+     */
+    readonly spread?: "categories" | "numbers";
     /**
      * A run field's declared facts: its fixed range, which end counts as more, its levels' order,
      * what a missing value means, and whether its values are unstable names. Absent for a data

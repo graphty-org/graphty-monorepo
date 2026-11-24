@@ -285,6 +285,29 @@ export type {
     TableVAlign,
 } from "./src/catalog/channelItems";
 export { readChannelItems, writeChannelItems } from "./src/catalog/channelItems";
+// Pie, chart and record from data: the spec `node.pieData`, `node.chartData` and `node.recordData`
+// take, the one value formatter, the field fit a picker reads and the facts `styles.dataFacts` returns.
+export type {
+    CategoryOverrides,
+    ChartData,
+    DataCategoryFact,
+    DataChannel,
+    DataEntry,
+    DataEntryCommon,
+    DataEntryFact,
+    DataFacts,
+    DataFitCode,
+    DataFormat,
+    DataListCommon,
+    DataPartFact,
+    DataSpecReason,
+    DataUndrawnCode,
+    GraphMeasure,
+    PieData,
+    RecordData,
+    WalkPath,
+} from "./src/catalog/data-lists";
+export { dataFit, formatValue, naturalCompare } from "./src/catalog/data-lists";
 // What a shader parameter declared `varies` is bound as, by its encode address: the descriptor an
 // editor's vary picker and `styles.proposeEncoding` read for it.
 export { shaderParamChannel } from "./src/session/styles/encoding";

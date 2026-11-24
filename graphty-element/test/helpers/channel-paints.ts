@@ -413,6 +413,16 @@ export function probeFor(descriptor: ChannelDescriptor): unknown {
         }
         case "labelStyle":
             return LABEL_PROBE;
+        case "dataSpec":
+            // Fixed entries, so the probe needs no data: two slices or bars, or one record row.
+            return descriptor.channel === "node.recordData"
+                ? { entries: [{ text: "CHANNEL PROBE WORDS" }] }
+                : {
+                      entries: [
+                          { value: 1, color: "#ff0000" },
+                          { value: 3, color: "#0000ff" },
+                      ],
+                  };
         case "labelEntries":
             // A further label beside the element's own, which draws a text mesh of its own.
             return [{ id: "probe", text: "CHANNEL PROBE WORDS" }];

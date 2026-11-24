@@ -328,6 +328,7 @@ export { VIDEO_FORMATS } from "./src/video/VideoCapture";
  * Read it at any time from `session.data.lastImport()`, or take it off the detail of
  * `data-loaded` and `data-loading-complete`.
  */
+export type { DataChannel, DataFacts, DataSpecReason, DataUndrawnCode } from "./src/catalog/data-lists";
 export type { ScreenshotPreset, ScreenshotPresetId } from "./src/catalog/screenshotPresets";
 export type { EndpointSpelling } from "./src/data/endpoints";
 export type {

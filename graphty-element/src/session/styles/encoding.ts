@@ -58,6 +58,7 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
+import { formatNumber, formatValue } from "../../catalog/data-lists";
 import { plannedShaderDescriptor, projectShaderDescriptor } from "../../catalog/shaderRegistry";
 import type { ShaderDescriptor } from "../../catalog/shaders";
 import type {
@@ -101,6 +102,7 @@ import {
     toColorValue,
     withoutFileStyleValues,
 } from "./channels";
+import type { PreparedData } from "./dataLists";
 import { parseTemplate, prepareTemplate, TEMPLATE_CHANNELS } from "./labelTemplate";
 import type { LegendFact } from "./legend";
 import { overflowCapacity, type PreparedRamp, prepareRamp, type RampSpec } from "./palettes";
@@ -227,6 +229,16 @@ export interface PreparedBinding {
      * @returns The value to paint, or undefined when the element is not painted at all.
      */
     paint(value: unknown): EncodedValue | undefined;
+    /**
+     * A data channel's fill (`node.pieColors` from `node.pieData`): the value for the element on a row, read in
+     * place of {@link PreparedBinding.paint}. Absent for every other binding.
+     * @param index - The element's dense index.
+     * @param beneath - What the layers beneath painted a channel on it.
+     * @returns The value, or undefined when the spec writes nothing there.
+     */
+    readonly paintAt?: (index: number, beneath: (channel: Channel) => unknown) => EncodedValue | undefined;
+    /** The data spec a fill comes from: its channel and its preparation. Absent for every other binding. */
+    readonly data?: { readonly channel: Channel; readonly prepared: PreparedData };
     /**
      * What the encoding would paint a value if it were not hidden: what a legend shows beside a
      * hidden row, so the reader sees which color comes back when it is shown again.
@@ -889,11 +901,14 @@ function numberWriter(
         return null;
     }
 
-    const { locale, ...options } = format;
     try {
-        const formatter = new Intl.NumberFormat(locale, options);
+        // Built once here, so a format Intl refuses is refused at the edit rather than per element.
+        formatNumber(0, format);
+        if (format.date !== undefined) {
+            return (value) => formatValue(value, format);
+        }
 
-        return (value) => formatter.format(value);
+        return (value) => formatNumber(value, format);
     } catch (error) {
         throw badBinding(
             `The number format on ${descriptor.channel} is not one Intl.NumberFormat accepts: ${error instanceof Error ? error.message : String(error)}`,
@@ -1126,6 +1141,12 @@ function authoredValue(descriptor: ChannelDescriptor, value: ChannelValue, what:
             }
 
             return prototypeFreeMap(value);
+        case "dataSpec":
+            if (typeof value !== "object" || isRgba(value)) {
+                throw wrongKind('a data spec, such as { entries: [{ field: "data.animals" }] }');
+            }
+
+            return value;
         default:
             throw unsupportedChannel(descriptor);
     }
@@ -1330,6 +1351,12 @@ function assertChannelTakesScale(descriptor: ChannelDescriptor, scale: string, n
             `${channel} carries a whole label style, which no scale produces, so it is written as a value rather than bound to a path.`,
             { channel },
         );
+    }
+
+    if (accepts === "dataSpec") {
+        throw badBinding(`${channel} carries a data spec, which no scale produces, so it is written as a value.`, {
+            channel,
+        });
     }
 
     if (accepts === "labelEntries") {

@@ -631,15 +631,6 @@ export type ChartPiece = ColorPiece & { readonly box?: PieceBox; readonly line?:
 const CHART_LINE_SHARE = 0.02;
 
 /**
- * Numbers separated by spaces.
- * @param text - The list.
- * @returns The numbers, NaN for a word that is not one.
- */
-function numbers(text: string | undefined): number[] {
-    return cssWords(text).map(Number);
-}
-
-/**
  * A chart drawn over a node `width` x `height` (`chart` of a node style): bars side by side ("bar"), bars piled into
  * one ("stacked-bar"), a line through the values ("line"), a box and whiskers ("box": the values are the low
  * whisker, the lower quartile, the median, the upper quartile and the high whisker) or a row of colored cells
@@ -657,7 +648,11 @@ function numbers(text: string | undefined): number[] {
  * @returns The pieces, in drawing order.
  */
 export function chartPieces(chart: NodeStyleConfig["chart"], width: number, height: number, scale = 1): ChartPiece[] {
-    const values = numbers(chart?.values).filter((v) => Number.isFinite(v));
+    // The word "NaN" keeps its place empty: a gap in a bar, a line or a row of cells.
+    const placed = cssWords(chart?.values)
+        .filter((word) => word === "NaN" || Number.isFinite(Number(word)))
+        .map(Number);
+    const values = placed.filter((v) => Number.isFinite(v));
     const colors = cssWords(chart?.colors);
     if (chart === undefined || values.length === 0 || colors.length === 0) {
         return [];
@@ -711,7 +706,7 @@ export function chartPieces(chart: NodeStyleConfig["chart"], width: number, heig
         c === null ? [] : linePieces(points, lineWidth, c).map((p) => ({ ...p, line: true }));
     const margin = chart.margin ?? 0;
     const gap = Math.max(0, Math.min(1, chart.gap ?? 0));
-    const slots = kind === "bar" || kind === "line" || kind === "cells" ? values.length : 1;
+    const slots = kind === "bar" || kind === "line" || kind === "cells" ? placed.length : 1;
     const band = Math.max(0, 1 - 2 * margin - gap) / slots;
     const step = band + (slots > 1 ? gap / (slots - 1) : 0);
     const slot = (i: number): [number, number] => [margin + i * step, margin + i * step + band];
@@ -721,7 +716,9 @@ export function chartPieces(chart: NodeStyleConfig["chart"], width: number, heig
     const body = ((): ChartPiece[] => {
         switch (kind) {
             case "bar":
-                return values.flatMap((v, i) => filled(rect(...slot(i), base, along(v)), color(i)));
+                return placed.flatMap((v, i) =>
+                    Number.isFinite(v) ? filled(rect(...slot(i), base, along(v)), color(i)) : [],
+                );
             case "stacked-bar": {
                 let sum = 0;
                 return values.flatMap((v, i) => {
@@ -731,10 +728,16 @@ export function chartPieces(chart: NodeStyleConfig["chart"], width: number, heig
                 });
             }
             case "cells":
-                return values.flatMap((_, i) => filled(rect(...slot(i), 0, 1), color(i)));
+                return placed.flatMap((v, i) => (Number.isFinite(v) ? filled(rect(...slot(i), 0, 1), color(i)) : []));
             case "line": {
-                const points = values.map((v, i) => at((slot(i)[0] + slot(i)[1]) / 2, along(v)));
-                return points.slice(1).flatMap((p, i) => stroke([points[i], p], color(0)));
+                const points = placed.map((v, i) =>
+                    Number.isFinite(v) ? at((slot(i)[0] + slot(i)[1]) / 2, along(v)) : null,
+                );
+                return points
+                    .slice(1)
+                    .flatMap((p, i) =>
+                        p === null || points[i] === null ? [] : stroke([points[i], p] as Point2[], color(0)),
+                    );
             }
             case "box": {
                 const [low, q1, median, q3, high] = [0, 1, 2, 3, 4].map((j) => values[Math.min(j, values.length - 1)]);

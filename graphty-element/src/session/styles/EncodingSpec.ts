@@ -835,7 +835,7 @@ export function columnFits(
         return true;
     }
 
-    if (accepts === "nothing" || accepts === "labelStyle" || accepts === "labelEntries") {
+    if (accepts === "nothing" || accepts === "labelStyle" || accepts === "labelEntries" || accepts === "dataSpec") {
         return false;
     }
 

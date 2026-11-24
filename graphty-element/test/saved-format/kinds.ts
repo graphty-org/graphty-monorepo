@@ -151,6 +151,13 @@ async function useEveryPalette(session: GraphSession): Promise<UsedEvery> {
             selector: { match: "everything" },
             encode: { "node.color": { by: "data.weight", palette: palette.id } },
         });
+        // A pie's categories colored through its data spec carry the palette the same way.
+        await session.styles.add({
+            name: `Pie palette ${at}`,
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.pieData": { entries: [{ field: "data.weight" }], palette: palette.id } },
+        });
     }
 
     return { used: palettes.map((each) => each.id), listed: palettes.length, saves: [] };

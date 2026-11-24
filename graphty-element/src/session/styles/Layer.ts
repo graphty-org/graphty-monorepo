@@ -97,6 +97,7 @@ import {
     parseShaderParamAddress,
     toColorValue,
 } from "./channels";
+import { checkDataSpec, dataSpecPaths, type DataSpecReason, isDataChannel } from "./dataLists";
 import { listItemDescriptor, type RuleBinding, stopsProblem } from "./encoding";
 import { parseTemplate, TEMPLATE_CHANNELS } from "./labelTemplate";
 import { colorsProblem } from "./palettes";
@@ -227,6 +228,18 @@ export interface LayerProblem {
      * @since 3.40.0
      */
     readonly scope?: Selector;
+    /**
+     * Why a data spec (`node.pieData`, `node.chartData`, `node.recordData`) is refused: `data-and-fixed`,
+     * `entry-source`, `entry-kind`, `measure-of`, `hops`, `keep`, `most`, `clip`, `window`, `palette`, `colors`
+     * or `shape`. The refusal carries it as `details.reason`.
+     * @since 3.68.0
+     */
+    readonly reason?: DataSpecReason;
+    /**
+     * For `data-and-fixed`: the data channel and the fixed lists beside it.
+     * @since 3.68.0
+     */
+    readonly channels?: readonly string[];
 }
 
 /**
@@ -715,6 +728,9 @@ export function checkStaticValue(
             return checkLabelStyle(descriptor, value, path, carried);
         case "labelEntries":
             return checkLabelEntries(descriptor, value, path, carried);
+        case "dataSpec":
+            // Checked with the rest of its layer's set, by checkDataSpecs.
+            return null;
         default:
             return {
                 code: "E_UNSUPPORTED",
@@ -1479,8 +1495,45 @@ function checkChannels(
         checkSetChannel(channel, value, target, catalog, options.scales.carried, log);
     }
 
+    checkDataSpecs(spec.set ?? {}, options, log);
+
     for (const [channel, binding] of Object.entries(spec.encode ?? {})) {
         checkEncodeKey(channel, binding, { target, path: `encode.${channel}`, options, universal }, catalog, log);
+    }
+}
+
+/**
+ * Check the data specs a layer's set holds, and record every path they read.
+ * @param set - The layer's set.
+ * @param options - The scales, for the palettes a spec may name.
+ * @param log - Where problems and paths are collected.
+ */
+function checkDataSpecs(set: Readonly<Record<string, unknown>>, options: LayerCheckOptions, log: ProblemLog): void {
+    for (const [channel, value] of Object.entries(set)) {
+        if (!isDataChannel(channel) || value === undefined) {
+            continue;
+        }
+
+        const problem = checkDataSpec(
+            channel,
+            value,
+            `set.${channel}`,
+            set,
+            (id) => resolvePalette(options.scales.carried, id) !== undefined,
+        );
+        if (problem === null) {
+            for (const path of dataSpecPaths(value)) {
+                readsPath(log, path);
+            }
+        } else {
+            report(log, {
+                code: "E_BAD_COMMAND",
+                message: problem.message,
+                path: problem.path,
+                reason: problem.reason,
+                ...(problem.channels === undefined ? {} : { channels: problem.channels }),
+            });
+        }
     }
 }
 

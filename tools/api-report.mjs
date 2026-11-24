@@ -339,6 +339,11 @@ const COLUMN_NAME_TYPES = new Set(["TableMapping", "JoinKey"]);
 // saved view name, never words the element shows. TourRenameCommand.from and .to: the consumer's
 // own names for a saved tour, before and after.
 const PLAIN_STRING_MEMBERS = new Set([
+    // a number format's text around the value and its ISO 4217 currency code: the consumer's own
+    // text and an Intl identifier, never words graphty-element writes
+    "BindingNumberFormat.prefix",
+    "BindingNumberFormat.suffix",
+    "BindingNumberFormat.currency",
     "JoinChoices.membership",
     "JoinLink.kind",
     "SourceHubValue.value",

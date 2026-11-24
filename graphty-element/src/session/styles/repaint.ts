@@ -55,12 +55,13 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
+import type { DataChannel, PieData } from "../../catalog/data-lists";
 import { LABEL_STYLE_DEFAULTS } from "../../catalog/label-style";
 import type { ShaderUse } from "../../catalog/shaders";
 import type { Binding, Channel, CombineMode, GraphtyErrorCode, LabelStyle, LayerId, Path } from "../../catalog/types";
 import { isGraphtyError } from "../../errors";
 import { isNotePath } from "../notes/paths";
-import { withLabelLook } from "./carried";
+import { resolvePalette, withLabelLook } from "./carried";
 import {
     asColorValue,
     type ChannelDescriptor,
@@ -76,6 +77,7 @@ import {
     parseShaderParamAddress,
     placeOfUse,
 } from "./channels";
+import { dataBindings, isDataChannel, prepareData } from "./dataLists";
 import { overflowHalf, prepareBinding, type PreparedBinding } from "./encoding";
 import { createStyleInterner, meshChannelsFor, type StyleInterner } from "./intern";
 import type {
@@ -202,6 +204,20 @@ export interface RepaintSources {
      * @param problem - The layer and why.
      */
     readonly onProblem?: (problem: RepaintProblem) => void;
+    /**
+     * Every column one kind of element carries (data columns and finished runs' fields), which a data
+     * spec's pattern entries match. Absent, a pattern matches nothing.
+     * @param target - Nodes or edges.
+     * @returns The paths.
+     */
+    readonly columns?: (target: SelectorTarget) => readonly Path[];
+    /**
+     * A column's plain name, which names a data spec's parts. Absent, a part is named by its path's last name.
+     * @param path - The path.
+     * @param target - Nodes or edges.
+     * @returns The name, or undefined.
+     */
+    readonly plainName?: (path: Path, target: SelectorTarget) => string | undefined;
 }
 
 /**
@@ -1572,9 +1588,57 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
             touchesMesh = touchesMesh || meshChannelsFor(layer.target).includes(channel);
         };
 
+        /**
+         * Prepare a data spec: one channel per list it fills, each resolving the node once.
+         * @param name - The data channel.
+         * @param spec - Its spec.
+         */
+        const addData = (name: DataChannel, spec: unknown): void => {
+            const { test } = entry.selector;
+            const data = prepareData(
+                name,
+                spec as PieData,
+                {
+                    count: () => store.count,
+                    value: (index, path) => store.elements.value(index, path),
+                    covers: (index) => test === null || test(index),
+                    columns: () => sources.columns?.(layer.target) ?? [],
+                    plainName: (path) => sources.plainName?.(path, layer.target),
+                    palette: (id) => resolvePalette(scales.carried, id),
+                },
+                layer.set?.["node.chartKind"],
+            );
+            for (const binding of dataBindings(data, spec)) {
+                channels.push({
+                    column: columnFor(store, binding.channel),
+                    toColumn: null,
+                    path: null,
+                    plainText: false,
+                    combine: null,
+                    labelField: null,
+                    template: false,
+                    binding,
+                });
+                touchesMesh = touchesMesh || meshChannelsFor(layer.target).includes(binding.channel);
+            }
+        };
+
+        /**
+         * Prepare one fixed value: a data spec fills its lists, anything else is written as given.
+         * @param name - The channel.
+         * @param value - The value.
+         */
+        const addSet = (name: string, value: unknown): void => {
+            if (isDataChannel(name)) {
+                addData(name, value);
+            } else {
+                add(name, null, { value } as Binding);
+            }
+        };
+
         try {
             for (const [name, value] of Object.entries(layer.set ?? {})) {
-                add(name, null, { value });
+                addSet(name, value);
             }
 
             for (const [name, binding] of Object.entries(layer.encode ?? {})) {
@@ -1840,6 +1904,11 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         // One reader for the whole pass, pointed at each element in turn, so none is allocated per element.
         let current = 0;
         const readCurrent = (path: Path): unknown => elements.value(current, path);
+        // What the layers beneath painted a channel on the element being painted, for a data spec's fills.
+        const beneathCurrent = (channel: Channel): unknown => {
+            const column = store.columns.get(channel);
+            return column === undefined ? undefined : readColumn(column, current);
+        };
         // A `replace` use and a shape follow "the topmost layer wins" (see dropReplaceUnderShape).
         const shapes = store.columns.get("node.shape");
         const shaders = store.columns.get("node.shaders");
@@ -1861,7 +1930,9 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
                     read = elements.value(index, channel.path);
                 }
 
-                const painted = channel.binding.paint(read);
+                const { binding } = channel;
+                const painted =
+                    binding.paintAt === undefined ? binding.paint(read) : binding.paintAt(index, beneathCurrent);
 
                 // Undefined means this layer has nothing to say about this element, so what
                 // the layers below it painted stands. That is what stops an algorithm

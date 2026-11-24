@@ -305,6 +305,7 @@ import type {
     SourceSettings,
 } from "./sources/types";
 import { computeFingerprint, computeStatistics } from "./statistics";
+import { renameDataSpecKeys } from "./styles/dataLists";
 import { asksFileStyles } from "./styles/fileStyles/apply";
 import type { CompiledLayer } from "./styles/Layer";
 import { expressionPaths } from "./styles/predicate";
@@ -9417,7 +9418,8 @@ function pushLayerRenames(steps: SessionCommand[], styles: readonly CompiledLaye
         const patch: Record<string, unknown> = {};
         for (const part of ["selector", "set", "encode"] as const) {
             const before = layer[part];
-            const after = before === undefined ? before : renameColumnIn(before, from, name);
+            const after = before === undefined ? before : renamedIn(part, before, from, name);
+
             if (after !== before) {
                 patch[part] = after;
             }
@@ -9427,6 +9429,19 @@ function pushLayerRenames(steps: SessionCommand[], styles: readonly CompiledLaye
             steps.push({ op: "style.patch", action: "update", id: layer.id, patch });
         }
     }
+}
+
+/**
+ * One part of a layer with a column renamed in it: its paths, and in its `set` a data spec's category keys too.
+ * @param part - Which part.
+ * @param before - The part.
+ * @param from - The old column name.
+ * @param name - The new one.
+ * @returns The part, the same object when nothing changed.
+ */
+function renamedIn<T extends object>(part: "selector" | "set" | "encode", before: T, from: string, name: string): T {
+    const renamed = renameColumnIn(before, from, name);
+    return part === "set" ? renameDataSpecKeys(renamed, `data.${from}`, `data.${name}`) : renamed;
 }
 
 /**

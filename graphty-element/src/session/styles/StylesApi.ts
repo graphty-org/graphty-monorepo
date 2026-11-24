@@ -80,6 +80,7 @@
 
 import { type GraphSnapshot, maskToIndices } from "@graphty/graph-format";
 
+import type { DataChannel, DataFacts } from "../../catalog/data-lists";
 import { drawnDefault } from "../../catalog/drawnWhen";
 import { styleFamily, type StyleFamilyDescriptor, type StyleFamilyId } from "../../catalog/families";
 import { type LabelEntry, MAIN_LABEL_ID } from "../../catalog/label-style";
@@ -171,6 +172,7 @@ import {
     type StyleGrayCollision,
     type StyleGrayCollisionOptions,
 } from "./colors";
+import type { PreparedData } from "./dataLists";
 import {
     type BindingPreview,
     type PreparedBinding,
@@ -1049,6 +1051,42 @@ export interface StylesApi {
      * @since 3.63.0
      */
     labelsBeneath(target: "node" | "edge", below?: LayerId): readonly LabelEntry[];
+    /**
+     * What one node draws from a layer's data spec (`node.pieData`, `node.chartData` or `node.recordData`): each
+     * entry's value and its text in the entry's format, a spreading entry's parts with their colors, why the node
+     * draws nothing (a code with params, null when it draws), and every category the spec yields over the layer's
+     * nodes in color order. An editor shows these; it never counts, formats or colors itself.
+     * @param layerId - The layer that holds the spec.
+     * @param channel - The data channel.
+     * @param node - The node.
+     * @returns The facts.
+     * @throws A `GraphtyError`: `E_UNKNOWN_LAYER` for no such layer, `E_BAD_COMMAND` when the layer holds no spec on
+     *     that channel or the session holds no such node.
+     * @example
+     * ```ts
+     * const facts = session.styles.dataFacts("animals", "node.pieData", "n1");
+     * facts.entries[0].parts; // [{ key: "dog", text: "2", color: "#E69F00", ... }, ...]
+     * ```
+     * @since 3.68.0
+     */
+    dataFacts(layerId: LayerId, channel: DataChannel, node: NodeId): DataFacts;
+    /**
+     * A node to show as a data spec's sample: the first the layer covers that draws, the next one after `after`
+     * that draws, one that draws nothing, or one with a missing entry value. Null when there is none.
+     * @param layerId - The layer that holds the spec.
+     * @param channel - The data channel.
+     * @param find - Which node to find.
+     * @param after - For "next": the node to start after; omitted, from the first.
+     * @returns The node, or null.
+     * @throws As {@link StylesApi.dataFacts} does.
+     * @since 3.68.0
+     */
+    dataSample(
+        layerId: LayerId,
+        channel: DataChannel,
+        find: "first" | "next" | "undrawn" | "missing",
+        after?: NodeId,
+    ): NodeId | null;
     /**
      * Resolve once the element has finished painting everything it started for itself.
      *
@@ -2928,6 +2966,35 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         },
     });
     const { defaulted, paletteKindOf, withDefaultPalettes, withResolvedPalettes } = paletteState;
+
+    /**
+     * The prepared data spec one layer paints on a data channel.
+     * @param layerId - The layer.
+     * @param channel - The data channel.
+     * @returns The preparation.
+     * @throws `E_UNKNOWN_LAYER` or `E_BAD_COMMAND`.
+     */
+    const dataPrepared = (layerId: LayerId, channel: DataChannel): PreparedData => {
+        if (!byId().has(layerId)) {
+            throw unknownLayer(
+                layerId,
+                listLayers().map((each) => each.id),
+            );
+        }
+
+        const found = encodingOf(layerId).find((binding) => binding.data?.channel === channel)?.data?.prepared;
+        if (found === undefined) {
+            throw badCommand(`The layer "${layerId}" holds no ${channel} spec it has painted.`, { layerId, channel });
+        }
+
+        return found;
+    };
+
+    /**
+     * How many nodes the session holds, counted from the ids it answers.
+     * @returns The count.
+     */
+    const nodeCountOf = (): number => (sources.resolveScope?.(WHOLE_GRAPH) ?? emptyScope()).nodeCount;
 
     /**
      * The refusal of a specification, told to whoever watches as well: a run nobody awaited
@@ -5507,6 +5574,69 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             }
 
             return merged.filter((entry) => entry.off !== true && entry.id !== MAIN_LABEL_ID);
+        },
+
+        dataFacts(layerId: LayerId, channel: DataChannel, node: NodeId): DataFacts {
+            const prepared = dataPrepared(layerId, channel);
+            const index = explainSources.nodeIndex(node);
+            if (index === undefined) {
+                throw badCommand(`There is no node with the id "${String(node)}" in this session.`, { node });
+            }
+
+            const explained = explainStyle({ node }, explainSources);
+            const result = prepared.resolve(index, (each) => (explained.merged as Record<string, unknown>)[each]);
+            const label = explained.merged["node.label"];
+            const order = listLayers().map((each) => each.id);
+            const above = explained.channels.find(
+                (each) =>
+                    result.fills[each.channel] !== undefined &&
+                    each.layerId !== layerId &&
+                    order.indexOf(each.layerId) > order.indexOf(layerId),
+            );
+            return Object.freeze({
+                node,
+                name: typeof label === "string" && label !== "" ? label : String(node),
+                entries: result.entries,
+                undrawn:
+                    above === undefined
+                        ? result.undrawn
+                        : {
+                              code: "data.paintedOver" as const,
+                              params: { channel, layerId: above.layerId, filled: above.channel },
+                          },
+                categories: prepared.categories(),
+            });
+        },
+
+        dataSample(
+            layerId: LayerId,
+            channel: DataChannel,
+            find: "first" | "next" | "undrawn" | "missing",
+            after?: NodeId,
+        ): NodeId | null {
+            const prepared = dataPrepared(layerId, channel);
+            const entry = painting(current()).find((each) => each.layer.id === layerId);
+            const test = entry?.selector.test ?? null;
+            const count = nodeCountOf();
+            const start = find === "next" && after !== undefined ? (explainSources.nodeIndex(after) ?? -1) + 1 : 0;
+            for (let index = start; index < count; index++) {
+                if (test !== null && !test(index)) {
+                    continue;
+                }
+
+                const result = prepared.resolve(index, () => undefined);
+                const wanted: Record<typeof find, boolean> = {
+                    first: result.undrawn === null,
+                    next: result.undrawn === null,
+                    undrawn: result.undrawn !== null,
+                    missing: result.entries.some((each) => each.value === null),
+                };
+                if (wanted[find]) {
+                    return sources.elements.nodeIdOf?.(index) ?? null;
+                }
+            }
+
+            return null;
         },
 
         legendOf(id: LayerId): readonly LegendBlock[] {

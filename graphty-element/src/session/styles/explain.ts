@@ -72,6 +72,7 @@ import {
     parseShaderParamAddress,
     STACK_CAP,
 } from "./channels";
+import { dataSpecPaths, isDataChannel } from "./dataLists";
 import { type PreparedBinding, requireChannel, type StyleAdjustmentCode } from "./encoding";
 import type { CompiledLayer, Layer, PathDirectory } from "./Layer";
 import type { EncodingLookup, ValueReach } from "./legend";
@@ -135,6 +136,12 @@ export interface ChannelExplanation {
      * @since 3.36.0
      */
     readonly coveredBy?: LayerId;
+    /**
+     * The data channel (`node.pieData`, `node.chartData`, `node.recordData`) this channel was filled from, when it
+     * was; `mode` is then `"encoded"`.
+     * @since 3.68.0
+     */
+    readonly from?: Channel;
 }
 
 /**
@@ -712,6 +719,8 @@ interface Winner {
     readonly mode: "static" | "encoded";
     /** The path the rule reads, when it is a rule. */
     readonly path: Path | null;
+    /** The data channel it was filled from, when it was. */
+    readonly from?: Channel;
 }
 
 /**
@@ -759,6 +768,8 @@ function prepareStack(sources: ExplainSources): readonly StackEntry[] {
  * @param paint - Called once per value painted, in paint order; a later call for the same channel
  *     paints over an earlier one.
  * @param matches - Selector answers an earlier reading kept. Absent, each selector is tested.
+ * @param beneath - What the layers beneath painted a channel so far, read by a data channel's fills (a chart's
+ *     kind, a pie's slice texts). Absent, they read nothing beneath.
  */
 function paintOne(
     stack: readonly StackEntry[],
@@ -766,6 +777,7 @@ function paintOne(
     columns: ElementColumns,
     paint: (layer: Layer, prepared: PreparedBinding, result: unknown) => void,
     matches?: SelectorMatches,
+    beneath: (channel: Channel) => unknown = () => undefined,
 ): void {
     for (const { entry, bindings } of stack) {
         if (!applies(entry, at, matches)) {
@@ -774,7 +786,7 @@ function paintOne(
 
         for (const prepared of bindings) {
             const value = prepared.path === null ? undefined : columns.value(at.index, prepared.path);
-            const result = prepared.paint(value);
+            const result = prepared.paintAt === undefined ? prepared.paint(value) : prepared.paintAt(at.index, beneath);
 
             if (result !== undefined) {
                 paint(entry.layer, prepared, result);
@@ -844,46 +856,65 @@ export function explainStyle(target: ExplainTarget, sources: ExplainSources): St
     const stack = prepareStack(sources);
     const useLayers = new Map<ShaderUse, LayerId>();
     const notes: CodedFact<GraphtyWarningCode>[] = [];
-    paintOne(stack, at, columnsFor(sources.elements, at.target), (layer, prepared, result) => {
-        const { channel } = prepared;
-        // Label styles stack field by field, as the repaint stacks them, and a label field
-        // channel lands in its label style: `merged` is what the canvas draws.
-        const labelField = labelFieldOf(channel);
-        if (labelField !== undefined) {
-            merged[labelField.into] = mergeLabelStyle(merged[labelField.into], labelPatchOf(labelField.field, result));
-        } else if (isShaderListChannel(channel)) {
-            merged[channel] = mergeListValue(channel, merged[channel], result, layer.id, useLayers);
-        } else if (
-            CHANNEL_DESCRIPTORS[channel].accepts === "labelStyle" ||
-            isLabelListChannel(channel) ||
-            (CHANNEL_DESCRIPTORS[channel].listOf !== undefined && typeof result === "object" && result !== null)
-        ) {
-            // A list item's patch changes one item of the list resolved beneath; one past its end changes nothing.
-            if (CHANNEL_DESCRIPTORS[channel].listOf !== undefined) {
-                const { indices, length } = listItemsPastEnd(merged[channel], result as object);
-                for (const index of indices) {
-                    notes.push({ code: "W_LIST_ITEM_PAST_END", params: { channel, index, length, layerId: layer.id } });
+    paintOne(
+        stack,
+        at,
+        columnsFor(sources.elements, at.target),
+        (layer, prepared, result) => {
+            const { channel } = prepared;
+            // Label styles stack field by field, as the repaint stacks them, and a label field
+            // channel lands in its label style: `merged` is what the canvas draws.
+            const labelField = labelFieldOf(channel);
+            if (labelField !== undefined) {
+                merged[labelField.into] = mergeLabelStyle(
+                    merged[labelField.into],
+                    labelPatchOf(labelField.field, result),
+                );
+            } else if (isShaderListChannel(channel)) {
+                merged[channel] = mergeListValue(channel, merged[channel], result, layer.id, useLayers);
+            } else if (
+                CHANNEL_DESCRIPTORS[channel].accepts === "labelStyle" ||
+                isLabelListChannel(channel) ||
+                (CHANNEL_DESCRIPTORS[channel].listOf !== undefined && typeof result === "object" && result !== null)
+            ) {
+                // A list item's patch changes one item of the list resolved beneath; one past its end changes nothing.
+                if (CHANNEL_DESCRIPTORS[channel].listOf !== undefined) {
+                    const { indices, length } = listItemsPastEnd(merged[channel], result as object);
+                    for (const index of indices) {
+                        notes.push({
+                            code: "W_LIST_ITEM_PAST_END",
+                            params: { channel, index, length, layerId: layer.id },
+                        });
+                    }
                 }
+                merged[channel] = mergeChannelValue(channel, merged[channel], result as object);
+            } else {
+                merged[channel] = result;
             }
-            merged[channel] = mergeChannelValue(channel, merged[channel], result as object);
-        } else {
-            merged[channel] = result;
-        }
-        winners.set(channel, { layer, mode: prepared.path === null ? "static" : "encoded", path: prepared.path });
+            const from = prepared.data?.channel;
+            winners.set(channel, {
+                layer,
+                mode: prepared.path === null && from === undefined ? "static" : "encoded",
+                path: prepared.path ?? from ?? null,
+                ...(from === undefined ? {} : { from }),
+            });
 
-        let painting = painted.get(layer.id);
-        if (painting === undefined) {
-            painting = { layer, properties: [], values: {} };
-            painted.set(layer.id, painting);
-            order.push(painting);
-        }
+            let painting = painted.get(layer.id);
+            if (painting === undefined) {
+                painting = { layer, properties: [], values: {} };
+                painted.set(layer.id, painting);
+                order.push(painting);
+            }
 
-        if (!painting.properties.includes(channel)) {
-            painting.properties.push(channel);
-        }
+            if (!painting.properties.includes(channel)) {
+                painting.properties.push(channel);
+            }
 
-        painting.values[channel] = result;
-    });
+            painting.values[channel] = result;
+        },
+        undefined,
+        (channel) => merged[channel],
+    );
 
     if (order.length === 0) {
         return NOTHING_PAINTED;
@@ -918,6 +949,7 @@ export function explainStyle(target: ExplainTarget, sources: ExplainSources): St
             mode: winner.mode,
             editable: refused === undefined,
             ...refused,
+            ...(winner.from === undefined ? {} : { from: winner.from }),
             ...(covering?.covers.includes(channel) === true ? { coveredBy: covering.layerId } : {}),
         });
     }
@@ -1957,6 +1989,13 @@ function readPaths(entry: CompiledLayer): Set<Path> {
     for (const binding of Object.values(entry.layer.encode ?? {})) {
         if (binding !== undefined && "by" in binding) {
             wanted.add(binding.by);
+        }
+    }
+    for (const [channel, value] of Object.entries(entry.layer.set ?? {})) {
+        if (isDataChannel(channel)) {
+            for (const path of dataSpecPaths(value)) {
+                wanted.add(path);
+            }
         }
     }
     return wanted;

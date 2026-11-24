@@ -41,6 +41,8 @@ const CARRIED_PATHS: readonly {
     readonly def: RegExp;
 }[] = [
     { list: "palettes", at: /\.encode\.[^.]+\.[^.]+\.palette$/, def: /(^|\.)palettes\[\]\.id$/ },
+    // A pie's, chart's or record's data spec names its palette at `set.node.<thing>Data.palette`.
+    { list: "palettes", at: /\.set\.node\.[a-z]+Data\.palette$/, def: /(^|\.)palettes\[\]\.id$/ },
     { list: "labelLooks", at: /\.set\.[^.]+\.[^.]*Style\.look$/, def: /(^|\.)labelLooks\[\]\.id$/ },
 ];
 

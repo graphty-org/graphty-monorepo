@@ -3,6 +3,7 @@ import { useId, useUncontrolled } from "@mantine/hooks";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import { useLabels } from "../../i18n";
+import { ListboxCheck } from "../inputs/listbox";
 import { useShellStyles } from "./roving";
 
 /**
@@ -59,6 +60,8 @@ export interface QuickAction {
     tone?: "component";
     /** The option's accessible name, when it is not `label` (a label set off by marks a reader should not hear). */
     "aria-label"?: string;
+    /** With `multiselectable`: whether the row is checked (its check column drawn, `aria-selected`). */
+    selected?: boolean;
 }
 
 /**
@@ -90,6 +93,11 @@ export interface QuickActionsProps {
      * own clear button in this place instead, as Figma does.
      */
     searchAction?: React.ReactNode;
+    /**
+     * Rows are checked and unchecked, several at once: each row draws a check column and is `aria-selected` by its own
+     * `selected`, and the list is `aria-multiselectable`. Running a row is the host's toggle. @default false
+     */
+    multiselectable?: boolean;
     /**
      * The id of the result list. A control in `header` that changes what the list shows, such as
      * scope tabs, names it in `aria-controls`. Generated when left out.
@@ -190,6 +198,7 @@ function defaultFilter(action: QuickAction, query: string): boolean {
  * @param props - Component props
  * @param props.actions - Every action
  * @param props.onRun - Called with an action's value when it is run
+ * @param props.multiselectable - Rows are checked and unchecked, several at once
  * @param props.onClose - Called by Escape
  * @param props.query - The search text (controlled)
  * @param props.onQueryChange - Called as the search text changes
@@ -220,6 +229,7 @@ export function QuickActions({
     filter = defaultFilter,
     header,
     searchAction,
+    multiselectable = false,
     listId: listIdProp,
     truncate = "end",
     descriptions = "below",
@@ -384,6 +394,7 @@ export function QuickActions({
                 id={listId}
                 role="listbox"
                 aria-label={name}
+                aria-multiselectable={multiselectable || undefined}
             >
                 {sections.map(([section, list]) => (
                     <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- a group of options inside an ARIA listbox; optgroup works only inside a native select
@@ -403,7 +414,11 @@ export function QuickActions({
                                 id={optionId(action.value)}
                                 role="option"
                                 // Selected is the value in force, not the row the arrows are on.
-                                aria-selected={highlight !== undefined && action.value === highlight}
+                                aria-selected={
+                                    multiselectable
+                                        ? action.selected === true
+                                        : highlight !== undefined && action.value === highlight
+                                }
                                 aria-disabled={action.disabled || undefined}
                                 // A fact at the line's end (a count, a range) and the reason a row
                                 // cannot run are part of what the row is, so they join its name:
@@ -443,6 +458,7 @@ export function QuickActions({
                                     }
                                 }}
                             >
+                                {multiselectable ? <ListboxCheck /> : null}
                                 <span className="cm-qa-row-icon" aria-hidden="true">
                                     {action.icon}
                                 </span>

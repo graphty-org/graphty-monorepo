@@ -714,6 +714,9 @@ const css = `
 .cm-qa-row[aria-disabled="true"],
 .cm-qa-row[aria-disabled="true"] .cm-qa-row-icon,
 .cm-qa-row[aria-disabled="true"] .cm-qa-row-shortcut { color: var(--cm-text-disabled); }
+/* A multi-select list's check column: drawn on a checked row only, so the names stay aligned. */
+.cm-qa-row .cm-menu-row-check { opacity: 0; flex: none; }
+.cm-qa-row[aria-selected="true"] .cm-menu-row-check { opacity: 1; }
 .cm-qa-row-icon {
     display: inline-flex;
     align-items: center;

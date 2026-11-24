@@ -24,6 +24,8 @@ export interface PickerPopoutProps {
     disabledReason?: string;
     /** The pop-out's content, given a function that closes it and returns focus to the field. */
     children: (close: () => void) => React.ReactNode;
+    /** Called when the pop-out closes by itself (a click outside it, its close button), never by `close`. */
+    onDismiss?: () => void;
 }
 
 /**
@@ -42,6 +44,7 @@ export interface PickerPopoutProps {
  * @param props.disabled - Whether the field cannot be used
  * @param props.disabledReason - Why it cannot be used
  * @param props.children - The pop-out's content
+ * @param props.onDismiss - Called when it closes by itself
  * @returns The field and its pop-out
  */
 export function PickerPopout({
@@ -55,6 +58,7 @@ export function PickerPopout({
     disabled = false,
     disabledReason,
     children,
+    onDismiss,
 }: Readonly<PickerPopoutProps>): React.JSX.Element {
     const [opened, setOpened] = useState(false);
     const close = (): void => {
@@ -62,7 +66,15 @@ export function PickerPopout({
     };
     return (
         <PanelLabelsProvider showLabels={false}>
-            <Popout opened={opened} onOpenChange={setOpened}>
+            <Popout
+                opened={opened}
+                onOpenChange={(next) => {
+                    setOpened(next);
+                    if (!next) {
+                        onDismiss?.();
+                    }
+                }}
+            >
                 <Popout.Trigger>
                     <PanelField // eslint-disable-line jsx-a11y/prefer-tag-over-role -- a select-only combobox whose popup is a dialog (APG); a text box may not carry the aria-expanded Popout.Trigger adds, and no native element opens a dialog
                         role="combobox"

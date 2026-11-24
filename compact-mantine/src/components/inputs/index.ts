@@ -11,6 +11,7 @@ export {
     type DataFieldAction,
     DataFieldPicker,
     type DataFieldPickerLabels,
+    type DataFieldPickerMultiProps,
     type DataFieldPickerProps,
 } from "./DataFieldPicker";
 export { type DataFieldType, FieldTypeGlyph, type FieldTypeGlyphProps } from "./FieldTypeGlyph";

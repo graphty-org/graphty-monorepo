@@ -1,7 +1,7 @@
 import React from "react";
 
 /** What kind of values a data field holds. */
-export type DataFieldType = "number" | "string" | "boolean" | "date" | "category" | "id" | "other";
+export type DataFieldType = "number" | "string" | "boolean" | "date" | "category" | "id" | "list" | "other";
 
 /** Props for the FieldTypeGlyph component. */
 export interface FieldTypeGlyphProps {
@@ -39,12 +39,13 @@ const TYPE_SHAPES: Record<DataFieldType, React.JSX.Element> = {
             <path d="M7.6 8.4 13.5 2.5M11.5 4.5l1.5 1.5" />
         </>
     ),
+    list: <path d="M5.5 2.5h-2v11h2M10.5 2.5h2v11h-2" />,
     other: <circle cx="8" cy="8" r="1.75" fill="currentColor" stroke="none" />,
 };
 
 /**
  * A small drawing of a data field's type: `#` a number, a text mark a string, a checked box a
- * yes-or-no, a calendar a date, a tag a category, a key an id, a dot anything else. Drawn in
+ * yes-or-no, a calendar a date, a tag a category, a key an id, brackets a list, a dot anything else. Drawn in
  * `currentColor` with 1px round strokes, as `FieldGlyph` is. Decorative: the row or field that
  * holds it carries the type word in its accessible name.
  * @param props - Component props

@@ -164,3 +164,54 @@ export const Disabled: Story = {
         />
     ),
 };
+
+/**
+ * The multi mode, as a host uses it: the checks are a draft the host keeps, written once on Done (or a click
+ * outside) and dropped on Escape; "All starting with" rows appear while a search is typed.
+ * @param props - Component props
+ * @param props.actions - whether to offer a "Fixed" and a "Text" row above the fields
+ * @returns the picker and what it holds
+ */
+function MultiHost({ actions = false }: Readonly<{ actions?: boolean }>): React.JSX.Element {
+    const [kept, setKept] = useState<readonly string[]>(["age"]);
+    const [draft, setDraft] = useState<readonly string[] | null>(null);
+    const values = draft ?? kept;
+    return (
+        <Stack gap={8}>
+            <DataFieldPicker
+                multiple
+                label="Pie data"
+                fields={[...GROUPED, { id: "pets", name: "Pets", type: "list", group: "Data", sample: "3 values" }]}
+                values={values}
+                onChange={setDraft}
+                onDone={() => {
+                    setKept(values);
+                    setDraft(null);
+                }}
+                onCancel={() => {
+                    setDraft(null);
+                }}
+                onMatch={(query) => {
+                    setDraft([...values, ...GROUPED.filter((f) => f.name.startsWith(query)).map((f) => f.id)]);
+                }}
+                actions={
+                    actions
+                        ? [
+                              { id: "fixed", label: "Fixed" },
+                              { id: "text", label: "Text", keepsOpen: true },
+                          ]
+                        : []
+                }
+            />
+            <Text size="xs">{kept.join(", ")}</Text>
+        </Stack>
+    );
+}
+
+export const Multi: Story = {
+    render: () => <MultiHost />,
+};
+
+export const MultiWithActions: Story = {
+    render: () => <MultiHost actions />,
+};

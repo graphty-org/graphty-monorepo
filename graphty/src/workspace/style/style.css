@@ -866,6 +866,14 @@
     color: var(--cm-text-secondary);
 }
 
+/* Style panel v2: an unset value shows its default in the normal text (design "Input rules": every input has a
+   value), never a placeholder's gray italics. */
+[data-style-panel-v2] .ws-value-listbox[data-unset],
+[data-thing-popover] .ws-value-listbox[data-unset] {
+    font-style: normal;
+    color: inherit;
+}
+
 /* Style panel v2's shader rows (Shaders, group outlines): the empty place column gives its width to
    the name, which the panel's 240 px would otherwise squeeze to nothing. */
 [data-style-panel-v2] .ws-shader-row .ws-field[data-shader-use] {

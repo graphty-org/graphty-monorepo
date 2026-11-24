@@ -42,9 +42,9 @@ export function PopLine({
         wide === true && parts.length > 1 ? (
             <Group gap={8} wrap="nowrap">
                 {parts.map((part, at) => (
-                    // eslint-disable-next-line react/no-array-index-key -- the line's controls, fixed in place
                     <div
-                        key={at}
+                        // Children.toArray keys every element it returns.
+                        key={React.isValidElement(part) ? part.key : null}
                         style={
                             at === 0 && first !== undefined
                                 ? { flex: `0 0 ${String(first)}px` }

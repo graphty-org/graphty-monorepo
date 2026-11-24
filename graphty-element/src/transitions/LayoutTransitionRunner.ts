@@ -349,6 +349,11 @@ function drawnScale(mover: Mover): number {
 /** The graph's layout transition: idle until a layout changes with `layoutTransition` set. */
 export class LayoutTransitionRunner {
     private state: (TransitionSnapshot & { start: number | null }) | null = null;
+    /**
+     * The movers of the rows with no `Node`, by row: a `Node` built for one of them part way through the move (a
+     * selection, a hover, a read of the node) is drawn by the same move, not at the new layout.
+     */
+    private rowMovers = new Map<number, Mover>();
     private now = 0;
     /** The setting's `hold`, read once a frame: the progress the move is held at, if any. */
     private hold: number | undefined = undefined;
@@ -463,6 +468,12 @@ export class LayoutTransitionRunner {
         this.end();
         if (snapshot !== null && snapshot.movers.size > 0) {
             this.state = { ...snapshot, start: null };
+            this.rowMovers = new Map(
+                snapshot.rows.flatMap((row) => {
+                    const mover = snapshot.movers.get(row);
+                    return mover === undefined ? [] : [[row.index, mover] as const];
+                }),
+            );
             runners.set(this.host.scene(), this);
         }
     }
@@ -501,7 +512,7 @@ export class LayoutTransitionRunner {
      */
     place<T extends { x: number; y: number; z?: number }>(node: TransitionSubject, to: T): T | Vec3 {
         const { state } = this;
-        const mover = state?.movers.get(node);
+        const mover = state?.movers.get(node) ?? this.rowMovers.get(node.index);
         if (state === null || mover === undefined) {
             return to;
         }
@@ -696,6 +707,7 @@ export class LayoutTransitionRunner {
         }
 
         this.state = null;
+        this.rowMovers.clear();
         this.drawable?.dispose();
         this.drawable = null;
     }

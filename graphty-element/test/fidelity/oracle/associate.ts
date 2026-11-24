@@ -2350,14 +2350,26 @@ export function arrowheadEdge(
         ? Math.max(...nodes.map((m) => (m.order !== undefined && m.order < p.index ? m.order : -1)))
         : Number.NEGATIVE_INFINITY;
     const laterDrawn = (n: PNode): boolean => n.order !== undefined && n.order < lastBefore;
+    // a program draws a node's pieces next to its body: a shape under half the node's length, drawn before another
+    // node's body that comes before this node's, is no piece of this node (cx2-signor-aml: Cytoscape desktop draws every
+    // line and head before the nodes, and 39 -> 38's head, lying under the flat mir-143 box drawn over it, was read as
+    // that box's and left a stray). A compound's body drawn before its children (json-cyjs-synth-edges), or a border as
+    // long as its node drawn well before it (cx2-wp1449-tlr 137071), still is.
+    const firstAfter = Math.min(...nodes.map((m) => (m.order !== undefined && m.order > p.index ? m.order : Infinity)));
+    const drawnApart = (n: PNode): boolean =>
+        n.order !== undefined &&
+        n.order > firstAfter &&
+        size < 0.5 * Math.max(n.w, n.h) &&
+        !within(boxOfNode(n), p.box);
     if (
         !lineEnd &&
         !armsOnly &&
         nodes.some(
             (n) =>
-                (!laterDrawn(n) && inside([n.cx, n.cy], p.box)) ||
-                // its middle on the outline is its line's end, not the node's inside (yEd's transparent_circle)
-                (inside(c, boxOfNode(n), -ON_OUTLINE_PX) && size >= 0.5 * Math.sqrt(n.w * n.h)),
+                !drawnApart(n) &&
+                ((!laterDrawn(n) && inside([n.cx, n.cy], p.box)) ||
+                    // its middle on the outline is its line's end, not the node's inside (yEd's transparent_circle)
+                    (inside(c, boxOfNode(n), -ON_OUTLINE_PX) && size >= 0.5 * Math.sqrt(n.w * n.h))),
         )
     ) {
         return null;

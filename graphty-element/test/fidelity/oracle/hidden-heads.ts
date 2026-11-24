@@ -4,7 +4,8 @@
  * end is hidden in both drawings (`withoutHiddenInBoth`). A head one drawing hides and the other shows, because node
  * sizes or places differ (gexf-sigma-ediaspora), is a difference a reader sees, and is judged.
  */
-import type { ArrowEnd, PArrow, PBox, PEdge, Prim, PScene } from "./primitives";
+import { extendToTip } from "./associate";
+import type { ArrowEnd, PArrow, PBox, PEdge, Prim, PScene, Pt } from "./primitives";
 
 /** A fill this opaque hides what is under it. */
 const OPAQUE = 0.99;
@@ -160,15 +161,25 @@ export function markHiddenHeads(scene: PScene, prims: readonly Prim[]): PScene {
             return { ...a, hidden: true };
         });
         const lineEnds = { source: e.points[0], target: e.points.at(-1) };
+        // the line stops at the hidden head's back, as at a head read: the route carried on to its tip (`toHiddenTips`)
+        const hiddenTips: { source?: Pt; target?: Pt } = {};
         const hiddenEnds = (["source", "target"] as const).filter((end) => {
             const at = lineEnds[end];
-            return at !== undefined && e.arrows.every((a) => a.end !== end) && hidden(headAt(at, prims));
+            const piece = at === undefined || e.arrows.some((a) => a.end === end) ? undefined : headAt(at, prims);
+            if (piece === undefined || !hidden(piece)) {
+                return false;
+            }
+            const carried = extendToTip(e.points, piece.points, end, piece.stroke);
+            if (carried.length > e.points.length) {
+                hiddenTips[end] = end === "target" ? carried.at(-1) : carried[0];
+            }
+            return true;
         });
         if (!marked && hiddenEnds.length === 0) {
             return e;
         }
         changed = true;
-        return { ...e, arrows, ...(hiddenEnds.length > 0 ? { hiddenEnds } : {}) };
+        return { ...e, arrows, ...(hiddenEnds.length > 0 ? { hiddenEnds, hiddenTips } : {}) };
     });
     return changed ? { ...scene, edges } : scene;
 }
@@ -186,15 +197,51 @@ export function withoutHiddenInBoth(
     oracle: Pick<PEdge, "arrows" | "hiddenEnds">,
     graphty: readonly PArrow[],
 ): [PArrow[], PArrow[]] {
+    const gone = hiddenInBoth(oracle, graphty);
+    return [oracle.arrows.filter((a) => !gone.has(a.end)), graphty.filter((a) => !gone.has(a.end))];
+}
+
+/**
+ * The ends whose heads both drawings hide: all `hidden` on graphty's side, and on the oracle's all `hidden` or none
+ * read and the end in its `hiddenEnds`.
+ * @param oracle - the oracle edge
+ * @param graphty - graphty's arrowheads, their ends turned to the oracle edge's direction
+ * @returns those ends
+ */
+function hiddenInBoth(oracle: Pick<PEdge, "arrows" | "hiddenEnds">, graphty: readonly PArrow[]): Set<ArrowEnd> {
     const hiddenAt = (list: readonly PArrow[], end: ArrowEnd): boolean => {
         const at = list.filter((a) => a.end === end);
         return at.length > 0 && at.every((a) => a.hidden === true);
     };
-    const gone = new Set(
+    return new Set(
         (["source", "target", "middle"] as const).filter(
             (end) =>
                 (hiddenAt(oracle.arrows, end) || (oracle.hiddenEnds?.includes(end) ?? false)) && hiddenAt(graphty, end),
         ),
     );
-    return [oracle.arrows.filter((a) => !gone.has(a.end)), graphty.filter((a) => !gone.has(a.end))];
+}
+
+/**
+ * The oracle edge with its route carried on to the tip of each hidden head graphty hides too (`hiddenTips`): the
+ * program stops its line at the head's back, and graphty's route runs to its head's tip, so judged as drawn the oracle's
+ * reads a head's length short (cx2-signor-aml 23 -> 144, whose head lies under MTOR: 0.14 of its chord). Where graphty
+ * draws no head there, the piece under the node says nothing of where the line ends (json-cyjs-perf n109 -> n571).
+ * @param oracle - the oracle edge
+ * @param graphty - graphty's arrowheads, their ends turned to the oracle edge's direction
+ * @returns the edge, its points carried on where both hide the head
+ */
+export function toHiddenTips(oracle: PEdge, graphty: readonly PArrow[]): PEdge {
+    const tips = oracle.hiddenTips;
+    if (tips === undefined) {
+        return oracle;
+    }
+    const gone = hiddenInBoth(oracle, graphty);
+    const [from, to] = [gone.has("source") ? tips.source : undefined, gone.has("target") ? tips.target : undefined];
+    if (from === undefined && to === undefined) {
+        return oracle;
+    }
+    return {
+        ...oracle,
+        points: [...(from === undefined ? [] : [from]), ...oracle.points, ...(to === undefined ? [] : [to])],
+    };
 }

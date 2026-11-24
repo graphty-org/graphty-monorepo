@@ -42,7 +42,11 @@ node graphty/acceptance/run.mjs --only t39a,t46 # routes whose id starts with on
 node graphty/acceptance/run.mjs --workers 1     # one browser
 node graphty/acceptance/run.mjs --list          # the routes and their checks; runs nothing
 node graphty/acceptance/run.mjs --dist <dir>    # another build of the app
+node graphty/acceptance/run.mjs --features cosmograph  # the app opened with an experiment on: tmp/dry-run-cosmograph/
 ```
+
+`--features` opens the app with experiments on (`?features=...`). With `cosmograph` on, graphty-element draws
+with its batched render path, so the same routes walk that path too.
 
 `pnpm run check:quick --with-dry-run` runs the quick check, then builds the app and runs every route. When the
 quick check would run whole test shards (a change to root files), `pnpm exec nx run graphty:build` then

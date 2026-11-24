@@ -60,7 +60,7 @@ export interface LabelLineSpec {
     readonly toggles?: readonly LabelField[];
     /**
      * In the pop-over's Advanced view, under its group's name (design "Input rules": a pop-over over 6 lines
-     * moves its rare settings there). The view drills into the pop-over in place, so it may hold colors and lists.
+     * moves its rare settings there). An input's own picker is part of the input, so it may hold colors and lists.
      */
     readonly advanced?: true;
 }
@@ -156,7 +156,7 @@ export const LABEL_RUBRIC: LabelRubric = {
         { field: "size", name: "Unit", fullName: "Size unit", rule: "R8f", unit: SIZE_UNIT, advanced: true },
     ],
     // ia-design.md "Label settings groups": nine groups by how often files vary them, a divider between tiers. Every
-    // group is in Advanced, which drills into the pop-over in place, so the pop-over keeps its everyday lines and
+    // group is in Advanced, its own pop-over beside the pop-over, so the pop-over keeps its everyday lines and
     // stays 6 lines tall (owner's input rules, 2026-11-23).
     groups: [
         {

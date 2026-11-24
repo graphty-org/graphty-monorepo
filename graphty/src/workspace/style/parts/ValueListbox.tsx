@@ -5,13 +5,12 @@
  * graph draws now come first, under "In this graph", each with how many nodes or edges carry it.
  */
 
-import { PanelField, type QuickAction, QuickActions } from "@graphty/compact-mantine";
+import { PanelField, Popout, type QuickAction, QuickActions } from "@graphty/compact-mantine";
 import type { ChannelDescriptor } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { Box, Button } from "@mantine/core";
 import React, { useState } from "react";
 
-import { Pop, PopPanel, PopTrigger } from "../../options/Drill";
 import { channelWord, countName } from "../words";
 
 /** A choice listed after the property's own, as a value field takes it. */
@@ -198,7 +197,7 @@ export function ValueListbox({
         name = `${label}, mixed`;
     }
     return (
-        <Pop
+        <Popout
             opened={opened}
             onOpenChange={(open) => {
                 setQuery("");
@@ -206,7 +205,7 @@ export function ValueListbox({
                 setOpened(open);
             }}
         >
-            <PopTrigger>
+            <Popout.Trigger>
                 <Button
                     variant="default"
                     size="compact-xs"
@@ -222,8 +221,8 @@ export function ValueListbox({
                 >
                     {mixed ? "Mixed" : (current?.plainName ?? "")}
                 </Button>
-            </PopTrigger>
-            <PopPanel
+            </Popout.Trigger>
+            <Popout.Panel
                 width={240}
                 placement="left"
                 alignment="start"
@@ -264,7 +263,7 @@ export function ValueListbox({
                         setOpened(false);
                     }}
                 />
-            </PopPanel>
-        </Pop>
+            </Popout.Panel>
+        </Popout>
     );
 }

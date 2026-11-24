@@ -3,7 +3,7 @@ import { Tooltip } from "@mantine/core";
 import React, { createContext, useContext } from "react";
 
 import { GLYPHS } from "../glyphs";
-import { useDrillHost } from "./useDrillHost";
+import { useHeaderAction } from "./useHeaderAction";
 
 /** Whether this part of the tree is already inside a settings popover. */
 const InSettings = createContext(false);
@@ -30,8 +30,6 @@ interface SettingsPopoutProps {
     boundaryTop?: number;
     /** The button's glyph; the settings gear by default. */
     icon?: React.ReactNode;
-    /** Whether a pop-out opened inside drills into the panel in place (`Pop`, Drill.tsx) instead of floating. */
-    drill?: boolean;
     /** The settings. */
     children: React.ReactNode;
 }
@@ -53,7 +51,6 @@ interface SettingsPopoutProps {
  * @param props.placement - The side of the button it opens on
  * @param props.boundaryTop - The highest the panel's top may sit
  * @param props.icon - The button's glyph
- * @param props.drill - Whether pop-outs opened inside drill in
  * @param props.children - The settings
  * @returns The button and its popover
  */
@@ -68,10 +65,9 @@ export function SettingsPopout({
     placement = "left",
     boundaryTop,
     icon = <GLYPHS.settings size={14} aria-hidden />,
-    drill = false,
     children,
 }: Readonly<SettingsPopoutProps>): React.JSX.Element {
-    const host = useDrillHost(title);
+    const header = useHeaderAction();
     if (useContext(InSettings) && import.meta.env.DEV) {
         throw new Error(`The ${label} popover is inside another settings popover: draw its settings flat there.`);
     }
@@ -83,16 +79,16 @@ export function SettingsPopout({
                 </Tooltip>
             </Popout.Trigger>
             <Popout.Panel
-                width={drill ? (host.width ?? width) : width}
+                width={width}
                 placement={placement}
                 alignment="start"
                 boundaryTop={boundaryTop}
-                header={{ variant: "title", title: drill ? host.title : title }}
-                actions={drill ? host.actions : undefined}
+                header={{ variant: "title", title }}
+                actions={header.actions}
                 closeLabel={`Close ${title}`}
             >
                 <Popout.Content>
-                    <InSettings.Provider value>{drill ? host.body(children) : children}</InSettings.Provider>
+                    <InSettings.Provider value>{header.body(children)}</InSettings.Provider>
                 </Popout.Content>
             </Popout.Panel>
         </Popout>

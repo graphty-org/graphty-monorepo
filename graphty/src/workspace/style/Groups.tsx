@@ -4,6 +4,7 @@ import {
     MenuShortcut,
     PanelField,
     PanelLabelsProvider,
+    Popout,
     TargetTooltip,
     ToggleIconButton,
     ToggleRow,
@@ -276,6 +277,11 @@ interface GroupsProps {
     /** Told when a group's detail opens or closes, so the popover can hide what is the list's. */
     readonly onDetailChange?: (open: boolean) => void;
     /**
+     * Style panel v2: a group's detail opens in a pop-out of its own beside the list, never in its place (owner,
+     * 2026-11-24: "do not use in-place pop-overs").
+     */
+    readonly beside?: boolean;
+    /**
      * Several layers: the binding is held, written to none of them yet. The groups come from the
      * element's preview of it, and a group's own value or eye changes the held binding.
      */
@@ -316,7 +322,7 @@ interface GroupSource {
     /** Folding small groups into Other; absent where groups never fold. */
     readonly fold?: { readonly below: number | undefined; readonly set: (below: number | undefined) => void };
     /** A group's detail ("Set properties for <group>"); absent where it has none. */
-    readonly detail?: (keys: readonly string[], onBack: () => void) => React.JSX.Element;
+    readonly detail?: (keys: readonly string[], onBack?: () => void) => React.JSX.Element;
 }
 
 /**
@@ -329,6 +335,7 @@ interface GroupSource {
  * @param props.binding - the binding
  * @param props.source - what it reads, in words
  * @param props.onDetailChange - told when a group's detail opens or closes
+ * @param props.beside - Style panel v2: a group's detail opens beside the list
  * @param props.onHeld - several layers: keeps a changed held binding
  * @returns The list, or one group's detail
  */
@@ -339,6 +346,7 @@ export function GroupList({
     binding,
     source,
     onDetailChange,
+    beside = false,
     onHeld,
 }: GroupsProps): React.JSX.Element | null {
     const { store } = useWorkspace();
@@ -394,7 +402,17 @@ export function GroupList({
         },
         detail: detailOf(session, layer, path, source),
     };
-    return <GroupRows descriptor={descriptor} from={from} onDetailChange={onDetailChange} />;
+    return <GroupRows descriptor={descriptor} from={from} onDetailChange={onDetailChange} beside={beside} />;
+}
+
+/**
+ * The groups a detail is for, in words: one group's name, or how many.
+ * @param from - where the groups come from.
+ * @param keys - the groups.
+ * @returns the words.
+ */
+function groupTitle(from: GroupSource, keys: readonly string[]): string {
+    return keys.length === 1 ? (from.names.get(keys[0] ?? "") ?? keys[0]) : `${String(keys.length)} groups`;
 }
 
 /**
@@ -1153,16 +1171,19 @@ function clickedGroups(
  * @param props.descriptor - the property
  * @param props.from - where the groups come from
  * @param props.onDetailChange - told when a group's detail opens or closes
+ * @param props.beside - Style panel v2: the detail opens in a pop-out beside the list, not in its place
  * @returns The list, or one group's detail
  */
 function GroupRows({
     descriptor,
     from,
     onDetailChange,
+    beside = false,
 }: Readonly<{
     descriptor: ChannelDescriptor;
     from: GroupSource;
     onDetailChange?: (open: boolean) => void;
+    beside?: boolean;
 }>): React.JSX.Element {
     const [opened, setOpened] = useState<readonly string[] | null>(null);
     const [all, setAll] = useState(false);
@@ -1175,7 +1196,7 @@ function GroupRows({
     const { source, groups, paints, detail } = from;
 
     const keys = opened?.filter((key) => groups.some((g) => String(g.value) === key)) ?? [];
-    if (detail !== undefined && keys.length > 0) {
+    if (detail !== undefined && keys.length > 0 && !beside) {
         return detail(keys, () => {
             setOpened(null);
             onDetailChange?.(false);
@@ -1188,8 +1209,33 @@ function GroupRows({
     const { shown, pinned, more } = shownRows(from, all, search, sort);
     const open = (picked: readonly string[]): void => {
         setOpened(picked);
-        onDetailChange?.(true);
+        if (!beside) {
+            onDetailChange?.(true);
+        }
     };
+    // v2: the detail in a pop-out of its own beside the list, with no back button (its close button closes it).
+    const besideDetail =
+        beside && detail !== undefined && keys.length > 0 ? (
+            <Popout
+                opened
+                onOpenChange={(next) => {
+                    if (!next) {
+                        setOpened(null);
+                    }
+                }}
+            >
+                <Popout.Panel
+                    width={264}
+                    placement="left"
+                    alignment="start"
+                    anchorY="parent"
+                    header={{ variant: "title", title: `Set properties for ${groupTitle(from, keys)}` }}
+                    closeLabel="Close the group's properties"
+                >
+                    <Popout.Content>{detail(keys)}</Popout.Content>
+                </Popout.Panel>
+            </Popout>
+        ) : null;
     const columns = groupColumns({ descriptor, from, renaming, setRenaming, menuHost, open });
 
     // The header and the rows on show, each with its 1 px grid line, and the frame's 1 px.
@@ -1197,6 +1243,7 @@ function GroupRows({
     const pinnedCount = pinned === undefined ? 0 : 1;
     return (
         <Stack gap={6} ref={setMenuHost} pos="relative" data-group-list="">
+            {besideDetail}
             {all ? (
                 <GroupListTools from={from} search={search} onSearch={setSearch} sort={sort} onSort={setSort} />
             ) : null}

@@ -25,7 +25,6 @@ import { Field, FieldLine, type RowContext, VarySlot, type VaryTarget } from "..
 import { lineIn, needsFor, writeIn } from "../row";
 import { ValueField } from "../ValueField";
 import { channelWord, failureWords, fieldName, FONTS, isPercent, scrubLetter, takesBinding } from "../words";
-import { InAdvanced } from "./advanced";
 import { dimOf, drawnValue, valueDimOf } from "./drawn";
 import { PointPair } from "./ItemFields";
 import { ItemListEditor } from "./ItemListEditor";
@@ -1299,7 +1298,6 @@ export function LineFrame({
      */
     wide?: boolean;
 }>): React.JSX.Element {
-    const advanced = React.useContext(InAdvanced);
     return (
         <div
             className="ws-row"
@@ -1315,7 +1313,7 @@ export function LineFrame({
                 <div className="ws-field-control">{control}</div>
                 {/* `[link or ...] [-]`: the link or settings button right after its control, the minus right-most
                     (owner's input rules, design "Input rules"). */}
-                <span className="ws-slot ws-vary">{advanced && rule !== "R15" ? null : modifier}</span>
+                <span className="ws-slot ws-vary">{modifier}</span>
                 <span className="ws-slot">
                     {removeName === undefined ? null : <RemoveButton label={removeName} onClick={onRemove} />}
                 </span>

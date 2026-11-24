@@ -44,7 +44,6 @@ export function RowSettings({
             opened={opened}
             onOpenChange={onOpenChange}
             icon={<GLYPHS.more size={14} aria-hidden />}
-            drill
         >
             {children}
         </SettingsPopout>

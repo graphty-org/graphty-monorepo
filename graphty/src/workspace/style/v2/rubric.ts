@@ -76,7 +76,7 @@ export interface SubGroup {
     readonly lines: readonly LineSpec[];
     /**
      * In the pop-over's Advanced view (design "Input rules": a pop-over over 6 lines tall moves its rare
-     * settings there), always shown there, never in the "+" menu. The view drills into the pop-over in place, so it
+     * settings there), always shown there, never in the "+" menu. An input's own picker is part of the input, so it
      * may hold colors and drop-downs; its lines draw no link.
      */
     readonly advanced?: true;
@@ -481,7 +481,7 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
                     { channel: "node.chartHorizontal" },
                 ],
             },
-            // Advanced drills into the pop-over in place, so its color pickers are the second level, not a third.
+            // A color picker is part of its input, not a pop-out level, so Advanced (the second level) may hold them.
             {
                 name: "Strokes",
                 advanced: true,

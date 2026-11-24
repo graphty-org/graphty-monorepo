@@ -1,4 +1,11 @@
-import { ComboInput, CompactColorInput, PopoutButton, SegmentedControl, VariablePill } from "@graphty/compact-mantine";
+import {
+    ComboInput,
+    CompactColorInput,
+    Popout,
+    PopoutButton,
+    SegmentedControl,
+    VariablePill,
+} from "@graphty/compact-mantine";
 import { type ChannelDescriptor, channelsFor } from "@graphty/graphty-element/catalog";
 import type { Channel, ChannelValue, LayerId } from "@graphty/graphty-element/schema";
 import type { GraphSession, HistoryStepId, Layer, LayerGroup, LegendBlock } from "@graphty/graphty-element/session";
@@ -6,10 +13,10 @@ import { ActionIcon, Button, TextInput, Tooltip, VisuallyHidden } from "@mantine
 import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { factSentence, paintWords, swatchName } from "../canvas/legendWords";
+import { stylePanelV2On } from "../features";
 import { focusIsLost } from "../frame/focus";
 import { GLYPHS } from "../glyphs";
 import { count } from "../inspector/words";
-import { Pop, PopContent, PopPanel, PopTrigger } from "../options/Drill";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { BindingPopover } from "./BindingPopover";
 import { BulkBinding, type LayerSequence } from "./BulkBinding";
@@ -65,6 +72,9 @@ import {
 
 /** The width of a field's pop-outs (the vary list, a binding, a row's settings): 240 px at every window size. */
 const POPOUT_WIDTH = 240;
+
+/** Style panel v2's link dialog: two choices to a line (design "Input rules"). */
+const LINK_DIALOG_WIDTH = 312;
 
 /** The first choice of a vary list that keeps the field's own value. */
 const FIXED_LABELS: Partial<Record<EncodeKey, string>> = { "node.size": "Fixed size", "node.tooltip": "Fixed text" };
@@ -1745,8 +1755,8 @@ function VaryButton({
     const label = named ?? bindLabel(descriptor);
     const layers = ctx.many?.inOrder?.(channel).length ?? 0;
     return (
-        <Pop opened={open} onOpenChange={openList}>
-            <PopTrigger>
+        <Popout opened={open} onOpenChange={openList}>
+            <Popout.Trigger>
                 {/* The Tooltip passes the trigger's click and ref to the button, but not its ARIA,
                     so the button states its own. */}
                 <Tooltip label={label}>
@@ -1758,8 +1768,8 @@ function VaryButton({
                         aria-expanded={open}
                     />
                 </Tooltip>
-            </PopTrigger>
-            <PopPanel
+            </Popout.Trigger>
+            <Popout.Panel
                 width={POPOUT_WIDTH}
                 placement="left"
                 alignment="start"
@@ -1804,8 +1814,8 @@ function VaryButton({
                         openList(false);
                     }}
                 />
-            </PopPanel>
-        </Pop>
+            </Popout.Panel>
+        </Popout>
     );
 }
 
@@ -1890,7 +1900,7 @@ export function BoundValue({
     }
     const { binding, layer, write, bind } = source;
     const sourceWords = view.name;
-    // The pill opens the popover itself (no PopTrigger), so it takes focus back itself: on
+    // The pill opens the popover itself (no Popout.Trigger), so it takes focus back itself: on
     // Escape or Done, while focus is still in the popover or has fallen to the page, never after a
     // click elsewhere took it.
     const openChange = (next: boolean): void => {
@@ -1935,24 +1945,25 @@ export function BoundValue({
             </>
         );
     return (
-        // No PopTrigger: its click would also fire for the pill's detach button inside it, so
+        // No Popout.Trigger: its click would also fire for the pill's detach button inside it, so
         // the pill opens the panel itself and the panel docks to it.
-        <Pop opened={open} onOpenChange={openChange}>
+        <Popout opened={open} onOpenChange={openChange}>
             <div ref={pill} className="ws-varied">
                 {few ??
                     drawn(() => {
                         setOpen(true);
                     })}
             </div>
-            <PopPanel
-                width={POPOUT_WIDTH}
+            <Popout.Panel
+                // v2: wider, for its pairs (Scale | Clamp outliers, More values than colors | No value).
+                width={stylePanelV2On(session) ? LINK_DIALOG_WIDTH : POPOUT_WIDTH}
                 placement="left"
                 alignment="start"
                 anchorY={pill}
                 header={{ variant: "title", title: bindingTitle(channel, sourceWords) }}
                 closeLabel={`Close ${bindingTitle(channel, sourceWords)}`}
             >
-                <PopContent>
+                <Popout.Content>
                     <BindingPopover
                         descriptor={descriptor}
                         layerId={layer.id}
@@ -1968,9 +1979,9 @@ export function BoundValue({
                         }}
                         onSource={bind}
                     />
-                </PopContent>
-            </PopPanel>
-        </Pop>
+                </Popout.Content>
+            </Popout.Panel>
+        </Popout>
     );
 }
 

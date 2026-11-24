@@ -9,13 +9,12 @@
 import { type ChannelDescriptor, combineDrawn } from "@graphty/graphty-element/catalog";
 import React, { useEffect, useRef, useState } from "react";
 
-import { AdvancedDrill } from "../../options/Drill";
+import { AdvancedPop } from "../../options/AdvancedPop";
 import { useWorkspace } from "../../state/WorkspaceContext";
 import { Field, type RowContext } from "../PropertyRow";
 import { lineIn, writeIn } from "../row";
 import { AddButton } from "../Section";
 import { channelWord, COMBINE_OPTIONS, combineOf, failureWords } from "../words";
-import { InAdvanced } from "./advanced";
 import { dimOf } from "./drawn";
 import { groupSet, unsetIn } from "./lineWrites";
 import { PlusList } from "./PlusList";
@@ -55,7 +54,7 @@ interface PopoverShellProps<G extends ShellGroup> {
     readonly after?: React.ReactNode;
     /** Why a sub-group draws nothing in this view, for its dimmed "+" item (every line of it a 3D-only one). */
     readonly dimmedOf?: (group: G) => string | undefined;
-    /** The pop-over's last line: its Advanced dialog (`AdvancedLine`), when it has rare settings. */
+    /** Its Advanced pop-over (`AdvancedLine`), when it has rare settings: a "..." in the header, no line. */
     readonly advanced?: React.ReactNode;
 }
 
@@ -170,16 +169,17 @@ export function PopoverShell<G extends ShellGroup>({
 }
 
 /**
- * A pop-over's last line (design "Input rules"): "Advanced", drilling into the pop-over in place (`Pop`) to show
- * its rare settings, with a back button in the header. Every group there is always shown, under its legend, with a
- * minus once set; its lines draw no link (`InAdvanced`).
+ * A pop-over's rare settings (design "Input rules"): the "..." in its header opens them in a pop-over of their own
+ * beside it (`AdvancedPop`). Every group there is always shown, under its legend, with a minus once set; its lines
+ * carry their link: the link dialog is a dedicated component, so it may open from there as a third level (owner,
+ * 2026-11-24).
  * @param props - Component props
  * @param props.title - the thing's name with its kind ("Node size")
  * @param props.groups - its advanced sub-groups
  * @param props.isSet - whether the layer sets a line of a group
  * @param props.onUnset - takes every line of a group off the layer
  * @param props.linesOf - a group's lines
- * @returns The line, or nothing without groups
+ * @returns The Advanced pop-over, or nothing without groups
  */
 export function AdvancedLine<G extends ShellGroup>({
     title,
@@ -198,36 +198,30 @@ export function AdvancedLine<G extends ShellGroup>({
         return null;
     }
     return (
-        <AdvancedDrill
-            name={`${title} advanced settings`}
-            title={`${title} advanced`}
-            changed={groups.some((group) => isSet(group))}
-        >
-            <InAdvanced.Provider value>
-                <div data-thing-popover="" data-advanced="">
-                    {groups.map((group) => (
-                        <PlusList
-                            key={group.name}
-                            level="group"
-                            title={group.name}
-                            add={undefined}
-                            remove={
-                                isSet(group) ? (
-                                    <RemoveButton
-                                        label={`Remove ${group.name.toLowerCase()}`}
-                                        onClick={() => {
-                                            onUnset(group);
-                                        }}
-                                    />
-                                ) : undefined
-                            }
-                        >
-                            {linesOf(group)}
-                        </PlusList>
-                    ))}
-                </div>
-            </InAdvanced.Provider>
-        </AdvancedDrill>
+        <AdvancedPop title={`${title} advanced`} changed={groups.some((group) => isSet(group))}>
+            <div data-thing-popover="" data-advanced="">
+                {groups.map((group) => (
+                    <PlusList
+                        key={group.name}
+                        level="group"
+                        title={group.name}
+                        add={undefined}
+                        remove={
+                            isSet(group) ? (
+                                <RemoveButton
+                                    label={`Remove ${group.name.toLowerCase()}`}
+                                    onClick={() => {
+                                        onUnset(group);
+                                    }}
+                                />
+                            ) : undefined
+                        }
+                    >
+                        {linesOf(group)}
+                    </PlusList>
+                ))}
+            </div>
+        </AdvancedPop>
     );
 }
 

@@ -17,7 +17,6 @@ import React, { useState } from "react";
 import { stylePanelV2On } from "../features";
 import { GLYPHS } from "../glyphs";
 import { count as countOf } from "../inspector/words";
-import { AdvancedDrill } from "../options/Drill";
 import { formatNumber } from "../settings/numberFormat";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { wholeNumbers } from "./cards";
@@ -260,15 +259,15 @@ export function BindingPopover(props: Readonly<BindingPopoverProps>): React.JSX.
 
 /**
  * The binding's rarer choices: No value, and in v2 the ramp's Scale and Clamp outliers and More values than colors
- * too, which drill in from an "Advanced" line, so the dialog keeps its source, operation, range and palette
- * (owner, 2026-11-23).
+ * too, last, two to a line where they go together (Scale | Clamp outliers, More values than colors | No value), so
+ * the dialog is at most 6 lines tall with no Advanced pop-over of its own (owner's input rules, 2026-11-24).
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.descriptor - the bound property
  * @param props.parts - what the source puts in the popover
  * @param props.detail - whether a group's detail has taken the popover over
  * @param props.v2 - Style panel v2
- * @returns The choices, or their Advanced line
+ * @returns The choices
  */
 function RareChoices({
     session,
@@ -297,33 +296,36 @@ function RareChoices({
     if (!v2) {
         return noValue;
     }
-    // What happens past the palette is a rare choice, so it leaves the groups for the Advanced view.
+    // What happens past the palette is a rare choice: it leaves the groups for the last line, beside No value.
     const overflow =
         parts.categorical && !detail && overflowLine(session, descriptor, parts) ? (
             <OverflowField session={session} descriptor={descriptor} parts={parts} />
         ) : null;
-    const rampRare = detail ? null : parts.rampAdvanced;
+    const rampRare = detail ? null : parts.rampRare;
     if (rampRare === null && noValue === null && overflow === null) {
         return null;
     }
-    const name = channelWord(descriptor.channel);
     return (
-        <AdvancedDrill
-            name={`${name} by data advanced settings`}
-            title={`${name} by data advanced`}
-            changed={
-                binding.scale !== undefined ||
-                binding.clamp !== undefined ||
-                binding.missing !== undefined ||
-                binding.overflow !== undefined
-            }
-        >
-            <Stack gap={8}>
-                {rampRare}
-                {noValue}
-                {overflow}
-            </Stack>
-        </AdvancedDrill>
+        <>
+            {rampRare}
+            {overflow === null || noValue === null ? (overflow ?? noValue) : <Pair>{[overflow, noValue]}</Pair>}
+        </>
+    );
+}
+
+/**
+ * Two choices that go together on one line, each half of it (owner's input rules: two inputs on a line where they
+ * make sense together).
+ * @param props - Component props
+ * @param props.children - the two
+ * @returns The line
+ */
+function Pair({ children }: Readonly<{ children: readonly [React.ReactNode, React.ReactNode] }>): React.JSX.Element {
+    return (
+        <Group grow gap={8} wrap="nowrap" align="flex-end" data-pair="">
+            {children[0]}
+            {children[1]}
+        </Group>
     );
 }
 
@@ -507,8 +509,8 @@ interface Parts {
     /** The palette it paints with when it names none. */
     readonly palette: string | undefined;
     readonly ramp: React.ReactNode;
-    /** v2: the ramp's rarer choices (Scale, Clamp outliers), in the Advanced view; null without a ramp. */
-    readonly rampAdvanced: React.ReactNode;
+    /** v2: the ramp's rarer choices (Scale, Clamp outliers), on one line; null without a ramp. */
+    readonly rampRare: React.ReactNode;
     readonly readAs: React.ReactNode;
     readonly list: React.ReactNode;
     /** Whether No value shows. */
@@ -556,9 +558,9 @@ function dataParts(
             preview !== null && !categorical && (isColor || descriptor.accepts === "number") ? (
                 <Ramp {...part} preview={preview} />
             ) : null,
-        rampAdvanced:
+        rampRare:
             preview !== null && !categorical && (isColor || descriptor.accepts === "number") ? (
-                <RampAdvanced {...part} preview={preview} />
+                <RampRare {...part} preview={preview} />
             ) : null,
         readAs: (
             <>
@@ -594,6 +596,7 @@ function dataParts(
                 binding={binding}
                 source={source}
                 onDetailChange={onDetailChange}
+                beside={stylePanelV2On(session)}
                 {...(held ? { onHeld: onChange } : {})}
             />
         ),
@@ -631,7 +634,7 @@ function layerParts(
         asWritten: false,
         palette,
         ramp: null,
-        rampAdvanced: null,
+        rampRare: null,
         readAs: null,
         list: (
             <LayerGroupList
@@ -888,7 +891,7 @@ function numericScales(session: GraphSession): { value: string; label: string }[
 }
 
 /**
- * v2: a ramp's rarer choices, in the link dialog's Advanced view: its Scale and Clamp outliers.
+ * v2: a ramp's rarer choices, Scale and Clamp outliers, on one line.
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.binding - the binding
@@ -896,9 +899,9 @@ function numericScales(session: GraphSession): { value: string; label: string }[
  * @param props.patch - writes a change
  * @returns The lines
  */
-function RampAdvanced({ session, binding, preview, patch }: Readonly<PartProps>): React.JSX.Element {
+function RampRare({ session, binding, preview, patch }: Readonly<PartProps>): React.JSX.Element {
     return (
-        <Stack gap={8}>
+        <Pair>
             <PanelLabelsProvider showLabels>
                 <FieldRow
                     trailing={
@@ -925,8 +928,8 @@ function RampAdvanced({ session, binding, preview, patch }: Readonly<PartProps>)
                     />
                 </FieldRow>
             </PanelLabelsProvider>
-            <Clamp binding={binding} patch={patch} />
-        </Stack>
+            <Clamp binding={binding} patch={patch} checkbox />
+        </Pair>
     );
 }
 
@@ -956,7 +959,7 @@ function Ramp({
     const domain = preview.domain ?? [0, 0];
     const scale = binding.scale ?? preview.scale;
     const scales = numericScales(session);
-    // v2: Scale and Clamp outliers are in the dialog's Advanced view (RampAdvanced).
+    // v2: Scale and Clamp outliers are on a line of their own (RampRare).
     const v2 = stylePanelV2On(session);
     const palettes = session.catalog.palettes().filter((p) => p.kind !== "categorical");
     const shownPalette = session.styles.legendOf(layerId).find((block) => block.channel === descriptor.channel)
@@ -1154,18 +1157,25 @@ function Ramp({
  * @param props - Component props
  * @param props.binding - the binding
  * @param props.patch - writes a change
+ * @param props.checkbox - draws the switch as a checkbox (Style panel v2)
  * @returns The control
  */
 function Clamp({
     binding,
     patch,
-}: Readonly<{ binding: DataBinding; patch: (change: Partial<DataBinding>) => void }>): React.JSX.Element {
+    checkbox = false,
+}: Readonly<{
+    binding: DataBinding;
+    patch: (change: Partial<DataBinding>) => void;
+    /** Style panel v2: a boolean is a checkbox (design 6, R7). */
+    checkbox?: boolean;
+}>): React.JSX.Element {
     const { clamp } = binding;
     return (
         <Stack gap={4}>
             <ToggleRow
                 label="Clamp outliers"
-                control="switch"
+                control={checkbox ? "checkbox" : "switch"}
                 checked={clamp !== undefined}
                 onChange={(on) => {
                     patch(on ? { clamp: [2, 98], domain: undefined } : { clamp: undefined });

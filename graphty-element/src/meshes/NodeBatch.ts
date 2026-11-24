@@ -896,8 +896,12 @@ export interface NodeBatchHost {
     sourceOf(paint: NodePaint): Mesh;
     /** Babylon's list of active meshes no longer holds. */
     meshesChanged(): void;
-    /** A row drawn with no `Node` changed its drawn size or shape, which a `nodeGap` layout spaces it by. */
-    resized?(): void;
+    /**
+     * A row drawn with no `Node` changed its drawn size or shape, which a `nodeGap` layout spaces it by and the
+     * `Edge`s built at it trim their ends to.
+     * @param row - The row.
+     */
+    resized?(row: number): void;
     /** Rows drawn with no `Node` that a new view no longer batches: each is to be painted again. */
     repaint?(rows: readonly number[]): void;
 }
@@ -1320,7 +1324,7 @@ export class NodeBatches {
         this.host.places.measure(row);
         if (had === undefined || !sameSize(had, row)) {
             // as `Node` tells the layout when it is resized: nothing else re-reads a row's size
-            this.host.resized?.();
+            this.host.resized?.(index);
         }
 
         this.sync(row);

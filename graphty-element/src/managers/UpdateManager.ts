@@ -476,6 +476,15 @@ const NO_MASK_VERSION = -1;
  */
 const FEW_ROWS = 64;
 
+/**
+ * Up to this many nodes, a running layout under renderPath "batched" is framed by walking its rows, as "objects"
+ * frames it, not from its published box ({@link UpdateManager.envelopeFraming}). The box's eight corners centered
+ * the drawing in perspective differently from its nodes, so a small graph's moving camera stood off the one
+ * "objects" gives. The walk, with the camera's centering over every node, costs about what this many rows
+ * cost "objects" every frame; the box is what makes a large graph's framing cheap.
+ */
+const WALKED_FRAMING_NODES = 1000;
+
 /** The frame a layout step stands for: one step per frame at 60 Hz. See `updateLayout`. */
 const NOMINAL_FRAME_MS = 1000 / 60;
 
@@ -4119,7 +4128,8 @@ export class UpdateManager implements Manager {
      * are not framed while the layout moves; the framing it settles on, and any framing asked for,
      * walks every row as before.
      *
-     * Undefined, so the walk runs, whenever the box would not be the drawn picture's: a node drawn
+     * Undefined, so the walk runs, on a graph small enough that the walk is cheap
+     * ({@link WALKED_FRAMING_NODES}), and whenever the box would not be the drawn picture's: a node drawn
      * as an object, a hidden row, a layout transition easing the rows, a layout holding rows outside
      * its publish, or a box with no room in it.
      * @returns The box, or undefined.
@@ -4137,6 +4147,7 @@ export class UpdateManager implements Manager {
             batches === null ||
             table === null ||
             this.dataManager.renderLimits?.batched() !== true ||
+            this.dataManager.nodes.size <= WALKED_FRAMING_NODES ||
             table.hiddenRows > 0 ||
             this.dataManager.nodes.size > batches.batchedNodes ||
             transitionsOf(layout)?.active === true

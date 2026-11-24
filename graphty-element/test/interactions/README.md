@@ -93,6 +93,9 @@ each `[pick-parity]` line whose path is `objects` (key to value).
 
 The two `selection ctrl-click t0` entries are edited by hand: since #9907 a Ctrl-click adds the node to
 the selection (or takes it out) instead of replacing it, so they record the toggle, not that build's answer.
+The twelve `a pixel ratio of 1.5` and `a pixel ratio of 2` `edge ... middle` entries are edited by hand too:
+that build found no edge at a pixel ratio other than 1 (#9917), so they record the edge found, as every
+`edge ... middle` entry at ratio 1 does.
 
 ## Running Tests
 

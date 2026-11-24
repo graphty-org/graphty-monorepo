@@ -932,6 +932,8 @@ export class DataManager implements Manager {
     notePaintDrawn(): void;
     // @internal
     notePainted(dirty: ReadonlySet<string> | null): void;
+    // @internal
+    notePaintQueued(): void;
     get positions(): ReadonlyElementPositions;
     get rankSets(): readonly RankSet[];
     reconcile(slice: GraphSlice, dirty: ReadonlySet<string>, cause: HistoryCause): {

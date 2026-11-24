@@ -480,28 +480,28 @@
     "3d selection shift-click b0": "node:a0,node:b0",
     "3d selection shift-click the a0-a1 edge": "edge:ea,node:b0",
     "2d a pixel ratio of 1.5 edge ea middle": {
-        "at": "none",
+        "at": "edge:ea",
         "hovered": "none",
         "heard": "none",
-        "pointer": false,
+        "pointer": true,
         "world": false,
-        "selected": "none"
+        "selected": "edge:ea"
     },
     "2d a pixel ratio of 1.5 edge eb middle": {
-        "at": "none",
+        "at": "edge:eb",
         "hovered": "none",
         "heard": "none",
-        "pointer": false,
+        "pointer": true,
         "world": false,
-        "selected": "none"
+        "selected": "edge:eb"
     },
     "2d a pixel ratio of 1.5 edge t01 middle": {
-        "at": "none",
+        "at": "edge:t01",
         "hovered": "none",
         "heard": "none",
-        "pointer": false,
+        "pointer": true,
         "world": false,
-        "selected": "none"
+        "selected": "edge:t01"
     },
     "2d a pixel ratio of 1.5 node a0": {
         "at": "node:a0",
@@ -616,28 +616,28 @@
         "selected": "node:ul"
     },
     "2d a pixel ratio of 2 edge ea middle": {
-        "at": "none",
+        "at": "edge:ea",
         "hovered": "none",
         "heard": "none",
-        "pointer": false,
+        "pointer": true,
         "world": false,
-        "selected": "none"
+        "selected": "edge:ea"
     },
     "2d a pixel ratio of 2 edge eb middle": {
-        "at": "none",
+        "at": "edge:eb",
         "hovered": "none",
         "heard": "none",
-        "pointer": false,
+        "pointer": true,
         "world": false,
-        "selected": "none"
+        "selected": "edge:eb"
     },
     "2d a pixel ratio of 2 edge t01 middle": {
-        "at": "none",
+        "at": "edge:t01",
         "hovered": "none",
         "heard": "none",
-        "pointer": false,
+        "pointer": true,
         "world": false,
-        "selected": "none"
+        "selected": "edge:t01"
     },
     "2d a pixel ratio of 2 node a0": {
         "at": "node:a0",
@@ -1400,28 +1400,28 @@
         "selected": "node:ul"
     },
     "3d a pixel ratio of 1.5 edge ea middle": {
-        "at": "none",
+        "at": "edge:ea",
         "hovered": "none",
         "heard": "none",
-        "pointer": false,
+        "pointer": true,
         "world": false,
-        "selected": "none"
+        "selected": "edge:ea"
     },
     "3d a pixel ratio of 1.5 edge eb middle": {
-        "at": "none",
+        "at": "edge:eb",
         "hovered": "none",
         "heard": "none",
-        "pointer": false,
+        "pointer": true,
         "world": false,
-        "selected": "none"
+        "selected": "edge:eb"
     },
     "3d a pixel ratio of 1.5 edge t01 middle": {
-        "at": "none",
+        "at": "edge:t01",
         "hovered": "none",
         "heard": "none",
-        "pointer": false,
+        "pointer": true,
         "world": false,
-        "selected": "none"
+        "selected": "edge:t01"
     },
     "3d a pixel ratio of 1.5 node a0": {
         "at": "node:a0",
@@ -1536,28 +1536,28 @@
         "selected": "node:ul"
     },
     "3d a pixel ratio of 2 edge ea middle": {
-        "at": "none",
+        "at": "edge:ea",
         "hovered": "none",
         "heard": "none",
-        "pointer": false,
+        "pointer": true,
         "world": false,
-        "selected": "none"
+        "selected": "edge:ea"
     },
     "3d a pixel ratio of 2 edge eb middle": {
-        "at": "none",
+        "at": "edge:eb",
         "hovered": "none",
         "heard": "none",
-        "pointer": false,
+        "pointer": true,
         "world": false,
-        "selected": "none"
+        "selected": "edge:eb"
     },
     "3d a pixel ratio of 2 edge t01 middle": {
-        "at": "none",
+        "at": "edge:t01",
         "hovered": "none",
         "heard": "none",
-        "pointer": false,
+        "pointer": true,
         "world": false,
-        "selected": "none"
+        "selected": "edge:t01"
     },
     "3d a pixel ratio of 2 node a0": {
         "at": "node:a0",

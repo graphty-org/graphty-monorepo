@@ -251,7 +251,7 @@ export async function undrawnEdges(
                 const y = a.y + (b.y - a.y) * t;
                 // A point under a node, or under other ink drawn over the edge (its label's box),
                 // shows that instead: it tells nothing.
-                return !covered(x, y) && !near(pic, x, y, other) && !near(pic, x, y, magenta);
+                return !covered(x, y) && !near(pic, x, y, other) && !near(pic, x, y, magentaHue);
             })
         );
     });
@@ -318,7 +318,7 @@ export async function arrowTipsOff(
         const y = b.y - ((b.y - a.y) * reach) / length;
         // Another node drawn over the tip hides it.
         const hidden = blueHue(pic.at(x, y) ?? [0, 0, 0]);
-        return !hidden && !near(pic, x, y, magenta);
+        return !hidden && !near(pic, x, y, magentaHue);
     });
 }
 

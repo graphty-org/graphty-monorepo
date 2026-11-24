@@ -9,7 +9,7 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import type { GraphSession } from "@graphty/graphty-element/session";
+import { browserProjects, type GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
@@ -59,6 +59,9 @@ beforeEach(() => {
 
 afterEach(async () => {
     await clearRecent();
+    for (const stored of await browserProjects.list()) {
+        await browserProjects.remove(stored.id);
+    }
     vi.restoreAllMocks();
 });
 
@@ -121,6 +124,34 @@ describe("the Ref mark, with the experiment on", () => {
         await waitFor(() => {
             assert.isNull(within(row()).queryByText("Ref"));
         });
+    });
+
+    it("Save as keeps the whole project as a version 1 file with the sources chosen as references, marked Ref", async () => {
+        const { store, session } = await threeLoads();
+        await userEvent.keyboard("{Control>}s{/Control}");
+        const dialog = await screen.findByRole("dialog", { name: "Save Towns as" });
+        await waitFor(() => {
+            assert.isFalse(within(dialog).getByRole<HTMLButtonElement>("button", { name: /^Save/ }).disabled);
+        });
+        await userEvent.click(
+            within(await within(dialog).findByRole("radiogroup", { name: "Sources" })).getByText("Reference"),
+        );
+        await userEvent.click(within(dialog).getByRole("button", { name: /^Save/ }));
+        await waitFor(() => {
+            assert.equal(store.get().notice?.message, "Saved Towns in this browser.");
+        });
+
+        // Both web addresses are references, the file a copy; the Data sources list says so.
+        assert.deepEqual(
+            session.data.copies().map((entry) => entry.copy),
+            ["reference", "reference", "copy"],
+        );
+        await waitFor(() => {
+            assert.isNotNull(within(screen.getByRole("listitem", { name: "people.json" })).queryByText("Ref"));
+        });
+        const [stored] = await browserProjects.list();
+        const file = stored === undefined ? undefined : await browserProjects.get(stored.id);
+        assert.strictEqual((JSON.parse((await file?.text()) ?? "{}") as { version?: number }).version, 1);
     });
 
     it("marks a reopened reference Ref while the Data place shows, without leaving it", async () => {

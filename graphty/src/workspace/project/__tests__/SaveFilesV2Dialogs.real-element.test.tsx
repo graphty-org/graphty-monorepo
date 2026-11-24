@@ -137,26 +137,33 @@ describe("version 2 Save as, Open and report dialogs", () => {
         assert.strictEqual((await browserProjects.list()).length, 0, "Cancel saves nothing");
     });
 
-    it("Save reports work the version 2 file does not keep yet, and only that", async () => {
+    it("keeps the whole project as a version 1 file, so Save loses nothing version 2 does not hold yet", async () => {
         const { store, session } = await start();
         const dialog = await saveAs(SAMPLE);
-        // The sample as opened leaves nothing out: Save as saves it with no report.
         await userEvent.click(within(dialog).getByRole("button", { name: /^Save/ }));
         await waitFor(() => {
             assert.strictEqual(store.get().notice?.message, `Saved ${SAMPLE} in this browser.`);
             assert.isNull(screen.queryByRole("dialog"));
         });
 
-        // A renamed column is work version 2 files do not hold yet: Save says so.
+        // A renamed column is work version 2 files do not hold yet: Save keeps it.
         const column = session.data.attributes().find((each) => each.kind === "node" && each.name === "name");
         assert.isDefined(column);
         if (column !== undefined) {
             await session.data.renameColumn(column, "family");
         }
+        store.set({ notice: null });
         await userEvent.keyboard("{Control>}s{/Control}");
-        const report = await screen.findByRole("dialog", { name: `Saved ${SAMPLE}` });
-        assert.isNotNull(within(report).getByText("Partly left out"));
-        assert.isNull(within(report).queryByText("Moved to view"), "only what the file no longer keeps");
+        await waitFor(() => {
+            assert.strictEqual(store.get().notice?.message, `Saved ${SAMPLE} in this browser.`);
+        });
+        assert.isNull(screen.queryByRole("dialog"), "nothing was left out to report");
+        const [stored] = await browserProjects.list();
+        const file = stored === undefined ? undefined : await browserProjects.get(stored.id);
+        assert.isDefined(file);
+        const text = (await file?.text()) ?? "";
+        assert.strictEqual((JSON.parse(text) as { version?: number }).version, 1);
+        assert.include(text, "family");
     });
 
     it("closes Save as and says so when graphty-element cannot say what the project holds", async () => {

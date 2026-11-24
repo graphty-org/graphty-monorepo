@@ -99,17 +99,17 @@ describe("version 2 save files", () => {
         // What each section holds, from the element's counts.
         assert.isNotNull(within(dialog).getByText(/15 nodes/));
 
-        // Everything: the whole project, kept in this browser as a version 2 file.
+        // Everything: the whole project, kept in this browser as a version 1 file, which keeps all
+        // of it (version 2 files do not hold everything yet).
         assert.strictEqual(within(dialog).getByLabelText<HTMLInputElement>("Preset").value, "Everything");
         await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
         await waitFor(() => {
             assert.equal(store.get().notice?.message, `Saved ${SAMPLE} in this browser.`);
         });
         const [stored] = await browserProjects.list();
-        assert.include(stored.report?.written ?? [], "results");
         assert.isFalse(session.project.dirty);
         const file = await browserProjects.get(stored.id);
-        assert.strictEqual((JSON.parse((await file?.text()) ?? "{}") as { version?: number }).version, 2);
+        assert.strictEqual((JSON.parse((await file?.text()) ?? "{}") as { version?: number }).version, 1);
         store.set({ dialog: null });
 
         // Each other preset downloads a copy holding exactly its sections.
@@ -205,7 +205,7 @@ describe("version 2 save files", () => {
         });
     });
 
-    it("downloads a version 2 local copy, and reopens the project kept in this browser whole", async () => {
+    it("downloads a whole-project local copy as version 1, and reopens the project kept in this browser whole", async () => {
         const downloads = watchDownloads();
         const { store } = await openSample();
         const dialog = await openSaveAs();
@@ -221,9 +221,8 @@ describe("version 2 save files", () => {
         await waitFor(() => {
             assert.equal(downloads.at(-1)?.name, `${SAMPLE}.graphty.json`);
         });
-        const copy = JSON.parse(await downloads[0].blob.text()) as { version?: number; sections?: object };
-        assert.strictEqual(copy.version, 2);
-        assert.includeMembers(Object.keys(copy.sections ?? {}), ["data", "style", "recipe", "settings", "view"]);
+        const copy = JSON.parse(await downloads[0].blob.text()) as { version?: number };
+        assert.strictEqual(copy.version, 1, "as Save keeps it: nothing a version 2 file cannot hold yet is lost");
 
         await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Back to start" }));

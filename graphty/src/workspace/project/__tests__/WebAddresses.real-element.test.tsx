@@ -198,7 +198,7 @@ async function pasteModel(session: GraphSession, tab: HTMLElement): Promise<void
 }
 
 /**
- * The asset entries of the one project kept in this browser, once it is kept.
+ * The `graphty-assets` entries of the one project kept in this browser, once it is kept.
  * @returns the entries.
  */
 async function keptEntries(): Promise<Record<string, unknown>[]> {
@@ -208,11 +208,10 @@ async function keptEntries(): Promise<Record<string, unknown>[]> {
         assert.isDefined(found);
         return found;
     });
-    // A version 2 file: the style section carries the assets its layers draw.
     const saved = JSON.parse(await file.text()) as {
-        sections: { style?: { assets?: Record<string, unknown>[] } };
+        members: { kind: string; assets?: Record<string, unknown>[] }[];
     };
-    return saved.sections.style?.assets ?? [];
+    return saved.members.find((member) => member.kind === "graphty-assets")?.assets ?? [];
 }
 
 describe("web addresses in the Style tab, with node models", () => {

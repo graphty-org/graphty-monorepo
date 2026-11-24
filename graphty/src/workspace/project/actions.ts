@@ -362,14 +362,14 @@ async function writeProject(
     await nameTheProject(workspace, session, newName);
     const name = session.project.name ?? headerName(workspace);
     const state = fileState(workspace);
-    // The browser keeps a version 2 file: the sections and sources as the reader last chose them
-    // in Save as, else as graphty-element saves by default.
+    // The sources as the reader last chose them in Save as: a version 1 file, which keeps all of
+    // the project, unless only a version 2 file keeps a source by reference.
     const choices = await stillNamed(session, v2 ?? state.v2);
+    const version2 = choices !== null && !(await version1Keeps(session, choices));
     const saved = await browserProjects.save(session, {
         ...(target === null ? {} : { id: target }),
         ...(Object.keys(assets).length === 0 ? {} : { assets }),
-        format: 2,
-        ...(choices === null ? {} : { sections: choices.sections, embed: choices.embed }),
+        ...(version2 ? { format: 2 as const, sections: choices.sections, embed: choices.embed } : {}),
     });
     count("project_saved", { kind: "browser", as: target === null ? "new" : "again" });
     state.target = saved.id;
@@ -378,8 +378,8 @@ async function writeProject(
     }
     await refreshStored();
     workspace.set({ notice: { message: withLeftOut(session, `Saved ${name} in this browser.`, saved.report) } });
-    // Save as reports what the save left out. A later Save reports only what the file no longer
-    // keeps of the project (W_MEMBER_LEFT_OUT: work version 2 files do not hold yet, such as
+    // Save as reports what the save left out. A later Save reports only what a version 2 file no
+    // longer keeps of the project (W_MEMBER_LEFT_OUT: work version 2 files do not hold yet, such as
     // renamed columns), so the reader learns before reopening loses it.
     const lost = (saved.report?.leftOut ?? []).filter((fact) => fact.code === "W_MEMBER_LEFT_OUT");
     if (v2 !== null) {
@@ -388,6 +388,38 @@ async function writeProject(
         await reportSave(workspace, session, `Saved ${name}`, { ...saved.report, leftOut: lost });
     }
     return true;
+}
+
+/**
+ * Whether a whole-project save can be a version 1 file, which keeps all of the project (version 2
+ * files do not hold yet renamed columns, declarations, fixed issues or visibility steps). It can
+ * unless a source is kept by reference that a version 1 file cannot keep so: with source references
+ * on, each source's choice is handed to graphty-element (`data.setCopy`), which version 1 files
+ * keep, so the Data sources list marks it too; with them off, only a version 2 file references.
+ * @param session - the project's session.
+ * @param choices - what the reader chose in Save as.
+ * @returns true when a version 1 file keeps every choice.
+ */
+async function version1Keeps(session: GraphSession, choices: SaveV2Choices): Promise<boolean> {
+    const referenced = Object.keys(choices.embed).filter((id) => choices.embed[id] === "referenced");
+    if (referenced.length === 0) {
+        return true;
+    }
+    if (!sourceReferencesOn(session)) {
+        return false;
+    }
+    const keys = new Map((await session.project.describe()).sources.map((source) => [source.id, source.key]));
+    for (const [id, storage] of Object.entries(choices.embed)) {
+        const key = keys.get(id);
+        if (key !== undefined) {
+            session.data.setCopy(key, storage === "referenced" ? "reference" : "copy");
+        }
+    }
+    const kept = new Map(session.data.copies().map((entry) => [entry.source, entry.copy]));
+    return referenced.every((id) => {
+        const key = keys.get(id);
+        return key !== undefined && kept.get(key) === "reference";
+    });
 }
 
 /**
@@ -426,8 +458,8 @@ async function reportSave(
 }
 
 /**
- * Save as...: a full file of every section the project needs is kept in
- * this browser as the project, as Save as keeps it; any other choice (some sections, or a section
+ * Save as...: a full file of every section the project needs is kept in this browser as the
+ * project (a version 1 file unless a source is kept by reference); any other choice (some sections, or a section
  * file) is a copy, downloaded under the name graphty-element gives it, and changes neither where
  * Save goes nor what is unsaved.
  * @param ctx - the command context.
@@ -513,7 +545,7 @@ async function saveAs(ctx: CommandContext, name: string, write: () => Promise<bo
 }
 
 /**
- * Save local copy...: downloads the project file, a version 2 file as Save writes it. A copy: where Save goes and what is unsaved do not change.
+ * Save local copy...: downloads the project file as Save writes it. A copy: where Save goes and what is unsaved do not change.
  * @param ctx - the command context.
  * @param ctx.workspace - the workspace store.
  * @param ctx.element - the element, which downloads.
@@ -530,18 +562,21 @@ export async function saveLocalCopy({ workspace, element, session }: CommandCont
             return;
         }
         const fileName = projectFileName(name);
-        if (session !== null) {
-            // A version 2 file, of the sections and sources as the reader last chose them in Save as.
-            const choices = await stillNamed(session, fileState(workspace).v2);
+        // As Save writes it: a version 2 file only when Save as kept a source by reference.
+        const choices = session === null ? null : await stillNamed(session, fileState(workspace).v2);
+        if (session !== null && choices !== null && !(await version1Keeps(session, choices))) {
             await element.downloadProject({
                 format: 2,
-                ...(choices === null ? {} : { sections: choices.sections, embed: choices.embed }),
+                sections: choices.sections,
+                embed: choices.embed,
                 ...(Object.keys(assets).length === 0 ? {} : { assets }),
                 fileName,
                 markSaved: false,
             });
-        } else {
+        } else if (Object.keys(assets).length === 0) {
             await element.downloadGraph("graphty", { fileName });
+        } else {
+            await element.downloadProject({ assets, fileName, markSaved: false });
         }
         count("export_done", { kind: "project", destination: "download" });
     } catch {

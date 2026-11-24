@@ -62,8 +62,7 @@ function snapshot(session: GraphSession): Snapshot {
     session.positions.read(0, position);
     return {
         runs: session.runs.list().map((run) => run.id),
-        // A saved file keeps no layer's kind (save files version 2 have no special layers).
-        styles: session.styles.toDocument().layers.map(({ kind: _kind, ...layer }) => layer),
+        styles: session.styles.toDocument(),
         selection: [...session.selection.nodes].map(String),
         nodes: session.data.statistics().nodeCount,
         label: binding !== undefined && "by" in binding ? binding.by : undefined,
@@ -129,14 +128,13 @@ async function buildProject(store: WorkspaceStore): Promise<{ session: GraphSess
 
 /**
  * Save as through the keys: the dialog opens with the project's name selected; typing replaces it.
- * Returns once the dialog and the report after it have gone and handed focus back, which is when
- * Save as is done: the element clears `dirty` before the app has recorded the file in Recent projects and closed the
+ * Returns once the dialog has gone and handed focus back, which is when Save as is done: the
+ * element clears `dirty` before the app has recorded the file in Recent projects and closed the
  * dialog, and while the dialog is open it keeps the keys (F2 does nothing).
  * @param name - the name to save under.
  * @param current - the project's name before.
- * @param saves - whether the save succeeds, so its report shows.
  */
-async function saveAs(name: string, current = "Florentine families", saves = true): Promise<void> {
+async function saveAs(name: string, current = "Florentine families"): Promise<void> {
     const opener = document.activeElement;
     await userEvent.keyboard("{Control>}s{/Control}");
     const dialog = await screen.findByRole("dialog", { name: `Save ${current} as` });
@@ -151,9 +149,6 @@ async function saveAs(name: string, current = "Florentine families", saves = tru
         assert.isFalse(within(dialog).getByRole<HTMLButtonElement>("button", { name: "Save" }).disabled);
     });
     await userEvent.keyboard("{Enter}");
-    if (saves) {
-        await closeSaveReport();
-    }
     await waitFor(() => {
         assert.isNull(screen.queryByRole("dialog"));
     });
@@ -162,15 +157,6 @@ async function saveAs(name: string, current = "Florentine families", saves = tru
     await waitFor(() => {
         assert.strictEqual(document.activeElement, opener, "focus is back where Save as was pressed");
     });
-}
-
-/**
- * Closes the report Save as shows after it saves this project: what the file leaves out (its
- * selection layers' picks by id, among them). Done closes it.
- */
-async function closeSaveReport(): Promise<void> {
-    const report = await screen.findByRole("dialog", { name: /^Saved / });
-    await userEvent.click(within(report).getByRole("button", { name: "Done" }));
 }
 
 /**
@@ -364,7 +350,7 @@ describe("T14: save and reopen, on the real element", () => {
             const store = createWorkspaceStore();
             await buildProject(store);
             vi.stubGlobal("indexedDB", undefined);
-            await saveAs("Florentine, unsaved", "Florentine families", false);
+            await saveAs("Florentine, unsaved");
             await waitFor(() => {
                 assert.equal(
                     store.get().notice?.message,
@@ -562,7 +548,6 @@ describe("focus after Save", () => {
         await userEvent.keyboard("{Control>}s{/Control}");
         let dialog = await screen.findByRole("dialog", { name: "Save Florentine families as" });
         await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
-        await closeSaveReport();
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog"));
             // Back on the note it was opened from, not on the page.
@@ -575,7 +560,6 @@ describe("focus after Save", () => {
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Save as/ }));
         dialog = await screen.findByRole("dialog");
         await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
-        await closeSaveReport();
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog"));
             assert.strictEqual(
@@ -627,9 +611,6 @@ describe("a saved sample opened again with Open a file, on the real element", ()
             await closeFromMenu();
             await commands.chooseNextFile("Books about US politics.graphty.json", "application/json", text);
             await userEvent.click(await screen.findByRole("button", { name: /^Open a file/ }));
-            // A version 2 file asks which of its sections to load; every one is chosen.
-            const open = await screen.findByRole("dialog", { name: "Open Books about US politics.graphty.json" });
-            await userEvent.click(within(open).getByRole("button", { name: "Open" }));
             const reopened = await elementSession(session);
             await waitFor(() => {
                 assert.match(store.get().notice?.message ?? "", /^Opened /);

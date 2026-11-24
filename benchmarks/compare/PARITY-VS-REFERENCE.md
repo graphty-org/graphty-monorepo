@@ -58,7 +58,10 @@ of the parity plan once they land (`BEHAVIOR_FILES`).
 reference and whose change removed an assertion line runs in its reference version on HEAD, beside HEAD's
 version under the name `<name>.refcopy.test.ts` (deleted afterwards), on objects and on forced-batched. Tests of
 AI commands, screenshots, video and the export list are left out. A failure is either an assertion that was
-loosened to let a regression through, or an intended change in behavior: read it against HEAD's version.
+loosened to let a regression through, or an intended change in behavior: read it against HEAD's version. Each
+file with a failure runs again on its own, and a test that passes alone is listed apart: it failed because of
+what an earlier file left behind, not because of its own assertion. `--reuse` reads the many-file reports of the
+last run instead of running them again.
 
 **frames.** Edges following their nodes while a layout runs, read from the drawn frames, at the performance
 matrix's layout sizes (1,000 to 100,000 nodes), on the reference and on HEAD's two paths. The benchmark

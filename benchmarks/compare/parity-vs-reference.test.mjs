@@ -54,7 +54,7 @@ test("a test that passed on the reference and fails on HEAD is a regression", ()
     });
     const ref = outcomes(report({ one: "passed", two: "failed", three: "failed" }), "/x/graphty-element");
     const head = outcomes(
-        report({ one: "failed", two: "failed", three: "passed", four: "passed" }),
+        report({ one: "failed", two: "failed", three: "passed", four: "passed", five: "failed" }),
         "/x/graphty-element",
     );
     const d = diffOutcomes(ref, head);
@@ -65,6 +65,10 @@ test("a test that passed on the reference and fails on HEAD is a regression", ()
     assert.deepEqual(
         d.failBoth.map((r) => r.name),
         ["test/a.test.ts > two"],
+    );
+    assert.deepEqual(
+        d.failHeadOnly.map((r) => r.name),
+        ["test/a.test.ts > five"],
     );
     assert.deepEqual(
         d.fixedOrNew.map((r) => r.name),

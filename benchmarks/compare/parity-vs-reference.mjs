@@ -5,14 +5,23 @@
 //   node parity-vs-reference.mjs build     [--head-checkout <dir>]   worktrees, element builds, benchmark pages
 //   node parity-vs-reference.mjs pictures  [--stories <prefix,...>]  HEAD's Storybook against the reference baselines
 //   node parity-vs-reference.mjs behavior  [<test file> ...]         the same test files on both builds, outcomes diffed
-//   node parity-vs-reference.mjs loosened  [--only <regex>]          the reference's older test files run on HEAD
+//   node parity-vs-reference.mjs loosened  [--only <regex>] [--reuse] the reference's older test files run on HEAD
 //   REFDIFF_REF_URL=<page> REFDIFF_HEAD_URL=<page> node parity-vs-reference.mjs frames [--only <regex>]
 //   node parity-vs-reference.mjs report                              prints every stage's findings as Markdown
 //
 // Everything lands in REFDIFF_OUT (default <main checkout>/tmp/parity/refdiff): ref/ and head/ (detached scratch
 // worktrees), and one directory per stage. A stage exits 1 when it found a difference to review.
 import { spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+    copyFileSync,
+    cpSync,
+    existsSync,
+    mkdirSync,
+    readFileSync,
+    realpathSync,
+    rmSync,
+    writeFileSync,
+} from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -226,15 +235,18 @@ export function outcomes(report, root) {
 
 /**
  * Pairs each test's outcome on the reference with HEAD's.
- * @returns {{ regressed: object[], failBoth: object[], fixedOrNew: object[], same: number }} regressed: passed on
- *     the reference, failed on HEAD; failBoth: failed on both; fixedOrNew: failed or missing on the reference only
- *     (a file needing an API the reference lacks fails to load there).
+ * @returns {{ regressed: object[], failBoth: object[], failHeadOnly: object[], fixedOrNew: object[], same: number }}
+ *     regressed: passed on the reference, failed on HEAD; failBoth: failed on both; failHeadOnly: failed on HEAD and
+ *     not run on the reference; fixedOrNew: failed or missing on the reference only (a file needing an API the
+ *     reference lacks fails to load there).
  */
 export function diffOutcomes(ref, head) {
-    const out = { regressed: [], failBoth: [], fixedOrNew: [], same: 0 };
+    const out = { regressed: [], failBoth: [], failHeadOnly: [], fixedOrNew: [], same: 0 };
     for (const [name, h] of head) {
         const r = ref.get(name);
         if (h.status === "failed" && r?.status === "passed") out.regressed.push({ name, head: h.message });
+        // a test the reference never ran (its file needs an API the reference lacks): HEAD's failure stands alone
+        else if (h.status === "failed" && r === undefined) out.failHeadOnly.push({ name, head: h.message });
         else if (h.status === "failed" && r?.status === "failed")
             out.failBoth.push({ name, ref: r.message, head: h.message });
         else if (h.status === "passed" && r?.status !== "passed")
@@ -253,24 +265,23 @@ function vitest(dir, files, projects, reportFile) {
 
 function behavior(args) {
     const head = headDir(args);
+    if (!existsSync(join(REF_DIR, "graphty-element/dist")))
+        throw new Error(`no built reference at ${REF_DIR}: run build`);
     const named = args.filter((a) => a.endsWith(".test.ts"));
     const files = (named.length ? named : BEHAVIOR_FILES).filter((f) => existsSync(join(head, "graphty-element", f)));
     const out = join(OUT, "behavior");
     mkdirSync(out, { recursive: true });
     const projects = ["browser", "interactions"];
     // HEAD's test files and helpers run on the reference's build: copied over its checkout, put back after.
-    const el = (d) => join(d, "graphty-element");
+    // vitest names files by their real path, so the roots are real paths too
+    const el = (d) => join(realpathSync(d), "graphty-element");
     try {
         for (const f of files) {
             mkdirSync(dirname(join(el(REF_DIR), f)), { recursive: true });
             copyFileSync(join(el(head), f), join(el(REF_DIR), f));
         }
-        run("cp", ["-r", join(el(head), "test/helpers/."), join(el(REF_DIR), "test/helpers/")]);
-        run("cp", [
-            "-r",
-            join(el(head), "test/interactions/helpers/."),
-            join(el(REF_DIR), "test/interactions/helpers/"),
-        ]);
+        for (const dir of ["test/helpers", "test/interactions/helpers"])
+            cpSync(join(el(head), dir), join(el(REF_DIR), dir), { recursive: true });
         const ref = vitest(REF_DIR, files, projects, join(out, "ref.json"));
         const h = vitest(head, files, projects, join(out, "head.json"));
         const hb = vitest(head, files, ["forced-batched"], join(out, "head-batched.json"));
@@ -283,9 +294,11 @@ function behavior(args) {
         ])
             console.log(
                 `behavior ${path}: ${x.regressed.length} passed on the reference and fail on HEAD, ` +
-                    `${x.failBoth.length} fail on both, ${x.fixedOrNew.length} pass on HEAD only, ${x.same} same`,
+                    `${x.failBoth.length} fail on both, ${x.failHeadOnly.length} fail on HEAD and did not run on the ` +
+                    `reference, ${x.fixedOrNew.length} pass on HEAD only, ${x.same} same`,
             );
-        return d.regressed.length + db.regressed.length ? 1 : 0;
+        const found = (x) => x.regressed.length + x.failHeadOnly.length;
+        return found(d) + found(db) ? 1 : 0;
     } finally {
         git(REF_DIR, "checkout", "--", "graphty-element/test");
         git(REF_DIR, "clean", "-fdq", "--", "graphty-element/test");
@@ -305,6 +318,25 @@ export function removedAssertions(diff) {
 }
 // Tests of things the renderer work did not touch: AI commands, screenshots and video, the package's exports.
 const LOOSENED_SKIP = /\/(ai|screenshot|video)\/|exports\.test/;
+
+/**
+ * The failures of a run of many files, each file with a failure run again on its own: a test that passes alone
+ * failed because of what an earlier file left behind (a held button, a mocked clock), which says nothing about this
+ * test's own assertions. Those are returned on `besideOthers` of the array.
+ */
+function failuresAlone(all, head, projects, dir) {
+    mkdirSync(dir, { recursive: true });
+    const el = join(head, "graphty-element");
+    const failed = [...all].filter(([, v]) => v.status === "failed").map(([name, v]) => ({ name, ...v }));
+    const files = [...new Set(failed.map((f) => f.name.split(" > ")[0]))];
+    const alone = new Map();
+    for (const [i, f] of files.entries())
+        for (const [k, v] of outcomes(vitest(head, [f], projects, join(dir, `alone-${String(i)}.json`)), el))
+            alone.set(k, v);
+    const out = failed.filter((f) => alone.get(f.name)?.status !== "passed");
+    out.besideOthers = failed.filter((f) => alone.get(f.name)?.status === "passed").map((f) => f.name);
+    return out;
+}
 
 function loosened(args) {
     const head = headDir(args);
@@ -339,14 +371,28 @@ function loosened(args) {
     });
     try {
         const el = join(head, "graphty-element");
-        const objects = outcomes(vitest(head, copies, ["browser", "interactions"], join(out, "objects.json")), el);
-        const batched = outcomes(vitest(head, copies, ["forced-batched"], join(out, "batched.json")), el);
-        const failures = (m) => [...m].filter(([, v]) => v.status === "failed").map(([name, v]) => ({ name, ...v }));
-        const s = { ref: REF, head: headSha, files: picked, objects: failures(objects), batched: failures(batched) };
+        const reuse = args.includes("--reuse");
+        const runs = [
+            ["objects", ["browser", "interactions"]],
+            ["batched", ["forced-batched"]],
+        ];
+        const s = { ref: REF, head: headSha, files: picked };
+        for (const [path, projects] of runs) {
+            const report = join(out, `${path}.json`);
+            const all = outcomes(
+                reuse && existsSync(report)
+                    ? JSON.parse(readFileSync(report, "utf8"))
+                    : vitest(head, copies, projects, report),
+                el,
+            );
+            s[path] = failuresAlone(all, head, projects, join(out, path));
+            s[`${path}BesideOthers`] = s[path].besideOthers;
+        }
         writeFileSync(join(out, "summary.json"), JSON.stringify(s, null, 2));
         console.log(
             `loosened: ${picked.length} files ran in their reference version; ${s.objects.length} failures on objects, ` +
-                `${s.batched.length} on batched (each to be read against HEAD's version of the test)`,
+                `${s.batched.length} on batched (each to be read against HEAD's version of the test); failing only ` +
+                `beside other files: ${s.objectsBesideOthers.length} and ${s.batchedBesideOthers.length}`,
         );
         return s.objects.length + s.batched.length ? 1 : 0;
     } finally {
@@ -530,6 +576,8 @@ function reportBehavior(beh) {
         lines.push(`## Behavior, HEAD ${path} against the reference`, "");
         for (const r of beh[path].regressed) lines.push(`- REGRESSED ${r.name}`, ...fence(r.head));
         for (const r of beh[path].failBoth) lines.push(`- fails on both: ${r.name}`);
+        for (const r of beh[path].failHeadOnly ?? [])
+            lines.push(`- FAILS ON HEAD, not run on the reference: ${r.name}`, ...fence(r.head));
         lines.push("");
     }
     return lines;
@@ -541,7 +589,8 @@ function reportLoosened(loose) {
     for (const path of ["objects", "batched"]) {
         lines.push(`## Reference versions of changed tests on HEAD, ${path}`, "");
         for (const r of loose[path]) lines.push(`- ${r.name}`, ...fence(r.message));
-        lines.push("");
+        const beside = loose[`${path}BesideOthers`] ?? [];
+        lines.push("", `Failing only beside other files, passing alone: ${beside.join(", ") || "none"}`, "");
     }
     return lines;
 }

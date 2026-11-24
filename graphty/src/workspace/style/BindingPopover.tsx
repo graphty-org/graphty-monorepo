@@ -764,7 +764,7 @@ function SourceHeader({
  * @param props.patch - writes the pick
  * @returns The select
  */
-function PaletteSelect({
+export function PaletteSelect({
     session,
     channel,
     value,

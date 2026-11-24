@@ -16,9 +16,10 @@ import {
 } from "@graphty/graphty-element/catalog";
 import type { GraphSession, Layer } from "@graphty/graphty-element/session";
 
+import type { useWorkspace } from "../../state/WorkspaceContext";
 import type { RowContext } from "../PropertyRow";
 import { writeIn } from "../row";
-import { dataFitWords, graphValueWords, readableName, valueFact } from "../words";
+import { dataFitWords, failureWords, graphValueWords, readableName, valueFact } from "../words";
 
 /** The data channel each thing that draws from data writes. */
 export const DATA_OF: Readonly<Partial<Record<string, DataChannel>>> = {
@@ -170,7 +171,7 @@ export function entryWords(fact: DataEntryFact | undefined): string {
     }
     const parts = fact.parts ?? [];
     // A pattern's parts are its columns: their values alone, joined, "-" in a missing one's place.
-    if (parts.length > 0 && parts.every((part) => part.key.includes("."))) {
+    if (parts.length > 0 && parts.every((part) => part.column === true)) {
         return parts.map((part) => (part.text === "" ? "-" : part.text)).join(", ");
     }
     if (parts.length > 0) {
@@ -180,7 +181,7 @@ export function entryWords(fact: DataEntryFact | undefined): string {
 }
 
 /** A readable value's type in the field list. */
-const TYPES: Readonly<Record<ReadableValue["kind"], DataField["type"]>> = {
+export const TYPES: Readonly<Record<ReadableValue["kind"], DataField["type"]>> = {
     number: "number",
     category: "category",
     text: "string",
@@ -260,4 +261,38 @@ export function moved(entries: readonly DataEntry[], at: number, by: -1 | 1): re
     const next = [...entries];
     [next[at], next[to]] = [next[to], next[at]];
     return next;
+}
+
+/** The workspace store, which a failed write tells. */
+export type Store = ReturnType<typeof useWorkspace>["store"];
+
+/**
+ * Report a failed write.
+ * @param store - the workspace store.
+ * @param what - what was being changed.
+ * @returns the handler.
+ */
+export function failed(store: Store, what: string): (error: unknown) => void {
+    return (error) => {
+        store.set({ notice: { message: failureWords(what, "changed", error), error: true } });
+    };
+}
+
+/**
+ * An option's word, or its default when the spec does not set it.
+ * @param value - the option as the spec holds it.
+ * @param fallback - its default.
+ * @returns the word.
+ */
+export function word(value: unknown, fallback: string): string {
+    return typeof value === "string" ? value : fallback;
+}
+
+/**
+ * An object without its undefined members, so an option taken off is not written as a key holding nothing.
+ * @param value - the object.
+ * @returns the object, its undefined members left out.
+ */
+export function pruned<T extends object>(value: T): T {
+    return Object.fromEntries(Object.entries(value).filter(([, each]) => each !== undefined)) as T;
 }

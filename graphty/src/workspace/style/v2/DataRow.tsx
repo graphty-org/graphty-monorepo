@@ -6,7 +6,7 @@
  * colors, and the panel shows its facts (`styles.dataFacts`).
  */
 
-import { CompactColorInput, DataFieldPicker, PanelField, SegmentedControl } from "@graphty/compact-mantine";
+import { CompactColorInput, DataFieldPicker, PanelField } from "@graphty/compact-mantine";
 import {
     type Channel,
     type DataChannel,
@@ -18,24 +18,31 @@ import {
     writeChannelList,
 } from "@graphty/graphty-element/catalog";
 import type { NodeId } from "@graphty/graphty-element/session";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 
 import { useWorkspace } from "../../state/WorkspaceContext";
 import type { RowContext } from "../PropertyRow";
-import { dataUndrawnWords, failureWords } from "../words";
+import { dataUndrawnWords } from "../words";
+import { CalculateLines } from "./CalculatePopover";
 import {
     draftAfter,
     entryId,
     entryName,
     entryWords,
+    failed,
     fieldsFor,
     FIXED,
     holderOf,
     moved,
+    pruned,
     type Spec,
     specOf,
+    word,
     writeSpec,
 } from "./dataEntries";
+import { DataGroups, KeepLine } from "./DataGroups";
+import { BesideMore, BesidePopover, CommitText, PopLine, Segments } from "./dataLines";
+import { FormatLines } from "./FormatPopover";
 import { firstColors, LISTS, type ListSpec } from "./lists";
 import { lineFor } from "./rubric";
 import { LineFrame, RubricLine } from "./RubricLine";
@@ -53,31 +60,6 @@ function partKey(entry: DataEntry, at: number): string {
         return entry.field;
     }
     return "graph" in entry ? `graph.${String(at)}` : `value.${String(at)}`;
-}
-
-/** The workspace store, which a failed write tells. */
-type Store = ReturnType<typeof useWorkspace>["store"];
-
-/**
- * Report a failed write.
- * @param store - the workspace store.
- * @param what - what was being changed.
- * @returns the handler.
- */
-function failed(store: Store, what: string): (error: unknown) => void {
-    return (error) => {
-        store.set({ notice: { message: failureWords(what, "changed", error), error: true } });
-    };
-}
-
-/**
- * An option's word, or its default when the spec does not set it.
- * @param value - the option as the spec holds it.
- * @param fallback - its default.
- * @returns the word.
- */
-function word(value: unknown, fallback: string): string {
-    return typeof value === "string" ? value : fallback;
 }
 
 /**
@@ -132,16 +114,21 @@ function sampleFacts(ctx: RowContext, channel: DataChannel, picked: NodeId | nul
     }
 }
 
+/** A new Graph value's first definition: a count of the node's edges, which Calculate then edits. */
+const NEW_GRAPH: DataEntry = { graph: { over: "edges", measure: "count" } };
+
 /**
  * The row's entries picker: a multi-pick of the node's columns and results, kept as a draft and written once on
  * Done (one undo step); Escape writes nothing. "Fixed" turns the thing back into fixed values; a Record's "Text"
- * adds a fixed text entry and keeps the list open.
+ * adds a fixed text entry and keeps the list open; "Calculate..." writes the draft with a new Graph value after it
+ * and opens that value's Calculate pop-over.
  * @param props - Component props
  * @param props.ctx - the row
  * @param props.channel - the data channel
  * @param props.thing - the thing's id
  * @param props.start - the thing's start channel, for "Fixed"
  * @param props.title - the thing's name
+ * @param props.onCalculate - called with the new Graph value's place, once it is written
  * @returns The picker
  */
 function DataPicker({
@@ -150,12 +137,14 @@ function DataPicker({
     thing,
     start,
     title,
+    onCalculate,
 }: Readonly<{
     ctx: RowContext;
     channel: DataChannel;
     thing: string;
     start: Channel;
     title: string;
+    onCalculate: (at: number) => void;
 }>): React.JSX.Element {
     const { store } = useWorkspace();
     const spec = specOf(ctx, channel);
@@ -173,6 +162,7 @@ function DataPicker({
             actions={[
                 { id: "fixed", label: FIXED },
                 ...(record ? [{ id: "text", label: "Text", keepsOpen: true }] : []),
+                { id: "calculate", label: "Calculate..." },
             ]}
             actionValue={spec === undefined && draft === null ? "fixed" : undefined}
             onChange={(checked) => {
@@ -187,6 +177,14 @@ function DataPicker({
                     return;
                 }
                 setDraft(null);
+                if (id === "calculate") {
+                    writeSpec(ctx, channel, { ...spec, entries: [...entries, NEW_GRAPH] })
+                        .then(() => {
+                            onCalculate(entries.length);
+                        })
+                        .catch(failed(store, title));
+                    return;
+                }
                 if (spec !== undefined) {
                     writeSpec(ctx, channel, undefined, fixedStart(ctx, thing, start)).catch(failed(store, title));
                 }
@@ -201,57 +199,6 @@ function DataPicker({
                 setDraft(null);
             }}
         />
-    );
-}
-
-/**
- * A text field that writes once, on Enter or when it loses focus, never per keystroke (one undo step per edit).
- * @param props - Component props
- * @param props.label - its name
- * @param props.value - what it holds
- * @param props.unset - what it shows when it holds nothing
- * @param props.onCommit - called with the words, "" for none
- * @returns The field
- */
-function CommitText({
-    label,
-    value,
-    unset,
-    onCommit,
-}: Readonly<{
-    label: string;
-    value: string | undefined;
-    unset: string;
-    onCommit: (words: string) => void;
-}>): React.JSX.Element {
-    const [typed, setTyped] = useState<string | null>(null);
-    const commit = (): void => {
-        if (typed !== null && typed !== (value ?? "")) {
-            onCommit(typed);
-        }
-        setTyped(null);
-    };
-    return (
-        // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- catches Enter and the blur bubbling from the text field inside, to write once; the field is the keyboard's door
-        <div
-            onBlur={commit}
-            onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                    commit();
-                }
-            }}
-        >
-            <PanelField
-                label={label}
-                kind="text"
-                width="fill"
-                value={typed ?? value ?? ""}
-                placeholder={unset}
-                onChange={(next) => {
-                    setTyped(String(next));
-                }}
-            />
-        </div>
     );
 }
 
@@ -279,64 +226,8 @@ function presetOf(format: DataFormat | undefined): string {
     return found?.[0] ?? "Custom";
 }
 
-/**
- * One line of a pop-over: its name above, its control.
- * @param props - Component props
- * @param props.line - what it edits
- * @param props.name - its name
- * @param props.children - its control
- * @returns The line
- */
-function PopLine({
-    line,
-    name,
-    children,
-}: Readonly<{ line: string; name: string | null; children: React.ReactNode }>): React.JSX.Element {
-    return (
-        <LineFrame
-            line={line}
-            name={name}
-            set
-            rule="R12"
-            control={children}
-            modifier={null}
-            removeName={undefined}
-            onRemove={() => undefined}
-        />
-    );
-}
-
-/**
- * A row of word segments.
- * @param props - Component props
- * @param props.label - its name
- * @param props.value - the segment in force
- * @param props.options - each segment's value and words
- * @param props.onPick - called with the segment picked
- * @returns The control
- */
-function Segments({
-    label,
-    value,
-    options,
-    onPick,
-}: Readonly<{
-    label: string;
-    value: string;
-    options: readonly (readonly [string, string])[];
-    onPick: (value: string) => void;
-}>): React.JSX.Element {
-    return (
-        <SegmentedControl
-            label={label}
-            fullWidth
-            size="xs"
-            value={value}
-            onChange={onPick}
-            data={options.map(([each, words]) => ({ value: each, label: words }))}
-        />
-    );
-}
+/** Which pop-over an Entry pop-over has open beside it. */
+type Beside = "calculate" | "format" | null;
 
 /** What an entry pop-over's lines read and write. */
 interface EntryArgs {
@@ -346,6 +237,8 @@ interface EntryArgs {
     readonly fact: DataEntryFact | undefined;
     readonly name: string;
     readonly put: (next: DataEntry) => void;
+    readonly beside: Beside;
+    readonly setBeside: (open: Beside) => void;
 }
 
 /**
@@ -385,36 +278,41 @@ function KindTabs({ args }: Readonly<{ args: EntryArgs }>): React.JSX.Element {
     const { ctx, channel, entry, name, put } = args;
     const record = channel === "node.recordData";
     return (
-        <Segments
-            label={`${name} kind`}
-            value={kindOf(entry)}
-            options={[["field", "Field"], ["graph", "Graph"], record ? ["text", "Text"] : ["value", "Value"]]}
-            onPick={(next) => {
-                const common = optionsOf(entry);
-                const fits = fieldsFor(ctx.session, channel, []).find((field) => field.disabledReason === undefined);
-                const to: Readonly<Record<string, DataEntry | undefined>> = {
-                    field: fits === undefined ? undefined : { ...common, field: fits.id },
-                    graph: { ...common, graph: { over: "edges", measure: "count" } },
-                    value: { ...common, value: 1 },
-                    text: { ...common, text: "Text" },
-                };
-                const written = to[next];
-                if (written !== undefined) {
-                    put(written);
-                }
-            }}
-        />
+        <PopLine line="entry.kind" name={null}>
+            <Segments
+                label={`${name} kind`}
+                value={kindOf(entry)}
+                options={[["field", "Field"], ["graph", "Graph"], record ? ["text", "Text"] : ["value", "Value"]]}
+                onPick={(next) => {
+                    const common = optionsOf(entry);
+                    const fits = fieldsFor(ctx.session, channel, []).find(
+                        (field) => field.disabledReason === undefined,
+                    );
+                    const to: Readonly<Record<string, DataEntry | undefined>> = {
+                        field: fits === undefined ? undefined : { ...common, field: fits.id },
+                        graph: { ...common, ...NEW_GRAPH },
+                        value: { ...common, value: 1 },
+                        text: { ...common, text: "Text" },
+                    };
+                    const written = to[next];
+                    if (written !== undefined) {
+                        put(written);
+                    }
+                }}
+            />
+        </PopLine>
     );
 }
 
 /**
- * The Entry pop-over's source line: a Field's picker, a Graph value's sentence, a fixed Value or Text.
+ * The Entry pop-over's source line: a Field's picker, a Graph value's sentence (opening Calculate beside), a fixed
+ * Value or Text.
  * @param props - Component props
  * @param props.args - the entry
  * @returns The line
  */
 function SourceLine({ args }: Readonly<{ args: EntryArgs }>): React.JSX.Element {
-    const { ctx, channel, entry, name, put } = args;
+    const { ctx, channel, entry, name, put, beside, setBeside } = args;
     if ("field" in entry || "pattern" in entry) {
         return (
             <PopLine line="entry.field" name="Field">
@@ -436,7 +334,29 @@ function SourceLine({ args }: Readonly<{ args: EntryArgs }>): React.JSX.Element 
     if ("graph" in entry) {
         return (
             <PopLine line="entry.graph" name="Value">
-                <ValueButton label="Graph value" words={name} onClick={() => undefined} />
+                <ValueButton
+                    label="Graph value"
+                    words={entryName(ctx.session, { ...entry, label: undefined })}
+                    expanded={beside === "calculate"}
+                    onClick={() => {
+                        setBeside(beside === "calculate" ? null : "calculate");
+                    }}
+                />
+                <BesidePopover
+                    title="Calculate"
+                    opened={beside === "calculate"}
+                    onOpenChange={(open) => {
+                        setBeside(open ? "calculate" : null);
+                    }}
+                >
+                    <CalculateLines
+                        session={ctx.session}
+                        graph={entry.graph}
+                        put={(graph) => {
+                            put({ ...optionsOf(entry), graph });
+                        }}
+                    />
+                </BesidePopover>
             </PopLine>
         );
     }
@@ -478,10 +398,10 @@ function SourceLine({ args }: Readonly<{ args: EntryArgs }>): React.JSX.Element 
  */
 function EachLine({ args }: Readonly<{ args: EntryArgs }>): React.JSX.Element | null {
     const { entry, fact, put } = args;
-    if (!("field" in entry) || fact?.parts === undefined || fact.parts.length === 0) {
+    if (!("field" in entry) || !Array.isArray(fact?.value)) {
         return null;
     }
-    const words = Array.isArray(fact.value) && (fact.value as unknown[]).some((v) => typeof v !== "number");
+    const words = (fact.value as unknown[]).some((v) => typeof v !== "number" && v !== null);
     return (
         <PopLine line="entry.each" name="Each value">
             {words ? (
@@ -493,7 +413,7 @@ function EachLine({ args }: Readonly<{ args: EntryArgs }>): React.JSX.Element | 
                         ["equal", "Equal share"],
                     ]}
                     onPick={(next) => {
-                        put({ ...entry, each: next === "equal" ? "equal" : "count" });
+                        put({ ...entry, each: next === "equal" ? "equal" : undefined });
                     }}
                 />
             ) : (
@@ -510,7 +430,7 @@ function EachLine({ args }: Readonly<{ args: EntryArgs }>): React.JSX.Element | 
                         { value: "max", label: "Max" },
                     ]}
                     onChange={(next) => {
-                        put({ ...entry, each: String(next) as DataEntry["each"] });
+                        put({ ...entry, each: next === "items" ? undefined : (String(next) as DataEntry["each"]) });
                     }}
                 />
             )}
@@ -519,17 +439,70 @@ function EachLine({ args }: Readonly<{ args: EntryArgs }>): React.JSX.Element | 
 }
 
 /**
- * The Entry pop-over's Format line: the presets, each followed by the sample value in it.
+ * A value the Format line's presets show the sample in: the entry's own number on the sample, its first part's when
+ * it spreads, else a stand-in number.
+ * @param fact - the entry's facts on the sample.
+ * @returns the number.
+ */
+function sampleNumber(fact: DataEntryFact | undefined): number {
+    if (typeof fact?.value === "number") {
+        return fact.value;
+    }
+    const part = fact?.parts?.find((each) => typeof each.value === "number")?.value;
+    return typeof part === "number" ? part : 1234.5;
+}
+
+/**
+ * Whether an entry's value is a number (a text value takes no number format).
+ * @param entry - the entry.
+ * @param fact - its facts on the sample.
+ * @returns whether it is.
+ */
+function numericEntry(entry: DataEntry, fact: DataEntryFact | undefined): boolean {
+    if ("text" in entry) {
+        return false;
+    }
+    if (!("field" in entry) || fact === undefined || fact.value === null) {
+        return true;
+    }
+    return typeof fact.value === "number" || (fact.parts ?? []).some((part) => typeof part.value === "number");
+}
+
+/**
+ * The Entry pop-over's Format line: the presets, each followed by the sample value in it, and its "..." opening the
+ * Format pop-over beside.
  * @param props - Component props
  * @param props.args - the entry
  * @returns The line
  */
 function FormatLine({ args }: Readonly<{ args: EntryArgs }>): React.JSX.Element {
-    const { entry, fact, put } = args;
-    const sample = fact?.value ?? 1234.5;
+    const { channel, entry, fact, name, put, beside, setBeside } = args;
+    const numeric = numericEntry(entry, fact);
+    const sample = numeric ? sampleNumber(fact) : (fact?.text ?? "Text");
     const now = presetOf(entry.format);
     return (
-        <PopLine line="entry.format" name="Format">
+        <PopLine
+            line="entry.format"
+            name="Format"
+            modifier={
+                <BesideMore
+                    label={`${name} format settings`}
+                    title="Format"
+                    opened={beside === "format"}
+                    onOpenChange={(open) => {
+                        setBeside(open ? "format" : null);
+                    }}
+                >
+                    <FormatLines
+                        channel={channel}
+                        entry={entry}
+                        numeric={numeric}
+                        sample={entryWords(fact)}
+                        put={put}
+                    />
+                </BesideMore>
+            }
+        >
             <PanelField
                 label="Format"
                 kind="select"
@@ -563,6 +536,7 @@ function FormatLine({ args }: Readonly<{ args: EntryArgs }>): React.JSX.Element 
  * @param props.at - the entry's place
  * @param props.fact - its facts on the sample
  * @param props.color - the color graphty-element draws it in, when it is one part
+ * @param props.calculate - open its Calculate pop-over at once (a Graph value the picker just added)
  * @returns The lines
  */
 function EntryLines({
@@ -572,6 +546,7 @@ function EntryLines({
     at,
     fact,
     color,
+    calculate,
 }: Readonly<{
     ctx: RowContext;
     channel: DataChannel;
@@ -579,8 +554,10 @@ function EntryLines({
     at: number;
     fact: DataEntryFact | undefined;
     color: string | undefined;
+    calculate: boolean;
 }>): React.JSX.Element {
     const { store } = useWorkspace();
+    const [beside, setBeside] = useState<Beside>(calculate ? "calculate" : null);
     const entry = spec.entries[at];
     const name = entryName(ctx.session, entry);
     const put = (next: DataEntry): void => {
@@ -588,7 +565,7 @@ function EntryLines({
             failed(store, name),
         );
     };
-    const args: EntryArgs = { ctx, channel, entry, fact, name, put };
+    const args: EntryArgs = { ctx, channel, entry, fact, name, put, beside, setBeside };
     const spreads = (fact?.parts?.length ?? 0) > 0 || "pattern" in entry;
     const colored = channel !== "node.recordData" && !spreads;
     return (
@@ -615,12 +592,10 @@ function EntryLines({
                         color={entry.color ?? color ?? "#888888"}
                         defaultColor={color ?? "#888888"}
                         showOpacity={false}
-                        showReset={false}
+                        showReset={entry.color !== undefined}
                         swatches={ctx.documentColors}
                         onChange={(next) => {
-                            if (next !== undefined) {
-                                put({ ...entry, color: next });
-                            }
+                            put({ ...entry, color: next });
                         }}
                     />
                 </PopLine>
@@ -697,6 +672,7 @@ interface SpecArgs {
     readonly ctx: RowContext;
     readonly channel: DataChannel;
     readonly spec: Spec;
+    readonly facts: DataFacts | undefined;
     readonly put: (patch: Readonly<Record<string, unknown>>) => void;
 }
 
@@ -746,15 +722,14 @@ function ChannelField({ ctx, channel }: Readonly<{ ctx: RowContext; channel: Cha
  */
 function PieLines({ args }: Readonly<{ args: SpecArgs }>): React.JSX.Element {
     const { ctx, spec, put } = args;
-    const max = (spec.whole as { max?: number } | undefined)?.max;
-    const keep = typeof spec.keep === "number" ? spec.keep : undefined;
+    const whole = spec.whole as { max?: number; track?: string } | undefined;
     return (
         <>
             <ChannelField ctx={ctx} channel="node.pieHole" />
-            <PopLine line="data.whole" name="Whole">
+            <PopLine line="data.whole" name="Whole" wide={whole?.max !== undefined}>
                 <Segments
                     label="Whole"
-                    value={max === undefined ? "total" : "max"}
+                    value={whole?.max === undefined ? "total" : "max"}
                     options={[
                         ["total", "Total"],
                         ["max", "Set max"],
@@ -763,42 +738,19 @@ function PieLines({ args }: Readonly<{ args: SpecArgs }>): React.JSX.Element {
                         put({ whole: next === "total" ? undefined : { max: 100 } });
                     }}
                 />
-                {max === undefined ? null : (
+                {whole?.max === undefined ? null : (
                     <PanelField
                         label="Max"
                         kind="number"
-                        value={max}
+                        value={whole.max}
                         onChange={(next) => {
-                            put({ whole: Number(next) > 0 ? { max: Number(next) } : undefined });
+                            put({ whole: Number(next) > 0 ? { ...whole, max: Number(next) } : undefined });
                         }}
                     />
                 )}
             </PopLine>
             <OrderLine args={args} />
-            <PopLine line="data.keep" name="Keep">
-                <Segments
-                    label="Keep"
-                    value={keep === undefined ? "all" : "top"}
-                    options={[
-                        ["all", "All"],
-                        ["top", "Top N"],
-                    ]}
-                    onPick={(next) => {
-                        put({ keep: next === "all" ? undefined : 5 });
-                    }}
-                />
-                {keep === undefined ? null : (
-                    <PanelField
-                        label="N"
-                        kind="number"
-                        value={keep}
-                        min={1}
-                        onChange={(next) => {
-                            put({ keep: Math.max(1, Math.round(Number(next))) });
-                        }}
-                    />
-                )}
-            </PopLine>
+            <KeepLine args={args} />
             <PopLine line="data.labels" name="On slices">
                 <Segments
                     label="On slices"
@@ -825,14 +777,25 @@ function PieLines({ args }: Readonly<{ args: SpecArgs }>): React.JSX.Element {
  */
 function ChartLines({ args }: Readonly<{ args: SpecArgs }>): React.JSX.Element {
     const { ctx, spec, put } = args;
-    const scale = (spec.scale ?? {}) as { readonly share?: string };
+    const scale = (spec.scale ?? {}) as { readonly share?: string; readonly min?: number; readonly max?: number };
+    const series = typeof spec.series === "object" ? (spec.series as { separator: string }) : undefined;
+    let shared = "shared";
+    if (scale.min !== undefined && scale.max !== undefined) {
+        shared = "set";
+    } else if (scale.share === "node") {
+        shared = "node";
+    }
     return (
         <>
             <ChannelField ctx={ctx} channel="node.chartKind" />
-            <PopLine line="data.series" name="Series">
+            <PopLine
+                line="data.series"
+                name={series === undefined ? "Series" : "Series / Split at"}
+                wide={series !== undefined}
+            >
                 <Segments
                     label="Series"
-                    value={typeof spec.series === "object" ? "name" : "each"}
+                    value={series === undefined ? "each" : "name"}
                     options={[
                         ["each", "Each"],
                         ["name", "Name part"],
@@ -841,18 +804,36 @@ function ChartLines({ args }: Readonly<{ args: SpecArgs }>): React.JSX.Element {
                         put({ series: next === "each" ? undefined : { separator: "_" } });
                     }}
                 />
+                {series === undefined ? null : (
+                    <CommitText
+                        label="Split at"
+                        value={series.separator}
+                        unset="_"
+                        onCommit={(words) => {
+                            put({ series: { separator: words === "" ? "_" : words } });
+                        }}
+                    />
+                )}
             </PopLine>
             <OrderLine args={args} />
             <PopLine line="data.scale" name="Scale">
                 <Segments
                     label="Scale"
-                    value={scale.share === "node" ? "node" : "shared"}
+                    value={shared}
                     options={[
                         ["shared", "Shared"],
                         ["node", "Per node"],
+                        ["set", "Set"],
                     ]}
                     onPick={(next) => {
-                        put({ scale: next === "node" ? { ...scale, share: "node" } : undefined });
+                        const { share: _share, min: _min, max: _max, ...rest } = scale;
+                        const by: Readonly<Record<string, Record<string, unknown>>> = {
+                            shared: rest,
+                            node: { ...rest, share: "node" },
+                            set: { ...rest, min: 0, max: 1 },
+                        };
+                        const written = by[next];
+                        put({ scale: Object.keys(written).length === 0 ? undefined : written });
                     }}
                 />
             </PopLine>
@@ -926,33 +907,42 @@ function RecordLines({ args }: Readonly<{ args: SpecArgs }>): React.JSX.Element 
 }
 
 /**
- * The data pop-over's own lines before Sample, by channel.
+ * The data pop-over's own lines before Sample, by channel, and its "..." groups.
  * @param props - Component props
  * @param props.ctx - the row
  * @param props.channel - the data channel
  * @param props.spec - the spec
+ * @param props.facts - the sample's facts
  * @returns The lines
  */
 function SpecLines({
     ctx,
     channel,
     spec,
-}: Readonly<{ ctx: RowContext; channel: DataChannel; spec: Spec }>): React.JSX.Element {
+    facts,
+}: Readonly<{ ctx: RowContext; channel: DataChannel; spec: Spec; facts: DataFacts | undefined }>): React.JSX.Element {
     const { store } = useWorkspace();
     const put = (patch: Readonly<Record<string, unknown>>): void => {
-        const next = Object.fromEntries(Object.entries({ ...spec, ...patch }).filter(([, v]) => v !== undefined));
-        writeSpec(ctx, channel, next as unknown as Spec).catch(failed(store, "Data"));
+        writeSpec(ctx, channel, pruned({ ...spec, ...patch })).catch(failed(store, "Data"));
     };
-    const args: SpecArgs = { ctx, channel, spec, put };
+    const args: SpecArgs = { ctx, channel, spec, facts, put };
+    let lines: React.JSX.Element = <RecordLines args={args} />;
     if (channel === "node.pieData") {
-        return <PieLines args={args} />;
+        lines = <PieLines args={args} />;
+    } else if (channel === "node.chartData") {
+        lines = <ChartLines args={args} />;
     }
-    return channel === "node.chartData" ? <ChartLines args={args} /> : <RecordLines args={args} />;
+    return (
+        <>
+            {lines}
+            <DataGroups ctx={ctx} channel={channel} spec={spec} facts={facts} put={put} />
+        </>
+    );
 }
 
 /**
- * One entry's line under the row: its name above, the sample's value in its format, its "..." (the Entry pop-over)
- * and its "-". Alt+ArrowUp and Alt+ArrowDown move it.
+ * One entry's line under the row: its name above, the sample's value in its format (a click opens the entry), its
+ * "..." (the Entry pop-over) and its "-". Alt+ArrowUp and Alt+ArrowDown move it.
  * @param props - Component props
  * @param props.ctx - the row
  * @param props.channel - the data channel
@@ -961,6 +951,8 @@ function SpecLines({
  * @param props.fact - its facts on the sample
  * @param props.write - writes the entries
  * @param props.color - the color graphty-element draws the entry in, when it is one part
+ * @param props.calculate - open the entry and its Calculate pop-over once it is drawn
+ * @param props.onCalculating - called once the Calculate pop-over is asked open
  * @returns The line
  */
 function EntryLine({
@@ -971,6 +963,8 @@ function EntryLine({
     fact,
     write,
     color,
+    calculate,
+    onCalculating,
 }: Readonly<{
     ctx: RowContext;
     channel: DataChannel;
@@ -979,8 +973,20 @@ function EntryLine({
     fact: DataEntryFact | undefined;
     write: (entries: readonly DataEntry[]) => void;
     color: string | undefined;
+    calculate: boolean;
+    onCalculating: () => void;
 }>): React.JSX.Element {
     const name = entryName(ctx.session, spec.entries[at]);
+    const [open, setOpen] = useState(false);
+    // Asked once, when the picker adds this Graph value: the Entry pop-over opens with Calculate beside it.
+    const [calculateFirst, setCalculateFirst] = useState(false);
+    useEffect(() => {
+        if (calculate) {
+            setOpen(true);
+            setCalculateFirst(true);
+            onCalculating();
+        }
+    }, [calculate, onCalculating]);
     return (
         // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- catches Alt+ArrowUp/Down bubbling from the line's own controls to move the entry; the line's controls are the keyboard's doors
         <div
@@ -1000,10 +1006,27 @@ function EntryLine({
                 name={name}
                 set
                 rule="R12"
-                control={<ValueButton label={name} words={entryWords(fact)} onClick={() => undefined} />}
+                control={
+                    <ValueButton
+                        label={name}
+                        words={entryWords(fact)}
+                        expanded={open}
+                        onClick={() => {
+                            setOpen(!open);
+                        }}
+                    />
+                }
                 modifier={
-                    <RowSettings label={`${name} settings`} title={name}>
-                        <EntryLines ctx={ctx} channel={channel} spec={spec} at={at} fact={fact} color={color} />
+                    <RowSettings label={`${name} settings`} title={name} opened={open} onOpenChange={setOpen}>
+                        <EntryLines
+                            ctx={ctx}
+                            channel={channel}
+                            spec={spec}
+                            at={at}
+                            fact={fact}
+                            color={color}
+                            calculate={calculateFirst}
+                        />
                     </RowSettings>
                 }
                 removeName={`Remove ${name}`}
@@ -1056,6 +1079,8 @@ export function DataRow({
     const { store } = useWorkspace();
     const [picked, setPicked] = useState<NodeId | null>(null);
     const [open, setOpen] = useState(false);
+    // The place of a Graph value the picker just added, whose Calculate pop-over opens once its line is drawn.
+    const [calculating, setCalculating] = useState<number | null>(null);
     const spec = specOf(ctx, channel);
     const facts = spec === undefined ? undefined : sampleFacts(ctx, channel, picked);
     const write = (entries: readonly DataEntry[]): void => {
@@ -1068,10 +1093,13 @@ export function DataRow({
             fixedSettings
         ) : (
             <RowSettings label={`${title} settings`} title={title} changed opened={open} onOpenChange={setOpen}>
-                <SpecLines ctx={ctx} channel={channel} spec={spec} />
+                <SpecLines ctx={ctx} channel={channel} spec={spec} facts={facts} />
                 <SampleLine ctx={ctx} channel={channel} facts={facts} onSample={setPicked} />
             </RowSettings>
         );
+    const calculated = React.useCallback(() => {
+        setCalculating(null);
+    }, []);
     return (
         <>
             <LineFrame
@@ -1079,7 +1107,16 @@ export function DataRow({
                 name={name}
                 set
                 rule="R12"
-                control={<DataPicker ctx={ctx} channel={channel} thing={thing} start={start} title={title} />}
+                control={
+                    <DataPicker
+                        ctx={ctx}
+                        channel={channel}
+                        thing={thing}
+                        start={start}
+                        title={title}
+                        onCalculate={setCalculating}
+                    />
+                }
                 modifier={settings}
                 removeName={removeLabel}
                 onRemove={onRemove}
@@ -1088,7 +1125,9 @@ export function DataRow({
             {(spec?.entries ?? []).map((entry, at) =>
                 spec === undefined ? null : (
                     <EntryLine
-                        key={`${entryId(entry, at)}-${String(at)}`}
+                        // By place: a line keeps its pop-over open while its entry's kind or source changes.
+                        // eslint-disable-next-line react/no-array-index-key -- keyed by place on purpose: an entry's own id changes with its source
+                        key={String(at)}
                         ctx={ctx}
                         channel={channel}
                         spec={spec}
@@ -1096,6 +1135,8 @@ export function DataRow({
                         fact={facts?.entries[at]}
                         write={write}
                         color={facts?.categories.find((each) => each.key === partKey(entry, at))?.color}
+                        calculate={calculating === at}
+                        onCalculating={calculated}
                     />
                 ),
             )}

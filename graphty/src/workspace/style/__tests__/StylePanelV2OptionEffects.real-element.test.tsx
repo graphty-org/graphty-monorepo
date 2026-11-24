@@ -216,9 +216,10 @@ describe("Style panel v2: options that would change nothing", () => {
         await waitFor(() => {
             assert.strictEqual(written(session, edges, "edge.supportScale"), "drawing");
         });
-        // The unit size draws only for a Unit scale, so it leaves the pop-over (design "Input rules", "Tabs").
+        // The unit size draws only for a Unit scale; the layer sets it, so its line stays, dimmed (a set line always
+        // shows, so its minus can take it off).
         await waitFor(() => {
-            assert.isNull(pop.querySelector('.ws-row[data-line="edge.supportUnit"]'));
+            assert.match(lineDim(pop, "edge.supportUnit") ?? "", /^Only when .+ is Unit$/);
         });
         await userEvent.keyboard("{Escape}");
     });

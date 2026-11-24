@@ -15,15 +15,16 @@
 // ahead, faster and faster, each airport coming up along the line and sweeping by large beside it,
 // never through one, turning after each, banking gently -- and bends onto San Francisco right
 // after Manila, easing into a close-up on it, at its place on the globe (the route's line faded
-// before it), San Francisco a plain red ball already exactly the globe's airports' size in the world
-// (GLOBE_SIZE), large on screen only because the camera is near.
+// before it), San Francisco a small plain red ball already exactly the globe's airports' size in the
+// world (GLOBE_SIZE), large on screen only because the camera comes near (CLOSE).
 // The cut dissolves the earth in behind it (tmp/demo-video/intros/growth/shots.md), and the camera
 // pulls back from it, starting within the dissolve, in one long eased move to the whole globe
-// (evenly lit, no night side) centered in the frame, the network's colors and comets coming back
-// outward from San Francisco, San Francisco one ordinary airport of the globe (its size all along,
-// every airport shrinking together as the camera pulls back; its community's color eased in; every
-// airport of the globe a plain ball, PLAIN), the globe turning in the clear band between the logo
-// and its line. While the
+// (evenly lit, no night side), large and a little above the frame's middle, the network's colors
+// and comets coming back outward from San Francisco, muted (MUTED: each community's hue at half its
+// saturation, quiet dots on the map), San Francisco one ordinary airport of the globe (its size all
+// along, every airport shrinking together as the camera pulls back; its community's muted color
+// eased in; every airport of the globe a plain ball, PLAIN), the globe turning behind the title's
+// logo, its line under the globe. While the
 // drawing is flat (the first FLAT airports) each airport lands beside the one it joins
 // (flatPlaces), so the drawing grows as an untangled tree; the lift is two moves: each airport
 // rises to its depth in the 3D drawing and a third of the way across (lift), then the drawing
@@ -108,9 +109,10 @@ const RAISE = (BOX.bottom - BOX.top) / 1016;
 const TREE = { fill: 0.8, least: 14, tau: S(1200), box: BOX };
 /**
  * The close-up on San Francisco: the camera's distance from it as the flight arrives (world units,
- * the globe's radius 25), near enough that the earth's map round it fills the frame.
+ * the globe's radius 25), near enough that the earth's map round it fills the frame and its small
+ * ball (GLOBE_SIZE) reads large; the camera's near plane is 1 unit out, so no nearer.
  */
-const CLOSE = 4;
+const CLOSE = 2;
 /**
  * The speed the flight arrives at, in CLOSEs a second of take: San Francisco grows on screen at the
  * same steady rate from 4 CLOSE out (flightPoses' `near`), about 1.4 s of output, through the
@@ -183,12 +185,19 @@ const GATHER = S(2200);
 const ROUTE_SIZE = 3.2;
 /** The comets on the routes, in their source airports' colors (their speed slowed with the take). */
 const COMETS = { useEdgeColor: true, intensity: 2.6, bloom: 2, tail: 200, spacing: 260, speed: 1.2 / K };
+/** The routes' width on the globe: wide enough to stay visible on the large end globe. */
+const GLOBE_EDGE = 5;
 /** The comets' intensity before they light, on the globe: all but nothing, yet drawn. */
 const COMETS_UNLIT = 0.02;
+/**
+ * The comets' intensity on the globe, lit: lower than in the 3D drawing, so they never glare over
+ * the quiet airports (MUTED) where routes crowd, as over Europe (take36, at the 3D drawing's 2.6).
+ */
+const COMETS_GLOBE = 1.2;
 /** The route's line and its airports: a rich red that reads on the dark sky and on the map. */
 const ROUTE_RED = "#e0262f";
 /** The route's line: its width as the flight flies it, and on the globe. */
-const ROUTE_WIDTH = [8, 4];
+const ROUTE_WIDTH = [8, 8];
 /**
  * The globe's airports, San Francisco's too: plain lit balls, every shader off. A node drawn by a
  * shader keeps the scale it had when it was last restyled instead of following its size space
@@ -212,17 +221,34 @@ const HIDDEN = {
     "node.opacity": 0,
     "node.shaders": ["glass", "glass-marble", "lantern"].map((shader) => ({ shader, off: true })),
 };
+/**
+ * The communities' colors on the globe: the take's palette (tol-vibrant, analyze's), in its order,
+ * at half its saturation and about three quarters of its brightness, so the airports sit on the map
+ * as quiet dots, each community's hue still its own.
+ */
+const VIBRANT = ["#0077bb", "#33bbee", "#009988", "#ee7733", "#cc3311", "#ee3377", "#bbbbbb"];
+const MUTED = ["#436e87", "#6899ab", "#376e68", "#ab8168", "#935c50", "#ab6881", "#878787"];
+/**
+ * A community color's quiet version on the globe (MUTED): the nearest of the palette's colors.
+ * @param hex - a drawn color, "#rrggbb"
+ * @returns its muted color
+ */
+const muted = (hex) => {
+    const rgb = (c) => [1, 3, 5].map((i) => Number.parseInt(c.slice(i, i + 2), 16));
+    const d = (c) => rgb(c).reduce((sum, v, i) => sum + (v - rgb(hex)[i]) ** 2, 0);
+    return MUTED[VIBRANT.indexOf(VIBRANT.reduce((a, b) => (d(b) < d(a) ? b : a)))];
+};
 /** Drawn at their scene size, even on the globe (the map draws nodes at a size on screen). */
 const SCENE = { "node.sizeSpace": "scene" };
 /**
  * Every airport's size on the globe, San Francisco's too, and San Francisco's through the flight's
  * arrival (a scene size, in world units against the globe's radius 25): the same ball in both
  * plates, large in the close-up only because the camera is near (about 300 px of the output's
- * 1,080 at CLOSE), and fine dots on the end globe (about 6 px), every airport shrinking together as
+ * 1,080 at CLOSE), and small dots on the end globe (about 6 px), every airport shrinking together as
  * the camera pulls back. A size on screen would keep them as large on the end globe as in the
  * close-up's neighborhood: a pile of beads over a 370 px globe (cut34).
  */
-const GLOBE_SIZE = 0.7;
+const GLOBE_SIZE = 0.35;
 /** San Francisco on the globe: still red, plain (PLAIN), the globe's size (GLOBE_SIZE). */
 const END_GLOBE = { "node.color": ROUTE_RED, ...PLAIN, ...SCENE, "node.size": GLOBE_SIZE };
 /** How near San Francisco (in the 3D drawing) another airport is hidden for the close-up. */
@@ -248,7 +274,9 @@ function meanwhile(p) {
 /**
  * The reveal's camera: the close-up on San Francisco's place on the globe, straight down on it
  * and creeping in into the dissolve, then the long pull back, turning toward the North Atlantic,
- * to the whole globe in the middle of the frame (the title's logo above it and its line below),
+ * to the whole globe, about 760 px of the output's 1,080 and its middle 80 px above the frame's
+ * (`drop`), behind the title's logo, with the title's line under it (cuts/intro-growth.json's
+ * `logoY` and `linesY`),
  * and on, turning (also flown once in setup, so the map's tiles are cached for the take).
  * @param spot - where the globe puts San Francisco
  * @param europe - where it puts Europe
@@ -263,7 +291,8 @@ const reveal = (spot, europe, o = {}) =>
         creepFade: 0.03,
         pull: PULL,
         turn: S(4000),
-        far: 9.5,
+        far: 4.6,
+        drop: -0.11,
         spin: 0.07,
         aim: RAISE,
     });
@@ -707,10 +736,14 @@ export default {
             FADE_SLOW,
         );
         // and every airport round San Francisco: in the close-up one beside it, out of the lens's
-        // path, drew as a large white bubble at the frame's edge through the dissolve (take32)
+        // path, drew as a large white bubble at the frame's edge through the dissolve (take32); and
+        // every one the close-up sees past it, however far (the near camera saw a cluster 70 units
+        // behind as glass bubbles under it, take36)
         const end = pts.at(-1);
         const round = others.filter(([, q]) => Math.hypot(q.x - end.x, q.y - end.y, q.z - end.z) < END_CLEAR);
-        const near = [...new Set([...nearLens(poses, others, 7, 25), ...round.map(([id]) => id)])];
+        const closing = poses.slice(-Math.round(((S(1500) + HOLD + SEAM) * flight.hz) / 1000));
+        const past = nearLens(closing, others, 0, Infinity, { cone: 0.9, behind: true });
+        const near = [...new Set([...nearLens(poses, others, 7, 25), ...round.map(([id]) => id), ...past])];
         console.log(`  growth-world: flight ${flightStats(flight, pts, others, near)}`);
         // the airports in a corridor round the flight's path, to shrink away while the route lights up
         const lens = await addLayer(h, {
@@ -904,6 +937,14 @@ export default {
                 });
                 // every airport plain (PLAIN: a shaded node might not keep the globe's size)
                 await styles.update(o.glass, { selector: { match: "everything" }, set: o.plain });
+                // the communities' colors quieted (MUTED: the same hues, in the palette's order),
+                // while every airport is hidden, so the change is never seen
+                for (const l of styles.list()) {
+                    const color = l.encode?.["node.color"];
+                    if (color?.palette !== "tol-vibrant") continue;
+                    const quiet = { ...color, palette: undefined, colors: o.muted };
+                    await styles.update(l.id, { encode: { ...l.encode, "node.color": quiet } });
+                }
             },
             {
                 size: h.size,
@@ -923,6 +964,7 @@ export default {
                 under: h.steps.under,
                 glass: h.glass,
                 plain: PLAIN,
+                muted: MUTED,
             },
         );
         await onElement(h, (el, o) => el.setLayout("location-map", o), GLOBE);
@@ -976,7 +1018,10 @@ export default {
                     { name: "Globe routes", target: "edge", selector: { match: "everything" }, set },
                     { above },
                 ),
-            [arrows, { "edge.colorFrom": "source", "edge.arrowHead": "none", "edge.opacity": 0.5, "edge.width": 2.5 }],
+            [
+                arrows,
+                { "edge.colorFrom": "source", "edge.arrowHead": "none", "edge.opacity": 0.5, "edge.width": GLOBE_EDGE },
+            ],
         );
         const pull = reveal(landed, h.steps.europe, atRest);
         await playPoses(h, { poses: pull.poses.slice(0, 1), hz: pull.hz });
@@ -1016,10 +1061,10 @@ export default {
             // at its place and at their size all along: its color eased to its community's
             after(S(1500), () => {
                 const look = (color) => ({ ...END_GLOBE, "node.color": color });
-                return tween(h, route.end, look(ROUTE_RED), look(endColor), L(S(3000)), L(700));
+                return tween(h, route.end, look(ROUTE_RED), look(muted(endColor)), L(S(3000)), L(700));
             }),
         ]);
-        await tweenShader(h, comets, "intensity", COMETS_UNLIT, COMETS.intensity, S(2000), { ease: true, stepMs: 800 });
+        await tweenShader(h, comets, "intensity", COMETS_UNLIT, COMETS_GLOBE, S(2000), { ease: true, stepMs: 800 });
         await ride;
     },
     holdMs: 300,

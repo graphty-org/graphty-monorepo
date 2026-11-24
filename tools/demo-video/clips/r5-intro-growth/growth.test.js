@@ -7,6 +7,7 @@ import {
     flatPlaces,
     flightPoses,
     groupsApart,
+    nearLens,
     principalAxes,
     pullIn,
     revealPoses,
@@ -261,4 +262,15 @@ test("the tree's framing only opens, moves smoothly, and frames each airport bef
             assert.ok(Math.abs(a.p.x - x[k]) <= half[k], `airport at ${a.t} off the side at ${k}`);
             assert.ok(Math.abs(a.p.y - y[k]) * o.aspect <= half[k], `airport at ${a.t} off the top or bottom at ${k}`);
         }
+});
+
+test("nearLens hides what a close-up sees behind its subject only when asked", () => {
+    const poses = [{ p: { x: 0, y: 0, z: 0 }, t: { x: 0, y: 0, z: 2 }, r: 0 }];
+    const others = [
+        ["before", { x: 0, y: 0, z: 1 }],
+        ["behind", { x: 10, y: 0, z: 70 }],
+        ["aside", { x: 0, y: 0, z: -70 }],
+    ];
+    assert.deepEqual(nearLens(poses, others, 0, Infinity), ["before"]);
+    assert.deepEqual(nearLens(poses, others, 0, Infinity, { cone: 0.9, behind: true }), ["before", "behind"]);
 });

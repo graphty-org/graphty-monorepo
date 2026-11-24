@@ -91,6 +91,11 @@ export const html = {
      * @param [data.strong] - the first line larger, bolder and white, with a shadow (over bright footage)
      * @param [data.gap] - px: the logo above and the lines below a clear band this tall across the
      *     middle of the frame (the logo smaller), so a subject centered in the footage shows between them
+     * @param [data.logoY] - px from the top: the logo's middle, at its full size (with `linesY`, in place
+     *     of the centered stack or `gap`: the logo over a subject, the lines under it)
+     * @param [data.linesY] - px from the top: where the lines start, with `logoY`
+     * @param [data.scrim] - how dark a soft ellipse behind the logo is, 0-1, with `logoY` (so it reads
+     *     over bright footage)
      * @returns the page
      */
     title: ({
@@ -102,19 +107,34 @@ export const html = {
         strong = false,
         smash = false,
         gap = 0,
-    }) =>
-        page(
+        logoY,
+        linesY,
+        scrim = 0,
+    }) => {
+        const placed = logoY !== undefined;
+        const logoStyle = placed
+            ? `position:absolute;left:0;right:0;top:${logoY}px;transform:translateY(-50%)`
+            : `position:absolute;left:0;right:0;bottom:${(H + gap) / 2}px`;
+        const top = placed ? linesY : (H + gap) / 2;
+        return page(
             (over ? div("frame", "", `background:rgba(18,23,31,${veil})`) : "") +
+                (placed && scrim
+                    ? div(
+                          "frame",
+                          "",
+                          `background:radial-gradient(ellipse 640px 260px at 50% ${logoY}px,rgba(5,7,13,${scrim}),transparent)`,
+                      )
+                    : "") +
                 div(
                     (over ? "card center over" : "card center") + (reveal ? " reveal" : ""),
                     div(
                         "logo",
                         gap ? LOGO.replace("<svg", '<svg style="height:170px;width:auto"') : BIG_LOGO,
-                        gap ? `position:absolute;left:0;right:0;bottom:${(H + gap) / 2}px` : "",
+                        gap || placed ? logoStyle : "",
                     ) +
-                        (gap
+                        (gap || placed
                             ? '<div style="position:absolute;left:0;right:0;top:' +
-                              (H + gap) / 2 +
+                              top +
                               'px;display:flex;flex-direction:column;align-items:center;margin-top:-44px">'
                             : "") +
                         lines
@@ -136,11 +156,12 @@ export const html = {
                                 div("sub later", esc(l), "font-size:40px;font-weight:500;margin-top:28px;color:#fff"),
                             )
                             .join("") +
-                        (gap ? "</div>" : ""),
+                        (gap || placed ? "</div>" : ""),
                     smash ? "background:#000" : "",
                 ),
             over,
-        ),
+        );
+    },
     /**
      * A chapter's opening card; `over` makes it translucent, to sit on the chapter's first frame.
      * @param data - the fields

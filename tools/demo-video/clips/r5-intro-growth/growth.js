@@ -957,9 +957,13 @@ export function carry(poses, a, b) {
  * @param clear - the least distance
  * @param [ahead] - how near in front of the camera an airport hides, if it lies between the camera
  *     and its target and within a third of the view's height of its middle
+ * @param [o] - the view's cone
+ * @param [o.cone] - how far off the middle an airport hides: its distance across over its distance
+ *     ahead (default 0.3)
+ * @param [o.behind] - true to hide those past the target too (what a close-up sees behind its subject)
  * @returns their ids
  */
-export const nearLens = (poses, others, clear, ahead = 0) =>
+export const nearLens = (poses, others, clear, ahead = 0, { cone = 0.3, behind = false } = {}) =>
     others
         .filter(([, q]) =>
             poses.some(({ p, t }) => {
@@ -967,7 +971,7 @@ export const nearLens = (poses, others, clear, ahead = 0) =>
                 if (len(v) < clear) return true;
                 const F = sub(t, p);
                 const z = dot(v, unit(F));
-                return z > 0 && z < ahead && z < len(F) && len(sub(v, mul(unit(F), z))) < 0.3 * z;
+                return z > 0 && z < ahead && (behind || z < len(F)) && len(sub(v, mul(unit(F), z))) < cone * z;
             }),
         )
         .map(([id]) => id);

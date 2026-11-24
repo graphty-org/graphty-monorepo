@@ -13,7 +13,7 @@ import {
 import { createPortal, flushSync } from "react-dom";
 
 import { POPOUT_NESTED_GAP } from "../../constants/popout";
-import type { PopoutPanelProps, PopoutPosition } from "../../types/popout";
+import type { PopoutPanelProps, PopoutPhysicalPlacement, PopoutPosition } from "../../types/popout";
 import { useDirection } from "../../utils/rtl";
 import { capped, visualBand } from "../overlays/viewportCap";
 import { useFloatingPanel } from "./hooks/useFloatingPanel";
@@ -21,7 +21,7 @@ import { usePopoutAnchorContext } from "./PopoutAnchor";
 import { usePopoutContext, usePopoutManagerContext } from "./PopoutContext";
 import { PopoutHeader } from "./PopoutHeader";
 import { findPanelElement, type PopoutAnchorElements, resolveAnchorElement } from "./utils/anchor";
-import { calculatePopoutPosition, measureContainingBlock, resolvePlacement } from "./utils/position";
+import { calculatePopoutPosition, chooseBesideSide, measureContainingBlock, resolvePlacement } from "./utils/position";
 import { tabId, tabPanelId } from "./utils/tabs";
 
 // Accessibility: the APG "Dialog (Modal)" pattern, made non-modal -- role
@@ -155,6 +155,7 @@ function stopBeside(origin: HTMLElement, panel: HTMLElement, back: boolean): HTM
  * @param props.gap - Gap between the panel and the anchor in pixels; negative values overlap them
  * @param props.closeLabel - The close button's accessible name
  * @param props.actions - Action buttons to display in the header
+ * @param props.more - The header's "..." button, opening a menu of groups or one group
  * @param props.manageFocus - Whether opening the panel moves focus into it and closing returns it
  * @param props.boundaryTop - The highest the panel's top may sit, in viewport pixels (below a header)
  * @param props.contained - Keep the panel across the Popout.Anchor around it, not only the window
@@ -177,6 +178,7 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
         alignment = "start",
         gap,
         actions,
+        more,
         manageFocus = true,
         boundaryTop = 0,
         contained = false,
@@ -208,6 +210,13 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
     const [position, setPosition] = useState<PopoutPosition | null>(null);
     // A contained panel narrows to fit inside its anchor; null until measured, or not contained.
     const [fitWidth, setFitWidth] = useState<number | null>(null);
+    // A "beside" panel opened above or below the panel it came from is no taller than the room
+    // there (CSS pixels); null otherwise.
+    const [besideRoom, setBesideRoom] = useState<number | null>(null);
+    const beside = placement === "beside";
+    // What had focus when a "beside" panel with no trigger opened (the "..." or menu that opened
+    // it), which gets focus back when it closes, as a trigger would.
+    const openerRef = useRef<HTMLElement | null>(null);
 
     // Whether the panel was open on the previous commit, which is what
     // distinguishes a reopen from the first render.
@@ -331,9 +340,10 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
 
         return {
             inline: resolveAnchorElement(anchorX, "x", elements),
-            block: resolveAnchorElement(anchorY, "y", elements),
+            // A "beside" panel lines up with the top of the panel it opened from.
+            block: resolveAnchorElement(anchorY ?? (beside ? "parent" : undefined), "y", elements),
         };
-    }, [triggerRef, parentId, anchorContext, anchorX, anchorY]);
+    }, [triggerRef, parentId, anchorContext, anchorX, anchorY, beside]);
 
     // Tab past the panel's last stop (Shift+Tab before its first) closes it and moves on from
     // what opened it, as if the panel sat beside it in the page; a separator or the page itself
@@ -404,9 +414,30 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
         // ponytail: a narrowed panel is placed at the width it fits in, so a child that cannot
         // wrap narrower than that runs past the inset; measure it here if one ever needs to.
         const renderedWidth = narrowed ? room : Math.max(width * frame.scaleX, measured?.width ?? 0);
-        const renderedHeight = Math.max((height ?? 0) * frame.scaleY, measured?.height ?? 0);
+        let renderedHeight = Math.max((height ?? 0) * frame.scaleY, measured?.height ?? 0);
 
-        const physicalPlacement = resolvePlacement(placement, direction);
+        let physicalPlacement: PopoutPhysicalPlacement;
+        if (placement === "beside") {
+            const side = chooseBesideSide(
+                inlineAnchor.getBoundingClientRect(),
+                renderedWidth,
+                effectiveGap,
+                {
+                    width: window.innerWidth,
+                    top: boundaryTop,
+                    bottom: Math.min(window.innerHeight, visualBand().bottom) - POPOUT_WINDOW_MARGIN,
+                },
+                direction,
+            );
+            physicalPlacement = side.placement;
+            if (side.room !== undefined) {
+                renderedHeight = Math.min(renderedHeight, side.room);
+            }
+            const room = side.room === undefined ? null : side.room / frame.scaleY;
+            setBesideRoom((previous) => (previous === room ? previous : room));
+        } else {
+            physicalPlacement = resolvePlacement(placement, direction);
+        }
         const isBlockPlacement = physicalPlacement === "top" || physicalPlacement === "bottom";
         const placementAnchor = isBlockPlacement ? blockAnchor : inlineAnchor;
         const crossAnchor = isBlockPlacement ? inlineAnchor : blockAnchor;
@@ -554,6 +585,7 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
 
         if (isOpen) {
             leftByTab.current = false;
+            openerRef.current = beside && document.activeElement instanceof HTMLElement ? document.activeElement : null;
             // Small timeout to ensure portal is rendered. A field marked
             // data-autofocus (Mantine's convention) takes focus instead of the
             // panel, which is how a settings panel starts in its first field.
@@ -572,11 +604,11 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
         // closed pop-out on the page focuses its own trigger on first render,
         // and whichever renders last steals the page's focus.
         if (openedBeforeRef.current && !leftByTab.current) {
-            triggerRef.current?.focus();
+            (triggerRef.current ?? openerRef.current)?.focus();
         }
 
         return undefined;
-    }, [isOpen, manageFocus, triggerRef]);
+    }, [isOpen, manageFocus, triggerRef, beside]);
 
     // Declared after the effects that read it, so they still see the previous
     // value on the commit that opens or closes the panel.
@@ -630,6 +662,7 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
                 ...(boundaryTop > 0 && {
                     maxHeight: capped(`calc(100vh - ${String(boundaryTop + POPOUT_WINDOW_MARGIN)}px)`),
                 }),
+                ...(besideRoom !== null && { maxHeight: besideRoom }),
                 // Hidden for the one commit between mounting and being measured,
                 // so the panel is never seen at an unmeasured position.
                 ...(position === null && { visibility: "hidden" as const }),
@@ -644,6 +677,7 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
                     activeTab={activeTab}
                     onTabChange={handleTabChange}
                     actions={actions}
+                    more={more}
                     closeLabel={closeLabel}
                     titleId={titleId}
                     tabsId={tabsBaseId}

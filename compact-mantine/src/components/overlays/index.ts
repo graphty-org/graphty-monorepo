@@ -2,6 +2,8 @@ export type { ContextMenuProps } from "./ContextMenu";
 export { ContextMenu } from "./ContextMenu";
 export type { MenuCheckItemProps } from "./MenuCheckItem";
 export { MenuCheckItem } from "./MenuCheckItem";
+export type { MenuGroupItemProps } from "./MenuGroupItem";
+export { MenuGroupItem } from "./MenuGroupItem";
 export { MenuItemDescription } from "./MenuItemDescription";
 export { MenuShortcut } from "./MenuShortcut";
 export type { ModalFooterProps } from "./ModalFooter";

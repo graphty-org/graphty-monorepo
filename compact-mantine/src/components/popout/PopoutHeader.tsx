@@ -1,8 +1,9 @@
-import { ActionIcon, Box, CloseButton, Tabs, VisuallyHidden } from "@mantine/core";
+import { ActionIcon, Box, CloseButton, Menu, Tabs, Tooltip, VisuallyHidden } from "@mantine/core";
 import type { JSX } from "react";
 
 import { useLabels } from "../../i18n";
-import type { PopoutHeaderProps } from "../../types/popout";
+import { UiGlyph } from "../../icons";
+import type { PopoutHeaderMore, PopoutHeaderProps } from "../../types/popout";
 
 // Accessibility: the tab strip is the APG "Tabs" pattern, built by Mantine's
 // Tabs: a tablist whose tabs carry aria-selected and aria-controls, with arrow
@@ -18,6 +19,57 @@ import type { PopoutHeaderProps } from "../../types/popout";
 // src/theme/css/overlays.css.ts.
 
 /**
+ * The header's "..." button: a ghost icon button with a tooltip, drawn in the brand color while
+ * something it leads to is set and it is not open. With entries it opens a menu of them; without,
+ * it calls its own click.
+ * @param props - Component props
+ * @param props.more - What the button is called, its set state, and its menu or click
+ * @returns The button, with its menu when it has one
+ */
+function MoreButton({ more }: Readonly<{ more: PopoutHeaderMore }>): JSX.Element {
+    const glyph = <UiGlyph name="more" size={12} />;
+    const look = {
+        variant: "subtle",
+        className: "cm-popout-more",
+        "aria-label": more.label,
+        "data-set": more.set === true ? "" : undefined,
+    } as const;
+    if (more.children === undefined) {
+        return (
+            <Tooltip label={more.label}>
+                <ActionIcon
+                    {...look}
+                    aria-haspopup="dialog"
+                    aria-expanded={more.expanded ?? false}
+                    onClick={more.onClick}
+                >
+                    {glyph}
+                </ActionIcon>
+            </Tooltip>
+        );
+    }
+    // The tooltip wraps Menu.Target (not the reverse), or the target's click never opens the menu.
+    // A pick in the menu is not a click on the panel: React carries it out of the menu's portal to
+    // the panel, whose click closes what the panel opened -- the group the pick just reopened.
+    return (
+        <Menu>
+            <Tooltip label={more.label}>
+                <Menu.Target>
+                    <ActionIcon {...look}>{glyph}</ActionIcon>
+                </Menu.Target>
+            </Tooltip>
+            <Menu.Dropdown
+                onClick={(event) => {
+                    event.stopPropagation();
+                }}
+            >
+                {more.children}
+            </Menu.Dropdown>
+        </Menu>
+    );
+}
+
+/**
  * The bar across the top of a pop-out panel: its title or tab strip, any action
  * buttons, and the close button.
  *
@@ -29,6 +81,7 @@ import type { PopoutHeaderProps } from "../../types/popout";
  * @param props.onClose - Called when the close button is activated
  * @param props.dragTriggerProps - Props that make the bar a drag handle
  * @param props.actions - Optional action buttons, shown before the close button
+ * @param props.more - Optional "..." button, shown after the actions
  * @param props.closeLabel - The close button's accessible name
  * @param props.activeTab - Currently selected tab
  * @param props.onTabChange - Called when a different tab is selected, with its id first
@@ -41,6 +94,7 @@ export function PopoutHeader({
     onClose,
     dragTriggerProps = {},
     actions = [],
+    more,
     closeLabel,
     activeTab,
     onTabChange,
@@ -91,13 +145,14 @@ export function PopoutHeader({
                 </>
             )}
 
-            {actions.length > 0 ? (
+            {actions.length > 0 || more !== undefined ? (
                 <div className="cm-popout-actions">
                     {actions.map((action) => (
                         <ActionIcon key={action.id} variant="subtle" onClick={action.onClick} aria-label={action.label}>
                             {action.icon}
                         </ActionIcon>
                     ))}
+                    {more === undefined ? null : <MoreButton more={more} />}
                 </div>
             ) : null}
 

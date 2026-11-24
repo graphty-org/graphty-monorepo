@@ -48,6 +48,7 @@ export type {
     PopoutContentProps,
     PopoutContextValue,
     PopoutHeaderConfig,
+    PopoutHeaderMore,
     PopoutHeaderProps,
     PopoutManagerContextValue,
     PopoutPanelProps,
@@ -137,6 +138,7 @@ export type {
 export type {
     ContextMenuProps,
     MenuCheckItemProps,
+    MenuGroupItemProps,
     ModalFooterProps,
     TargetTooltipProps,
     ToastAction,

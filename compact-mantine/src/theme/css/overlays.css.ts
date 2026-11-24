@@ -288,6 +288,20 @@ const css = `
 }
 .cm-popout-tabs { flex: 1; min-width: 0; }
 .cm-popout-actions { display: flex; align-items: center; }
+/* The header's "...": brand ink while something it leads to is set and it is not open (open, it
+   takes the ghost button's own open look). */
+.cm-popout-more[data-set]:not([aria-expanded="true"]) { color: var(--cm-icon-brand); }
+/* A "..." menu row's set mark (MenuGroupItem): a 5 x 5 brand dot at the row's end, in the row's
+   text color while the row is highlighted. */
+.cm-menu-row-set {
+    display: block;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--cm-icon-brand);
+}
+.cm-menu-row:hover .cm-menu-row-set,
+.cm-menu-row[data-hovered] .cm-menu-row-set { background: currentColor; }
 /* The 24px close button, 8px from the top and from the end. */
 .cm-popout-close,
 .cm-modal-close {

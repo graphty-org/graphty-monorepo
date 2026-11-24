@@ -51,6 +51,40 @@ interface PopoutHeaderAction {
 }
 
 /**
+ * The "..." button in a pop-out panel's header, which opens a menu of the thing's groups of
+ * settings, or opens its one group directly.
+ *
+ * Give `children` (the menu's entries, such as `MenuGroupItem`) for a menu, or `onClick` (with
+ * `expanded`) for a thing with a single group that "..." opens directly.
+ */
+export interface PopoutHeaderMore {
+    /**
+     * The button's accessible name and its tooltip, such as `"Advanced settings"`. The button is
+     * icon-only, so write a phrase a person would recognize.
+     */
+    label: string;
+    /**
+     * Whether something "..." leads to is set: the glyph is drawn in the brand color while the
+     * menu (or what it opens) is closed, as a row's changed "..." is.
+     * @default false
+     */
+    set?: boolean;
+    /**
+     * The menu's entries (`MenuGroupItem`, `Menu.Item`, `Menu.Label`, `Menu.Divider`). Leave it
+     * out to have the button call `onClick` instead of opening a menu.
+     */
+    children?: ReactNode;
+    /** Called when the button is activated, when there is no menu (`children` left out). */
+    onClick?: ActivationHandler;
+    /**
+     * Whether what the button opens directly is open (its `aria-expanded` and open look), when
+     * there is no menu. A menu reports its own state.
+     * @default false
+     */
+    expanded?: boolean;
+}
+
+/**
  * A pop-out panel's header when it is a single title.
  */
 interface PopoutTitleHeaderConfig {
@@ -108,8 +142,15 @@ export type PopoutHeaderConfig = PopoutTitleHeaderConfig | PopoutTabbedHeaderCon
  * right where text runs left to right, and swap where it runs right to left.
  * Prefer them over `"left"` and `"right"`, which always mean the physical side
  * whichever way text runs.
+ *
+ * `"beside"` is for a panel opened from another pop-out panel (a group of settings chosen from
+ * its "..." menu): it sits beside that panel without covering it, on the start side when there
+ * is room for it, else the end side, else below or above, whichever has more room, its content
+ * then scrolling within that room. It lines up with the top of the panel it opened from, and,
+ * like any two panels opened from the same panel, opening one closes the other, so one group
+ * pop-over is open at a time.
  */
-export type PopoutPlacement = "left" | "right" | "top" | "bottom" | "start" | "end";
+export type PopoutPlacement = "left" | "right" | "top" | "bottom" | "start" | "end" | "beside";
 
 /**
  * A placement with the reading direction already resolved, so it names a
@@ -230,6 +271,12 @@ export interface PopoutPanelProps {
      */
     actions?: PopoutHeaderAction[];
     /**
+     * A "..." button in the header, before the close button, that opens a menu of the thing's
+     * groups of settings (or its one group directly), with a tooltip and a "something here is
+     * set" look. Leave it out for no such button.
+     */
+    more?: PopoutHeaderMore;
+    /**
      * Whether opening the panel moves keyboard focus into it, and closing it
      * returns focus to the trigger.
      *
@@ -330,6 +377,8 @@ export interface PopoutHeaderProps {
     dragTriggerProps?: Record<string, unknown>;
     /** The panel's own buttons, drawn before the close button. */
     actions?: PopoutHeaderAction[];
+    /** The header's "..." button, drawn after `actions` and before the close button. */
+    more?: PopoutHeaderMore;
     /**
      * The close button's accessible name.
      * @default "Close panel" (the `closePanel` label)

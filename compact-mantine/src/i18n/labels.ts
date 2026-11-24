@@ -400,6 +400,11 @@ export interface CompactMantineLabels {
     closePanel: string;
     /** Accessible name of a tabbed pop-out panel when its first tab has no label. */
     settings: string;
+    /**
+     * Read after a menu entry whose group of settings has something set (`MenuGroupItem`'s
+     * `set`), as in "Wrap, set".
+     */
+    groupSet: string;
 
     // Editor shell
 
@@ -594,6 +599,7 @@ export const defaultLabels: Required<CompactMantineLabels> = {
 
     closePanel: "Close panel",
     settings: "Settings",
+    groupSet: "set",
 
     toolbar: "Tools",
     navigation: "Navigation",

@@ -59,6 +59,7 @@ export { LISTBOX_CLASS_NAMES } from "./theme/components/inputs";
 export {
     ContextMenu,
     MenuCheckItem,
+    MenuGroupItem,
     MenuItemDescription,
     MenuShortcut,
     ModalFooter,
@@ -255,6 +256,7 @@ export type {
     PopoutContentProps,
     PopoutContextValue,
     PopoutHeaderConfig,
+    PopoutHeaderMore,
     PopoutHeaderProps,
     PopoutManagerContextValue,
     PopoutManagerProps,
@@ -297,6 +299,7 @@ export type {
 export type {
     ContextMenuProps,
     MenuCheckItemProps,
+    MenuGroupItemProps,
     ModalFooterProps,
     TargetTooltipProps,
     ToastAction,

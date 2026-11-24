@@ -42,7 +42,10 @@ interface CalculatePositionOptions {
  * @param direction - The reading direction in force
  * @returns The physical side of the anchor the panel sits on
  */
-export function resolvePlacement(placement: PopoutPlacement, direction: Direction): PopoutPhysicalPlacement {
+export function resolvePlacement(
+    placement: Exclude<PopoutPlacement, "beside">,
+    direction: Direction,
+): PopoutPhysicalPlacement {
     if (placement === "start") {
         return isRtl(direction) ? "right" : "left";
     }
@@ -50,6 +53,47 @@ export function resolvePlacement(placement: PopoutPlacement, direction: Directio
         return isRtl(direction) ? "left" : "right";
     }
     return placement;
+}
+
+/** The side a `"beside"` panel opens on, and the height it has there when above or below. */
+export interface BesideSide {
+    /** The physical side of the panel it opened from. */
+    placement: PopoutPhysicalPlacement;
+    /** The most the panel may be tall, in viewport pixels, when it is above or below; else none. */
+    room?: number;
+}
+
+/**
+ * Where a `"beside"` panel opens so that it never covers the panel it opened from: the start
+ * side when the panel fits there, else the end side, else below or above, whichever has more
+ * room (a tablet held upright), the panel then no taller than that room.
+ * @param parent - The panel it opened from, in viewport pixels
+ * @param width - The panel's rendered width
+ * @param gap - The gap kept between the two panels
+ * @param view - The usable band of the window: its width, and the top and bottom a panel may reach
+ * @param view.width - The window's width
+ * @param view.top - The highest a panel's top may sit (below an app header)
+ * @param view.bottom - The lowest a panel's bottom may sit
+ * @param direction - The reading direction, which decides which side is the start
+ * @returns The side, and the room above or below
+ */
+export function chooseBesideSide(
+    parent: Pick<DOMRect, "left" | "right" | "top" | "bottom">,
+    width: number,
+    gap: number,
+    view: { width: number; top: number; bottom: number },
+    direction: Direction,
+): BesideSide {
+    const fits = (side: PopoutPhysicalPlacement): boolean =>
+        side === "left" ? parent.left - gap >= width : view.width - parent.right - gap >= width;
+    for (const side of [resolvePlacement("start", direction), resolvePlacement("end", direction)]) {
+        if (fits(side)) {
+            return { placement: side };
+        }
+    }
+    const below = view.bottom - parent.bottom - gap;
+    const above = parent.top - view.top - gap;
+    return below >= above ? { placement: "bottom", room: below } : { placement: "top", room: above };
 }
 
 /**

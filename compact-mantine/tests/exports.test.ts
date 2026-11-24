@@ -75,6 +75,7 @@ import type {
     LabelsProviderProps,
     LiveSetting,
     MenuCheckItemProps,
+    MenuGroupItemProps,
     MetricRowProps,
     ModalFooterProps,
     NavRailProps,
@@ -93,6 +94,7 @@ import type {
     PopoutContentProps,
     PopoutContextValue,
     PopoutHeaderConfig,
+    PopoutHeaderMore,
     PopoutHeaderProps,
     PopoutManagerContextValue,
     PopoutManagerProps,
@@ -245,6 +247,7 @@ type PublicTypeSurface = {
     popoutContextValue: PopoutContextValue;
     popoutHeader: PopoutHeaderProps;
     popoutHeaderConfig: PopoutHeaderConfig;
+    popoutHeaderMore: PopoutHeaderMore;
     popoutManager: PopoutManagerProps;
     popoutRegion: PopoutRegionProps;
     popoutManagerContextValue: PopoutManagerContextValue;
@@ -291,6 +294,7 @@ type PublicTypeSurface = {
     variablePill: VariablePillProps;
     contextMenu: ContextMenuProps;
     menuCheckItem: MenuCheckItemProps;
+    menuGroupItem: MenuGroupItemProps;
     modalFooter: ModalFooterProps;
     targetTooltip: TargetTooltipProps;
     toastAction: ToastAction;
@@ -377,6 +381,7 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "VariablePill",
     "ContextMenu",
     "MenuCheckItem",
+    "MenuGroupItem",
     "MenuItemDescription",
     "MenuShortcut",
     "ModalFooter",
@@ -842,6 +847,7 @@ describe("Package exports", () => {
                     popoutContextValue: true,
                     popoutHeader: true,
                     popoutHeaderConfig: true,
+                    popoutHeaderMore: true,
                     popoutManager: true,
                     popoutManagerContextValue: true,
                     popoutPanel: true,
@@ -897,6 +903,7 @@ describe("Package exports", () => {
                     statusBar: true,
                     contextMenu: true,
                     menuCheckItem: true,
+                    menuGroupItem: true,
                     modalFooter: true,
                     targetTooltip: true,
                     toastAction: true,

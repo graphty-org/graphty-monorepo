@@ -15,8 +15,9 @@
  * a Graphviz-routed layout and two overlapping nodes of different colors. The motion check switches
  * the fixture to a seeded ngraph simulation and reads the {@link MOVING_FRAMES}th frame that moves
  * a node, inside that frame (which only WebGL keeps), so edges that lag their moving nodes show; two
- * objects loads are compared first, so a difference is the path's. The framing check reads the
- * public camera state after the graph settles.
+ * objects loads are compared first, so a difference is the path's. The layout takes one round per
+ * frame there (the minimum-work test mode), so the Nth moving frame is the same step on every load.
+ * The framing check reads the public camera state after the graph settles.
  *
  * How to run, from graphty-element (part of the render-parity project, the full run's
  * graphty-element-render-parity-* shards):
@@ -31,6 +32,7 @@ import { afterEach, assert, describe, it } from "vitest";
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
 import { dataManagerInternals } from "../../src/managers/DataManager";
+import { setMinimumWorkPerFrame } from "../../src/managers/minimumWork";
 import { blue, magenta } from "../helpers/drawn-invariants";
 import { type CanvasFrame, png, readCanvas } from "../helpers/whole-canvas";
 
@@ -411,10 +413,17 @@ async function moving(path: Path, view: View, edges: Record<string, unknown>): P
             });
         });
     });
-    await element.graph.setLayout("ngraph", { seed: 42, dim: view === "2d" ? 2 : 3 });
-    const frame = await read;
-    element.remove();
-    return frame;
+    // One layout round per frame: otherwise a slow frame catches up several steps (UpdateManager's
+    // catch-up rounds, by the clock), so the Nth moving frame stood at a different step on each load.
+    setMinimumWorkPerFrame(true);
+    try {
+        await element.graph.setLayout("ngraph", { seed: 42, dim: view === "2d" ? 2 : 3 });
+        const frame = await read;
+        element.remove();
+        return frame;
+    } finally {
+        setMinimumWorkPerFrame(false);
+    }
 }
 
 describe.each(["3d", "2d"] as const)("a seeded simulation part way through its run, %s", (view) => {

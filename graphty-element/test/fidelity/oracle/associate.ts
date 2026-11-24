@@ -2675,6 +2675,12 @@ const carryBox = (fit: Similarity, b: PBox): PBox =>
 /** How far from each of its two nodes a line under a third node may end and still be the edge between them. */
 const STUB_TOUCH = 3;
 
+/**
+ * How far, in px, an arrowhead's tip may stop short of a node's outline and still point at that node: Cytoscape
+ * desktop's square heads stop 2.3 to 2.5 px short of their node, its triangles about 0.4 px.
+ */
+const HEAD_TIP_REACH = 3;
+
 /** How much nearer, in px, one node a line's end lands on may be than another and the two still be tied for it. */
 const END_TIE = 2;
 
@@ -4017,8 +4023,11 @@ export function associate(
             // -- and where end and tip both lie on one node drawn over the line (a stub and its head under a third node's
             // border), the others are as near as the head's tip comes too, read below (cx-radiation-bibliography
             // 190 -> 209: a 3 px line and its head under 151's outline, the tip 0.8 px off 209, the line's end 6 px)
+            // -- a tip as near as Cytoscape desktop's square heads come counts as on it: they stop about 2.4 px short of
+            // their node (cx2-signor-aml 35 -> 38: its line's end 1.1 px off mir-143 and its group PI3K, the square
+            // head's tip 2.4 px off JAK2, was read as 35 -> 55, and each line from KIT after it took the next one's pair)
             if ((direct[0]?.d ?? Infinity) <= 2 && tip[0]?.n !== direct[0].n) {
-                return tip.length > 0 && tip[0].d <= 2
+                return tip.length > 0 && tip[0].d <= HEAD_TIP_REACH
                     ? [...tip, ...direct.filter((x) => !tip.some((y) => y.n === x.n))]
                     : nodesAt(q, false, slack);
             }

@@ -14,9 +14,9 @@
 # ponytail: merge commits are skipped (git log --no-merges): a secret written only in a merge's conflict
 # resolution and removed later is missed; scan `git log --cc` for merges if that ever matters.
 set -euo pipefail
-# secretlint from this script's own checkout, which may be the gate's live copy rather than the one scanned.
+# secretlint from this script's own checkout, which may be another checkout than the one scanned.
 secretlint="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/node_modules/.bin/secretlint"
-# PREPUSH_ROOT: the checkout to scan when the gate runs from its live copy (tools/prepush.sh).
+# PREPUSH_ROOT: the checkout to scan (.husky/pre-push and tools/pr-open.sh set it to theirs).
 cd "${PREPUSH_ROOT:-$(dirname "${BASH_SOURCE[0]}")/..}"
 unset PREPUSH_ROOT
 root=$PWD

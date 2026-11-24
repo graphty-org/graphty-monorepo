@@ -7,7 +7,7 @@
  * new Sonar finding in a script passed CI. tools/pipeline-health is left to tools/lint-pipeline-health.mjs,
  * which installs its dependencies first. The root vitest setup files are in no tsconfig, so the type-aware
  * rules cannot parse them. Existing findings are held in the root eslint-suppressions.json, as in each
- * package (tools/README.md, "Lint"). CI's Checks job, the pre-push gate and check:quick run it through
+ * package (tools/README.md, "Lint"). CI's Checks job and check:quick run it through
  * `pnpm run lint:eslint-root`.
  *
  * Usage: node tools/lint-root-scripts.mjs

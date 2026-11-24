@@ -1146,6 +1146,12 @@ export interface DraftTable {
     readonly weightCandidate?: string;
 }
 
+// @beta
+export interface DraftView {
+    readonly merged: string;
+    readonly new: string;
+}
+
 // @public
 export type DrawnAnnotation = GraphAnnotation | ImageAnnotation;
 
@@ -4541,6 +4547,7 @@ export interface NotesApi {
     list(options?: NoteListOptions): readonly Note[];
     mergeDocument(document: unknown, options?: NoteMergeOptions): NotesReport;
     remove(id: NoteId): void;
+    savedTarget(target: NoteTargetInput): NoteTarget | undefined;
     status(id: NoteId): NoteStatus;
     // (undocumented)
     tags(): readonly string[];
@@ -9077,6 +9084,10 @@ export interface StylesApi {
     showBranches(view: BranchesView): {
         end(): void;
         readonly notDrawn: readonly HiddenNotDrawn[];
+    };
+    // @beta
+    showDraft(view: DraftView): {
+        end(): void;
     };
     // @beta
     readonly showingBranches: boolean;

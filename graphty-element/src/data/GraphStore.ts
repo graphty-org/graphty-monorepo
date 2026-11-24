@@ -968,6 +968,8 @@ export class GraphStore {
     /** The counters whose tick every freeze advances; the graph primitives bump its fields. */
     readonly inputs: InputCounters;
     private readonly undirectedCache = new WeakMap<GraphSnapshot, DerivedGraph>();
+    /** The direction setting {@link GraphStore.withSettingHeld} read for the work it is running, else null. */
+    private heldSetting: { readonly directed: boolean | "auto" } | null = null;
     private cache: GraphSnapshot | null = null;
     /**
      * The builder the cache was frozen from and its `mutationCount` just after that freeze: the
@@ -1309,10 +1311,36 @@ export class GraphStore {
     }
 
     /**
+     * Run `work` with the direction setting read once, at its start, instead of at every read of the graph. Every
+     * read of {@link GraphStore.reads} or {@link GraphStore.builder} checks the setting, because a change to it
+     * rebuilds the graph; on a graph the element draws that check reads the whole configuration document, and a
+     * frame that places 120,000 edges reads the graph several times per edge (about 44 ms a frame, issue #9420). For
+     * work that changes no setting, such as placing the edges for a frame. Nested calls share the outer one's reading.
+     * @param work - The work.
+     * @returns What it returns.
+     */
+    withSettingHeld<T>(work: () => T): T {
+        if (this.heldSetting !== null) {
+            return work();
+        }
+
+        this.heldSetting = { directed: this.directedSetting() };
+        try {
+            return work();
+        } finally {
+            this.heldSetting = null;
+        }
+    }
+
+    /**
      * The direction setting now.
      * @returns config.data.directed
      */
     private directedSetting(): boolean | "auto" {
+        if (this.heldSetting !== null) {
+            return this.heldSetting.directed;
+        }
+
         const { directed } = this.options;
         return typeof directed === "function" ? directed() : directed;
     }

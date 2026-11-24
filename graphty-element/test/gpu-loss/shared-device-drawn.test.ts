@@ -382,6 +382,26 @@ describe("the layout filling the row table on a shared device", () => {
         assert.isBelow(diff.wWorst, 1e-6);
     });
 
+    // The ring must hold every batch in flight plus the landed one: a ring of four at four in flight handed the batch
+    // submitted after a landing the slot that landing's publish then copied, so the texture showed a batch not landed.
+    for (const maxInFlight of [2, 4]) {
+        it(`holds the landed batch in the texture with ${String(maxInFlight)} batches in flight`, async () => {
+            const graph = await running("batched");
+            await graph.setLayout("forceatlas2", {
+                maxIter: 1_000_000_000,
+                maxInFlight,
+                iterationsPerStep: 256,
+                settleThreshold: 1e-12,
+            });
+            await landed(graph);
+            await copied(graph);
+            for (let i = 0; i < 20; i++) {
+                await landed(graph);
+            }
+            assert.isBelow((await textureDiff(graph)).worst, 1e-5, "the row texture holds the landed batch");
+        });
+    }
+
     it("draws its first landings at the size the layout measures", async () => {
         adapterSays("test-hardware");
         const graph = await open();

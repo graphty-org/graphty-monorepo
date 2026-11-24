@@ -179,6 +179,21 @@ type BindingPopoverProps = {
 );
 
 /**
+ * A control with its name as the small label above it (owner's input rules: every input is self describing):
+ * grouped buttons of words say nothing of what they choose.
+ * @param props - Component props
+ * @param props.children - the control, named by its `label`
+ * @returns The captioned control
+ */
+function Captioned({ children }: Readonly<{ children: React.ReactNode }>): React.JSX.Element {
+    return (
+        <PanelLabelsProvider showLabels>
+            <FieldRow>{children}</FieldRow>
+        </PanelLabelsProvider>
+    );
+}
+
+/**
  * The binding popover (tier3 design, section 4), the one for every source: a value of the data on
  * one layer or held for several, or the selected layers themselves (Vary by Layer, each layer one
  * group, from graphty-element's `styles.layerGroups`). In this order: the source and Change source;
@@ -216,14 +231,16 @@ export function BindingPopover(props: Readonly<BindingPopoverProps>): React.JSX.
             />
             {/* v2: what the number does with the value underneath, first (owner, 2026-11-23). */}
             {numberParts && v2 ? (
-                <SegmentsLine
-                    label="Operation"
-                    options={COMBINE_OPTIONS}
-                    value={binding.combine ?? "replace"}
-                    onPick={(mode) => {
-                        patch({ combine: combineOf(mode) });
-                    }}
-                />
+                <Captioned>
+                    <SegmentsLine
+                        label="Operation"
+                        options={COMBINE_OPTIONS}
+                        value={binding.combine ?? "replace"}
+                        onPick={(mode) => {
+                            patch({ combine: combineOf(mode) });
+                        }}
+                    />
+                </Captioned>
             ) : null}
             {parts.ramp}
             {parts.categorical ? (
@@ -329,15 +346,18 @@ function OverflowField({
     if (stylePanelV2On(session)) {
         // Three choices are grouped buttons (design "Input rules"), with short words; the long ones are tooltips.
         return (
-            <SegmentsLine
-                label={`More ${parts.noun} than colors`}
-                options={OVERFLOW_WORDS[descriptor.target].map((each) => ({
-                    value: each.value,
-                    name: OVERFLOW_SHORT[each.value] ?? each.label,
-                }))}
-                value={binding.overflow ?? "other"}
-                onPick={pick}
-            />
+            <Captioned>
+                <SegmentsLine
+                    label={`More ${parts.noun} than colors`}
+                    options={OVERFLOW_WORDS[descriptor.target].map((each) => ({
+                        value: each.value,
+                        name: OVERFLOW_SHORT[each.value] ?? each.label,
+                        tip: each.label,
+                    }))}
+                    value={binding.overflow ?? "other"}
+                    onPick={pick}
+                />
+            </Captioned>
         );
     }
     return (
@@ -1255,15 +1275,17 @@ function NoValue({
     if (segments) {
         return (
             <Stack gap={4}>
-                <SegmentsLine
-                    label="No value"
-                    options={[
-                        { value: "skip", name: "Leave as is" },
-                        { value: "value", name: "One value" },
-                    ]}
-                    value={given === null ? "skip" : "value"}
-                    onPick={pick}
-                />
+                <Captioned>
+                    <SegmentsLine
+                        label="No value"
+                        options={[
+                            { value: "skip", name: "Leave as is" },
+                            { value: "value", name: "One value" },
+                        ]}
+                        value={given === null ? "skip" : "value"}
+                        onPick={pick}
+                    />
+                </Captioned>
                 {field}
             </Stack>
         );

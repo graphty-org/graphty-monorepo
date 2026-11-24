@@ -18,7 +18,7 @@ import React, { useRef, useState } from "react";
 import { useWorkspace } from "../../state/WorkspaceContext";
 import { ModelsPopover } from "../ModelsPopover";
 import { PicturePopover } from "../PicturePopover";
-import type { RowContext } from "../PropertyRow";
+import { FieldLine, type RowContext } from "../PropertyRow";
 import { ShaderGallery } from "../ShaderGallery";
 import { failureWords } from "../words";
 import { currentMember, isHeld, type MemberChoice, type MemberPick, membersOf, switchMember } from "./families";
@@ -135,19 +135,24 @@ function SwitchMenu<
               ];
     return (
         <span ref={boxRef} className="ws-member" {...attribute}>
-            <PanelField
-                label="Kind"
-                kind="select"
-                width="fill"
-                data={data}
-                value={value}
-                onChange={(next) => {
-                    const member = members.find((each) => each.key === String(next));
-                    if (member !== undefined) {
-                        onChoose(member);
-                    }
-                }}
-            />
+            {/* Named in the name column, as every line is (owner's input rules: every input is self describing). */}
+            <FieldLine name="Kind" settings={null}>
+                <div className="ws-field-control">
+                    <PanelField
+                        label="Kind"
+                        kind="select"
+                        width="fill"
+                        data={data}
+                        value={value}
+                        onChange={(next) => {
+                            const member = members.find((each) => each.key === String(next));
+                            if (member !== undefined) {
+                                onChoose(member);
+                            }
+                        }}
+                    />
+                </div>
+            </FieldLine>
             {children}
         </span>
     );

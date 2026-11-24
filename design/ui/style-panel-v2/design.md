@@ -462,7 +462,8 @@ Rules for style inputs:
 - **Components.** A single color: `CompactColorInput`. A gradient: compact-mantine `GradientEditor`. A list of
   6 or more options: a drop-down (`PanelField kind="select"`, or the existing `ValueListbox` for pictured
   lists). Fewer than six exclusive options: grouped buttons (`SegmentedControl`). A number with a fixed minimum
-  and maximum (opacity, any 0-1 or 0-100% value, a fixed range): compact-mantine `Slider`. An open-ended number
+  and maximum (opacity, any 0-1 or 0-100% value, a fixed range): compact-mantine `Slider`, with its number
+  field beside it so the value is read and typed; the line draws its name above them. An open-ended number
   stays the scrubbable number input. Files: the app's existing file picker.
 - **Font style.** Bold, Italic, Underline and Strikethrough are toggle icon buttons on one line (compact-mantine
   `ToggleIconButton` or the existing grouped-button component, lucide glyphs, each with a hover tooltip). Bold
@@ -470,7 +471,9 @@ Rules for style inputs:
   settings. graphty-element's label style carries underline and strikethrough (an additive API change where
   missing).
 - **Self describing.** A line's name is the small label above its control or the name column beside it; an
-  icon-only control has a hover tooltip naming it.
+  icon-only control has a hover tooltip naming it. A full-width segment line of words (a size's Unit) and the
+  Kind drop-down are named too, and the link dialog's grouped buttons (Operation, More values than colors, No
+  value) carry their name above them.
 - **Every input has a value.** An unset input shows its default: the value graphty-element would draw there
   (what the layers beneath draw, else graphty-element's default), in the normal text color. Never an empty
   field, a placeholder-only field, or a segment line with nothing selected. The minus still shows only when the
@@ -485,7 +488,8 @@ Rules for style inputs:
   the mapped data value with the value the input would have without the link. This is graphty-element's binding
   option (`combine`: graphty-element's `"replace"` is Set, plus `"add"`, `"subtract"`, `"multiply"` and
   `"divide"`); the app only writes it. The link dialog draws it as its "Operation" line, right after the source;
-  a set number's Combine line in a pop-over is the same five segments.
+  a plain number's pop-over has no Combine line: it shows only where a layer already writes a combine (a file,
+  an earlier version), named "Combine", so that value stays changeable.
 
 - **Advanced dialog.** A pop-over's last line is "Advanced" when its thing has rare settings: a full-width button
   that opens the dialog beside the pop-over. The rubric marks a sub-group `advanced` (a thing's) or a line

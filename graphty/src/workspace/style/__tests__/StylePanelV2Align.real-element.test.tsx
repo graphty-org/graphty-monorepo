@@ -16,7 +16,7 @@ import { userEvent } from "vitest/browser";
 import { withFeatures } from "../../../test/features";
 import { waitFor, within } from "../../../test/test-utils";
 import { showKind } from "./kindTab";
-import { openGraph, openStyle, picture, pixelsApart, sectionOf, written } from "./v2Harness";
+import { openGraph, openStyle, picture, pixelsApart, popoverLine, sectionOf, written } from "./v2Harness";
 
 /** One text kind with an Align line: where its row is and what the layer holds for it to draw. */
 interface AlignKind {
@@ -129,11 +129,8 @@ describe("Style panel v2's Align line", () => {
                     assert.isNotNull(found);
                     return found;
                 });
-                const line = await waitFor(() => {
-                    const found = pop.querySelector<HTMLElement>(`.ws-row[data-line="${kind.style}.textAlign"]`);
-                    assert.isNotNull(found, "the Align line");
-                    return found;
-                });
+                // Align is a rare setting, in the pop-over's Advanced dialog.
+                const line = await popoverLine(pop, `.ws-row[data-line="${kind.style}.textAlign"]`);
                 // The segment's picture is its label; its name is the radio it labels.
                 const radio = within(line).getByRole("radio", { name: option });
                 const segment = line.querySelector<HTMLElement>(`label[for="${radio.id}"]`);
@@ -144,7 +141,11 @@ describe("Style panel v2's Align line", () => {
                     assert.equal(style.textAlign, option.toLowerCase(), `${option} is written`);
                     assert.equal(style.box, "words-in-target", "with the box alignment needs");
                 });
+                // The Advanced dialog closes first, then the pop-over.
                 await userEvent.keyboard("{Escape}");
+                if (document.querySelector("[data-thing-popover]") !== null) {
+                    await userEvent.keyboard("{Escape}");
+                }
                 await waitFor(() => {
                     assert.isNull(document.querySelector("[data-thing-popover]"));
                 });

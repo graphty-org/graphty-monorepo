@@ -141,7 +141,8 @@ export const OPTION_NAMES: Partial<Readonly<Record<Channel, Readonly<Record<stri
         fill: { name: "Fill" },
         none: { name: "None" },
     },
-    "node.visible": { true: { name: "Shown" }, false: { name: "Hidden" } },
+    // Pictured, with their words as tooltips: the row's name column leaves the words too little room.
+    "node.visible": { true: { name: "Shown", glyph: "show" }, false: { name: "Hidden", glyph: "hide" } },
     "node.wireframe": { true: { name: "On" }, false: { name: "Off" } },
     "edge.gradientKind": {
         linear: { name: "Linear", glyph: "gradientLinear" },
@@ -156,7 +157,7 @@ export const OPTION_NAMES: Partial<Readonly<Record<Channel, Readonly<Record<stri
         bezier: { name: "Bezier", glyph: "bendBezier" },
         arc: { name: "Arc", glyph: "routeArc" },
     },
-    "edge.visible": { true: { name: "Shown" }, false: { name: "Hidden" } },
+    "edge.visible": { true: { name: "Shown", glyph: "show" }, false: { name: "Hidden", glyph: "hide" } },
     ...Object.fromEntries(
         (["arrowHead", "arrowTail", "arrowMiddleHead", "arrowMiddleTail"] as const).map((end) => [
             `edge.${end}Side`,
@@ -555,9 +556,13 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
     // The Plate item's rows (kindGroups.ts, C2), by the kind's color.
     "plate:node.underlayColor": backdrop("underlay"),
     "plate:node.overlayColor": backdrop("overlay"),
-    visibility: { row: { channel: "node.visible", name: null, rule: "R8" }, main: [] },
+    visibility: { row: { channel: "node.visible", name: "Visibility", rule: "R8" }, main: [] },
     // On or Off on the row; the low mesh detail it writes is the row's (graphty-element's need).
-    wireframe: { row: { channel: "node.wireframe", name: null, rule: "R8" }, rowOwns: ["node.meshDetail"], main: [] },
+    wireframe: {
+        row: { channel: "node.wireframe", name: "Wireframe", rule: "R8" },
+        rowOwns: ["node.meshDetail"],
+        main: [],
+    },
     // The Label row's Glyph kind (kindGroups.ts).
     "label:node.glyph": {
         common: [
@@ -821,7 +826,7 @@ export const EDGE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
             },
         ],
     },
-    visibility: { row: { channel: "edge.visible", name: null, rule: "R8" }, main: [] },
+    visibility: { row: { channel: "edge.visible", name: "Visibility", rule: "R8" }, main: [] },
     // An edge Record is its label table (design 4.2), its rows the list editor's (R15, `ItemList.tsx`).
     record: { rowOwns: ["edge.labelTable"], main: [] },
 };

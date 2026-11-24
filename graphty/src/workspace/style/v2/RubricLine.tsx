@@ -5,7 +5,7 @@
  * value bound to data, a list, an asset or a text source keeps today's field.
  */
 
-import { ComboInput, PanelField, SegmentedControl, ToggleIconButton } from "@graphty/compact-mantine";
+import { ComboInput, PanelField, SegmentedControl, Slider, ToggleIconButton } from "@graphty/compact-mantine";
 import {
     type Channel,
     type ChannelDescriptor,
@@ -28,7 +28,7 @@ import { InAdvanced } from "./advanced";
 import { dimOf, drawnValue, valueDimOf } from "./drawn";
 import { PointPair } from "./ItemFields";
 import { ItemListEditor } from "./ItemListEditor";
-import { moveUnit, ruleOf, unsetIn } from "./lineWrites";
+import { moveUnit, rangeOf, ruleOf, unsetIn } from "./lineWrites";
 import { coordinateDescriptor, ITEM_LISTS } from "./lists";
 import {
     isPictured,
@@ -95,7 +95,7 @@ export function NumberLine({
             onWrite(undefined);
         }
     };
-    return (
+    const field = (
         // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- only hears Enter bubbling from its own field
         <div style={{ display: "contents" }} onKeyDown={onEmptyEnter}>
             <ComboInput
@@ -118,6 +118,79 @@ export function NumberLine({
                 }}
             />
         </div>
+    );
+    // A percent has a fixed range: a slider (owner's input rules: a range of inputs is a slider), its number
+    // field beside it, so its value is read and typed.
+    if (!rangeOf(descriptor, percent)) {
+        return field;
+    }
+    return (
+        <Group gap={4} wrap="nowrap" className="ws-percent">
+            <PercentSlider label={name} value={value} min={min ?? 0} max={max ?? 1} onWrite={onWrite} />
+            <div style={{ flex: "0 0 64px", minWidth: 0 }}>{field}</div>
+        </Group>
+    );
+}
+
+/**
+ * Whether a line draws its name above and its control across the line: two inputs (a pair not joined as one
+ * number), or a slider with its number.
+ * @param line - the line.
+ * @param descriptor - its channel.
+ * @param split - whether its sides are split.
+ * @returns whether it does.
+ */
+function wideLine(line: LineSpec, descriptor: ChannelDescriptor, split: boolean): boolean {
+    return (line.pair !== undefined && (line.sides !== true || split)) || rangeOf(descriptor);
+}
+
+/**
+ * A percent as compact-mantine's Slider, the arrow keys stepping 1%. It writes once a drag or a key ends, one undo
+ * step each.
+ * @param props - Component props
+ * @param props.label - its accessible name
+ * @param props.value - the value shown (set, or drawn), a fraction
+ * @param props.min - its least fraction
+ * @param props.max - its greatest fraction
+ * @param props.onWrite - writes a fraction
+ * @returns The slider
+ */
+function PercentSlider({
+    label,
+    value,
+    min,
+    max,
+    onWrite,
+}: Readonly<{
+    label: string;
+    value: unknown;
+    min: number;
+    max: number;
+    onWrite: (value: number) => void;
+}>): React.JSX.Element {
+    const given = typeof value === "number" ? Math.round(value * 100) : max * 100;
+    // The thumb follows a drag before it is written.
+    const [moving, setMoving] = React.useState<number | null>(null);
+    const shown = moving ?? given;
+    return (
+        <Slider
+            size="xs"
+            style={{ flex: 1, minWidth: 0 }}
+            min={min * 100}
+            max={max * 100}
+            step={1}
+            value={shown}
+            label={null}
+            thumbLabel={label}
+            thumbProps={{ "aria-valuetext": `${String(shown)}%` }}
+            onChange={setMoving}
+            onChangeEnd={(next) => {
+                setMoving(null);
+                if (next !== given) {
+                    onWrite(next / 100);
+                }
+            }}
+        />
     );
 }
 
@@ -192,6 +265,8 @@ export function SegmentsLine({
         readonly disabled?: boolean;
         /** Why graphty-element draws nothing for the option in this view: dimmed, its tooltip saying why. */
         readonly dimmed?: string;
+        /** A word option's hover tooltip, when its short word needs its long one ("Extend the palette"). */
+        readonly tip?: string;
     }[];
     value: string;
     onPick: (value: string) => void;
@@ -227,12 +302,29 @@ export function SegmentsLine({
                                 </span>
                             </Tooltip>
                         ) : (
-                            option.name
+                            wordsOf(option)
                         ),
                     ),
                 };
             })}
         />
+    );
+}
+
+/**
+ * A word option's label: its word, with its long words as its hover tooltip where it has them.
+ * @param option - the option.
+ * @param option.name - its word.
+ * @param option.tip - its long words.
+ * @returns the label.
+ */
+function wordsOf(option: Readonly<{ name: string; tip?: string }>): React.ReactNode {
+    return option.tip === undefined ? (
+        option.name
+    ) : (
+        <Tooltip label={option.tip}>
+            <span>{option.name}</span>
+        </Tooltip>
     );
 }
 
@@ -983,6 +1075,7 @@ function OneLine({ ctx, line, row, named: alwaysNamed = false }: RubricLineProps
             removeName={set || row !== undefined ? removeName : undefined}
             onRemove={onRemove}
             dimmed={dimmed}
+            wide={wideLine(line, descriptor, split)}
         />
     );
     return withSides(frame, line, channel, split, (on) => {
@@ -1088,8 +1181,8 @@ function ChoiceLine({ ctx, line, row }: RubricLineProps): React.JSX.Element | nu
 }
 
 /**
- * The name a line draws in its name column, or null for none: a checkbox carries its own; a full-width
- * segment line and a line the rubric leaves unnamed draw none, unless it must ("Color" for a color).
+ * The name a line draws in its name column, or null for none: a checkbox carries its own; a line the rubric
+ * leaves unnamed draws none, unless it must ("Color" for a color).
  * @param line - the line.
  * @param descriptor - its channel.
  * @param rule - its rule.
@@ -1097,7 +1190,9 @@ function ChoiceLine({ ctx, line, row }: RubricLineProps): React.JSX.Element | nu
  * @returns the name, or null.
  */
 function lineName(line: LineSpec, descriptor: ChannelDescriptor, rule: Rule, always: boolean): string | null {
-    if (rule === "R7" || (!always && (rule === "R8f" || line.name === null))) {
+    // A full-width segment line (R8f) is named too: its name is the small label above its segments (owner's
+    // input rules: every input is self describing), as words alone ("Graph | Pivot | Screen") say nothing.
+    if (rule === "R7" || (!always && line.name === null)) {
         return null;
     }
     return line.name ?? (descriptor.accepts === "color" ? "Color" : channelWord(descriptor.channel));
@@ -1143,6 +1238,7 @@ function frameRule(line: LineSpec, rule: string): string {
  * @param props.onRemove - what its minus does
  * @param props.dimmed - why graphty-element draws nothing for it now, for its dimmed look and tooltip
  * @param props.under - drawn under the switch line above it, its name indented
+ * @param props.wide - two inputs on the line (or a slider and its number): its name above them
  * @returns The line
  */
 export function LineFrame({
@@ -1156,6 +1252,7 @@ export function LineFrame({
     onRemove,
     dimmed,
     under,
+    wide,
 }: Readonly<{
     line: string;
     name: string | null;
@@ -1169,6 +1266,11 @@ export function LineFrame({
     dimmed?: string;
     /** Drawn under the switch line above it ("Opacity" under Letter outline): its name is indented. */
     under?: boolean;
+    /**
+     * Two inputs on the line (an X | Y pair, a slider and its number): its name above them and they across the line
+     * (style.css), so neither number is cut ("0.1" read as "0", "Auto" as "A...").
+     */
+    wide?: boolean;
 }>): React.JSX.Element {
     const advanced = React.useContext(InAdvanced);
     return (
@@ -1179,6 +1281,7 @@ export function LineFrame({
             data-rule={rule}
             data-dimmed={dimmed === undefined ? undefined : ""}
             data-under={under === true ? "" : undefined}
+            data-wide={wide === true ? "" : undefined}
             title={dimmed}
         >
             <FieldLine name={name} settings={null}>

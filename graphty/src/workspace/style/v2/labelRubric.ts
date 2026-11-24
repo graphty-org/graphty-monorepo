@@ -150,7 +150,8 @@ export const LABEL_RUBRIC: LabelRubric = {
         // Bold, Italic, Underline and Strikethrough as a text editor's toggles (owner, 2026-11-23); Bold writes the
         // weight, whose number is the Letters group's.
         { field: "weight", name: "Style", rule: "R7t", toggles: ["italic", "underline", "strikethrough"] },
-        { field: "textAlign", name: "Align", rule: "R8" },
+        // Rarer than where the label sits: in Advanced, so the pop-over stays 6 lines tall (owner's input rules).
+        { field: "textAlign", name: "Align", rule: "R8", advanced: true },
         { field: "location", name: "Location", rule: "R2" },
         { field: "size", name: "Unit", fullName: "Size unit", rule: "R8f", unit: SIZE_UNIT, advanced: true },
     ],

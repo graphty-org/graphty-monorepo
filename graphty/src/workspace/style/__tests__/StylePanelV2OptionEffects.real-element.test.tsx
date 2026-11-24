@@ -2,7 +2,7 @@
  * Style panel v2 on the REAL graphty-element, driven by real clicks (E495: every option of every style works): an
  * option that would change nothing is never offered as if it did. An unset choice shows the value drawn now, so
  * picking it is never mistaken for an option that does nothing; a value graphty-element draws only in the other
- * view (`valueViews`), a Combine mode that paints what Replace does (`combineDrawn`), a Combine over a 2D-only value
+ * view (`valueViews`), a Combine over a 2D-only value
  * in 3D and a node depth in 2D (`drawnWhen`) are each dimmed from graphty-element's own facts; and a border's
  * Center and Inside move the ring on a solid drawn at its own proportions (the default icosphere), as on a flat shape.
  */
@@ -81,7 +81,7 @@ function lineDim(pop: HTMLElement, line: string): string | undefined {
 describe("Style panel v2: options that would change nothing", () => {
     withFeatures(["file-styles", "style-panel-v2"]);
 
-    it("the Size pop-over shows the drawn choice and dims Pivot, Multiply and Depth where they draw nothing", async () => {
+    it("the Size pop-over shows the drawn choice, names its unit, and dims Pivot and Depth where they draw nothing", async () => {
         const { session, id } = await openProject();
         await session.styles.update(id, { set: { "node.color": "#E8590C", "node.size": 2 } });
         await session.styles.settled();
@@ -104,12 +104,18 @@ describe("Style panel v2: options that would change nothing", () => {
             name: "Graph",
         });
         assert.isTrue(graph.checked, "Graph, the default, is the unit shown");
+        // Words alone say nothing of what they choose: the line's name is shown above them (owner's input rules).
+        assert.strictEqual(
+            pop.querySelector('[data-line="node.sizeSpace"] .ws-field-name')?.textContent,
+            "Unit",
+            "Graph | Pivot | Screen is named",
+        );
 
         // Pivot draws only in 3D (valueViews); the size beneath is 1, so x1 over it is Set.
         assert.equal(optionDim(pop, "Node size space", "Pivot"), "3D only");
         assert.isUndefined(optionDim(pop, "Node size space", "Screen"));
-        assert.match(optionDim(pop, "Combine", "Multiply") ?? "", /^Same as Set over a .+ of 1$/);
-        assert.isUndefined(optionDim(pop, "Combine", "Add"), "Add adds to the size beneath");
+        // What a number does with the value underneath is chosen in the link dialog only (owner, 2026-11-23).
+        assert.isNull(within(pop).queryByRole("radiogroup", { name: "Combine" }), "no Combine on a plain size");
         // Uniform draws the default icosphere at the extent Scale draws it at already (valueDrawn).
         assert.match(optionDim(advanced, "Node size mode", "Uniform") ?? "", /^Only when /);
         assert.isUndefined(optionDim(advanced, "Node size mode", "Diameter"));
@@ -133,11 +139,33 @@ describe("Style panel v2: options that would change nothing", () => {
         await userEvent.keyboard("{Escape}");
     });
 
+    it("Wireframe and Visibility rows are named, as every input is (owner's input rules)", async () => {
+        const { session, id } = await openProject();
+        await session.styles.update(id, {
+            set: { "node.color": "#E8590C", "node.wireframe": true, "node.visible": true },
+        });
+        await session.styles.settled();
+        const tab = await openStyle("Key people");
+        const effects = sectionOf(tab, "node-effects");
+        await waitFor(() => {
+            for (const [thing, name] of [
+                ["wireframe", "Wireframe"],
+                ["visibility", "Visibility"],
+            ] as const) {
+                const row = effects.querySelector(`[data-thing="${thing}"]`);
+                assert.isNotNull(row, thing);
+                assert.strictEqual(row?.querySelector(".ws-field-name")?.textContent, name);
+            }
+        });
+    });
+
     it("a raised edge's Combine is dimmed in 3D with the raised edge itself", async () => {
         const { session, id } = await openProject();
         // A raised edge is a flat bevel: on a flat shape, drawn in 2D only.
+        // Combined with what lies beneath: only a combine already written shows its Combine line.
         await session.styles.update(id, {
-            set: { "node.color": "#E8590C", "node.shape": "rectangle", "node.raisedBorderWidth": 0.2 },
+            set: { "node.color": "#E8590C", "node.shape": "rectangle" },
+            encode: { "node.raisedBorderWidth": { value: 0.2, combine: "add" } },
         });
         await session.styles.settled();
         await switchView("3D");

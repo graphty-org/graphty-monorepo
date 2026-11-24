@@ -8,7 +8,7 @@ import type { Layer } from "@graphty/graphty-element/session";
 
 import type { RowContext } from "../PropertyRow";
 import { layerWord, lineIn, removeLine, writeIn } from "../row";
-import { channelWord } from "../words";
+import { channelWord, isPercent } from "../words";
 import { replaces } from "./families";
 import { lineChannels, type LineSpec, type Rule, type SubGroup } from "./rubric";
 import { setOn } from "./things";
@@ -164,4 +164,14 @@ export async function moveUnit(
  */
 export function groupSet(ctx: RowContext, group: SubGroup): boolean {
     return group.lines.some((line) => lineChannels(line).some((channel) => setOn(ctx, channel)));
+}
+
+/**
+ * Whether a number line is a range drawn as a slider: a percent, which has a fixed least and greatest value.
+ * @param descriptor - its channel, or a label style field described as one.
+ * @param percent - reads as a percent, when not its channel's say.
+ * @returns whether it is.
+ */
+export function rangeOf(descriptor: ChannelDescriptor, percent?: boolean): boolean {
+    return (percent ?? isPercent(descriptor)) && descriptor.min !== undefined && descriptor.max !== undefined;
 }

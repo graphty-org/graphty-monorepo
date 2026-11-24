@@ -217,7 +217,8 @@ export function AdvancedLine<G extends ShellGroup>({
                     </Button>
                 </Popout.Trigger>
                 <Popout.Panel
-                    width={264}
+                    // Wider than a pop-over: its rarer settings have longer names ("Letter outline width").
+                    width={312}
                     placement="left"
                     alignment="start"
                     header={{ variant: "title", title: `${title} advanced` }}
@@ -351,8 +352,11 @@ function beneathNumber(ctx: RowContext, channel: ChannelDescriptor["channel"]): 
 }
 
 /**
- * A pop-over's line above Main (design 2.6): Combine, on a number the layer sets. There is no By data line:
- * the main value binds from its own line's by-data link, Main's first.
+ * A pop-over's line above Main (design 2.6): Combine, on a number the layer sets combined with what lies
+ * beneath. A plain number gets none: what a number does with the value underneath is chosen where it is linked
+ * to data, in the link dialog (owner, 2026-11-23); this line only keeps a combine a file or an earlier version
+ * wrote changeable. There is no By data line: the main value binds from its own line's by-data link, Main's
+ * first.
  * @param props - Component props
  * @param props.ctx - the row
  * @param props.main - the row's main value
@@ -361,13 +365,16 @@ function beneathNumber(ctx: RowContext, channel: ChannelDescriptor["channel"]): 
 export function FirstLines({ ctx, main }: Readonly<{ ctx: RowContext; main: ChannelDescriptor }>): React.JSX.Element {
     const { store } = useWorkspace();
     const own = lineIn(ctx, main.channel);
-    const number = main.accepts === "number" && typeof own?.value === "number" ? own.value : undefined;
+    const number =
+        main.accepts === "number" && typeof own?.value === "number" && own.combine !== undefined
+            ? own.value
+            : undefined;
     return (
         <>
             {number === undefined ? null : (
                 <LineFrame
                     line={`combine:${main.channel}`}
-                    name={null}
+                    name="Combine"
                     set={own?.combine !== undefined}
                     rule="R8f"
                     control={

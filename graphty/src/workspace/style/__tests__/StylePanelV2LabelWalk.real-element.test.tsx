@@ -584,11 +584,16 @@ describe("every label field is reachable from the Label row and draws (E673)", (
                         return on;
                     }
                     case "number":
-                        // An opacity's field takes percent (0.3 is typed 30).
-                        await typeIn(
-                            inputs()[0],
-                            String(field.endsWith("pacity") ? Number(test.value) * 100 : test.value),
-                        );
+                        if (field.endsWith("pacity")) {
+                            // An opacity is a slider in percent (owner's input rules): Home, then 1% a key.
+                            const thumb = within(line).getByRole("slider");
+                            await userEvent.click(thumb);
+                            await userEvent.keyboard(
+                                `{Home}${"{ArrowRight}".repeat(Math.round(Number(test.value) * 100))}`,
+                            );
+                            return test.value;
+                        }
+                        await typeIn(inputs()[0], String(test.value));
                         return test.value;
                     case "color":
                         await typeIn(within(line).getByRole<HTMLInputElement>("textbox"), String(test.value).slice(1));

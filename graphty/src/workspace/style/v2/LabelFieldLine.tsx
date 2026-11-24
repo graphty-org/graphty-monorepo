@@ -40,6 +40,7 @@ import {
     linkedFields,
     type TextThing,
 } from "./labelRubric";
+import { rangeOf } from "./lineWrites";
 import { segmentOptions } from "./rubric";
 import {
     ByDataLink,
@@ -783,6 +784,7 @@ export function LabelFieldLine({
             }}
             dimmed={labelDimOf(label.ctx, label.kind.style, style, field)}
             under={line.under}
+            wide={line.pair !== undefined || rangeOf(descriptor, field.endsWith("pacity"))}
         />
     );
     return sides === undefined ? (

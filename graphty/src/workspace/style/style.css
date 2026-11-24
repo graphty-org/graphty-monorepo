@@ -486,6 +486,11 @@
     outline-offset: -1px;
 }
 
+/* The Advanced dialog's longer names ("Letter outline width", "Round fitted size") get a wider column. */
+[data-thing-popover][data-advanced] {
+    --ws-label: 128px;
+}
+
 /* A shader's settings pop-out: the panel's property rows, with a label column of its own (the
    pop-out is outside the tab that sizes the tab's column). A number's name scrubs its value. */
 .ws-shader-params {
@@ -880,22 +885,33 @@
    small label, and under it the source with its link or settings button and its Clear right after it.
    Words longer than the whole width end in an ellipsis. */
 /* A named full-width segment line in a pop-over (R8f, R2: a label's Location, Unit, Direction) is two
-   lines the same way: its name, then its segments across the line (E674: every line is named). */
-[data-style-panel-v2] .ws-row[data-rule="R12"] > .ws-field[data-named],
-[data-thing-popover] .ws-row:is([data-rule="R8f"], [data-rule="R2"]) > .ws-field[data-named] {
+   lines the same way: its name, then its segments across the line (E674: every line is named). So is a
+   line of two inputs (an X | Y pair, data-wide), so neither number is cut, and a row's Kind drop-down in the
+   sidebar, so its kind ("Basic shape") is never cut. */
+[data-style-panel-v2] .ws-row:is([data-rule="R12"], [data-wide]) > .ws-field[data-named],
+[data-style-panel-v2] .ws-member > .ws-field[data-named],
+[data-thing-popover] .ws-row:is([data-rule="R8f"], [data-rule="R2"], [data-wide]) > .ws-field[data-named] {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
 }
 
-[data-style-panel-v2] .ws-row[data-rule="R12"] > .ws-field[data-named] > .ws-field-label,
-[data-thing-popover] .ws-row:is([data-rule="R8f"], [data-rule="R2"]) > .ws-field[data-named] > .ws-field-label {
+[data-style-panel-v2] .ws-row:is([data-rule="R12"], [data-wide]) > .ws-field[data-named] > .ws-field-label,
+[data-style-panel-v2] .ws-member > .ws-field[data-named] > .ws-field-label,
+[data-thing-popover]
+    .ws-row:is([data-rule="R8f"], [data-rule="R2"], [data-wide])
+    > .ws-field[data-named]
+    > .ws-field-label {
     flex: 0 0 100%;
     min-height: 24px;
 }
 
-[data-style-panel-v2] .ws-row[data-rule="R12"] > .ws-field[data-named] > .ws-field-control,
-[data-thing-popover] .ws-row:is([data-rule="R8f"], [data-rule="R2"]) > .ws-field[data-named] > .ws-field-control {
+[data-style-panel-v2] .ws-row:is([data-rule="R12"], [data-wide]) > .ws-field[data-named] > .ws-field-control,
+[data-style-panel-v2] .ws-member > .ws-field[data-named] > .ws-field-control,
+[data-thing-popover]
+    .ws-row:is([data-rule="R8f"], [data-rule="R2"], [data-wide])
+    > .ws-field[data-named]
+    > .ws-field-control {
     /* The line's width less its two 24px slots, which follow it on the same line. */
     flex: 0 0 calc(100% - 48px);
 }

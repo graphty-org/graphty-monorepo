@@ -336,6 +336,28 @@ describe("Style panel v2's Text section", () => {
         assert.isNotNull(color.querySelector(".cm-paint"), "the color line is a color control with a swatch");
     });
 
+    it("the label pop-over's Kind line shows its name", async () => {
+        await openProject();
+        const tab = await openStyle("Key people");
+        const row = await addLabel(tab);
+        const pop = await popoverOf(row);
+        const kind = await within(pop).findByRole("combobox", { name: "Kind" });
+        assert.strictEqual(kind.closest(".ws-field")?.querySelector(".ws-field-name")?.textContent, "Kind");
+    });
+
+    it("a Label with no source yet reads No words, never an empty source (owner's input rules)", async () => {
+        const { session, id } = await openProject();
+        await session.styles.update(id, { set: { ...session.styles.get(id)?.set, "node.labelStyle": { size: 2 } } });
+        await session.styles.settled();
+        const tab = await openStyle("Key people");
+        const row = await waitFor(() => {
+            const found = sectionOf(tab, "node-text").querySelector<HTMLElement>('[data-thing="label"]');
+            assert.isNotNull(found);
+            return found;
+        });
+        assert.isNotNull(within(row).queryByRole("button", { name: "Node label source, No words" }));
+    });
+
     it("a label's Margin is dimmed while its box padding is set, the padding standing in for it", async () => {
         const { session, id } = await openProject();
         await session.styles.update(id, {

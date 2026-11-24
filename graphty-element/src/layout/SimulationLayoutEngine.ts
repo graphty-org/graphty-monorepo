@@ -930,6 +930,13 @@ export class SimulationLayoutEngine extends LayoutEngine {
 
     /** Set by `LayoutManager` while it is not stepping this layout. See {@link paused}. */
     #paused = false;
+
+    /**
+     * A settled layout rebuilt on another accelerator stays at rest: see {@link replaceSimulation}. The new
+     * simulation is loaded from the start of its schedule, so it reads settled only through this until
+     * something wakes it -- a load, a reload, a reheat or a drag.
+     */
+    #heldAtRest = false;
     #iterations = 1;
     #iterationsDone = 0;
     /** Set by {@link SimulationLayoutEngine.dispose}: a batch rejected after it is not reported. */
@@ -1141,6 +1148,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * attached, or whatever `createSimulation` throws.
      */
     load(snapshot: GraphSnapshot, positions: F32): void {
+        this.#heldAtRest = false;
         // A publish owed over the snapshot being replaced is written while its rows still mean it.
         this.#dataManager[WRITABLE_LANE].settle();
         this.#detachDrawn();
@@ -1191,6 +1199,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * attached.
      */
     reload(snapshot: GraphSnapshot, positions: F32): void {
+        this.#heldAtRest = false;
         if (this.#snapshot === null) {
             // NOTHING HAS BEEN LOADED YET, so this is `init()`'s own freeze coming back at us:
             // `getSnapshot()` emits `snapshot-replaced` synchronously, from inside the call
@@ -1264,8 +1273,13 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * @throws A `GraphtyError` with `E_NO_ACCELERATOR` when the policy is `"required"` and
      * nothing is attached. The bridge is then STOPPED -- no simulation, nothing submitted -- and
      * the next transition that attaches an accelerator brings it back through this same method.
+     * @param keepRest - True when the swap is the accelerator's, not the graph's (a device lost or
+     * recovered): a layout that had settled then stays settled where it is, rather than running the new
+     * simulation's whole schedule from its resting arrangement.
      */
-    replaceSimulation(): void {
+    replaceSimulation(keepRest = false): void {
+        const atRest = keepRest && this.isSettled;
+        this.#heldAtRest = false;
         this.#detachDrawn();
         this.#simulation?.dispose();
         this.#simulation = null;
@@ -1285,6 +1299,8 @@ export class SimulationLayoutEngine extends LayoutEngine {
             throw error;
         }
 
+        this.#heldAtRest = atRest;
+
         // No reheat here either, and for the same reason: `#build()` loads the new simulation, and
         // a load is already a full run from the start of the schedule. See `reload`.
     }
@@ -1302,7 +1318,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
      */
     step(): void {
         const simulation = this.#simulation;
-        if (simulation === null || this.#failed) {
+        if (simulation === null || this.#failed || this.#heldAtRest) {
             return;
         }
 
@@ -1382,7 +1398,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * @returns A promise that resolves when the batch has landed, or rejects with its failure.
      */
     async stepAsync(iterations: number): Promise<void> {
-        if (this.#simulation === null || this.#failed) {
+        if (this.#simulation === null || this.#failed || this.#heldAtRest) {
             return;
         }
 
@@ -1432,6 +1448,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * ones have it, and a third party's may not -- so it is feature-tested rather than assumed.
      */
     reheat(): void {
+        this.#heldAtRest = false;
         const simulation: (LayoutSimulation & { reheat?: () => void }) | null = this.#simulation;
         if (typeof simulation?.reheat === "function") {
             simulation.reheat();
@@ -1461,6 +1478,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * @param n - The node the pointer has taken.
      */
     beginDrag(n: Node): void {
+        this.#heldAtRest = false;
         this.#dragging.add(n);
         this.#setFixed(n.index, true);
     }
@@ -1661,7 +1679,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * @returns True when the last completed batch settled.
      */
     get isSettled(): boolean {
-        return this.#simulation?.settled ?? true;
+        return this.#heldAtRest || (this.#simulation?.settled ?? true);
     }
 
     /**

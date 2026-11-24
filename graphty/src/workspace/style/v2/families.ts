@@ -10,6 +10,7 @@
 
 import {
     type Channel,
+    type ChannelValue,
     type ShaderParams,
     type ShaderUse,
     STYLE_FAMILIES,
@@ -280,6 +281,7 @@ function startOf(ctx: RowContext, to: MemberChoice, leaving: Readonly<Record<str
  * @param fromKey - the member drawn now.
  * @param toKey - the member to draw.
  * @param picked - what was picked for a member that needs a pick (a model, a picture).
+ * @param also - more of the new member's values, written in the same step (a fill gradient's kind, from its tab).
  * @returns when it is written.
  */
 export async function switchMember(
@@ -289,6 +291,7 @@ export async function switchMember(
     fromKey: string,
     toKey: string,
     picked?: string,
+    also?: Readonly<Partial<Record<Channel, ChannelValue>>>,
 ): Promise<void> {
     const from = members.find((member) => member.key === fromKey);
     const to = members.find((member) => member.key === toKey);
@@ -325,8 +328,9 @@ export async function switchMember(
         const main = to.owns.at(0);
         start = { set: main === undefined ? set : { ...needsFor(ctx, main, set[main]), ...set } };
     }
+    const written = also === undefined ? start : { ...start, set: { ...start.set, ...also } };
     await ctx.session.transaction(`switching ${family.plainName.toLowerCase()} to ${to.name.toLowerCase()}`, (tx) =>
-        tx.styles.switchFamily(layer.id, family.id, memberId(to), start),
+        tx.styles.switchFamily(layer.id, family.id, memberId(to), written),
     );
 }
 

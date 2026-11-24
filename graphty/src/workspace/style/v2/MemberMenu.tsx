@@ -7,8 +7,14 @@
  */
 
 import { PanelField, Popout } from "@graphty/compact-mantine";
-import { LABEL_LOOKS, type ShaderPlace, type StyleFamilyDescriptor } from "@graphty/graphty-element/catalog";
-import React, { useRef, useState } from "react";
+import {
+    type Channel,
+    type ChannelValue,
+    LABEL_LOOKS,
+    type ShaderPlace,
+    type StyleFamilyDescriptor,
+} from "@graphty/graphty-element/catalog";
+import React, { useLayoutEffect, useRef, useState } from "react";
 
 import { useWorkspace } from "../../state/WorkspaceContext";
 import { ModelsPopover } from "../ModelsPopover";
@@ -89,6 +95,12 @@ type SwitchForm = "strip" | "buttons" | "select";
 const MOST_TABS = 5;
 
 /**
+ * The strip whose tab was just picked from the keyboard or pointer, by its data attribute: a pick that changes the
+ * row's kind draws a new pop-over, whose strip takes focus back on its picked tab, so the arrow keys go on working.
+ */
+let refocus: string | undefined;
+
+/**
  * A row's one-of choice of what it draws (a family's members, a kind group's kinds, a text's looks), the current one
  * picked: shared by a graphty-element family's row and a kind group's row.
  * @param props - Component props
@@ -121,13 +133,39 @@ function SwitchMenu<T extends { readonly key: string; readonly name: string; rea
     onChoose: (member: T) => void;
     children?: React.ReactNode;
 }>): React.JSX.Element {
+    const own = Object.entries(attribute).flat().join("=");
+    const strip = useRef<HTMLSpanElement | null>(null);
     const pick = (next: string): void => {
         const member = members.find((each) => each.key === next);
         if (member !== undefined) {
+            refocus = strip.current?.contains(document.activeElement) === true ? own : undefined;
             onChoose(member);
         }
     };
     const shown: SwitchForm = members.length > MOST_TABS ? "select" : form;
+    // Drawn anew after its own pick (a new pop-over for the new kind): focus back on the picked tab. The pop-over
+    // focuses the field marked data-autofocus when it opens.
+    useLayoutEffect(() => {
+        const checked = strip.current?.querySelector<HTMLInputElement>('input[type="radio"]:checked') ?? null;
+        if (refocus !== own || checked === null) {
+            return;
+        }
+        refocus = undefined;
+        if (document.activeElement === checked) {
+            return;
+        }
+        // Focused now, or by the new pop-over when it opens; the mark goes once it has done so.
+        checked.dataset.autofocus = "";
+        checked.addEventListener(
+            "focus",
+            () => {
+                delete checked.dataset.autofocus;
+            },
+            { once: true },
+        );
+        checked.focus();
+        // On mount only: a strip drawn again in place keeps its focus itself.
+    }, [own]);
     const segments = (
         <div className="ws-field-control">
             <SegmentsLine
@@ -142,16 +180,22 @@ function SwitchMenu<T extends { readonly key: string; readonly name: string; rea
             />
         </div>
     );
+    const boxes = (element: HTMLSpanElement | null): void => {
+        strip.current = element;
+        if (boxRef !== undefined) {
+            boxRef.current = element;
+        }
+    };
     if (shown === "strip") {
         return (
-            <span ref={boxRef} className="ws-member" data-strip="" {...attribute}>
+            <span ref={boxes} className="ws-member" data-strip="" {...attribute}>
                 {segments}
                 {children}
             </span>
         );
     }
     return (
-        <span ref={boxRef} className="ws-member" {...attribute}>
+        <span ref={boxes} className="ws-member" {...attribute}>
             {/* Named by its caption above it, as every line is (owner's input rules: every input is self describing). */}
             <FieldLine name={name} settings={null} above>
                 {shown === "buttons" ? (
@@ -182,6 +226,12 @@ function SwitchMenu<T extends { readonly key: string; readonly name: string; rea
 
 /** What every shader member's key starts with: the Shader tab's key. */
 const SHADER_TAB = "replace:";
+
+/**
+ * A tab's word where its member's name does not fit: a Shape's three choices sit under a basic shape's row, 152 px
+ * wide, as well as atop its pop-over, in the same words in both (owner, 2026-11-24).
+ */
+const TAB_WORDS: Readonly<Partial<Record<string, string>>> = { "node.shape:basic": "Basic" };
 
 /** A fill gradient's kinds, each a tab of the Fill's strip. */
 const GRADIENT_KINDS = [
@@ -371,7 +421,7 @@ export function EntryLookMenu({ ctx, entry }: Readonly<{ ctx: RowContext; entry:
  * @param props - Component props
  * @param props.ctx - the row
  * @param props.family - the thing's family
- * @param props.inRow - drawn under its row, where a pop-over's tabs do not belong: a Kind drop-down there
+ * @param props.inRow - drawn under its row, where a pop-over's tabs do not belong: the same choices as grouped buttons
  * @returns The tab strip, or the Kind line under a row
  */
 export function MemberMenu({
@@ -384,10 +434,10 @@ export function MemberMenu({
     const [picking, setPicking] = useState<{ readonly to: MemberChoice; readonly pick: MemberPick } | null>(null);
     const members = membersOf(ctx, family);
     const now = currentMember(ctx, family, members);
-    const go = (toKey: string, picked?: string): void => {
+    const go = (toKey: string, picked?: string, also?: Readonly<Partial<Record<Channel, ChannelValue>>>): void => {
         setPicking(null);
         const to = members.find((member) => member.key === toKey);
-        switchMember(ctx, family, members, now, toKey, picked)
+        switchMember(ctx, family, members, now, toKey, picked, also)
             .then(() => {
                 store.set({ announcement: `${family.plainName} now ${to?.name ?? toKey}` });
             })
@@ -429,7 +479,8 @@ export function MemberMenu({
                 disabled: member.disabled,
             }));
         }
-        return [member];
+        const word = TAB_WORDS[`${family.id}:${member.key}`];
+        return [word === undefined ? member : { ...member, name: word }];
     });
     let tabNow = now;
     if (now.startsWith(SHADER_TAB)) {
@@ -453,10 +504,12 @@ export function MemberMenu({
         }
         if (gradient !== undefined && tab.key.startsWith(`${gradient}:`)) {
             const kind = tab.key.slice(gradient.length + 1);
-            if (now !== gradient) {
-                go(gradient);
+            // From Solid, the gradient and its kind are one undo step.
+            if (now === gradient) {
+                writeKind(kind);
+            } else {
+                go(gradient, undefined, { "node.gradientKind": kind });
             }
-            writeKind(kind);
             return;
         }
         const to = members.find((member) => member.key === tab.key);
@@ -468,18 +521,12 @@ export function MemberMenu({
         <SwitchMenu
             boxRef={box}
             attribute={{ "data-member-menu": family.id }}
-            form={inRow ? "select" : "strip"}
-            // Under a row, a drop-down lists every member, each shader by its name.
-            members={inRow ? members : tabs}
-            now={inRow ? now : tabNow}
-            onChoose={(picked) => {
-                const member = members.find((each) => each.key === picked.key);
-                if (inRow && member !== undefined) {
-                    choose(member);
-                } else {
-                    onTab(picked);
-                }
-            }}
+            // Under a row with no pop-over (a basic Shape), the same choices in the same words as the pop-over's tabs,
+            // as grouped buttons named above them: one control in every state (owner, 2026-11-24).
+            form={inRow ? "buttons" : "strip"}
+            members={tabs}
+            now={tabNow}
+            onChoose={onTab}
         >
             {picking?.pick === "model" && (
                 <ModelsPopover

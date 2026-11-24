@@ -44,6 +44,15 @@ function captureBrowserStderr() {
         return; // the run asked to see it: leave it on screen
     }
     process.env.DEBUG = debug ? `${debug},pw:browser` : "pw:browser";
+    // Playwright's copy of `debug` reads DEBUG once, when it loads. A config whose imports load Playwright before
+    // this runs (graphty-element's does) would otherwise never log a browser line, and its reports said "last 0
+    // stderr lines" even for a renderer out of memory (#9850). So it is switched on there as well.
+    try {
+        const { createRequire } = process.getBuiltinModule("node:module");
+        createRequire(import.meta.url)("playwright-core/lib/utilsBundle").debug.enable(process.env.DEBUG);
+    } catch {
+        // No Playwright to reach from here: its `debug` reads DEBUG when it loads.
+    }
     const write = process.stderr.write.bind(process.stderr);
     process.stderr.write = (chunk, ...rest) => {
         const text = typeof chunk === "string" ? chunk : Buffer.from(chunk).toString();

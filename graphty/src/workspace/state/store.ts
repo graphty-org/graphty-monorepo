@@ -201,11 +201,18 @@ export interface WorkspaceState {
     } | null;
     readonly page: Page;
     readonly place: Place;
-    /** The open modal, by the id its package gives it ("export", "settings"), or null. */
+    /**
+     * The open modal, by the id its package gives it ("export", "settings"), or null. Kept across a
+     * reload, with the fields it opened with, except a dialog that asks about work in flight (see
+     * {@link askingDialog}).
+     */
     readonly dialog: string | null;
     /** Whether the project name is being renamed in place. */
     readonly renaming: boolean;
-    /** The paint-tree row whose name is being edited in place, or null. */
+    /**
+     * The row whose name is being edited in place: a paint-tree row by its id, or a Data place
+     * filter card as `filter:<its condition or draft id>`; null when none is.
+     */
     readonly renamingRow: string | null;
     readonly inspected: Inspected | null;
     /**
@@ -315,6 +322,8 @@ export interface WorkspaceState {
         readonly host: "selector" | "filter";
         /** The row whose pane it shows (a step's id, or the title), or null. */
         readonly selected?: string | null;
+        /** The name being edited in place: a group's id, or `title` for the selection's own; or null. */
+        readonly renaming?: string | null;
     } | null;
     /**
      * A new filter card to open once the Filters section shows it: on a field
@@ -563,9 +572,9 @@ export const ON_RELOAD = {
         "fresh: derived: reopened from graphty-element's autosave; its name, entry and opener are saved beside the kept fields",
     page: "kept",
     place: "kept",
-    dialog: "gap #9659: a dialog's form is not kept, so it would reopen empty",
-    renaming: "gap #9662: an edit in place, ended by the reload",
-    renamingRow: "gap #9662: an edit in place, ended by the reload",
+    dialog: "kept",
+    renaming: "kept",
+    renamingRow: "kept",
     inspected: "kept",
     styleRow: "kept",
     tabs: "kept",
@@ -619,25 +628,25 @@ export const ON_RELOAD = {
     lighting: "kept",
     autoRotate: "kept",
     followSelection: "kept",
-    exportOn: "gap #9659: set when the Export dialog opens",
-    lastView: "gap #9663: the camera itself is not kept across a reload",
-    tourProgress: "gap #9663: a tour ends when the page reloads",
+    exportOn: "kept",
+    lastView: "kept",
+    tourProgress: "fresh: read: read from graphty-element's tour-progress, whose keepCamera plays the tour on",
     viewsCamerasOpen: "kept",
     viewsToursOpen: "kept",
     viewsFocus: "fresh: request: a one-time request the Views place clears",
     viewsRename: "fresh: request: a one-time request the Views place clears",
-    exportTour: "gap #9659: set when the Export dialog opens",
-    exportView: "gap #9659: set when the Export dialog opens",
-    exportSource: "gap #9659: set when the Export dialog opens",
-    serverKind: "gap #9659: set when the server form opens",
-    analyzeOn: "gap #9659: set when a Quick actions row opens Analyze",
-    analyzeValues: "gap #9659: set when a result's Run again with changes... opens Analyze",
-    scoreOn: "gap #9659: set when a result's Combine into a score... opens the Custom score dialog",
-    serverEdit: "gap #9659: set when the server form opens",
+    exportTour: "kept",
+    exportView: "kept",
+    exportSource: "kept",
+    serverKind: "kept",
+    analyzeOn: "kept",
+    analyzeValues: "kept",
+    scoreOn: "kept",
+    serverEdit: "kept",
     singleKeyShortcuts: "fresh: read: read from this browser's settings at start",
     mapDepthIndependentSize: "fresh: read: read from this browser's settings at start",
     notice: "fresh: notice: a notice",
-    noteDraft: "gap #9661: its edge targets are this page's ids, which a reload gives anew",
+    noteDraft: "kept",
     authorWarningClosed: "fresh: notice: closed for this page view only",
     announcement: "fresh: notice: a status line already spoken",
     announced: "fresh: notice: a count of status lines",
@@ -674,7 +683,25 @@ export type KeptPlace = Pick<WorkspaceState, KeptKey>;
  * @returns the kept fields it holds.
  */
 function keptFields(from: object, fields: readonly string[] = KEPT_FIELDS): Partial<KeptPlace> {
-    return Object.fromEntries(Object.entries(from).filter(([key]) => fields.includes(key)));
+    return Object.fromEntries(
+        Object.entries(from)
+            .filter(([key]) => fields.includes(key))
+            .map(([key, value]) => [key, key === "dialog" && ASKING.has(value as string) ? null : value]),
+    );
+}
+
+/** The dialogs a reload does not reopen: see {@link askingDialog}. */
+const ASKING = new Set<string>();
+
+/**
+ * Names a dialog that asks about work in flight (the changes an open would discard, a file being
+ * opened, a save waiting on an answer), which a reload ends: it is not reopened after one.
+ * @param id - the dialog's id.
+ * @returns the id.
+ */
+export function askingDialog<T extends string>(id: T): T {
+    ASKING.add(id);
+    return id;
 }
 
 /** Panel sizes: 240 is the design's panel width (PANEL_GRID.WIDTH). */

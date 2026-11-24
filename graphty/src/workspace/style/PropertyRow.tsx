@@ -378,11 +378,19 @@ function useFocusKept(box: React.RefObject<HTMLElement | null>): void {
             }
             // No next focus: the control is leaving the page, so the line takes focus back.
         };
+        // A press anywhere puts focus where the reader pressed: a control kept from before is no
+        // longer on its way anywhere, and must not take focus from a tab the press opens (a press
+        // on a tab draws its panel before the browser focuses the tab, #8927).
+        const onPress = (): void => {
+            kept = null;
+        };
         node.addEventListener("focusin", onIn);
         node.addEventListener("focusout", onOut);
+        node.ownerDocument.addEventListener("pointerdown", onPress, true);
         return () => {
             node.removeEventListener("focusin", onIn);
             node.removeEventListener("focusout", onOut);
+            node.ownerDocument.removeEventListener("pointerdown", onPress, true);
         };
     }, [box]);
     // No dependency list: the control is drawn anew on whatever render the element's change causes.

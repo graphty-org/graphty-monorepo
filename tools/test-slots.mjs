@@ -29,8 +29,8 @@
  * The GPU slot: `node tools/test-slots.mjs --gpu <command...>` holds the one machine-wide GPU slot
  * (<main checkout>/tmp/gpu-slots; this machine has one NVIDIA card) for the whole command INSTEAD of
  * a test slot, and marks the command's environment HELD so its vitest runs take no test slot either.
- * tools/prepush.sh runs its NVIDIA step that way, beside the CPU test shards: it waits on the card
- * for most of its run and uses under one core, so it should not keep a CPU test slot from them.
+ * A run on the NVIDIA card goes that way, beside the CPU test shards: it waits on the card for most
+ * of its run and uses under one core, so it should not keep a CPU test slot from them.
  *
  * The lint slot: `node tools/test-slots.mjs --lint <command...>` holds the one machine-wide lint slot
  * (<main checkout>/tmp/lint-slots) in its own queue, beside the test slots. graphty-element's lint

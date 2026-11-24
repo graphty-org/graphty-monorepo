@@ -96,13 +96,12 @@ describe("XRInputHandler hand state", () => {
         });
         const xr = {
             baseExperience: {
-                sessionManager: { scene },
+                // No XR frame runs here, so no ray is cast and every laser is on nothing.
+                sessionManager: { scene, onXRFrameObservable: { add: () => undefined, remove: () => undefined } },
                 featuresManager: {
                     getEnabledFeature: (name: string) => (name === "xr-hand-tracking" && handTracking ? feature : null),
                 },
             },
-            // The laser on nothing.
-            pointerSelection: { getMeshUnderPointer: () => null },
             input: {
                 controllers: sources,
                 onControllerAddedObservable: { add: () => undefined, remove: () => undefined },

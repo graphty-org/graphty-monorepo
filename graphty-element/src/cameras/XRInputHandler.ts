@@ -1,4 +1,5 @@
-import type { AbstractMesh, WebXRInputSource } from "@babylonjs/core";
+import type { TransformNode, WebXRInputSource } from "@babylonjs/core";
+import { Ray } from "@babylonjs/core/Culling/ray.js";
 import { Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder.js";
@@ -9,6 +10,7 @@ import type { NodeId } from "../catalog/types";
 import type { XRControllerButton } from "../config/XRConfig";
 import { GraphtyLogger, type Logger } from "../logging";
 import type { NodeDragHandler } from "../NodeBehavior";
+import { pickRayAsDrawn } from "../render/PickService";
 import { isPinching, pinchStrength, thumbstickDeltas } from "./InputUtils";
 import type { PivotController } from "./PivotController";
 import { twoHandGestureDelta } from "./twoHandGesture";
@@ -135,6 +137,8 @@ export class XRInputHandler {
     // What enable() attached (observers, timers): disable() runs and empties it, so nothing
     // set up while enabled outlives it (#7239).
     private teardown: (() => void)[] = [];
+    // What each controller's ray was on in this frame's XR callback (`underLaser`).
+    private readonly laserHits = new Map<string, TransformNode | null>();
 
     // Node drag state - for XR node interaction
     private isDraggingNode = false;
@@ -193,6 +197,7 @@ export class XRInputHandler {
 
         // Try to get hand tracking feature
         this.enableHandTracking();
+        this.castLasersEachFrame();
 
         // Subscribe to controller events
         const { onControllerAddedObservable, onControllerRemovedObservable } = this.xr.input;
@@ -682,16 +687,33 @@ export class XRInputHandler {
     }
 
     /**
-     * The mesh a controller's laser is on: the one Babylon's pointer selection picked in this
-     * frame's XR callback and drew the beam and dot to. A second cast here, in the render, would
-     * see the rows after the layout's step in this frame moved them, so a tap could select a row
-     * the laser was not on, or nothing (issue #9959). A batch's meshless row is under the laser as
-     * its stand-in (`laserOnRows`), which carries the row's metadata.
+     * What a controller's ray was on in this frame's XR callback, where Babylon's pointer selection
+     * casts the laser it draws. A cast in the render instead would see the rows after the layout's
+     * step in this tick moved them, so a tap could select a row the laser was not on, or nothing
+     * (issue #9959). Cast here for every controller, not read from the pointer selection, which
+     * re-picks only the controller holding the laser.
      * @param controller - The controller.
-     * @returns The mesh, or null when the laser is on nothing.
+     * @returns The mesh, or null when the ray is on nothing or no XR frame has run.
      */
-    private underLaser(controller: WebXRInputSource): AbstractMesh | null {
-        return this.xr.pointerSelection.getMeshUnderPointer(controller.uniqueId);
+    private underLaser(controller: WebXRInputSource): TransformNode | null {
+        return this.laserHits.get(controller.uniqueId) ?? null;
+    }
+
+    /** Cast every controller's ray in each XR frame, before the layout steps the rows. */
+    private castLasersEachFrame(): void {
+        const frames = this.xr.baseExperience.sessionManager.onXRFrameObservable;
+        const ray = new Ray(Vector3.Zero(), Vector3.Forward(), 100);
+        const observer = frames.add(() => {
+            this.laserHits.clear();
+            for (const controller of this.xr.input.controllers) {
+                controller.getWorldPointerRayToRef(ray);
+                this.laserHits.set(controller.uniqueId, pickRayAsDrawn(this.scene, ray).mesh);
+            }
+        });
+        this.teardown.push(() => {
+            frames.remove(observer);
+            this.laserHits.clear();
+        });
     }
 
     /**

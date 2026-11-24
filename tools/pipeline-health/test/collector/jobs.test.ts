@@ -491,6 +491,25 @@ describe("non-gating jobs", () => {
         expect(jobs.some((p) => isJob(p, "CI / Story tests parity (graphty)"))).toBe(false);
     });
 
+    it("names a job whose name is one whole expression by its literals, never as matching every job", () => {
+        const yaml = [
+            "jobs:",
+            "    lint:",
+            `        name: ${ghExpr("matrix.part == 'others' && 'Lint' || format('Lint ({0})', matrix.part)")}`,
+            "        continue-on-error: true",
+            "    plain:",
+            `        name: ${ghExpr("matrix.name")}`,
+        ].join("\n");
+        const anything = ghExpr("").replace("  ", " ");
+        expect(definedJobs(yaml)).toEqual(["Lint", `Lint (${anything})`, "plain"]);
+        expect(nonGatingJobs(yaml)).toEqual(["Lint", `Lint (${anything})`]);
+        const named = (job: string): boolean => definedJobs(yaml).some((p) => isJob(p, job));
+        expect(named("CI / Lint")).toBe(true);
+        expect(named("CI / Lint (graphty-element)")).toBe(true);
+        expect(named("CI / Story tests parity (graphty)")).toBe(false);
+        expect(named("others")).toBe(false);
+    });
+
     it("matches a matrix job's name and a called workflow's prefix", () => {
         const story = `Story tests (${ghExpr("matrix.name || matrix.project")})`;
         expect(isJob(story, "CI / Story tests (graphty-element)")).toBe(true);

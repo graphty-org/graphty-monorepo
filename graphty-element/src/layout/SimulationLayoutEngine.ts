@@ -522,10 +522,15 @@ export interface SimulationEngineInit {
 const STRENGTH_COLUMN = "graphty.layoutStrength";
 
 /**
- * Slots in the drawn ring. A landed slot is copied at the publish after the frame's step, so it must
- * outlive every batch in flight plus that one (the GPU layouts' default `maxInFlight` is 2).
+ * Drawn ring slots beyond the batches a simulation keeps in flight. A landed slot is copied at the
+ * publish after the frame's step, and that step may already have submitted a batch in the landed
+ * batch's place, so the ring must hold every batch in flight plus the landed one: a ring of four
+ * at `maxInFlight` 4 handed the batch submitted after a landing the slot the publish then copied.
+ * Two keeps the ring of four the GPU layouts' default `maxInFlight` of 2 has always had.
  */
-const DRAWN_SLOTS = 4;
+const DRAWN_SPARE_SLOTS = 2;
+/** The GPU layouts' `maxInFlight` when the options leave it unset. */
+const DEFAULT_MAX_IN_FLIGHT = 2;
 
 /** drawn = (simulation - center) * scale + target: what the drawn ring and a publish apply. */
 interface DrawnTransform {
@@ -1921,7 +1926,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
 
         try {
             drawn.setDrawn({
-                slots: DRAWN_SLOTS,
+                slots: (this.#options.maxInFlight ?? DEFAULT_MAX_IN_FLIGHT) + DRAWN_SPARE_SLOTS,
                 rows: target.table.rowPosition.subarray(0, 4 * nodeCount),
                 // On another device than the texture's, each landed slot comes back in the batch's readback.
                 readBack: target.device === null,

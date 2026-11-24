@@ -307,7 +307,7 @@ export type {
     RecordData,
     WalkPath,
 } from "./src/catalog/data-lists";
-export { dataFit, formatValue, naturalCompare } from "./src/catalog/data-lists";
+export { DATA_FIXED_CHANNELS, dataFit, formatValue, naturalCompare } from "./src/catalog/data-lists";
 // What a shader parameter declared `varies` is bound as, by its encode address: the descriptor an
 // editor's vary picker and `styles.proposeEncoding` read for it.
 export { shaderParamChannel } from "./src/session/styles/encoding";

@@ -9,6 +9,7 @@
 
 import {
     type ChartData,
+    DATA_FIXED_CHANNELS,
     type DataCategoryFact,
     type DataChannel,
     type DataEntry,
@@ -49,11 +50,7 @@ export function isDataChannel(channel: string): channel is DataChannel {
 }
 
 /** The fixed channels a data channel fills, which may not sit on its layer (decision 4). */
-export const FIXED_OF: Readonly<Record<DataChannel, readonly Channel[]>> = {
-    "node.pieData": ["node.pieColors", "node.pieSizes", "node.pieOpacities"],
-    "node.chartData": ["node.chartValues", "node.chartColors", "node.chartMin", "node.chartMax"],
-    "node.recordData": ["node.shapeTexts", "node.labelTable"],
-};
+export const FIXED_OF: Readonly<Record<DataChannel, readonly Channel[]>> = DATA_FIXED_CHANNELS;
 
 /** The channels a data channel writes. */
 export const FILLS_OF: Readonly<Record<DataChannel, readonly Channel[]>> = {

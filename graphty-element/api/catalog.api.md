@@ -781,6 +781,9 @@ export const COST_CLASSES: readonly ["instant", "iterative", "heavy", "cubic", "
 export type CostClass = (typeof COST_CLASSES)[number];
 
 // @public
+export const DATA_FIXED_CHANNELS: Readonly<Record<DataChannel, readonly Channel[]>>;
+
+// @public
 export interface DataCategoryFact {
     // (undocumented)
     readonly color: string;

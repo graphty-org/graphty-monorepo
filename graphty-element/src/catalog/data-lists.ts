@@ -9,7 +9,7 @@
 
 import type { ShapeTextLook } from "../meshes/shapeOutlines";
 import type { CodedFact } from "../session/shared";
-import type { BindingNumberFormat, NodeId, PaletteId, Path, ReadableValue, RuleTree } from "./types";
+import type { BindingNumberFormat, Channel, NodeId, PaletteId, Path, ReadableValue, RuleTree } from "./types";
 
 /**
  * Where a path is read when walking a node's surroundings.
@@ -205,6 +205,18 @@ export interface RecordData {
  * @since 3.68.0
  */
 export type DataChannel = "node.pieData" | "node.chartData" | "node.recordData";
+
+/**
+ * The fixed lists each data channel fills, which a layer holding the data spec may not also hold (styles.add refuses
+ * them as `data-and-fixed`): an editor that turns a layer's pie, chart or record into data unsets these in the same
+ * write, and one that turns it back into fixed values unsets the spec.
+ * @since 3.68.0
+ */
+export const DATA_FIXED_CHANNELS: Readonly<Record<DataChannel, readonly Channel[]>> = {
+    "node.pieData": ["node.pieColors", "node.pieSizes", "node.pieOpacities"],
+    "node.chartData": ["node.chartValues", "node.chartColors", "node.chartMin", "node.chartMax"],
+    "node.recordData": ["node.shapeTexts", "node.labelTable"],
+};
 
 /**
  * Why a node draws nothing from a data spec, as `DataFacts.undrawn`'s code. Each carries `channel`.

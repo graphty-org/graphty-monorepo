@@ -323,7 +323,7 @@ describe("a chart", () => {
             60,
         );
         assert.strictEqual(two.length, 2 * one.length);
-        const green = [0x2c / 255, 0xa0 / 255, 0x2c / 255];
+        const green: [number, number, number] = [0x2c / 255, 0xa0 / 255, 0x2c / 255];
         const filled = two.filter((piece) => piece.line !== true);
         assert.lengthOf(filled, 2);
         assert.deepEqual(filled[1].rgb, green);

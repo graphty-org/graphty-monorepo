@@ -202,6 +202,7 @@ describe(`a consumer's view of the scene (${PATH})`, () => {
         }
     });
 
+    // Fails on both paths, and before the rendering optimizations, until issue #9923 is fixed.
     it("a consumer mesh hidden with setEnabled(false) at rest leaves the canvas", async () => {
         const element = await grid();
         const { scene } = element.graph;

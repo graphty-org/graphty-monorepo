@@ -1108,8 +1108,12 @@ export class LayoutManager implements Manager {
         }
 
         try {
-            engine.replaceSimulation();
-            this.running = !this.restoring();
+            // A layout that had settled stays settled, where it is drawn: only a layout that was
+            // still running resumes on the new accelerator (issue #9929).
+            engine.replaceSimulation(true);
+            if (!engine.isSettled) {
+                this.running = !this.restoring();
+            }
         } catch (error) {
             this.running = false;
             this.reportSimulationFailure(error);

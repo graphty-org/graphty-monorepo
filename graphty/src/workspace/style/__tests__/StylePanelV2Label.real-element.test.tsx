@@ -213,9 +213,12 @@ describe("Style panel v2's Text section", () => {
         await waitFor(() => {
             assert.isTrue(labelStyle(session, id).shadow, "the color switches the text shadow on");
         });
-        const panel = shadow.closest<HTMLElement>("[data-popout-id]");
-        assert.isNotNull(panel);
-        await userEvent.click(within(panel).getByRole("button", { name: "Remove text shadow" }));
+        // The group's own minus, in its pop-over's header (its Text shadow line has one of its own).
+        const header = shadow
+            .closest<HTMLElement>("[data-popout-id]")
+            ?.querySelector<HTMLElement>('[data-testid="popout-header"]');
+        assert.isDefined(header ?? undefined, "the group pop-over's header");
+        await userEvent.click(within(header ?? shadow).getByRole("button", { name: "Remove text shadow" }));
         await waitFor(() => {
             assert.notProperty(labelStyle(session, id), "shadow", "the minus unsets the group");
         });

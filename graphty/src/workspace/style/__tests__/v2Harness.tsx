@@ -328,10 +328,7 @@ export async function pickKind(row: HTMLElement, title: string | RegExp, kind: s
  * @returns the name.
  */
 function kindName(scope: HTMLElement): string {
-    const box = scope.querySelector<HTMLElement>(
-        '[data-kind-menu] [role="combobox"], [data-member-menu] [role="combobox"]',
-    );
-    return box?.getAttribute("aria-label") ?? "Look";
+    return ["Kind", "End"].find((name) => within(scope).queryByRole("combobox", { name }) !== null) ?? "Look";
 }
 
 /**

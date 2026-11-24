@@ -85,6 +85,7 @@ import { isProvenance, type Provenance } from "./sources/provenance";
 import { fillReferences, type LeaveOut, planLeaveOut, REF_KEY, unreadLoads } from "./sources/references";
 import { EMPTY_STEPS } from "./sources/steps/project";
 import { computeFingerprint } from "./statistics";
+import { upgradeStorePaths } from "./storePaths";
 import { oldLookColumns, rewriteOldPaths } from "./styles/fileStyles/oldLooks";
 import type {
     DataSourceInput,
@@ -1798,8 +1799,11 @@ function readParsed(value: unknown): ReadDocument {
                 return;
             }
 
-            members.set(kind as MemberKind, [...held, member]);
-            positions.set(member, index);
+            // A path at an older address (`graphty.notes.count`) is read at its current one. Not the
+            // data's: a column may carry any name.
+            const read = kind === "graphty-data" ? member : upgradeStorePaths(member);
+            members.set(kind as MemberKind, [...held, read]);
+            positions.set(read, index);
         }
     });
     return {

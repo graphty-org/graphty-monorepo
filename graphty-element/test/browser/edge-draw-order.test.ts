@@ -10,9 +10,6 @@ import { afterEach, assert, describe, test } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { Projector } from "../fidelity/drawn-scene";
-import { fileStylesOn } from "../helpers/file-styles-on";
-
-fileStylesOn();
 
 /**
  * Two wide lines crossing at the origin: red from left to right, then blue from top to bottom.

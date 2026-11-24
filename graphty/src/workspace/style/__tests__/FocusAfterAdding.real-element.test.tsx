@@ -2,8 +2,8 @@
  * After adding a style line or a condition card, on the REAL graphty-element and driven by real
  * clicks and keys, focus is where the next keystroke belongs: a new Color line's text box (not its
  * swatch), so a typed color and Enter repaint at once; a Width line added on a found selection's
- * Style tab in its box, written to the layer last opened; a new Shape line on its select, its value not drawn selected, and a typed
- * shape name opening its list on that shape; a new text card in its text box (not its match menu), so typing straight
+ * Style tab in its box, written to the layer last opened; a new Shape line on its picker, whose list takes a typed
+ * shape name; a new text card in its text box (not its match menu), so typing straight
  * after picking the column narrows the rule.
  */
 
@@ -16,16 +16,11 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
-import { withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { selectWithTwin } from "../../../test/twin-layer";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { showKind } from "./kindTab";
-
-// These tests drive the Style panel the app shows with file styles off; the panel by part of the
-// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
-withoutFeatures(["file-styles"]);
 
 /**
  * Les Miserables in the workspace with the starting rows, and one reader's layer on nodes and edges.
@@ -110,13 +105,13 @@ function written(session: GraphSession, channel: Channel): unknown[] {
 
 describe("focus after adding a line or a card", () => {
     it.each([
-        ["node", "fill", "node.color"],
-        ["edge", "line", "edge.color"],
-    ] as const)("a new %s Color line takes a typed color in its text box", async (kind, title, channel) => {
+        ["node", "fill", "Solid", "node.color"],
+        ["edge", "line", "Color", "edge.color"],
+    ] as const)("a new %s Color line takes a typed color in its text box", async (kind, title, item, channel) => {
         const session = await openScene();
         await openStyle("Both");
         await showKind(kind);
-        await addLine(kind, title, "Color", channel);
+        await addLine(kind, title, item, channel);
         const focused = document.activeElement as HTMLInputElement;
         assert.strictEqual(focused.tagName, "INPUT", "the color's text box, not its swatch button");
         assert.notMatch(focused.getAttribute("aria-label") ?? "", /^Pick /);
@@ -130,16 +125,16 @@ describe("focus after adding a line or a card", () => {
         });
     });
 
-    it("a new Shape line holds focus on its select, draws nothing selected, and takes a typed shape", async () => {
+    it("a new Shape line holds focus on its picker and takes a typed shape", async () => {
         const session = await openScene();
         await openStyle("Both");
         await showKind("node");
         await addLine("node", "shape", "Shape", "node.shape");
-        const focused = document.activeElement as HTMLInputElement;
-        assert.strictEqual(focused.getAttribute("role"), "combobox");
-        assert.isTrue(focused.readOnly, "a select's box takes no typing");
-        assert.strictEqual(focused.selectionStart, focused.selectionEnd, "so nothing in it is drawn selected");
-        // Typing a shape's name opens its list on that shape, and Enter picks it.
+        const focused = document.activeElement as HTMLElement;
+        assert.strictEqual(focused.dataset.valueListbox, "node.shape", "focus is on the shape picker");
+        // Enter opens its searchable list; typing a shape's name narrows it, and Enter picks it.
+        await userEvent.keyboard("{Enter}");
+        await screen.findByPlaceholderText(/^Search \d+ shapes$/);
         await userEvent.keyboard("Box{Enter}");
         await waitFor(() => {
             assert.include(written(session, "node.shape"), "box", "the typed shape is written");

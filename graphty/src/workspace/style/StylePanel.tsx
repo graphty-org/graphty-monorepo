@@ -7,7 +7,7 @@ import type { GraphSession, Layer } from "@graphty/graphty-element/session";
 import { Box, Checkbox, Stack, Tabs, Tooltip, VisuallyHidden } from "@mantine/core";
 import React, { useEffect, useId, useRef, useState } from "react";
 
-import { cosmographOn, fileStylesOn } from "../features";
+import { cosmographOn } from "../features";
 import { findTreeRow, isLocked, rowLayers as treeRowLayers } from "../graph-place/rows";
 import { errorWords } from "../project/words";
 import { RenderCount } from "../renderCount";
@@ -16,7 +16,6 @@ import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { type CardField, isBlankRow, writeKind } from "./cards";
 import { ControlLabel } from "./ControlLabel";
 import { GroupDetail } from "./Groups";
-import { LabelSection } from "./LabelSection";
 import { PartsPanel } from "./parts/PartsPanel";
 import { ruleLine } from "./parts/ruleLine";
 import type { RowContext } from "./PropertyRow";
@@ -32,12 +31,10 @@ import {
     type Target,
     wholeGraphRow,
 } from "./row";
-import { Section } from "./Section";
 import { useFocusLine } from "./useFocusLine";
 import { useLabelColumn } from "./useLabelColumn";
 import { useDataVersion, useStyleVersion } from "./useStyleVersion";
 import { WhichPicker } from "./WhichPicker";
-import { sectionsFor } from "./words";
 
 /**
  * The row the Style tab edits when the caller names none, read from `inspected` as the inspector
@@ -179,7 +176,7 @@ function rowKinds(session: GraphSession, store: WorkspaceStore, rowId: string): 
                 rows={[rowId]}
                 side={side}
                 autoOpen={justOn || isBlankRow(session, rowId)}
-                {...(fileStylesOn(session) ? { summary: ruleLine } : {})}
+                summary={ruleLine}
                 {...elsewhere}
             />
         ),
@@ -456,7 +453,6 @@ export function RowStyle({
                   channelsFor(side).map(({ channel }) => [beneath(channel), hiddenBy?.(channel)]),
                   colors,
                   dataVersion,
-                  fileStylesOn(session),
                   cosmographOn(session),
               ])
             : null;
@@ -567,20 +563,7 @@ const SideSections = React.memo(
     function SideSections({ ctx }: Readonly<{ ctx: RowContext; signature: string | null }>): React.JSX.Element {
         return (
             <RenderCount id={`style-sections-${ctx.side}`}>
-                {/* The file-styles experiment draws both tabs by part of the drawing. */}
-                {fileStylesOn(ctx.session) ? (
-                    <PartsPanel ctx={ctx} />
-                ) : (
-                    <section className="ws-style-group" data-group={ctx.side}>
-                        {sectionsFor(ctx.side, { cosmograph: cosmographOn(ctx.session) }).map((spec) =>
-                            spec.id === "text" ? (
-                                <LabelSection key={spec.id} ctx={ctx} />
-                            ) : (
-                                <Section key={spec.id} ctx={ctx} spec={spec} />
-                            ),
-                        )}
-                    </section>
-                )}
+                <PartsPanel ctx={ctx} />
             </RenderCount>
         );
     },

@@ -1,8 +1,8 @@
 /**
  * The Cosmograph-inspired rendering behind its experiment (issue #3247), on the real element: with
  * it off the workspace draws with the objects render path and the Style tab's Line section offers no
- * fade or blending; with it on the element draws batched and a reader adds Blending from Line's "+"
- * and turns it off, which the layer then holds.
+ * fade or blending; with it on the element draws batched and a reader adds Blending from Line's
+ * settings page and turns it off, which the layer then holds.
  */
 
 import "@graphty/graphty-element";
@@ -12,7 +12,6 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../public/samples/les-miserables.gml?raw";
-import { withoutFeatures } from "../../test/features";
 import { siteFeatures } from "../../test/siteFeatures";
 import { render, screen, waitFor, within } from "../../test/test-utils";
 import { createWorkspaceStore } from "../state/store";
@@ -85,8 +84,7 @@ function element(): HTMLElementTagNameMap["graphty-element"] {
     return found;
 }
 
-// The file-styles experiment draws the edge tab by part, where blending is on Line's settings page.
-withoutFeatures(["file-styles"]);
+// The edge tab is drawn by part, where blending is on Line's settings page.
 
 describe("the cosmograph experiment's switch in the app", () => {
     it("draws with objects and offers no fade or blending with the experiment off", async () => {
@@ -101,18 +99,19 @@ describe("the cosmograph experiment's switch in the app", () => {
         }
     });
 
-    it("draws batched, and a reader turns blending off from Line's '+', with the experiment on", async () => {
+    it("draws batched, and a reader turns blending off from Line's settings page, with the experiment on", async () => {
         await siteFeatures(["cosmograph"]);
         const session = await openEdgeStyle();
         await waitFor(() => {
             assert.strictEqual(element().renderPath, "batched");
         });
-        const offered = await lineMenu();
-        assert.include(offered, "Fade end");
-        assert.include(offered, "Blending");
-        await userEvent.click(screen.getByRole("menuitem", { name: "Blending" }));
+        // Fades and blending are Line's settings, on its settings page, never offered by its "+".
+        await userEvent.click(within(line()).getByRole("button", { name: "Edge line settings" }));
+        const settings = await screen.findByRole("dialog", { name: "Edge line" });
+        assert.isNotNull(settings.querySelector('[data-unset-line="edge.fadeEnd"]'));
+        await userEvent.click(within(settings).getByRole("button", { name: "Add edge blending" }));
         const row = await waitFor(() => {
-            const found = line().querySelector<HTMLElement>('.ws-row[data-line="edge.blending"]');
+            const found = settings.querySelector<HTMLElement>('.ws-row[data-line="edge.blending"]');
             assert.isNotNull(found);
             return found;
         });

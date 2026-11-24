@@ -1,6 +1,6 @@
 /**
  * Three small styled files, one per drawing program's format, for the Style panel's stories and
- * tests with the file-styles experiment on. Each is loaded with its styles as a reader's file is:
+ * tests. Each is loaded with its styles as a reader's file is:
  * `session.data.import({ type, name, config: { data } }, { styles: "file" })`.
  */
 

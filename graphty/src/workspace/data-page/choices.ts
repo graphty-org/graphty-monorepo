@@ -49,11 +49,10 @@ export const INITIAL_CHOICES: PageChoices = { tables: {}, unmatched: "leave-out"
 
 /**
  * The choices a new draft starts with: the defaults, with the reader's import-styles preference.
- * @param fileStyles - whether the element's file styles experiment is on; off, no styles are drawn.
  * @returns the choices.
  */
-export function initialChoices(fileStyles = false): PageChoices {
-    return { ...INITIAL_CHOICES, styles: fileStyles ? fileStylesChoice() : "none" };
+export function initialChoices(): PageChoices {
+    return { ...INITIAL_CHOICES, styles: fileStylesChoice() };
 }
 
 /**
@@ -307,15 +306,9 @@ function tableMapping(draft: LoadDraft, table: DraftTable, choices: PageChoices)
  * @param draft - the draft.
  * @param choices - the page's choices.
  * @param mode - "replace" for a new graph, "merge" to add to the open project.
- * @param fileStyles - whether the element's file styles experiment is on; off, no styles are asked for.
  * @returns the choices `report` and `load` take.
  */
-export function loadChoices(
-    draft: LoadDraft,
-    choices: PageChoices,
-    mode: "replace" | "merge",
-    fileStyles = false,
-): LoadChoices {
+export function loadChoices(draft: LoadDraft, choices: PageChoices, mode: "replace" | "merge"): LoadChoices {
     const tables: Record<string, TableMapping> = {};
     for (const table of draft.tables) {
         const mapping = tableMapping(draft, table, choices);
@@ -327,10 +320,11 @@ export function loadChoices(
         mode,
         unmatched: choices.unmatched,
         directed: choices.directed,
-        ...(fileStyles ? { styles: choices.styles, styleOptions: FILE_STYLE_OPTIONS } : {}),
+        styles: choices.styles,
+        styleOptions: FILE_STYLE_OPTIONS,
         // A new graph drawn with its file's styles is laid out as the element recommends for it, so a file that
         // stores its drawing (a Cytoscape session) opens where its program put its nodes (issue #9297).
-        ...(fileStyles && choices.styles === "file" && mode === "replace" ? { layout: "recommended" as const } : {}),
+        ...(choices.styles === "file" && mode === "replace" ? { layout: "recommended" as const } : {}),
         ...(Object.keys(tables).length > 0 ? { mapping: { tables } } : {}),
     };
 }
@@ -403,15 +397,14 @@ function carryTable(draft: LoadDraft, table: DraftTable, read: TableMapping, sta
  * the load was read with. A role naming a column the draft lacks is left to the element's reading.
  * @param draft - the draft.
  * @param carried - the choices the load was read with.
- * @param fileStyles - whether the element's file styles experiment is on.
  * @returns the page's choices.
  */
-export function carriedChoices(draft: LoadDraft, carried: LoadedChoices, fileStyles = false): PageChoices {
+export function carriedChoices(draft: LoadDraft, carried: LoadedChoices): PageChoices {
     let choices: PageChoices = {
-        ...initialChoices(fileStyles),
+        ...initialChoices(),
         ...(carried.unmatched === undefined ? {} : { unmatched: carried.unmatched }),
         ...(carried.directed === undefined ? {} : { directed: carried.directed }),
-        ...(fileStyles && carried.styles !== undefined ? { styles: carried.styles } : {}),
+        ...(carried.styles === undefined ? {} : { styles: carried.styles }),
     };
     const tables = tablesOf(draft, carried.mapping);
     for (const table of draft.tables) {

@@ -11,12 +11,9 @@ import type { GraphSession, Layer } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
-
-withoutFeatures(["file-styles"]);
 
 /** Three people on a line, joined a-b and b-c, spread out so each node and edge is easy to click. */
 const NODES = ["a", "b", "c"].map((id, i) => ({

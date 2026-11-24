@@ -1,14 +1,11 @@
 // Storybook does not run src/main.tsx, so the story defines the real <graphty-element> itself.
 import "@graphty/graphty-element";
 
-import { setDefaultFeatures } from "@graphty/graphty-element/extend";
 import type { Layer } from "@graphty/graphty-element/session";
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
-import { loadSiteConfig, resetSiteConfig } from "../../siteConfig";
 import { freshStore, storeOf } from "../../stories/freshStore";
-import { siteFeatures } from "../../test/siteFeatures";
 import type { WorkspaceStore } from "../state/store";
 import { Workspace } from "../Workspace";
 import { CYTOSCAPE_CX2, GRAPHVIZ_DOT, YED_GRAPHML } from "./__fixtures__/file-styles";
@@ -20,16 +17,6 @@ const meta: Meta<typeof Workspace> = {
     title: "Workspace/Style panel by part",
     component: Workspace,
     parameters: { layout: "fullscreen" },
-    // The file-styles experiment on, as a site whose site.json names it; put back afterwards.
-    beforeEach: async () => {
-        setDefaultFeatures(["file-styles"]);
-        await siteFeatures(["file-styles"]);
-        return async () => {
-            setDefaultFeatures([]);
-            resetSiteConfig();
-            await loadSiteConfig();
-        };
-    },
 };
 
 export default meta;

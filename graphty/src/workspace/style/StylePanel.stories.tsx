@@ -667,7 +667,7 @@ async function openModels(): Promise<{ tab: HTMLElement; models: HTMLElement }> 
     const tab = await openStyle("Key people");
     await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
     await userEvent.click(await page().findByRole("menuitem", { name: "Shape" }));
-    await userEvent.click(await within(tab).findByRole("combobox", { name: /^Node shape/ }));
+    await userEvent.click(await within(tab).findByRole("button", { name: /^Node shape(,|$)/ }));
     await userEvent.click(await page().findByRole("option", { name: "Model..." }));
     return { tab, models: await page().findByRole("dialog", { name: "Models" }) };
 }
@@ -975,14 +975,15 @@ export const CustomModelProjectTile: Story = nodeModelsStory(
 );
 
 /**
- * A picture on Key people (node-models design 13.7) by real input: Fill's "+" adds Picture and opens
+ * A picture on Key people (node-models design 13.7) by real input: Fill's "+" then Picture opens
  * the Picture pop-over, and the car kit's colormap.png chosen there draws on the layer's nodes.
  */
 export const Picture: Story = nodeModelsStory(
     sceneStory(async ({ session }) => {
         const tab = await openStyle("Key people");
-        // Key people sets its color: Fill's "+" has only Picture left, and adds it at once.
+        // Fill's "+" lists its paints; Picture adds the line and opens its pop-over at once.
         await userEvent.click(within(tab).getByRole("button", { name: "Add to node fill" }));
+        await userEvent.click(await page().findByRole("menuitem", { name: "Picture" }));
         const picture: HTMLElement = await page().findByRole("dialog", { name: "Picture" });
         const colormap = new Uint8Array(await (await fetch(colormapUrl)).arrayBuffer());
         dropFiles(within(picture).getByRole("button", { name: "Choose picture" }), [
@@ -1076,8 +1077,8 @@ export const FootballConference: Story = {
         await userEvent.click(within(tab).getByRole("button", { name: "Add to node fill" }));
         const colorLine = (): HTMLElement | null =>
             (page().getByTestId("style-tab") as HTMLElement).querySelector('.ws-row[data-line="node.color"]');
-        // Fill's "+" offers Color and Picture in a menu.
-        await userEvent.click(await page().findByRole("menuitem", { name: "Color" }));
+        // Fill's "+" lists its paints in a menu: Solid is the color.
+        await userEvent.click(await page().findByRole("menuitem", { name: "Solid" }));
         const box: HTMLElement = await waitFor(() => {
             const found = colorLine();
             expect(found).not.toBeNull();

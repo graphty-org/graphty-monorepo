@@ -231,7 +231,8 @@ async function bothCounts(
     io: object = {},
 ): Promise<{ element: { nodes: number; edges: number }; graphIo: { nodes: number; edges: number } }> {
     const session = createGraphSession();
-    await session.data.import({ type, config: { data, ...config } });
+    // The reader's data alone: the file's styles, drawn by default, are not what this compares.
+    await session.data.import({ type, config: { data, ...config } }, { styles: "none" });
     const element = { nodes: session.data.nodes().length, edges: session.data.edges().length };
     session.dispose();
     const { snapshot } = await importGraph(data, { format: type, ...IO_OPTIONS[type], ...io });
@@ -352,7 +353,10 @@ describe("the element's readers load what graph-io loads", () => {
             const session = createGraphSession();
             let loaded: { nodes: number; edges: number } | null = null;
             try {
-                await session.data.import({ type, config: { data: bytes, errorLimit: ERROR_LIMIT } });
+                await session.data.import(
+                    { type, config: { data: bytes, errorLimit: ERROR_LIMIT } },
+                    { styles: "none" },
+                );
                 loaded = { nodes: session.data.nodes().length, edges: session.data.edges().length };
             } catch {
                 loaded = null;

@@ -10,7 +10,6 @@ import type { ShaderParamAddress } from "@graphty/graphty-element/schema";
 import { afterEach, assert, beforeAll, describe, it } from "vitest";
 import { commands, page, userEvent } from "vitest/browser";
 
-import { withoutFeatures } from "../../../test/features";
 import { dragAcross } from "../../../test/real-pointer";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import {
@@ -29,8 +28,6 @@ declare module "vitest/browser" {
         grantClipboard: () => Promise<void>;
     }
 }
-
-withoutFeatures(["file-styles"]);
 
 afterEach(removeElement);
 

@@ -16,9 +16,6 @@ import { assert, describe, it, vi } from "vitest";
 import { createGraphSession, type GraphSession, type NodeId } from "../../session";
 import { NGRAPH_SETTLED_SPACING } from "../../src/constants/layoutConstants";
 import { dispatcherOf } from "../../src/session/GraphSession";
-import { fileStylesOn } from "../helpers/file-styles-on";
-
-fileStylesOn();
 
 /** A Cytoscape.js document: nodes 40 across with a border 2 wide and labels 20 high, edges 2 wide, nodes 400 apart. */
 const DOC = JSON.stringify({
@@ -222,7 +219,7 @@ describe("a file's lengths are drawn in one unit", () => {
 
     it("leaves a load without file styles drawn at the file's positions", async () => {
         const session = createGraphSession();
-        await session.data.import({ type: "json", config: { data: DOC } }, { layout: "recommended" });
+        await session.data.import({ type: "json", config: { data: DOC } }, { styles: "none", layout: "recommended" });
         await vi.waitFor(() => {
             assert.lengthOf(session.history.pending, 0);
         });

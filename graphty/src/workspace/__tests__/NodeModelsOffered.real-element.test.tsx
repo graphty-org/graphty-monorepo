@@ -7,13 +7,8 @@ import "@graphty/graphty-element";
 
 import { assert, describe, it } from "vitest";
 
-import { withoutFeatures } from "../../test/features";
 import { within } from "../../test/test-utils";
 import { openModels, openShapes, plusMenu, shapeChoices } from "../style/__tests__/modelHarness";
-
-// These tests drive the Style panel the app shows with file styles off; the panel by part of the
-// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
-withoutFeatures(["file-styles"]);
 
 describe("node models in the app", () => {
     it("offers Model... last in the Shape list, which opens Models, and Picture in Fill", async () => {

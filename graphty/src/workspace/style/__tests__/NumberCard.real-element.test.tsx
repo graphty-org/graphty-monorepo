@@ -19,16 +19,11 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
-import { withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { selectWithTwin } from "../../../test/twin-layer";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { cardFields } from "../cards";
-
-// These tests drive the Style panel the app shows with file styles off; the panel by part of the
-// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
-withoutFeatures(["file-styles"]);
 
 /**
  * Les Miserables in the workspace with a degree run and one blank layer "Busy" selected, its Which
@@ -322,7 +317,10 @@ describe("number card", () => {
         });
         await userEvent.click(screen.getByRole("button", { name: "Done" }));
         const row = await screen.findByRole("button", { name: /^Which nodes, / });
-        assert.include(row.getAttribute("aria-label") ?? "", `${name}: all ${total}, ${total} nodes`);
+        assert.strictEqual(
+            row.getAttribute("aria-label"),
+            `Which nodes, ${total} of ${total} nodes, ${name}: all ${total}`,
+        );
         panelShown();
     });
 
@@ -336,10 +334,13 @@ describe("number card", () => {
         await userEvent.click(screen.getByRole("button", { name: "Done" }));
         const row = await screen.findByRole("button", { name: /^Which nodes, / });
         const kept = session.styles.counts(id).matched;
+        // The row's count is the nodes kept; its rule line, the count asked for.
         await waitFor(() => {
-            assert.include(row.getAttribute("aria-label") ?? "", `top 10 by ${name}, ${String(kept)} nodes`);
+            assert.strictEqual(
+                row.getAttribute("aria-label"),
+                `Which nodes, ${String(kept)} of 77 nodes, top 10 by ${name}`,
+            );
         });
-        assert.include(row.getAttribute("aria-label") ?? "", `top 10 by ${name}, ${String(kept)} nodes`);
     });
 
     it("ranks a Highest style rule among what is shown, so a filter changes who is on top", async () => {

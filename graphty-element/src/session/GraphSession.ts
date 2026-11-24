@@ -915,9 +915,7 @@ class Session implements ElementSession {
             if (advice === undefined) {
                 return undefined;
             }
-            // Graphviz's routes draw a placed DOT file as Graphviz does: part of the file styles experiment.
-            const routed = advice.options?.edgeRoutes === "graphviz";
-            const options = routed && this.dispatcher.services.fileStyles?.() === false ? undefined : advice.options;
+            const { options } = advice;
             const advised = {
                 id: advice.layout.id,
                 engine: advice.layout.engine,
@@ -3633,8 +3631,6 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     const requested = options.features ?? ((): undefined => undefined);
     const settleFeatures = (): EnabledFeatures => (settledFeatures ??= resolveFeatures(requested()));
     const ceilings = options.ceilings ?? new RenderLimits(true);
-    const fileStylesOn = (): boolean =>
-        (settledFeatures ?? resolveFeatures(requested())).enabled.includes("file-styles");
     const sourceStepsOn = (): boolean =>
         (settledFeatures ?? resolveFeatures(requested())).enabled.includes("source-steps");
     const runsOptions = options.runs ?? {};
@@ -3656,7 +3652,6 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     });
     const readProject = projectConfigReader(dispatcher, resolveDataConfig(options.config?.data));
     dispatcher.services.config = readProject;
-    dispatcher.services.fileStyles = fileStylesOn;
     dispatcher.services.sourceSteps = sourceStepsOn;
     const readData = (): SessionDataConfig => readProject().data;
     // A controller handed in is the authority on its own policy: the session does not own it, so
@@ -3915,7 +3910,6 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             // Read through calls: the timeline and the visibility are built below.
             timeParsed: (kind, column) => timeline()?.parsedCount(kind, column),
             timeCandidates: () => time.api.candidates(),
-            fileStyles: () => fileStylesOn(),
             sourceSteps: sourceStepsOn,
             sourceReferences: () =>
                 (settledFeatures ?? resolveFeatures(requested())).enabled.includes("source-references"),
@@ -4778,7 +4772,6 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             // the elements one run measured walks that run's 300 rows, not the graph's 50,000.
             measured: elements.measured,
             scales,
-            fileStyles: fileStylesOn,
             // With the base look in the Everything row, what no shown layer paints is not drawn.
             hideUnpainted: () => dispatcher.state.config.get("editableBase") === true,
             ...(internals.now === undefined ? {} : { now: internals.now }),
@@ -5318,7 +5311,6 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         },
         paths,
         scales,
-        fileStyles: fileStylesOn,
         runs: encodingSourceOf(runs),
         columns: {
             attributes: () => data.columns(),
@@ -5879,7 +5871,6 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             results: () => results,
             projectShaders: () => shaders.descriptors(),
             nodeValues: (path) => planning.nodeValues?.(path) ?? null,
-            fileStyles: fileStylesOn,
             timeCandidates: () => time.api.candidates(),
             query: {
                 unresolvedPathsOf: (where) => engine.unresolvedPathsOf(where),

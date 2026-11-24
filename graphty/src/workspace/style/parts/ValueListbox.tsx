@@ -1,5 +1,5 @@
 /**
- * The value picker of a choice property in the Style panel by part (the file-styles experiment): a
+ * The value picker of a choice property in the Style panel by part: a
  * button showing the value, which opens a named, searchable list ("Search 53 shapes") of every
  * value graphty-element offers for the property, with its own name and picture. The values the
  * graph draws now come first, under "In this graph", each with how many nodes or edges carry it.

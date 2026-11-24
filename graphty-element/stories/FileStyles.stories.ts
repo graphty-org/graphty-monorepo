@@ -169,7 +169,6 @@ async function drewArrows(
 function fileArgs(dataSource: string, source: { readonly url: string }, placedOnce = false): Story["args"] {
     return {
         dataSource,
-        features: ["file-styles"],
         dataSourceConfig: { ...source, styles: "file" },
         ...(placedOnce ? { layout: "circular" } : { layout: "ngraph", layoutConfig: { seed: 42 } }),
         setup: storySetup({ preSteps: 1000 }),
@@ -184,7 +183,6 @@ function fileArgs(dataSource: string, source: { readonly url: string }, placedOn
 export const Gexf: Story = {
     args: {
         dataSource: "gexf",
-        features: ["file-styles"],
         dataSourceConfig: { url: absolute(miserablesUrl), styles: "file" },
         layout: "ngraph",
         layoutConfig: { seed: 42 },
@@ -311,7 +309,6 @@ async function drewGroupsAround(
 export const GraphmlYedAtFilePositions: Story = {
     args: {
         dataSource: "graphml",
-        features: ["file-styles"],
         dataSourceConfig: { url: absolute(voctomixUrl), styles: "file", layout: "recommended" },
         setup: storySetup({ viewMode: "2d" }),
     },
@@ -340,7 +337,6 @@ export const GraphmlYedAtFilePositions: Story = {
 export const DotClusters: Story = {
     args: {
         dataSource: "dot",
-        features: ["file-styles"],
         dataSourceConfig: { url: absolute(ensemblClustersUrl), styles: "file", layout: "recommended" },
         setup: storySetup({ viewMode: "2d" }),
     },
@@ -416,7 +412,6 @@ export const Xgmml: Story = {
 export const XgmmlAtFilePositions: Story = {
     args: {
         dataSource: "xgmml",
-        features: ["file-styles"],
         dataSourceConfig: { url: absolute(ngsCheckMateUrl), styles: "file", layout: "recommended" },
         setup: storySetup({ viewMode: "2d" }),
     },

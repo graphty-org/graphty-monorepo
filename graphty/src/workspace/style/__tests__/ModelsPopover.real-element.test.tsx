@@ -13,7 +13,6 @@ import "@graphty/graphty-element";
 import { afterEach, assert, describe, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import { withoutFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import {
     addModel,
@@ -27,10 +26,6 @@ import {
     written,
 } from "./modelHarness";
 import { quadGlb } from "./quadGlb";
-
-// These tests drive the Style panel the app shows with file styles off; the panel by part of the
-// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
-withoutFeatures(["file-styles"]);
 
 /**
  * Waits until focus is on a tile of the pop-over, by its name.
@@ -115,7 +110,7 @@ describe("models in the Shape field, on the real element", () => {
 
         // A built-in shape: the model and its settings go, in one undo step.
         await userEvent.click(shapeField(tab));
-        await userEvent.click(await screen.findByRole("option", { name: "Sphere" }));
+        await userEvent.click(await screen.findByRole("option", { name: /^Sphere/ }));
         await waitFor(() => {
             assert.isUndefined(written(session, "node.model"));
             assert.equal(written(session, "node.shape"), "sphere");

@@ -11,12 +11,9 @@ import { assert, describe, it } from "vitest";
 import { page } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
-import { withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
-
-withoutFeatures(["file-styles"]);
 
 describe("a layer selecting by an unregistered algorithm", () => {
     it("leaves the Style layers tree drawn, with the layer's row", async () => {

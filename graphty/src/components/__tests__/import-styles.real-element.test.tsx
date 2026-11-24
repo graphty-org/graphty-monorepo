@@ -13,7 +13,6 @@ import { afterEach, assert, beforeEach, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
 import cysUrl from "../../../../graph-io/test/corpus/styles/cys/BasicDataVizDemo.cys?url";
-import { withFeatures } from "../../test/features";
 import { render, screen, waitFor } from "../../test/test-utils";
 import { openDataPage } from "../../workspace/data-page/request";
 import { IMPORT_FILE_STYLES } from "../../workspace/settings/preferences";
@@ -21,7 +20,6 @@ import { createWorkspaceStore } from "../../workspace/state/store";
 import { Workspace } from "../../workspace/Workspace";
 
 // Styles from files are an experiment: these tests switch it on.
-withFeatures(["file-styles"]);
 
 /**
  * Twelve nodes in two groups, each group with its own viz color: red for x, blue for y. The first

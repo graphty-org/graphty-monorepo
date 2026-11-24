@@ -35,7 +35,6 @@ import type { RepeatGroup } from "../../data/edgeIdentity";
 import { searchRecord } from "../../data/endpoints";
 import type { DataLoadingError } from "../../data/ErrorAggregator";
 import { GraphtyError } from "../../errors/GraphtyError";
-import { featureOff } from "../../features/resolve";
 import { GRAPHVIZ_ENGINES, graphvizLayoutId } from "../../layout/graphviz/engines";
 import { POINTS_PER_UNIT } from "../../layout/graphviz/toDot";
 import { GraphtyLogger } from "../../logging/GraphtyLogger.js";
@@ -47,7 +46,7 @@ import { edgeKey, nodeKey } from "../project/graphOps";
 import { isRowsView } from "../project/recordMap";
 import type { CodedFact } from "../shared";
 import { type Provenance, PROVENANCE_VALUE } from "../sources/provenance";
-import { applyFileStyles, asksFileStyles, type ImportOutcome } from "../styles/fileStyles/apply";
+import { applyFileStyles, type ImportOutcome } from "../styles/fileStyles/apply";
 import type { FileStyleOptions } from "../styles/fileStyles/translate";
 import { deepEquals } from "../styles/predicate";
 import type { Selector } from "../styles/selector";
@@ -327,13 +326,11 @@ export interface DataImportCommand {
     readonly delimiter?: DraftTable["delimiter"];
     /**
      * `"file"` draws the file's own styles as layers, in the same step; `"none"` leaves them out.
-     * Absent, the source's `styles` option decides, and without one the file's styles are left out.
-     * @experimental file-styles
+     * Absent, the source's `styles` option decides, and without one the file's styles are drawn.
      */
     readonly styles?: "file" | "none";
     /**
      * How the file's styles are turned into layers; the source's `styleOptions` when absent.
-     * @experimental file-styles
      */
     readonly styleOptions?: FileStyleOptions;
     /** Where the load came from, for its `data.sources()` entry; read from the source's type when absent. */
@@ -1054,11 +1051,6 @@ export const dataImport: UndoableDefinition<DataImportCommand> = {
     byReference: ["config", "held", "measure"],
     closesBaseline: true,
     execute: async (command, ctx) => {
-        // Refused before anything is read: drawing a file's styles is the file styles experiment.
-        if (asksFileStyles(command) && ctx.services.fileStyles?.() === false) {
-            throw featureOff("file-styles", "styles");
-        }
-
         // The scene units one unit of the file's lengths is drawn as, once its styles are drawn:
         // the stored drawing a recommended fixed layout keeps takes the same unit (issue #2322).
         let sceneScale: number | null = null;

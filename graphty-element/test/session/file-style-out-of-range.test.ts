@@ -7,9 +7,6 @@ import { assert, describe, it } from "vitest";
 
 import { DataSource, type FormatDescriptor } from "../../extend";
 import { createGraphSession, FILE_STYLE_ISSUE } from "../../session";
-import { fileStylesOn } from "../helpers/file-styles-on";
-
-fileStylesOn();
 
 const GML =
     "graph [ directed 1 node [ id 1 ] node [ id 2 ] node [ id 3 ] edge [ source 1 target 2 ] edge [ source 2 target 3 ] ]";

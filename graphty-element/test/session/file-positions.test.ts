@@ -9,7 +9,6 @@ import { assert, describe, it, vi } from "vitest";
 
 import { DataConfig } from "../../src/config/DataConfig";
 import { exportSession } from "../../src/data/export";
-import { fileStylesOn } from "../helpers/file-styles-on";
 import { makeSession } from "./helpers";
 
 const SCALE = 2;
@@ -130,8 +129,6 @@ describe("a file loaded and saved is drawn the same way when loaded again", () =
 });
 
 describe("an export writes the file's own coordinates when the fixed layout spread them", () => {
-    fileStylesOn();
-
     for (const styles of [false, true]) {
         it(`divides the drawing's spread out${styles ? ", with styles" : ""}`, async () => {
             const first = await loaded("dot", DOT);

@@ -15,13 +15,9 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
-import { withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
-
-// The Style panel the app shows with file styles off, as VaryByLayer.real-element.test.tsx drives it.
-withoutFeatures(["file-styles"]);
 
 /**
  * Les Miserables in the workspace, its layout at rest before the first frame is drawn (#4239).

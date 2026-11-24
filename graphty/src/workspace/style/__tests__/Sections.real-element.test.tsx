@@ -17,16 +17,11 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
-import { withoutFeatures } from "../../../test/features";
 import { findValuePicker, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
-import { SECTIONS } from "../words";
+import { PARTS } from "../parts/parts";
 import { showKind } from "./kindTab";
-
-// These tests drive the Style panel the app shows with file styles off; the panel by part of the
-// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
-withoutFeatures(["file-styles"]);
 
 /** The scene: the session, the chrome store, and the Degree run's row name when it ran. */
 interface Scene {
@@ -169,13 +164,14 @@ describe("the Style tab's sections", () => {
         let tab = await openStyle("Key people");
         const fill = section("node", "fill");
         assert.isNotNull(fill.querySelector('.ws-row[data-line="node.color"]'), "Fill lists Color");
-        for (const spec of SECTIONS.node.filter((each) => each.id !== "fill")) {
+        for (const spec of PARTS.node.filter((each) => each.id !== "fill")) {
             assert.isTrue(isEmpty(section("node", spec.id)), `${spec.title} is its dimmed title and "+"`);
             within(section("node", spec.id)).getByRole("button", { name: `Add to node ${spec.title.toLowerCase()}` });
         }
         assert.isNull(tab.querySelector('[data-group="edge"]'), "a layer on nodes has no Edges group");
+        // Find a setting is a search box, not a control that could show a value.
         const placeholders = [...tab.querySelectorAll<HTMLInputElement>("input")].filter(
-            (input) => input.placeholder !== "",
+            (input) => input.placeholder !== "" && input.getAttribute("aria-label") !== "Find a setting",
         );
         assert.deepEqual(
             placeholders.map((input) => input.placeholder),
@@ -191,25 +187,33 @@ describe("the Style tab's sections", () => {
         );
 
         tab = await openStyle("Hovered");
-        assert.isNull(tab.querySelector(".ws-row"), "Hovered sets nothing");
-        for (const spec of SECTIONS.node) {
+        assert.isNull(tab.querySelector(".ws-row:not(.ws-find-setting)"), "Hovered sets nothing");
+        for (const spec of PARTS.node) {
             assert.isTrue(isEmpty(section("node", spec.id)), `Hovered: ${spec.title} is dimmed`);
         }
 
         await openStyle("Selected");
-        const shape = section("node", "shape");
-        assert.isNotNull(shape.querySelector('.ws-row[data-line="node.haloColor"]'), "a Halo row");
-        assert.isNull(shape.querySelector('.ws-row[data-line="node.glow"]'), "Selected writes no glow");
-        assert.isNull(shape.querySelector('.ws-row[data-line="node.shape"]'), "Selected writes no shape");
+        const effects = section("node", "effects");
+        assert.isNotNull(effects.querySelector('.ws-row[data-line="node.haloColor"]'), "a Halo row");
+        assert.isNull(effects.querySelector('.ws-row[data-line="node.glow"]'), "Selected writes no glow");
+        assert.isNull(
+            section("node", "shape").querySelector('.ws-row[data-line="node.shape"]'),
+            "Selected writes no shape",
+        );
     });
 
     it.each(
         (["node", "edge"] as const).flatMap((kind) =>
             // Shaders' "+" opens the gallery: its add and remove are ShaderRows.real-element.test.tsx's.
-            SECTIONS[kind]
-                // Les Miserables is undirected, so Arrowheads add nothing there (tested on its own).
+            // A list (Fill, Effects) adds a whole item, whose heading's minus takes back only what is written.
+            PARTS[kind]
+                // Les Miserables is undirected, so Ends add nothing there (tested on its own).
                 .filter(
-                    (spec) => spec.id !== "text" && spec.shaders !== true && !(kind === "edge" && spec.id === "ends"),
+                    (spec) =>
+                        spec.id !== "text" &&
+                        spec.id !== "shaders" &&
+                        spec.list !== true &&
+                        !(kind === "edge" && spec.id === "ends"),
                 )
                 .map((spec) => [kind, spec.id, spec.title] as const),
         ),
@@ -333,7 +337,7 @@ describe("the Style tab's sections", () => {
         await showKind("edge");
         // Said by the disabled '+', never as a line in the sidebar (#8739).
         assert.isNull(within(section("edge", "ends")).queryByText("Not available: undirected graph"));
-        const plus = within(section("edge", "ends")).getByRole("button", { name: "Add to edge arrowheads" });
+        const plus = within(section("edge", "ends")).getByRole("button", { name: "Add to edge ends" });
         assert.equal(plus.getAttribute("aria-disabled"), "true");
         assert.equal(plus.getAttribute("aria-description"), "Not available: undirected graph");
         assert.strictEqual(plus.getAttribute("tabindex"), "-1", "a disabled '+' is no Tab stop");
@@ -372,47 +376,28 @@ describe("the Style tab's sections", () => {
             throw new Error("no Everything edge layer");
         }
         await session.styles.update(everything.id, { set: { ...everything.set, "edge.style": "dash" } });
-        // The count is the only setting the pattern has: its row's "+" adds it at once.
-        await userEvent.click(
-            await within(section("edge", "line")).findByRole("button", { name: "Add to edge pattern" }),
-        );
+        // The count is a setting of Line's settings page: its "+" adds it, waiting for a value.
+        await userEvent.click(within(section("edge", "line")).getByRole("button", { name: "Edge line settings" }));
+        const settings = await screen.findByRole("dialog", { name: "Edge line" });
+        await userEvent.click(await within(settings).findByRole("button", { name: "Add edge pattern count" }));
         await waitFor(() => {
-            const box = section("edge", "line").querySelector<HTMLInputElement>(
-                '[data-line="edge.patternCount"] input',
-            );
+            const box = settings.querySelector<HTMLInputElement>('[data-line="edge.patternCount"] input');
             assert.strictEqual(box?.value, "10");
         });
         assert.isUndefined(written(session, "Everything", "edge.patternCount"), "nothing written before a value");
     });
 
-    it("lists styles, not their settings, in '+': Halo's and Glow's settings are added from their own rows", async () => {
+    it("lists effects, not their settings, in Effects' '+', and removing the halo takes its settings with it", async () => {
         const { session } = await openScene();
         await openStyle("Key people");
-        const shape = (): HTMLElement => section("node", "shape");
-        await userEvent.click(within(shape()).getByRole("button", { name: "Add to node shape" }));
+        const effects = (): HTMLElement => section("node", "effects");
+        await userEvent.click(within(effects()).getByRole("button", { name: "Add to node effects" }));
         const items = (await screen.findAllByRole("menuitem")).map((item) => item.textContent);
-        assert.includeMembers(items, ["Glow", "Halo"], "one entry per style");
+        assert.includeMembers(items, ["Glow", "Halo"], "one entry per effect");
         for (const setting of ["Glow strength", "Halo size", "Halo opacity"]) {
-            assert.notInclude(items, setting, `${setting} is a setting of its style, not a menu entry`);
+            assert.notInclude(items, setting, `${setting} is a setting of its effect, not a menu entry`);
         }
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Halo" }));
-        // Halo's row has its own "+", which lists its settings by their own names.
-        await userEvent.click(await within(shape()).findByRole("button", { name: "Add to node halo" }));
-        assert.deepEqual(
-            (await screen.findAllByRole("menuitem")).map((item) => item.textContent),
-            ["Size", "Opacity"],
-        );
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Size" }));
-        await waitFor(() => {
-            const rows = [...shape().querySelectorAll<HTMLElement>(".ws-row")];
-            assert.deepEqual(
-                rows.map((row) => row.dataset.line),
-                ["node.haloColor", "node.haloScale"],
-                "the size sits under its halo",
-            );
-            assert.equal(rows[1]?.querySelector(".ws-field-name")?.textContent, "Size");
-            assert.isDefined(rows[1]?.dataset.setting, "drawn as the halo's setting");
-        });
+        await userEvent.keyboard("{Escape}");
 
         // Removing the halo takes its settings with it, in one step.
         const people = session.styles.list().find((layer) => layer.name === "Key people");
@@ -422,29 +407,18 @@ describe("the Style tab's sections", () => {
         await session.styles.update(people.id, {
             set: { ...people.set, "node.haloColor": "#FF0000", "node.haloScale": 2, "node.glow": "#00B4FF" },
         });
-        const halo = await waitFor(() => {
-            const found = shape().querySelector<HTMLElement>('.ws-row[data-line="node.haloColor"]');
-            assert.isNotNull(found);
-            return found;
+        await waitFor(() => {
+            assert.isNotNull(effects().querySelector('[data-item="halo"]'));
         });
-        if (halo === null) {
-            throw new Error("no halo row");
-        }
-        await userEvent.click(within(halo).getByRole("button", { name: "Remove node halo" }));
+        await userEvent.click(within(effects()).getByRole("button", { name: "Remove halo" }));
         await waitFor(() => {
             assert.isUndefined(written(session, "Key people", "node.haloColor"));
             assert.isUndefined(written(session, "Key people", "node.haloScale"), "the size goes with its halo");
         });
-        assert.isDefined(written(session, "Key people", "node.glow"), "another style stays");
-        // Glow's strength is added from the Glow row, the only setting it has.
-        await userEvent.click(within(shape()).getByRole("button", { name: "Add to node glow" }));
-        await waitFor(() => {
-            const strength = shape().querySelector<HTMLElement>('.ws-row[data-line="node.glowStrength"]');
-            assert.equal(strength?.querySelector(".ws-field-name")?.textContent, "Strength");
-        });
+        assert.isDefined(written(session, "Key people", "node.glow"), "another effect stays");
     });
 
-    it("sets an outline's width per layer from the Outline row, leaving another layer's outline as it was", async () => {
+    it("sets an outline's width per layer from Border's settings, leaving another layer's outline as it was", async () => {
         const { session } = await openScene();
         const idOf = (name: string): string => String(session.data.nodes().find((n) => n.name === name)?.id);
         const people = session.styles.list().find((layer) => layer.name === "Key people");
@@ -460,11 +434,12 @@ describe("the Style tab's sections", () => {
         });
         await session.styles.settled();
         await openStyle("Key people");
-        const shape = (): HTMLElement => section("node", "shape");
-        // The width is the outline's only setting: the Outline row's "+" adds it at once.
-        await userEvent.click(await within(shape()).findByRole("button", { name: "Add to node outline" }));
+        // The width is a setting of Border's settings page: its "+" adds it, waiting for a value.
+        await userEvent.click(within(section("node", "border")).getByRole("button", { name: "Node border settings" }));
+        const settings = await screen.findByRole("dialog", { name: "Node border" });
+        await userEvent.click(await within(settings).findByRole("button", { name: "Add node outline width" }));
         const width = await waitFor(() => {
-            const row = shape().querySelector<HTMLElement>('.ws-row[data-line="node.outlineWidth"]');
+            const row = settings.querySelector<HTMLElement>('.ws-row[data-line="node.outlineWidth"]');
             assert.equal(row?.querySelector(".ws-field-name")?.textContent, "Width");
             const box = row?.querySelector<HTMLInputElement>("input");
             assert.isDefined(box ?? undefined);
@@ -563,7 +538,7 @@ describe("the Style tab's sections", () => {
         await waitFor(() => {
             const line = section("node", "shape").querySelector<HTMLElement>('[data-line="node.shape"]');
             assert.isNotNull(line);
-            within(line).getByRole("combobox", { name: new RegExp(`, default ${beneath}$`, "i") });
+            within(line).getByRole("button", { name: new RegExp(`^Node shape, default ${beneath}$`, "i") });
         });
         assert.isUndefined(written(session, "Key people", "node.shape"), "nothing written before a pick");
 
@@ -577,8 +552,8 @@ describe("the Style tab's sections", () => {
         await session.styles.settled();
         await openStyle("Over degree");
         await userEvent.click(within(section("node", "fill")).getByRole("button", { name: "Add to node fill" }));
-        // Fill offers Color and Picture in a menu.
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Color" }));
+        // Fill lists its paints in a menu: Solid is the color.
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Solid" }));
         await waitFor(() => {
             assert.isNotNull(section("node", "fill").querySelector('[data-line="node.color"]'));
         });

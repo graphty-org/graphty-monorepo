@@ -2050,7 +2050,6 @@ export interface FormatDescriptor {
      * styles (`styles: "file"` on a load), and what its writer keeps of a graph's styles --
      * `"rules"` (the layers come back as layers when the file is read again), `"values"` (only
      * each element's values) or `"none"`. Absent means `{ read: false, write: "none" }`.
-     * @experimental file-styles
      */
     styles?: FormatStyles;
     /**
@@ -2077,7 +2076,6 @@ export interface FormatDescriptor {
 
 /**
  * What a format's files keep of a graph's styles. See {@link FormatDescriptor.styles}.
- * @experimental file-styles
  */
 export interface FormatStyles {
     /** Whether the reader can draw a file's own styles. */
@@ -3666,11 +3664,8 @@ export interface CatalogApi {
      */
     formats(): readonly FormatDescriptor[];
     /**
-     * The style channels this session offers for nodes or for edges, in table order. With the
-     * `file-styles` experiment on it is the same array `channelsFor(target)` returns; with it off it
-     * leaves out the channels the experiment added and the values it added to the rest (node shapes,
-     * arrowheads, line patterns, a size mode). A style editor builds its pickers from it. A layer that
-     * writes a value it leaves out is still accepted and drawn.
+     * The style channels this session offers for nodes or for edges, in table order: the same array
+     * `channelsFor(target)` returns. A style editor builds its pickers from it.
      * @param target - Nodes or edges.
      * @returns The channels, the same array on every call with the same target.
      * @since 3.36.0
@@ -3679,8 +3674,7 @@ export interface CatalogApi {
     /**
      * Every value of one enum channel this session offers, in the order of the channel's
      * `values`, each with a default name and, for a node shape, an arrowhead or a line pattern
-     * (a border's included), a picture. With the `file-styles` experiment off it leaves out the
-     * values the experiment added, as {@link CatalogApi.channels} does.
+     * (a border's included), a picture.
      *
      * ```ts
      * session.catalog.channelValues("node.shape"); // [{ id: "box", plainName: "Box", glyph: "<svg ..." }, ...]

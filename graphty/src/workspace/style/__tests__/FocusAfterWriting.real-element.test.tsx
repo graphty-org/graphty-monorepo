@@ -16,17 +16,12 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
-import { withoutFeatures } from "../../../test/features";
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { INSPECTOR_TITLE_ID } from "../../frame/focus";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { colorName } from "../words";
 import { showKind } from "./kindTab";
-
-// These tests drive the Style panel the app shows with file styles off; the panel by part of the
-// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
-withoutFeatures(["file-styles"]);
 
 /**
  * Les Miserables in the workspace with the starting rows.
@@ -173,7 +168,7 @@ describe("focus after a style line is written or removed", () => {
         await session.styles.settled();
         await openStyle("Paint");
         await showKind("node");
-        await addLine("node", "fill", "Color", "node.color");
+        await addLine("node", "fill", "Solid", "node.color");
         await typeColor(session, "node.color", "purple", "#800080");
         const line = await lineOf("node.color");
         const box = within(line).getByRole("textbox", { name: /^Node color(,|$)/ });
@@ -214,7 +209,7 @@ describe("focus after a style line is written or removed", () => {
         // Everything starts with a color; a layer of the reader's own adds it.
         const set = document.querySelector<HTMLElement>('[data-testid="style-tab"] .ws-row[data-line="node.color"]');
         if (set === null) {
-            await addLine("node", "fill", "Color", "node.color");
+            await addLine("node", "fill", "Solid", "node.color");
         } else {
             await userEvent.click(within(set).getByRole("textbox", { name: /^Node color(,|$)/ }));
             await userEvent.keyboard("{Control>}a{/Control}");

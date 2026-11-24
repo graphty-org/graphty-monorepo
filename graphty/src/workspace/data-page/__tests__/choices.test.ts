@@ -13,7 +13,6 @@ import { afterEach, assert, describe, it } from "vitest";
 import {
     carriedChoices,
     INITIAL_CHOICES,
-    initialChoices,
     loadChoices,
     roleOf,
     setRole,
@@ -64,7 +63,7 @@ describe("the Data page's choices", () => {
             edgeFile: new File([TIES], "ties.csv"),
         });
 
-        const choices = loadChoices(draft, INITIAL_CHOICES, "replace", true);
+        const choices = loadChoices(draft, INITIAL_CHOICES, "replace");
         assert.deepEqual(choices, {
             mode: "replace",
             unmatched: "leave-out",
@@ -77,19 +76,19 @@ describe("the Data page's choices", () => {
         assert.deepEqual(report.unmatched, { rows: 1, values: 1 });
     });
 
-    it("asks for no styles, and starts with none, while the element's file styles experiment is off", async () => {
+    it("asks for no styles when the reader chose none", async () => {
         const draft = await prepare({
             nodeFile: new File([PEOPLE], "people.csv"),
             edgeFile: new File([TIES], "ties.csv"),
         });
 
-        assert.deepEqual(loadChoices(draft, INITIAL_CHOICES, "replace", false), {
+        assert.deepEqual(loadChoices(draft, { ...INITIAL_CHOICES, styles: "none" }, "replace"), {
             mode: "replace",
             unmatched: "leave-out",
             directed: "auto",
+            styles: "none",
+            styleOptions: { lengths: "spacing", framing: "file" },
         });
-        assert.strictEqual(initialChoices(false).styles, "none");
-        assert.strictEqual(initialChoices(true).styles, "file");
     });
 
     it("moves a role to the chosen column and gives the old holder no role", async () => {

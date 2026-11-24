@@ -12,7 +12,6 @@ import { STYLE_ISSUE, type StyleNoteCode } from "@graphty/graph-io/styles";
 /**
  * The codes graphty-element adds while it turns a file's styles into layers. Every one is a
  * warning: the rest of the file's styles still apply.
- * @experimental file-styles
  */
 export const FILE_STYLE_TRANSLATION_ISSUE = Object.freeze({
     /** A property graphty-element does not draw (a border width, an image); it is left out. */
@@ -39,7 +38,6 @@ export const FILE_STYLE_TRANSLATION_ISSUE = Object.freeze({
 
 /**
  * A code graphty-element adds while it turns a file's styles into layers.
- * @experimental file-styles
  */
 export type FileStyleTranslationCode = (typeof FILE_STYLE_TRANSLATION_ISSUE)[keyof typeof FILE_STYLE_TRANSLATION_ISSUE];
 
@@ -47,7 +45,6 @@ export type FileStyleTranslationCode = (typeof FILE_STYLE_TRANSLATION_ISSUE)[key
  * Every code a load's style notes carry: graph-io's `W_STYLE_*` codes for what reading the file
  * met, and graphty-element's own for what turning it into layers met. Open union: later releases
  * add codes, and an application words an unknown one generically.
- * @experimental file-styles
  */
 export type FileStyleNoteCode = StyleNoteCode | FileStyleTranslationCode;
 
@@ -55,19 +52,16 @@ export type FileStyleNoteCode = StyleNoteCode | FileStyleTranslationCode;
  * Every style code by name: graph-io's (reading, writing and the whole-file codes) and
  * graphty-element's own. A key is the code without its `E_` / `W_` and `STYLE_` / `STYLES_`
  * prefixes.
- * @experimental file-styles
  */
 export const FILE_STYLE_ISSUE = Object.freeze({ ...STYLE_ISSUE, ...FILE_STYLE_TRANSLATION_ISSUE });
 
 /**
  * Any style code: what {@link FILE_STYLE_CODES} lists.
- * @experimental file-styles
  */
 export type FileStyleCode = (typeof FILE_STYLE_ISSUE)[keyof typeof FILE_STYLE_ISSUE];
 
 /**
  * Every style code, import and export, for an application that words each one.
- * @experimental file-styles
  */
 export const FILE_STYLE_CODES: readonly FileStyleCode[] = Object.freeze([...new Set(Object.values(FILE_STYLE_ISSUE))]);
 
@@ -89,7 +83,6 @@ export const EXPORT_STYLE_LOSS_CODES = Object.freeze([
 
 /**
  * A style code an export reports among its losses: one of {@link EXPORT_STYLE_LOSS_CODES}.
- * @experimental file-styles
  */
 export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 
@@ -101,6 +94,5 @@ export const EXPORT_FLATTEN_REASONS = Object.freeze(["SCALE", "RESULT_PATH"] as 
 
 /**
  * A reason an export writes a layer as its values: one of {@link EXPORT_FLATTEN_REASONS}.
- * @experimental file-styles
  */
 export type ExportFlattenReason = (typeof EXPORT_FLATTEN_REASONS)[number];

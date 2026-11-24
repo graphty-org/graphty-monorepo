@@ -8,9 +8,6 @@ import { assert, describe, it, vi } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../session";
 import { flatShapeOutline } from "../../src/meshes/shapeOutlines";
-import { fileStylesOn } from "../helpers/file-styles-on";
-
-fileStylesOn();
 
 const DOC = JSON.stringify({
     elements: {

@@ -52,22 +52,14 @@ import { SCALE_DESCRIPTORS } from "../catalog/scales";
 import { SCREENSHOT_PRESET_DESCRIPTORS } from "../catalog/screenshotPresets";
 import { shaderDescriptors } from "../catalog/shaderRegistry";
 import type { ShaderDescriptor } from "../catalog/shaders";
-import type {
-    AlgorithmDescriptor,
-    AttributeDescriptor,
-    FormatDescriptor,
-    LayoutDescriptor,
-    Path,
-    Query,
-    QueryValidation,
-} from "../catalog/types";
+import type { AlgorithmDescriptor, AttributeDescriptor, Path, Query, QueryValidation } from "../catalog/types";
 import { catalogFormatDescriptors } from "../catalog/writerRegistry";
 import { isGraphtyError } from "../errors";
 import { transitionDescriptors } from "../transitions/registry";
 import { describeMetrics, type MetricsSource } from "./metrics";
 import { optionsFor, type OptionsForSource } from "./optionsFor";
 import { nearestNames } from "./results/ResultsApi";
-import { channelDescriptor, sessionChannels } from "./styles/channels";
+import { channelDescriptor, channelsFor } from "./styles/channels";
 import type { SessionCatalogApi } from "./types";
 
 /**
@@ -182,59 +174,6 @@ export const SESSION_CATALOG_TABLES = Object.freeze({
     models: () => MODEL_DESCRIPTORS,
 });
 
-/**
- * Derive a table from a composed one, cached on the composed table's identity, so the derived
- * array is the same object until something registers.
- * @param derive - Builds the derived list.
- * @returns A function from the composed table to the derived one.
- */
-function deriver<T>(derive: (list: readonly T[]) => readonly T[]): (list: readonly T[]) => readonly T[] {
-    let cached: { readonly from: readonly T[]; readonly list: readonly T[] } | null = null;
-    return (list) => {
-        if (cached?.from !== list) {
-            cached = { from: list, list: Object.freeze(derive(list)) };
-        }
-
-        return cached.list;
-    };
-}
-
-/**
- * The formats with the file styles experiment off: no `styles` field and no `styles` writer option.
- */
-const formatsWithoutStyles = deriver<FormatDescriptor>((list) =>
-    list.map((descriptor) => {
-        const { styles: _styles, writerOptions, ...rest } = descriptor;
-        return Object.freeze({
-            ...rest,
-            ...(writerOptions === undefined
-                ? {}
-                : { writerOptions: Object.freeze(writerOptions.filter((option) => option.name !== "styles")) }),
-        });
-    }),
-);
-
-/**
- * The fixed layout's options the file styles experiment adds: Graphviz routing the edges of a
- * placed file, as Graphviz draws it.
- */
-const FILE_STYLE_LAYOUT_OPTIONS: Readonly<Record<string, readonly string[]>> = Object.freeze({
-    fixed: Object.freeze(["edgeRoutes", "graphvizAttributes"]),
-});
-
-/** The layouts with the file styles experiment off: without the options it adds. */
-const layoutsWithoutStyles = deriver<LayoutDescriptor>((list) =>
-    list.map((descriptor) => {
-        const gated = FILE_STYLE_LAYOUT_OPTIONS[descriptor.id];
-        return gated === undefined
-            ? descriptor
-            : Object.freeze({
-                  ...descriptor,
-                  options: Object.freeze(descriptor.options.filter((option) => !gated.includes(option.name))),
-              });
-    }),
-);
-
 /** What `validate` reads: the session's one query engine and the paths it answers. */
 export interface CatalogQuerySource {
     /**
@@ -331,36 +270,20 @@ export function createSessionCatalog(
         Pick<OptionsForSource, "resolve" | "attributes" | "results" | "nodeValues"> & {
             /** The project's own shaders, listed after the presets and registered ones. */
             readonly projectShaders?: () => readonly ShaderDescriptor[];
-            /** Whether the file styles experiment is on; absent reads on. */
-            readonly fileStyles?: () => boolean;
             /** `session.time.candidates()`, for `timeAttributes`; absent, only declared time columns are listed. */
             readonly timeCandidates?: () => readonly { readonly kind: "node" | "edge"; readonly column: string }[];
             /** What `validate` checks expressions against; absent, no path is reported unresolved. */
             readonly query?: CatalogQuerySource;
         },
 ): SessionCatalogApi {
-    const fileStyles = (): boolean => source.fileStyles?.() !== false;
-    const layouts = (): readonly LayoutDescriptor[] =>
-        fileStyles() ? SESSION_CATALOG_TABLES.layouts() : layoutsWithoutStyles(SESSION_CATALOG_TABLES.layouts());
     return Object.freeze({
         ...SESSION_CATALOG_TABLES,
-        /**
-         * Every file format, without what the file styles experiment adds while it is off.
-         * @returns the format descriptors, the element's own first
-         */
-        formats: () =>
-            fileStyles() ? SESSION_CATALOG_TABLES.formats() : formatsWithoutStyles(SESSION_CATALOG_TABLES.formats()),
-        /**
-         * Every layout, without the options the file styles experiment adds while it is off.
-         * @returns the layout descriptors, the element's own first
-         */
-        layouts,
         /**
          * The style channels this session offers for a target.
          * @param target - Nodes or edges.
          * @returns The channels, in table order.
          */
-        channels: (target) => sessionChannels(target, fileStyles()),
+        channels: (target) => channelsFor(target),
         /**
          * Every value of one enum channel this session offers, named, with its picture.
          * @param channel - The channel.
@@ -369,9 +292,7 @@ export function createSessionCatalog(
         channelValues: (channel) => {
             const target = channelDescriptor(channel)?.target;
             return channelValuesOf(
-                target === undefined
-                    ? undefined
-                    : sessionChannels(target, fileStyles()).find((each) => each.channel === channel),
+                target === undefined ? undefined : channelsFor(target).find((each) => each.channel === channel),
             );
         },
         /**
@@ -422,7 +343,7 @@ export function createSessionCatalog(
                 optionsFor(
                     {
                         algorithms: SESSION_CATALOG_TABLES.algorithms,
-                        layouts,
+                        layouts: SESSION_CATALOG_TABLES.layouts,
                         resolve: source.resolve,
                         attributes: source.attributes,
                         results: source.results,

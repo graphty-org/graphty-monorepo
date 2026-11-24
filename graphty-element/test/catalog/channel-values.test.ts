@@ -10,7 +10,7 @@ import { createGraphSession } from "../../session";
 
 describe("the values of an enum channel", () => {
     it("every enum channel names every value", () => {
-        const s = createGraphSession({ features: ["file-styles"] });
+        const s = createGraphSession();
         for (const target of ["node", "edge"] as const) {
             for (const descriptor of channelsFor(target)) {
                 const values = s.catalog.channelValues(descriptor.channel);
@@ -33,28 +33,23 @@ describe("the values of an enum channel", () => {
         s.dispose();
     });
 
-    it("a value the experiment adds is left out while it is off", () => {
-        const on = createGraphSession({ features: ["file-styles"] });
-        const off = createGraphSession({ features: [] });
-        const onShapes = on.catalog.channelValues("node.shape").map((value) => value.id);
-        const offShapes = off.catalog.channelValues("node.shape").map((value) => value.id);
-        assert.isAbove(onShapes.length, offShapes.length);
+    it("every node shape has a picture, with no features set", () => {
+        const s = createGraphSession();
+        const shapes = s.catalog.channelValues("node.shape");
         assert.deepEqual(
-            offShapes,
-            off.catalog
-                .channels("node")
+            shapes.map((value) => value.id),
+            channelsFor("node")
                 .find((descriptor) => descriptor.channel === "node.shape")
                 ?.values?.slice(),
         );
-        for (const value of on.catalog.channelValues("node.shape")) {
+        for (const value of shapes) {
             assert.isString(value.glyph, value.id);
         }
-        on.dispose();
-        off.dispose();
+        s.dispose();
     });
 
     it("border patterns carry the line pattern pictures", () => {
-        const s = createGraphSession({ features: ["file-styles"] });
+        const s = createGraphSession();
         const line = new Map(EDGE_LINE_DESCRIPTORS.map((entry) => [entry.id as string, entry]));
         const border = s.catalog.channelValues("node.borderStyle");
         assert.strictEqual(border.find((value) => value.id === "dashed")?.glyph, line.get("dash")?.glyph);

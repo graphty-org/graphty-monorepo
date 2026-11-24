@@ -7,9 +7,6 @@
 import { assert, describe, it, vi } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../session";
-import { fileStylesOn } from "../helpers/file-styles-on";
-
-fileStylesOn();
 
 /**
  * Load a DOT document with its styles, letting the element choose the layout.

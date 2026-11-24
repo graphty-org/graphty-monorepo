@@ -151,7 +151,7 @@ function projection(): Record<string, JsonObject> {
         };
     });
     const channels = Object.values(CHANNEL_DESCRIPTORS).map((channel) =>
-        pick({ ...channel, experimental: channel.feature }, [
+        pick(channel, [
             "channel",
             "target",
             "accepts",
@@ -162,7 +162,6 @@ function projection(): Record<string, JsonObject> {
             "integer",
             "step",
             "perWorldUnit",
-            "experimental",
         ]),
     );
     const scales = SCALE_DESCRIPTORS.map((scale) => ({

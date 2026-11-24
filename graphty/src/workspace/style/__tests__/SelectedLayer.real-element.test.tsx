@@ -13,16 +13,11 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
-import { withoutFeatures } from "../../../test/features";
 import { sampleTile } from "../../../test/samples-dialog";
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { hexOf } from "../words";
-
-// The Style panel the app shows with file styles off; the panel by part of the drawing is tested
-// in PartsPanel.real-element.test.tsx.
-withoutFeatures(["file-styles"]);
 
 /**
  * Les Miserables in the workspace with its starting rows.
@@ -66,8 +61,8 @@ async function fillRedFrom(session: GraphSession, node: string): Promise<void> {
     });
     await userEvent.click(await screen.findByRole("tab", { name: "Style" }));
     await userEvent.click(await screen.findByRole("button", { name: "Add to node fill" }));
-    // Fill also offers Picture, so its "+" opens a menu.
-    await userEvent.click(await screen.findByRole("menuitem", { name: "Color" }));
+    // Fill lists its paints, so its "+" opens a menu: Solid is the color.
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Solid" }));
     await waitFor(() => {
         assert.isNotNull(document.activeElement?.closest('[data-line="node.color"]'), "focus in the new line");
     });

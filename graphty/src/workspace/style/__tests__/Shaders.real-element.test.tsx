@@ -1,10 +1,10 @@
 /**
  * The style options and the Shaders gallery on the REAL graphty-element, driven by real input:
- * Glow is a Shape option, added from Shape's "+" with focus in its hex box, written once a value
+ * Glow is an effect, added from Effects' "+" with focus in its hex box, written once a value
  * is typed and taken away by its minus; typing "glow" in the Shaders gallery finds the Glow option,
- * whose Enter adds the Glow row in Shape and no shader; Control-clicking two layers and adding
+ * whose Enter adds the Glow row in Effects and no shader; Control-clicking two layers and adding
  * Reticle gives both layers Reticle, and one Control+Z takes both back; Target end added from
- * Arrowheads and set to None writes `none`. Every assertion reads what the element reports.
+ * Ends and set to None writes `none`. Every assertion reads what the element reports.
  */
 
 import type { Channel, LayerId } from "@graphty/graphty-element/schema";
@@ -12,7 +12,6 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { withoutFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import { showKind } from "./kindTab";
 import {
@@ -27,10 +26,6 @@ import {
     treeRow,
     usesOn,
 } from "./shaderHarness";
-
-// These tests drive the Style panel the app shows with file styles off; the panel by part of the
-// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
-withoutFeatures(["file-styles"]);
 
 afterEach(removeElement);
 
@@ -59,13 +54,13 @@ describe("style options and the Shaders gallery", () => {
         await page.viewport(1024, 768);
     });
 
-    it("Shape '+' then Glow adds a Glow row with focus in its hex box; a typed hex writes the glow; the minus removes it", async () => {
+    it("Effects '+' then Glow adds a Glow row with focus in its hex box; a typed hex writes the glow; the minus removes it", async () => {
         const mounted = await mountElement();
         const layer = await addNodeLayer(mounted.session);
         renderPanel(mounted, [layer]);
-        const shape = (): HTMLElement => section("node", "shape");
+        const shape = (): HTMLElement => section("node", "effects");
 
-        await userEvent.click(within(shape()).getByRole("button", { name: "Add to node shape" }));
+        await userEvent.click(within(shape()).getByRole("button", { name: "Add to node effects" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Glow" }));
         const row = await waitFor(() => {
             const found = shape().querySelector<HTMLElement>('.ws-row[data-line="node.glow"]');
@@ -88,7 +83,7 @@ describe("style options and the Shaders gallery", () => {
         });
     });
 
-    it("typing glow in the gallery shows a Glow option tile; Enter adds a Glow row in Shape, not a shader", async () => {
+    it("typing glow in the gallery shows a Glow option tile; Enter adds a Glow row in Effects, not a shader", async () => {
         const mounted = await mountElement();
         const layer = await addNodeLayer(mounted.session);
         renderPanel(mounted, [layer]);
@@ -96,8 +91,8 @@ describe("style options and the Shaders gallery", () => {
         await addByName("glow");
         await waitFor(() => {
             assert.isNotNull(
-                section("node", "shape").querySelector('.ws-row[data-line="node.glow"]'),
-                "a Glow row in Shape",
+                section("node", "effects").querySelector('.ws-row[data-line="node.glow"]'),
+                "a Glow row in Effects",
             );
         });
         assert.isNull(screen.queryByTestId("shader-gallery"), "the pick closes the gallery");
@@ -143,7 +138,7 @@ describe("style options and the Shaders gallery", () => {
         });
     });
 
-    it("Target end added from Arrowheads and set to None writes none", async () => {
+    it("Target end added from Ends and set to None writes none", async () => {
         const mounted = await mountElement();
         const nodes = await addNodeLayer(mounted.session);
         const edges = await mounted.session.styles.add({
@@ -154,12 +149,12 @@ describe("style options and the Shaders gallery", () => {
         });
         renderPanel(mounted, [nodes, edges.id]);
         await showKind("edge");
-        const ends = screen.getByRole("group", { name: "Arrowheads" });
-        await userEvent.click(within(ends).getByRole("button", { name: "Add to edge arrowheads" }));
+        const ends = section("edge", "ends");
+        await userEvent.click(within(ends).getByRole("button", { name: "Add to edge ends" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Target end" }));
-        const head = await within(ends).findByRole("combobox", { name: /^Edge target end/ });
+        const head = await within(ends).findByRole("button", { name: /^Edge target end(,|$)/ });
         await userEvent.click(head);
-        await userEvent.click(await screen.findByRole("option", { name: "None" }));
+        await userEvent.click(await screen.findByRole("option", { name: /^None/ }));
         await waitFor(() => {
             assert.equal(written(mounted.session, edges.id, "edge.arrowHead"), "none");
         });

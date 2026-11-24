@@ -8,13 +8,10 @@ import { assert, describe, it } from "vitest";
 import { createElementSession, dispatcherOf } from "../../../src/session/GraphSession";
 import { stateDigest } from "../../../src/session/project/digest";
 import type { GraphSession } from "../../../src/session/types";
-import { fileStylesOn } from "../../helpers/file-styles-on";
 import { fakeLayout, heldScheduler } from "./fakes";
 import { blankHarness, blankSession, fixtureSession, paintBaseline } from "./fixture-session";
 import { FIXTURES, withFixtureFeatures } from "./fixtures";
 import { pictureDigest, roundTrip } from "./round-trip-harness";
-
-fileStylesOn();
 
 describe("round trip per command", () => {
     for (const fixture of FIXTURES.filter((each) => each.tags.includes("session"))) {

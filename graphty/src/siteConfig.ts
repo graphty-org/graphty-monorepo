@@ -8,7 +8,7 @@
  * analytics off.
  */
 
-import { featuresFromUrl, resolveFeatures } from "@graphty/graphty-element/catalog";
+import { featuresFromUrl } from "@graphty/graphty-element/catalog";
 
 /** The sites one build serves; `unknown` when the site said nothing usable. */
 type SiteName = "canary" | "nightly" | "production" | "unknown";
@@ -165,15 +165,6 @@ export function loadSiteConfig(url = `${import.meta.env.BASE_URL}site.json`): Pr
  */
 export function siteConfig(): SiteConfig {
     return current;
-}
-
-/**
- * Whether this site switches styles from files on, for the Settings switch the start page offers
- * before any session exists; `fileStylesOn(session)` answers everywhere else.
- * @returns true when it is on.
- */
-export function siteFileStyles(): boolean {
-    return resolveFeatures(current.features).enabled.includes("file-styles");
 }
 
 /**

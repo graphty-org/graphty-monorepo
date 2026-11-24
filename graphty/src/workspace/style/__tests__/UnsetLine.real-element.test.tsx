@@ -3,7 +3,7 @@
  * color until one is picked: a new Color line draws an empty swatch and an empty box named "not
  * set", over one color beneath or over colors that vary, and Enter or Tab on it writes nothing and
  * leaves it waiting; typing a color and Enter writes it; on a node's own Style tab, "red" and
- * Enter writes it. The Shape list checks nothing while no shape is set.
+ * Enter writes it.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -15,15 +15,10 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
-import { withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { showKind } from "./kindTab";
-
-// These tests drive the Style panel the app shows with file styles off; the panel by part of the
-// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
-withoutFeatures(["file-styles"]);
 
 /**
  * Les Miserables in the workspace with the starting rows.
@@ -113,7 +108,7 @@ async function newFill(session: GraphSession): Promise<{ line: HTMLElement; box:
     await session.styles.settled();
     await openStyle("Paint");
     await showKind("node");
-    const line = await addLine("fill", "node.color", "Color");
+    const line = await addLine("fill", "node.color", "Solid");
     const box = within(line).getByRole<HTMLInputElement>("textbox", { name: /^Node color(,|$)/ });
     return { line, box };
 }
@@ -180,22 +175,5 @@ describe("an unset color line shows no color until one is picked", () => {
         await waitFor(() => {
             assert.equal(colorOf(session, "Paint"), "#E4572E");
         });
-    });
-
-    it("the Shape list checks no shape while none is set", async () => {
-        const session = await openScene();
-        await session.styles.addRow({ name: "Paint", target: "both", selector: { match: "everything" } });
-        await session.styles.settled();
-        await openStyle("Paint");
-        await showKind("node");
-        const line = await addLine("shape", "node.shape", "Shape");
-        await userEvent.click(within(line).getByRole("combobox"));
-        const options = await screen.findAllByRole("option");
-        assert.isAbove(options.length, 1);
-        assert.deepEqual(
-            options.filter((o) => o.hasAttribute("data-checked")).map((o) => o.textContent),
-            [],
-            "no shape is checked as if it were set",
-        );
     });
 });

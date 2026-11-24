@@ -400,7 +400,10 @@ export function importDataTool(catalog: CatalogView): ToolDefinition {
                     url: z.string().max(MAX_STRING).optional().describe("A URL the reader gave in this message."),
                     mode: z.enum(["merge", "replace"]).optional().describe("Default merge."),
                     name: z.string().max(200).optional().describe("What to call the source."),
-                    styles: z.enum(["file"]).optional().describe("file also draws the file's own styles."),
+                    styles: z
+                        .enum(["file", "none"])
+                        .optional()
+                        .describe("file (the default) also draws the file's own styles; none loads the data alone."),
                     options: z
                         .record(z.string(), z.unknown())
                         .optional()
@@ -444,7 +447,10 @@ export function importDataTool(catalog: CatalogView): ToolDefinition {
                                 },
                                 ...(typeof args.name === "string" ? { name: args.name } : {}),
                             },
-                            { mode, ...(args.styles === "file" ? { styles: "file" as const } : {}) },
+                            {
+                                mode,
+                                ...(args.styles === "file" || args.styles === "none" ? { styles: args.styles } : {}),
+                            },
                         ),
                     );
                     return {

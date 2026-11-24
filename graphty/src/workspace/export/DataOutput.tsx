@@ -7,7 +7,6 @@ import React, { useEffect, useRef, useState } from "react";
 
 import { allowlisted, count } from "../../lib/analytics";
 import { sourceName } from "../data-place/words";
-import { fileStylesOn } from "../features";
 import { useAsyncValue } from "../inspector/hooks";
 import { formatNumber } from "../inspector/words";
 import { OptionsForm } from "../options/OptionsForm";
@@ -480,10 +479,8 @@ export function DataOutput({
     const { keyed, table, name } = exportTarget(choices, row, project);
     const binary = format?.binary === true;
     const formatName = row?.plainName ?? format?.plainName ?? choices.format;
-    // Writing styles into a file is the element's file styles experiment: off, nothing says styles.
-    const styled = fileStylesOn(session);
     // The one hint where styles are lost; the project file (Graphty JSON) holds the whole project.
-    const noStyles = styled && choices.format !== "graphty" && writesNoStyles(format);
+    const noStyles = choices.format !== "graphty" && writesNoStyles(format);
     const formatItems = (table: boolean): { value: string; label: string }[] =>
         rows
             .filter((entry) => TABLE_FORMATS.has(entry.format) === table)
@@ -557,7 +554,7 @@ export function DataOutput({
             }
             // A format that writes no styles at all says so under Format ("No styles"), so its
             // export saves at once; only a format that keeps some styles and loses others stops.
-            const lost = noStyles || !styled ? [] : result.losses.filter(isStyleLoss);
+            const lost = noStyles ? [] : result.losses.filter(isStyleLoss);
             if (!anyway && lost.length > 0) {
                 setStyleLosses(lost);
                 return;

@@ -79,13 +79,6 @@ import {
     NodeSizeSpaces,
     type NodeStyleConfig,
 } from "../../config/NodeStyle";
-import {
-    FILE_STYLE_ARROWS,
-    FILE_STYLE_CHANNELS,
-    FILE_STYLE_LINE_PATTERNS,
-    FILE_STYLE_NODE_SHAPES,
-    FILE_STYLE_SIZE_MODES,
-} from "../../features/fileStyles";
 import { isAssetId } from "../assets/assetId";
 
 // ---------------------------------------------------------------------------------------------
@@ -249,7 +242,6 @@ export type EdgeLineValue = EdgeLinePattern;
 
 /**
  * A pattern an edge's outline band can be drawn in (`line.outline.type`).
- * @experimental file-styles
  */
 type EdgeOutlineValue = NonNullable<NonNullable<NonNullable<EdgeStyleConfig["line"]>["outline"]>["type"]>;
 
@@ -343,7 +335,6 @@ type NodeBorderStyleValue = NonNullable<NonNullable<NodeStyleConfig["border"]>["
 
 /**
  * Where a node border sits against the node's size. @public
- * @experimental file-styles
  */
 export type NodeBorderPositionValue = NonNullable<NonNullable<NodeStyleConfig["border"]>["position"]>;
 
@@ -1007,13 +998,6 @@ export interface ChannelDescriptor {
      * @since 3.36.0
      */
     readonly shaderTarget?: "node" | "edge";
-    /**
-     * The experiment the channel belongs to: `"file-styles"` on a channel added to draw the styles
-     * other programs write into graph files. `session.catalog.channels()` leaves such a channel out
-     * while the experiment is off. Absent on every other channel.
-     * @experimental file-styles
-     */
-    readonly feature?: "file-styles";
     /**
      * What a list channel's value holds, on a channel whose value is a list of items written
      * separated by spaces: `"color"` for CSS colors (a gradient's, a pie's slices), `"number"` for
@@ -5598,8 +5582,6 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
                 ...(step === undefined ? {} : { step }),
                 ...(modifies === undefined ? {} : { modifies }),
                 ...(listOf === undefined ? {} : { listOf }),
-                // @experimental file-styles
-                ...(FILE_STYLE_CHANNELS.has(descriptor.channel) ? { feature: "file-styles" as const } : {}),
             },
         ];
     }),
@@ -5719,65 +5701,6 @@ function channelsOf(target: "node" | "edge"): readonly ChannelDescriptor[] {
 
 const NODE_CHANNELS = channelsOf("node");
 const EDGE_CHANNELS = channelsOf("edge");
-
-/**
- * The values the `file-styles` experiment adds, by the value list a channel shares: every channel
- * that takes a node shape, an arrowhead, a line pattern or a size mode reads one of these lists.
- */
-const FILE_STYLE_VALUES = new Map<readonly string[], ReadonlySet<string>>([
-    [NODE_SHAPE_VALUES, new Set(FILE_STYLE_NODE_SHAPES)],
-    [ARROW_VALUES, new Set(FILE_STYLE_ARROWS)],
-    [EDGE_LINE_VALUES, new Set(FILE_STYLE_LINE_PATTERNS)],
-    [NODE_SIZE_MODE_VALUES, new Set(FILE_STYLE_SIZE_MODES)],
-]);
-
-/**
- * A channel as it stands with the `file-styles` experiment off: without the values the experiment
- * added. The descriptor itself when it carries none of them.
- * @param descriptor - The channel.
- * @returns The descriptor, its value list narrowed.
- */
-export function withoutFileStyleValues(descriptor: ChannelDescriptor): ChannelDescriptor {
-    const gated = descriptor.values === undefined ? undefined : FILE_STYLE_VALUES.get(descriptor.values);
-    return gated === undefined
-        ? descriptor
-        : Object.freeze({
-              ...descriptor,
-              values: Object.freeze(descriptor.values?.filter((value) => !gated.has(value))),
-          });
-}
-
-/**
- * The channels of one target with the `file-styles` experiment off: none the experiment added, and
- * none of the values it added. Built once per target.
- * @param target - Nodes or edges.
- * @returns The frozen list, in table order.
- */
-function withoutFileStyles(target: "node" | "edge"): readonly ChannelDescriptor[] {
-    return Object.freeze(
-        channelsFor(target)
-            .filter((descriptor) => descriptor.feature === undefined)
-            .map(withoutFileStyleValues),
-    );
-}
-
-let offLists: { readonly node: readonly ChannelDescriptor[]; readonly edge: readonly ChannelDescriptor[] } | undefined;
-
-/**
- * The channels one session offers for a target: every channel with the `file-styles` experiment
- * on, the same array {@link channelsFor} returns; without what the experiment added otherwise.
- * @param target - Nodes or edges.
- * @param fileStyles - Whether the session switched the experiment on.
- * @returns The channels, the same array on every call with the same arguments.
- */
-export function sessionChannels(target: "node" | "edge", fileStyles: boolean): readonly ChannelDescriptor[] {
-    if (fileStyles) {
-        return channelsFor(target);
-    }
-
-    offLists ??= { node: withoutFileStyles("node"), edge: withoutFileStyles("edge") };
-    return offLists[target];
-}
 
 /**
  * Why a binding may not write `node.model`, or null when it may (design/rendering/node-models.md,

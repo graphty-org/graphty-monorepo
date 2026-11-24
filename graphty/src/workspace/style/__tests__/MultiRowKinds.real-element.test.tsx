@@ -13,14 +13,10 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
-import { withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { receiptSays } from "./tooltip";
-
-// The Style panel the app shows with file styles off.
-withoutFeatures(["file-styles"]);
 
 /** What a scene holds: the session, the store and the folder's two layer rows, top first. */
 interface Scene {

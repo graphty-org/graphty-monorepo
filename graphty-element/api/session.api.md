@@ -1366,7 +1366,7 @@ export type ExportFlattenReason = (typeof EXPORT_FLATTEN_REASONS)[number];
 export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 
 // @public
-export type FeatureId = "data-management" | "location-map" | "cosmograph" | "file-styles" | "source-steps" | "source-references" | "save-files-v2";
+export type FeatureId = "data-management" | "location-map" | "cosmograph" | "source-steps" | "source-references" | "save-files-v2";
 
 // @public
 export interface FieldBand {

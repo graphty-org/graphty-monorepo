@@ -49,7 +49,7 @@ async function openGraph(): Promise<{ session: GraphSession; store: WorkspaceSto
 }
 
 /**
- * Fills the Everything layer's Fill: it sets Color already, and a picture here, so Fill's "+" has
+ * Fills the Everything layer's Visibility: it sets Show here, so Visibility's "+" has
  * nothing left to add.
  * @param session - the element's session.
  */
@@ -58,7 +58,7 @@ async function fillEverything(session: GraphSession): Promise<void> {
     if (everything === undefined) {
         throw new Error("no Everything layer");
     }
-    await session.styles.update(everything.id, { set: { ...everything.set, "node.texture": "asset:not-held" } });
+    await session.styles.update(everything.id, { set: { ...everything.set, "node.visible": true } });
 }
 
 /**
@@ -222,13 +222,13 @@ describe("keys that close what they leave and land focus in the right place", ()
         });
     });
 
-    it("Tab from Add to node text passes over the full Fill +", async () => {
+    it("Tab from Add to node order and groups passes over the full Visibility +", async () => {
         const { session } = await openGraph();
         await fillEverything(session);
         await openRow("Everything");
-        const text = await screen.findByRole("button", { name: "Add to node text" });
-        const fill = screen.getByRole("button", { name: "Add to node fill" });
-        assert.strictEqual(fill.getAttribute("aria-disabled"), "true", "Fill has nothing left to add");
+        const text = await screen.findByRole("button", { name: "Add to node order and groups" });
+        const fill = screen.getByRole("button", { name: "Add to node visibility" });
+        assert.strictEqual(fill.getAttribute("aria-disabled"), "true", "Visibility has nothing left to add");
         text.focus();
         await userEvent.keyboard("{Tab}");
         assert.notStrictEqual(document.activeElement, fill, focused());
@@ -237,7 +237,7 @@ describe("keys that close what they leave and land focus in the right place", ()
         await userEvent.hover(fill);
         // A hang guard: the tooltip waits its 1 s open delay, as long as findBy's default.
         const tip = await screen.findByRole("tooltip", {});
-        assert.strictEqual(tip.textContent, "Everything in node fill is set");
+        assert.strictEqual(tip.textContent, "Everything in node visibility is set");
     });
 
     it("puts the drawing in a region named for it", async () => {

@@ -46,7 +46,6 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 
 import { meaningGloss, weightName } from "../analyze/words";
 import { missingNodes, NO_NODE_ROW, noNodeRow } from "../data-place/words";
-import { fileStylesOn } from "../features";
 import { focusIsLost } from "../frame/focus";
 import { GLYPHS } from "../glyphs";
 import { valueWord } from "../inspector/words";
@@ -440,7 +439,7 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
                           session,
                           sources[0].key,
                           incoming,
-                          loadChoices(draft, choices, "merge", fileStylesOn(session)),
+                          loadChoices(draft, choices, "merge"),
                       ).catch(() => {
                           store.set({ notice: { message: "Not replaced" } });
                       });
@@ -1588,7 +1587,6 @@ function Footer({
     onCancel: () => void;
     onLoad: () => void;
 }): React.JSX.Element {
-    const { session } = useWorkspace();
     const blocked = loadBlocked(page);
     const loadButton = useRef<HTMLButtonElement>(null);
     const replaceButton = useRef<HTMLButtonElement>(null);
@@ -1650,7 +1648,7 @@ function Footer({
                     });
                 }}
             />
-            {draft !== null && fileStylesOn(session) && offersStyles(draft) ? (
+            {draft !== null && offersStyles(draft) ? (
                 <Checkbox
                     label="Import styles from the file"
                     size="xs"

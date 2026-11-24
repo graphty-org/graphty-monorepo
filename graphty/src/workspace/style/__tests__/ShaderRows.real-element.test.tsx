@@ -4,14 +4,13 @@
  * named shader at its own place with focus on the new row, choosing asks no place (a shader draws
  * at its own; the Shape row reads "Hidden" while one draws instead of the node); rows reorder by drag and by Alt+Up; the settings show Minimum
  * size only for a shader that declares it; the tiles are buttons the arrows move through;
- * and the panel never says Effects, Material, On top, On enter or On change. Every assertion reads
+ * and the panel never says Material, On top, On enter or On change. Every assertion reads
  * what the element reports: the layer stack, and what the panel shows.
  */
 
 import { afterEach, assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { withoutFeatures } from "../../../test/features";
 import { dragTo } from "../../../test/real-pointer";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import { hiddenByWords } from "../words";
@@ -28,10 +27,6 @@ import {
     usesOn,
 } from "./shaderHarness";
 import { tooltipOf } from "./tooltip";
-
-// These tests drive the Style panel the app shows with file styles off; the panel by part of the
-// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
-withoutFeatures(["file-styles"]);
 
 afterEach(removeElement);
 
@@ -267,7 +262,7 @@ vec4 shade(NodeInput n) {
         assert.notInclude(described("Pearl"), "In use");
     });
 
-    it("no element of the panel says On enter, On change, Effects, Material or On top", async () => {
+    it("no element of the panel says On enter, On change, Material or On top", async () => {
         const mounted = await mountElement();
         const layer = await addNodeLayer(mounted.session, {
             "node.shaders": [{ shader: idOf(mounted.session, "Reticle") }],
@@ -281,7 +276,8 @@ vec4 shade(NodeInput n) {
             assert.isNotNull(minimumSize());
         });
         const words = document.body.innerText;
-        for (const banned of ["On enter", "On change", "Effects", "Material", "On top"]) {
+        // Effects is a part of the drawing in the panel by part, so only the old words are banned.
+        for (const banned of ["On enter", "On change", "Material", "On top"]) {
             assert.notInclude(words, banned);
         }
     });

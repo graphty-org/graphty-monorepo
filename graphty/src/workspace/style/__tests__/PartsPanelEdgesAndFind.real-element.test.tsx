@@ -1,6 +1,5 @@
 /**
- * The Style tab by part of the drawing, on the REAL graphty-element with its `file-styles`
- * experiment on, driven by real clicks and keys: the edge tab's parts, both arrow ends together,
+ * The Style tab by part of the drawing, on the REAL graphty-element, driven by real clicks and keys: the edge tab's parts, both arrow ends together,
  * each part's settings page (the label's on five pages), and Find a setting with its "/" key, its
  * search words, the other layers that set a setting, and a setting it adds staying in its part.
  */
@@ -12,15 +11,12 @@ import type { GraphSession, LayerSpec } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { withFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { FIND_BOX_ID } from "../../graph-place/FindBox";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { showKind } from "./kindTab";
 import { tooltipOf } from "./tooltip";
-
-withFeatures(["file-styles"]);
 
 /**
  * Opens a project of three nodes, two edges and the layers asked for.

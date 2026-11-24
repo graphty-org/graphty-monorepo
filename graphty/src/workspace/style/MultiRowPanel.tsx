@@ -4,7 +4,6 @@ import type { GraphSession, HistoryStepId, Layer } from "@graphty/graphty-elemen
 import { Stack } from "@mantine/core";
 import React, { useState } from "react";
 
-import { fileStylesOn } from "../features";
 import { findTreeRow, type FoundRow } from "../graph-place/rows";
 import { count } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
@@ -417,7 +416,7 @@ function kindControl(
                 rows={layerRows.filter((id) => has(id, side))}
                 side={side}
                 autoOpen={justOn}
-                {...(fileStylesOn(session) ? { summary: ruleLine } : {})}
+                summary={ruleLine}
                 {...elsewhere}
             />
         ),

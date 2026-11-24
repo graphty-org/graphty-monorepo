@@ -71,7 +71,6 @@ import {
     withCommonWriterOptions,
 } from "../catalog/writerRegistry";
 import { GraphtyError } from "../errors";
-import { featureOff } from "../features/resolve";
 import type { PendingWorkProgress } from "../managers/OperationQueueManager";
 import { SOURCE_VALUE } from "../session/commands/data";
 import { dispatcherOf, scopeResolverOfSession } from "../session/GraphSession";
@@ -386,7 +385,6 @@ interface ExportBuildOptions {
     readonly nodesOnly?: boolean;
     /**
      * Write the graph's styles through the format's style writer. The `styles` option every writer takes; off by default.
-     * @experimental file-styles
      */
     readonly styles?: boolean;
     /** The format written, which decides how node coordinates are spelled. */
@@ -1212,12 +1210,6 @@ export function exportSession(
         });
     }
 
-    // Writing a graph's styles into a file is the file styles experiment.
-    const fileStyles = session.features.enabled.includes("file-styles");
-    if (writerOptions.styles === true && !fileStyles) {
-        throw featureOff("file-styles", "styles");
-    }
-
     const writer = writerFor(format, writerOptions);
     const rows = exportRows(session, scope);
     const build = { ...writer.build, rows, ...(columns === undefined ? {} : { columns: new Set(columns) }) };
@@ -1243,7 +1235,7 @@ export function exportSession(
         return writeWith(writer, built.snapshot, format, [...built.notes, ...styles.notes], styles);
     }
 
-    const layers = fileStyles ? ownLayers(session) : 0;
+    const layers = ownLayers(session);
     const notExported: ElementLossNote[] =
         layers === 0
             ? []

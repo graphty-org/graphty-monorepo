@@ -1,8 +1,7 @@
 /**
- * Styles from files on the REAL graphty-element, with the element's `file-styles` experiment off
- * and on, driven by real input: the Settings switch, the Data page's checkbox, Export's Include
- * styles, the Shape picker's flat shapes and the Width property appear only with it on; a property
- * a layer already sets keeps its row with it off.
+ * Styles from files on the REAL graphty-element, driven by real input: the Settings switch, the
+ * Data page's checkbox, Export's Include styles, the Shape picker's flat shapes and the Width
+ * property are offered, and a property a layer already sets keeps its row.
  */
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
@@ -12,7 +11,6 @@ import { act } from "react";
 import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { withFeatures } from "../../test/features";
 import { render, screen, waitFor, within } from "../../test/test-utils";
 import { openDataPage } from "../data-page/request";
 import { createWorkspaceStore } from "../state/store";
@@ -74,17 +72,11 @@ async function openStyle(): Promise<HTMLElement> {
  * @returns the option names.
  */
 async function shapeChoices(tab: HTMLElement): Promise<string[]> {
-    // With the experiment on, the panel by part picks a shape from a searchable list.
-    const combobox = within(tab).queryByRole("combobox", { name: /^Node shape/ });
-    await userEvent.click(combobox ?? (await within(tab).findByRole("button", { name: /^Node shape, / })));
+    await userEvent.click(await within(tab).findByRole("button", { name: /^Node shape(,|$)/ }));
     const list = await screen.findByRole("listbox");
     const names = within(list)
         .getAllByRole("option")
-        .map((option) =>
-            combobox === null
-                ? (option.textContent ?? "").replace(/\d+ nodes?$/, "")
-                : (option.getAttribute("aria-label") ?? option.textContent),
-        );
+        .map((option) => (option.textContent ?? "").replace(/\d+ nodes?$/, ""));
     await userEvent.keyboard("{Escape}");
     return names;
 }
@@ -154,43 +146,35 @@ async function includeStyles(): Promise<boolean> {
     return within(dialog).queryByRole("checkbox", { name: "Include styles" }) !== null;
 }
 
-for (const on of [false, true]) {
-    describe(`the doors to styles from files with the element's experiment ${on ? "on" : "off"}`, () => {
-        withFeatures(on ? ["file-styles"] : []);
-
-        it(`${on ? "offers" : "hides"} the Settings switch`, async () => {
-            await openProject();
-            assert.strictEqual(await settingsSwitch(), on);
-        });
-
-        it(`${on ? "offers" : "hides"} the Settings switch on the start screen, before any project`, async () => {
-            render(<Workspace store={createWorkspaceStore()} />);
-            await userEvent.click(screen.getByRole("button", { name: /settings/i }));
-            await screen.findByText("Number format");
-            assert.strictEqual(screen.queryByRole("switch", { name: /^Import styles from files/ }) !== null, on);
-        });
-
-        it(`${on ? "offers" : "hides"} Export's Include styles`, async () => {
-            await openProject();
-            assert.strictEqual(await includeStyles(), on);
-        });
-
-        it(`${on ? "offers" : "hides"} the Data page's checkbox`, async () => {
-            assert.strictEqual(await dataPageCheckbox(), on);
-        });
+describe("the doors to styles from files", () => {
+    it("offers the Settings switch", async () => {
+        await openProject();
+        assert.isTrue(await settingsSwitch());
     });
-}
 
-describe("the Style tab with the element's experiment off", () => {
-    withFeatures([]);
+    it("offers the Settings switch on the start screen, before any project", async () => {
+        render(<Workspace store={createWorkspaceStore()} />);
+        await userEvent.click(screen.getByRole("button", { name: /settings/i }));
+        await screen.findByText("Number format");
+        assert.isNotNull(screen.queryByRole("switch", { name: /^Import styles from files/ }));
+    });
 
-    it("offers no flat shape and no Width, and keeps the row of a Width the layer already sets", async () => {
+    it("offers Export's Include styles", async () => {
+        await openProject();
+        assert.isTrue(await includeStyles());
+    });
+
+    it("offers the Data page's checkbox", async () => {
+        assert.isTrue(await dataPageCheckbox());
+    });
+});
+
+describe("the Style tab", () => {
+    it("offers the flat shapes and Width", async () => {
         await openProject();
         const tab = await openStyle();
-        const shapes = await shapeChoices(tab);
-        assert.include(shapes, "Box");
-        assert.notInclude(shapes, "Rectangle");
-        assert.notInclude(await shapeAdds(tab), "Width");
+        assert.include(await shapeChoices(tab), "Rectangle");
+        assert.include(await shapeAdds(tab), "Width");
     });
 
     it("shows a Width and a flat shape a layer already sets", async () => {
@@ -199,17 +183,6 @@ describe("the Style tab with the element's experiment off", () => {
         await waitFor(() => {
             assert.isNotNull(tab.querySelector('.ws-row[data-line="node.width"]'));
         });
-        assert.include(await shapeChoices(tab), "Rectangle");
-    });
-});
-
-describe("the Style tab with the element's experiment on", () => {
-    withFeatures(["file-styles"]);
-
-    it("offers the flat shapes and Width", async () => {
-        await openProject();
-        const tab = await openStyle();
-        assert.include(await shapeChoices(tab), "Rectangle");
-        assert.include(await shapeAdds(tab), "Width");
+        assert.isTrue((await shapeChoices(tab)).some((name) => name.startsWith("Rectangle")));
     });
 });

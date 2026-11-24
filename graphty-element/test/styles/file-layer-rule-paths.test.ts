@@ -11,9 +11,6 @@ import { assert, describe, it } from "vitest";
 import { createGraphSession, selectorRule } from "../../session";
 import { parseSetDefinition } from "../../src/catalog/sets/parse";
 import { isGraphtyError } from "../../src/errors";
-import { fileStylesOn } from "../helpers/file-styles-on";
-
-fileStylesOn();
 
 const FILE = join(
     __dirname,

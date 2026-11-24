@@ -12,14 +12,9 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { withoutFeatures } from "../../../test/features";
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
-
-// These tests drive the Style panel the app shows with file styles off; the panel by part of the
-// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
-withoutFeatures(["file-styles"]);
 
 /** Layout steps taken before the first frame is drawn, so the layout is at rest when it is. */
 const PRE_STEPS = 1000;
@@ -129,7 +124,8 @@ describe("a section's '+' waits for a value", () => {
         await session.styles.settled();
         assert.strictEqual(drawing(session), before, "nothing written, nothing in the key");
 
-        await userEvent.click(within(shape).getByRole("combobox"));
+        await userEvent.click(within(shape).getByRole("button", { name: /^Node shape(,|$)/ }));
+        await screen.findByPlaceholderText(/^Search \d+ shapes$/);
         await userEvent.keyboard("Torus{Enter}");
         await waitFor(() => {
             assert.strictEqual(session.styles.get(layer.id)?.set?.["node.shape"], "torus");

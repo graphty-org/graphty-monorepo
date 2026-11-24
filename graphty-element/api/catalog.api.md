@@ -580,7 +580,6 @@ export interface ChannelDescriptor {
     readonly channel: Channel;
     readonly default?: string | number | boolean;
     readonly exclusiveMin?: boolean;
-    readonly feature?: "file-styles";
     readonly follows?: Channel;
     readonly group: ChannelGroup;
     readonly integer?: boolean;
@@ -751,7 +750,7 @@ export interface FeatureDescriptor {
 }
 
 // @public
-export type FeatureId = "data-management" | "location-map" | "cosmograph" | "file-styles" | "source-steps" | "source-references" | "save-files-v2";
+export type FeatureId = "data-management" | "location-map" | "cosmograph" | "source-steps" | "source-references" | "save-files-v2";
 
 // @public
 export const FEATURES: readonly FeatureDescriptor[];

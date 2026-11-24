@@ -14,15 +14,10 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
-import { withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { showKind } from "./kindTab";
-
-// These tests drive the Style panel the app shows with file styles off; the panel by part of the
-// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
-withoutFeatures(["file-styles"]);
 
 /**
  * Les Miserables in the workspace, one reader's layer open on its Style tab, and a new Color
@@ -55,8 +50,8 @@ async function openColorLine(): Promise<{ session: GraphSession; line: HTMLEleme
     await screen.findByTestId("style-tab");
     await showKind("node");
     await userEvent.click(await screen.findByRole("button", { name: "Add to node fill" }));
-    // Fill also offers Picture, so its "+" opens a menu.
-    await userEvent.click(await screen.findByRole("menuitem", { name: "Color" }));
+    // Fill lists its paints, so its "+" opens a menu: Solid is the color.
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Solid" }));
     const line = await waitFor(() => {
         const found = document.querySelector<HTMLElement>('[data-testid="style-tab"] .ws-row[data-line="node.color"]');
         assert.isNotNull(found);

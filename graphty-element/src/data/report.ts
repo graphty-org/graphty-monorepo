@@ -197,10 +197,10 @@ export interface LoadReport extends ImportReport {
      */
     readonly errors: readonly LoadError[];
     /**
-     * What the load did with the file's styles, when it was asked to read them (`styles: "file"`):
+     * What the load did with the file's styles, when it read them (`styles: "file"`, the default):
      * the layers they made, bottom first, and what reading and translating them met, as codes and
-     * facts. Absent when the load was not asked to read styles.
-     * @experimental file-styles
+     * facts. Absent when the load was asked not to read them (`styles: "none"`) or the file carries
+     * none.
      */
     readonly styles?: LoadStyleReport;
     /**

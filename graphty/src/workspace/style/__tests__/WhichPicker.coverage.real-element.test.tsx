@@ -17,15 +17,11 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
-import { withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { selectWithTwin } from "../../../test/twin-layer";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { tooltipOf } from "./tooltip";
-
-// The Style panel the app shows with file styles off (PartsPanel.real-element.test.tsx has the other).
-withoutFeatures(["file-styles"]);
 
 /**
  * Les Miserables in the workspace, with the starting rows.

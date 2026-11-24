@@ -1,6 +1,6 @@
 {
     "site": "canary",
-    "features": ["cosmograph", "file-styles"],
+    "features": ["cosmograph"],
     "datasets": "https://canary.graphty.app/data/graph-samples/v1/",
     "sentryEnvironment": "canary",
     "analytics": {

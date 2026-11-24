@@ -117,7 +117,6 @@ export interface ImportOutcome {
 
 /**
  * What a load says about the styles it applied.
- * @experimental file-styles
  */
 export interface LoadStyleReport {
     /** The layers the file's styles made, bottom first. */
@@ -152,18 +151,19 @@ function choiceOf(command: DataImportCommand): {
 }
 
 /**
- * Whether an import asks to draw the file's styles, by its own `styles` or its source's.
+ * Whether an import draws the file's styles, by its own `styles` or its source's: it does unless
+ * one of them is `"none"`.
  * @param command - The import, or its parts.
  * @param command.styles - Its own choice.
  * @param command.source - Its source, whose options may carry the choice.
  * @param command.source.config - The source's options.
- * @returns True when it draws them.
+ * @returns True when it draws them, as it does by default.
  */
 export function asksFileStyles(command: {
     readonly styles?: "file" | "none";
     readonly source: { readonly config?: Readonly<Record<string, unknown>> };
 }): boolean {
-    return (command.styles ?? (command.source.config?.styles === "file" ? "file" : "none")) === "file";
+    return (command.styles ?? (command.source.config?.styles === "none" ? "none" : "file")) === "file";
 }
 
 /**
@@ -242,6 +242,12 @@ export async function applyFileStyles(
     // own framing.
     if (options.framing === "file" && replacing) {
         await ctx.inline({ op: "config.set", values: { framing: fileFraming(read, sceneScale ?? 1) } });
+    }
+
+    // A file that carries no styles has nothing to report, and the report is a graph value whose write
+    // costs a re-read of the derived columns: drawing styles by default must not cost a styleless load that.
+    if (read === null) {
+        return sceneScale;
     }
 
     const report: LoadReport = Object.freeze({

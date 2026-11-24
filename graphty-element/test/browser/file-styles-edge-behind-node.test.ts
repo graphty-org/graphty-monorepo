@@ -11,9 +11,6 @@ import { afterEach, assert, describe, it } from "vitest";
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
 import { Projector, readEdge } from "../fidelity/drawn-scene";
-import { fileStylesOn } from "../helpers/file-styles-on";
-
-fileStylesOn();
 
 let mounted: Graphty | null = null;
 

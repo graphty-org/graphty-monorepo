@@ -98,7 +98,7 @@ describe("graphty.members", () => {
 
     it("keeps a file's nested groups, its ids numbers, by node id, not by row, through a save and an open", async () => {
         const session = createGraphSession();
-        await session.data.import({ type: "xgmml", config: { data: NESTED_XGMML } });
+        await session.data.import({ type: "xgmml", config: { data: NESTED_XGMML } }, { styles: "none" });
         await assertGroups(session, NESTED_GROUPS);
         const { text } = await session.project.save();
         session.dispose();
@@ -110,7 +110,7 @@ describe("graphty.members", () => {
 
     it("opens a project saved when the parent key held the parent's row with every node in its group", async () => {
         const session = createGraphSession();
-        await session.data.import({ type: "xgmml", config: { data: NESTED_XGMML } });
+        await session.data.import({ type: "xgmml", config: { data: NESTED_XGMML } }, { styles: "none" });
         const { text } = await session.project.save();
         session.dispose();
 

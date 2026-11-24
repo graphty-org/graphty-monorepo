@@ -82,7 +82,7 @@ describe("a loaded file keeps each edge's own direction (#309)", () => {
 
     it('reports "mixed" for a mixed GEXF file', async () => {
         const session = createElementSession();
-        await session.data.import({ type: "gexf", name: "mixed.gexf", config: { data: GEXF } });
+        await session.data.import({ type: "gexf", name: "mixed.gexf", config: { data: GEXF } }, { styles: "none" });
 
         assert.strictEqual(session.data.statistics().directedness, "mixed");
         assert.deepStrictEqual(directions(session), { a: true, b: false });

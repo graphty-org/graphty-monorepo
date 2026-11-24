@@ -12,13 +12,10 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
-import { withFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { showKind } from "../../style/__tests__/kindTab";
 import { Workspace } from "../../Workspace";
-
-withFeatures(["file-styles"]);
 
 describe("the Line section and the Edge line sheet", () => {
     it("lists an Edge opacity set in the sheet, and opening and closing the sheet leaves the camera", async () => {

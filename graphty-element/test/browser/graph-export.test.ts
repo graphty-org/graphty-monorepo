@@ -25,9 +25,6 @@ import pajek from "../../../graph-io/test/corpus/pajek/karate.net?raw";
 import { type GraphtyError, isGraphtyError } from "../../extend";
 import type { ExportLoss, ExportResult, PendingWorkProgress } from "../../index.js";
 import { Graph, operationQueueOf } from "../../src/Graph";
-import { fileStylesOn } from "../helpers/file-styles-on";
-
-fileStylesOn();
 
 /** One corpus file per graph-io format, and how the element reads it and writes it. */
 const CORPUS: readonly {
@@ -62,7 +59,8 @@ async function loaded(format: string, data: string): Promise<Graph> {
     document.body.appendChild(container);
     const graph = new Graph(container);
     graphs.push(graph);
-    await graph.addDataFromSource(format, { data });
+    // The data alone: a round trip of the records, not of the file's styles.
+    await graph.addDataFromSource(format, { data, styles: "none" });
     await operationQueueOf(graph).waitForCompletion();
     return graph;
 }

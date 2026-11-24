@@ -10,13 +10,7 @@
 
 /** The id of an experiment, as `features="..."` and `createGraphSession({ features })` take it. */
 export type FeatureId =
-    | "data-management"
-    | "location-map"
-    | "cosmograph"
-    | "file-styles"
-    | "source-steps"
-    | "source-references"
-    | "save-files-v2";
+    "data-management" | "location-map" | "cosmograph" | "source-steps" | "source-references" | "save-files-v2";
 
 /** One experiment this build can switch on. */
 export interface FeatureDescriptor {
@@ -35,9 +29,6 @@ export const FEATURES: readonly FeatureDescriptor[] = Object.freeze([
     // The graphty app's use of batched drawing and the long-edge fade and blending options;
     // graphty-element's `renderPath`, edge styles and layout options are not gated.
     { id: "cosmograph", plainName: "Cosmograph-inspired rendering", issue: 3247, since: "2026-11-06" },
-    // Reading and writing the styles other programs write into graph files, and every style channel
-    // and value added to draw them.
-    { id: "file-styles", plainName: "File styles", issue: 706, since: "2026-11-06" },
     // Sources kept as read and the graph rebuilt from ordered steps (design
     // design/data/multiple-data-sources-design.md, stage 1); off, loads, joins and saved files are
     // as before. `all` does not switch it on (features/resolve.ts); name it to try it.
@@ -58,4 +49,5 @@ export const GRADUATED_FEATURES: readonly string[] = Object.freeze([
     "selection-workspace",
     "node-models",
     "assistant",
+    "file-styles",
 ]);

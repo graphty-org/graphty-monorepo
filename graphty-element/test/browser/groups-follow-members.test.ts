@@ -12,10 +12,7 @@ import { Ray, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { Graph, operationQueueOf, renderManagerOf } from "../../src/Graph";
-import { fileStylesOn } from "../helpers/file-styles-on";
 import { NESTED_XGMML, savedWithParentRows } from "../helpers/nested-numeric-groups";
-
-fileStylesOn();
 
 const DOT = `digraph {
   a -> b;
@@ -111,7 +108,7 @@ describe("a group with no stored position follows its members", () => {
      * @param groups - Each group and the nodes inside it, an inner group's included.
      */
     async function follows(type: string, data: string, groups: Record<string, readonly string[]>): Promise<void> {
-        await followsAfter(() => graph.addDataFromSource(type, { data }), groups);
+        await followsAfter(() => graph.addDataFromSource(type, { data, styles: "none" }), groups);
     }
 
     /**
@@ -195,7 +192,7 @@ describe("a group with no stored position follows its members", () => {
     });
 
     it("keeps a file's nested groups by id, its ids numbers, through a save and an open, an older save's too", async () => {
-        await graph.addDataFromSource("xgmml", { data: NESTED_XGMML });
+        await graph.addDataFromSource("xgmml", { data: NESTED_XGMML, styles: "none" });
         await operationQueueOf(graph).waitForCompletion();
         const { text } = await graph.getSession().project.save();
         // As saved now, and as saved when a record's parent was the parent's row.

@@ -1,5 +1,5 @@
 /**
- * The gradient of a node's Fill in the Style panel by part (the file-styles experiment): the
+ * The gradient of a node's Fill in the Style panel by part: the
  * gradient's stops drawn and edited in the shared gradient editor, read from and written to the
  * element's two list channels (`node.gradientColors`, `node.gradientStops`) through the catalog's
  * one reader and writer of their items, both in one step. The editor picks colors without

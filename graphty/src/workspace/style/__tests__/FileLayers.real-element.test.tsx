@@ -1,6 +1,5 @@
 /**
- * The Style panel on the layers a load added, on the REAL graphty-element with the file-styles
- * experiment on: every one of a yEd file's layers, chosen by a real click in the style tree, shows
+ * The Style panel on the layers a load added, on the REAL graphty-element: every one of a yEd file's layers, chosen by a real click in the style tree, shows
  * its Style tab rather than "This panel could not be shown" (#6630), and a loaded layer is shown
  * and edited exactly like one a reader made: its own name in the tree, its Which nodes in the
  * ordinary selection editor (#8259).
@@ -13,12 +12,9 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import GALAXY from "../../../../../graph-io/test/corpus/styles/graphml/fidelity/galaxy-lcms-workflow.graphml?raw";
-import { withFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
-
-withFeatures(["file-styles"]);
 
 /**
  * Opens the workspace and loads the yEd file with its styles.

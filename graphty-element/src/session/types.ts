@@ -3145,7 +3145,6 @@ export interface LoadDraft {
     /**
      * Whether the file carries styles a load with `styles: "file"` would draw, and how many rules
      * they hold per kind; null when the format cannot carry styles or the file holds none.
-     * @experimental file-styles
      */
     readonly styles: {
         /** Whether the file declares styles. */
@@ -3157,7 +3156,6 @@ export interface LoadDraft {
 
 /**
  * How many rules a file's styles hold.
- * @experimental file-styles
  */
 export interface FileStyleSummary {
     /** The rules for nodes. */
@@ -3479,17 +3477,16 @@ export interface LoadChoices extends ImportOptions {
     /**
      * `"file"` draws the file's own styles -- its colors, sizes, shapes, labels and the rest --
      * as style layers above the element's base layers, in the same step, so the graph looks as
-     * it does in the program that wrote the file. `"none"` (the default) loads the data alone.
+     * it does in the program that wrote the file; this is the default. `"none"` loads the data
+     * alone, leaving the file's own look out.
      * `lastImport().styles` says which layers the file made and what could not be drawn.
      * `catalog.formats()` says which formats can carry styles (`styles.read`).
      *
      * OPEN UNION: later releases may add choices.
-     * @experimental file-styles
      */
     readonly styles?: "file" | "none";
     /**
      * How a file's styles are turned into layers, when `styles` is `"file"`.
-     * @experimental file-styles
      */
     readonly styleOptions?: FileStyleOptions;
 }

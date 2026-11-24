@@ -9,10 +9,7 @@ import { afterEach, assert, describe, test, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { Graph } from "../../src/Graph.js";
-import { fileStylesOn } from "../helpers/file-styles-on";
 import { loadedLayers } from "../helpers/loaded-layers";
-
-fileStylesOn();
 
 /** Twelve nodes in two groups, each group with its own viz color. */
 const GEXF = `<?xml version="1.0" encoding="UTF-8"?>
@@ -80,7 +77,7 @@ describe("the file-styles choice on the simple load calls", () => {
         assert.strictEqual(color(graph, "n0"), "#0000ff");
 
         const plain = freshGraph();
-        await plain.loadFromUrl("https://example.com/groups.gexf");
+        await plain.loadFromUrl("https://example.com/groups.gexf", { styles: "none" });
         assert.strictEqual(fileLayers(plain), 0);
     });
 

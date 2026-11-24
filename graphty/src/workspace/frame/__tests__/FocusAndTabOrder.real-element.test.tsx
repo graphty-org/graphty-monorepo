@@ -14,14 +14,9 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { withoutFeatures } from "../../../test/features";
 import { act, render, screen, waitFor, type Within, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
-
-// These tests drive the Style panel the app shows with file styles off; the panel by part of the
-// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
-withoutFeatures(["file-styles"]);
 
 /** Two rings of six joined by one bridge; each node labeled. */
 const NODES = Array.from({ length: 12 }, (_, i) => ({ id: `n${String(i)}`, label: `Node ${String(i)}` }));
@@ -60,16 +55,24 @@ async function openRings(): Promise<{ session: GraphSession; store: WorkspaceSto
 }
 
 /**
- * Fills the Everything layer's Fill: it sets Color already, and a picture here, so Fill's "+" has
- * nothing left to add.
+ * Sets every common property of the Everything layer's Border, so Border's "+" has nothing left
+ * to add.
  * @param session - the element's session.
  */
-async function fillEverything(session: GraphSession): Promise<void> {
+async function borderEverything(session: GraphSession): Promise<void> {
     const everything = session.styles.list().find((layer) => layer.name === "Everything" && layer.target === "node");
     if (everything === undefined) {
         throw new Error("no Everything layer");
     }
-    await session.styles.update(everything.id, { set: { ...everything.set, "node.texture": "asset:not-held" } });
+    await session.styles.update(everything.id, {
+        set: {
+            ...everything.set,
+            "node.borderColor": "#ff0000",
+            "node.borderOpacity": 1,
+            "node.borderWidth": 2,
+            "node.borderStyle": "solid",
+        },
+    });
 }
 
 /**
@@ -241,15 +244,15 @@ describe("focus and Tab order in the workspace, on the real element", () => {
 
     it("a section's + with nothing left to add is no Tab stop and says why", async () => {
         const { session } = await openRings();
-        await fillEverything(session);
+        await borderEverything(session);
         await userEvent.click(await treeRow("Everything"));
         await userEvent.click(await inspector().findByRole("tab", { name: "Style" }));
         await userEvent.click(await inspector().findByRole("tab", { name: /^Node/ }));
-        // Fill holds Color and Picture, which Everything sets (Shape's "+" still offers a sprite).
-        const add = await inspector().findByRole("button", { name: "Add to node fill" });
+        // Border's "+" offers color, opacity, width and style, which Everything sets.
+        const add = await inspector().findByRole("button", { name: "Add to node border" });
         assert.strictEqual(add.getAttribute("aria-disabled"), "true");
         assert.strictEqual(add.tabIndex, -1, "a + that adds nothing is a dead stop");
-        assert.strictEqual(add.getAttribute("aria-description"), "Everything in node fill is set");
+        assert.strictEqual(add.getAttribute("aria-description"), "Everything in node border is set");
     });
 
     it("disabled Undo and Redo stay Tab stops; the canvas toolbar is entered at Analyze", async () => {

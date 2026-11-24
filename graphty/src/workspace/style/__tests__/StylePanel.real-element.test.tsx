@@ -1,8 +1,8 @@
 /**
  * The Style tab on the REAL graphty-element, driven by real input (tier3 design, decision 1.1 and
  * section 2.2): every core field drawn, empty with what lies beneath as its placeholder; typing
- * writes on that row only; Clear on the minus, by an emptied field and Enter, and by Delete on a
- * select, each one undo step; the glyph grid; a rare property set in the settings pop-out drawn as
+ * writes on that row only; Clear on the minus and by an emptied field and Enter, each one undo
+ * step; the shape list; a rare property set in the settings pop-out drawn as
  * its own row; a group hidden when the row does not paint that kind; the route layer's height.
  * Every assertion reads the element's own layers or the page.
  */
@@ -14,15 +14,10 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { withoutFeatures } from "../../../test/features";
 import { act, findValuePicker, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { showKind } from "./kindTab";
-
-// These tests drive the Style panel the app shows with file styles off; the panel by part of the
-// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
-withoutFeatures(["file-styles"]);
 
 /**
  * A new project on a five-node path with the starting rows on.
@@ -129,7 +124,7 @@ describe("the Style tab's fields on the real element", () => {
         });
     });
 
-    it("Shape: the grid picks Octahedron, Delete removes it, and Show set to Hidden is a Visibility row", async () => {
+    it("Shape: the list picks Octahedron, the minus removes it, and Show set to Hidden is a Visibility row", async () => {
         await page.viewport(1440, 900);
         const session = await openProject();
         const selected = nodePart(session, "Selected");
@@ -137,15 +132,12 @@ describe("the Style tab's fields on the real element", () => {
 
         await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Shape" }));
-        await userEvent.click(await within(tab).findByRole("combobox", { name: /^Node shape/ }));
-        await userEvent.click(await screen.findByRole("option", { name: "Octahedron" }));
+        await userEvent.click(await within(tab).findByRole("button", { name: /^Node shape(,|$)/ }));
+        await userEvent.click(await screen.findByRole("option", { name: /^Octahedron/ }));
         await waitFor(() => {
             assert.equal(written(session, selected, "node.shape"), "octahedron");
         });
-        within(tab)
-            .getByRole("combobox", { name: /^Node shape/ })
-            .focus();
-        await userEvent.keyboard("{Delete}");
+        await userEvent.click(within(tab).getByRole("button", { name: "Remove node shape" }));
         await waitFor(() => {
             assert.isUndefined(written(session, selected, "node.shape"));
         });
@@ -301,7 +293,7 @@ function idLayers(session: GraphSession): ReturnType<GraphSession["styles"]["lis
 
 /** Where each field the tests use is added from: its section's "+" and its menu item. */
 const ADDED_FROM: Readonly<Record<string, readonly [string, string, string]>> = {
-    "Node color": ["Add to node fill", "Color", "node.color"],
+    "Node color": ["Add to node fill", "Solid", "node.color"],
     "Node size": ["Add to node shape", "Size", "node.size"],
     "Edge color": ["Add to edge line", "Color", "edge.color"],
 };

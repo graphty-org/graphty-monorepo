@@ -16,16 +16,11 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
-import { withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { historyTip } from "../../frame/historyWords";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { showKind } from "./kindTab";
-
-// These tests drive the Style panel the app shows with file styles off; the panel by part of the
-// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
-withoutFeatures(["file-styles"]);
 
 /** The scene's run rows, by the name the tree draws for each. */
 interface Scene {
@@ -170,7 +165,7 @@ describe("the Style tab's property rows", () => {
     it("draws the vary glyph at rest on Shape, Color, Size, Width and Glow, and '=' in Size opens it", async () => {
         const { runs } = await openScene();
         let tab = await openStyle("Key people");
-        await add(tab, "Add to node shape", "Glow");
+        await add(tab, "Add to node effects", "Glow");
         await add(tab, "Add to node shape", "Shape");
         await add(tab, "Add to node shape", "Size");
         await waitFor(() => {

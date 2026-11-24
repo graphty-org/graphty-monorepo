@@ -11,10 +11,7 @@ import { assert, describe, it } from "vitest";
 
 import { createGraphSession, type DrawnAnnotation, type GraphSession } from "../../session";
 import { dispatcherOf } from "../../src/session/GraphSession";
-import { fileStylesOn } from "../helpers/file-styles-on";
 import { loadedLayers } from "../helpers/loaded-layers";
-
-fileStylesOn();
 
 const CORPUS = join(__dirname, "..", "..", "..", "graph-io", "test", "corpus", "styles");
 const MISERABLES = readFileSync(join(CORPUS, "gexf", "gexfjs-miserables.gexf"), "utf8");

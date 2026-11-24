@@ -62,17 +62,16 @@ fileInput.addEventListener("change", async (e) => {
 
 Many formats carry what the graph looks like as well as what it holds: Gephi's colors and sizes
 in GEXF, yEd's shapes in GraphML, a Cytoscape visual style, a Cytoscape.js stylesheet, Graphviz
-attributes in DOT. Load with `styles: "file"` to draw them as style layers, so the graph looks as
-it does in the program that wrote the file:
+attributes in DOT. A load draws them as style layers by default (`styles: "file"`), so the graph
+looks as it does in the program that wrote the file:
 
 ```typescript
 await graph.loadFromUrl("https://example.com/proteins.cx2", { styles: "file" });
 ```
 
 `loadFromFile`, the element's `dataSourceConfig` (`{ url, styles: "file" }`) and
-`session.data.import(source, { styles: "file" })` take the same choice. Without it, the default
-`"none"`, a load reads the data alone. Styles from files are the `file-styles` experiment, off
-unless the page switches it on. See [Styles from Files](./file-styles) for what the layers look
+`session.data.import(source, { styles: "file" })` take the same choice. With `"none"` a load reads the data alone,
+leaving the file's look out. See [Styles from Files](./file-styles) for what the layers look
 like, the choices that shape them and how to save them back into a file.
 
 ## Text or Bytes

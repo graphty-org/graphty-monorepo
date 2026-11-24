@@ -114,8 +114,6 @@ interface CommandServices {
     config?: () => ProjectConfig;
     /** Whether the rows are drawn on the `"batched"` render path; absent reads `false`. */
     batched?: () => boolean;
-    /** Whether the file styles experiment is on; absent reads on, as a store with no session has no switch. */
-    fileStyles?: () => boolean;
     /** Whether the source-steps experiment is on; absent reads on, as a store with no session has no switch. */
     sourceSteps?: () => boolean;
     /**

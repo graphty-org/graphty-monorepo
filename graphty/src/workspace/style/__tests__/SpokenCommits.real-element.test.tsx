@@ -12,15 +12,10 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
-import { withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { showKind } from "./kindTab";
-
-// These tests drive the Style panel the app shows with file styles off; the panel by part of the
-// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
-withoutFeatures(["file-styles"]);
 
 /**
  * What the status lines hold now.
@@ -67,8 +62,8 @@ describe("a committed change is said", () => {
     it("says a color committed with Enter, with how many nodes it paints", async () => {
         await openPaint();
         await userEvent.click(await screen.findByRole("button", { name: "Add to node fill" }));
-        // Fill also offers Picture, so its "+" opens a menu.
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Color" }));
+        // Fill lists its paints, so its "+" opens a menu: Solid is the color.
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Solid" }));
         const box = await waitFor(() => {
             const found = document.querySelector<HTMLInputElement>(
                 '[data-testid="style-tab"] .ws-row[data-line="node.color"] [data-testid="compact-color-input-hex"]',

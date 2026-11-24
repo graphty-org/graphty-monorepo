@@ -18,15 +18,10 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { START_SAMPLES } from "../../../data/sampleManifest";
-import { withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { tooltipOf } from "../../../test/tooltip";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
-
-// These tests drive the Style panel the app shows with file styles off; the panel by part of the
-// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
-withoutFeatures(["file-styles"]);
 
 /** Layout steps taken before the first frame is drawn, so the layout is at rest when it is. */
 const PRE_STEPS = 1000;
@@ -260,7 +255,7 @@ describe("per-group settings", () => {
         const tab = screen.getByTestId("style-tab");
         const line = await within(tab).findByRole("button", { name: /^Node shape: Box for 1 group by / });
         assert.equal(line.textContent, "Box for 1 group");
-        const rowShape = within(tab).getByRole("combobox", { name: /^Node shape/ });
+        const rowShape = within(tab).getByRole("combobox", { name: /^Node shape(,|$)/ });
         await userEvent.click(rowShape);
         const others = await screen.findAllByRole("option");
         const cone = others.find((o) => /cone/i.test(o.getAttribute("aria-label") ?? o.textContent ?? ""));

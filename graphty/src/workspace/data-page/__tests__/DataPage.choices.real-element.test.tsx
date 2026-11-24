@@ -13,7 +13,6 @@ import { act } from "react";
 import { assert, describe, it } from "vitest";
 import { commands, page, userEvent } from "vitest/browser";
 
-import { withFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -21,7 +20,6 @@ import { openDataPage } from "../request";
 
 // Styles from files on, so the page offers Import styles; source steps off, so an addition loads
 // from the page rather than being staged.
-withFeatures(["file-styles"]);
 
 declare module "vitest/browser" {
     interface BrowserCommands {

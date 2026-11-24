@@ -1,5 +1,5 @@
 /**
- * One kind's Style sections by part of the drawing (the file-styles experiment): Shape, Fill,
+ * One kind's Style sections by part of the drawing: Shape, Fill,
  * Border, Text, Effects, Order and groups, Visibility and Shaders on nodes; Line, Ends, Text,
  * Route, Effects, Visibility and Shaders on edges. Find a setting sits above them, and "/" with
  * focus in the panel (not in a text field) moves to it. Each part is one

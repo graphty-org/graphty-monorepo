@@ -12,14 +12,12 @@ import { assert, describe, it } from "vitest";
 import { page } from "vitest/browser";
 
 import CYS_URL from "../../../../../graph-io/test/corpus/styles/cys/BasicDataVizDemo.cys?url";
-import { withFeatures } from "../../../test/features";
 import { render, screen, waitFor } from "../../../test/test-utils";
 import { IMPORT_FILE_STYLES } from "../../settings/preferences";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
 // Styles from files are an experiment: this test switches it on.
-withFeatures(["file-styles"]);
 
 /**
  * Drops a file as the browser does. A synthetic DragEvent: a page cannot start a drag of a file

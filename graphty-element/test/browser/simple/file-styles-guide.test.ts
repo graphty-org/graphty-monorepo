@@ -11,10 +11,7 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 
 import { openAndSave } from "../../../docs/examples/file-styles/open-and-save";
 import type { Graphty } from "../../../index.js";
-import { fileStylesOn } from "../../helpers/file-styles-on";
 import { loadedLayers } from "../../helpers/loaded-layers";
-
-fileStylesOn();
 
 /** Twelve nodes in two teams, each team with its own viz color. */
 const GEXF = `<?xml version="1.0" encoding="UTF-8"?>

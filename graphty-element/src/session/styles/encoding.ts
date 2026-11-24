@@ -90,7 +90,6 @@ import {
     prototypeFreeMap,
     type ShaderParamTarget,
     toColorValue,
-    withoutFileStyleValues,
 } from "./channels";
 import { parseTemplate, prepareTemplate, TEMPLATE_CHANNELS } from "./labelTemplate";
 import type { LegendFact } from "./legend";
@@ -284,12 +283,6 @@ export interface PrepareBindingOptions {
      * afresh.
      */
     readonly order?: Map<string, number>;
-    /**
-     * Whether the session switched the file styles experiment on; absent reads on. Off, a binding
-     * that spreads over a channel's values (a number onto a shape, groups onto line patterns)
-     * spreads over the values the channel had without it.
-     */
-    readonly fileStyles?: boolean;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1387,11 +1380,6 @@ interface AssemblyParts {
     readonly numeric: boolean;
     /** How many elements in scope the run measured nothing for. */
     readonly unmeasured: number;
-    /**
-     * The channel whose values a slot or a group lands on, when that is not the channel as
-     * declared: without the file styles experiment's values while it is off.
-     */
-    readonly slots?: ChannelDescriptor;
 }
 
 /** What either painter hands back. */
@@ -1665,8 +1653,6 @@ function withChoices(descriptor: ChannelDescriptor, choices: readonly string[] |
  */
 function valuePainter(declared: ChannelDescriptor, binding: RuleBinding, parts: AssemblyParts): Painter {
     const descriptor = withChoices(declared, binding.choices);
-    // A value the binding names itself is checked against every value; slots land on the offered ones.
-    const slots = binding.choices === undefined ? (parts.slots ?? descriptor) : descriptor;
     if (binding.overflow === "shape" && descriptor.channel === "node.shape") {
         return cyclePainter(binding, parts, OVERFLOW_SHAPES);
     }
@@ -1674,9 +1660,9 @@ function valuePainter(declared: ChannelDescriptor, binding: RuleBinding, parts: 
         return cyclePainter(binding, parts, OVERFLOW_PATTERNS);
     }
 
-    const convert = converterFor(slots, binding.format);
+    const convert = converterFor(descriptor, binding.format);
     const groups = groupCount(parts.scale, parts.context);
-    const context = rangeFor(slots, binding, parts, groups);
+    const context = rangeFor(descriptor, binding, parts, groups);
     const absent = missingValue(descriptor, binding);
     const overrides = valueOverrides(binding, parts.categories.lumped, descriptor);
     const otherwise =
@@ -2040,8 +2026,11 @@ function prepareRule(
     }
 
     const facts = walkColumn(options.column, numeric);
-    const slots = options.fileStyles === false ? withoutFileStyleValues(descriptor) : descriptor;
-    const categories = settleCategories(facts, binding.other, overflowKeep(slots, binding, numeric, options.scales));
+    const categories = settleCategories(
+        facts,
+        binding.other,
+        overflowKeep(descriptor, binding, numeric, options.scales),
+    );
     const order = scale === "index" ? (options.order ?? new Map<string, number>()) : undefined;
     if (order !== undefined) {
         // First seen in element order, before any element is painted, so which value gets which
@@ -2076,7 +2065,6 @@ function prepareRule(
         context: { ...base, domain: settled.domain },
         numeric,
         unmeasured: options.unmeasured ?? 0,
-        ...(slots === descriptor ? {} : { slots }),
     });
 }
 
@@ -2482,8 +2470,6 @@ export interface PreviewBindingOptions {
      * {@link BindingPreview.defaulted} is read against. `binding` when absent.
      */
     readonly asWritten?: RuleBinding;
-    /** Whether the file styles experiment is on; see {@link PrepareBindingOptions.fileStyles}. */
-    readonly fileStyles?: boolean;
 }
 
 /**
@@ -2612,7 +2598,6 @@ export function previewBinding(options: PreviewBindingOptions): BindingPreview {
         binding,
         column,
         scales,
-        ...(options.fileStyles === undefined ? {} : { fileStyles: options.fileStyles }),
     });
     const tally = options.counted ?? column;
     const ends = previewEnds(column, prepared.domain);
@@ -2926,8 +2911,6 @@ export interface SequenceOptions {
     readonly count: number;
     /** The session's scales. */
     readonly scales: ScaleRegistry;
-    /** Whether the file styles experiment is on; see {@link PrepareBindingOptions.fileStyles}. */
-    readonly fileStyles?: boolean;
 }
 
 /**
@@ -2962,7 +2945,6 @@ export function sequenceOf(options: SequenceOptions): StyleSequence {
             binding: rule,
             column,
             scales,
-            ...(options.fileStyles === undefined ? {} : { fileStyles: options.fileStyles }),
         });
     const main = prepare(descriptor.channel, binding);
     const half = overflowHalf(descriptor.channel, binding);

@@ -14,26 +14,11 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, describe, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import { withoutFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import policeUrl from "../__fixtures__/car-kit/police.glb?url";
 import colormapUrl from "../__fixtures__/car-kit/Textures/colormap.png?url";
-import {
-    addModel,
-    choose,
-    drawn,
-    dropOn,
-    openCustom,
-    openShapes,
-    previewOf,
-    shapeField,
-    written,
-} from "./modelHarness";
+import { addModel, choose, drawn, dropOn, openCustom, openShapes, previewOf, written } from "./modelHarness";
 import { tooltipOf } from "./tooltip";
-
-// These tests drive the Style panel the app shows with file styles off; the panel by part of the
-// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
-withoutFeatures(["file-styles"]);
 
 /** The car kit's folder, as the file chooser reads it (relative to the graphty project). */
 const KIT_FOLDER = "src/workspace/style/__fixtures__/car-kit";
@@ -183,9 +168,9 @@ async function finished(session: GraphSession, tab: HTMLElement): Promise<void> 
     await waitFor(() => {
         assert.isNull(screen.queryByRole("dialog", { name: "police.glb" }));
         assert.isNull(within(tab).queryByRole("button", { name: CHIP }));
-        assert.equal(document.activeElement, shapeField(tab));
+        // While the layer names a model, Shape is its combobox, still named police.
+        assert.equal(document.activeElement, within(tab).getByRole("combobox", { name: "Node shape, police" }));
     });
-    assert.isNotNull(within(tab).getByRole("combobox", { name: "Node shape, police" }), "still named police");
 }
 
 describe("a model missing parts, on the real element", () => {

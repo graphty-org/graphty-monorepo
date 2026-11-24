@@ -128,12 +128,14 @@ export async function drawn(session: GraphSession): Promise<void> {
 }
 
 /**
- * The Shape field.
+ * The Shape field, opening the shape list: the button that is Shape's value, or the combobox it is
+ * while the layer names a model.
  * @param tab - the Style tab.
- * @returns the combobox.
+ * @returns the field.
  */
 export function shapeField(tab: HTMLElement): HTMLElement {
-    return within(tab).getByRole("combobox", { name: /^Node shape/ });
+    const name = /^Node shape(,|$)/;
+    return within(tab).queryByRole("button", { name }) ?? within(tab).getByRole("combobox", { name });
 }
 
 /**
@@ -143,8 +145,10 @@ export function shapeField(tab: HTMLElement): HTMLElement {
  */
 export async function shapeChoices(tab: HTMLElement): Promise<string[]> {
     await userEvent.click(shapeField(tab));
-    const options = await screen.findAllByRole("option");
-    const names = options.map((option) => option.textContent);
+    const list = await screen.findByRole("listbox");
+    const names = within(list)
+        .getAllByRole("option")
+        .map((option) => (option.textContent ?? "").replace(/\d+ nodes?$/, ""));
     await userEvent.keyboard("{Escape}");
     return names;
 }

@@ -22,10 +22,7 @@ import {
 } from "../../session";
 import { DataSource } from "../../src/data/DataSource";
 import { FILE_STYLE_LAYER_CAP } from "../../src/session/styles/fileStyles/fold";
-import { fileStylesOn } from "../helpers/file-styles-on";
 import { loadedLayers } from "../helpers/loaded-layers";
-
-fileStylesOn();
 
 const CORPUS = join(__dirname, "..", "..", "..", "graph-io", "test", "corpus", "styles");
 const MISERABLES = readFileSync(join(CORPUS, "gexf", "gexfjs-miserables.gexf"), "utf8");
@@ -362,24 +359,32 @@ describe("a file's styles drawn by the load", () => {
         session.dispose();
     });
 
-    it("leaves a load without the choice exactly as it was", async () => {
+    it('draws the file\'s styles for a load without the choice, as styles: "file" does', async () => {
         const plain = createGraphSession();
         const asked = createGraphSession();
         await plain.data.import({ type: "gexf", config: { data: MISERABLES } });
-        await asked.data.import({ type: "gexf", config: { data: MISERABLES } }, { styles: "none" });
-        for (const session of [plain, asked]) {
-            assert.lengthOf(fileLayers(session), 0);
-            assert.deepEqual(namespaces(session), []);
-            assert.notProperty(session.data.lastImport() ?? {}, "styles");
-            assert.deepEqual(
-                session.styles.list().map((layer) => layer.name),
-                ["Node defaults", "Edge defaults"],
-            );
-        }
-
+        await asked.data.import({ type: "gexf", config: { data: MISERABLES } }, { styles: "file" });
+        assert.isAbove(fileLayers(plain).length, 0);
+        assert.deepEqual(
+            plain.styles.list().map((layer) => layer.name),
+            asked.styles.list().map((layer) => layer.name),
+        );
         assert.deepEqual(plain.data.nodes(), asked.data.nodes());
         plain.dispose();
         asked.dispose();
+    });
+
+    it('leaves a load with styles: "none" without the file\'s styles', async () => {
+        const session = createGraphSession();
+        await session.data.import({ type: "gexf", config: { data: MISERABLES } }, { styles: "none" });
+        assert.lengthOf(fileLayers(session), 0);
+        assert.deepEqual(namespaces(session), []);
+        assert.notProperty(session.data.lastImport() ?? {}, "styles");
+        assert.deepEqual(
+            session.styles.list().map((layer) => layer.name),
+            ["Node defaults", "Edge defaults"],
+        );
+        session.dispose();
     });
 
     it("undoes the layers and the values with the load, in one step, and redoes them without reading again", async () => {
@@ -732,7 +737,7 @@ describe("a file's groups (compound nodes)", () => {
         assert.isUndefined(zIndex(styled, "n2::n0"));
 
         const plain = createGraphSession();
-        await plain.data.import({ type: "graphml", config: { data: voctomix } });
+        await plain.data.import({ type: "graphml", config: { data: voctomix } }, { styles: "none" });
         assert.isUndefined(zIndex(plain, "n2"));
         styled.dispose();
         plain.dispose();
@@ -1022,7 +1027,7 @@ describe("a file's drawing order", () => {
 
     it("orders nothing when the file's styles are not drawn", async () => {
         const session = createGraphSession();
-        await session.data.import({ type: "json", config: { data: doc } });
+        await session.data.import({ type: "json", config: { data: doc } }, { styles: "none" });
 
         for (const id of ["first", "second", "third"]) {
             assert.isUndefined(order(session, id), id);

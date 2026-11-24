@@ -116,8 +116,7 @@
             "target": "node",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.labelFont",
@@ -140,40 +139,34 @@
             "target": "node",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.labelWrapTrailingSpace",
             "target": "node",
-            "accepts": "boolean",
-            "experimental": "file-styles"
+            "accepts": "boolean"
         },
         {
             "channel": "node.labelWrapSkipEndSpace",
             "target": "node",
-            "accepts": "boolean",
-            "experimental": "file-styles"
+            "accepts": "boolean"
         },
         {
             "channel": "node.labelWrapEllipsis",
             "target": "node",
-            "accepts": "boolean",
-            "experimental": "file-styles"
+            "accepts": "boolean"
         },
         {
             "channel": "node.labelWrapAnywhere",
             "target": "node",
-            "accepts": "boolean",
-            "experimental": "file-styles"
+            "accepts": "boolean"
         },
         {
             "channel": "node.labelWrapSpaceCount",
             "target": "node",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.labelMaxLines",
@@ -181,42 +174,36 @@
             "accepts": "number",
             "min": 1,
             "integer": true,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.labelMaxLinesEllipsis",
             "target": "node",
-            "accepts": "boolean",
-            "experimental": "file-styles"
+            "accepts": "boolean"
         },
         {
             "channel": "node.labelRunAlign",
             "target": "node",
             "accepts": "enum",
-            "values": ["baseline", "hanging", "middle"],
-            "experimental": "file-styles"
+            "values": ["baseline", "hanging", "middle"]
         },
         {
             "channel": "node.labelMinScreenSize",
             "target": "node",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.labelOnTop",
             "target": "node",
-            "accepts": "boolean",
-            "experimental": "file-styles"
+            "accepts": "boolean"
         },
         {
             "channel": "node.labelRotation",
             "target": "node",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.labelBackground",
@@ -226,28 +213,24 @@
         {
             "channel": "node.labelOutline",
             "target": "node",
-            "accepts": "color",
-            "experimental": "file-styles"
+            "accepts": "color"
         },
         {
             "channel": "node.labelOutlineWidth",
             "target": "node",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.labelBorder",
             "target": "node",
-            "accepts": "color",
-            "experimental": "file-styles"
+            "accepts": "color"
         },
         {
             "channel": "node.labelBorderWidth",
             "target": "node",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.labelOpacity",
@@ -255,8 +238,7 @@
             "accepts": "number",
             "min": 0,
             "max": 1,
-            "step": 0.01,
-            "experimental": "file-styles"
+            "step": 0.01
         },
         {
             "channel": "node.labelBackgroundOpacity",
@@ -264,8 +246,7 @@
             "accepts": "number",
             "min": 0,
             "max": 1,
-            "step": 0.01,
-            "experimental": "file-styles"
+            "step": 0.01
         },
         {
             "channel": "node.labelOutlineOpacity",
@@ -273,8 +254,7 @@
             "accepts": "number",
             "min": 0,
             "max": 1,
-            "step": 0.01,
-            "experimental": "file-styles"
+            "step": 0.01
         },
         {
             "channel": "node.labelBorderOpacity",
@@ -282,165 +262,142 @@
             "accepts": "number",
             "min": 0,
             "max": 1,
-            "step": 0.01,
-            "experimental": "file-styles"
+            "step": 0.01
         },
         {
             "channel": "node.labelPadding",
             "target": "node",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.labelCornerRadius",
             "target": "node",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.labelLineHeight",
             "target": "node",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.labelLineBox",
             "target": "node",
             "accepts": "enum",
-            "values": ["font", "size", "glyphs"],
-            "experimental": "file-styles"
+            "values": ["font", "size", "glyphs"]
         },
         {
             "channel": "node.labelBorderAlign",
             "target": "node",
             "accepts": "enum",
-            "values": ["outside", "center"],
-            "experimental": "file-styles"
+            "values": ["outside", "center"]
         },
         {
             "channel": "node.labelBorderStyle",
             "target": "node",
             "accepts": "enum",
-            "values": ["solid", "double"],
-            "experimental": "file-styles"
+            "values": ["solid", "double"]
         },
         {
             "channel": "node.labelBackgroundShape",
             "target": "node",
             "accepts": "enum",
-            "values": ["rectangle", "circle"],
-            "experimental": "file-styles"
+            "values": ["rectangle", "circle"]
         },
         {
             "channel": "node.labelImage",
             "target": "node",
-            "accepts": "text",
-            "experimental": "file-styles"
+            "accepts": "text"
         },
         {
             "channel": "node.labelImageWidth",
             "target": "node",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.labelImageHeight",
             "target": "node",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.labelImageOffsetX",
             "target": "node",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.labelImageOffsetY",
             "target": "node",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.labelOffsetX",
             "target": "node",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.labelOffsetY",
             "target": "node",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.labelShiftX",
             "target": "node",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.labelShiftY",
             "target": "node",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.labelShiftOf",
             "target": "node",
             "accepts": "enum",
-            "values": ["box", "words"],
-            "experimental": "file-styles"
+            "values": ["box", "words"]
         },
         {
             "channel": "node.labelGapOf",
             "target": "node",
             "accepts": "enum",
-            "values": ["box", "words"],
-            "experimental": "file-styles"
+            "values": ["box", "words"]
         },
         {
             "channel": "node.labelBox",
             "target": "node",
             "accepts": "enum",
-            "values": ["words", "words-at-side", "target-width"],
-            "experimental": "file-styles"
+            "values": ["words", "words-at-side", "target-width"]
         },
         {
             "channel": "node.labelDeclutter",
             "target": "node",
             "accepts": "enum",
-            "values": ["degree", "size"],
-            "experimental": "file-styles"
+            "values": ["degree", "size"]
         },
         {
             "channel": "node.labelMinNodeScreenSize",
             "target": "node",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.labelTextAlign",
             "target": "node",
             "accepts": "enum",
-            "values": ["left", "center", "right"],
-            "experimental": "file-styles"
+            "values": ["left", "center", "right"]
         },
         {
             "channel": "node.labelLocation",
@@ -465,8 +422,7 @@
                 "inside-bottom-left",
                 "inside-bottom-right",
                 "automatic"
-            ],
-            "experimental": "file-styles"
+            ]
         },
         {
             "channel": "node.tooltip",
@@ -568,36 +524,31 @@
             "target": "node",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.height",
             "target": "node",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.depth",
             "target": "node",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.relativeExtents",
             "target": "node",
-            "accepts": "boolean",
-            "experimental": "file-styles"
+            "accepts": "boolean"
         },
         {
             "channel": "node.planar",
             "target": "node",
-            "accepts": "boolean",
-            "experimental": "file-styles"
+            "accepts": "boolean"
         },
         {
             "channel": "node.zIndex",
@@ -605,8 +556,7 @@
             "accepts": "number",
             "min": -1000,
             "max": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.drawOrder",
@@ -614,30 +564,26 @@
             "accepts": "number",
             "min": 0,
             "max": 100,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.borderColor",
             "target": "node",
-            "accepts": "color",
-            "experimental": "file-styles"
+            "accepts": "color"
         },
         {
             "channel": "node.borderWidth",
             "target": "node",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.borderScreenWidth",
             "target": "node",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.borderOpacity",
@@ -645,8 +591,7 @@
             "accepts": "number",
             "min": 0,
             "max": 1,
-            "step": 0.01,
-            "experimental": "file-styles"
+            "step": 0.01
         },
         {
             "channel": "node.borderStyle",
@@ -665,45 +610,39 @@
                 "vertical-slash",
                 "separate-arrow",
                 "contiguous-arrow"
-            ],
-            "experimental": "file-styles"
+            ]
         },
         {
             "channel": "node.borderPosition",
             "target": "node",
             "accepts": "enum",
-            "values": ["outside", "center", "inside"],
-            "experimental": "file-styles"
+            "values": ["outside", "center", "inside"]
         },
         {
             "channel": "node.borderWaveAmplitude",
             "target": "node",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.borderWavePeriod",
             "target": "node",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.outerBorderColor",
             "target": "node",
-            "accepts": "color",
-            "experimental": "file-styles"
+            "accepts": "color"
         },
         {
             "channel": "node.outerBorderWidth",
             "target": "node",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.outerBorderOpacity",
@@ -711,8 +650,7 @@
             "accepts": "number",
             "min": 0,
             "max": 1,
-            "step": 0.01,
-            "experimental": "file-styles"
+            "step": 0.01
         },
         {
             "channel": "node.outerBorderStyle",
@@ -731,49 +669,42 @@
                 "vertical-slash",
                 "separate-arrow",
                 "contiguous-arrow"
-            ],
-            "experimental": "file-styles"
+            ]
         },
         {
             "channel": "node.outerBorderOffset",
             "target": "node",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.outerBorderCount",
             "target": "node",
             "accepts": "number",
             "min": 1,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.raisedBorderWidth",
             "target": "node",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.raisedBorderLightColor",
             "target": "node",
-            "accepts": "color",
-            "experimental": "file-styles"
+            "accepts": "color"
         },
         {
             "channel": "node.raisedBorderDarkColor",
             "target": "node",
-            "accepts": "color",
-            "experimental": "file-styles"
+            "accepts": "color"
         },
         {
             "channel": "node.shadowColor",
             "target": "node",
-            "accepts": "color",
-            "experimental": "file-styles"
+            "accepts": "color"
         },
         {
             "channel": "node.shadowOpacity",
@@ -781,36 +712,31 @@
             "accepts": "number",
             "min": 0,
             "max": 1,
-            "step": 0.01,
-            "experimental": "file-styles"
+            "step": 0.01
         },
         {
             "channel": "node.shadowBlur",
             "target": "node",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.shadowOffsetX",
             "target": "node",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.shadowOffsetY",
             "target": "node",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.underlayColor",
             "target": "node",
-            "accepts": "color",
-            "experimental": "file-styles"
+            "accepts": "color"
         },
         {
             "channel": "node.underlayOpacity",
@@ -818,16 +744,14 @@
             "accepts": "number",
             "min": 0,
             "max": 1,
-            "step": 0.01,
-            "experimental": "file-styles"
+            "step": 0.01
         },
         {
             "channel": "node.underlayPadding",
             "target": "node",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.underlayShape",
@@ -887,22 +811,19 @@
                 "round-polygon",
                 "barrel",
                 "database"
-            ],
-            "experimental": "file-styles"
+            ]
         },
         {
             "channel": "node.underlayCornerRadius",
             "target": "node",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.overlayColor",
             "target": "node",
-            "accepts": "color",
-            "experimental": "file-styles"
+            "accepts": "color"
         },
         {
             "channel": "node.overlayOpacity",
@@ -910,16 +831,14 @@
             "accepts": "number",
             "min": 0,
             "max": 1,
-            "step": 0.01,
-            "experimental": "file-styles"
+            "step": 0.01
         },
         {
             "channel": "node.overlayPadding",
             "target": "node",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.overlayShape",
@@ -979,114 +898,98 @@
                 "round-polygon",
                 "barrel",
                 "database"
-            ],
-            "experimental": "file-styles"
+            ]
         },
         {
             "channel": "node.overlayCornerRadius",
             "target": "node",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.image",
             "target": "node",
-            "accepts": "text",
-            "experimental": "file-styles"
+            "accepts": "text"
         },
         {
             "channel": "node.imageFallback",
             "target": "node",
-            "accepts": "text",
-            "experimental": "file-styles"
+            "accepts": "text"
         },
         {
             "channel": "node.imageFit",
             "target": "node",
             "accepts": "enum",
-            "values": ["contain", "cover", "fill", "none"],
-            "experimental": "file-styles"
+            "values": ["contain", "cover", "fill", "none"]
         },
         {
             "channel": "node.imageWidth",
             "target": "node",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.imageHeight",
             "target": "node",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.imagePixelSize",
             "target": "node",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.imagePositionX",
             "target": "node",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.imagePositionY",
             "target": "node",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.imageOffsetX",
             "target": "node",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.imageOffsetY",
             "target": "node",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.imageRepeat",
             "target": "node",
             "accepts": "enum",
-            "values": ["no-repeat", "repeat", "repeat-x", "repeat-y"],
-            "experimental": "file-styles"
+            "values": ["no-repeat", "repeat", "repeat-x", "repeat-y"]
         },
         {
             "channel": "node.imageClip",
             "target": "node",
             "accepts": "enum",
-            "values": ["node", "none"],
-            "experimental": "file-styles"
+            "values": ["node", "none"]
         },
         {
             "channel": "node.imageSmoothing",
             "target": "node",
-            "accepts": "boolean",
-            "experimental": "file-styles"
+            "accepts": "boolean"
         },
         {
             "channel": "node.imageAutoSize",
             "target": "node",
             "accepts": "enum",
-            "values": ["proportional", "natural"],
-            "experimental": "file-styles"
+            "values": ["proportional", "natural"]
         },
         {
             "channel": "node.imageOpacity",
@@ -1094,28 +997,24 @@
             "accepts": "number",
             "min": 0,
             "max": 1,
-            "step": 0.01,
-            "experimental": "file-styles"
+            "step": 0.01
         },
         {
             "channel": "node.glyph",
             "target": "node",
-            "accepts": "text",
-            "experimental": "file-styles"
+            "accepts": "text"
         },
         {
             "channel": "node.glyphFont",
             "target": "node",
-            "accepts": "text",
-            "experimental": "file-styles"
+            "accepts": "text"
         },
         {
             "channel": "node.glyphSize",
             "target": "node",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.glyphWeight",
@@ -1123,40 +1022,34 @@
             "accepts": "number",
             "min": 1,
             "max": 1000,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.glyphColor",
             "target": "node",
-            "accepts": "color",
-            "experimental": "file-styles"
+            "accepts": "color"
         },
         {
             "channel": "node.pieColors",
             "target": "node",
-            "accepts": "text",
-            "experimental": "file-styles"
+            "accepts": "text"
         },
         {
             "channel": "node.pieSizes",
             "target": "node",
-            "accepts": "text",
-            "experimental": "file-styles"
+            "accepts": "text"
         },
         {
             "channel": "node.pieOpacities",
             "target": "node",
-            "accepts": "text",
-            "experimental": "file-styles"
+            "accepts": "text"
         },
         {
             "channel": "node.pieRadius",
             "target": "node",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.pieHole",
@@ -1164,158 +1057,135 @@
             "accepts": "number",
             "min": 0,
             "max": 1,
-            "step": 0.01,
-            "experimental": "file-styles"
+            "step": 0.01
         },
         {
             "channel": "node.pieRotation",
             "target": "node",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.pieFitBox",
             "target": "node",
-            "accepts": "boolean",
-            "experimental": "file-styles"
+            "accepts": "boolean"
         },
         {
             "channel": "node.pieOffsetX",
             "target": "node",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.pieOffsetY",
             "target": "node",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.stripeColors",
             "target": "node",
-            "accepts": "text",
-            "experimental": "file-styles"
+            "accepts": "text"
         },
         {
             "channel": "node.stripeSizes",
             "target": "node",
-            "accepts": "text",
-            "experimental": "file-styles"
+            "accepts": "text"
         },
         {
             "channel": "node.stripeOpacities",
             "target": "node",
-            "accepts": "text",
-            "experimental": "file-styles"
+            "accepts": "text"
         },
         {
             "channel": "node.stripeDirection",
             "target": "node",
             "accepts": "enum",
-            "values": ["down", "right"],
-            "experimental": "file-styles"
+            "values": ["down", "right"]
         },
         {
             "channel": "node.stripeSize",
             "target": "node",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.stripeFrame",
             "target": "node",
-            "accepts": "text",
-            "experimental": "file-styles"
+            "accepts": "text"
         },
         {
             "channel": "node.chartKind",
             "target": "node",
             "accepts": "enum",
-            "values": ["bar", "stacked-bar", "line", "box", "cells"],
-            "experimental": "file-styles"
+            "values": ["bar", "stacked-bar", "line", "box", "cells"]
         },
         {
             "channel": "node.chartValues",
             "target": "node",
-            "accepts": "text",
-            "experimental": "file-styles"
+            "accepts": "text"
         },
         {
             "channel": "node.chartColors",
             "target": "node",
-            "accepts": "text",
-            "experimental": "file-styles"
+            "accepts": "text"
         },
         {
             "channel": "node.chartMin",
             "target": "node",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.chartMax",
             "target": "node",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.chartHorizontal",
             "target": "node",
-            "accepts": "boolean",
-            "experimental": "file-styles"
+            "accepts": "boolean"
         },
         {
             "channel": "node.chartSize",
             "target": "node",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.chartWidth",
             "target": "node",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.chartHeight",
             "target": "node",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.chartOffsetX",
             "target": "node",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.chartOffsetY",
             "target": "node",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.chartMargin",
             "target": "node",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.chartGap",
@@ -1323,36 +1193,31 @@
             "accepts": "number",
             "min": 0,
             "max": 1,
-            "step": 0.01,
-            "experimental": "file-styles"
+            "step": 0.01
         },
         {
             "channel": "node.chartLineWidth",
             "target": "node",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.chartBorderColor",
             "target": "node",
-            "accepts": "color",
-            "experimental": "file-styles"
+            "accepts": "color"
         },
         {
             "channel": "node.chartBorderWidth",
             "target": "node",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.chartBackgroundColor",
             "target": "node",
-            "accepts": "color",
-            "experimental": "file-styles"
+            "accepts": "color"
         },
         {
             "channel": "node.chartBackgroundOpacity",
@@ -1360,47 +1225,41 @@
             "accepts": "number",
             "min": 0,
             "max": 1,
-            "step": 0.01,
-            "experimental": "file-styles"
+            "step": 0.01
         },
         {
             "channel": "node.groupPadding",
             "target": "node",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.groupPaddingRatio",
             "target": "node",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.groupPaddingOf",
             "target": "node",
             "accepts": "enum",
-            "values": ["width", "height", "average", "min", "max"],
-            "experimental": "file-styles"
+            "values": ["width", "height", "average", "min", "max"]
         },
         {
             "channel": "node.groupMinWidth",
             "target": "node",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.groupMinHeight",
             "target": "node",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.groupMinWidthBiasLeft",
@@ -1408,8 +1267,7 @@
             "accepts": "number",
             "min": 0,
             "max": 1,
-            "step": 0.01,
-            "experimental": "file-styles"
+            "step": 0.01
         },
         {
             "channel": "node.groupMinHeightBiasTop",
@@ -1417,28 +1275,24 @@
             "accepts": "number",
             "min": 0,
             "max": 1,
-            "step": 0.01,
-            "experimental": "file-styles"
+            "step": 0.01
         },
         {
             "channel": "node.groupIncludeLabels",
             "target": "node",
-            "accepts": "boolean",
-            "experimental": "file-styles"
+            "accepts": "boolean"
         },
         {
             "channel": "node.cornerRadius",
             "target": "node",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.exactCornerRadius",
             "target": "node",
-            "accepts": "boolean",
-            "experimental": "file-styles"
+            "accepts": "boolean"
         },
         {
             "channel": "node.cornerFraction",
@@ -1446,59 +1300,50 @@
             "accepts": "number",
             "min": 0,
             "max": 0.5,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.shapePoints",
             "target": "node",
-            "accepts": "text",
-            "experimental": "file-styles"
+            "accepts": "text"
         },
         {
             "channel": "node.shapeStretchPoints",
             "target": "node",
-            "accepts": "boolean",
-            "experimental": "file-styles"
+            "accepts": "boolean"
         },
         {
             "channel": "node.shapeRotation",
             "target": "node",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.shapeParts",
             "target": "node",
-            "accepts": "text",
-            "experimental": "file-styles"
+            "accepts": "text"
         },
         {
             "channel": "node.shapeLines",
             "target": "node",
-            "accepts": "text",
-            "experimental": "file-styles"
+            "accepts": "text"
         },
         {
             "channel": "node.shapeTexts",
             "target": "node",
-            "accepts": "text",
-            "experimental": "file-styles"
+            "accepts": "text"
         },
         {
             "channel": "node.labelTable",
             "target": "node",
-            "accepts": "text",
-            "experimental": "file-styles"
+            "accepts": "text"
         },
         {
             "channel": "node.shapeLineWidth",
             "target": "node",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.shapeLineHaloColor",
@@ -1516,66 +1361,57 @@
             "channel": "node.labelFit",
             "target": "node",
             "accepts": "enum",
-            "values": ["inside", "bounds"],
-            "experimental": "file-styles"
+            "values": ["inside", "bounds"]
         },
         {
             "channel": "node.labelPaddingX",
             "target": "node",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.labelPaddingY",
             "target": "node",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.labelFitSquare",
             "target": "node",
-            "accepts": "boolean",
-            "experimental": "file-styles"
+            "accepts": "boolean"
         },
         {
             "channel": "node.labelFitQuantum",
             "target": "node",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.labelFitImage",
             "target": "node",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.labelFitImagePadding",
             "target": "node",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.imageAspect",
             "target": "node",
-            "accepts": "boolean",
-            "experimental": "file-styles"
+            "accepts": "boolean"
         },
         {
             "channel": "node.gradientColor",
             "target": "node",
-            "accepts": "color",
-            "experimental": "file-styles"
+            "accepts": "color"
         },
         {
             "channel": "node.gradientDirection",
@@ -1583,49 +1419,42 @@
             "accepts": "number",
             "min": 0,
             "max": 360,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.gradientColors",
             "target": "node",
-            "accepts": "text",
-            "experimental": "file-styles"
+            "accepts": "text"
         },
         {
             "channel": "node.gradientStops",
             "target": "node",
-            "accepts": "text",
-            "experimental": "file-styles"
+            "accepts": "text"
         },
         {
             "channel": "node.gradientKind",
             "target": "node",
             "accepts": "enum",
-            "values": ["linear", "radial"],
-            "experimental": "file-styles"
+            "values": ["linear", "radial"]
         },
         {
             "channel": "node.gradientCenterX",
             "target": "node",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.gradientCenterY",
             "target": "node",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.gradientRadius",
             "target": "node",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.model",
@@ -1718,8 +1547,7 @@
             "target": "edge",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.drawOrder",
@@ -1727,8 +1555,7 @@
             "accepts": "number",
             "min": 0,
             "max": 100,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.opacity",
@@ -1788,16 +1615,14 @@
         {
             "channel": "edge.outlineColor",
             "target": "edge",
-            "accepts": "color",
-            "experimental": "file-styles"
+            "accepts": "color"
         },
         {
             "channel": "edge.outlineWidth",
             "target": "edge",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.outlineOpacity",
@@ -1805,21 +1630,18 @@
             "accepts": "number",
             "min": 0,
             "max": 1,
-            "step": 0.01,
-            "experimental": "file-styles"
+            "step": 0.01
         },
         {
             "channel": "edge.outlineStyle",
             "target": "edge",
             "accepts": "enum",
-            "values": ["solid", "dash", "dot", "dash-dot"],
-            "experimental": "file-styles"
+            "values": ["solid", "dash", "dot", "dash-dot"]
         },
         {
             "channel": "edge.underlayColor",
             "target": "edge",
-            "accepts": "color",
-            "experimental": "file-styles"
+            "accepts": "color"
         },
         {
             "channel": "edge.underlayOpacity",
@@ -1827,22 +1649,19 @@
             "accepts": "number",
             "min": 0,
             "max": 1,
-            "step": 0.01,
-            "experimental": "file-styles"
+            "step": 0.01
         },
         {
             "channel": "edge.underlayPadding",
             "target": "edge",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.overlayColor",
             "target": "edge",
-            "accepts": "color",
-            "experimental": "file-styles"
+            "accepts": "color"
         },
         {
             "channel": "edge.overlayOpacity",
@@ -1850,35 +1669,30 @@
             "accepts": "number",
             "min": 0,
             "max": 1,
-            "step": 0.01,
-            "experimental": "file-styles"
+            "step": 0.01
         },
         {
             "channel": "edge.overlayPadding",
             "target": "edge",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.gradientColors",
             "target": "edge",
-            "accepts": "text",
-            "experimental": "file-styles"
+            "accepts": "text"
         },
         {
             "channel": "edge.gradientStops",
             "target": "edge",
-            "accepts": "text",
-            "experimental": "file-styles"
+            "accepts": "text"
         },
         {
             "channel": "edge.gradientKind",
             "target": "edge",
             "accepts": "enum",
-            "values": ["linear", "radial", "none"],
-            "experimental": "file-styles"
+            "values": ["linear", "radial", "none"]
         },
         {
             "channel": "edge.strandColors",
@@ -1926,38 +1740,33 @@
             "target": "edge",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.wavePeriod",
             "target": "edge",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.dashLength",
             "target": "edge",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.dashGap",
             "target": "edge",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.dashArray",
             "target": "edge",
-            "accepts": "text",
-            "experimental": "file-styles"
+            "accepts": "text"
         },
         {
             "channel": "edge.curvature",
@@ -1967,76 +1776,66 @@
         {
             "channel": "edge.bends",
             "target": "edge",
-            "accepts": "text",
-            "experimental": "file-styles"
+            "accepts": "text"
         },
         {
             "channel": "edge.fanSpacing",
             "target": "edge",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.fanned",
             "target": "edge",
-            "accepts": "boolean",
-            "experimental": "file-styles"
+            "accepts": "boolean"
         },
         {
             "channel": "edge.bendCurve",
             "target": "edge",
             "accepts": "enum",
-            "values": ["corners", "midpoints", "bezier", "arc"],
-            "experimental": "file-styles"
+            "values": ["corners", "midpoints", "bezier", "arc"]
         },
         {
             "channel": "edge.arcRadius",
             "target": "edge",
             "accepts": "number",
             "min": 0.5,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.supportModel",
             "target": "edge",
             "accepts": "enum",
-            "values": ["barnesHut", "forceAtlas2"],
-            "experimental": "file-styles"
+            "values": ["barnesHut", "forceAtlas2"]
         },
         {
             "channel": "edge.supportSpringLength",
             "target": "edge",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.supportSpringConstant",
             "target": "edge",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.supportRepulsion",
             "target": "edge",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.supportCentralGravity",
             "target": "edge",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.supportUnit",
@@ -2044,15 +1843,13 @@
             "accepts": "number",
             "min": 0,
             "exclusiveMin": true,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.supportScale",
             "target": "edge",
             "accepts": "enum",
-            "values": ["unit", "drawing"],
-            "experimental": "file-styles"
+            "values": ["unit", "drawing"]
         },
         {
             "channel": "edge.route",
@@ -2072,36 +1869,31 @@
             "target": "edge",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.sourceNodeGap",
             "target": "edge",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.targetNodeGap",
             "target": "edge",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.sourcePort",
             "target": "edge",
-            "accepts": "text",
-            "experimental": "file-styles"
+            "accepts": "text"
         },
         {
             "channel": "edge.targetPort",
             "target": "edge",
-            "accepts": "text",
-            "experimental": "file-styles"
+            "accepts": "text"
         },
         {
             "channel": "edge.arrowHead",
@@ -2157,23 +1949,20 @@
             "target": "edge",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.arrowHeadSide",
             "target": "edge",
             "accepts": "enum",
-            "values": ["left", "right"],
-            "experimental": "file-styles"
+            "values": ["left", "right"]
         },
         {
             "channel": "edge.arrowHeadOutlineWidth",
             "target": "edge",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.arrowHeadPosition",
@@ -2181,21 +1970,18 @@
             "accepts": "number",
             "min": 0,
             "max": 1,
-            "step": 0.01,
-            "experimental": "file-styles"
+            "step": 0.01
         },
         {
             "channel": "edge.arrowHeadGap",
             "target": "edge",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.arrowHeadStack",
             "target": "edge",
-            "accepts": "text",
-            "experimental": "file-styles"
+            "accepts": "text"
         },
         {
             "channel": "edge.arrowHeadColor",
@@ -2205,8 +1991,7 @@
         {
             "channel": "edge.arrowHeadFillColor",
             "target": "edge",
-            "accepts": "color",
-            "experimental": "file-styles"
+            "accepts": "color"
         },
         {
             "channel": "edge.arrowHeadOpacity",
@@ -2219,8 +2004,7 @@
         {
             "channel": "edge.arrowHeadImage",
             "target": "edge",
-            "accepts": "text",
-            "experimental": "file-styles"
+            "accepts": "text"
         },
         {
             "channel": "edge.arrowHeadText",
@@ -2245,14 +2029,12 @@
             "target": "edge",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.arrowHeadTextFont",
             "target": "edge",
-            "accepts": "text",
-            "experimental": "file-styles"
+            "accepts": "text"
         },
         {
             "channel": "edge.arrowHeadTextColor",
@@ -2263,8 +2045,7 @@
             "channel": "edge.arrowHeadTextWeight",
             "target": "edge",
             "accepts": "enum",
-            "values": ["normal", "bold", "100", "200", "300", "500", "600", "800", "900"],
-            "experimental": "file-styles"
+            "values": ["normal", "bold", "100", "200", "300", "500", "600", "800", "900"]
         },
         {
             "channel": "edge.arrowHeadTextOpacity",
@@ -2272,36 +2053,31 @@
             "accepts": "number",
             "min": 0,
             "max": 1,
-            "step": 0.01,
-            "experimental": "file-styles"
+            "step": 0.01
         },
         {
             "channel": "edge.arrowHeadTextDistance",
             "target": "edge",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.arrowHeadTextRotation",
             "target": "edge",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.arrowHeadTextOffsetX",
             "target": "edge",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.arrowHeadTextOffsetY",
             "target": "edge",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.arrowTail",
@@ -2357,23 +2133,20 @@
             "target": "edge",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.arrowTailSide",
             "target": "edge",
             "accepts": "enum",
-            "values": ["left", "right"],
-            "experimental": "file-styles"
+            "values": ["left", "right"]
         },
         {
             "channel": "edge.arrowTailOutlineWidth",
             "target": "edge",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.arrowTailPosition",
@@ -2381,21 +2154,18 @@
             "accepts": "number",
             "min": 0,
             "max": 1,
-            "step": 0.01,
-            "experimental": "file-styles"
+            "step": 0.01
         },
         {
             "channel": "edge.arrowTailGap",
             "target": "edge",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.arrowTailStack",
             "target": "edge",
-            "accepts": "text",
-            "experimental": "file-styles"
+            "accepts": "text"
         },
         {
             "channel": "edge.arrowTailColor",
@@ -2405,8 +2175,7 @@
         {
             "channel": "edge.arrowTailFillColor",
             "target": "edge",
-            "accepts": "color",
-            "experimental": "file-styles"
+            "accepts": "color"
         },
         {
             "channel": "edge.arrowTailOpacity",
@@ -2419,8 +2188,7 @@
         {
             "channel": "edge.arrowTailImage",
             "target": "edge",
-            "accepts": "text",
-            "experimental": "file-styles"
+            "accepts": "text"
         },
         {
             "channel": "edge.arrowTailText",
@@ -2445,14 +2213,12 @@
             "target": "edge",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.arrowTailTextFont",
             "target": "edge",
-            "accepts": "text",
-            "experimental": "file-styles"
+            "accepts": "text"
         },
         {
             "channel": "edge.arrowTailTextColor",
@@ -2463,8 +2229,7 @@
             "channel": "edge.arrowTailTextWeight",
             "target": "edge",
             "accepts": "enum",
-            "values": ["normal", "bold", "100", "200", "300", "500", "600", "800", "900"],
-            "experimental": "file-styles"
+            "values": ["normal", "bold", "100", "200", "300", "500", "600", "800", "900"]
         },
         {
             "channel": "edge.arrowTailTextOpacity",
@@ -2472,36 +2237,31 @@
             "accepts": "number",
             "min": 0,
             "max": 1,
-            "step": 0.01,
-            "experimental": "file-styles"
+            "step": 0.01
         },
         {
             "channel": "edge.arrowTailTextDistance",
             "target": "edge",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.arrowTailTextRotation",
             "target": "edge",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.arrowTailTextOffsetX",
             "target": "edge",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.arrowTailTextOffsetY",
             "target": "edge",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.arrowMiddleHead",
@@ -2543,39 +2303,34 @@
                 "open-vee",
                 "slash",
                 "stem"
-            ],
-            "experimental": "file-styles"
+            ]
         },
         {
             "channel": "edge.arrowMiddleHeadSize",
             "target": "edge",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.arrowMiddleHeadWidth",
             "target": "edge",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.arrowMiddleHeadSide",
             "target": "edge",
             "accepts": "enum",
-            "values": ["left", "right"],
-            "experimental": "file-styles"
+            "values": ["left", "right"]
         },
         {
             "channel": "edge.arrowMiddleHeadOutlineWidth",
             "target": "edge",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.arrowMiddleHeadPosition",
@@ -2583,20 +2338,17 @@
             "accepts": "number",
             "min": 0,
             "max": 1,
-            "step": 0.01,
-            "experimental": "file-styles"
+            "step": 0.01
         },
         {
             "channel": "edge.arrowMiddleHeadColor",
             "target": "edge",
-            "accepts": "color",
-            "experimental": "file-styles"
+            "accepts": "color"
         },
         {
             "channel": "edge.arrowMiddleHeadFillColor",
             "target": "edge",
-            "accepts": "color",
-            "experimental": "file-styles"
+            "accepts": "color"
         },
         {
             "channel": "edge.arrowMiddleHeadOpacity",
@@ -2604,14 +2356,12 @@
             "accepts": "number",
             "min": 0,
             "max": 1,
-            "step": 0.01,
-            "experimental": "file-styles"
+            "step": 0.01
         },
         {
             "channel": "edge.arrowMiddleHeadImage",
             "target": "edge",
-            "accepts": "text",
-            "experimental": "file-styles"
+            "accepts": "text"
         },
         {
             "channel": "edge.arrowMiddleTail",
@@ -2653,39 +2403,34 @@
                 "open-vee",
                 "slash",
                 "stem"
-            ],
-            "experimental": "file-styles"
+            ]
         },
         {
             "channel": "edge.arrowMiddleTailSize",
             "target": "edge",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.arrowMiddleTailWidth",
             "target": "edge",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.arrowMiddleTailSide",
             "target": "edge",
             "accepts": "enum",
-            "values": ["left", "right"],
-            "experimental": "file-styles"
+            "values": ["left", "right"]
         },
         {
             "channel": "edge.arrowMiddleTailOutlineWidth",
             "target": "edge",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.arrowMiddleTailPosition",
@@ -2693,20 +2438,17 @@
             "accepts": "number",
             "min": 0,
             "max": 1,
-            "step": 0.01,
-            "experimental": "file-styles"
+            "step": 0.01
         },
         {
             "channel": "edge.arrowMiddleTailColor",
             "target": "edge",
-            "accepts": "color",
-            "experimental": "file-styles"
+            "accepts": "color"
         },
         {
             "channel": "edge.arrowMiddleTailFillColor",
             "target": "edge",
-            "accepts": "color",
-            "experimental": "file-styles"
+            "accepts": "color"
         },
         {
             "channel": "edge.arrowMiddleTailOpacity",
@@ -2714,14 +2456,12 @@
             "accepts": "number",
             "min": 0,
             "max": 1,
-            "step": 0.01,
-            "experimental": "file-styles"
+            "step": 0.01
         },
         {
             "channel": "edge.arrowMiddleTailImage",
             "target": "edge",
-            "accepts": "text",
-            "experimental": "file-styles"
+            "accepts": "text"
         },
         {
             "channel": "edge.animationSpeed",
@@ -2744,8 +2484,7 @@
             "channel": "edge.labelTextAlign",
             "target": "edge",
             "accepts": "enum",
-            "values": ["left", "center", "right"],
-            "experimental": "file-styles"
+            "values": ["left", "center", "right"]
         },
         {
             "channel": "edge.labelLocation",
@@ -2770,8 +2509,7 @@
                 "inside-bottom-left",
                 "inside-bottom-right",
                 "automatic"
-            ],
-            "experimental": "file-styles"
+            ]
         },
         {
             "channel": "node.visible",
@@ -2834,8 +2572,7 @@
             "target": "edge",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.labelFont",
@@ -2858,40 +2595,34 @@
             "target": "edge",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.labelWrapTrailingSpace",
             "target": "edge",
-            "accepts": "boolean",
-            "experimental": "file-styles"
+            "accepts": "boolean"
         },
         {
             "channel": "edge.labelWrapSkipEndSpace",
             "target": "edge",
-            "accepts": "boolean",
-            "experimental": "file-styles"
+            "accepts": "boolean"
         },
         {
             "channel": "edge.labelWrapEllipsis",
             "target": "edge",
-            "accepts": "boolean",
-            "experimental": "file-styles"
+            "accepts": "boolean"
         },
         {
             "channel": "edge.labelWrapAnywhere",
             "target": "edge",
-            "accepts": "boolean",
-            "experimental": "file-styles"
+            "accepts": "boolean"
         },
         {
             "channel": "edge.labelWrapSpaceCount",
             "target": "edge",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.labelMaxLines",
@@ -2899,68 +2630,58 @@
             "accepts": "number",
             "min": 1,
             "integer": true,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.labelMaxLinesEllipsis",
             "target": "edge",
-            "accepts": "boolean",
-            "experimental": "file-styles"
+            "accepts": "boolean"
         },
         {
             "channel": "edge.labelRunAlign",
             "target": "edge",
             "accepts": "enum",
-            "values": ["baseline", "hanging", "middle"],
-            "experimental": "file-styles"
+            "values": ["baseline", "hanging", "middle"]
         },
         {
             "channel": "edge.labelMinScreenSize",
             "target": "edge",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.labelOnTop",
             "target": "edge",
-            "accepts": "boolean",
-            "experimental": "file-styles"
+            "accepts": "boolean"
         },
         {
             "channel": "edge.labelRotation",
             "target": "edge",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.labelOutline",
             "target": "edge",
-            "accepts": "color",
-            "experimental": "file-styles"
+            "accepts": "color"
         },
         {
             "channel": "edge.labelOutlineWidth",
             "target": "edge",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.labelBorder",
             "target": "edge",
-            "accepts": "color",
-            "experimental": "file-styles"
+            "accepts": "color"
         },
         {
             "channel": "edge.labelBorderWidth",
             "target": "edge",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.labelOpacity",
@@ -2968,8 +2689,7 @@
             "accepts": "number",
             "min": 0,
             "max": 1,
-            "step": 0.01,
-            "experimental": "file-styles"
+            "step": 0.01
         },
         {
             "channel": "edge.labelBackgroundOpacity",
@@ -2977,8 +2697,7 @@
             "accepts": "number",
             "min": 0,
             "max": 1,
-            "step": 0.01,
-            "experimental": "file-styles"
+            "step": 0.01
         },
         {
             "channel": "edge.labelOutlineOpacity",
@@ -2986,8 +2705,7 @@
             "accepts": "number",
             "min": 0,
             "max": 1,
-            "step": 0.01,
-            "experimental": "file-styles"
+            "step": 0.01
         },
         {
             "channel": "edge.labelBorderOpacity",
@@ -2995,58 +2713,50 @@
             "accepts": "number",
             "min": 0,
             "max": 1,
-            "step": 0.01,
-            "experimental": "file-styles"
+            "step": 0.01
         },
         {
             "channel": "edge.labelPadding",
             "target": "edge",
             "accepts": "number",
             "min": 0,
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.labelCornerRadius",
             "target": "edge",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.labelLineHeight",
             "target": "edge",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.labelLineBox",
             "target": "edge",
             "accepts": "enum",
-            "values": ["font", "size", "glyphs"],
-            "experimental": "file-styles"
+            "values": ["font", "size", "glyphs"]
         },
         {
             "channel": "edge.labelBorderAlign",
             "target": "edge",
             "accepts": "enum",
-            "values": ["outside", "center"],
-            "experimental": "file-styles"
+            "values": ["outside", "center"]
         },
         {
             "channel": "edge.labelBorderStyle",
             "target": "edge",
             "accepts": "enum",
-            "values": ["solid", "double"],
-            "experimental": "file-styles"
+            "values": ["solid", "double"]
         },
         {
             "channel": "edge.labelBackgroundShape",
             "target": "edge",
             "accepts": "enum",
-            "values": ["rectangle", "circle"],
-            "experimental": "file-styles"
+            "values": ["rectangle", "circle"]
         },
         {
             "channel": "edge.labelImage",
@@ -3083,50 +2793,43 @@
             "channel": "edge.labelOffsetX",
             "target": "edge",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.labelOffsetY",
             "target": "edge",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.labelShiftX",
             "target": "edge",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.labelShiftY",
             "target": "edge",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.labelShiftOf",
             "target": "edge",
             "accepts": "enum",
-            "values": ["box", "words"],
-            "experimental": "file-styles"
+            "values": ["box", "words"]
         },
         {
             "channel": "edge.labelGapOf",
             "target": "edge",
             "accepts": "enum",
-            "values": ["box", "words"],
-            "experimental": "file-styles"
+            "values": ["box", "words"]
         },
         {
             "channel": "edge.labelBox",
             "target": "edge",
             "accepts": "enum",
-            "values": ["words", "words-at-side", "target-width"],
-            "experimental": "file-styles"
+            "values": ["words", "words-at-side", "target-width"]
         },
         {
             "channel": "node.shaders",
@@ -3163,14 +2866,12 @@
         {
             "channel": "node.xlabel",
             "target": "node",
-            "accepts": "text",
-            "experimental": "file-styles"
+            "accepts": "text"
         },
         {
             "channel": "node.xlabelStyle",
             "target": "node",
-            "accepts": "labelStyle",
-            "experimental": "file-styles"
+            "accepts": "labelStyle"
         },
         {
             "channel": "node.xlabelLocation",
@@ -3195,72 +2896,61 @@
                 "inside-bottom-left",
                 "inside-bottom-right",
                 "automatic"
-            ],
-            "experimental": "file-styles"
+            ]
         },
         {
             "channel": "node.xlabelOffsetX",
             "target": "node",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.xlabelOffsetY",
             "target": "node",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "node.xlabelTextAlign",
             "target": "node",
             "accepts": "enum",
-            "values": ["left", "center", "right"],
-            "experimental": "file-styles"
+            "values": ["left", "center", "right"]
         },
         {
             "channel": "node.xlabelColor",
             "target": "node",
-            "accepts": "color",
-            "experimental": "file-styles"
+            "accepts": "color"
         },
         {
             "channel": "node.xlabelFont",
             "target": "node",
-            "accepts": "text",
-            "experimental": "file-styles"
+            "accepts": "text"
         },
         {
             "channel": "node.xlabelWeight",
             "target": "node",
             "accepts": "enum",
-            "values": ["normal", "bold", "100", "200", "300", "500", "600", "800", "900"],
-            "experimental": "file-styles"
+            "values": ["normal", "bold", "100", "200", "300", "500", "600", "800", "900"]
         },
         {
             "channel": "node.xlabelItalic",
             "target": "node",
-            "accepts": "boolean",
-            "experimental": "file-styles"
+            "accepts": "boolean"
         },
         {
             "channel": "edge.labelTable",
             "target": "edge",
-            "accepts": "text",
-            "experimental": "file-styles"
+            "accepts": "text"
         },
         {
             "channel": "edge.xlabel",
             "target": "edge",
-            "accepts": "text",
-            "experimental": "file-styles"
+            "accepts": "text"
         },
         {
             "channel": "edge.xlabelStyle",
             "target": "edge",
-            "accepts": "labelStyle",
-            "experimental": "file-styles"
+            "accepts": "labelStyle"
         },
         {
             "channel": "edge.xlabelLocation",
@@ -3285,22 +2975,19 @@
                 "inside-bottom-left",
                 "inside-bottom-right",
                 "automatic"
-            ],
-            "experimental": "file-styles"
+            ]
         },
         {
             "channel": "edge.xlabelOffsetX",
             "target": "edge",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         },
         {
             "channel": "edge.xlabelOffsetY",
             "target": "edge",
             "accepts": "number",
-            "step": 0.1,
-            "experimental": "file-styles"
+            "step": 0.1
         }
     ]
 }

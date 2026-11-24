@@ -1,6 +1,5 @@
 /**
- * The Style tab by part of the drawing, on the REAL graphty-element with its `file-styles`
- * experiment on, driven by real clicks and keys: the node tab draws one section per part of a
+ * The Style tab by part of the drawing, on the REAL graphty-element, driven by real clicks and keys: the node tab draws one section per part of a
  * node, a part the layer sets nothing in is a closed header and one it sets carries a dot and a
  * row for every value it sets (draw order among them), Fill and Effects list one heading line per
  * paint or effect with a minus for all of it, and a folder's panel writes to every layer in it.
@@ -13,7 +12,6 @@ import type { GraphSession, LayerSpec } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { withFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -127,23 +125,8 @@ async function gradientEditor(tab: HTMLElement): Promise<HTMLElement> {
 const dotted = (tab: HTMLElement, id: string): boolean =>
     section(tab, id).querySelector('[data-testid="control-section-dot"]') !== null;
 
-describe("the node tab with file styles off", () => {
-    withFeatures([]);
-
-    it("with file styles off the node tab draws Shape, Visibility, Text, Fill and Shaders as today", async () => {
-        await openProject([everyNode("Key", { "node.shape": "box" })]);
-        const tab = await openStyle("Key");
-        await waitFor(() => {
-            assert.deepEqual(nodeSections(tab), ["shape", "visibility", "text", "fill", "shaders"]);
-        });
-        assert.isNull(tab.querySelector("[data-style-parts]"));
-    });
-});
-
 describe("the node tab by part of the drawing", () => {
-    withFeatures(["file-styles"]);
-
-    it("with file styles on the node tab draws Shape, Fill, Border, Text, Effects, Order and groups, Visibility and Shaders", async () => {
+    it("the node tab draws Shape, Fill, Border, Text, Effects, Order and groups, Visibility and Shaders", async () => {
         await openProject([everyNode("Key", { "node.shape": "box" })]);
         const tab = await openStyle("Key");
         await waitFor(() => {
@@ -260,7 +243,7 @@ describe("the node tab by part of the drawing", () => {
         ]);
         const tab = await openStyle("Key");
         const shapes = session.catalog.channelValues("node.shape");
-        assert.strictEqual(shapes.length, 53, "the element offers 53 shapes with file styles on");
+        assert.strictEqual(shapes.length, 53, "the element offers 53 shapes");
         await userEvent.click(await within(section(tab, "shape")).findByRole("button", { name: /^Node shape, Box/ }));
         const search = await screen.findByPlaceholderText("Search 53 shapes");
         const list = await screen.findByRole("group", { name: /values$/ });
@@ -475,8 +458,6 @@ describe("the node tab by part of the drawing", () => {
 });
 
 describe("the Model line, with node models on", () => {
-    withFeatures(["file-styles"]);
-
     it("the Model line names the model the layer draws, never its asset id", async () => {
         const session = await openProject([]);
         const stl =

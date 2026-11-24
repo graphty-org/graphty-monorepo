@@ -154,13 +154,13 @@ describe("the Export dialog's choices", () => {
         assert.strictEqual(options.sanitizeIds, "mangle");
     });
 
-    it("asks for no styles where the element's catalog offers no styles option (file styles off)", () => {
+    it("asks for no styles where a format offers no styles option", () => {
         const graphml = formatDescriptor("graphml");
         assert.isDefined(graphml);
         if (graphml === undefined) {
             return;
         }
-        // What session.catalog.formats() hands over with the file styles experiment off.
+        // A format whose writer takes no styles option.
         const { styles: _styles, ...plain } = graphml;
         const off = { ...plain, writerOptions: (graphml.writerOptions ?? []).filter((o) => o.name !== "styles") };
         const [row] = formatRows([off]);

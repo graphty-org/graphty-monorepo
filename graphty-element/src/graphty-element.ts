@@ -52,7 +52,7 @@ import {
     type NodeEventDetail,
     nodeEventDetail,
 } from "./events";
-import { type EnabledFeatures, featureOff, resolveFeatures } from "./features/resolve";
+import type { EnabledFeatures } from "./features/resolve";
 import {
     featuresFrom,
     type FileLoadOptions,
@@ -1592,7 +1592,7 @@ export class Graphty extends LitElement {
     #featuresValue: readonly string[] | undefined;
 
     /**
-     * The experiments to switch on, space separated (`features="file-styles source-steps"`); `all`
+     * The experiments to switch on, space separated (`features="source-steps cosmograph"`); `all`
      * switches on every one this build declares. Absent takes the page default
      * (`setDefaultFeatures`). Read once, when the element first renders; see `enabledFeatures`.
      * Features marked `@experimental` may change or disappear in a minor release.
@@ -2472,33 +2472,6 @@ export class Graphty extends LitElement {
         });
     }
 
-    /**
-     * A source's options as the element loads them: with the file styles experiment off, a
-     * `styles: "file"` is refused (recorded in {@link Graphty.refusedFeatures} under `styles`) and
-     * the data loads without the file's styles.
-     * @param config - The options.
-     * @returns The options, without `styles` and `styleOptions` when they were refused.
-     */
-    #withoutRefusedStyles(config: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
-        if (config?.styles !== "file") {
-            return config;
-        }
-
-        // Before the first update the session is not settled, so `features` as set now decides.
-        const enabled = this.#settingUp ? resolveFeatures(this.#featuresValue).enabled : this.session.features.enabled;
-        if (enabled.includes("file-styles")) {
-            return config;
-        }
-
-        this.#refusedFeatures.set("styles", {
-            code: "E_FEATURE_OFF",
-            params: { feature: "file-styles", key: "styles" },
-        });
-        elementLogger.error("dataSourceConfig.styles was refused.", asError(featureOff("file-styles", "styles")));
-        const { styles: _styles, styleOptions: _styleOptions, ...rest } = config;
-        return rest;
-    }
-
     /** How many pair loads {@link #runImport} started that have not settled. */
     #pairLoads = 0;
 
@@ -2521,8 +2494,7 @@ export class Graphty extends LitElement {
      * @returns Settles once the load ran or failed.
      */
     #startImport(source: ImportSource, setup: boolean): Promise<void> {
-        const { type } = source;
-        const config = this.#withoutRefusedStyles(source.config);
+        const { type, config } = source;
         if (type !== undefined && config !== undefined) {
             const pair = { type, config };
             this.#loadedPair = pair;

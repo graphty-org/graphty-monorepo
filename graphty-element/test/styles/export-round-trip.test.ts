@@ -24,10 +24,7 @@ import { GraphtyError } from "../../src/errors";
 import { createRunResult } from "../../src/session/results";
 import type { RunExecutionContext, RunOutcome } from "../../src/session/runs";
 import type { ExplainTarget } from "../../src/session/styles/explain";
-import { fileStylesOn } from "../helpers/file-styles-on";
 import { loadedLayers } from "../helpers/loaded-layers";
-
-fileStylesOn();
 
 const CORPUS = join(__dirname, "..", "..", "..", "graph-io", "test", "corpus", "styles");
 

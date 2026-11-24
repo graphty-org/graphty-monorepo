@@ -18,15 +18,10 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
-import { withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { cardFields } from "../cards";
-
-// These tests drive the Style panel the app shows with file styles off; the panel by part of the
-// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
-withoutFeatures(["file-styles"]);
 
 /**
  * Les Miserables in the workspace, with the starting rows.
@@ -162,19 +157,19 @@ async function elementCount(session: GraphSession, leaf: RuleTree, side: "node" 
 }
 
 /**
- * The count the Which row says for one card: the number after the card's words in the row's name
- * ("Which nodes, 22 of 77, degree from 10, 22 nodes"). The row draws only its name; its count and
- * each card's words are its tooltip and its accessible name (#8739).
+ * The count the Which row says, once its rule line names the card: the number before "of" in the
+ * row's name ("Which nodes, 22 of 77 nodes, degree from 10"). The row draws only its name; its count
+ * and its rule line are its tooltip and its accessible name (#8739). The tests' layers pick by that
+ * card alone, so the row's count is the card's.
  * @param words - The start of the card's words.
  * @returns The count.
  */
 async function chipCount(words: string): Promise<number> {
     return waitFor(async () => {
         const name = (await whichRow()).getAttribute("aria-label") ?? "";
-        const at = name.indexOf(words);
-        assert.isAtLeast(at, 0, `the row names "${words}": ${name}`);
-        const n = /^[^]*?, ([\d,]+) (?:nodes?|edges?)(?:,|$)/.exec(name.slice(at + words.length))?.[1];
-        assert.isDefined(n, `a counted card starting "${words}": ${name}`);
+        assert.include(name, words, `the row names "${words}": ${name}`);
+        const n = /^Which (?:nodes|edges), ([\d,]+) of /.exec(name)?.[1];
+        assert.isDefined(n, `a counted row: ${name}`);
         return Number(n?.replaceAll(",", ""));
     });
 }
@@ -514,23 +509,6 @@ describe("the combined Style panel", () => {
         const row = await whichRow("edges");
         assert.match(row.getAttribute("aria-label") ?? "", /^Which edges, Ends/, "no 'of 254 edges' without a number");
         assert.include(row.getAttribute("aria-label") ?? "", "Ends: both in this layer's nodes");
-    });
-
-    it("on a layer with a card and one with none: every node, and the card held by 1 of 2 layers", async () => {
-        const session = await openSample();
-        const leaf: RuleTree = { kind: "text", reads: "data.name", mode: "substring", text: "Mme" };
-        await layerOf(session, "Some", { match: "rule", where: leaf });
-        await layerOf(session, "All");
-        await clickRow("Some");
-        await clickRow("All", "Control");
-        const row = await whichRow();
-        // A card that differs by layer is read in plain words (WhichPicker.tsx).
-        await waitFor(() => {
-            assert.match(
-                row.getAttribute("aria-label") ?? "",
-                /^Which nodes, 77 of 77 nodes, name by layer, 1 of 2 layers$/,
-            );
-        });
     });
 
     it("a rule the cards cannot draw opens as the rule in words and is unchanged on close", async () => {

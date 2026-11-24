@@ -28,9 +28,6 @@ import { outside, roleReadsIn, roleReadsUnder } from "../../../graph-io/test/sty
 import { createGraphSession, type GraphSession } from "../../session";
 import { DataSource } from "../../src/data/DataSource";
 import { readerImport } from "../../src/data/graph-io-import";
-import { fileStylesOn } from "../helpers/file-styles-on";
-
-fileStylesOn();
 
 const CORPUS = join(__dirname, "..", "..", "..", "graph-io", "test", "corpus", "styles");
 const DIGESTS_FILE = join(__dirname, "old-style-paths.digests.json");
@@ -281,10 +278,10 @@ describe('the old style record keys with styles: "file"', () => {
         session.dispose();
     });
 
-    it("still writes the keys for a load that does not ask for styles", async () => {
+    it("still writes the keys for a load that asks for no styles", async () => {
         const text = readFileSync(join(CORPUS, "gexf", "gexfjs-miserables.gexf"), "utf8");
         const session = createGraphSession();
-        await session.data.import({ type: "gexf", config: { data: text } });
+        await session.data.import({ type: "gexf", config: { data: text } }, { styles: "none" });
         const node = session.data.nodes()[0];
         assert.property(node, "color");
         assert.property(node, "size");

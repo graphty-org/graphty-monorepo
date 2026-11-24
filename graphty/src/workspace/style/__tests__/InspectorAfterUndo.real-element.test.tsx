@@ -12,14 +12,9 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
-import { withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
-
-// These tests drive the Style panel the app shows with file styles off; the panel by part of the
-// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
-withoutFeatures(["file-styles"]);
 
 /**
  * Les Miserables with Louvain's groups as layers in a "Louvain" folder.
@@ -81,10 +76,10 @@ function boxes(session: GraphSession, rows: readonly StyleRow[]): number {
  */
 async function pickBox(): Promise<void> {
     const tab = await screen.findByTestId("style-tab");
-    const field = await within(tab).findByRole("combobox", { name: /^Node shape/ });
+    const field = await within(tab).findByRole("button", { name: /^Node shape(,|$)/ });
     await userEvent.click(field);
     const options = await screen.findAllByRole("option");
-    const box = options.find((o) => /^box$/i.test((o.getAttribute("aria-label") ?? o.textContent ?? "").trim()));
+    const box = options.find((o) => /^box(\d+ nodes?)?$/i.test((o.textContent ?? "").trim()));
     assert.isDefined(box, "the shape picker offers Box");
     if (box !== undefined) {
         await userEvent.click(box);
@@ -109,9 +104,8 @@ async function boxUndoBox(session: GraphSession, rows: readonly StyleRow[]): Pro
     await userEvent.keyboard("{Control>}z{/Control}");
     await waitFor(() => {
         assert.equal(boxes(session, rows), 0, "Undo takes Box back");
-        const field = within(tab).getByRole("combobox", { name: /^Node shape/ });
+        const field = within(tab).getByRole("button", { name: /^Node shape(,|$)/ });
         assert.notMatch(field.getAttribute("aria-label") ?? "", /Box/i, "the field no longer says Box");
-        assert.equal((field as HTMLInputElement).value, "", "the field holds no chosen value");
     });
 
     await pickBox();

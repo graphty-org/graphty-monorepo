@@ -3,20 +3,14 @@
 Many graph files say what the graph looks like as well as what it holds: Gephi writes node colors
 and sizes into GEXF, yEd writes shapes and fills into GraphML, Cytoscape keeps a whole visual style
 in its CX, CX2, XGMML and session files, a Cytoscape.js document carries a stylesheet, and DOT
-nodes have colors and shapes. Load with `styles: "file"` and graphty-element draws those styles as
-ordinary style layers, so the graph looks as it does in the program that wrote the file. Export
+nodes have colors and shapes. graphty-element draws those styles as ordinary style layers by
+default (`styles: "file"`), so the graph looks as it does in the program that wrote the file. Export
 with `styles: true` and the layers go back into the file.
-
-Styles from files are the `file-styles` [experiment](./experiments): switch it on with
-`<graphty-element features="file-styles">`, `element.features = ["file-styles"]` before the element
-first renders, or `createGraphSession({ features: ["file-styles"] })`. With it off, a load with
-`styles: "file"` and an export with `styles: true` refuse with `E_FEATURE_OFF`.
 
 ```ts
 import type { Graphty } from "@graphty/graphty-element";
 
 export async function openAndSave(el: Graphty, url: string): Promise<string> {
-    // `el` was given features="file-styles" before it first rendered: styles from files are an experiment.
     // Draw the file's own colors, sizes, shapes and labels as style layers.
     await el.loadFromUrl(url, { styles: "file" });
 
@@ -32,17 +26,17 @@ export async function openAndSave(el: Graphty, url: string): Promise<string> {
 }
 ```
 
-Without `styles: "file"` a load reads the data alone, exactly as it always has: the default is
-`"none"`. Without `styles: true` an export writes the file it always wrote, and says what it left
+A load with `styles: "none"` reads the data alone and leaves the file's look out; without a
+`styles` choice it draws them, as `"file"` does. Without `styles: true` an export writes the file it always wrote, and says what it left
 out (see [Exporting with styles](#exporting-with-styles)). The two are spelled differently on
 purpose: a load names whose styles to draw (`"file"`, the only source today, with room for more),
 while an export only says whether to write the graph's own styles, so it takes `true`.
 
-The same choice is accepted everywhere a load starts:
+The same choice, `"file"` or `"none"`, is accepted everywhere a load starts:
 
-- `element.loadFromUrl(url, { styles: "file" })` and `element.loadFromFile(file, { styles: "file" })`;
-- the element's `dataSourceConfig`: `{ url, styles: "file" }`;
-- `session.data.import(source, { styles: "file" })` and a draft's `load({ styles: "file" })` (see
+- `element.loadFromUrl(url, { styles: "none" })` and `element.loadFromFile(file, { styles: "none" })`;
+- the element's `dataSourceConfig`: `{ url, styles: "none" }`;
+- `session.data.import(source, { styles: "none" })` and a draft's `load({ styles: "none" })` (see
   [Previewing a Load](./load-preview#styles-in-the-file)).
 
 ## Which formats carry styles

@@ -40,7 +40,7 @@ export function markFeaturesOn(): void {
  * Runs every test of the calling file with these experiments off, the rest as the configuration
  * has them: nothing changes in the Off configuration, and in the On configuration every other
  * experiment stays on. For a file that tests what the app shows with one experiment off, when the
- * experiment replaces that part of the app (file-styles replaces the node tab of the Style panel).
+ * experiment replaces that part of the app.
  * @param ids - the experiment ids to keep off.
  */
 export function withoutFeatures(ids: readonly string[]): void {

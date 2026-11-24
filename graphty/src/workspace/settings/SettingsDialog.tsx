@@ -15,11 +15,9 @@ import {
 } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
-import { siteFileStyles } from "../../siteConfig";
 import { AiProviderPage, type PageCommit } from "../assistant-door/AssistantPlace";
 import { AI_PROVIDER_SECTION } from "../assistant-door/commands";
 import { providerDisclosure } from "../assistant-door/provider";
-import { fileStylesOn } from "../features";
 import { useAccelerationStatus } from "../frame/useAccelerationStatus";
 import { ANONYMOUS_COUNTS, answerUsageData, useAnalyticsSends, useUsageAnswer } from "../privacy/usageData";
 import { UsageDataText } from "../privacy/UsageDataText";
@@ -93,10 +91,7 @@ function General(): React.JSX.Element {
     const { colorScheme, setColorScheme } = useMantineColorScheme();
     const numberFormat = useNumberFormats().choice;
     const [importStyles, setImportStyles] = useState(() => fileStylesChoice() === "file");
-    // The switch belongs to the element's file styles experiment; the stored preference is kept. The
-    // start screen has no session yet, so there the site's feature list decides, as the element will.
     const { session, store } = useWorkspace();
-    const styled = session ? fileStylesOn(session) : siteFileStyles();
     const [timelineStyle, setTimelineStyle] = useState(() => readPreference(TIMELINE_STYLE));
     const mapAuto = useWorkspaceState((state) => state.mapDepthIndependentSize);
     return (
@@ -155,18 +150,16 @@ function General(): React.JSX.Element {
                     ]}
                 />
             </Input.Wrapper>
-            {styled ? (
-                <Switch
-                    label="Import styles from files"
-                    description="When a file gives its nodes and edges colors, sizes or shapes, draw them as style layers."
-                    checked={importStyles}
-                    onChange={(event) => {
-                        const next = event.currentTarget.checked;
-                        setImportStyles(next);
-                        writeFileStylesChoice(next);
-                    }}
-                />
-            ) : null}
+            <Switch
+                label="Import styles from files"
+                description="When a file gives its nodes and edges colors, sizes or shapes, draw them as style layers."
+                checked={importStyles}
+                onChange={(event) => {
+                    const next = event.currentTarget.checked;
+                    setImportStyles(next);
+                    writeFileStylesChoice(next);
+                }}
+            />
             <Switch
                 label="Map layout automatically enables depth-independent size"
                 description="While the map layout is drawn, nodes keep their size on screen at any depth and zoom."

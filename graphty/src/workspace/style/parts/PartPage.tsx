@@ -1,5 +1,5 @@
 /**
- * A part's settings page (the file-styles experiment): the sliders button on a part's header, or
+ * A part's settings page: the sliders button on a part's header, or
  * on a list item's heading, opens every setting of the part or item, set or not. A set one is its
  * ordinary line with its minus; an unset one is its name and a "+" that adds its line, waiting for
  * a value. A text item's label settings sit on named pages (Type, Box, Place, Wrap, View). Find a

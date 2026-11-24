@@ -13,13 +13,10 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeAll, beforeEach, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { withoutFeatures } from "../../test/features";
 import { render, screen, waitFor, within } from "../../test/test-utils";
 import { setRenderCounter } from "../renderCounter";
 import { createWorkspaceStore } from "../state/store";
 import { Workspace } from "../Workspace";
-
-withoutFeatures(["file-styles"]);
 
 type GraphElement = HTMLElementTagNameMap["graphty-element"];
 

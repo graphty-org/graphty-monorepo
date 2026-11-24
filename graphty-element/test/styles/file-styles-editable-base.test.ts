@@ -9,9 +9,6 @@ import { join } from "node:path";
 import { assert, describe, it } from "vitest";
 
 import { createGraphSession } from "../../session";
-import { fileStylesOn } from "../helpers/file-styles-on";
-
-fileStylesOn();
 
 const CORPUS = join(__dirname, "..", "..", "..", "graph-io", "test", "corpus", "styles");
 

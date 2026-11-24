@@ -183,7 +183,6 @@ export const EdgeLineTypes = z.enum([
 
 /**
  * The patterns an edge's outline band (`line.outline.type`) can be drawn in.
- * @experimental file-styles
  */
 export const EdgeOutlineTypes = z.enum(["solid", "dash", "dot", "dash-dot"]);
 
@@ -248,7 +247,6 @@ const LineStyle = z.strictObject({
      * `dashGap`, the length of each dot in a program's pattern: the dot is still drawn round, one width across, and
      * the dots repeat every `dashLength + dashGap` widths, as the program's do; a dot shorter than 1 is drawn as a
      * square-ended dash that long, as a disc that short would not show. Unset there, 1.
-     * @experimental file-styles
      */
     dashLength: z.number().nonnegative().optional(),
     /**
@@ -256,7 +254,6 @@ const LineStyle = z.strictObject({
      * Set, the pattern repeats from the line's start, as a dash pattern does, and the last dash is cut where the line
      * ends (unless `patternCount` is set). Unset, the first and last element touch the line's ends and the rest
      * spread between them at least half an element apart.
-     * @experimental file-styles
      */
     dashGap: z.number().nonnegative().optional(),
     /**
@@ -265,7 +262,6 @@ const LineStyle = z.strictObject({
      * 1, then repeats). An odd count is repeated once, as an SVG dash array is; up to 8 numbers are drawn. Set on a
      * "dash", "dot" or "dash-dot" line, the line is drawn as these square-ended dashes in place of its own elements,
      * `dashLength`, `dashGap` and `patternCount`; unset, or on any other line type, it changes nothing.
-     * @experimental file-styles
      */
     dashArray: z.string().optional(),
     /** The line's color, any CSS color. Default "darkgrey". */
@@ -378,7 +374,6 @@ const LineStyle = z.strictObject({
      * one before; `spacing` is how far apart the strands' middles are, in the line's own width units (unset, 1:
      * strands that touch). Each strand is as wide as the line. Fewer than two colors draw the line as it is. Drawn
      * on solid lines; in 3D the strands are laid apart in the layout's plane.
-     * @experimental file-styles
      */
     strands: z
         .strictObject({

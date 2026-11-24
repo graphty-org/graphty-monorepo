@@ -12,12 +12,10 @@ import { assert, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
-import { withFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { Workspace } from "../../Workspace";
 
 // Styles from files are an experiment: these tests switch it on.
-withFeatures(["file-styles"]);
 
 /** The real element, as the page registers it. */
 type PageElement = HTMLElementTagNameMap["graphty-element"];

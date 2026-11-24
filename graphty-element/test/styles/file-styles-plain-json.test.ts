@@ -6,9 +6,6 @@
 import { assert, describe, it } from "vitest";
 
 import { createGraphSession } from "../../session";
-import { fileStylesOn } from "../helpers/file-styles-on";
-
-fileStylesOn();
 
 const NODES = [
     { id: "a", label: "A", kind: "account", city: "Chicago", latitude: 41.8781, longitude: -87.6298, case: "" },

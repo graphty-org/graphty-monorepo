@@ -305,7 +305,6 @@ import type {
     SourceSettings,
 } from "./sources/types";
 import { computeFingerprint, computeStatistics } from "./statistics";
-import { asksFileStyles } from "./styles/fileStyles/apply";
 import type { CompiledLayer } from "./styles/Layer";
 import { expressionPaths } from "./styles/predicate";
 import { STRUCTURE_VALUES, structureValuesOf } from "./styles/sources";
@@ -608,11 +607,6 @@ interface PageSources {
      * @returns the candidates
      */
     timeCandidates?(): readonly { readonly kind: "node" | "edge"; readonly column: string }[];
-    /**
-     * Whether the file styles experiment is on; absent reads on.
-     * @returns true when it is
-     */
-    fileStyles?(): boolean;
     /**
      * Whether the source-steps experiment is on; absent reads off.
      * @returns true when it is
@@ -1721,11 +1715,6 @@ export class SessionData implements SessionDataApi {
     async import(source: DataSourceInput, options: LoadChoices & SourceLoadOptions = {}): Promise<void> {
         this.requireLive("import");
 
-        // Refused before anything is read, a network source's fetch included.
-        if (asksFileStyles({ ...options, source }) && this.pages.fileStyles?.() === false) {
-            throw featureOff("file-styles", "styles");
-        }
-
         // An abort stops the load wherever it is -- waiting for its turn, reading the file or the
         // URL, or between two chunks -- and the import rejects with the caller's own reason; the
         // dispatcher reverts what it wrote, so the graph and the history are as they were.
@@ -2739,8 +2728,7 @@ export class SessionData implements SessionDataApi {
         options: { readonly signal?: AbortSignal; readonly onto?: "graph"; readonly guess?: "names" | "values" } = {},
     ): Promise<Draft> {
         this.heldDraft?.dispose();
-        // With the file styles experiment off a draft does not say what styles the file carries.
-        const styles = this.pages.fileStyles?.() === false ? null : await draftStyles(read, options.signal);
+        const styles = await draftStyles(read, options.signal);
         const draft = new Draft(
             read,
             {

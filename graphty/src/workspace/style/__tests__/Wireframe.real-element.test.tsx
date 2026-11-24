@@ -1,6 +1,6 @@
 /**
  * Wireframe as a Shape option on the REAL graphty-element, driven by real input (decisions-v2,
- * section 7): Shape's "+" then Wireframe writes `node.wireframe` true with `node.meshDetail` "low"
+ * section 7): Shape's settings page's "+" on Wireframe writes `node.wireframe` true with `node.meshDetail` "low"
  * as one step, and one Undo takes both back; Off writes it off and drops the detail; the minus
  * takes both away. Every assertion reads what the element's layer holds and its history.
  */
@@ -8,13 +8,8 @@
 import { afterEach, assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { withoutFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import { addNodeLayer, mountElement, removeElement, renderPanel, section } from "./shaderHarness";
-
-// These tests drive the Style panel the app shows with file styles off; the panel by part of the
-// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
-withoutFeatures(["file-styles"]);
 
 afterEach(removeElement);
 
@@ -23,7 +18,7 @@ describe("Wireframe in Shape", () => {
         await page.viewport(1024, 768);
     });
 
-    it("Shape '+' then Wireframe writes wireframe and low detail in one step; one Undo removes both", async () => {
+    it("Shape's settings page '+' on Wireframe writes wireframe and low detail in one step; one Undo removes both", async () => {
         const mounted = await mountElement();
         const { session } = mounted;
         const layer = await addNodeLayer(session);
@@ -31,8 +26,9 @@ describe("Wireframe in Shape", () => {
         const set = (): Record<string, unknown> => ({ ...session.styles.get(layer)?.set });
         const steps = session.history.position;
 
-        await userEvent.click(within(section("node", "shape")).getByRole("button", { name: "Add to node shape" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Wireframe" }));
+        await userEvent.click(within(section("node", "shape")).getByRole("button", { name: "Node shape settings" }));
+        const settings = await screen.findByRole("dialog", { name: "Node shape" });
+        await userEvent.click(within(settings).getByRole("button", { name: "Add node wireframe" }));
         await waitFor(() => {
             assert.strictEqual(set()["node.wireframe"], true);
             assert.strictEqual(set()["node.meshDetail"], "low");

@@ -10,9 +10,6 @@ import { afterEach, assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
-import { fileStylesOn } from "../helpers/file-styles-on";
-
-fileStylesOn();
 
 const WIDTH = 480;
 const HEIGHT = 360;
@@ -229,7 +226,11 @@ describe("a file's fixed framing box", () => {
         assert.closeTo(gap(), 0.6 * (box.max[0] - box.min[0]), 1e-3, "the nodes are drawn at the box's scale");
 
         // Unstyled, nothing sets a scale or a box: the spacing spread draws the 0.6 side three node widths long.
-        await element.loadFromFile(new File([PAJEK], "square.net"), { replace: true, layout: "recommended" });
+        await element.loadFromFile(new File([PAJEK], "square.net"), {
+            replace: true,
+            layout: "recommended",
+            styles: "none",
+        });
         await operationQueueOf(element.graph).waitForCompletion();
         await element.waitForStableFrame();
         assert.isUndefined(element.session.config.framing?.box, "no box frames the unstyled load");
@@ -242,7 +243,11 @@ describe("a file's fixed framing box", () => {
         await loadPajek(element);
         assert.isDefined(element.session.config.framing?.box, "the load framed Pajek's square");
 
-        await element.loadFromFile(new File([PAJEK], "square.net"), { replace: true, layout: "recommended" });
+        await element.loadFromFile(new File([PAJEK], "square.net"), {
+            replace: true,
+            layout: "recommended",
+            styles: "none",
+        });
         await operationQueueOf(element.graph).waitForCompletion();
         await element.waitForStableFrame();
         assert.isUndefined(element.session.config.framing?.box, "the new graph is not framed by the last file's box");

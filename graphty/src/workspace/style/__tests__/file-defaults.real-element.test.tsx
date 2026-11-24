@@ -1,6 +1,5 @@
 /**
- * A Cytoscape session's own defaults on the REAL graphty-element with the file-styles experiment
- * on (issue #7495): the app's Everything row holds the base look, and the file's defaults are drawn
+ * A Cytoscape session's own defaults on the REAL graphty-element (issue #7495): the app's Everything row holds the base look, and the file's defaults are drawn
  * over it, not under it. Every value asserted is read through the element's public API.
  */
 // Registers the real <graphty-element>, as main.tsx does.
@@ -10,12 +9,9 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 
 import CYS_URL from "../../../../../graph-io/test/corpus/styles/cys/BasicDataVizDemo.cys?url";
-import { withFeatures } from "../../../test/features";
 import { render, waitFor } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
-
-withFeatures(["file-styles"]);
 
 /**
  * Opens the workspace and loads the Cytoscape session with its styles.

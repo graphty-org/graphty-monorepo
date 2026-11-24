@@ -13,14 +13,10 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import { withoutFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import policeUrl from "../__fixtures__/car-kit/police.glb?url";
 import { addModel, choose, dropOn, openCustom, openShapes, previewOf, previewPicture } from "./modelHarness";
 import { quadGlb } from "./quadGlb";
-
-// The Style panel the app shows with file styles off, as CustomModelDialog.real-element.test.tsx drives it.
-withoutFeatures(["file-styles"]);
 
 /** The car kit's folder (police.glb and its one picture), as the file chooser reads it. */
 const KIT_FOLDER = "src/workspace/style/__fixtures__/car-kit";

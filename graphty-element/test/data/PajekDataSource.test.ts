@@ -2,9 +2,6 @@ import { assert, describe, it } from "vitest";
 
 import { PajekDataSource } from "../../src/data/PajekDataSource.js";
 import { createGraphSession } from "../../src/session";
-import { fileStylesOn } from "../helpers/file-styles-on";
-
-fileStylesOn();
 
 describe("PajekDataSource", () => {
     describe("constructor", () => {

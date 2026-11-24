@@ -12,7 +12,6 @@ import { assert, describe, it, vi } from "vitest";
 
 import { createGraphSession } from "../../../../session";
 import { dispatcherOf } from "../../../../src/session/GraphSession";
-import { fileStylesOn } from "../../../helpers/file-styles-on";
 
 /** The source the next extraction reports in place of its own, or null to keep its own. */
 const identity = vi.hoisted(() => ({ source: null as ExtractedStyles["styles"]["source"] | null, rewritten: 0 }));
@@ -33,8 +32,6 @@ vi.mock("@graphty/graph-io/styles", async (original) => {
         },
     };
 });
-
-fileStylesOn();
 
 const CORPUS = join(__dirname, "..", "..", "..", "..", "..", "graph-io", "test", "corpus", "styles");
 

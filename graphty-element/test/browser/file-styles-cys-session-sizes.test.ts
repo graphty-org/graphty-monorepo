@@ -9,9 +9,6 @@ import { afterEach, assert, beforeEach, describe, it } from "vitest";
 import cysUrl from "../../../graph-io/test/corpus/styles/cys/BasicDataVizDemo.cys?url";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { drawnFrames } from "../helpers/drawn-frames";
-import { fileStylesOn } from "../helpers/file-styles-on";
-
-fileStylesOn();
 
 /**
  * Cytoscape's drawing in the session's view: its nodes are 75 wide (the "default" visual style's NODE_WIDTH) and its

@@ -202,16 +202,16 @@ Other choices `report`, `load` and `import` take:
   keeps the first row's node; `"merge"` also writes the later row's values onto it, later rows
   winning; `"refuse"` refuses the load with `E_DUPLICATE_ID`, whose `details.id` names the id.
 - `directed`: writes `data.directed` in the same undoable step as the load.
-- `styles`: `"file"` also draws the file's own styles as style layers, in the same step; `"none"`
-  (the default) loads the data alone. `styleOptions` shapes how. See
+- `styles`: `"file"` (the default) also draws the file's own styles as style layers, in the same
+  step; `"none"` loads the data alone. `styleOptions` shapes how. See
   [Styles in the file](#styles-in-the-file).
 - `layout`: `"recommended"` also picks a layout for what was loaded.
 
 ## Styles in the file
 
 `draft.styles` says, before anything loads, whether the file carries styles a load with
-`styles: "file"` would draw. It is null when the format cannot carry styles, the file holds none or
-the `file-styles` experiment is off, and otherwise `{ declared, summary }`:
+`styles: "file"` would draw. It is null when the format cannot carry styles or the file holds none,
+and otherwise `{ declared, summary }`:
 
 - `declared`: true when reading the file's styles found rules to draw;
 - `summary.nodeRules` and `summary.edgeRules`: how many rules there are for nodes and for edges;

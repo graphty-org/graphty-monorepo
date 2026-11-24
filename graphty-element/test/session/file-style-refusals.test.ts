@@ -6,9 +6,6 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 
 import { createGraphSession, FILE_STYLE_ISSUE, GraphtyError } from "../../session";
 import { dispatcherOf } from "../../src/session/GraphSession";
-import { fileStylesOn } from "../helpers/file-styles-on";
-
-fileStylesOn();
 
 afterEach(() => {
     vi.restoreAllMocks();

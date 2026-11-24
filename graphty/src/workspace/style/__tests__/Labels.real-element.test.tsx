@@ -14,15 +14,10 @@ import type { GraphSession, Layer } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { withoutFeatures } from "../../../test/features";
 import { findValuePicker, queryValuePicker, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { showKind } from "./kindTab";
-
-// These tests drive the Style panel the app shows with file styles off; the panel by part of the
-// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
-withoutFeatures(["file-styles"]);
 
 const NODES = [
     { id: "1", name: "Alpha", score: 1.234567 },
@@ -334,7 +329,7 @@ describe("label entries on the real element", () => {
         );
     });
 
-    it("Tab crosses one stop per section: Text's '+' then Fill's '+'", async () => {
+    it("Tab from Text's '+' goes on to the next section's settings button, never a section title", async () => {
         await openWithGraph();
         await screen.findByTestId("style-tab", {});
         const nodes = screen.getByTestId("style-tab").querySelector<HTMLElement>('[data-group="node"]');
@@ -345,8 +340,8 @@ describe("label entries on the real element", () => {
         await userEvent.keyboard("{Tab}");
         assert.equal(
             document.activeElement?.getAttribute("aria-label"),
-            "Add to node fill",
-            "the next stop is the next section's '+', not a section title",
+            "Node effects settings",
+            "the next stop is the next section's first button, not a section title",
         );
     });
 
@@ -603,7 +598,11 @@ describe("a label entry's size, keys, lists and widths", () => {
                 "focus is in the new Shape line",
             );
         });
-        // A picked value is written and stays.
+        // A picked value is written and stays: the Shape button opens its list, whose search takes the typing.
+        const shapeLine = document.querySelector<HTMLElement>('[data-line="node.shape"]');
+        assert.isNotNull(shapeLine);
+        await userEvent.click(within(shapeLine).getByRole("button", { name: /^Node shape(,|$)/ }));
+        await screen.findByPlaceholderText(/^Search \d+ shapes$/);
         await userEvent.keyboard("Box{Enter}");
         await waitFor(() => {
             assert.isTrue(session.styles.list().some((layer) => layer.set?.["node.shape"] === "box"));

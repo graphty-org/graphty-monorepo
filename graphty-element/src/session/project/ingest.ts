@@ -71,7 +71,7 @@ import { DEFAULT_LIMITS, type DefaultableLimits, tooLargeError } from "../limits
 import type { ProgressChange } from "../shared";
 import { SOURCE_ATTR, sourceLoadsOf } from "../sources/ids";
 import { type Provenance, PROVENANCE_VALUE, provenanceIndex, withSupplied } from "../sources/provenance";
-import { HELD_READERS, type ImportOutcome } from "../styles/fileStyles/apply";
+import { asksFileStyles, HELD_READERS, type ImportOutcome } from "../styles/fileStyles/apply";
 import type { DataSourceDescriptor, EdgeEnd, LeftOutEdge, LoadedSource, LoadedSourceKind } from "../types";
 import { frozenRecord } from "./draft";
 import { isRowsView } from "./recordMap";
@@ -1079,7 +1079,7 @@ export class Ingest<K extends KnownEdge> {
             const outcome = await this.addDataFromSource(
                 type,
                 // The reader leaves style values out of its records when the load draws the file's styles.
-                command.styles === undefined ? config : { ...config, styles: command.styles },
+                { ...config, styles: asksFileStyles(command) ? "file" : "none" },
                 writer,
                 signal,
                 command.mode !== "merge",

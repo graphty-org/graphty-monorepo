@@ -12,15 +12,10 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
-import { withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { historyTip } from "../../frame/historyWords";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
-
-// These tests drive the Style panel the app shows with file styles off; the panel by part of the
-// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
-withoutFeatures(["file-styles"]);
 
 /**
  * Les Miserables in the workspace with its starting rows.
@@ -82,7 +77,7 @@ describe("the layer panel's words", () => {
         });
         await session.styles.settled();
         await clickRow("Boxes");
-        const shape = await screen.findByRole("combobox", { name: /^Node shape, / });
+        const shape = await screen.findByRole("button", { name: /^Node shape(,|$)/ });
         assert.notInclude(shape.getAttribute("aria-label") ?? "", "default", "a set value is not the default");
         // At rest the layer's selection is one Style Nodes... line that opens it (issue #6810).
         assert.isNotNull(await screen.findByRole("button", { name: "Style Nodes..." }));

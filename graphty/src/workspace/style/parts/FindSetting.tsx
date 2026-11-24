@@ -1,5 +1,5 @@
 /**
- * Find a setting (the file-styles experiment): a search box at the top of the Style tab whose key,
+ * Find a setting: a search box at the top of the Style tab whose key,
  * "/", is drawn in it. Typing replaces the parts with every setting whose name, item or other
  * words (`SEARCH_ALIASES`: "stroke" for a border) match, grouped by part and item: a set one with
  * its minus, an unset one with "+". Each says which other layers of the graph set it, and opens

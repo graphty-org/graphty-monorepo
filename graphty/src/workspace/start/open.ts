@@ -21,7 +21,7 @@ import { APP_CALLER_KEY } from "../../lib/analytics";
 import { siteConfig } from "../../siteConfig";
 import type { CommandContext } from "../commands/registry";
 import { refusalFor } from "../data-page/words";
-import { fileStylesOn, sourceStepsOn } from "../features";
+import { sourceStepsOn } from "../features";
 import { focusOpenedGraphLater } from "../frame/focus";
 import { openProjectFile } from "../project/actions";
 import { notReadWords } from "../project/words";
@@ -362,10 +362,10 @@ async function drawFirst(
     const lone = draft.tables.length === 1 && !ready;
     const mapping = lone ? { rowsAre: "nodes" as const } : draft.mapping;
     // A graph file keeps the roles its format sets.
-    const styled = fileStylesOn(session);
-    const styles = styled ? fileStylesChoice() : "none";
+    const styles = fileStylesChoice();
     await draft.load({
-        ...(styled ? { styles, styleOptions: FILE_STYLE_OPTIONS } : {}),
+        styles,
+        styleOptions: FILE_STYLE_OPTIONS,
         // Drawn with its file's styles, the graph is laid out as the element recommends for it, so a file that stores
         // its drawing (a Cytoscape session) opens where its program put its nodes (issue #9297).
         ...(styles === "file" ? { layout: "recommended" as const } : {}),
@@ -374,9 +374,7 @@ async function drawFirst(
         ...(origin === undefined ? {} : { origin }),
         ...(callerKey === undefined ? {} : { callerKey }),
     });
-    if (styled) {
-        noticeFileStyles(workspace, session);
-    }
+    noticeFileStyles(workspace, session);
     const load = session.data.sources().at(-1);
     if (lone && load !== undefined) {
         workspace.set({ ends: { load: load.key, source: null, target: null } });

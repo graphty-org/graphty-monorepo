@@ -241,8 +241,10 @@ export function SelectionEditor({
     // (the approved prototype); nothing is written until a card has a value, and a workspace left
     // with no value keeps All.
     const converted = open && isEmptyAll(given);
-    // That empty card's All nodes, chosen on its start button: nothing is written, so the card remembers it.
-    const [startsAll, setStartsAll] = useState(false);
+    // That empty card's All nodes, chosen on its start button: nothing is written, so the card remembers it. A
+    // Style panel v2 layer starts there: a layer nothing was selected for styles all of them (owner, 2026-11-23),
+    // and its Select line reads All, so the workspace it opens holds all of them too.
+    const [startsAll, setStartsAll] = useState(() => host === "selector" && stylePanelV2On(session));
     const reading = useSteps(session, converted && !startsAll ? asNone(given) : given);
     // Whether the host holds a rule now: what it was given, read as the element holds it.
     const hostHolds = (held: UnionLeaf): boolean =>

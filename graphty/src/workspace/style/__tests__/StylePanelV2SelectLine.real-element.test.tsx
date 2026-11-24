@@ -27,6 +27,27 @@ describe("Style panel v2's Select line", () => {
         assert.strictEqual(line.querySelector("[data-count]")?.textContent, "All");
     });
 
+    it("a layer nothing was selected for opens the workspace holding all of them, as its line reads", async () => {
+        const { session, nodes } = await openGraph();
+        const tab = await openStyle("Key people");
+        await showKind("node");
+        await userEvent.click(await within(tab).findByRole("button", { name: "Select nodes... all 3 nodes" }));
+        const workspace = await waitFor(() => {
+            const found = document.querySelector<HTMLElement>(".sel-ws");
+            assert.isNotNull(found, "the workspace is open");
+            return found;
+        });
+        await waitFor(() => {
+            assert.strictEqual(workspace.querySelector(".sel-count")?.textContent, "3 of 3");
+            assert.strictEqual(workspace.querySelector(".sel-card-start")?.textContent, "All nodes");
+        });
+        await userEvent.click(within(workspace).getByRole("button", { name: "Done" }));
+        await waitFor(() => {
+            assert.isNull(document.querySelector(".sel-ws"), "the workspace closed");
+        });
+        assert.deepEqual(session.styles.get(nodes)?.selector, { match: "everything" }, "Done keeps every node");
+    });
+
     it("a kind the layer does not style starts on all of it and opens the workspace", async () => {
         const { session, edges } = await openGraph();
         const tab = await openStyle("Links");

@@ -638,14 +638,17 @@ export function renameDataSpecKeys<T extends object>(set: T, from: Path, to: Pat
 }
 
 /**
- * A layer's `set` with a node column renamed in its data specs: each field, the header, and each Graph value's paths
- * where it reads nodes (never where it reads edges: an edge column of the same name is another column).
+ * A layer's `set` with a column renamed in its data specs where they read that column's kind: for a node column, each
+ * field, the header and each Graph value's paths where it reads nodes; for an edge column, each Graph value's paths
+ * where it reads edges. A column of the other kind with the same name is another column.
  * @param set - A node layer's `set`.
  * @param from - The old column path.
  * @param to - The new one.
+ * @param side - The renamed column's kind.
  * @returns The set, or the same object when nothing changed.
  */
-export function renameDataSpecNodePaths<T extends object>(set: T, from: Path, to: Path): T {
+function renameDataSpecPaths<T extends object>(set: T, from: Path, to: Path, side: "node" | "edge"): T {
+    const node = side === "node";
     let out: Record<string, unknown> | null = null;
     for (const channel of DATA_CHANNELS) {
         const spec = (set as Record<string, unknown>)[channel] as
@@ -654,9 +657,10 @@ export function renameDataSpecNodePaths<T extends object>(set: T, from: Path, to
             continue;
         }
 
-        let changed = spec.header === from;
+        const header = node && spec.header === from;
+        let changed = header;
         const entries = (spec.entries ?? []).map((entry): DataEntry => {
-            if ("field" in entry && entry.field === from) {
+            if (node && "field" in entry && entry.field === from) {
                 changed = true;
                 return { ...entry, field: to };
             }
@@ -665,17 +669,28 @@ export function renameDataSpecNodePaths<T extends object>(set: T, from: Path, to
                 return entry;
             }
 
-            const graph = renamedMeasure(entry.graph, from, to, "node");
+            const graph = renamedMeasure(entry.graph, from, to, side);
             changed ||= graph !== entry.graph;
             return graph === entry.graph ? entry : { ...entry, graph };
         });
         if (changed) {
             out ??= { ...(set as Record<string, unknown>) };
-            out[channel] = { ...spec, entries, ...(spec.header === from ? { header: to } : {}) };
+            out[channel] = { ...spec, entries, ...(header ? { header: to } : {}) };
         }
     }
 
     return (out ?? set) as T;
+}
+
+/**
+ * A layer's `set` with a node column renamed in its data specs (`renameDataSpecPaths`).
+ * @param set - A node layer's `set`.
+ * @param from - The old column path.
+ * @param to - The new one.
+ * @returns The set, or the same object when nothing changed.
+ */
+export function renameDataSpecNodePaths<T extends object>(set: T, from: Path, to: Path): T {
+    return renameDataSpecPaths(set, from, to, "node");
 }
 
 /**
@@ -687,26 +702,7 @@ export function renameDataSpecNodePaths<T extends object>(set: T, from: Path, to
  * @returns The set, or the same object when nothing changed.
  */
 export function renameDataSpecEdgePaths<T extends object>(set: T, from: Path, to: Path): T {
-    let out: Record<string, unknown> | null = null;
-    for (const channel of DATA_CHANNELS) {
-        const spec = (set as Record<string, unknown>)[channel] as { entries?: readonly DataEntry[] } | undefined;
-        let changed = false;
-        const entries = (spec?.entries ?? []).map((entry) => {
-            if (!("graph" in entry)) {
-                return entry;
-            }
-
-            const graph = renamedMeasure(entry.graph, from, to);
-            changed ||= graph !== entry.graph;
-            return graph === entry.graph ? entry : { ...entry, graph };
-        });
-        if (changed) {
-            out ??= { ...(set as Record<string, unknown>) };
-            out[channel] = { ...spec, entries };
-        }
-    }
-
-    return (out ?? set) as T;
+    return renameDataSpecPaths(set, from, to, "edge");
 }
 
 // ---------------------------------------------------------------------------------------------

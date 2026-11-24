@@ -1,7 +1,7 @@
 /**
  * @file Saving and opening version 2 documents (spec 8): which sections, in which form, held
  * sections written back, and every section applied through its codec as one step.
- * Experimental (`save-files-v2`); `project.save` and `project.open` reach it only with it on.
+ * `project.save` with `format: 2` and `project.open` of a version 2 file reach it.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
@@ -9,7 +9,7 @@
 import type { RunId } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { TransactionOptions } from "../project/Dispatcher";
-import type { CannedOutcomes } from "../projectFile";
+import type { CannedOutcomes, ProjectSaveOptions } from "../projectFile";
 import { ELEMENT_VERSION } from "../runs";
 import type { GraphSession, ProjectSlice, TransactionScope } from "../types";
 import { newDocumentId } from "./basics";
@@ -71,6 +71,8 @@ export interface SaveChoices {
     readonly handles?: Readonly<Record<string, ProjectFileHandle>>;
     /** The URL of the file being saved: every path read is rebased to it. */
     readonly location?: string;
+    /** How each model or picture is kept, by its id or URL, as `project.save` takes it. */
+    readonly assets?: ProjectSaveOptions["assets"];
 }
 
 /** What a version 2 open loads. */
@@ -132,7 +134,7 @@ export function writeContextOf(
     session: GraphSession,
     state: DocumentState,
     sections: ReadonlySet<DocumentSection>,
-    choices: Pick<SaveChoices, "embed" | "paths" | "handles" | "location" | "rewriteRecipe">,
+    choices: Pick<SaveChoices, "embed" | "paths" | "handles" | "location" | "rewriteRecipe" | "assets">,
     isDerived: (id: RunId) => boolean,
     problems: DocumentProblem[],
     refs: () => ElementRefs = lazyRefs(session),
@@ -147,6 +149,7 @@ export function writeContextOf(
         paths: choices.paths ?? {},
         ...(choices.handles === undefined ? {} : { handles: choices.handles }),
         ...(choices.location === undefined ? {} : { location: choices.location }),
+        ...(choices.assets === undefined ? {} : { assets: choices.assets }),
         rewriteRecipe: choices.rewriteRecipe === true,
         isDerived,
         bindsTo: (): Promise<BindsTo> => Promise.resolve({ data: dataIdOf(state) }),
@@ -503,8 +506,6 @@ export interface OpenHooks {
  * How an open treats one bound section (spec 6.4): `loads`, it binds to the data the open leaves
  * open; `held`, it was written on the file's held data section and is held with it; `other-data`,
  * it was written on other data, reported `W_DATA_MISMATCH` and loaded only with `bindOtherData`.
- * @experimental save-files-v2
- * @beta
  */
 export type SectionBinding = "loads" | "held" | "other-data";
 
@@ -675,6 +676,8 @@ async function applyDocument(
     const options: TransactionOptions = {
         fact: { code: replaced ? "project.open" : "document.open", params: replaced ? { name: hooks.name } : {} },
         ...(replaced ? { starts: true } : {}),
+        // The file's commands, not the reader's, as a version 1 open's are.
+        trigger: "project",
     };
     await session.transaction(
         replaced ? "Open project" : "Open document",

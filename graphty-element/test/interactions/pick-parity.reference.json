@@ -1,0 +1,2354 @@
+{
+    "2d edge arrow cap": {
+        "at": "edge:arrow",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:arrow"
+    },
+    "2d edge arrow middle": {
+        "at": "edge:arrow",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:arrow"
+    },
+    "2d edge curve": {
+        "at": "edge:curve",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:curve"
+    },
+    "2d edge dash middle": {
+        "at": "edge:dash",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:dash"
+    },
+    "2d edge label middle": {
+        "at": "edge:label",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:label"
+    },
+    "2d edge loop": {
+        "at": "edge:loop",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:loop"
+    },
+    "2d edge nohead middle": {
+        "at": "edge:nohead",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:nohead"
+    },
+    "2d edge par1 middle": {
+        "at": "edge:par1",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:par1"
+    },
+    "2d edge par2 middle": {
+        "at": "edge:par2",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:par2"
+    },
+    "2d edge pattern middle": {
+        "at": "edge:pattern",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:pattern"
+    },
+    "2d edge undirected 2px past tolerance": {
+        "at": "none",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": false,
+        "world": false,
+        "selected": "none"
+    },
+    "2d edge undirected middle": {
+        "at": "edge:undirected",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:undirected"
+    },
+    "2d edge undirected trimmed end": {
+        "at": "edge:undirected",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:undirected"
+    },
+    "2d edge wide middle": {
+        "at": "edge:wide",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:wide"
+    },
+    "2d grown rim": {
+        "at": "node:grow",
+        "hovered": "grow",
+        "heard": "grow",
+        "pointer": true,
+        "world": true,
+        "selected": "node:grow"
+    },
+    "2d node a0": {
+        "at": "node:a0",
+        "hovered": "a0",
+        "heard": "a0",
+        "pointer": true,
+        "world": true,
+        "selected": "node:a0"
+    },
+    "2d node a1": {
+        "at": "node:a1",
+        "hovered": "a1",
+        "heard": "a1",
+        "pointer": true,
+        "world": true,
+        "selected": "node:a1"
+    },
+    "2d node b0": {
+        "at": "node:b0",
+        "hovered": "b0",
+        "heard": "b0",
+        "pointer": true,
+        "world": true,
+        "selected": "node:b0"
+    },
+    "2d node big": {
+        "at": "node:big",
+        "hovered": "big",
+        "heard": "big",
+        "pointer": true,
+        "world": true,
+        "selected": "node:big"
+    },
+    "2d node lab": {
+        "at": "node:lab",
+        "hovered": "lab",
+        "heard": "lab",
+        "pointer": true,
+        "world": true,
+        "selected": "node:lab"
+    },
+    "2d node late": {
+        "at": "node:late",
+        "hovered": "late",
+        "heard": "late",
+        "pointer": true,
+        "world": true,
+        "selected": "node:late"
+    },
+    "2d node ovA": {
+        "at": "node:ovA",
+        "hovered": "ovA",
+        "heard": "ovA",
+        "pointer": true,
+        "world": true,
+        "selected": "node:ovA"
+    },
+    "2d node ovB": {
+        "at": "node:ovB",
+        "hovered": "ovB",
+        "heard": "ovB",
+        "pointer": true,
+        "world": true,
+        "selected": "node:ovB"
+    },
+    "2d node small": {
+        "at": "node:small",
+        "hovered": "small",
+        "heard": "small",
+        "pointer": true,
+        "world": true,
+        "selected": "node:small"
+    },
+    "2d node t0": {
+        "at": "node:t0",
+        "hovered": "t0",
+        "heard": "t0",
+        "pointer": true,
+        "world": true,
+        "selected": "node:t0"
+    },
+    "2d node t2": {
+        "at": "node:t2",
+        "hovered": "t2",
+        "heard": "t2",
+        "pointer": true,
+        "world": true,
+        "selected": "node:t2"
+    },
+    "2d node tiny": {
+        "at": "node:tiny",
+        "hovered": "tiny",
+        "heard": "tiny",
+        "pointer": true,
+        "world": true,
+        "selected": "node:tiny"
+    },
+    "2d node ul": {
+        "at": "node:ul",
+        "hovered": "ul",
+        "heard": "ul",
+        "pointer": true,
+        "world": true,
+        "selected": "node:ul"
+    },
+    "2d removed spot": {
+        "at": "none",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": false,
+        "world": false,
+        "selected": "none"
+    },
+    "2d selection click a0": "node:a0",
+    "2d selection click empty canvas": "none",
+    "2d selection ctrl-click t0": "node:b0,node:t0",
+    "2d selection right-click b0": "edge:ea,node:b0",
+    "2d selection right-click empty canvas": "edge:ea,node:b0",
+    "2d selection shift-click a0": "node:b0",
+    "2d selection shift-click b0": "node:a0,node:b0",
+    "2d selection shift-click the a0-a1 edge": "edge:ea,node:b0",
+    "3d edge arrow cap": {
+        "at": "edge:arrow",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:arrow"
+    },
+    "3d edge arrow middle": {
+        "at": "edge:arrow",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:arrow"
+    },
+    "3d edge curve": {
+        "at": "edge:curve",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:curve"
+    },
+    "3d edge dash middle": {
+        "at": "edge:dash",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:dash"
+    },
+    "3d edge label middle": {
+        "at": "edge:label",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": true,
+        "selected": "edge:label"
+    },
+    "3d edge loop": {
+        "at": "edge:loop",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:loop"
+    },
+    "3d edge nohead middle": {
+        "at": "edge:nohead",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:nohead"
+    },
+    "3d edge par1 middle": {
+        "at": "edge:par1",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:par1"
+    },
+    "3d edge par2 middle": {
+        "at": "edge:par2",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:par2"
+    },
+    "3d edge pattern middle": {
+        "at": "edge:pattern",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:pattern"
+    },
+    "3d edge undirected 2px past tolerance": {
+        "at": "none",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": false,
+        "world": false,
+        "selected": "none"
+    },
+    "3d edge undirected middle": {
+        "at": "edge:undirected",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:undirected"
+    },
+    "3d edge undirected trimmed end": {
+        "at": "edge:undirected",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:undirected"
+    },
+    "3d edge wide middle": {
+        "at": "edge:wide",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:wide"
+    },
+    "3d grown rim": {
+        "at": "node:grow",
+        "hovered": "grow",
+        "heard": "grow",
+        "pointer": true,
+        "world": true,
+        "selected": "node:grow"
+    },
+    "3d node a0": {
+        "at": "node:a0",
+        "hovered": "a0",
+        "heard": "a0",
+        "pointer": true,
+        "world": true,
+        "selected": "node:a0"
+    },
+    "3d node a1": {
+        "at": "node:a1",
+        "hovered": "a1",
+        "heard": "a1",
+        "pointer": true,
+        "world": true,
+        "selected": "node:a1"
+    },
+    "3d node b0": {
+        "at": "node:b0",
+        "hovered": "b0",
+        "heard": "b0",
+        "pointer": true,
+        "world": true,
+        "selected": "node:b0"
+    },
+    "3d node big": {
+        "at": "node:big",
+        "hovered": "big",
+        "heard": "big",
+        "pointer": true,
+        "world": true,
+        "selected": "node:big"
+    },
+    "3d node lab": {
+        "at": "node:lab",
+        "hovered": "lab",
+        "heard": "lab",
+        "pointer": true,
+        "world": true,
+        "selected": "node:lab"
+    },
+    "3d node late": {
+        "at": "node:late",
+        "hovered": "late",
+        "heard": "late",
+        "pointer": true,
+        "world": true,
+        "selected": "node:late"
+    },
+    "3d node ovA": {
+        "at": "node:ovA",
+        "hovered": "ovA",
+        "heard": "ovA",
+        "pointer": true,
+        "world": true,
+        "selected": "node:ovA"
+    },
+    "3d node ovB": {
+        "at": "node:ovA",
+        "hovered": "ovA",
+        "heard": "ovA",
+        "pointer": true,
+        "world": true,
+        "selected": "node:ovA"
+    },
+    "3d node small": {
+        "at": "node:small",
+        "hovered": "small",
+        "heard": "small",
+        "pointer": true,
+        "world": true,
+        "selected": "node:small"
+    },
+    "3d node t0": {
+        "at": "node:t0",
+        "hovered": "t0",
+        "heard": "t0",
+        "pointer": true,
+        "world": true,
+        "selected": "node:t0"
+    },
+    "3d node t2": {
+        "at": "node:t2",
+        "hovered": "t2",
+        "heard": "t2",
+        "pointer": true,
+        "world": true,
+        "selected": "node:t2"
+    },
+    "3d node tiny": {
+        "at": "node:tiny",
+        "hovered": "tiny",
+        "heard": "tiny",
+        "pointer": true,
+        "world": true,
+        "selected": "node:tiny"
+    },
+    "3d node ul": {
+        "at": "node:ul",
+        "hovered": "ul",
+        "heard": "ul",
+        "pointer": true,
+        "world": true,
+        "selected": "node:ul"
+    },
+    "3d removed spot": {
+        "at": "none",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": false,
+        "world": false,
+        "selected": "none"
+    },
+    "3d selection click a0": "node:a0",
+    "3d selection click empty canvas": "none",
+    "3d selection ctrl-click t0": "node:b0,node:t0",
+    "3d selection right-click b0": "edge:ea,node:b0",
+    "3d selection right-click empty canvas": "edge:ea,node:b0",
+    "3d selection shift-click a0": "node:b0",
+    "3d selection shift-click b0": "node:a0,node:b0",
+    "3d selection shift-click the a0-a1 edge": "edge:ea,node:b0",
+    "2d a pixel ratio of 1.5 edge ea middle": {
+        "at": "edge:ea",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:ea"
+    },
+    "2d a pixel ratio of 1.5 edge eb middle": {
+        "at": "edge:eb",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:eb"
+    },
+    "2d a pixel ratio of 1.5 edge t01 middle": {
+        "at": "edge:t01",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:t01"
+    },
+    "2d a pixel ratio of 1.5 node a0": {
+        "at": "node:a0",
+        "hovered": "a0",
+        "heard": "a0",
+        "pointer": true,
+        "world": true,
+        "selected": "node:a0"
+    },
+    "2d a pixel ratio of 1.5 node a1": {
+        "at": "node:a1",
+        "hovered": "a1",
+        "heard": "a1",
+        "pointer": true,
+        "world": true,
+        "selected": "node:a1"
+    },
+    "2d a pixel ratio of 1.5 node b0": {
+        "at": "node:b0",
+        "hovered": "b0",
+        "heard": "b0",
+        "pointer": true,
+        "world": true,
+        "selected": "node:b0"
+    },
+    "2d a pixel ratio of 1.5 node b1": {
+        "at": "node:b1",
+        "hovered": "b1",
+        "heard": "b1",
+        "pointer": true,
+        "world": true,
+        "selected": "node:b1"
+    },
+    "2d a pixel ratio of 1.5 node big": {
+        "at": "node:big",
+        "hovered": "big",
+        "heard": "big",
+        "pointer": true,
+        "world": true,
+        "selected": "node:big"
+    },
+    "2d a pixel ratio of 1.5 node gone": {
+        "at": "node:gone",
+        "hovered": "gone",
+        "heard": "gone",
+        "pointer": true,
+        "world": true,
+        "selected": "node:gone"
+    },
+    "2d a pixel ratio of 1.5 node grow": {
+        "at": "node:grow",
+        "hovered": "grow",
+        "heard": "grow",
+        "pointer": true,
+        "world": true,
+        "selected": "node:grow"
+    },
+    "2d a pixel ratio of 1.5 node lab": {
+        "at": "node:lab",
+        "hovered": "lab",
+        "heard": "lab",
+        "pointer": true,
+        "world": true,
+        "selected": "node:lab"
+    },
+    "2d a pixel ratio of 1.5 node small": {
+        "at": "node:small",
+        "hovered": "small",
+        "heard": "small",
+        "pointer": true,
+        "world": true,
+        "selected": "node:small"
+    },
+    "2d a pixel ratio of 1.5 node t0": {
+        "at": "node:t0",
+        "hovered": "t0",
+        "heard": "t0",
+        "pointer": true,
+        "world": true,
+        "selected": "node:t0"
+    },
+    "2d a pixel ratio of 1.5 node t1": {
+        "at": "node:t1",
+        "hovered": "t1",
+        "heard": "t1",
+        "pointer": true,
+        "world": true,
+        "selected": "node:t1"
+    },
+    "2d a pixel ratio of 1.5 node t2": {
+        "at": "node:t2",
+        "hovered": "t2",
+        "heard": "t2",
+        "pointer": true,
+        "world": true,
+        "selected": "node:t2"
+    },
+    "2d a pixel ratio of 1.5 node tiny": {
+        "at": "node:tiny",
+        "hovered": "tiny",
+        "heard": "tiny",
+        "pointer": true,
+        "world": true,
+        "selected": "node:tiny"
+    },
+    "2d a pixel ratio of 1.5 node ul": {
+        "at": "node:ul",
+        "hovered": "ul",
+        "heard": "ul",
+        "pointer": true,
+        "world": true,
+        "selected": "node:ul"
+    },
+    "2d a pixel ratio of 2 edge ea middle": {
+        "at": "edge:ea",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:ea"
+    },
+    "2d a pixel ratio of 2 edge eb middle": {
+        "at": "edge:eb",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:eb"
+    },
+    "2d a pixel ratio of 2 edge t01 middle": {
+        "at": "edge:t01",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:t01"
+    },
+    "2d a pixel ratio of 2 node a0": {
+        "at": "node:a0",
+        "hovered": "a0",
+        "heard": "a0",
+        "pointer": true,
+        "world": true,
+        "selected": "node:a0"
+    },
+    "2d a pixel ratio of 2 node a1": {
+        "at": "node:a1",
+        "hovered": "a1",
+        "heard": "a1",
+        "pointer": true,
+        "world": true,
+        "selected": "node:a1"
+    },
+    "2d a pixel ratio of 2 node b0": {
+        "at": "node:b0",
+        "hovered": "b0",
+        "heard": "b0",
+        "pointer": true,
+        "world": true,
+        "selected": "node:b0"
+    },
+    "2d a pixel ratio of 2 node b1": {
+        "at": "node:b1",
+        "hovered": "b1",
+        "heard": "b1",
+        "pointer": true,
+        "world": true,
+        "selected": "node:b1"
+    },
+    "2d a pixel ratio of 2 node big": {
+        "at": "node:big",
+        "hovered": "big",
+        "heard": "big",
+        "pointer": true,
+        "world": true,
+        "selected": "node:big"
+    },
+    "2d a pixel ratio of 2 node gone": {
+        "at": "node:gone",
+        "hovered": "gone",
+        "heard": "gone",
+        "pointer": true,
+        "world": true,
+        "selected": "node:gone"
+    },
+    "2d a pixel ratio of 2 node grow": {
+        "at": "node:grow",
+        "hovered": "grow",
+        "heard": "grow",
+        "pointer": true,
+        "world": true,
+        "selected": "node:grow"
+    },
+    "2d a pixel ratio of 2 node lab": {
+        "at": "node:lab",
+        "hovered": "lab",
+        "heard": "lab",
+        "pointer": true,
+        "world": true,
+        "selected": "node:lab"
+    },
+    "2d a pixel ratio of 2 node small": {
+        "at": "node:small",
+        "hovered": "small",
+        "heard": "small",
+        "pointer": true,
+        "world": true,
+        "selected": "node:small"
+    },
+    "2d a pixel ratio of 2 node t0": {
+        "at": "node:t0",
+        "hovered": "t0",
+        "heard": "t0",
+        "pointer": true,
+        "world": true,
+        "selected": "node:t0"
+    },
+    "2d a pixel ratio of 2 node t1": {
+        "at": "node:t1",
+        "hovered": "t1",
+        "heard": "t1",
+        "pointer": true,
+        "world": true,
+        "selected": "node:t1"
+    },
+    "2d a pixel ratio of 2 node t2": {
+        "at": "node:t2",
+        "hovered": "t2",
+        "heard": "t2",
+        "pointer": true,
+        "world": true,
+        "selected": "node:t2"
+    },
+    "2d a pixel ratio of 2 node tiny": {
+        "at": "node:tiny",
+        "hovered": "tiny",
+        "heard": "tiny",
+        "pointer": true,
+        "world": true,
+        "selected": "node:tiny"
+    },
+    "2d a pixel ratio of 2 node ul": {
+        "at": "node:ul",
+        "hovered": "ul",
+        "heard": "ul",
+        "pointer": true,
+        "world": true,
+        "selected": "node:ul"
+    },
+    "2d a real camera orbit drag edge ea middle": {
+        "at": "edge:ea",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:ea"
+    },
+    "2d a real camera orbit drag edge eb middle": {
+        "at": "edge:eb",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:eb"
+    },
+    "2d a real camera orbit drag edge t01 middle": {
+        "at": "edge:t01",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:t01"
+    },
+    "2d a real camera orbit drag node a0": {
+        "at": "node:a0",
+        "hovered": "a0",
+        "heard": "a0",
+        "pointer": true,
+        "world": true,
+        "selected": "node:a0"
+    },
+    "2d a real camera orbit drag node a1": {
+        "at": "node:a1",
+        "hovered": "a1",
+        "heard": "a1",
+        "pointer": true,
+        "world": true,
+        "selected": "node:a1"
+    },
+    "2d a real camera orbit drag node b0": {
+        "at": "node:b0",
+        "hovered": "b0",
+        "heard": "b0",
+        "pointer": true,
+        "world": true,
+        "selected": "node:b0"
+    },
+    "2d a real camera orbit drag node b1": {
+        "at": "node:b1",
+        "hovered": "b1",
+        "heard": "b1",
+        "pointer": true,
+        "world": true,
+        "selected": "node:b1"
+    },
+    "2d a real camera orbit drag node grow": {
+        "at": "node:grow",
+        "hovered": "grow",
+        "heard": "grow",
+        "pointer": true,
+        "world": true,
+        "selected": "node:grow"
+    },
+    "2d a real camera orbit drag node lab": {
+        "at": "node:lab",
+        "hovered": "lab",
+        "heard": "lab",
+        "pointer": true,
+        "world": true,
+        "selected": "node:lab"
+    },
+    "2d a real camera orbit drag node t0": {
+        "at": "node:t0",
+        "hovered": "t0",
+        "heard": "t0",
+        "pointer": true,
+        "world": true,
+        "selected": "node:t0"
+    },
+    "2d a real camera orbit drag node t1": {
+        "at": "node:t1",
+        "hovered": "t1",
+        "heard": "t1",
+        "pointer": true,
+        "world": true,
+        "selected": "node:t1"
+    },
+    "2d a real camera orbit drag node t2": {
+        "at": "node:t2",
+        "hovered": "t2",
+        "heard": "t2",
+        "pointer": true,
+        "world": true,
+        "selected": "node:t2"
+    },
+    "2d a real camera orbit drag node ul": {
+        "at": "node:ul",
+        "hovered": "ul",
+        "heard": "ul",
+        "pointer": true,
+        "world": true,
+        "selected": "node:ul"
+    },
+    "2d a real wheel zoom edge ea middle": {
+        "at": "edge:ea",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:ea"
+    },
+    "2d a real wheel zoom edge eb middle": {
+        "at": "edge:eb",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:eb"
+    },
+    "2d a real wheel zoom edge t01 middle": {
+        "at": "edge:t01",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:t01"
+    },
+    "2d a real wheel zoom node a0": {
+        "at": "node:a0",
+        "hovered": "a0",
+        "heard": "a0",
+        "pointer": true,
+        "world": true,
+        "selected": "node:a0"
+    },
+    "2d a real wheel zoom node a1": {
+        "at": "node:a1",
+        "hovered": "a1",
+        "heard": "a1",
+        "pointer": true,
+        "world": true,
+        "selected": "node:a1"
+    },
+    "2d a real wheel zoom node b0": {
+        "at": "node:b0",
+        "hovered": "b0",
+        "heard": "b0",
+        "pointer": true,
+        "world": true,
+        "selected": "node:b0"
+    },
+    "2d a real wheel zoom node b1": {
+        "at": "node:b1",
+        "hovered": "b1",
+        "heard": "b1",
+        "pointer": true,
+        "world": true,
+        "selected": "node:b1"
+    },
+    "2d a real wheel zoom node big": {
+        "at": "node:big",
+        "hovered": "big",
+        "heard": "big",
+        "pointer": true,
+        "world": true,
+        "selected": "node:big"
+    },
+    "2d a real wheel zoom node gone": {
+        "at": "node:gone",
+        "hovered": "gone",
+        "heard": "gone",
+        "pointer": true,
+        "world": true,
+        "selected": "node:gone"
+    },
+    "2d a real wheel zoom node grow": {
+        "at": "node:grow",
+        "hovered": "grow",
+        "heard": "grow",
+        "pointer": true,
+        "world": true,
+        "selected": "node:grow"
+    },
+    "2d a real wheel zoom node lab": {
+        "at": "node:lab",
+        "hovered": "lab",
+        "heard": "lab",
+        "pointer": true,
+        "world": true,
+        "selected": "node:lab"
+    },
+    "2d a real wheel zoom node small": {
+        "at": "node:small",
+        "hovered": "small",
+        "heard": "small",
+        "pointer": true,
+        "world": true,
+        "selected": "node:small"
+    },
+    "2d a real wheel zoom node t0": {
+        "at": "node:t0",
+        "hovered": "t0",
+        "heard": "t0",
+        "pointer": true,
+        "world": true,
+        "selected": "node:t0"
+    },
+    "2d a real wheel zoom node t1": {
+        "at": "node:t1",
+        "hovered": "t1",
+        "heard": "t1",
+        "pointer": true,
+        "world": true,
+        "selected": "node:t1"
+    },
+    "2d a real wheel zoom node t2": {
+        "at": "node:t2",
+        "hovered": "t2",
+        "heard": "t2",
+        "pointer": true,
+        "world": true,
+        "selected": "node:t2"
+    },
+    "2d a real wheel zoom node tiny": {
+        "at": "node:tiny",
+        "hovered": "tiny",
+        "heard": "tiny",
+        "pointer": true,
+        "world": true,
+        "selected": "node:tiny"
+    },
+    "2d a real wheel zoom node ul": {
+        "at": "node:ul",
+        "hovered": "ul",
+        "heard": "ul",
+        "pointer": true,
+        "world": true,
+        "selected": "node:ul"
+    },
+    "2d a resize bigger edge ea middle": {
+        "at": "edge:ea",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:ea"
+    },
+    "2d a resize bigger edge eb middle": {
+        "at": "edge:eb",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:eb"
+    },
+    "2d a resize bigger edge t01 middle": {
+        "at": "edge:t01",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:t01"
+    },
+    "2d a resize bigger node a0": {
+        "at": "node:a0",
+        "hovered": "a0",
+        "heard": "a0",
+        "pointer": true,
+        "world": true,
+        "selected": "node:a0"
+    },
+    "2d a resize bigger node a1": {
+        "at": "node:a1",
+        "hovered": "a1",
+        "heard": "a1",
+        "pointer": true,
+        "world": true,
+        "selected": "node:a1"
+    },
+    "2d a resize bigger node b0": {
+        "at": "node:b0",
+        "hovered": "b0",
+        "heard": "b0",
+        "pointer": true,
+        "world": true,
+        "selected": "node:b0"
+    },
+    "2d a resize bigger node b1": {
+        "at": "node:b1",
+        "hovered": "b1",
+        "heard": "b1",
+        "pointer": true,
+        "world": true,
+        "selected": "node:b1"
+    },
+    "2d a resize bigger node big": {
+        "at": "node:big",
+        "hovered": "big",
+        "heard": "big",
+        "pointer": true,
+        "world": true,
+        "selected": "node:big"
+    },
+    "2d a resize bigger node gone": {
+        "at": "node:gone",
+        "hovered": "gone",
+        "heard": "gone",
+        "pointer": true,
+        "world": true,
+        "selected": "node:gone"
+    },
+    "2d a resize bigger node grow": {
+        "at": "node:grow",
+        "hovered": "grow",
+        "heard": "grow",
+        "pointer": true,
+        "world": true,
+        "selected": "node:grow"
+    },
+    "2d a resize bigger node lab": {
+        "at": "node:lab",
+        "hovered": "lab",
+        "heard": "lab",
+        "pointer": true,
+        "world": true,
+        "selected": "node:lab"
+    },
+    "2d a resize bigger node small": {
+        "at": "node:small",
+        "hovered": "small",
+        "heard": "small",
+        "pointer": true,
+        "world": true,
+        "selected": "node:small"
+    },
+    "2d a resize bigger node t0": {
+        "at": "node:t0",
+        "hovered": "t0",
+        "heard": "t0",
+        "pointer": true,
+        "world": true,
+        "selected": "node:t0"
+    },
+    "2d a resize bigger node t1": {
+        "at": "node:t1",
+        "hovered": "t1",
+        "heard": "t1",
+        "pointer": true,
+        "world": true,
+        "selected": "node:t1"
+    },
+    "2d a resize bigger node t2": {
+        "at": "node:t2",
+        "hovered": "t2",
+        "heard": "t2",
+        "pointer": true,
+        "world": true,
+        "selected": "node:t2"
+    },
+    "2d a resize bigger node tiny": {
+        "at": "node:tiny",
+        "hovered": "tiny",
+        "heard": "tiny",
+        "pointer": true,
+        "world": true,
+        "selected": "node:tiny"
+    },
+    "2d a resize bigger node ul": {
+        "at": "node:ul",
+        "hovered": "ul",
+        "heard": "ul",
+        "pointer": true,
+        "world": true,
+        "selected": "node:ul"
+    },
+    "2d a resize smaller edge ea middle": {
+        "at": "edge:ea",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:ea"
+    },
+    "2d a resize smaller edge eb middle": {
+        "at": "edge:eb",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:eb"
+    },
+    "2d a resize smaller edge t01 middle": {
+        "at": "edge:t01",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:t01"
+    },
+    "2d a resize smaller node a0": {
+        "at": "node:a0",
+        "hovered": "a0",
+        "heard": "a0",
+        "pointer": true,
+        "world": true,
+        "selected": "node:a0"
+    },
+    "2d a resize smaller node a1": {
+        "at": "node:a1",
+        "hovered": "a1",
+        "heard": "a1",
+        "pointer": true,
+        "world": true,
+        "selected": "node:a1"
+    },
+    "2d a resize smaller node b0": {
+        "at": "node:b0",
+        "hovered": "b0",
+        "heard": "b0",
+        "pointer": true,
+        "world": true,
+        "selected": "node:b0"
+    },
+    "2d a resize smaller node b1": {
+        "at": "node:b1",
+        "hovered": "b1",
+        "heard": "b1",
+        "pointer": true,
+        "world": true,
+        "selected": "node:b1"
+    },
+    "2d a resize smaller node big": {
+        "at": "node:big",
+        "hovered": "big",
+        "heard": "big",
+        "pointer": true,
+        "world": true,
+        "selected": "node:big"
+    },
+    "2d a resize smaller node gone": {
+        "at": "node:gone",
+        "hovered": "gone",
+        "heard": "gone",
+        "pointer": true,
+        "world": true,
+        "selected": "node:gone"
+    },
+    "2d a resize smaller node grow": {
+        "at": "node:grow",
+        "hovered": "grow",
+        "heard": "grow",
+        "pointer": true,
+        "world": true,
+        "selected": "node:grow"
+    },
+    "2d a resize smaller node lab": {
+        "at": "node:lab",
+        "hovered": "lab",
+        "heard": "lab",
+        "pointer": true,
+        "world": true,
+        "selected": "node:lab"
+    },
+    "2d a resize smaller node small": {
+        "at": "node:small",
+        "hovered": "small",
+        "heard": "small",
+        "pointer": true,
+        "world": true,
+        "selected": "node:small"
+    },
+    "2d a resize smaller node t0": {
+        "at": "node:t0",
+        "hovered": "t0",
+        "heard": "t0",
+        "pointer": true,
+        "world": true,
+        "selected": "node:t0"
+    },
+    "2d a resize smaller node t1": {
+        "at": "node:t1",
+        "hovered": "t1",
+        "heard": "t1",
+        "pointer": true,
+        "world": true,
+        "selected": "node:t1"
+    },
+    "2d a resize smaller node t2": {
+        "at": "node:t2",
+        "hovered": "t2",
+        "heard": "t2",
+        "pointer": true,
+        "world": true,
+        "selected": "node:t2"
+    },
+    "2d a resize smaller node tiny": {
+        "at": "node:tiny",
+        "hovered": "tiny",
+        "heard": "tiny",
+        "pointer": true,
+        "world": true,
+        "selected": "node:tiny"
+    },
+    "2d a resize smaller node ul": {
+        "at": "node:ul",
+        "hovered": "ul",
+        "heard": "ul",
+        "pointer": true,
+        "world": true,
+        "selected": "node:ul"
+    },
+    "2d a resize to an odd size edge ea middle": {
+        "at": "edge:ea",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:ea"
+    },
+    "2d a resize to an odd size edge eb middle": {
+        "at": "edge:eb",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:eb"
+    },
+    "2d a resize to an odd size edge t01 middle": {
+        "at": "edge:t01",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:t01"
+    },
+    "2d a resize to an odd size node a0": {
+        "at": "node:a0",
+        "hovered": "a0",
+        "heard": "a0",
+        "pointer": true,
+        "world": true,
+        "selected": "node:a0"
+    },
+    "2d a resize to an odd size node a1": {
+        "at": "node:a1",
+        "hovered": "a1",
+        "heard": "a1",
+        "pointer": true,
+        "world": true,
+        "selected": "node:a1"
+    },
+    "2d a resize to an odd size node b0": {
+        "at": "node:b0",
+        "hovered": "b0",
+        "heard": "b0",
+        "pointer": true,
+        "world": true,
+        "selected": "node:b0"
+    },
+    "2d a resize to an odd size node b1": {
+        "at": "node:b1",
+        "hovered": "b1",
+        "heard": "b1",
+        "pointer": true,
+        "world": true,
+        "selected": "node:b1"
+    },
+    "2d a resize to an odd size node big": {
+        "at": "node:big",
+        "hovered": "big",
+        "heard": "big",
+        "pointer": true,
+        "world": true,
+        "selected": "node:big"
+    },
+    "2d a resize to an odd size node gone": {
+        "at": "node:gone",
+        "hovered": "gone",
+        "heard": "gone",
+        "pointer": true,
+        "world": true,
+        "selected": "node:gone"
+    },
+    "2d a resize to an odd size node grow": {
+        "at": "node:grow",
+        "hovered": "grow",
+        "heard": "grow",
+        "pointer": true,
+        "world": true,
+        "selected": "node:grow"
+    },
+    "2d a resize to an odd size node lab": {
+        "at": "node:lab",
+        "hovered": "lab",
+        "heard": "lab",
+        "pointer": true,
+        "world": true,
+        "selected": "node:lab"
+    },
+    "2d a resize to an odd size node small": {
+        "at": "node:small",
+        "hovered": "small",
+        "heard": "small",
+        "pointer": true,
+        "world": true,
+        "selected": "node:small"
+    },
+    "2d a resize to an odd size node t0": {
+        "at": "node:t0",
+        "hovered": "t0",
+        "heard": "t0",
+        "pointer": true,
+        "world": true,
+        "selected": "node:t0"
+    },
+    "2d a resize to an odd size node t1": {
+        "at": "node:t1",
+        "hovered": "t1",
+        "heard": "t1",
+        "pointer": true,
+        "world": true,
+        "selected": "node:t1"
+    },
+    "2d a resize to an odd size node t2": {
+        "at": "node:t2",
+        "hovered": "t2",
+        "heard": "t2",
+        "pointer": true,
+        "world": true,
+        "selected": "node:t2"
+    },
+    "2d a resize to an odd size node tiny": {
+        "at": "node:tiny",
+        "hovered": "tiny",
+        "heard": "tiny",
+        "pointer": true,
+        "world": true,
+        "selected": "node:tiny"
+    },
+    "2d a resize to an odd size node ul": {
+        "at": "node:ul",
+        "hovered": "ul",
+        "heard": "ul",
+        "pointer": true,
+        "world": true,
+        "selected": "node:ul"
+    },
+    "3d a pixel ratio of 1.5 edge ea middle": {
+        "at": "edge:ea",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:ea"
+    },
+    "3d a pixel ratio of 1.5 edge eb middle": {
+        "at": "edge:eb",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:eb"
+    },
+    "3d a pixel ratio of 1.5 edge t01 middle": {
+        "at": "edge:t01",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:t01"
+    },
+    "3d a pixel ratio of 1.5 node a0": {
+        "at": "node:a0",
+        "hovered": "a0",
+        "heard": "a0",
+        "pointer": true,
+        "world": true,
+        "selected": "node:a0"
+    },
+    "3d a pixel ratio of 1.5 node a1": {
+        "at": "node:a1",
+        "hovered": "a1",
+        "heard": "a1",
+        "pointer": true,
+        "world": true,
+        "selected": "node:a1"
+    },
+    "3d a pixel ratio of 1.5 node b0": {
+        "at": "node:b0",
+        "hovered": "b0",
+        "heard": "b0",
+        "pointer": true,
+        "world": true,
+        "selected": "node:b0"
+    },
+    "3d a pixel ratio of 1.5 node b1": {
+        "at": "node:b1",
+        "hovered": "b1",
+        "heard": "b1",
+        "pointer": true,
+        "world": true,
+        "selected": "node:b1"
+    },
+    "3d a pixel ratio of 1.5 node big": {
+        "at": "node:big",
+        "hovered": "big",
+        "heard": "big",
+        "pointer": true,
+        "world": true,
+        "selected": "node:big"
+    },
+    "3d a pixel ratio of 1.5 node gone": {
+        "at": "node:gone",
+        "hovered": "gone",
+        "heard": "gone",
+        "pointer": true,
+        "world": true,
+        "selected": "node:gone"
+    },
+    "3d a pixel ratio of 1.5 node grow": {
+        "at": "node:grow",
+        "hovered": "grow",
+        "heard": "grow",
+        "pointer": true,
+        "world": true,
+        "selected": "node:grow"
+    },
+    "3d a pixel ratio of 1.5 node lab": {
+        "at": "node:lab",
+        "hovered": "lab",
+        "heard": "lab",
+        "pointer": true,
+        "world": true,
+        "selected": "node:lab"
+    },
+    "3d a pixel ratio of 1.5 node small": {
+        "at": "node:small",
+        "hovered": "small",
+        "heard": "small",
+        "pointer": true,
+        "world": true,
+        "selected": "node:small"
+    },
+    "3d a pixel ratio of 1.5 node t0": {
+        "at": "node:t0",
+        "hovered": "t0",
+        "heard": "t0",
+        "pointer": true,
+        "world": true,
+        "selected": "node:t0"
+    },
+    "3d a pixel ratio of 1.5 node t1": {
+        "at": "node:t1",
+        "hovered": "t1",
+        "heard": "t1",
+        "pointer": true,
+        "world": true,
+        "selected": "node:t1"
+    },
+    "3d a pixel ratio of 1.5 node t2": {
+        "at": "node:t2",
+        "hovered": "t2",
+        "heard": "t2",
+        "pointer": true,
+        "world": true,
+        "selected": "node:t2"
+    },
+    "3d a pixel ratio of 1.5 node tiny": {
+        "at": "node:tiny",
+        "hovered": "tiny",
+        "heard": "tiny",
+        "pointer": true,
+        "world": true,
+        "selected": "node:tiny"
+    },
+    "3d a pixel ratio of 1.5 node ul": {
+        "at": "node:ul",
+        "hovered": "ul",
+        "heard": "ul",
+        "pointer": true,
+        "world": true,
+        "selected": "node:ul"
+    },
+    "3d a pixel ratio of 2 edge ea middle": {
+        "at": "edge:ea",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:ea"
+    },
+    "3d a pixel ratio of 2 edge eb middle": {
+        "at": "edge:eb",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:eb"
+    },
+    "3d a pixel ratio of 2 edge t01 middle": {
+        "at": "edge:t01",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:t01"
+    },
+    "3d a pixel ratio of 2 node a0": {
+        "at": "node:a0",
+        "hovered": "a0",
+        "heard": "a0",
+        "pointer": true,
+        "world": true,
+        "selected": "node:a0"
+    },
+    "3d a pixel ratio of 2 node a1": {
+        "at": "node:a1",
+        "hovered": "a1",
+        "heard": "a1",
+        "pointer": true,
+        "world": true,
+        "selected": "node:a1"
+    },
+    "3d a pixel ratio of 2 node b0": {
+        "at": "node:b0",
+        "hovered": "b0",
+        "heard": "b0",
+        "pointer": true,
+        "world": true,
+        "selected": "node:b0"
+    },
+    "3d a pixel ratio of 2 node b1": {
+        "at": "node:b1",
+        "hovered": "b1",
+        "heard": "b1",
+        "pointer": true,
+        "world": true,
+        "selected": "node:b1"
+    },
+    "3d a pixel ratio of 2 node big": {
+        "at": "node:big",
+        "hovered": "big",
+        "heard": "big",
+        "pointer": true,
+        "world": true,
+        "selected": "node:big"
+    },
+    "3d a pixel ratio of 2 node gone": {
+        "at": "node:gone",
+        "hovered": "gone",
+        "heard": "gone",
+        "pointer": true,
+        "world": true,
+        "selected": "node:gone"
+    },
+    "3d a pixel ratio of 2 node grow": {
+        "at": "node:grow",
+        "hovered": "grow",
+        "heard": "grow",
+        "pointer": true,
+        "world": true,
+        "selected": "node:grow"
+    },
+    "3d a pixel ratio of 2 node lab": {
+        "at": "node:lab",
+        "hovered": "lab",
+        "heard": "lab",
+        "pointer": true,
+        "world": true,
+        "selected": "node:lab"
+    },
+    "3d a pixel ratio of 2 node small": {
+        "at": "node:small",
+        "hovered": "small",
+        "heard": "small",
+        "pointer": true,
+        "world": true,
+        "selected": "node:small"
+    },
+    "3d a pixel ratio of 2 node t0": {
+        "at": "node:t0",
+        "hovered": "t0",
+        "heard": "t0",
+        "pointer": true,
+        "world": true,
+        "selected": "node:t0"
+    },
+    "3d a pixel ratio of 2 node t1": {
+        "at": "node:t1",
+        "hovered": "t1",
+        "heard": "t1",
+        "pointer": true,
+        "world": true,
+        "selected": "node:t1"
+    },
+    "3d a pixel ratio of 2 node t2": {
+        "at": "node:t2",
+        "hovered": "t2",
+        "heard": "t2",
+        "pointer": true,
+        "world": true,
+        "selected": "node:t2"
+    },
+    "3d a pixel ratio of 2 node tiny": {
+        "at": "node:tiny",
+        "hovered": "tiny",
+        "heard": "tiny",
+        "pointer": true,
+        "world": true,
+        "selected": "node:tiny"
+    },
+    "3d a pixel ratio of 2 node ul": {
+        "at": "node:ul",
+        "hovered": "ul",
+        "heard": "ul",
+        "pointer": true,
+        "world": true,
+        "selected": "node:ul"
+    },
+    "3d a real camera orbit drag edge ea middle": {
+        "at": "edge:ea",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:ea"
+    },
+    "3d a real camera orbit drag edge eb middle": {
+        "at": "edge:eb",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:eb"
+    },
+    "3d a real camera orbit drag edge t01 middle": {
+        "at": "edge:t01",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:t01"
+    },
+    "3d a real camera orbit drag node a0": {
+        "at": "node:a0",
+        "hovered": "a0",
+        "heard": "a0",
+        "pointer": true,
+        "world": true,
+        "selected": "node:a0"
+    },
+    "3d a real camera orbit drag node a1": {
+        "at": "node:a1",
+        "hovered": "a1",
+        "heard": "a1",
+        "pointer": true,
+        "world": true,
+        "selected": "node:a1"
+    },
+    "3d a real camera orbit drag node b0": {
+        "at": "node:b0",
+        "hovered": "b0",
+        "heard": "b0",
+        "pointer": true,
+        "world": true,
+        "selected": "node:b0"
+    },
+    "3d a real camera orbit drag node b1": {
+        "at": "node:b1",
+        "hovered": "b1",
+        "heard": "b1",
+        "pointer": true,
+        "world": true,
+        "selected": "node:b1"
+    },
+    "3d a real camera orbit drag node big": {
+        "at": "node:big",
+        "hovered": "big",
+        "heard": "big",
+        "pointer": true,
+        "world": true,
+        "selected": "node:big"
+    },
+    "3d a real camera orbit drag node gone": {
+        "at": "node:gone",
+        "hovered": "gone",
+        "heard": "gone",
+        "pointer": true,
+        "world": true,
+        "selected": "node:gone"
+    },
+    "3d a real camera orbit drag node grow": {
+        "at": "node:grow",
+        "hovered": "grow",
+        "heard": "grow",
+        "pointer": true,
+        "world": true,
+        "selected": "node:grow"
+    },
+    "3d a real camera orbit drag node lab": {
+        "at": "node:lab",
+        "hovered": "lab",
+        "heard": "lab",
+        "pointer": true,
+        "world": true,
+        "selected": "node:lab"
+    },
+    "3d a real camera orbit drag node small": {
+        "at": "node:small",
+        "hovered": "small",
+        "heard": "small",
+        "pointer": true,
+        "world": true,
+        "selected": "node:small"
+    },
+    "3d a real camera orbit drag node t0": {
+        "at": "node:t0",
+        "hovered": "t0",
+        "heard": "t0",
+        "pointer": true,
+        "world": true,
+        "selected": "node:t0"
+    },
+    "3d a real camera orbit drag node t1": {
+        "at": "node:t1",
+        "hovered": "t1",
+        "heard": "t1",
+        "pointer": true,
+        "world": true,
+        "selected": "node:t1"
+    },
+    "3d a real camera orbit drag node t2": {
+        "at": "node:t2",
+        "hovered": "t2",
+        "heard": "t2",
+        "pointer": true,
+        "world": true,
+        "selected": "node:t2"
+    },
+    "3d a real camera orbit drag node tiny": {
+        "at": "node:tiny",
+        "hovered": "tiny",
+        "heard": "tiny",
+        "pointer": true,
+        "world": true,
+        "selected": "node:tiny"
+    },
+    "3d a real camera orbit drag node ul": {
+        "at": "node:ul",
+        "hovered": "ul",
+        "heard": "ul",
+        "pointer": true,
+        "world": true,
+        "selected": "node:ul"
+    },
+    "3d a real wheel zoom edge ea middle": {
+        "at": "edge:ea",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:ea"
+    },
+    "3d a real wheel zoom edge eb middle": {
+        "at": "edge:eb",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:eb"
+    },
+    "3d a real wheel zoom edge t01 middle": {
+        "at": "edge:t01",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:t01"
+    },
+    "3d a real wheel zoom node a0": {
+        "at": "node:a0",
+        "hovered": "a0",
+        "heard": "a0",
+        "pointer": true,
+        "world": true,
+        "selected": "node:a0"
+    },
+    "3d a real wheel zoom node a1": {
+        "at": "node:a1",
+        "hovered": "a1",
+        "heard": "a1",
+        "pointer": true,
+        "world": true,
+        "selected": "node:a1"
+    },
+    "3d a real wheel zoom node b0": {
+        "at": "node:b0",
+        "hovered": "b0",
+        "heard": "b0",
+        "pointer": true,
+        "world": true,
+        "selected": "node:b0"
+    },
+    "3d a real wheel zoom node b1": {
+        "at": "node:b1",
+        "hovered": "b1",
+        "heard": "b1",
+        "pointer": true,
+        "world": true,
+        "selected": "node:b1"
+    },
+    "3d a real wheel zoom node big": {
+        "at": "node:big",
+        "hovered": "big",
+        "heard": "big",
+        "pointer": true,
+        "world": true,
+        "selected": "node:big"
+    },
+    "3d a real wheel zoom node gone": {
+        "at": "node:gone",
+        "hovered": "gone",
+        "heard": "gone",
+        "pointer": true,
+        "world": true,
+        "selected": "node:gone"
+    },
+    "3d a real wheel zoom node grow": {
+        "at": "node:grow",
+        "hovered": "grow",
+        "heard": "grow",
+        "pointer": true,
+        "world": true,
+        "selected": "node:grow"
+    },
+    "3d a real wheel zoom node lab": {
+        "at": "node:lab",
+        "hovered": "lab",
+        "heard": "lab",
+        "pointer": true,
+        "world": true,
+        "selected": "node:lab"
+    },
+    "3d a real wheel zoom node small": {
+        "at": "node:small",
+        "hovered": "small",
+        "heard": "small",
+        "pointer": true,
+        "world": true,
+        "selected": "node:small"
+    },
+    "3d a real wheel zoom node t0": {
+        "at": "node:t0",
+        "hovered": "t0",
+        "heard": "t0",
+        "pointer": true,
+        "world": true,
+        "selected": "node:t0"
+    },
+    "3d a real wheel zoom node t1": {
+        "at": "node:t1",
+        "hovered": "t1",
+        "heard": "t1",
+        "pointer": true,
+        "world": true,
+        "selected": "node:t1"
+    },
+    "3d a real wheel zoom node t2": {
+        "at": "node:t2",
+        "hovered": "t2",
+        "heard": "t2",
+        "pointer": true,
+        "world": true,
+        "selected": "node:t2"
+    },
+    "3d a real wheel zoom node tiny": {
+        "at": "node:tiny",
+        "hovered": "tiny",
+        "heard": "tiny",
+        "pointer": true,
+        "world": true,
+        "selected": "node:tiny"
+    },
+    "3d a real wheel zoom node ul": {
+        "at": "node:ul",
+        "hovered": "ul",
+        "heard": "ul",
+        "pointer": true,
+        "world": true,
+        "selected": "node:ul"
+    },
+    "3d a resize bigger edge ea middle": {
+        "at": "edge:ea",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:ea"
+    },
+    "3d a resize bigger edge eb middle": {
+        "at": "edge:eb",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:eb"
+    },
+    "3d a resize bigger edge t01 middle": {
+        "at": "edge:t01",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:t01"
+    },
+    "3d a resize bigger node a0": {
+        "at": "node:a0",
+        "hovered": "a0",
+        "heard": "a0",
+        "pointer": true,
+        "world": true,
+        "selected": "node:a0"
+    },
+    "3d a resize bigger node a1": {
+        "at": "node:a1",
+        "hovered": "a1",
+        "heard": "a1",
+        "pointer": true,
+        "world": true,
+        "selected": "node:a1"
+    },
+    "3d a resize bigger node b0": {
+        "at": "node:b0",
+        "hovered": "b0",
+        "heard": "b0",
+        "pointer": true,
+        "world": true,
+        "selected": "node:b0"
+    },
+    "3d a resize bigger node b1": {
+        "at": "node:b1",
+        "hovered": "b1",
+        "heard": "b1",
+        "pointer": true,
+        "world": true,
+        "selected": "node:b1"
+    },
+    "3d a resize bigger node big": {
+        "at": "node:big",
+        "hovered": "big",
+        "heard": "big",
+        "pointer": true,
+        "world": true,
+        "selected": "node:big"
+    },
+    "3d a resize bigger node gone": {
+        "at": "node:gone",
+        "hovered": "gone",
+        "heard": "gone",
+        "pointer": true,
+        "world": true,
+        "selected": "node:gone"
+    },
+    "3d a resize bigger node grow": {
+        "at": "node:grow",
+        "hovered": "grow",
+        "heard": "grow",
+        "pointer": true,
+        "world": true,
+        "selected": "node:grow"
+    },
+    "3d a resize bigger node lab": {
+        "at": "node:lab",
+        "hovered": "lab",
+        "heard": "lab",
+        "pointer": true,
+        "world": true,
+        "selected": "node:lab"
+    },
+    "3d a resize bigger node small": {
+        "at": "node:small",
+        "hovered": "small",
+        "heard": "small",
+        "pointer": true,
+        "world": true,
+        "selected": "node:small"
+    },
+    "3d a resize bigger node t0": {
+        "at": "node:t0",
+        "hovered": "t0",
+        "heard": "t0",
+        "pointer": true,
+        "world": true,
+        "selected": "node:t0"
+    },
+    "3d a resize bigger node t1": {
+        "at": "node:t1",
+        "hovered": "t1",
+        "heard": "t1",
+        "pointer": true,
+        "world": true,
+        "selected": "node:t1"
+    },
+    "3d a resize bigger node t2": {
+        "at": "node:t2",
+        "hovered": "t2",
+        "heard": "t2",
+        "pointer": true,
+        "world": true,
+        "selected": "node:t2"
+    },
+    "3d a resize bigger node tiny": {
+        "at": "node:tiny",
+        "hovered": "tiny",
+        "heard": "tiny",
+        "pointer": true,
+        "world": true,
+        "selected": "node:tiny"
+    },
+    "3d a resize bigger node ul": {
+        "at": "node:ul",
+        "hovered": "ul",
+        "heard": "ul",
+        "pointer": true,
+        "world": true,
+        "selected": "node:ul"
+    },
+    "3d a resize smaller edge ea middle": {
+        "at": "edge:ea",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:ea"
+    },
+    "3d a resize smaller edge eb middle": {
+        "at": "edge:eb",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:eb"
+    },
+    "3d a resize smaller edge t01 middle": {
+        "at": "edge:t01",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:t01"
+    },
+    "3d a resize smaller node a0": {
+        "at": "node:a0",
+        "hovered": "a0",
+        "heard": "a0",
+        "pointer": true,
+        "world": true,
+        "selected": "node:a0"
+    },
+    "3d a resize smaller node a1": {
+        "at": "node:a1",
+        "hovered": "a1",
+        "heard": "a1",
+        "pointer": true,
+        "world": true,
+        "selected": "node:a1"
+    },
+    "3d a resize smaller node b0": {
+        "at": "node:b0",
+        "hovered": "b0",
+        "heard": "b0",
+        "pointer": true,
+        "world": true,
+        "selected": "node:b0"
+    },
+    "3d a resize smaller node b1": {
+        "at": "node:b1",
+        "hovered": "b1",
+        "heard": "b1",
+        "pointer": true,
+        "world": true,
+        "selected": "node:b1"
+    },
+    "3d a resize smaller node big": {
+        "at": "node:big",
+        "hovered": "big",
+        "heard": "big",
+        "pointer": true,
+        "world": true,
+        "selected": "node:big"
+    },
+    "3d a resize smaller node gone": {
+        "at": "node:gone",
+        "hovered": "gone",
+        "heard": "gone",
+        "pointer": true,
+        "world": true,
+        "selected": "node:gone"
+    },
+    "3d a resize smaller node grow": {
+        "at": "node:grow",
+        "hovered": "grow",
+        "heard": "grow",
+        "pointer": true,
+        "world": true,
+        "selected": "node:grow"
+    },
+    "3d a resize smaller node lab": {
+        "at": "node:lab",
+        "hovered": "lab",
+        "heard": "lab",
+        "pointer": true,
+        "world": true,
+        "selected": "node:lab"
+    },
+    "3d a resize smaller node small": {
+        "at": "node:small",
+        "hovered": "small",
+        "heard": "small",
+        "pointer": true,
+        "world": true,
+        "selected": "node:small"
+    },
+    "3d a resize smaller node t0": {
+        "at": "node:t0",
+        "hovered": "t0",
+        "heard": "t0",
+        "pointer": true,
+        "world": true,
+        "selected": "node:t0"
+    },
+    "3d a resize smaller node t1": {
+        "at": "node:t1",
+        "hovered": "t1",
+        "heard": "t1",
+        "pointer": true,
+        "world": true,
+        "selected": "node:t1"
+    },
+    "3d a resize smaller node t2": {
+        "at": "node:t2",
+        "hovered": "t2",
+        "heard": "t2",
+        "pointer": true,
+        "world": true,
+        "selected": "node:t2"
+    },
+    "3d a resize smaller node tiny": {
+        "at": "node:tiny",
+        "hovered": "tiny",
+        "heard": "tiny",
+        "pointer": true,
+        "world": true,
+        "selected": "node:tiny"
+    },
+    "3d a resize smaller node ul": {
+        "at": "node:ul",
+        "hovered": "ul",
+        "heard": "ul",
+        "pointer": true,
+        "world": true,
+        "selected": "node:ul"
+    },
+    "3d a resize to an odd size edge ea middle": {
+        "at": "edge:ea",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:ea"
+    },
+    "3d a resize to an odd size edge eb middle": {
+        "at": "edge:eb",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:eb"
+    },
+    "3d a resize to an odd size edge t01 middle": {
+        "at": "edge:t01",
+        "hovered": "none",
+        "heard": "none",
+        "pointer": true,
+        "world": false,
+        "selected": "edge:t01"
+    },
+    "3d a resize to an odd size node a0": {
+        "at": "node:a0",
+        "hovered": "a0",
+        "heard": "a0",
+        "pointer": true,
+        "world": true,
+        "selected": "node:a0"
+    },
+    "3d a resize to an odd size node a1": {
+        "at": "node:a1",
+        "hovered": "a1",
+        "heard": "a1",
+        "pointer": true,
+        "world": true,
+        "selected": "node:a1"
+    },
+    "3d a resize to an odd size node b0": {
+        "at": "node:b0",
+        "hovered": "b0",
+        "heard": "b0",
+        "pointer": true,
+        "world": true,
+        "selected": "node:b0"
+    },
+    "3d a resize to an odd size node b1": {
+        "at": "node:b1",
+        "hovered": "b1",
+        "heard": "b1",
+        "pointer": true,
+        "world": true,
+        "selected": "node:b1"
+    },
+    "3d a resize to an odd size node big": {
+        "at": "node:big",
+        "hovered": "big",
+        "heard": "big",
+        "pointer": true,
+        "world": true,
+        "selected": "node:big"
+    },
+    "3d a resize to an odd size node gone": {
+        "at": "node:gone",
+        "hovered": "gone",
+        "heard": "gone",
+        "pointer": true,
+        "world": true,
+        "selected": "node:gone"
+    },
+    "3d a resize to an odd size node grow": {
+        "at": "node:grow",
+        "hovered": "grow",
+        "heard": "grow",
+        "pointer": true,
+        "world": true,
+        "selected": "node:grow"
+    },
+    "3d a resize to an odd size node lab": {
+        "at": "node:lab",
+        "hovered": "lab",
+        "heard": "lab",
+        "pointer": true,
+        "world": true,
+        "selected": "node:lab"
+    },
+    "3d a resize to an odd size node small": {
+        "at": "node:small",
+        "hovered": "small",
+        "heard": "small",
+        "pointer": true,
+        "world": true,
+        "selected": "node:small"
+    },
+    "3d a resize to an odd size node t0": {
+        "at": "node:t0",
+        "hovered": "t0",
+        "heard": "t0",
+        "pointer": true,
+        "world": true,
+        "selected": "node:t0"
+    },
+    "3d a resize to an odd size node t1": {
+        "at": "node:t1",
+        "hovered": "t1",
+        "heard": "t1",
+        "pointer": true,
+        "world": true,
+        "selected": "node:t1"
+    },
+    "3d a resize to an odd size node t2": {
+        "at": "node:t2",
+        "hovered": "t2",
+        "heard": "t2",
+        "pointer": true,
+        "world": true,
+        "selected": "node:t2"
+    },
+    "3d a resize to an odd size node tiny": {
+        "at": "node:tiny",
+        "hovered": "tiny",
+        "heard": "tiny",
+        "pointer": true,
+        "world": true,
+        "selected": "node:tiny"
+    },
+    "3d a resize to an odd size node ul": {
+        "at": "node:ul",
+        "hovered": "ul",
+        "heard": "ul",
+        "pointer": true,
+        "world": true,
+        "selected": "node:ul"
+    }
+}

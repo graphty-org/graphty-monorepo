@@ -199,8 +199,8 @@ the default weight 1. Its weight is recorded as missing, so a save writes no wei
 
 The graph itself stores weights as 32-bit floats, in `snapshot.edgeList().weights`, which is what
 graph algorithms read. They hold integers up to 16,777,216 exactly and most decimals only
-approximately: `0.1` is `0.10000000149011612`. Use `edgeWeights()` when you show or sum the
-weights:
+approximately: `0.1` is `0.10000000149011612`. Use `edgeWeights()` (the same as
+`snapshot.edgeWeights()`) when you show or sum the weights:
 
 <!-- generated:begin example:reading/exact-weights -->
 

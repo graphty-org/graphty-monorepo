@@ -4,7 +4,8 @@
  *
  * Eight nodes in disjoint parts, loaded into an element already drawn (so on `"batched"` most rows have no Node),
  * are switched to a seeded ngraph simulation. Inside the {@link MOVING_FRAMES}th frame that moves a node, the public
- * camera state is read. Two `"objects"` loads are compared first, so a difference is the path's.
+ * camera state is read. Two `"objects"` loads are compared first, so a difference is the path's. The simulation runs
+ * one layout round per frame, so the Nth moving frame is the same step however fast frames are drawn.
  *
  * How to run, from graphty-element:
  *   npx vitest run --project=render-parity test/render-parity/reframe-in-motion.test.ts
@@ -18,6 +19,7 @@ import { afterEach, assert, describe, it } from "vitest";
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
 import { dataManagerInternals } from "../../src/managers/DataManager";
+import { setMinimumWorkPerFrame } from "../../src/managers/minimumWork";
 
 type Path = "objects" | "batched";
 type CameraState = ReturnType<Graphty["getCameraState"]>;
@@ -100,10 +102,17 @@ async function cameraInMotion(path: Path): Promise<CameraState> {
             resolve(element.getCameraState());
         });
     });
-    await element.graph.setLayout("ngraph", { seed: 42, dim: 3 });
-    const state = await read;
-    element.remove();
-    return state;
+    // One layout round per frame: otherwise a slow frame catches up several steps (UpdateManager's
+    // catch-up rounds, by the clock), so the Nth moving frame stood at a different step on each load.
+    setMinimumWorkPerFrame(true);
+    try {
+        await element.graph.setLayout("ngraph", { seed: 42, dim: 3 });
+        const state = await read;
+        element.remove();
+        return state;
+    } finally {
+        setMinimumWorkPerFrame(false);
+    }
 }
 
 /**

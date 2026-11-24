@@ -105,13 +105,13 @@ describe("a document the open refuses", () => {
         }
     });
 
-    it("refuses a version 2 file without the experiment, naming the experiment that reads it", async () => {
-        // No experiments, so the refusal holds in the features-on test projects too.
+    it("opens a version 2 file with no experiments, since version 2 files are no longer an experiment", async () => {
+        // No experiments, so the open holds in the features-off test projects too.
         const result = await open({ kind: "graphty-document", version: 2, sections: {} }, {}, []);
-        assert.deepStrictEqual(result, {
-            code: "E_UNSUPPORTED_VERSION",
-            details: { kind: "graphty-document", found: 2, reads: [1], feature: "save-files-v2" },
-        });
+        assert.notProperty(result, "code", JSON.stringify(result));
+        const { session, report } = result as { session: GraphSession; report: { opened: string } };
+        assert.strictEqual(report.opened, "document");
+        session.dispose();
     });
 
     it("refuses a columns option mapping a name to no column, or naming another table", async () => {

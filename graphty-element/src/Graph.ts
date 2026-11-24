@@ -336,6 +336,7 @@ import { loadLineOf, type LoadTurn } from "./session/loadLine";
 import type { SessionCommand } from "./session/planning";
 import {
     cancelReasonOf,
+    type Dispatcher,
     type DispatchFunction,
     queueScheduler,
     type TransactionOptions as DispatcherTransactionOptions,
@@ -1248,6 +1249,11 @@ export class Graph implements GraphContext {
      * it is why every data question this class answers is forwarded rather than computed.
      */
     private readonly session: ElementSession;
+    /**
+     * The session's dispatcher once looked up: {@link Graph.is2D} and the configuration document are read for every
+     * edge placed, every frame a layout moves (issue #9420), and a weak map lookup each time showed in the profile.
+     */
+    #dispatcher: Dispatcher | undefined;
     /** The queue loads, layouts, runs and style passes take their turn in; see {@link operationQueueOf}. */
     private readonly operationQueue: OperationQueueManager;
 
@@ -3162,6 +3168,14 @@ export class Graph implements GraphContext {
         });
         // No frame is drawn while an element built from the defaults waits for its style.
         this.renderManager.drawHeld = (): boolean => this.dataManager.drawHeld;
+        // A consumer's own light reaches the nodes a batch draws, as it reaches the objects path's.
+        const relight = (): void => {
+            this.renderManager.relightBatches();
+            // A frozen list of what is drawn skips each mesh's material check (#9246).
+            this.updateManager.thawActiveMeshes();
+        };
+        this.scene.onNewLightAddedObservable.add(relight);
+        this.scene.onLightRemovedObservable.add(relight);
     }
 
     /**
@@ -3729,6 +3743,15 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * The session's dispatcher, looked up once (see `#dispatcher`).
+     * @returns The dispatcher.
+     */
+    private dispatcher(): Dispatcher {
+        this.#dispatcher ??= dispatcherOf(this.session);
+        return this.#dispatcher;
+    }
+
+    /**
      * The configuration document `styles.config` reads: frozen, merged from the project settings
      * and the view settings, and rebuilt only when one of them has changed since the last read,
      * so two reads with no change between them return the same object.
@@ -3742,7 +3765,7 @@ export class Graph implements GraphContext {
             return this.mergeConfig(DEFAULT_PROJECT, DEFAULT_LAYOUT);
         }
 
-        const dispatcher = dispatcherOf(session);
+        const dispatcher = this.dispatcher();
         const writes = dispatcher.lane.writes("config");
         const layout = dispatcher.lane.writes("layout");
         let cache = this.configCache;
@@ -5631,7 +5654,9 @@ export class Graph implements GraphContext {
 
                         this.renderManager.requestFrame();
                     },
-                    resized: () => {
+                    resized: (row) => {
+                        // a `Node` resized has its edges measured again (`remeasureEdgesOf`); a row has no `Node` to say so (#9857)
+                        this.updateManager.placeEdgesOfRow(row);
                         if (this.layoutManager.layoutEngine?.wakeForResize() === true) {
                             this.layoutManager.running = true;
                         }
@@ -6275,7 +6300,7 @@ export class Graph implements GraphContext {
      * @returns "2d" or "3d".
      */
     private dimension(): "2d" | "3d" {
-        return (dispatcherOf(this.session).state.layout ?? DEFAULT_LAYOUT).dimension;
+        return (this.dispatcher().state.layout ?? DEFAULT_LAYOUT).dimension;
     }
 
     /**
@@ -7153,12 +7178,20 @@ export class Graph implements GraphContext {
         // The cache took every row's source with it: each row drawn with no `Node` is painted
         // again onto the new dimension's source at the next frame.
         const painter = this.getStylePainter();
-        for (const row of dataManagerInternals.unbuiltRows(this.dataManager)) {
+        const unbuilt = dataManagerInternals.unbuiltRows(this.dataManager);
+        for (const row of unbuilt) {
             painter.queue("node", row);
         }
 
         for (const row of lineRows) {
             painter.queue("edge", row);
+        }
+
+        // No frame draws until every row queued here is drawn on its new source: a frame drawn part
+        // way, when the repaint is split across frames, showed every edge and a few nodes (#9866).
+        // Only the batched path has such rows; every `Node` and `Edge` was drawn again above.
+        if (unbuilt.length > 0 || lineRows.length > 0) {
+            this.dataManager.notePaintQueued();
         }
 
         this.updateManager.meshesAdded();
@@ -11827,6 +11860,9 @@ export class Graph implements GraphContext {
             // for `view.immersive` with `null` (`xrSessionEnded`).
             onSessionEnded: ({ mode, cause }) => {
                 this.xrSessionEnded(mode === "immersive-vr" ? "vr" : "ar", cause);
+            },
+            onFrameError: (error) => {
+                this.eventManager.emitGraphError(this, error, "xr", error.details);
             },
         };
     }

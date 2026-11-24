@@ -11,7 +11,7 @@ import type { Scope, SetDefinition } from "../../../src/catalog/types";
 import { type GraphtyError, isGraphtyError } from "../../../src/errors";
 import { scopeResolverOfSession } from "../../../src/session/GraphSession";
 import { deriveRunId, type RunIdentity } from "../../../src/session/runs/runId";
-import { edgeBetween, type Harness, makeSession } from "../helpers";
+import { edgeBetween, type Harness, makeSession, rejectionCodeOf } from "../helpers";
 
 /**
  * The refusal a call throws.
@@ -122,9 +122,9 @@ describe("{ define } at every write position", () => {
             exact: true,
         });
         assert.strictEqual(
-            refusal(() =>
+            await rejectionCodeOf(
                 harness.session.scope.count({ define: { kind: "fixed", nodes: "a" } as unknown as SetDefinition }),
-            ).code,
+            ),
             "E_BAD_COMMAND",
         );
     });

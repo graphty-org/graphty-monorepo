@@ -2,7 +2,7 @@
  * @file Facts about a version 2 save before it is made, and about a version 2 file before it is
  * opened (`project.describe`, `project.inspect`): what each section holds, which are held, how each
  * source would be kept, and which runs an open can rerun. Neutral facts only: counts, codes and
- * ids, never words. Experimental (`save-files-v2`).
+ * ids, never words.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
@@ -43,16 +43,12 @@ import {
  * `version`, a required `extension`, `data` that cannot be built whole, a known key holding another
  * `kind`, an `unknown` key, a `malformed` value, or a file of several `graphs`; and, in
  * `W_SECTION_KEPT` only, `add`: a data section an open in add mode kept rather than added. OPEN UNION.
- * @experimental save-files-v2
- * @beta
  */
 export type DocumentHeldReason = "version" | "extension" | "data" | "kind" | "unknown" | "malformed" | "graphs" | "add";
 
 /**
  * A held section: kept exactly as read and written back on save; the session's own content of
  * its kind is not saved while it is held.
- * @experimental save-files-v2
- * @beta
  */
 export interface DocumentHeldFacts {
     /** The section's version, or null when it has none. */
@@ -66,8 +62,6 @@ export interface DocumentHeldFacts {
 /**
  * What one section holds (spec 3, section 4): its `name` and how many entries each of its body
  * members holds.
- * @experimental save-files-v2
- * @beta
  */
 export interface DocumentSectionFacts {
     /** The section. */
@@ -86,8 +80,6 @@ export interface DocumentSectionFacts {
 
 /**
  * One section as a version 2 save would write it now.
- * @experimental save-files-v2
- * @beta
  */
 export interface ProjectSaveSection extends DocumentSectionFacts {
     /** Whether a save with no `sections` option writes it. */
@@ -102,15 +94,11 @@ export interface ProjectSaveSection extends DocumentSectionFacts {
 
 /**
  * A source's kind, as a version 2 file records it. OPEN UNION.
- * @experimental save-files-v2
- * @beta
  */
 export type ProjectSourceKind = "file" | "url" | "network" | "sample" | "derived" | "reader";
 
 /**
  * One source of the open data, and how a version 2 save keeps it.
- * @experimental save-files-v2
- * @beta
  */
 export interface ProjectSourceChoice {
     /**
@@ -142,8 +130,6 @@ export interface ProjectSourceChoice {
 
 /**
  * What a version 2 save of the session would write, asked before saving.
- * @experimental save-files-v2
- * @beta
  */
 export interface ProjectSaveFacts {
     /** Every section, in file order. */
@@ -162,8 +148,6 @@ export interface ProjectSaveFacts {
  * How a bound section of a file binds (spec 6.4): to the data section of the same file, or to
  * the data open now. A bound section loads when it binds to the data the open leaves open, or
  * with `bindOtherData`.
- * @experimental save-files-v2
- * @beta
  */
 export interface DocumentBindFacts {
     /** It was written on the file's own data section. */
@@ -174,8 +158,6 @@ export interface DocumentBindFacts {
 
 /**
  * One section of a version 2 file, as read without opening it.
- * @experimental save-files-v2
- * @beta
  */
 export interface ProjectFileSection extends DocumentSectionFacts {
     /** The section's version, or null when it has none. */
@@ -198,8 +180,6 @@ export interface ProjectFileSection extends DocumentSectionFacts {
 /**
  * What a section says of itself (spec 3): text and dates for display only, as the file gives
  * them; a member the file leaves out is absent.
- * @experimental save-files-v2
- * @beta
  */
 export interface DocumentSectionAbout {
     /** A sentence of what it is for, as its author wrote it. */
@@ -224,8 +204,6 @@ export interface DocumentSectionAbout {
 /**
  * One thing a section needs from the data (spec 3.6): a `column` (with its `table`), a node or edge
  * `type`, a `source` role, or a `result` of a run (by its `as`).
- * @experimental save-files-v2
- * @beta
  */
 export interface DocumentSectionNeed {
     /** What it is. OPEN UNION. */
@@ -249,8 +227,6 @@ export interface DocumentSectionNeed {
 
 /**
  * A run an open of the file would start (the view's run records, and `"layout"` for its layout).
- * @experimental save-files-v2
- * @beta
  */
 export interface ProjectFileRun {
     /** The run id; `"layout"` for the layout. The key of `ProjectOpenOptions.runs`. */
@@ -267,8 +243,6 @@ export interface ProjectFileRun {
 
 /**
  * One source a file's data section names.
- * @experimental save-files-v2
- * @beta
  */
 export interface ProjectFileSource {
     /** Its record id: the key of `ProjectOpenOptions.files`. */
@@ -287,8 +261,6 @@ export interface ProjectFileSource {
 
 /**
  * A version 2 file read without opening it (`project.inspect`).
- * @experimental save-files-v2
- * @beta
  */
 export interface ProjectFileFacts {
     /** A full file, or a section file of one section. */

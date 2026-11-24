@@ -2,7 +2,7 @@
  * @file The recipe commands of version 2 (spec 4.3) and their mapping to and from today's session
  * state: which members each command knows, which filter steps are exact `graph.filter` commands,
  * which rules and scopes name elements, and the `results.<as>` rewriting between a recipe's run
- * names and the session's run ids. Experimental (`save-files-v2`).
+ * names and the session's run ids.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */

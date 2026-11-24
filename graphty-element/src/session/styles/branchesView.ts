@@ -3,12 +3,13 @@
  * the ghosts it draws faint, and the stack's own layers suspended beneath them.
  */
 import type { LayerSpec, UnionLeaf } from "../../catalog/types";
+import { DRAFT_PATH } from "../sources/steps/paths";
 import { inertReason } from "../visibility/union";
 import type { CompiledLayer, LayerCheck } from "./Layer";
 import type { SelectorTarget } from "./predicate";
 import { selectorStates } from "./selector";
 import { badCommand } from "./styleErrors";
-import type { BranchesView, StylesSources } from "./StylesApi";
+import type { BranchesView, DraftView, StylesSources } from "./StylesApi";
 import { drawsOutsideWindow, hidesOutsideWindow } from "./tree";
 
 /**
@@ -169,15 +170,80 @@ export function branchLayers(
     const outside = outsideInView(stack);
     specs.splice(ghostAt, 0, ...heldLayers("ghosted", false), ...outside);
 
-    const layers = specs.map((spec, at) => {
-        const checked = check(spec, `graphty-branches-${String(at)}`);
+    const layers = compiled(specs, "branches", check);
+    // What each layer draws, by which it is the same layer as the one a view drew before.
+    const keys = specs.map(({ name: _name, ...drawn }) => JSON.stringify(drawn));
+    return { layers, keys };
+}
+
+/**
+ * Compile a view's layers.
+ * @param specs - The layers.
+ * @param kind - The view, for the layers' ids.
+ * @param check - Checks one layer specification against the session.
+ * @returns The layers, compiled.
+ */
+function compiled(
+    specs: readonly LayerSpec[],
+    kind: "branches" | "draft",
+    check: (spec: LayerSpec, id: string) => LayerCheck,
+): CompiledLayer[] {
+    return specs.map((spec, at) => {
+        const checked = check(spec, `graphty-${kind}-${String(at)}`);
         if (checked.layer === null) {
-            throw badCommand("showBranches could not draw this selection.", { errors: checked.result.errors });
+            const message =
+                kind === "draft"
+                    ? "showDraft could not draw this draft."
+                    : "showBranches could not draw this selection.";
+            throw badCommand(message, { errors: checked.result.errors });
         }
 
         return checked.layer;
     });
-    // What each layer draws, by which it is the same layer as the one a view drew before.
-    const keys = specs.map(({ name: _name, ...drawn }) => JSON.stringify(drawn));
-    return { layers, keys };
+}
+
+/**
+ * The layers a draft view (`styles.showDraft`) draws, bottom first: a ring on each node the
+ * commit would merge, a dashed border on each node it would add, and each edge it would add drawn
+ * dashed, read from `graphty.draft`; the ghosts drawn faint as under a branches view.
+ * @param view - The colors.
+ * @param stack - The stack as project state holds it now.
+ * @param check - Checks one layer specification against the session.
+ * @returns The layers.
+ */
+export function draftLayers(
+    view: DraftView,
+    stack: readonly CompiledLayer[],
+    check: (spec: LayerSpec, id: string) => LayerCheck,
+): CompiledLayer[] {
+    const marked = (mark: "merged" | "new"): { match: "expression"; where: string } => ({
+        match: "expression",
+        where: `${DRAFT_PATH} == '${mark}'`,
+    });
+    return compiled(
+        [
+            ...heldLayers("ghosted", false),
+            ...outsideInView(stack),
+            {
+                name: "Merged",
+                target: "node",
+                selector: marked("merged"),
+                set: { "node.haloColor": view.merged, "node.haloScale": 1.4, "node.haloOpacity": 1 },
+            },
+            {
+                name: "New",
+                target: "node",
+                selector: marked("new"),
+                set: { "node.borderColor": view.new, "node.borderStyle": "dashed", "node.borderWidth": 0.1 },
+            },
+            {
+                name: "New",
+                target: "edge",
+                selector: marked("new"),
+                set: { "edge.color": view.new, "edge.style": "dash" },
+            },
+        ],
+        "draft",
+        check,
+    );
 }

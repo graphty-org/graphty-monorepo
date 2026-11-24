@@ -41,14 +41,14 @@
  * SHARDS is also exported: tools/run-tests.sh imports it to run a shard locally with the exact
  * command CI runs, so the two cannot drift. Importing the file runs nothing.
  *
- * A shard's "local" field is what the pre-push gate (tools/prepush-tests.mjs) does with it; CI
- * ignores it and runs every shard of an affected package:
+ * A shard's "local" field is what a run on this machine does with it (tools/test-changed.mjs and
+ * tools/test-select-mutate.mjs skip "never"); CI ignores it and runs every shard of an affected package:
  *   "always" (the default)  run it whenever its package is affected
  *   "when-paths-change"     run it only when the push changes a file the shard tests: a test file
  *                           its vitest command selects (with its own --shard slice), a setup or
  *                           config file of those vitest projects, or a path in "local-paths"
  *                           (repo-relative; a trailing "/" means everything under it, test files
- *                           of the other shards excepted). The gate asks vitest for the first two.
+ *                           of the other shards excepted).
  *   "never"                 never run it locally
  */
 
@@ -264,6 +264,15 @@ const OFF_SHARDS = [
         package: "cytoscape-extensions",
         "test-command":
             "cd cytoscape-extensions && pnpm exec vitest run --config vitest.storybook.config.ts --project=storybook",
+        "needs-browser": true,
+    },
+    // babylonjs-models' stories: every play function run as a test, the only browser tests of the package (its own
+    // unit tests run in Node). No coverage: graphty-element's browser tests measure the Babylon.js half.
+    {
+        shard: "babylonjs-models-storybook",
+        package: "babylonjs-models",
+        "test-command":
+            "cd babylonjs-models && pnpm exec vitest run --config vitest.storybook.config.ts --project=storybook",
         "needs-browser": true,
     },
     // algorithms - two shards (default and browser separated to avoid worker timeout)

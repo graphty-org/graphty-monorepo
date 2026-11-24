@@ -793,40 +793,22 @@ async function postStoryReach(body, who, db, nowMs) {
     return { stored: results.reduce((n, r) => n + r.meta.changes, 0) };
 }
 
-// Each story's unapproved renders since its last unchanged one, under its newest row's baselines tree, newest first:
-// the first of them bounds tools/full-run.mjs's ordering pick rule (early-capture.md 4e)
-const UNAPPROVED_SINCE_CLEAR = `WITH n AS (SELECT project, story, mode, baselines_tree FROM (SELECT project, story, mode, baselines_tree,
-     ROW_NUMBER() OVER (PARTITION BY project, story, mode ORDER BY run_id DESC, attempt DESC) AS rn FROM story_capture) WHERE rn = 1),
- t AS (SELECT c.project, c.story, c.mode, c.sha, c.status,
-     ROW_NUMBER() OVER (PARTITION BY c.project, c.story, c.mode ORDER BY c.run_id, c.attempt) AS k
-     FROM story_capture c JOIN n ON n.project = c.project AND n.story = c.story AND n.mode = c.mode
-     AND n.baselines_tree = c.baselines_tree),
- m AS (SELECT project, story, mode, MAX(CASE WHEN status = 'unchanged' THEN k ELSE 0 END) AS clear FROM t GROUP BY project, story, mode)
- SELECT t.project, t.story, t.mode, t.sha FROM t JOIN m ON m.project = t.project AND m.story = t.story AND m.mode = t.mode
- WHERE t.k > m.clear AND t.status IN ('changed', 'new', 'unseeded') ORDER BY t.k DESC`; // QUEUE_STATUSES
-
+// Each story's and unit's newest row, and each story's first unapproved render since its last unchanged one (the
+// first bounds tools/full-run.mjs's ordering pick rule, early-capture.md 4e), are kept on write by migration 0014's
+// triggers: computing them here scanned a week of story_capture rows four times a call, about 750,000 rows read,
+// and spent the daily D1 read cap (#9974). A read is one row per story and per unit.
 async function getStoryCaptures(_query, _who, db) {
-    const [{ results: newest }, last, { results: notified }, { results: units }, { results: since }] =
-        await Promise.all([
-            db
-                .prepare(
-                    `SELECT project, story, mode, sha, baselines_tree, run_id, attempt, artifact, status, hash, baseline_hash, at
-                 FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY project, story, mode ORDER BY run_id DESC, attempt DESC) AS rn
-                 FROM story_capture) WHERE rn = 1 ORDER BY project, story, mode`,
-                )
-                .all(),
-            db.prepare("SELECT sha, at FROM story_capture ORDER BY run_id DESC, attempt DESC, at DESC LIMIT 1").first(),
-            db.prepare("SELECT kind, at FROM story_notify").all(),
-            db
-                .prepare(
-                    `SELECT project, unit, sha, at FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY project, unit ORDER BY run_id DESC, attempt DESC)
-                 AS rn FROM story_unit) WHERE rn = 1 ORDER BY project, unit`,
-                )
-                .all(),
-            db.prepare(UNAPPROVED_SINCE_CLEAR).all(),
-        ]);
-    // newest first, so the last write per story is its first unapproved render
-    const first = new Map(since.map((r) => [`${r.project}\n${r.story}\n${r.mode}`, r.sha]));
+    const [{ results: newest }, last, { results: notified }, { results: units }] = await Promise.all([
+        db
+            .prepare(
+                `SELECT project, story, mode, sha, baselines_tree, run_id, attempt, artifact, status, hash, baseline_hash, at,
+                 first_unapproved FROM story_newest ORDER BY project, story, mode`,
+            )
+            .all(),
+        db.prepare("SELECT sha, at FROM story_newest ORDER BY run_id DESC, attempt DESC, at DESC LIMIT 1").first(),
+        db.prepare("SELECT kind, at FROM story_notify").all(),
+        db.prepare("SELECT project, unit, sha, at FROM unit_newest ORDER BY project, unit").all(),
+    ]);
     const statuses = {};
     for (const c of newest) statuses[c.status] = (statuses[c.status] ?? 0) + 1;
     const when = Object.fromEntries(notified.map((n) => [n.kind, n.at]));
@@ -845,7 +827,7 @@ async function getStoryCaptures(_query, _who, db) {
             baselineHash: c.baseline_hash,
             at: c.at,
             ...(QUEUE_STATUSES.has(c.status) && {
-                firstUnapprovedSha: first.get(`${c.project}\n${c.story}\n${c.mode}`) ?? c.sha,
+                firstUnapprovedSha: c.first_unapproved ?? c.sha,
             }),
         })),
         summary: {

@@ -442,3 +442,167 @@ describe("edge ends at overlapping nodes", () => {
         assert.strictEqual(arrowheadEdge(headOn([281.5, 270.7]), lines, nodes, true)?.e.id, "k->m#g0");
     });
 });
+
+describe("a line of a pixel or less between nodes that touch", () => {
+    // cx-radiation-bibliography, as Cytoscape desktop draws it: each node's border, then its fill; each line, then the
+    // dot on its start and its head
+    const grey = { color: "#999999", opacity: 1, width: 3.114, dash: null, dashClass: "solid" as const };
+    const white = { color: "#ffffff", opacity: 1, gradient: null };
+    const scene = (nodes: PNode[], edges: PEdge[]): PScene => ({
+        side: "graphty",
+        width: 900,
+        height: 900,
+        background: "#ffffff",
+        nodes: [node("a", 100, 100), node("c", 800, 100), node("d", 100, 800), node("f", 800, 800), ...nodes],
+        edges,
+        groups: [],
+        texts: [],
+        strays: [],
+    });
+    const drawn = (shapes: Omit<Prim, "index" | "tag" | "box" | "markers" | "hint" | "text">[]): Prim[] =>
+        [
+            ...[
+                [100, 100],
+                [800, 100],
+                [100, 800],
+                [800, 800],
+            ].map(([x, y]) => ({
+                kind: "shape" as const,
+                closed: true,
+                corners: 0,
+                points: disc(x, y, 20),
+                fill: white,
+                stroke: null,
+            })),
+            ...shapes,
+        ].map((p, index) => ({
+            ...p,
+            index,
+            tag: "path",
+            box: boxOfPoints(p.points),
+            text: null,
+            markers: { start: false, end: false },
+            hint: null,
+        }));
+    const bordered = (
+        points: Pt[],
+        corners: number,
+    ): Omit<Prim, "index" | "tag" | "box" | "markers" | "hint" | "text">[] => [
+        { kind: "shape", closed: true, corners, points, fill: null, stroke: grey },
+        { kind: "shape", closed: true, corners, points, fill: white, stroke: null },
+    ];
+    const ink = (color: string): Prim["fill"] => ({ color, opacity: 1, gradient: null });
+    const line = (color: string, points: Pt[]): Omit<Prim, "index" | "tag" | "box" | "markers" | "hint" | "text"> => ({
+        kind: "path",
+        closed: false,
+        corners: 2,
+        points,
+        fill: null,
+        stroke: { color, opacity: 1, width: 0.389, dash: null, dashClass: "solid" },
+    });
+    const filled = (
+        color: string,
+        points: Pt[],
+    ): Omit<Prim, "index" | "tag" | "box" | "markers" | "hint" | "text"> => ({
+        kind: "shape",
+        closed: true,
+        corners: points.length - 1,
+        points,
+        fill: ink(color),
+        stroke: null,
+    });
+    const head = (shape: "tee" | "triangle"): PEdge["arrows"][number] => ({
+        end: "target",
+        length: 5,
+        width: 2.5,
+        filled: true,
+        shape,
+        color: null,
+    });
+
+    it("names a line between two nodes whose borders overlap the way graphty runs the edge", () => {
+        // 125 -> 768: round rectangles 0.5 px apart under 1.6 px borders; the line runs from 125's border back to 768's,
+        // its tee against 768, and was read as 768 -> 125
+        const red = "#cc0033";
+        const prims = drawn([
+            line(red, [
+                [244.951, 375.006],
+                [245.548, 375.205],
+            ]),
+            filled(red, disc(244.885, 374.993, 0.13)),
+            filled(red, [
+                [246.411, 372.62],
+                [246.928, 372.793],
+                [245.203, 377.963],
+                [244.686, 377.79],
+                [246.411, 372.62],
+            ]),
+            ...bordered(rect(241.621, 376.563, 294.953, 389.02), 4),
+            ...bordered(rect(198.132, 362.053, 251.464, 374.51), 4),
+        ]);
+        const g = scene(
+            [
+                { ...node("n125", 268.287, 382.792, 53.33, 12.46), shape: "rect" },
+                { ...node("n768", 224.798, 368.282, 53.33, 12.46), shape: "rect" },
+            ],
+            [{ ...edge("e", "n125", "n768"), arrows: [head("tee")] }],
+        );
+        const [e] = associate(prims, 900, 900, g, { fillOverStroke: true }).scene.edges;
+        assert.deepEqual([e.source, e.target], ["n125", "n768"]);
+        assert.deepEqual(
+            e.arrows.map((x) => x.end),
+            ["target"],
+        );
+    });
+
+    it("gives a head running on past one end of a line under a pixel long to that end", () => {
+        // 141 -> 142: an ellipse and a hexagon drawn on one another; the line between their crossed outlines is 0.015 px
+        // long, its 5.4 px head running on from its target end, and was read as a middle head
+        const green = "#009900";
+        const prims = drawn([
+            line(green, [
+                [400.157, 354.918],
+                [400.142, 354.919],
+            ]),
+            filled(green, disc(400.25, 354.93, 0.1)),
+            filled(green, [
+                [400.219, 356.279],
+                [394.701, 355.227],
+                [400.065, 353.559],
+                [400.219, 356.279],
+            ]),
+            ...bordered(
+                [
+                    [393.269, 353.799],
+                    [406.602, 359.193],
+                    [433.268, 359.193],
+                    [446.601, 353.799],
+                    [433.268, 348.405],
+                    [406.602, 348.405],
+                    [393.269, 353.799],
+                ],
+                6,
+            ),
+            ...bordered(
+                disc(372.72, 356.483, 1).map(([x, y]): Pt => [
+                    372.72 + (x - 372.72) * 26.46,
+                    356.483 + (y - 356.483) * 6.23,
+                ]),
+                0,
+            ),
+        ]);
+        const g = scene(
+            [
+                { ...node("n141", 372.72, 356.483, 52.91, 12.45), shape: "ellipse" },
+                { ...node("n142", 419.935, 353.799, 53.33, 10.79), shape: "hexagon" },
+            ],
+            [edge("e", "n141", "n142")],
+        );
+        const [e] = associate(prims, 900, 900, g, { fillOverStroke: true }).scene.edges;
+        assert.deepEqual([e.source, e.target], ["n141", "n142"]);
+        assert.deepEqual(
+            e.arrows.map((x) => x.end),
+            ["target"],
+        );
+    });
+});

@@ -42,6 +42,14 @@ import type { GraphSceneMetadata } from "./types/sceneMetadata";
 const graphLogger: Logger = GraphtyLogger.getLogger(["graphty", "graph"]);
 
 /** One {@link Graph.waitForStableFrame} call: whether it gave up, and how to stop its current round. */
+/** The parts of a click's pointer event that decide what it does to the selection. */
+interface ClickModifiers {
+    button?: number;
+    shiftKey?: boolean;
+    ctrlKey?: boolean;
+    metaKey?: boolean;
+}
+
 interface StableFrameWait {
     gaveUp: boolean;
     stop: (() => void) | undefined;
@@ -328,6 +336,7 @@ import { loadLineOf, type LoadTurn } from "./session/loadLine";
 import type { SessionCommand } from "./session/planning";
 import {
     cancelReasonOf,
+    type Dispatcher,
     type DispatchFunction,
     queueScheduler,
     type TransactionOptions as DispatcherTransactionOptions,
@@ -1240,6 +1249,11 @@ export class Graph implements GraphContext {
      * it is why every data question this class answers is forwarded rather than computed.
      */
     private readonly session: ElementSession;
+    /**
+     * The session's dispatcher once looked up: {@link Graph.is2D} and the configuration document are read for every
+     * edge placed, every frame a layout moves (issue #9420), and a weak map lookup each time showed in the profile.
+     */
+    #dispatcher: Dispatcher | undefined;
     /** The queue loads, layouts, runs and style passes take their turn in; see {@link operationQueueOf}. */
     private readonly operationQueue: OperationQueueManager;
 
@@ -3729,6 +3743,15 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * The session's dispatcher, looked up once (see `#dispatcher`).
+     * @returns The dispatcher.
+     */
+    private dispatcher(): Dispatcher {
+        this.#dispatcher ??= dispatcherOf(this.session);
+        return this.#dispatcher;
+    }
+
+    /**
      * The configuration document `styles.config` reads: frozen, merged from the project settings
      * and the view settings, and rebuilt only when one of them has changed since the last read,
      * so two reads with no change between them return the same object.
@@ -3742,7 +3765,7 @@ export class Graph implements GraphContext {
             return this.mergeConfig(DEFAULT_PROJECT, DEFAULT_LAYOUT);
         }
 
-        const dispatcher = dispatcherOf(session);
+        const dispatcher = this.dispatcher();
         const writes = dispatcher.lane.writes("config");
         const layout = dispatcher.lane.writes("layout");
         let cache = this.configCache;
@@ -5631,7 +5654,9 @@ export class Graph implements GraphContext {
 
                         this.renderManager.requestFrame();
                     },
-                    resized: () => {
+                    resized: (row) => {
+                        // a `Node` resized has its edges measured again (`remeasureEdgesOf`); a row has no `Node` to say so (#9857)
+                        this.updateManager.placeEdgesOfRow(row);
                         if (this.layoutManager.layoutEngine?.wakeForResize() === true) {
                             this.layoutManager.running = true;
                         }
@@ -6103,14 +6128,12 @@ export class Graph implements GraphContext {
     /**
      * A click on the canvas. A click on a node is the node's own handler's. On a label with a
      * close button it deselects only on the x, and anywhere else on that label does nothing. On
-     * an edge it selects the edge (Shift adds it); on empty canvas it clears the selection. A
+     * an edge it selects the edge (Shift adds it; Ctrl or Cmd adds it or takes it out); on empty canvas it clears the selection. A
      * right-click asks for a menu about the selection, so it keeps a selection that holds its
      * edge, and on empty canvas it clears nothing.
-     * @param event - The pointer event: which button, and whether Shift was held.
-     * @param event.button - The mouse button; 2 is the secondary one.
-     * @param event.shiftKey - Whether Shift was held.
+     * @param event - The pointer event: which button, and which modifier keys were held.
      */
-    private handleBackgroundClick(event: { button?: number; shiftKey?: boolean }): void {
+    private handleBackgroundClick(event: ClickModifiers): void {
         const { pointerX: x, pointerY: y } = this.scene;
         if (this.handledOnCloseLabel(x, y)) {
             return;
@@ -6144,15 +6167,8 @@ export class Graph implements GraphContext {
      * @param x - The pointer's x on the canvas.
      * @param y - The pointer's y on the canvas.
      * @param event - The pointer event.
-     * @param event.button - The mouse button; 2 is the secondary one.
-     * @param event.shiftKey - Whether Shift was held.
      */
-    private clickAt(
-        edgeId: EdgeId | undefined,
-        x: number,
-        y: number,
-        event: { button?: number; shiftKey?: boolean },
-    ): void {
+    private clickAt(edgeId: EdgeId | undefined, x: number, y: number, event: ClickModifiers): void {
         const secondary = event.button === 2;
         if (edgeId === undefined) {
             const outline = this.renderManager.pickGroupOutline(x, y);
@@ -6166,8 +6182,13 @@ export class Graph implements GraphContext {
         }
 
         if (!(secondary && this.session.selection.edges.includes(edgeId))) {
-            const add = event.shiftKey === true;
-            this.session.selection.applyNow({ edges: [edgeId] }, add ? "add" : "replace", "user");
+            let op: "toggle" | "add" | "replace" = "replace";
+            if (event.ctrlKey === true || event.metaKey === true) {
+                op = "toggle";
+            } else if (event.shiftKey === true) {
+                op = "add";
+            }
+            this.session.selection.applyNow({ edges: [edgeId] }, op, "user");
         }
         this.session.elementClick({ edge: edgeId });
     }
@@ -6279,7 +6300,7 @@ export class Graph implements GraphContext {
      * @returns "2d" or "3d".
      */
     private dimension(): "2d" | "3d" {
-        return (dispatcherOf(this.session).state.layout ?? DEFAULT_LAYOUT).dimension;
+        return (this.dispatcher().state.layout ?? DEFAULT_LAYOUT).dimension;
     }
 
     /**
@@ -7157,12 +7178,20 @@ export class Graph implements GraphContext {
         // The cache took every row's source with it: each row drawn with no `Node` is painted
         // again onto the new dimension's source at the next frame.
         const painter = this.getStylePainter();
-        for (const row of dataManagerInternals.unbuiltRows(this.dataManager)) {
+        const unbuilt = dataManagerInternals.unbuiltRows(this.dataManager);
+        for (const row of unbuilt) {
             painter.queue("node", row);
         }
 
         for (const row of lineRows) {
             painter.queue("edge", row);
+        }
+
+        // No frame draws until every row queued here is drawn on its new source: a frame drawn part
+        // way, when the repaint is split across frames, showed every edge and a few nodes (#9866).
+        // Only the batched path has such rows; every `Node` and `Edge` was drawn again above.
+        if (unbuilt.length > 0 || lineRows.length > 0) {
+            this.dataManager.notePaintQueued();
         }
 
         this.updateManager.meshesAdded();
@@ -11831,6 +11860,9 @@ export class Graph implements GraphContext {
             // for `view.immersive` with `null` (`xrSessionEnded`).
             onSessionEnded: ({ mode, cause }) => {
                 this.xrSessionEnded(mode === "immersive-vr" ? "vr" : "ar", cause);
+            },
+            onFrameError: (error) => {
+                this.eventManager.emitGraphError(this, error, "xr", error.details);
             },
         };
     }

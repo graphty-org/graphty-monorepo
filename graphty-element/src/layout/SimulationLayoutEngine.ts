@@ -701,6 +701,16 @@ export class SimulationLayoutEngine extends LayoutEngine {
     #simulation: LayoutSimulation | null = null;
 
     /**
+     * A simulation rebuilt over a layout that had SETTLED, held at rest until something wakes it.
+     *
+     * A new simulation has no way to start settled: its `load()` is a full run from the start of the
+     * schedule. So a device loss that rebuilt a settled layout on the device brought back ran that
+     * schedule again from the settled arrangement, and every node moved (issue #9929). This flag is the
+     * settled state the rebuild cannot hand over; whatever would reheat the old simulation clears it.
+     */
+    #resting = false;
+
+    /**
      * What the controller had ATTACHED when the running simulation was built, which is not the
      * same as what that simulation runs on: below `acceleration.minNodes` the plan answers CPU
      * with an accelerator attached. Recording the attached one is what makes a transition that
@@ -1234,6 +1244,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
 
         this.#iterations = this.#resolveIterations(simGraph.nodeCount);
         this.#seed(simGraph, simPositions);
+        this.#resting = false;
         simulation.load(loadable.graph, simPositions);
         this.#attachDrawn(snapshot.nodeCount);
 
@@ -1264,8 +1275,17 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * @throws A `GraphtyError` with `E_NO_ACCELERATOR` when the policy is `"required"` and
      * nothing is attached. The bridge is then STOPPED -- no simulation, nothing submitted -- and
      * the next transition that attaches an accelerator brings it back through this same method.
+     * @param keepSettled - True when only the accelerator changed: a layout that had settled stays
+     *     settled on the new simulation, where it was, until something wakes it. A rebuild for new
+     *     data or new communities passes false and runs.
      */
-    replaceSimulation(): void {
+    replaceSimulation(keepSettled = false): void {
+        // NOT `#failed`: a settled simulation's per-frame device work fails on the lost device before
+        // the controller sees the loss, and that failure is reported, but it moved nothing. Its
+        // `settled` is still what its last landed batch said. With NO simulation (a `"required"` policy
+        // with nothing attached: the last rebuild threw), only a rest carried through that gap counts --
+        // an empty bridge reads settled, and a layout stopped mid-run must resume.
+        const settled = keepSettled && (this.#simulation === null ? this.#resting : this.isSettled);
         this.#detachDrawn();
         this.#simulation?.dispose();
         this.#simulation = null;
@@ -1282,8 +1302,12 @@ export class SimulationLayoutEngine extends LayoutEngine {
             this.#build();
         } catch (error) {
             this.#failed = true;
+            // Carried through the gap to the rebuild that brings the accelerator back.
+            this.#resting = settled;
             throw error;
         }
+
+        this.#resting = settled;
 
         // No reheat here either, and for the same reason: `#build()` loads the new simulation, and
         // a load is already a full run from the start of the schedule. See `reload`.
@@ -1302,7 +1326,8 @@ export class SimulationLayoutEngine extends LayoutEngine {
      */
     step(): void {
         const simulation = this.#simulation;
-        if (simulation === null || this.#failed) {
+        // A resting simulation does nothing when stepped, as a settled one does.
+        if (simulation === null || this.#failed || this.#resting) {
             return;
         }
 
@@ -1382,7 +1407,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * @returns A promise that resolves when the batch has landed, or rejects with its failure.
      */
     async stepAsync(iterations: number): Promise<void> {
-        if (this.#simulation === null || this.#failed) {
+        if (this.#simulation === null || this.#failed || this.#resting) {
             return;
         }
 
@@ -1432,6 +1457,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * ones have it, and a third party's may not -- so it is feature-tested rather than assumed.
      */
     reheat(): void {
+        this.#resting = false;
         const simulation: (LayoutSimulation & { reheat?: () => void }) | null = this.#simulation;
         if (typeof simulation?.reheat === "function") {
             simulation.reheat();
@@ -1504,6 +1530,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
      */
     override setHoldMask(mask: NodeMask | null, rows: number): void {
         super.setHoldMask(mask, rows);
+        this.#resting = false;
         this.#applyPins();
     }
 
@@ -1538,6 +1565,8 @@ export class SimulationLayoutEngine extends LayoutEngine {
 
         const scale = this.#envelopeScale;
         this.#simWrites += 1;
+        // The simulation reheats on a placed node, so a resting one wakes with it.
+        this.#resting = false;
         this.#simulation?.setPosition(
             row,
             (p.x - this.#targetCentre[0]) / scale + this.#simCentre[0],
@@ -1661,7 +1690,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * @returns True when the last completed batch settled.
      */
     get isSettled(): boolean {
-        return this.#simulation?.settled ?? true;
+        return this.#resting || (this.#simulation?.settled ?? true);
     }
 
     /**
@@ -2684,6 +2713,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * @throws Whatever `plan()` or `createSimulation` throws.
      */
     #build(): void {
+        this.#resting = false;
         const snapshot = this.#snapshot;
         const positions = this.#positions;
         if (snapshot === null || positions === null) {
@@ -2957,6 +2987,12 @@ export class SimulationLayoutEngine extends LayoutEngine {
         const mask = this.#mask;
         const simulation = this.#simulation;
         const row = this.#simRow(index);
+        if (!fixed) {
+            // A released row reheats the simulation, so a resting one wakes with it -- also one carried
+            // through a stopped bridge, which has no simulation to tell yet.
+            this.#resting = false;
+        }
+
         if (mask === null || simulation === null || !this.#hasRow(row)) {
             return;
         }

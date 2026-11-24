@@ -203,6 +203,18 @@ const unwritten = visibility.openDrafts().filter((each) => !visibility.condition
 A draft that cannot be opened again (the condition it edited is gone) is dropped, and the restore's
 report lists it as `W_FILTER_DRAFT_DROPPED` with the condition's `id`.
 
+An open draft of the sources and steps (`session.data.draft()`, under the `source-steps`
+experiment) is kept the same way: after a restore it is open again, uncommitted, drawn as it was
+and with its undo history, so pick it up instead of opening a new one:
+
+```javascript
+await element.autosaver.ready;
+const draft = element.session.data.currentDraft() ?? element.session.data.draft();
+```
+
+A draft that cannot be opened again (the experiment is off, or the rows it read are gone) is
+dropped, and the restore's report lists it as `W_SOURCE_DRAFT_DROPPED`.
+
 ## The entries
 
 ```javascript

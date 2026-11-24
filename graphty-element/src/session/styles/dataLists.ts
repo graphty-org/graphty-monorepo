@@ -1222,7 +1222,7 @@ export function prepareData(
             rows.push(...one.rows);
             values.push(isMissing(value) ? null : value);
             present += isMissing(value) ? 0 : 1;
-            facts.push({ key: path, name: nameOf(path), text: one.fact.text ?? "", color: "" });
+            facts.push({ key: path, name: nameOf(path), text: one.fact.text ?? "", color: "", column: true });
         }
 
         return {
@@ -1392,6 +1392,7 @@ export function prepareData(
                 name: list.categories?.[part.key]?.label ?? part.name,
                 text: write(part.value),
                 color: colorOf(part),
+                ...(part.column === true ? { column: true as const } : {}),
             }));
             const other = drawn.find((part) => part.role === "other");
             const others: DataPartFact[] =
@@ -1976,8 +1977,16 @@ function resolveRecord(
             ? { cells: row.cells.map((cell) => ({ ...cell, fill: ZEBRA_FILL })) }
             : {}),
     }));
-    return { entries, undrawn: null, fills: { "node.labelTable": JSON.stringify({ rows: tableRows }) } };
+    // Each cell padded, so a value never runs into its row's name ("label Farm A", not "labelFarm A").
+    return {
+        entries,
+        undrawn: null,
+        fills: { "node.labelTable": JSON.stringify({ cellPadding: RECORD_CELL_PADDING, rows: tableRows }) },
+    };
 }
+
+/** A record table's cell padding, in label pixels (a quarter of the default 48 px letters' height between cells). */
+const RECORD_CELL_PADDING = 6;
 
 /** What a data fill's binding answers to the readers that read every binding (a legend, `agreement`). */
 const NO_COUNTS = Object.freeze({ seen: 0, unreadable: 0, notPlottable: 0, clamped: 0, other: 0, unmeasured: 0 });

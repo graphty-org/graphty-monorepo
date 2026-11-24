@@ -286,6 +286,8 @@ export interface DataPartFact {
     readonly text: string;
     readonly color: string;
     readonly role?: "other";
+    /** True when the part is one column a pattern matched (its key is the column's path); absent for a list item, a category, a group or Other. */
+    readonly column?: true;
 }
 
 /**

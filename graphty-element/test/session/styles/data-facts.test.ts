@@ -79,6 +79,36 @@ describe("data facts", () => {
         assert.strictEqual(facts.entries[0].parts?.[0].color, facts.categories[0].color);
     });
 
+    it("marks a pattern's parts as columns, so a category spelled with a dot is not read as one", async () => {
+        const session = createGraphSession();
+        await session.config.set({ data: { knownFields: { nodeLabelPath: "label" } } });
+        await session.data.addNodes([{ id: "a", label: "Farm A", city: ["St. Louis", "St. Louis"], x_1: 4, x_2: 7 }]);
+        const layer = await session.styles.add({
+            name: "Data",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.chartData": { entries: [{ pattern: "x_" }, { field: "data.city" }] } },
+        });
+        const label = await session.styles.add({
+            name: "Label",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.label": "{data.label}" },
+        });
+        await session.styles.settled();
+        const facts = session.styles.dataFacts(layer.id, "node.chartData", "a");
+        assert.deepStrictEqual(
+            facts.entries[0].parts?.map((part) => part.column),
+            [true, true],
+        );
+        assert.deepStrictEqual(
+            facts.entries[1].parts?.map((part) => [part.key, part.column]),
+            [["St. Louis", undefined]],
+        );
+        assert.strictEqual(facts.name, "Farm A", "named by its label in the data, not its id or the template");
+        assert.isString(label.id);
+    });
+
     it("says why a node draws nothing, as a code with params", async () => {
         const pie = await withLayer({ "node.pieData": { entries: [{ field: "data.animals" }] } });
         assert.deepStrictEqual(pie.session.styles.dataFacts(pie.layerId, "node.pieData", "c").undrawn, {

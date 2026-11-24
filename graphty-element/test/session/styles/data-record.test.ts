@@ -31,6 +31,7 @@ async function recordOf(node: Record<string, unknown>, record: RecordData): Prom
 }
 
 interface Table {
+    readonly cellPadding?: number;
     readonly rows: readonly {
         readonly rule?: boolean;
         readonly cells: readonly {
@@ -79,6 +80,7 @@ describe("a record from data", () => {
             ["p", "3.2E-8"],
         ]);
         assert.strictEqual(table.rows[0].cells[1].align, "right");
+        assert.isAbove(table.cellPadding ?? 0, 0, "a gap between a row's name and its value");
     });
 
     it("puts a header first, draws rules or zebra rows, and caps the rows with a +n row", async () => {

@@ -872,6 +872,7 @@ export interface DataListCommon {
 export interface DataPartFact {
     // (undocumented)
     readonly color: string;
+    readonly column?: true;
     // (undocumented)
     readonly key: string;
     // (undocumented)

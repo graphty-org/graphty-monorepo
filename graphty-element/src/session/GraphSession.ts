@@ -5382,6 +5382,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         edgeIndex,
         field: fieldWordsOf(data, runs),
         groupRanks: groupRanksOf(runs),
+        nodeName: (node: NodeId) => data.name(node),
         repaint: painter.repaint,
         // The passes a selection or pointer change starts without awaiting: `settled()` waits for
         // those already asked for when it is called, a selection repaint still waiting its turn too.

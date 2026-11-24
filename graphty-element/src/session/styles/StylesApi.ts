@@ -1825,6 +1825,13 @@ export interface StylesSources {
      */
     readonly groupRanks?: (runId: RunId) => ReadonlyMap<string, number> | undefined;
     /**
+     * What a node is called (`session.data.name`): a data spec's sample is named by it when no layer sets
+     * `node.label` to plain words. Absent, the node's id.
+     * @param node - The node.
+     * @returns The name, or undefined for a node the graph does not hold.
+     */
+    readonly nodeName?: (node: NodeId) => string | undefined;
+    /**
      * What paints the elements a change touched.
      *
      * THE SEAM, and the one thing this module does not do. Absent, an edit changes the stack and
@@ -2969,6 +2976,21 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     const { defaulted, paletteKindOf, withDefaultPalettes, withResolvedPalettes } = paletteState;
 
     /**
+     * What a data spec's sample node is called: the plain words a layer sets as its label, else its name in the
+     * data (a template such as "{data.label}" is not words), else its id.
+     * @param node - The node.
+     * @param label - What the stack sets on `node.label` for it.
+     * @returns The name.
+     */
+    const sampleName = (node: NodeId, label: unknown): string => {
+        if (typeof label === "string" && label !== "" && !label.includes("{")) {
+            return label;
+        }
+
+        return sources.nodeName?.(node) ?? String(node);
+    };
+
+    /**
      * The prepared data spec one layer paints on a data channel.
      * @param layerId - The layer.
      * @param channel - The data channel.
@@ -3005,7 +3027,6 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     ): DataFacts => {
         const explained = explainStyle({ node }, explainSources);
         const result = prepared.resolve(index, (each) => (explained.merged as Record<string, unknown>)[each]);
-        const label = explained.merged["node.label"];
         const order = listLayers().map((each) => each.id);
         const above = explained.channels.find(
             (each) =>
@@ -3015,7 +3036,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         );
         return Object.freeze({
             node,
-            name: typeof label === "string" && label !== "" ? label : String(node),
+            name: sampleName(node, explained.merged["node.label"]),
             entries: result.entries,
             undrawn:
                 above === undefined
@@ -5622,10 +5643,9 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             }
 
             if (prepared === null) {
-                const label = explainStyle({ node }, explainSources).merged["node.label"];
                 return Object.freeze({
                     node,
-                    name: typeof label === "string" && label !== "" ? label : String(node),
+                    name: sampleName(node, explainStyle({ node }, explainSources).merged["node.label"]),
                     entries: [],
                     undrawn: { code: "data.notPainted" as const, params: { channel, layerId } },
                     categories: [],

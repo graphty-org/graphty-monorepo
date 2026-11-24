@@ -743,9 +743,8 @@ describe("what a style editor needs to draw a row", () => {
         "node.imageWidth",
         "node.imageHeight",
         "node.imagePixelSize",
-        // Unset, a node draws no glyph; its font and size follow from the rest.
+        // Unset, a node draws no glyph; its size follows from the rest (its font is sans-serif).
         "node.glyph",
-        "node.glyphFont",
         "node.glyphSize",
         "node.pieColors",
         "node.pieSizes",
@@ -959,6 +958,12 @@ describe("what a style editor needs to draw a row", () => {
 
             if (NO_DEFAULT.has(channel)) {
                 assert.isUndefined(descriptor.default, `${channel} draws nothing unset`);
+                continue;
+            }
+
+            // Words name a default only where one is drawn unset (a glyph's font).
+            if (descriptor.accepts === "text" && descriptor.default !== undefined) {
+                assert.isString(descriptor.default, channel);
                 continue;
             }
 

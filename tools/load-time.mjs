@@ -368,8 +368,8 @@ function main(argv) {
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
     try {
         process.exitCode = main(process.argv.slice(2));
-    } catch (error) {
-        console.error(error instanceof Error ? error.message : String(error));
+    } catch (e) {
+        console.error(`load-time: ${e instanceof Error ? e.message : String(e)}`);
         process.exitCode = 1;
     }
 }

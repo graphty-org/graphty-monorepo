@@ -411,6 +411,7 @@ async function walk(chromium, route, origin) {
         ms: 0,
         reason: null,
         renderer: null,
+        renderPath: null,
     };
     let b = null;
     let stage = "launching the browser";
@@ -437,6 +438,12 @@ async function walk(chromium, route, origin) {
         );
         await Promise.race([run(), hang]);
         assert.deepEqual(pageErrors, [], "the page threw script errors");
+        // which of graphty-element's render paths drew the route (null: no graph open), so a run with the
+        // cosmograph experiment on fails when the app still draws with the default path
+        stage = "reading the render path";
+        out.renderPath = await b.page.evaluate(() => document.querySelector("graphty-element")?.renderPath ?? null);
+        if (FEATURES.split(",").includes("cosmograph") && out.renderPath !== null)
+            assert.equal(out.renderPath, "batched", "the cosmograph experiment draws with the batched render path");
         out.result = "pass";
     } catch (err) {
         out.reason = `${stage}: ${err.message.split("\n").slice(0, 6).join(" ").replaceAll(/\s+/g, " ")}`;

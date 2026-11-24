@@ -30,11 +30,11 @@ const fixedLayoutOptionsSchema = defineOptions({
         },
     },
     spacing: {
-        schema: z.number().min(0).default(3),
+        schema: z.number().min(0).default(0),
         meta: {
             label: "Spacing",
             description:
-                "How far apart neighbors are drawn at least, in scene units (a default node is one across): data positions closer than that are spread out, keeping their proportions; 0 draws them as given",
+                "How far apart neighbors are drawn at least, in scene units (a default node is one across): data positions closer than that are spread out, keeping their proportions; 0, the default, draws them as given",
             advanced: true,
         },
     },
@@ -60,7 +60,7 @@ const FixedLayoutConfig = z.strictObject({
     ...SimpleLayoutConfig.shape,
     dim: z.number().default(3),
     scale: z.number().positive().default(1),
-    spacing: z.number().min(0).default(3),
+    spacing: z.number().min(0).default(0),
     edgeRoutes: z.enum(["element", "graphviz"]).default("element"),
     graphvizAttributes: z.record(z.string(), z.string()).default({}),
 });
@@ -79,9 +79,10 @@ type FixedLayoutOpts = Partial<FixedLayoutConfigType>;
  * `layout-warning` event with code `W_NO_POSITION`, so a misspelled position is never silent.
  * `scale` (1 by default) multiplies every data position on top of `positionScale`: a load that
  * draws a file's styles sets it so the stored drawing is in the same unit as the file's node sizes.
- * `spacing` (3 scene units by default, three default node widths) spreads data drawn too close
- * together: when the median edge is shorter than that, every position is multiplied by the one
- * factor that makes it that long, so a file written on unit spacing draws separate nodes. It reads
+ * `spacing` (0 by default: positions are drawn as given) spreads data drawn too close together:
+ * when the median edge is shorter than that, every position is multiplied by the one factor that
+ * makes it that long, so a file written on unit spacing draws separate nodes. A load with
+ * `layout: "recommended"` that picks this layout passes `spacing: 3` (three default node widths). It reads
  * no style, so the same data spreads the same way on every render path. It reads only the first run,
  * never shrinks a drawing, and is off when `scale` or the element's `positionScale` is set, which
  * a reader sets to keep the size they chose. An export divides the factor back out.

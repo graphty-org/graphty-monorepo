@@ -32,9 +32,9 @@ describe("the fixed layout", () => {
      * Load nodes, choose the fixed layout and let it publish.
      * @param nodes - the node records
      */
-    async function placeFixed(nodes: Record<string, unknown>[]): Promise<void> {
+    async function placeFixed(nodes: Record<string, unknown>[], options: Record<string, unknown> = {}): Promise<void> {
         await graph.addNodes(nodes);
-        await graph.setLayout("fixed");
+        await graph.setLayout("fixed", options);
         await operationQueueOf(graph).waitForCompletion();
         graph.update();
     }
@@ -64,7 +64,20 @@ describe("the fixed layout", () => {
         assert.deepEqual(warnings, []);
     });
 
-    it("spreads unit-spaced positions so neighbors sit apart, keeping their proportions (issue #1171)", async () => {
+    it("draws unit-spaced positions as given by default (issue #9931)", async () => {
+        await graph.addNodes([
+            { id: "a", position: { x: 0, y: 0, z: 0 } },
+            { id: "b", position: { x: 1, y: 0, z: 0 } },
+        ]);
+        await graph.addEdges([{ src: "a", dst: "b" }]);
+        await graph.setLayout("fixed");
+        await operationQueueOf(graph).waitForCompletion();
+        graph.update();
+
+        assert.deepEqual(at("b"), { x: 1, y: 0, z: 0 });
+    });
+
+    it("spreads unit-spaced positions with spacing, keeping their proportions (issue #1171)", async () => {
         await graph.addNodes([
             { id: "a", position: { x: 0, y: 0, z: 0 } },
             { id: "b", position: { x: 1, y: 0, z: 0 } },
@@ -74,7 +87,7 @@ describe("the fixed layout", () => {
             { src: "a", dst: "b" },
             { src: "b", dst: "c" },
         ]);
-        await graph.setLayout("fixed");
+        await graph.setLayout("fixed", { spacing: 3 });
         await operationQueueOf(graph).waitForCompletion();
         graph.update();
 
@@ -84,11 +97,14 @@ describe("the fixed layout", () => {
     });
 
     it("spreads the same when the edges arrive after the layout has placed the nodes (issue #9257)", async () => {
-        await placeFixed([
-            { id: "a", position: { x: 0, y: 0, z: 0 } },
-            { id: "b", position: { x: 1, y: 0, z: 0 } },
-            { id: "c", position: { x: 1, y: 1, z: 0 } },
-        ]);
+        await placeFixed(
+            [
+                { id: "a", position: { x: 0, y: 0, z: 0 } },
+                { id: "b", position: { x: 1, y: 0, z: 0 } },
+                { id: "c", position: { x: 1, y: 1, z: 0 } },
+            ],
+            { spacing: 3 },
+        );
         assert.closeTo(at("b").x - at("a").x, 1, 1e-4, "no edge to measure yet: drawn as given");
 
         await graph.addEdges([

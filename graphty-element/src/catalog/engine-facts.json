@@ -1538,8 +1538,8 @@
                     "plainName": "Spacing",
                     "technicalName": "spacing",
                     "type": "number",
-                    "description": "How far apart neighbors are drawn at least, in scene units (a default node is one across): data positions closer than that are spread out, keeping their proportions; 0 draws them as given",
-                    "default": 3,
+                    "description": "How far apart neighbors are drawn at least, in scene units (a default node is one across): data positions closer than that are spread out, keeping their proportions; 0, the default, draws them as given",
+                    "default": 0,
                     "min": 0,
                     "advanced": true
                 },

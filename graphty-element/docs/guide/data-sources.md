@@ -466,7 +466,9 @@ await element.loadFromUrl("https://example.org/maps/USAir97.net", { layout: "rec
 `layout` takes two values:
 
 - `"recommended"`: once the load is in, the element chooses a layout for it. When every node
-  arrived with a position it picks `fixed`, which draws each node at its stored position. When
+  arrived with a position it picks `fixed`, which draws each node at its stored position, with
+  `spacing: 3`, so a file written on unit spacing draws its neighbors three default node widths
+  apart (the drawing's proportions kept; a file drawn with its own styles keeps their scale). When
   none did, it picks a layout that computes a drawing suited to the graph's size and shape. When
   only some did, it keeps those where the file put them and runs that computed layout over the
   others alone (as a [scoped layout](./sets.md)), as long as the layout can hold nodes still.

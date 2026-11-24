@@ -284,7 +284,17 @@ await graph.addNodes(nodes);
 await graph.setLayout("fixed");
 ```
 
-The coordinates are multiplied by the element's `positionScale` (default 1). A node with no usable
+The coordinates are multiplied by the element's `positionScale` (default 1) and drawn as given. To
+spread data drawn too close together, set `spacing` to how far apart neighbors should be at least, in
+scene units (a default node is one across): when the median edge is shorter, every position is
+multiplied by the one factor that makes it that long, keeping the drawing's proportions. It is off
+by default (`spacing: 0`), and an export still writes the data's own coordinates:
+
+```typescript
+await graph.setLayout("fixed", { spacing: 3 });
+```
+
+A node with no usable
 `position` is put at the origin (or stays where an earlier layout put it), and the element emits a
 `layout-warning` event with code `W_NO_POSITION` and `params: { missing, total }`, the number of
 nodes without one and the number placed:

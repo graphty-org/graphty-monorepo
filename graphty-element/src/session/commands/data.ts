@@ -828,6 +828,9 @@ export function mergeNodesCommand(
 /** Above this many rows a command holds the whole `graph` slice instead of each id. */
 const MAX_HELD_IDS = 1024;
 
+/** The fixed layout's `spacing` for a file loaded with the recommended layout: three default node widths. */
+const FILE_SPACING = 3;
+
 /**
  * The ids a patching mutation names.
  * @param mutation - A `set-attributes` or `update-rows` mutation.
@@ -1222,12 +1225,14 @@ function adviseLayout(ctx: UndoableContext, sceneScale: () => number | null, pla
         // size against the spaces Graphviz leaves between them (with `lengths: "file"`, one point is
         // one scene unit, so an inch is 72).
         const unit = graphviz && scale !== null ? POINTS_PER_UNIT * scale : scale;
+        // A file loaded with the recommended layout and drawn by the fixed layout spreads
+        // positions closer than three default node widths (issue #1171); the layout's own
+        // default draws positions as given (issue #9931).
+        const advised = advice.id === "fixed" ? { spacing: FILE_SPACING, ...advice.options } : advice.options;
         // With no unit (the file's styles are not drawn, or size nothing) the element draws its own node size, not the
         // size Graphviz gives the file's nodes, so Graphviz lays the nodes out at their drawn size (issue #5293).
         const sized =
-            graphviz && unit === null && advice.options?.nodeSize === "label"
-                ? { ...advice.options, nodeSize: "drawn" }
-                : advice.options;
+            graphviz && unit === null && advised?.nodeSize === "label" ? { ...advised, nodeSize: "drawn" } : advised;
         const options = (advice.id === "fixed" || graphviz) && unit !== null ? { ...sized, scale: unit } : sized;
         const layout = dispatch({
             op: "layout.set",

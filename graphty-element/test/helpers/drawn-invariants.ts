@@ -226,3 +226,19 @@ export async function strayInk(
     });
     return stray;
 }
+
+/**
+ * Whether one stable frame shows a pixel near a CSS point that passes a test: the color a style layer
+ * paints on a node or an edge, read where it is drawn.
+ * @param element - The element.
+ * @param point - The point, in CSS pixels from the element's top-left corner.
+ * @param test - The test, on an RGB pixel.
+ * @returns True when a pixel within {@link REACH} of the point passes.
+ */
+export async function inkNear(
+    element: Graphty,
+    point: { x: number; y: number },
+    test: (p: readonly number[]) => boolean,
+): Promise<boolean> {
+    return near(await picture(element), point.x, point.y, test);
+}

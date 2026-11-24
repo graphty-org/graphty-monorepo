@@ -21,8 +21,10 @@ import {
 import { ActionIcon, Box, Menu, Select, Stack, Switch, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
+import { useLayoutId } from "../frame/useLayoutId";
 import { useSizeBound } from "../frame/useSizeBound";
 import { GLYPHS } from "../glyphs";
+import { MAP_LAYOUT } from "../layout/methods";
 import { BackgroundShader, ShaderSection } from "../settings/ShaderSettings";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -123,12 +125,16 @@ export function GraphSettings(): React.JSX.Element | null {
     const sameSizeChosen = useWorkspaceState((state) => state.sameSizeAtAnyDepth);
     const sameSize = sameSizeChosen ?? sizeBound;
     const lighting = useWorkspaceState((state) => state.lighting);
+    // While the map rule in Settings decides the node size space, this switch has nothing to say.
+    const mapAuto = useWorkspaceState((state) => state.mapDepthIndependentSize);
+    const onMap = useLayoutId(session) === MAP_LAYOUT;
     const hidden = useNotInEffect(session);
     const { ref, onFocus } = useFocusPastHidden(hidden, store);
     if (session === null) {
         return null;
     }
     const shows = (key: GraphSettingKey): boolean => !hidden.includes(key);
+    const sameSizeShown = shows("node.sizeSpace") && !(mapAuto && onMap);
 
     return (
         <>
@@ -136,7 +142,7 @@ export function GraphSettings(): React.JSX.Element | null {
             {/* One container for both sections' rows, so focus on a row hidden in this view moves
                 on to the next row shown, in Labels when Canvas has none left (2D). */}
             <Box ref={ref} onFocus={onFocus} display="contents">
-                {(shows("lighting") || shows("node.depthIndependentSize")) && (
+                {(shows("lighting") || sameSizeShown) && (
                     <ControlSection label="Canvas" collapsible={false} headingLevel={3}>
                         <Stack gap={6}>
                             {shows("lighting") && (
@@ -156,8 +162,8 @@ export function GraphSettings(): React.JSX.Element | null {
                                     />
                                 </div>
                             )}
-                            {shows("node.depthIndependentSize") && (
-                                <div data-setting="node.depthIndependentSize">
+                            {sameSizeShown && (
+                                <div data-setting="node.sizeSpace">
                                     <Switch
                                         size="xs"
                                         label="Same size at any depth"
@@ -217,6 +223,8 @@ interface BackgroundParts {
     readonly color: string | undefined;
     readonly image: string | undefined;
     readonly shader: GraphBackgroundConfig["shader"];
+    /** How the image is drawn, kept as the element has it; this section has no row for it. */
+    readonly projection?: "dome" | "flat" | undefined;
 }
 
 /**
@@ -226,13 +234,14 @@ interface BackgroundParts {
  * @param parts.color - the Color row's color
  * @param parts.image - the Image row's address
  * @param parts.shader - the Shader row's shader
+ * @param parts.projection - how the image is drawn
  * @returns the background
  */
-function backgroundOf({ color, image, shader }: BackgroundParts): GraphBackgroundConfig {
+function backgroundOf({ color, image, shader, projection }: BackgroundParts): GraphBackgroundConfig {
     const rest = { ...(color === undefined ? {} : { color }), ...(shader === undefined ? {} : { shader }) };
     return image === undefined
         ? { backgroundType: "color", ...rest }
-        : { backgroundType: "skybox", data: image, ...rest };
+        : { backgroundType: "skybox", data: image, ...rest, ...(projection === undefined ? {} : { projection }) };
 }
 
 /**
@@ -254,6 +263,7 @@ function BackgroundSection({ session }: Readonly<{ session: GraphSession }>): Re
         color: background.color,
         image: background.backgroundType === "skybox" ? background.data : undefined,
         shader: background.shader,
+        projection: background.backgroundType === "skybox" ? background.projection : undefined,
     };
     const present = (kind: BackgroundKind): boolean => parts[kind] !== undefined || waiting.includes(kind);
     const settle = (kind: BackgroundKind): void => {
@@ -429,6 +439,7 @@ function BackgroundImage({
     const { store } = useWorkspace();
     return (
         <FileSource
+            submitOnBlur
             variant="row"
             defaultValue={address}
             url

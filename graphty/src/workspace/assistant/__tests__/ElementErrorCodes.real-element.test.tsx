@@ -13,13 +13,11 @@ import { GraphtyError } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import { loadSiteConfig, resetSiteConfig } from "../../../siteConfig";
 import { cleanup, render, screen, waitFor, within } from "../../../test/test-utils";
 import { readAssistantChoice, writeAssistantChoice } from "../../assistant-door/provider";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-const SITE = `data:application/json,${encodeURIComponent(JSON.stringify({ features: ["assistant"] }))}`;
 const KEY = "AIza-a-key-of-the-right-shape";
 const ENGLISH = "English for people debugging";
 const MISSING = "Google needs the package @mlc-ai/web-llm, which is not installed.";
@@ -37,8 +35,6 @@ const missingPackage = (): GraphtyError =>
     });
 
 beforeEach(async () => {
-    resetSiteConfig();
-    await loadSiteConfig(SITE);
     localStorage.clear();
     sessionStorage.clear();
     await new Promise((resolve) => {
@@ -64,7 +60,6 @@ afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
     writeAssistantChoice(null);
-    resetSiteConfig();
 });
 
 /**

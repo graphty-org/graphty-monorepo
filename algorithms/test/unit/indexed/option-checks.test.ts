@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { checkNumber, checkWeights } from "../../../src/errors.js";
 import { DeltaPageRank, PriorityDeltaPageRank } from "../../../src/indexed/delta-pagerank.js";
+import { dijkstra } from "../../../src/indexed/dijkstra.js";
 import { girvanNewman } from "../../../src/indexed/girvan-newman.js";
 import { hits } from "../../../src/indexed/hits.js";
 import { louvain } from "../../../src/indexed/louvain.js";
@@ -44,6 +45,26 @@ describe("checkNumber and checkWeights", () => {
         expect(() => checkWeights("f", [1, -1], undefined, true)).not.toThrow();
         expect(() => checkWeights("f", [1], 2)).toThrow(badOption);
         expect(() => checkWeights("f", null, 2)).not.toThrow();
+    });
+
+    it("trust a snapshot's weight flags only when they rule a bad weight out", () => {
+        const good = { nonNegativeWeights: true, finiteWeights: true };
+        // Flags that clear the weights skip the scan; flags that do not still scan and refuse.
+        expect(() => checkWeights("f", [1, -1], 2, false, good)).not.toThrow();
+        expect(() => checkWeights("f", [1, -1], 2, false, { ...good, nonNegativeWeights: false })).toThrow(badWeight);
+        expect(() => checkWeights("f", [1, Infinity], 2, false, { ...good, finiteWeights: false })).toThrow(badWeight);
+        const neither = { nonNegativeWeights: false, finiteWeights: false };
+        expect(() => checkWeights("f", [-1, Number.NaN], 2, true, neither)).toThrow(badWeight);
+        expect(() => checkWeights("f", [-1, Infinity], 2, true, neither)).not.toThrow();
+        // The length check never trusts the flags.
+        expect(() => checkWeights("f", [1], 2, false, good)).toThrow(badOption);
+    });
+
+    it("dijkstra still refuses a bad weight in the snapshot itself, and primMST takes an ordered one", () => {
+        expect(() => dijkstra(triangle(false, -1), 0)).toThrow(badWeight);
+        expect(() => dijkstra(triangle(false, Infinity), 0)).toThrow(badWeight);
+        expect(dijkstra(triangle(false, 2), 0).dist[1]).toBe(2);
+        expect(primMST(triangle(false, -1)).totalWeight).toBe(0);
     });
 });
 

@@ -1,5 +1,5 @@
 /**
- * Betweenness and edge betweenness on the device (design 8.4 "Betweenness (A7)", 3.3 lines 811-812, 9.7): Brandes'
+ * Betweenness and edge betweenness on the device: Brandes'
  * algorithm as McLaughlin-Bader run it, k sources at a time.
  *
  * A source batch keeps four `n x k` arrays -- `depthK`, `sigmaK` (u32 shortest-path counts, or the f32 bits of the
@@ -28,12 +28,12 @@
  * grid, 235 x 235 raises it and 230 x 230 does not); the `@graphty/algorithms` dispatcher then throws instead of
  * returning the scores.
  *
- * The batch size k is planned from the device limits at 16 bytes per (node, source) -- the three arrays design 4.7
+ * The batch size k is planned from the device limits at 16 bytes per (node, source) -- the three arrays the design
  * counts plus the 4-byte log entry it omits -- as `min(floor(maxStorageBufferBindingSize / 4n), floor(0.25 x
  * maxBufferSize / 16n), BC_MAX_BATCH)` (256), at least 1 (`planBatchSize`); a graph whose single source does not fit one binding is
  * E_TOO_LARGE. The forward form is chosen per batch: the first batch runs `bc-forward`; a later one runs the
  * edge-parallel form when the previous batch's level count -- the MAXIMUM depth over its sources, the only depth
- * figure the host has, which over-estimates the median of design 8.4's rule and so errs toward the frontier form --
+ * figure the host has, which over-estimates the median of the design's rule and so errs toward the frontier form --
  * is below `BC_EDGE_PARALLEL_GAMMA x log2(n)`, on a snapshot of at least `BC_EDGE_PARALLEL_MIN_NODES` nodes whose
  * degrees are not skewed (`edgeParallelEligible`, issue #776); anywhere else the frontier form was faster.
  *
@@ -46,7 +46,7 @@
  * divides both by `(n - 1)(n - 2)` directed or half that undirected, when positive. A sampled run (`sources` or `k`)
  * is the UNSCALED sum over the sources run, reported beside `sourcesUsed`. `endpoints: true` is refused: the CPU's
  * endpoints branch (`algorithms/src/algorithms/centrality/betweenness.ts`, `predecessors.length === 0 && w !==
- * source`) can never fire for a vertex on the Brandes stack, so there is no behaviour to be in parity with.
+ * source`) can never fire for a vertex on the Brandes stack, so there is no behavior to be in parity with.
  * Betweenness here is breadth-first: a snapshot with weights other than 1 is E_UNSUPPORTED { option: "weighted" }
  * unless `weighted: false` asks for hops (the CPU package measures paths by weight). Parallel edges are distinct
  * shortest paths
@@ -68,7 +68,7 @@ import {
 } from "../constants.js";
 import { type GpuContext } from "../context.js";
 import { WebGpuGraphError } from "../errors.js";
-import { CommandBatch } from "../kernel/batch.js";
+import { CommandBatch, traced } from "../kernel/batch.js";
 import { plan1d, planGridStride } from "../kernel/dispatch.js";
 import { type BoundKernel, type Kernel } from "../kernel/kernel.js";
 import { BC_PARAMS, FILL_PARAMS, FRONTIER_COUNTERS, kernelSpec } from "../kernels.js";
@@ -147,7 +147,7 @@ export interface BetweennessTuning {
     readonly readArrays?: boolean | undefined;
 }
 
-/** The raw outcome of a run: the unhalved, unnormalised sums. */
+/** The raw outcome of a run: the unhalved, unnormalized sums. */
 interface RawBetweenness {
     readonly vertex: F32;
     readonly perArc: F32 | null;
@@ -157,7 +157,7 @@ interface RawBetweenness {
 }
 
 /**
- * The source batch size (design 8.4, 10.1): `min(floor(maxStorageBufferBindingSize / 4n), floor(0.25 x maxBufferSize /
+ * The source batch size: `min(floor(maxStorageBufferBindingSize / 4n), floor(0.25 x maxBufferSize /
  * 16n), BC_MAX_BATCH, remaining)`, at least 1. Each of the four `n x k` arrays is one binding of `4 n k` bytes, and the batch's
  * four together stay inside a quarter of the largest buffer.
  * @internal
@@ -275,6 +275,8 @@ interface RunState {
     scaled: ModeKernels | null;
     /** Each bc kernel bound once per run: its resources never change inside a run, only the params offset does. */
     readonly bound: Map<Kernel, BoundKernel>;
+    /** The source batch running now, from 0, for the trace. */
+    batchIndex: number;
 }
 
 /** The kernels of one counting mode; `count` and `reverse` (the in-arcs it pulls over) only when scaled. */
@@ -378,12 +380,23 @@ function recordBc(
  * @param state - the run
  * @param batch - the batch
  * @param signal - the caller's signal
+ * @param level - the first level the submit records, for the trace
  * @returns the readback bytes
  */
-async function submit(state: RunState, batch: CommandBatch, signal: AbortSignal | undefined): Promise<ArrayBuffer> {
+async function submit(
+    state: RunState,
+    batch: CommandBatch,
+    signal: AbortSignal | undefined,
+    level?: number,
+): Promise<ArrayBuffer> {
     state.scope.flush();
+    const { trace } = state.ctx;
+    const facts = { stage: batch.label, id: batch.id, batch: state.batchIndex, level: level ?? null };
+    trace?.(`${ALGORITHM} submit`, { ...facts, dispatches: batch.dispatches });
+    const started = performance.now();
     const submitted = batch.submit();
     const back = await submitted.readback;
+    trace?.(`${ALGORITHM} readback resolved`, { ...facts, ms: Math.round(performance.now() - started) });
     state.ctx.assertReady();
     if (signal?.aborted) {
         throw aborted(ALGORITHM, submitted.id);
@@ -505,7 +518,7 @@ async function forwardPhase(
         const endsCount = Math.min(n + 2, recorded + 1);
         const countersRequest = batch.readback(counters.buffer, counters.offset, FRONTIER_COUNTERS.byteLength);
         const endsRequest = batch.readback(ends.buffer, ends.offset, 4 * endsCount);
-        const back = await submit(state, batch, signal);
+        const back = await submit(state, batch, signal, recorded - levelsPerSubmit);
         const words32 = new Uint32Array(back, countersRequest.offset, FRONTIER_COUNTERS.byteLength / 4);
         if (words32[W.done] !== 0) {
             const levels = words32[W.level];
@@ -612,7 +625,7 @@ async function backwardPhase(
         const requests = wantArrays
             ? [depthK, sigmaK, deltaK].map((b) => batch.readback(b.buffer, b.offset, 4 * words))
             : [];
-        const back = await submit(state, batch, signal);
+        const back = await submit(state, batch, signal, chunk[0] ?? 0);
         if (wantArrays) {
             return {
                 depthK: new Uint32Array(back, requests[0].offset, words).slice(),
@@ -652,8 +665,15 @@ async function runBatch(
     const seeds = Uint32Array.from(sources, (v, s) => s * n + v);
     ctx.device.queue.writeBuffer(S.buffer, S.offset, seeds);
 
+    ctx.trace?.(`${ALGORITHM} batch start`, {
+        batch: state.batchIndex,
+        sources: k,
+        form,
+        scaled: mode.count !== null,
+    });
     const forward = await forwardPhase(state, mode, k, form, levelsPerSubmit, signal);
     const { levels, overflow, endsWords } = forward;
+    ctx.trace?.(`${ALGORITHM} forward done`, { batch: state.batchIndex, levels, overflow });
     if (overflow && mode.count === null) {
         return { levels, wrapped: true, overflow: false };
     }
@@ -765,6 +785,8 @@ async function runRaw(
         const arrayBytes = 4 * n * kMax;
         const lease = (bytes: number, label: string): Binding => bindingOf(scope.scratch(bytes, label), bytes);
         const arcBytes = 4 * Math.max(1, s.arcCount);
+        ctx.trace?.(`${ALGORITHM} start`, { n, arcs: s.arcCount, sources: sources.length, kMax, withEdges });
+        const compiling = performance.now();
         const [fill, gather] = await Promise.all(
             (["fill", "bc-gather"] as const).map((id) => ctx.pipelines.kernel(kernelSpec(id))),
         );
@@ -793,8 +815,10 @@ async function runRaw(
             exact,
             scaled: null,
             bound: new Map(),
+            batchIndex: -1,
         };
-        await ctx.allocator.check();
+        ctx.trace?.(`${ALGORITHM} kernels compiled`, { ms: Math.round(performance.now() - compiling) });
+        await traced(ctx.allocator.check(), ctx.trace, `${ALGORITHM} allocator check`, {});
 
         // the result accumulators start at 0
         await clearAccumulators(state, arcBytes / 4, options?.signal);
@@ -806,6 +830,7 @@ async function runRaw(
             const k = planBatchSize(n, sources.length - start, limits);
             const form = forwardForm(pinned, previousLevels, n, state.exact);
             const batch = sources.slice(start, start + k);
+            state.batchIndex = batches;
             let outcome = await runBatch(
                 state,
                 state.scaled ?? state.exact,
@@ -847,7 +872,7 @@ async function runRaw(
 }
 
 /**
- * The CPU's normalisation factor: `(n - 1)(n - 2)` directed, half that undirected; 1 when not normalising or when the
+ * The CPU's normalization factor: `(n - 1)(n - 2)` directed, half that undirected; 1 when not normalizing or when the
  * factor is not positive.
  * @param s - the snapshot
  * @param normalized - the option
@@ -871,7 +896,7 @@ async function precheck(
     options: BetweennessAcceleratorOptions | undefined,
 ): Promise<void> {
     ctx.assertReady();
-    await assertDeviceComputes(ctx);
+    await traced(assertDeviceComputes(ctx), ctx.trace, `${ALGORITHM} device self-check`, {});
     // The one weight rule: weights are read when the snapshot has them. This kernel counts hops, so a weighted
     // snapshot is refused rather than answered as if it had none; weighted: false asks for hops.
     if (options?.weighted !== false && s.weights !== null && !s.flags.allWeightsOne) {
@@ -969,7 +994,7 @@ export async function edgeBetweennessWithTuning(
 }
 
 /**
- * Betweenness centrality on the device (spec 3.3 line 811, design 8.4): Brandes' algorithm, k sources per batch.
+ * Betweenness centrality on the device: Brandes' algorithm, k sources per batch.
  * Exact over every vertex by default; `sources` or `k` gives the SAMPLED form, whose scores are the unscaled sum over
  * the sources run (`sourcesUsed` beside them; multiply by `n / sourcesUsed` for the estimator of the full sum). The
  * CPU package's convention: halved on an undirected snapshot, `normalized` divides by `(n - 1)(n - 2)` directed or
@@ -992,7 +1017,7 @@ export function betweennessCentrality(
 }
 
 /**
- * Edge betweenness centrality on the device (spec 3.3 line 812, design 8.4): the per-arc terms of the same batches,
+ * Edge betweenness centrality on the device: the per-arc terms of the same batches,
  * folded to one score per edge with `foldArcs(s, perArc, "sum")` and halved on an undirected snapshot (the two arcs
  * carry the pairs crossing the edge in each direction, so their sum counts each unordered pair twice; this is the CPU
  * package's number, and it holds for a sample too). `normalized`, sampling, `endpoints` and `sigmaOverflow` as in

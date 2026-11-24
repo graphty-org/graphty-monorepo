@@ -1,13 +1,13 @@
 import type { F64, GraphSnapshot, U32 } from "@graphty/graph-format";
 
-import { withCode } from "../errors.js";
+import { seedOption, withCode } from "../errors.js";
 import { mulberry32 } from "../utils/math-utilities.js";
 import { withGroups } from "./components.js";
 import { refuseWeights } from "./weights.js";
 
 /** Options of the index-based SynC clustering, matching the legacy `syncClustering`. @public */
 export interface SyncClusteringOptions {
-    /** Number of cluster centres: an integer in `[1, nodeCount]` (legacy rounds a fraction up; the port throws). */
+    /** Number of cluster centers: an integer in `[1, nodeCount]` (legacy rounds a fraction up; the port throws). */
     readonly numClusters: number;
     /** Iteration cap; default 1000. */
     readonly maxIterations?: number | undefined;
@@ -16,7 +16,7 @@ export interface SyncClusteringOptions {
      * cluster assignment has stayed the same for 10 iterations in a row.
      */
     readonly tolerance?: number | undefined;
-    /** Seed of the embedding initialisation and the centre draws; default 42. */
+    /** Seed of the embedding initialization and the center draws; default 42. */
     readonly seed?: number | undefined;
     /**
      * Fraction of the full step each node takes; default 0.5. The full step (1) moves a node to the mean of its
@@ -32,14 +32,14 @@ export interface SyncClusteringOptions {
 
 /** Result of the index-based SynC clustering. @public */
 export interface SyncClusteringResult {
-    /** The centre each node is closest to, in `[0, count)`. A centre may end up with no node. */
+    /** The center each node is closest to, in `[0, count)`. A center may end up with no node. */
     readonly labels: U32;
-    /** Number of cluster centres: `numClusters`. */
+    /** Number of cluster centers: `numClusters`. */
     readonly count: number;
     /**
-     * Node indices grouped by centre, `count` arrays (an empty one for a centre no node is closest to), computed
+     * Node indices grouped by center, `count` arrays (an empty one for a center no node is closest to), computed
      * once and cached.
-     * @returns One array per centre
+     * @returns One array per center
      */
     groups(): U32[];
     /** Node embeddings, row-major: node i is `embeddings.subarray(i * dimensions, (i + 1) * dimensions)`. */
@@ -114,7 +114,7 @@ function initialEmbeddings(s: GraphSnapshot, random: () => number, dim: number):
 }
 
 /**
- * Distance from a node to the nearest of the centres chosen so far.
+ * Distance from a node to the nearest of the centers chosen so far.
  * @param st - Run state
  * @param u - Node
  * @returns The distance
@@ -128,10 +128,10 @@ function nearestCentreDistance(st: SyncState, u: number): number {
 }
 
 /**
- * Adds the node a weighted draw lands on as the next centre; a draw that rounding carries past the last node
+ * Adds the node a weighted draw lands on as the next center; a draw that rounding carries past the last node
  * adds none.
  * @param st - Run state
- * @param weight - Each node's squared distance to its nearest centre
+ * @param weight - Each node's squared distance to its nearest center
  * @param draw - Draw in `[0, total weight)`
  */
 function addDrawnCentre(st: SyncState, weight: F64, draw: number): void {
@@ -147,11 +147,11 @@ function addDrawnCentre(st: SyncState, weight: F64, draw: number): void {
 }
 
 /**
- * k-means++: the first centre uniformly, each next one with probability proportional to the squared distance
- * to the nearest centre so far. A draw that rounding carries past the last node adds no centre, as in legacy,
+ * k-means++: the first center uniformly, each next one with probability proportional to the squared distance
+ * to the nearest center so far. A draw that rounding carries past the last node adds no center, as in legacy,
  * so there may be fewer than numClusters.
  * @param st - Run state, centreCount 0 on entry
- * @param numClusters - Centres to draw
+ * @param numClusters - Centers to draw
  * @param random - The seeded generator
  */
 function seedCentres(st: SyncState, numClusters: number, random: () => number): void {
@@ -172,7 +172,7 @@ function seedCentres(st: SyncState, numClusters: number, random: () => number): 
 }
 
 /**
- * Labels every node with its closest centre (the first on a tie).
+ * Labels every node with its closest center (the first on a tie).
  * @param st - Run state
  */
 function assignLabels(st: SyncState): void {
@@ -226,7 +226,7 @@ function smoothStep(st: SyncState, gradient: F64, lambda: number, learningRate: 
 }
 
 /**
- * Moves each centre that has a node to the mean of its nodes' embeddings; an empty centre stays put.
+ * Moves each center that has a node to the mean of its nodes' embeddings; an empty center stays put.
  * @param st - Run state
  * @param sums - Scratch, numClusters * dim
  * @param sizes - Scratch, numClusters
@@ -333,7 +333,7 @@ export function syncClustering(s: GraphSnapshot, options: SyncClusteringOptions)
             "E_BAD_OPTION",
         );
     }
-    const random = mulberry32(seed);
+    const random = mulberry32(seedOption("syncClustering", { seed }));
     const dim = Math.min(64, n);
     const st: SyncState = {
         n,

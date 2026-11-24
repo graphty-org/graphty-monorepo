@@ -119,7 +119,7 @@ function bestScoreLevel(scores: readonly number[]): number {
  * Edges are deleted by clearing bits of an alive mask over logical edges that the edge betweenness
  * reads, so no graph is rebuilt. Betweenness counts hops, as in the legacy function and NetworkX's default (a weight
  * is a strength to modularity and would be a length to betweenness); a pair of
- * nodes joined by parallel edges is one neighbour relation whose share goes to the first alive
+ * nodes joined by parallel edges is one neighbor relation whose share goes to the first alive
  * parallel, so the parallels are deleted one round at a time. Modularity reads the edge weights,
  * the exact f64 ones when the snapshot keeps them, with graph-format's `weightedDegree()` rule (a
  * self-loop counts twice); on a graph without self-loops it equals the legacy function's.

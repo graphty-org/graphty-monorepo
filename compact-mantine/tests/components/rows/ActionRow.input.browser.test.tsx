@@ -2,24 +2,15 @@
  * The hover split with the real mouse: the browser moves the pointer onto the row and off it, so
  * the reveal follows the same mouseenter and mouseleave a reader's pointer makes.
  */
-import { MantineProvider, UnstyledButton } from "@mantine/core";
-import { render, screen } from "@testing-library/react";
+import { UnstyledButton } from "@mantine/core";
+import { screen } from "@testing-library/react";
 import React from "react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { commands, userEvent } from "vitest/browser";
 
-import { compactTheme } from "../../../src";
 import { ActionRow } from "../../../src/components/rows/ActionRow";
 import { UiGlyph } from "../../../src/icons";
-
-/**
- * Render inside the compact theme, the way the package is consumed.
- * @param ui - The element under test
- * @returns The testing-library render result
- */
-function renderRow(ui: React.ReactElement): ReturnType<typeof render> {
-    return render(<MantineProvider theme={compactTheme}>{ui}</MantineProvider>);
-}
+import { renderCompact as renderRow } from "../../harness/render";
 
 /**
  * A 24px icon-only affordance, the shape most actions on this row take.

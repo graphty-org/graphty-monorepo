@@ -386,7 +386,11 @@ describe("LlmRegressionTestHarness", () => {
             const result = await harness.testPrompt("How many nodes are there?");
 
             assert.strictEqual(turn.mock.calls.length, 2);
-            assert.deepStrictEqual(turn.mock.calls[1][0], turn.mock.calls[0][0]);
+            // The message's own id (its parts' provenance) is new on the resend; it never reaches the
+            // wire, which carries a reader part's text only.
+            const sent = (call: unknown): string =>
+                JSON.stringify(call, (key, value: unknown) => (key === "provenance" ? undefined : value));
+            assert.strictEqual(sent(turn.mock.calls[1][0]), sent(turn.mock.calls[0][0]));
             assert.strictEqual(result.llmText, text);
             harness.dispose();
         });

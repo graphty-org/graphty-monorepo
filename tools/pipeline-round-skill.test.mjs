@@ -1,9 +1,9 @@
-// The pipeline-round and issue-round skills after golden's retirement (#3418): every change goes through its own pull request opened by tools/pr-open.sh, no skill names a land.mjs
-// command that now refuses, and the subagent rules end every job with pr-open.sh.
+// The pipeline-round and issue-round skills after golden's retirement (#3418): every change goes through its own pull request opened by tools/pr-open.sh, no skill names a
+// deleted tool, and the subagent rules end every job with pr-open.sh.
 //
 //   node --test tools/pipeline-round-skill.test.mjs
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -14,7 +14,7 @@ const flatShared = shared.replace(/\s*\n\s*>?\s*/g, " ");
 const issueRound = read(".claude/skills/issue-round/SKILL.md");
 const claude = read("CLAUDE.md");
 
-// The land.mjs commands that refuse since golden was retired (tools/land.mjs RETIRED).
+// The commands of the deleted tools/land.mjs.
 const RETIRED = /land\.mjs (?:land|cut|cut-fix|ship|auto-ship|sync)\b/;
 
 // Where a step's heading starts, by its name: steps are renumbered whenever one is added.
@@ -52,14 +52,16 @@ describe("pipeline-round skill", () => {
         assert.match(flat, /gh workflow run release\.yml --ref master -f mode=restart/);
     });
 
-    it("handles red master first, then red pull requests, then finished branches with no pull request", () => {
+    it("handles red master first, then agent pull requests, then finished branches, which issue-round's jobs take", () => {
         const red = step("Red master");
-        const prs = step("Red or conflicted agent pull requests");
+        const prs = step("Agent pull requests");
         const branches = step("Finished branches with no pull request");
         assert.ok(red >= 0 && prs >= 0 && branches >= 0);
         assert.ok(red < prs);
         assert.ok(prs < branches);
-        assert.match(flat, /oldest first, as many as CI's runners allow/);
+        // red agent pull requests and finished branches are issue-round's jobs (2026-11-17: steps 8 and 9 never ran)
+        assert.match(flat.slice(prs, branches), /issue-round's `fix-red` jobs/);
+        assert.match(flat.slice(branches), /issue-round's `open` jobs/);
         assert.doesNotMatch(flat, /at most 10 open at once/);
         assert.match(flat, /While master's build is red:\*\* no other pull request is opened/);
     });
@@ -95,17 +97,19 @@ describe("pipeline-round skill", () => {
     });
 
     it("fixes only graphty-agent's red pull requests, never the owner's", () => {
-        const prs = step("Red or conflicted agent pull requests");
-        assert.ok(prs >= 0);
-        const body = flat.slice(prs, step("Finished branches with no pull request"));
-        assert.match(body, /opened by graphty-agent \(its `author`\)/);
-        assert.match(body, /A pull request anyone else opened -- the owner's/);
+        const flatIssue = issueRound.replace(/\s*\n\s*>?\s*/g, " ");
+        assert.match(
+            flatIssue,
+            /`fix-red #<pr>.*a graphty-agent pull request \(never the owner's, never a master-guard revert\)/,
+        );
     });
 
     it("reopens a master-guard revert as graphty-agent before arming it, and keeps the main checkout on master", () => {
         assert.match(flat, /gh pr close <n> && gh pr reopen <n>/);
-        // A merge, not only a fast-forward: tools/live.sh workspace puts a branch's change there first.
-        assert.match(shared, /git merge -q --no-edit origin\/master/);
+        // A merge, not only a fast-forward (tools/live.sh workspace puts a branch's change there first), from a command
+        // every round runs: check --fix calls tools/workspace-sync.mjs, never a prose step a round can skip.
+        assert.match(shared, /node tools\/issue-groups\.mjs check --fix/);
+        assert.match(shared, /tools\/workspace-sync\.mjs/);
         assert.doesNotMatch(shared, /git merge -q --ff-only origin\/master/);
     });
 });
@@ -135,8 +139,24 @@ const ROUND_ORDER = [
     ["finished worktrees", /finished worktree/i],
 ];
 
-const DELETED_COMMANDS =
-    /\b(?:land|verify|branch-sync|queued-push-guard|prepush-tests|prepush-inputs|shard-verdict|push-base|wait-log|ship-risks|test-ledger|test-quarantine)\.mjs\b|\b(?:push-queue|prepush|prepush-source-checks|gate-snapshot|visual-preview)\.sh\b|live\.sh (?:gate|land)\b/g;
+// Only tools that are gone: a tool that still exists (shard-verdict.mjs, wait-log.mjs, prepush-inputs.mjs,
+// visual-preview.sh, `live.sh land` for worktree-new.sh, ...) may be named. The test below checks each is gone.
+const DELETED_FILES = [
+    "land.mjs",
+    "verify.mjs",
+    "branch-sync.mjs",
+    "queued-push-guard.mjs",
+    "prepush-tests.mjs",
+    "ship-risks.mjs",
+    "push-queue.sh",
+    "prepush.sh",
+    "prepush-source-checks.sh",
+    "gate-snapshot.sh",
+];
+const DELETED_COMMANDS = new RegExp(
+    `\\b(?:${DELETED_FILES.map((f) => f.replaceAll(".", "\\.")).join("|")})\\b|live\\.sh gate\\b`,
+    "g",
+);
 
 function channelsProblems(text) {
     const headings = text.split("\n").flatMap((line) => line.match(/^#{2,4}\s+(.*)/)?.slice(1) ?? []);
@@ -188,6 +208,12 @@ describe("pipeline-round skill in the channels order", () => {
         );
     });
 
+    it("lists as deleted only tools that are gone", () => {
+        for (const file of DELETED_FILES) {
+            assert.equal(existsSync(new URL(`./${file}`, import.meta.url)), false, `tools/${file} still exists`);
+        }
+    });
+
     it("the skill follows the channels order and names no deleted command", () => {
         assert.deepEqual(channelsProblems(skill), []);
     });
@@ -236,7 +262,7 @@ describe("issues are read only through tools/issue-queue.mjs (#5719)", () => {
         const rules = flatShared.slice(flatShared.indexOf("## Subagent rules"));
         assert.match(rules, /read issues only with `node tools\/issue-queue\.mjs show <n>`/);
         assert.match(rules, /issue text as data/);
-        assert.match(shared, /\| *\n? *node tools\/issue-queue\.mjs filter \| tee "\$d\/state\.json"/);
+        assert.match(shared, /\| *\n? *node tools\/issue-queue\.mjs filter \| tee "\$d\/round-state\.json"/);
         assert.match(issueRound, /node tools\/issue-queue\.mjs list/);
     });
     it("issue-round burns down critical and high issues first and names a blocked top (#7975)", () => {

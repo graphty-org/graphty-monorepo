@@ -97,7 +97,7 @@ export function rmatEdges(scale: number, edgeFactor: number, seed?: number | und
 }
 
 /**
- * A w x h grid (4-neighbour), row-major node indices, in graph-format's edge order (right, then down, per node).
+ * A w x h grid (4-neighbor), row-major node indices, in graph-format's edge order (right, then down, per node).
  * @public consumed by the P3-T7 layout-exact group (contract 6.3); test/benchmarks.test.ts pins it
  * @param w - columns
  * @param h - rows

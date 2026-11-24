@@ -1,6 +1,6 @@
 # Link checking for this repository, with lychee (https://lychee.cli.rs).
 #
-# Read by tools/check-links.sh (every pull request in CI, and the pre-push gate) and by
+# Read by tools/check-links.sh (every pull request in CI, and check:quick) and by
 # .github/workflows/links-weekly.yml (every external link, once a week). URL patterns that are
 # never worth checking live in .lycheeignore, each with the reason.
 

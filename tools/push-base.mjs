@@ -1,14 +1,14 @@
 #!/usr/bin/env node
-// The branch a push will be merged into, for every pre-push step that judges "what this push
-// changes": the SonarQube changed lines (tools/sonar-gate.mjs), the affected packages and test shards
-// (tools/prepush.sh), the secret scan (.husky/pre-push) and the push queue's fast lane and push log
-// (tools/push-queue.sh). Measured against origin/master, a branch stacked on another pull request's
+// The branch a push will be merged into, for every check that judges "what this push changes": the
+// duplicate code check (tools/duplicates-check.mjs), the release dry run (tools/release-dry-run.mjs),
+// the commit checks (tools/check-*.mjs) and the secret scan (.husky/pre-push). Measured against origin/master, a
+// branch stacked on another pull request's
 // branch counts the whole parent branch as its own change (#2546).
 //
 //   node tools/push-base.mjs [--branch <name>]   prints the base ref, such as origin/master
 //
 // The answer, first that holds:
-//   1. $PUSH_BASE_REF, which the push queue and the pre-push hook export once they have asked, so a
+//   1. $PUSH_BASE_REF, which the pre-push hook exports once it has asked, so a
 //      push asks at most once.
 //   2. The local record: `branch.<name>.prBase` (tools/worktree-new.sh writes it for a branch started
 //      from another branch), or an upstream that is a different branch than <name>.

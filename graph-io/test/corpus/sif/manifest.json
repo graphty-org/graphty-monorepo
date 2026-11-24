@@ -1,0 +1,62 @@
+{
+    "format": "sif",
+    "description": "Cytoscape's own SIF test files (cytoscape-impl io-impl testData/sif, and the head of a performance test file); the expected counts are the ones Cytoscape's SIFNetworkViewReaderTest asserts, and for the head file the distinct names and lines.",
+    "files": [
+        {
+            "path": "typical.sif",
+            "source": "https://github.com/cytoscape/cytoscape-impl/blob/6c63e97c5152516678afc2ed4579a801587e26ea/io-impl/impl/src/test/resources/testData/sif/typical.sif",
+            "license": "LGPL-2.1-or-later (Cytoscape; test-only, never published)",
+            "expectedNodes": 31,
+            "expectedEdges": 27,
+            "features": ["space-separated", "one-to-many", "self-loop", "isolated-node"]
+        },
+        {
+            "path": "degenerate.sif",
+            "source": "https://github.com/cytoscape/cytoscape-impl/blob/6c63e97c5152516678afc2ed4579a801587e26ea/io-impl/impl/src/test/resources/testData/sif/degenerate.sif",
+            "license": "LGPL-2.1-or-later (Cytoscape; test-only, never published)",
+            "expectedNodes": 9,
+            "expectedEdges": 0,
+            "features": ["isolated-node"]
+        },
+        {
+            "path": "orphanFirst.sif",
+            "source": "https://github.com/cytoscape/cytoscape-impl/blob/6c63e97c5152516678afc2ed4579a801587e26ea/io-impl/impl/src/test/resources/testData/sif/orphanFirst.sif",
+            "license": "LGPL-2.1-or-later (Cytoscape; test-only, never published)",
+            "expectedNodes": 4,
+            "expectedEdges": 1,
+            "features": ["tab-separated", "isolated-node"]
+        },
+        {
+            "path": "multiWordProteins.sif",
+            "source": "https://github.com/cytoscape/cytoscape-impl/blob/6c63e97c5152516678afc2ed4579a801587e26ea/io-impl/impl/src/test/resources/testData/sif/multiWordProteins.sif",
+            "license": "LGPL-2.1-or-later (Cytoscape; test-only, never published)",
+            "expectedNodes": 28,
+            "expectedEdges": 31,
+            "features": ["tab-separated", "spaces-in-names", "parallel-edges"]
+        },
+        {
+            "path": "multiWordProteinsFileTrailingSpaces.sif",
+            "source": "https://github.com/cytoscape/cytoscape-impl/blob/6c63e97c5152516678afc2ed4579a801587e26ea/io-impl/impl/src/test/resources/testData/sif/multiWordProteinsFileTrailingSpaces.sif",
+            "license": "LGPL-2.1-or-later (Cytoscape; test-only, never published)",
+            "expectedNodes": 28,
+            "expectedEdges": 31,
+            "features": ["tab-separated", "spaces-in-names", "trailing-spaces"]
+        },
+        {
+            "path": "SIF-Japanese.sif",
+            "source": "https://github.com/cytoscape/cytoscape-impl/blob/6c63e97c5152516678afc2ed4579a801587e26ea/io-impl/impl/src/test/resources/testData/sif/SIF-Japanese.sif",
+            "license": "LGPL-2.1-or-later (Cytoscape; test-only, never published)",
+            "expectedNodes": 6,
+            "expectedEdges": 3,
+            "features": ["tab-separated", "crlf", "non-ascii"]
+        },
+        {
+            "path": "A50-50-head.sif",
+            "source": "https://github.com/cytoscape/cytoscape-impl/blob/6c63e97c5152516678afc2ed4579a801587e26ea/io-impl/performance/src/main/resources/testData/sif/A50-50.sif (its first 100 lines)",
+            "license": "LGPL-2.1-or-later (Cytoscape; test-only, never published)",
+            "expectedNodes": 101,
+            "expectedEdges": 100,
+            "features": ["space-separated", "tree"]
+        }
+    ]
+}

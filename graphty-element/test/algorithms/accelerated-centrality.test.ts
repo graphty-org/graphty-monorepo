@@ -23,13 +23,12 @@ import { KatzCentralityAlgorithm } from "../../src/algorithms/KatzCentralityAlgo
 import type { MetricAlgorithm } from "../../src/algorithms/metrics/MetricAlgorithm";
 import type { NodeId } from "../../src/catalog/types";
 import { isGraphtyError } from "../../src/errors";
-import type { Graph } from "../../src/Graph";
 import { createFakeAccelerator, type FakeAccelerator } from "../../src/testing/fakeAccelerator";
-import { createMockGraph, type MockGraphOpts } from "../helpers/mockGraph";
 import { byId, referenceSnapshot } from "../helpers/reference-snapshot";
+import { createSessionGraph, type SessionGraph, type SessionGraphOpts } from "../helpers/session-graph";
 
 /** Two triangles joined by a path, with a parallel pair and a reciprocal pair. */
-const MULTI: MockGraphOpts = {
+const MULTI: SessionGraphOpts = {
     nodes: ["A", "B", "C", "D", "E", "F", "G"].map((id) => ({ id })),
     edges: [
         { srcId: "A", dstId: "B" },
@@ -46,7 +45,7 @@ const MULTI: MockGraphOpts = {
 };
 
 /** Les Miserables co-appearances, the fixture the per-adapter tests already use. */
-const LES_MIS: MockGraphOpts = { dataPath: "./data4.json" };
+const LES_MIS: SessionGraphOpts = { dataPath: "./data4.json" };
 
 /**
  * A ring of n nodes with one chord closing a triangle, so no component is bipartite whatever n is
@@ -54,7 +53,7 @@ const LES_MIS: MockGraphOpts = { dataPath: "./data4.json" };
  * @param n - The node count.
  * @returns The records.
  */
-function chordedRing(n: number): MockGraphOpts {
+function chordedRing(n: number): SessionGraphOpts {
     const nodes = Array.from({ length: n }, (_, i) => ({ id: `n${String(i)}` }));
     const edges = nodes.map((node, i) => ({ srcId: node.id, dstId: `n${String((i + 1) % n)}` }));
     edges.push({ srcId: "n0", dstId: "n2" });
@@ -67,7 +66,7 @@ function chordedRing(n: number): MockGraphOpts {
  * @param n - The node count, even.
  * @returns The records.
  */
-function evenRing(n: number): MockGraphOpts {
+function evenRing(n: number): SessionGraphOpts {
     const nodes = Array.from({ length: n }, (_, i) => ({ id: `n${String(i)}` }));
     return { nodes, edges: nodes.map((node, i) => ({ srcId: node.id, dstId: `n${String((i + 1) % n)}` })) };
 }
@@ -79,8 +78,8 @@ function evenRing(n: number): MockGraphOpts {
  * @param floors - Whether the built-in per-capability floors apply.
  * @returns The graph.
  */
-async function graphWith(opts: MockGraphOpts, fake?: FakeAccelerator, floors = false): Promise<Graph> {
-    const graph = await createMockGraph(opts);
+async function graphWith(opts: SessionGraphOpts, fake?: FakeAccelerator, floors = false): Promise<SessionGraph> {
+    const graph = await createSessionGraph(opts);
     if (floors) {
         // The shared mock pins the threshold at 0, which switches the built-in floors off; a
         // controller left at its default is what a consumer who set nothing gets.
@@ -102,7 +101,7 @@ async function graphWith(opts: MockGraphOpts, fake?: FakeAccelerator, floors = f
  * @returns The values per node id, and the precision caveat.
  */
 async function measured(
-    graph: Graph,
+    graph: SessionGraph,
     algorithm: MetricAlgorithm,
 ): Promise<{ values: Map<NodeId, Record<string, unknown>>; precision: string }> {
     await algorithm.run();
@@ -161,7 +160,7 @@ function floorOf(capability: FlooredCapability): number {
     return floor;
 }
 
-const FIXTURES: readonly [string, MockGraphOpts][] = [
+const FIXTURES: readonly [string, SessionGraphOpts][] = [
     ["a multigraph", MULTI],
     ["les miserables", LES_MIS],
 ];
@@ -259,7 +258,7 @@ describe("hits, katz and eigenvector centrality through accelerated()", () => {
             assert.isFalse("louvain" in narrowed);
         });
 
-        const cases: readonly [FlooredCapability, (graph: Graph) => MetricAlgorithm][] = [
+        const cases: readonly [FlooredCapability, (graph: SessionGraph) => MetricAlgorithm][] = [
             ["hits", (graph) => new HITSAlgorithm(graph)],
             ["katzCentrality", (graph) => new KatzCentralityAlgorithm(graph)],
             ["eigenvectorCentrality", (graph) => new EigenvectorCentralityAlgorithm(graph)],

@@ -8,21 +8,8 @@ import {
     verifyUniqueColumn,
     verifyUniqueColumns,
 } from "../../src/columns/table.js";
-import { GraphFormatError } from "../../src/errors.js";
 import { type Column, type F32 } from "../../src/types/index.js";
-
-function expectError(fn: () => unknown, code: string): GraphFormatError {
-    let caught: unknown = null;
-    try {
-        fn();
-    } catch (err) {
-        caught = err;
-    }
-    expect(caught).toBeInstanceOf(GraphFormatError);
-    const error = caught as GraphFormatError;
-    expect(error.code).toBe(code);
-    return error;
-}
+import { expectError } from "../helpers/errors.js";
 
 describe("AttributeTable construction", () => {
     it("wraps columns in declaration order and validates them", () => {
@@ -312,5 +299,24 @@ describe("unique enforcement", () => {
         verifyUniqueColumn(distinctVec);
         expect(distinctVec.nullCount).toBe(0);
         expect(distinctVec.meta.unique).toBe(true);
+    });
+
+    it("decides a rising numeric column without hashing it, and still finds a repeat after a rise", () => {
+        // Unset rows between rising ones are skipped, as the map walk skips them.
+        const rising = columnFromValues("edge", 5, "id", [1, undefined, 4, 9, undefined], {
+            dtype: "u32",
+            nullable: true,
+            unique: true,
+        });
+        expect(() => verifyUniqueColumn(rising)).not.toThrow();
+        // Distinct but not rising: the map decides.
+        const shuffled = columnFromValues("edge", 3, "id", [5, 2, 9], { dtype: "f64", unique: true });
+        expect(() => verifyUniqueColumn(shuffled)).not.toThrow();
+        // Rising, then a repeat of an earlier value: the fast test fails and the map reports both rows.
+        const repeat = columnFromValues("edge", 4, "id", [1, 2, 3, 2], { dtype: "u32", unique: true });
+        expect(expectError(() => verifyUniqueColumn(repeat), "E_DUPLICATE_EDGE_ID").details.rows).toEqual([1, 3]);
+        // An equal neighbor is not a rise.
+        const flat = columnFromValues("edge", 2, "id", [0, -0], { dtype: "f64", unique: true });
+        expectError(() => verifyUniqueColumn(flat), "E_DUPLICATE_EDGE_ID");
     });
 });

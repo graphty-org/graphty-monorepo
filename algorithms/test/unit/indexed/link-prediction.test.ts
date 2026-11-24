@@ -397,7 +397,7 @@ describe("indexed link prediction, against legacy", () => {
                     expectMetricsMatch(evaluateAdamicAdar(s, test, non, o), aa, `Adamic-Adar ${at}`);
                     const both = compareAdamicAdarWithCommonNeighbors(s, test, non, o);
                     expectMetricsMatch(both.adamicAdar, aa, `compare, Adamic-Adar ${at}`);
-                    // The comparison's common-neighbour side ignores the options (see its doc).
+                    // The comparison's common-neighbor side ignores the options (see its doc).
                     const cnOut = metricsOracle(commonNeighborsForPairs(s, test), commonNeighborsForPairs(s, non));
                     expectMetricsMatch(both.commonNeighbors, cnOut, `compare, CN ${at}`);
                     legacyResult();
@@ -462,7 +462,7 @@ describe("indexed link prediction", () => {
     });
 
     it("counts topK in distinct pairs", () => {
-        // The path 0-1-2-3-4: the missing pairs with a common neighbour are (0,2), (1,3) and (2,4).
+        // The path 0-1-2-3-4: the missing pairs with a common neighbor are (0,2), (1,3) and (2,4).
         const b = new GraphBuilder({ directed: false });
         for (let i = 0; i < 5; i++) {
             b.addNode(i);
@@ -514,7 +514,7 @@ describe("indexed link prediction", () => {
     });
 
     it("scores two pairs with the same common-neighbour degrees identically, whatever the order", () => {
-        // 1 and s2 both have the common neighbours 3 (degree 3), s4 (degree 5, a self-loop counted
+        // 1 and s2 both have the common neighbors 3 (degree 3), s4 (degree 5, a self-loop counted
         // once) and 1 or s2 itself (degree 3), reached in a different order. Legacy sums unsnapped
         // weights in visit order, so its two scores differ in the last bit and its ranking splits
         // the tie; the port's scores are identical, and so is the rank of every pair.
@@ -564,7 +564,7 @@ describe("indexed link prediction", () => {
     });
 
     it("scores one pair from its own neighbourhood, not the whole graph", () => {
-        // A path 0-1-2-...-999: the pair (0, 2) has the one common neighbour 1.
+        // A path 0-1-2-...-999: the pair (0, 2) has the one common neighbor 1.
         const b = new GraphBuilder({ directed: false });
         for (let i = 0; i < 1000; i++) {
             b.addNode(i);

@@ -78,6 +78,9 @@ only the Assistant.
 
 ### 3.2 The flag
 
+_Graduated 2026-11-22 (issue #9670): the Assistant is no longer behind a flag; it is on every site
+and needs no `?features=assistant`. The record below is how it worked before._
+
 The experiment id is `assistant`, following `design/ci/channels-pipeline/features.md`.
 
 - It is a row in graphty-element's `FEATURES`, because this work adds to the element. Every addition
@@ -238,7 +241,7 @@ pattern to avoid (research, "Patterns to avoid").
 ```
 
 - Send becomes Stop in place, with its key on the button. Esc in the composer stops, only while a
-  run can be cancelled.
+  run can be canceled.
 - The working line names real activity from `status.stage` and the running tool, and shows only
   after one second. `status.stageMessage` is English from the element and is never shown.
 - Text streams as text, never HTML, into the turn's foot. The log follows only a reader who is at

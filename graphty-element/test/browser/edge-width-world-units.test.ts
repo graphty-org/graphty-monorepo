@@ -24,7 +24,7 @@ const HEIGHT = 400;
 /** The style's `line.width`, the same for both lines. */
 const LINE_WIDTH = 8;
 
-/** Half the horizontal span of the measuring window, in pixels from the canvas centre. */
+/** Half the horizontal span of the measuring window, in pixels from the canvas center. */
 const WINDOW = 120;
 
 const FRAMES = 20;

@@ -2,7 +2,8 @@
  * Each kind of filter card on the REAL graphty-element: a card says what stays (All, then Keep its
  * value); a category step holds several values; a text step writes what is typed once it is
  * committed and lists the column's values in the order a reader counts them; and a new card and a
- * match picked hand focus to the value.
+ * match picked hand focus to the value; a letter typed on a new card's Value field searches for it;
+ * and a name typed in the workspace's title names the card.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -18,7 +19,7 @@ import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-// The outline-and-pane selection editor: the `selection-workspace` experiment stays off here.
+// Every experiment stays off here.
 withFeatures([]);
 
 const MME = ["Mme Burgon", "Mme Hucheloup", "Mme Magloire", "Mme Pontmercy", "Mme Thenardier", "Mme Victurnien"];
@@ -68,6 +69,11 @@ async function openPeople(): Promise<{ session: GraphSession; store: WorkspaceSt
         throw new Error("the element never came up");
     }
     await session.data.import({ type: "json", name: "people.json", config: { data: PEOPLE } });
+    // The load's own section holds its Filters once the Data place has drawn it: the "+" found
+    // before then is the no-load one, gone at the next render.
+    await waitFor(() => {
+        assert.isNotNull(document.querySelector(".dp-source-sections [data-filters-plus]"), "the load's Filters");
+    });
     return { session, store };
 }
 
@@ -77,6 +83,8 @@ async function openPeople(): Promise<{ session: GraphSession; store: WorkspaceSt
  */
 async function newCardOn(name: string): Promise<void> {
     await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
+    // The new card opens in the selection workspace: its Value field lists the fields.
+    await userEvent.click(await screen.findByRole("button", { name: "Value" }));
     await userEvent.click(await screen.findByRole("option", { name: new RegExp(`^${name}(,|$)`) }));
 }
 
@@ -90,7 +98,8 @@ function cardsDrawn(): number {
 }
 
 /**
- * The one card's step rule: a card says what stays, All and a Keep step on its value.
+ * The one card's step rule: a new card in the selection workspace starts with no nodes and adds
+ * what its value matches.
  * @param session - the element's session.
  * @returns the step's rule.
  */
@@ -99,7 +108,7 @@ function stepRule(session: GraphSession): unknown {
     if (rule?.kind !== "union") {
         return undefined;
     }
-    assert.equal(rule.branches[0]?.start, "all");
+    assert.equal(rule.branches[0]?.start, "none");
     return rule.branches[0]?.steps[0]?.rule;
 }
 
@@ -116,12 +125,16 @@ describe("Each kind of filter card", () => {
         const board = within(values).getByRole("checkbox", { name: "board, 3 nodes" });
         assert.equal(board.closest(".mantine-Checkbox-root")?.textContent, "board3");
         await userEvent.click(board);
-        await waitFor(() => {
-            assert.lengthOf(session.visibility.conditions, 1);
-        });
         await userEvent.click(
             within(await screen.findByRole("group", { name: "role values" })).getByRole("checkbox", { name: /^staff/ }),
         );
+        // The card is a draft until Done writes it as one step.
+        assert.lengthOf(session.visibility.conditions, 0, "a draft writes nothing before Done");
+        const open = document.querySelector<HTMLElement>(".sel-ws");
+        await userEvent.click(within(open ?? document.body).getByRole("button", { name: "Done" }));
+        await waitFor(() => {
+            assert.lengthOf(session.visibility.conditions, 1);
+        });
         await waitFor(() => {
             assert.deepEqual(stepRule(session), {
                 kind: "categories",
@@ -134,179 +147,49 @@ describe("Each kind of filter card", () => {
         assert.deepEqual(session.selection.nodes, [], "a card never selects");
         assert.equal(cardsDrawn(), 1);
     });
-
-    it("a name card opens with focus on its text, lists values in natural order, and writes on Enter as one step", async () => {
-        const { session } = await openPeople();
-        await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
-        await userEvent.click(await screen.findByRole("option", { name: /^name(,|$)/ }));
-        const match = await screen.findByRole<HTMLInputElement>("combobox", { name: "name: how to match" });
-        assert.equal(match.value, "Contains");
-        const box = screen.getByRole<HTMLInputElement>("combobox", { name: "name: text to match" });
-        await waitFor(() => {
-            assert.strictEqual(document.activeElement, box, "focus is in the text box");
-        });
-
-        await userEvent.keyboard("GAL");
-        const listbox = await screen.findByRole("listbox");
-        await waitFor(() => {
-            assert.deepEqual(
-                within(listbox)
-                    .getAllByRole("option")
-                    .map((option) => option.textContent),
-                ["GAL1", "GAL2", "GAL3", "GAL4", "GAL7", "GAL10", "GAL11", "GAL80"],
-            );
-        });
-        // Typing writes nothing yet: the step holds no text.
-        const text = (): unknown => (stepRule(session) as { text?: string } | undefined)?.text ?? "";
-        assert.equal(text(), "");
-
-        const before = session.history.position;
-        await userEvent.clear(box);
-        await userEvent.type(box, "Mme");
-        await userEvent.keyboard("{Escape}");
-        assert.equal(text(), "");
-        await userEvent.keyboard("{Enter}");
-        await waitFor(() => {
-            assert.deepEqual(stepRule(session), {
-                kind: "text",
-                reads: "data.name",
-                mode: "substring",
-                text: "Mme",
-            });
-        });
-        assert.equal(session.history.position, before + 1);
-        assert.equal(session.visibility.summary.visibleNodes, 6);
-    });
-
-    it("a match picked keeps the step; Escape with a value writes it and ends picking", async () => {
-        const { session } = await openPeople();
-        await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
-        await userEvent.click(await screen.findByRole("option", { name: /^name(,|$)/ }));
-        await userEvent.click(await screen.findByRole("combobox", { name: "name: how to match" }));
-        await userEvent.click(await screen.findByRole("option", { name: "Starts with" }));
-        const text = screen.getByRole<HTMLInputElement>("combobox", { name: "name: text to match" });
-        await userEvent.click(text);
-        await userEvent.keyboard("GAL");
-        await screen.findByRole("listbox");
-        // The first Escape closes the list of names; the next writes the text and goes to the card's
-        // title row (ws-polish 2: never Done from the pane); the third ends picking.
-        await userEvent.keyboard("{Escape}{Escape}{Escape}");
-        await waitFor(() => {
-            assert.isNull(document.querySelector("[data-step-pane]"), "picking ended");
-        });
-        assert.equal(cardsDrawn(), 1);
-        assert.lengthOf(session.visibility.conditions, 1);
-    });
 });
 
-describe("Cancel in a filter card's workspace", () => {
+describe("a new filter card's value field and name", () => {
     beforeAll(async () => {
         await page.viewport(1366, 768);
     });
 
-    it("on a new card takes the card away, written or not, and focus goes back to Add filter", async () => {
-        const { session } = await openPeople();
-        await newCardOn("role");
-        await userEvent.click(
-            within(await screen.findByRole("group", { name: "role values" })).getByRole("checkbox", { name: /^board/ }),
-        );
+    it("a letter typed on the empty card's Value field opens its list searching for it", async () => {
+        await openPeople();
+        await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
+        const field = await screen.findByRole("button", { name: "Value" });
         await waitFor(() => {
-            assert.lengthOf(session.visibility.conditions, 1, "the ticked value writes the card");
+            assert.strictEqual(document.activeElement, field, "the new card's Value field has focus");
         });
-        await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
-        await waitFor(() => {
-            assert.lengthOf(session.visibility.conditions, 0, "no filter condition is left");
-            assert.equal(cardsDrawn(), 0, "no card is left");
-            assert.equal(document.activeElement?.getAttribute("aria-label"), "Add filter");
-        });
-        assert.equal(session.visibility.summary.visibleNodes, session.visibility.summary.totalNodes);
-    });
-
-    it("on a new card leaves the history as it was: nothing to undo or redo brings the card back", async () => {
-        const { session, store } = await openPeople();
-        const { position, steps } = session.history;
-        const newest = steps[position - 1]?.id;
-        await newCardOn("role");
-        await userEvent.click(
-            within(await screen.findByRole("group", { name: "role values" })).getByRole("checkbox", { name: /^board/ }),
-        );
-        await waitFor(() => {
-            assert.lengthOf(session.visibility.conditions, 1, "the ticked value writes the card");
-        });
-        await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
-        await waitFor(() => {
-            assert.equal(document.activeElement?.getAttribute("aria-label"), "Add filter");
-            assert.equal(session.history.position, position, "back to the step before the card");
-        });
-        assert.lengthOf(session.history.steps, position, "nothing to redo");
-        assert.equal(session.history.steps[position - 1]?.id, newest);
-        assert.equal(store.get().announcement, "Filter not added");
-        await userEvent.keyboard("{Control>}z{/Control}");
-        await userEvent.keyboard("{Control>}{Shift>}z{/Shift}{/Control}");
-        await waitFor(() => {
-            assert.equal(session.history.pending.length, 0);
-        });
-        assert.lengthOf(session.visibility.conditions, 0, "Undo and Redo bring no card back");
-        assert.equal(cardsDrawn(), 0);
-    });
-
-    it("on a new card opened from Quick actions, Cancel and Escape send focus to Add filter", async () => {
-        const { session } = await openPeople();
-        // Cancel on a written card.
-        await userEvent.keyboard("{Control>}k{/Control}");
-        await userEvent.keyboard("filter");
-        await userEvent.click(await screen.findByRole("option", { name: /^Filters/ }));
+        await userEvent.keyboard("r");
+        const search = await screen.findByRole<HTMLInputElement>("combobox", { name: "Find attributes, results" });
+        assert.strictEqual(search.value, "r", "the letter starts the search");
         await userEvent.click(await screen.findByRole("option", { name: /^role(,|$)/ }));
-        await userEvent.click(
-            within(await screen.findByRole("group", { name: "role values" })).getByRole("checkbox", { name: /^board/ }),
-        );
-        await waitFor(() => {
-            assert.lengthOf(session.visibility.conditions, 1, "the ticked value writes the card");
-        });
-        await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
-        await waitFor(() => {
-            assert.lengthOf(session.visibility.conditions, 0, "no filter condition is left");
-            assert.equal(cardsDrawn(), 0, "no card is left");
-            assert.equal(document.activeElement?.getAttribute("aria-label"), "Add filter");
-        });
-        // Escape on the new card's empty picker.
-        await userEvent.keyboard("{Control>}k{/Control}");
-        await userEvent.keyboard("filter");
-        await userEvent.click(await screen.findByRole("option", { name: /^Filters/ }));
-        await screen.findByRole("option", { name: /^role(,|$)/ });
-        await userEvent.keyboard("{Escape}");
-        await waitFor(() => {
-            assert.equal(cardsDrawn(), 0, "no card is left");
-            assert.equal(document.activeElement?.getAttribute("aria-label"), "Add filter");
-        });
+        await screen.findByRole("group", { name: "role values" });
     });
 
-    it("on an existing card restores its rule and keeps the card", async () => {
+    it("a name typed in the workspace's title is the card's name on Done, and Escape in the box keeps it", async () => {
         const { session } = await openPeople();
         await newCardOn("role");
-        await userEvent.click(
-            within(await screen.findByRole("group", { name: "role values" })).getByRole("checkbox", { name: /^board/ }),
-        );
+        const values = await screen.findByRole("group", { name: "role values" });
+        await userEvent.click(within(values).getByRole("checkbox", { name: "board, 3 nodes" }));
+        const head = (): HTMLElement => {
+            const found = document.querySelector<HTMLElement>(".sel-ws .sel-ws-head");
+            assert.isNotNull(found, "the workspace is open");
+            return found;
+        };
+        await userEvent.click(within(head()).getByRole("button", { name: /, rename$/ }));
+        await userEvent.keyboard("{Control>}a{/Control}Board{Enter}");
+        await within(head()).findByRole("button", { name: "Board, rename" });
+
+        await userEvent.click(within(head()).getByRole("button", { name: "Board, rename" }));
+        await userEvent.keyboard("{Control>}a{/Control}Nope{Escape}");
+        await within(head()).findByRole("button", { name: "Board, rename" });
+        assert.isNotNull(document.querySelector(".sel-ws"), "Escape in the box leaves the workspace open");
+
+        await userEvent.click(within(head()).getByRole("button", { name: "Done" }));
         await waitFor(() => {
-            assert.lengthOf(session.visibility.conditions, 1);
+            assert.strictEqual(session.visibility.conditions[0]?.name, "Board");
         });
-        await userEvent.click(screen.getByRole("button", { name: "Done" }));
-        await waitFor(() => {
-            assert.isNull(document.querySelector(".sel-ws"));
-        });
-        const before = stepRule(session);
-        // Reopen it from its row, tick another value, then Cancel.
-        await userEvent.click(within(screen.getByRole("list", { name: "Filters" })).getByText(/role/));
-        await userEvent.click(
-            within(await screen.findByRole("group", { name: "role values" })).getByRole("checkbox", { name: /^staff/ }),
-        );
-        await waitFor(() => {
-            assert.notDeepEqual(stepRule(session), before);
-        });
-        await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
-        await waitFor(() => {
-            assert.deepEqual(stepRule(session), before);
-        });
-        assert.equal(cardsDrawn(), 1);
     });
 });

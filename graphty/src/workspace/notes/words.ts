@@ -23,22 +23,25 @@ export const MAX_TARGETS = 64;
  * What a note opened on this inspector view is about: the node, the edge, every selected node
  * and edge, the run's result, or the graph when the inspector shows the graph or a row a note
  * cannot name.
+ * Edges are held in the form a note saves them in (graphty-element's `notes.savedTarget`), so a
+ * note being written still names them after a reload, which gives edges new session ids.
  * @param session - the session.
  * @param resolved - what the inspector shows.
  * @returns the targets, one or more.
  */
 export function targetsOf(session: GraphSession, resolved: Resolved): NoteTargetInput[] {
+    const edge = (id: string): NoteTargetInput => session.notes.savedTarget({ edge: id }) ?? { edge: id };
     switch (resolved.kind) {
         case "node":
             return [{ node: resolved.node }];
         case "edge":
-            return [{ edge: resolved.edge }];
+            return [edge(resolved.edge)];
         case "several":
         case "neighborhood":
         case "selection-row":
             return [
                 ...session.selection.nodes.map((node) => ({ node })),
-                ...session.selection.edges.map((edge) => ({ edge })),
+                ...session.selection.edges.map((id) => edge(id)),
             ];
         case "measure-row":
         case "run-row":
@@ -126,6 +129,30 @@ export function noteTimeWords(time: string, edited: string | undefined): string 
         minute: "2-digit",
     });
     return edited === undefined ? when : `${when}, edited`;
+}
+
+/** How the Notes place orders its notes. */
+export type NoteSort = "newest" | "oldest" | "element";
+
+/**
+ * The notes in the order the reader picked: newest first (as graphty-element lists them), oldest
+ * first, or by the name of what each is about, newest first among notes about the same thing.
+ * @param session - the session.
+ * @param notes - the notes, newest first.
+ * @param sort - the order.
+ * @returns the notes in that order.
+ */
+export function sortNotes(session: GraphSession, notes: readonly Note[], sort: NoteSort): readonly Note[] {
+    if (sort === "oldest") {
+        return [...notes].reverse();
+    }
+    if (sort === "element") {
+        const names = new Map(notes.map((note) => [note, targetWords(session, note.targets[0])]));
+        return [...notes].sort((a, b) =>
+            (names.get(a) ?? "").localeCompare(names.get(b) ?? "", undefined, { numeric: true }),
+        );
+    }
+    return notes;
 }
 
 /** The inspector kinds that list the notes about them: the ones a note can name. */

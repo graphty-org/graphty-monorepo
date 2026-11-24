@@ -8,7 +8,7 @@ import { GENERATED, type LibraryTile, offeredTiles } from "./sampleLibrary";
 
 /** A few of the library's tiles: two of the app's own samples, a large dataset and a generator. */
 const TILES: readonly LibraryTile[] = (() => {
-    const all = offeredTiles(false);
+    const all = offeredTiles();
     const pick = (test: (tile: LibraryTile) => boolean): LibraryTile[] => all.filter(test).slice(0, 1);
     return [
         ...all.slice(0, 2),

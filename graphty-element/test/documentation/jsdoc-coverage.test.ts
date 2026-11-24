@@ -77,7 +77,7 @@ describe("JSDoc Coverage", () => {
         // check, and from there only. They used to be published from the root barrel as well,
         // which meant a consumer met two import lines for one function with nothing to say they
         // were the same function -- and the root barrel defines the custom element, so checking
-        // a palette for colour-vision safety cost a 3D engine.
+        // a palette for color-vision safety cost a 3D engine.
         const schemaContent = readFileSync("schema.ts", "utf8");
         const indexContent = readFileSync("index.ts", "utf8");
 

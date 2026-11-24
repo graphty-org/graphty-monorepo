@@ -26,7 +26,7 @@ import type {
 import { GraphtyError } from "../../errors";
 import { channelDescriptor } from "./channels";
 import type { CompiledLayer, PathDirectory } from "./Layer";
-import type { SelectorTarget } from "./predicate";
+import { ruleValuePath, type SelectorTarget } from "./predicate";
 import { selectorRule } from "./selector";
 
 /** What a row paints: nodes, edges, or both. */
@@ -249,10 +249,17 @@ type StartingRowId =
     | "graphty:starting-selected"
     | "graphty:starting-hovered"
     | typeof PINNED_ROW_ID
-    | typeof GHOST_ROW_ID;
+    | typeof TIMELINE_HIDDEN_ROW_ID;
 
 /** The template id the Pinned row carries. */
 const PINNED_ROW_ID = "graphty:starting-pinned";
+
+/**
+ * The template id the Draft row carried while new projects under the source-steps experiment got
+ * one. A project saved then still names it; nothing reads it differently from any other layer's
+ * source, and the join preview is drawn by `styles.showDraft` now.
+ */
+export const LEGACY_DRAFT_ROW_ID = "graphty:source-draft";
 
 /** One default row: its template id, where it is pinned, and what it is written with. */
 export interface StartingRow {
@@ -261,12 +268,21 @@ export interface StartingRow {
     readonly spec: RowSpec;
 }
 
-/** The template id the timeline's Ghost row carries. */
-export const GHOST_ROW_ID = "graphty:timeline-ghost";
+/** The template id the timeline's default row, Timeline Hidden, carries. */
+const TIMELINE_HIDDEN_ROW_ID = "graphty:timeline-hidden";
 
 /**
- * The look a ghost starts with: grey at low opacity, so the elements outside the time window stay
- * on screen as context without reading as part of it.
+ * The template id the same row carried while it was called Ghost. A project saved then still
+ * names it; nothing reads it differently from any other layer's source.
+ */
+export const LEGACY_GHOST_ROW_ID = "graphty:timeline-ghost";
+
+/** How the Timeline Hidden row starts: not drawn at all, or drawn faint. */
+export type TimelineHiddenLook = "hidden" | "ghost";
+
+/**
+ * The ghost look: gray at low opacity, so the elements outside the time window stay on screen as
+ * context without reading as part of it.
  */
 export const STARTING_GHOST_LOOK = {
     "node.color": "#9E9E9E",
@@ -278,7 +294,7 @@ export const STARTING_GHOST_LOOK = {
 /**
  * The default rows a project starts with, as plain data written once: each is an ordinary row
  * selecting on a calculated value (`everything`, or the state `selected`, `hovered`, `pinned`,
- * `ghosted`), and nothing keeps it in step with a setting afterwards.
+ * `outsideWindow`), and nothing keeps it in step with a setting afterwards.
  * @param look - What the rows are written with.
  * @param look.selection - The selection settings' node halo and edge band, which Selected draws.
  * @param look.selection.color - The halo's color.
@@ -290,22 +306,48 @@ export const STARTING_GHOST_LOOK = {
  * @param look.pinned.color - The halo's color.
  * @param look.pinned.scale - The halo's size.
  * @param look.pinned.opacity - How solid the halo is.
- * @param look.ghost - Whether a Ghost row comes too (the timeline is on).
- * @returns The rows, in the order they are added: Everything (pinned to the bottom), then Ghost,
- *   Pinned, Selected and Hovered, each pinned to the top above the one before.
+ * @returns The rows, in the order they are added: Everything (pinned to the bottom), then Pinned,
+ *   Selected and Hovered, each pinned to the top above the one before. Given `timelineHidden`
+ *   instead, the timeline's one row, Timeline Hidden, pinned to the top: `"hidden"` sets
+ *   `visible: false`; `"ghost"` draws what lies outside the time window gray and faint.
  */
-export function startingRows(look: {
-    readonly selection: {
-        readonly color: string;
-        readonly scale: number;
-        readonly edgeColor: string;
-        readonly edgeScale: number;
-    };
-    readonly everything?: StaticStyle;
-    readonly pinned?: { readonly color: string; readonly scale: number; readonly opacity: number };
-    readonly ghost?: boolean;
-}): readonly StartingRow[] {
-    const source = (templateId: StartingRowId): RowSpec["source"] => ({ by: "template", templateId });
+export function startingRows(
+    look:
+        | {
+              readonly selection: {
+                  readonly color: string;
+                  readonly scale: number;
+                  readonly edgeColor: string;
+                  readonly edgeScale: number;
+              };
+              readonly everything?: StaticStyle;
+              readonly pinned?: { readonly color: string; readonly scale: number; readonly opacity: number };
+          }
+        | { readonly timelineHidden: TimelineHiddenLook },
+): readonly StartingRow[] {
+    // The timeline's row alone, written once when a project with the starting rows first has a
+    // time field.
+    if ("timelineHidden" in look) {
+        return [
+            {
+                templateId: TIMELINE_HIDDEN_ROW_ID,
+                pin: "top",
+                spec: {
+                    name: "Timeline Hidden",
+                    target: "both",
+                    selector: { match: "state", state: "outsideWindow" },
+                    // Ghost says it draws (visible: true), so what reads the look from the layers
+                    // (`time.settings.outside`, a branches view) agrees with the row.
+                    set:
+                        look.timelineHidden === "ghost"
+                            ? { ...STARTING_GHOST_LOOK, "node.visible": true, "edge.visible": true }
+                            : { "node.visible": false, "edge.visible": false },
+                    source: source(TIMELINE_HIDDEN_ROW_ID),
+                },
+            },
+        ];
+    }
+
     const { selection, pinned } = look;
 
     return [
@@ -320,21 +362,6 @@ export function startingRows(look: {
                 source: source("graphty:starting-everything"),
             },
         },
-        ...(look.ghost === true
-            ? [
-                  {
-                      templateId: GHOST_ROW_ID,
-                      pin: "top",
-                      spec: {
-                          name: "Ghost",
-                          target: "both",
-                          selector: { match: "state", state: "ghosted" },
-                          set: { ...STARTING_GHOST_LOOK },
-                          source: source(GHOST_ROW_ID),
-                      },
-                  } as const,
-              ]
-            : []),
         ...(pinned === undefined
             ? []
             : [
@@ -386,36 +413,16 @@ export function startingRows(look: {
 }
 
 /**
- * Whether a layer is a part of the Ghost row.
- * @param entry - A layer in the stack.
- * @returns True for one.
+ * A default row's source: its template id.
+ * @param templateId - The id.
+ * @returns The source.
  */
-export function isGhostRow(entry: CompiledLayer): boolean {
-    const { source } = entry.layer;
-    return source.by === "template" && source.templateId === GHOST_ROW_ID;
+function source(templateId: StartingRowId): RowSpec["source"] {
+    return { by: "template", templateId };
 }
 
 /** Rule leaves that always read nodes: their degree, component, neighborhood or isolation. */
 const NODE_LEAVES: ReadonlySet<string> = new Set(["degree", "component", "neighborhood", "isolated"]);
-
-/**
- * The value a leaf reads, when it reads one: the id is no kind's value.
- * @param leaf - The leaf.
- * @returns The path, or undefined.
- */
-function leafPath(leaf: RuleTree): Path | undefined {
-    switch (leaf.kind) {
-        case "range":
-        case "categories":
-            return leaf.attribute;
-        case "text":
-            return leaf.reads === "id" ? undefined : leaf.reads;
-        case "threshold":
-            return leaf.path;
-        default:
-            return undefined;
-    }
-}
 
 /**
  * A rule with every leaf passed through a change.
@@ -464,7 +471,7 @@ export function retargetSelector(
 
     if (to === "edge") {
         mapLeaves(rule.where, (leaf) => {
-            changed ||= NODE_LEAVES.has(leaf.kind) || onlyOn(leafPath(leaf), "node");
+            changed ||= NODE_LEAVES.has(leaf.kind) || onlyOn(ruleValuePath(leaf), "node");
             return leaf;
         });
         return changed ? { ...rule, edges: "incident" } : selector;
@@ -474,7 +481,7 @@ export function retargetSelector(
     const where = mapLeaves(rule.where, (leaf) => {
         const ends =
             (leaf.kind === "range" || leaf.kind === "categories" || leaf.kind === "text") &&
-            onlyOn(leafPath(leaf), "edge");
+            onlyOn(ruleValuePath(leaf), "edge");
         changed ||= ends;
         return ends ? { ...leaf, nodes: "ends" } : leaf;
     });

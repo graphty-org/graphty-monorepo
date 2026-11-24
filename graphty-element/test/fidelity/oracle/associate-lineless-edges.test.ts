@@ -3,7 +3,9 @@
  * its heads' lengths it draws no line at all, only the heads. On cx-radiation-bibliography the circle heads of a blue
  * edge between two boxes 3.7 px apart are drawn alone, one after the other (at 148,727), and a green edge's triangle
  * head between two overlapping boxes is drawn alone (at 184,239), its tip on the target's outline though it points on
- * into the source. Each was left as unattached shapes, and graphty's edge there as one the program does not draw.
+ * into the source. Each was left as unattached shapes, and graphty's edge there as one the program does not draw. On
+ * cx-syn-mappings 189->192 the two heads differ: a filled red half head, one barb 97 px long slanting off the line and
+ * past the target, then an outlined dark circle 51 px across with the edge's label drawn inside it.
  */
 import { assert, describe, it } from "vitest";
 
@@ -117,5 +119,289 @@ describe("an edge drawn with no line, only its heads", () => {
             [["target", "triangle"]],
         );
         assert.isNull(arrow?.stroke ?? null, "the program drew no line, so the line has no paint to judge");
+    });
+
+    it("is read from two heads of different shapes and colors, one filled, one outlined", () => {
+        let index = 0;
+        const prim = (over: Partial<Prim> & { points: Pt[] }): Prim => ({
+            index: index++,
+            tag: "path",
+            kind: "shape",
+            box: boxOfPoints(over.points),
+            closed: true,
+            corners: 0,
+            fill: null,
+            stroke: null,
+            text: null,
+            markers: { start: false, end: false },
+            hint: null,
+            ...over,
+        });
+        // Cytoscape desktop's transforms of its unit shapes, as its SVG export writes them
+        const at = ([a, b, c, d, e, f]: number[], pts: Pt[]): Pt[] =>
+            pts.map(([x, y]): Pt => [a * x + c * y + e, b * x + d * y + f]);
+        const half = at(
+            [-67.663, -2.2154, 2.2154, -67.663, 362.989, 163.055],
+            [
+                [-0.3, -0.1],
+                [-1.3, -1.1],
+                [-1.435, -1.1],
+                [-0.535, -0.2],
+                [-0.535, -0.1],
+                [-0.3, -0.1],
+            ],
+        );
+        const ring = at(
+            [50.747, 1.6616, -1.6616, 50.747, 412.048, 164.661],
+            Array.from({ length: 25 }, (_, i): Pt => [
+                -0.5 + 0.5 * Math.cos((i * Math.PI) / 12),
+                0.5 * Math.sin((i * Math.PI) / 12),
+            ]),
+        );
+        const words = { x0: 381.49, y0: 160.1, x1: 393.52, y1: 168.1 };
+        const nodes: PNode[] = [
+            ...BOXES.slice(0, 4).map(node),
+            { ...node(["tri", 347.76, 146.31, 366.6, 179.42]), shape: "triangle" },
+            { ...node(["dia", 411.16, 157.9, 447.27, 172.55]), shape: "diamond" },
+        ];
+        const prims = [
+            prim({ corners: 5, points: half, fill: { color: "#e41a1c", opacity: 0.82, gradient: null } }),
+            prim({
+                points: ring,
+                stroke: { color: "#6a030f", opacity: 0.82, width: 5.07, dash: null, dashClass: "solid" },
+            }),
+            {
+                ...prim({ points: [] }),
+                tag: "text",
+                kind: "text" as const,
+                closed: false,
+                box: words,
+                text: {
+                    content: "e80",
+                    x: words.x0,
+                    y: words.y1 - 2,
+                    box: words,
+                    sizePx: 6.47,
+                    family: "Times",
+                    weight: 400,
+                    style: "italic" as const,
+                    anchor: "start" as const,
+                    rotation: 0,
+                    color: "#2f4f4f",
+                    opacity: 1,
+                },
+            },
+            ...BOXES.slice(0, 4).map(([, x0, y0, x1, y1]) =>
+                prim({
+                    corners: 4,
+                    points: [
+                        [x0, y0],
+                        [x1, y0],
+                        [x1, y1],
+                        [x0, y1],
+                        [x0, y0],
+                    ],
+                    fill: WHITE,
+                    stroke: BORDER,
+                }),
+            ),
+            prim({
+                corners: 3,
+                points: [
+                    [366.6, 162.86],
+                    [347.76, 179.42],
+                    [347.76, 146.31],
+                    [366.6, 162.86],
+                ],
+                fill: WHITE,
+                stroke: BORDER,
+            }),
+            prim({
+                corners: 4,
+                points: [
+                    [411.16, 165.22],
+                    [429.22, 157.9],
+                    [447.27, 165.22],
+                    [429.22, 172.55],
+                    [411.16, 165.22],
+                ],
+                fill: WHITE,
+                stroke: BORDER,
+            }),
+        ];
+        const guide: PScene = {
+            side: "graphty",
+            width: 1200,
+            height: 900,
+            background: "#ffffff",
+            nodes,
+            edges: [edge("tri", "dia", "#0c336d")],
+            groups: [],
+            texts: [],
+            strays: [],
+        };
+        const o = associate(prims, 1200, 900, guide).scene;
+        assert.deepEqual(o.strays, [], "no head is left unattached");
+        const e = o.edges.find((x) => x.source === "tri" && x.target === "dia");
+        assert.deepEqual(
+            e?.arrows.map((a) => [a.end, a.end === "target" ? a.shape : a.color]),
+            [
+                ["source", "#e41a1c"],
+                ["target", "circle"],
+            ],
+        );
+        // along the line between the nodes, from the half head's tip to the circle's, not down its slanting barb
+        const [a, b] = [e?.points[0] ?? [0, 0], e?.points.at(-1) ?? [0, 0]];
+        assert.isBelow(Math.abs(b[1] - a[1]), 2);
+        assert.approximately(a[0], 383.3, 1);
+        assert.approximately(b[0], 412, 1);
+    });
+
+    describe("beside a line's own heads", () => {
+        let index = 0;
+        const prim = (over: Partial<Prim> & { points: Pt[] }): Prim => ({
+            index: index++,
+            tag: "path",
+            kind: "shape",
+            box: boxOfPoints(over.points),
+            closed: true,
+            corners: 0,
+            fill: null,
+            stroke: null,
+            text: null,
+            markers: { start: false, end: false },
+            hint: null,
+            ...over,
+        });
+        const RED = { color: "#cc0033", opacity: 1, gradient: null };
+        const box = ([, x0, y0, x1, y1]: [string, number, number, number, number]): Prim =>
+            prim({
+                corners: 4,
+                points: [
+                    [x0, y0],
+                    [x1, y0],
+                    [x1, y1],
+                    [x0, y1],
+                    [x0, y0],
+                ],
+                fill: WHITE,
+                stroke: BORDER,
+            });
+        const guideOf = (boxes: typeof BOXES, edges: PEdge[]): PScene => ({
+            side: "graphty",
+            width: 1200,
+            height: 900,
+            background: "#ffffff",
+            nodes: boxes.map(node),
+            edges,
+            groups: [],
+            texts: [],
+            strays: [],
+        });
+
+        it("runs a lone tee along the line between its nodes, not along its bar", () => {
+            // cx-radiation-bibliography 776->6: two boxes 0.6 px apart, only the tee's bar drawn, 5.45 px across the
+            // line and 0.55 px thick; read along the bar it was a head 5.5 px long and 1.1 px wide of no class
+            index = 0;
+            const boxes: typeof BOXES = [
+                ...BOXES.slice(0, 4),
+                ["m", 314.1, 375.9, 369.1, 389.9],
+                ["n", 346.1, 390.5, 401, 402.9],
+            ];
+            const [mx, my, nx, ny] = [341.6, 382.9, 373.55, 396.7];
+            const len = Math.hypot(nx - mx, ny - my);
+            const u: Pt = [(nx - mx) / len, (ny - my) / len];
+            const at: Pt = [360.93, 391.28];
+            const corner = (along: number, across: number): Pt => [
+                at[0] + u[0] * along - u[1] * across,
+                at[1] + u[1] * along + u[0] * across,
+            ];
+            const prims = [
+                prim({
+                    corners: 4,
+                    points: [
+                        corner(-0.275, -2.725),
+                        corner(0.275, -2.725),
+                        corner(0.275, 2.725),
+                        corner(-0.275, 2.725),
+                        corner(-0.275, -2.725),
+                    ],
+                    fill: RED,
+                }),
+                ...boxes.map(box),
+            ];
+            // graphty caps the file's target, which decides an end the tee lies about as near both outlines of
+            const capped: PEdge = {
+                ...edge("m", "n", "#cc0033"),
+                arrows: [{ end: "target", length: 0.55, width: 5.45, filled: true, shape: "tee", color: "#cc0033" }],
+            };
+            const o = associate(prims, 1200, 900, guideOf(boxes, [capped])).scene;
+            const e = o.edges.find((x) => x.source === "m" && x.target === "n");
+            assert.deepEqual(
+                e?.arrows.map((a) => [a.end, a.shape]),
+                [["target", "tee"]],
+            );
+        });
+        it("leaves a lone head drawn after a line's own heads to its edge, at an end the file caps on no edge there", () => {
+            // cx-radiation-bibliography: 403->202's line, the dot at its uncapped source end and its target's triangle,
+            // then the triangle of 403->142, an edge with no line between boxes 1.5 px apart, read as 403->202's
+            // source head
+            index = 0;
+            const GREEN = { color: "#009900", opacity: 1, gradient: null };
+            const boxes: typeof BOXES = [
+                ...BOXES.slice(0, 4),
+                ["u", 424.4, 334.6, 477.7, 345.4],
+                ["v", 393.3, 348.4, 446.6, 359.2],
+                ["w", 392.9, 396.6, 446.3, 409.0],
+            ];
+            const prims = [
+                prim({
+                    kind: "path",
+                    closed: false,
+                    corners: 2,
+                    points: [
+                        [447.661, 346.705],
+                        [425.47, 391.081],
+                    ],
+                    stroke: { color: "#009900", opacity: 1, width: 0.389, dash: null, dashClass: "solid" },
+                }),
+                prim({ points: disc(447.67, 346.65, 0.18), fill: GREEN }),
+                prim({
+                    corners: 3,
+                    points: [
+                        [426.689, 391.691],
+                        [423.033, 395.956],
+                        [424.252, 390.472],
+                        [426.689, 391.691],
+                    ],
+                    fill: GREEN,
+                }),
+                prim({
+                    corners: 3,
+                    points: [
+                        [440.083, 346.326],
+                        [434.549, 347.296],
+                        [438.975, 343.836],
+                        [440.083, 346.326],
+                    ],
+                    fill: GREEN,
+                }),
+                ...boxes.map(box),
+            ];
+            const triangle = { length: 2.85, width: 1.42, filled: true, shape: "triangle" as const, color: "#009900" };
+            const o = associate(
+                prims,
+                1200,
+                900,
+                guideOf(boxes, [
+                    { ...edge("u", "w", "#009900"), arrows: [{ end: "target", ...triangle }] },
+                    { ...edge("u", "v", "#009900"), arrows: [{ end: "target", ...triangle }] },
+                ]),
+            ).scene;
+            const ends = (s: string, t: string): string[][] | undefined =>
+                o.edges.find((x) => x.source === s && x.target === t)?.arrows.map((a) => [a.end, a.shape]);
+            assert.deepEqual(ends("u", "w"), [["target", "triangle"]]);
+            assert.deepEqual(ends("u", "v"), [["target", "triangle"]]);
+        });
     });
 });

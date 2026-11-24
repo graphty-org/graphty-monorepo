@@ -151,20 +151,20 @@ export class ElementMask<TId> {
     /** Told of every version bump. */
     private readonly onVersion: (() => void) | undefined;
 
-    /** The last id array handed out, or null before the first materialisation. */
+    /** The last id array handed out, or null before the first materialization. */
     private cachedIds: readonly TId[] | null = null;
 
-    /** The revision `cachedIds` was materialised at. */
+    /** The revision `cachedIds` was materialized at. */
     private cachedRevision = -1;
 
-    /** The identity space `cachedIds` was materialised through. */
+    /** The identity space `cachedIds` was materialized through. */
     private cachedSpace: MaskIdSpace<TId> | null = null;
 
     /**
      * Allocate the backing array with nothing in the set.
      * @param readSpace - Reads the current identity space. Return ONE object per snapshot: its
      *     identity is what tells the id cache that the ids may have moved, so a function that
-     *     builds a fresh object per call costs a re-materialisation per read. It never costs
+     *     builds a fresh object per call costs a re-materialization per read. It never costs
      *     correctness -- the contents are compared before a new array is handed out.
      * @param capacity - Rows to reserve before the first growth; a non-negative integer.
      * @param onVersion - Called on every version bump; a session mask passes its input tick's
@@ -275,9 +275,44 @@ export class ElementMask<TId> {
         this.array = remapArray(this.array, remap, count, ABSENT);
         this.rows = count;
         this.members = this.countMembers();
-        // Unconditional: the indices moved, so anything materialised from the previous index
+        // Unconditional: the indices moved, so anything materialized from the previous index
         // space has to be built again even when the same elements are still in the set.
         this.bump();
+    }
+
+    /**
+     * Make every one of `count` rows a member, logging the rows that enter as a rewrite's are, so
+     * a reader of {@link ElementMask.changedSince} follows those rows: what visibility with no
+     * filter writes after each edit, where clearing and filling every row would send the renderer
+     * back over every element of a million-edge graph (issue #9164). Rows past `count` go, and the
+     * rows kept keep their membership whatever renumbered them.
+     * @param count - The row count.
+     * @throws A `RangeError` when `count` is not a non-negative integer.
+     */
+    fillAll(count: number): void {
+        requireRowCount(count, "count");
+        const shrunk = count < this.rows;
+        if (shrunk) {
+            this.array.fill(ABSENT, count, this.rows);
+            this.rows = count;
+        } else {
+            this.grow(count);
+        }
+
+        const entered: number[] = [];
+        for (let row = 0; row < count; row++) {
+            if (this.array[row] !== MEMBER) {
+                this.array[row] = MEMBER;
+                entered.push(row);
+            }
+        }
+
+        this.members = count;
+        if (entered.length > 0 || shrunk) {
+            this.logMove({ entered, left: [] }, Number.POSITIVE_INFINITY);
+            this.revision += 1;
+            this.onVersion?.();
+        }
     }
 
     /**
@@ -462,12 +497,42 @@ export class ElementMask<TId> {
      * @param bytes - One byte per row, `1` for a member.
      */
     load(bytes: U8): void {
+        // Over the same rows, the rows that differ are logged as a rewrite's are, so a reader of
+        // {@link ElementMask.changedSince} -- the renderer, after an undo of a value edit -- follows
+        // those rows instead of reading every row of a million-edge mask again (issue #9164).
+        const moved = bytes.length === this.rows ? this.differingRows(bytes) : null;
         this.grow(bytes.length);
         this.array.set(bytes);
         this.members = this.countMembers();
+        if (moved !== null) {
+            // A move of no rows still moves the version, as below, so caches keyed on it refresh.
+            this.logMove(moved, Number.POSITIVE_INFINITY);
+            this.revision += 1;
+            this.onVersion?.();
+            return;
+        }
+
         // Through `bump`: a history move loads a step's kept masks here, and a session's input
         // tick must move with them, or every cache keyed on it serves the masks before the move.
         this.bump();
+    }
+
+    /**
+     * The rows whose membership `bytes` would change, over rows this mask holds.
+     * @param bytes - One byte per row, as many as this mask holds.
+     * @returns The rows that would enter the set and the rows that would leave it.
+     */
+    private differingRows(bytes: U8): MaskRows {
+        const entered: number[] = [];
+        const left: number[] = [];
+        for (let row = 0; row < bytes.length; row++) {
+            const member = bytes[row] === MEMBER;
+            if (member !== (this.array[row] === MEMBER)) {
+                (member ? entered : left).push(row);
+            }
+        }
+
+        return { entered, left };
     }
 
     /**
@@ -614,14 +679,14 @@ export class ElementMask<TId> {
     }
 
     /**
-     * The ids in the set, materialised lazily and handed back frozen.
+     * The ids in the set, materialized lazily and handed back frozen.
      *
      * IDENTITY-STABLE: the same array object comes back until the contents actually change, so a
      * consumer can hold the previous answer and test `previous === next`. The contents are
      * compared rather than assumed, so a remap that shuffled the indices without changing which
      * elements are in the set still answers with the array the caller already has.
      *
-     * This is a materialisation and not the boundary type. A consumer that only needs membership
+     * This is a materialization and not the boundary type. A consumer that only needs membership
      * should call {@link ElementMask.hasId}, which costs no allocation at all.
      * @returns The ids, in ascending index order. Frozen.
      */

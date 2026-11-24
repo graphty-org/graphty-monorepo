@@ -18,7 +18,7 @@ const QUESTION = { tool: "ask_reader", args: { question: "Which?", choices: ["al
  * @returns The session.
  */
 async function selected(): Promise<GraphSession> {
-    const session = await assistantSession(undefined, ["assistant"]);
+    const session = await assistantSession();
     await session.selection.apply({ ids: ["a", "b"] });
     return session;
 }

@@ -111,7 +111,7 @@ export type {
     LegendReading,
     LegendSwatch,
 } from "./legend";
-export { quotePath, renamePaths, rulePath } from "./predicate";
+export { quotePath, renamePaths, renameRunPaths, rulePath, ruleValuePath } from "./predicate";
 export type { ElementPaint } from "./repaint";
 export type { RowEncoding, RowParts, RowSpec, RowStyle, RowTarget, RowWrite } from "./rows";
 export type { RuleSelector, Selector } from "./selector";
@@ -120,6 +120,7 @@ export type {
     AgreementOptions,
     BranchesView,
     DefaultPalettes,
+    DraftView,
     DrawnValue,
     ElementLayerSpec,
     HighlightSpec,

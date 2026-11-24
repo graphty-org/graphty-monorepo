@@ -1,12 +1,12 @@
 /**
- * The `fa2-speed-finalize` kernel body (K4; contract 4.5; spec 7.10): ONE workgroup sums `partials[*].swingTraction`
+ * The `fa2-speed-finalize` kernel body (K4): ONE workgroup sums `partials[*].swingTraction`
  * sequentially per lane (deterministic), reduces in uniform control flow, then lane 0 runs the line-for-line port
  * of the CPU `estimateFactor` (SWING_MODE 1 accumulates NetworkX's sums across iterations from S.swing / S.traction)
  * and writes `S.speed`, `S.speedEfficiency`, `S.swing`, `S.traction` and the four controller fields of
  * `T[P.iterationIndex]`. `target` is a WGSL reserved word, hence `targetSpeed`. Normative text, copied verbatim:
- * the P1-T5 sabotage rows (`* 0.5` -> `* 0.9`, the 1.3 rise, the swing / traction swap) are textual edits of it.
- * The halving predicate is `swing > 2.0 * tr`, the exact form of the port's `swing / traction > 2` (contract 4.5
- * CONTRACT DECISION K4-1, G3 finding G3-F6): every paper-mode first iteration after load() has oldForce = 0, so
+ * the sabotage rows (`* 0.5` -> `* 0.9`, the 1.3 rise, the swing / traction swap) are textual edits of it.
+ * The halving predicate is `swing > 2.0 * tr`, the exact form of the port's `swing / traction > 2`
+ * (docs/decisions/G3.md): every paper-mode first iteration after load() has oldForce = 0, so
  * traction is EXACTLY half the swing and the predicate sits on its knife edge; a multiplication by 2 and the
  * comparison are exact on every device, while WGSL grants f32 division 2.5 ULP and Dawn on NVIDIA returns 2 + 1 ulp
  * for 2.2% of the inputs x / (x / 2) (tmp/p3-fix/div-probe.mjs), which took the branch the CPU reference never takes.
@@ -28,12 +28,12 @@ fn speed_finalize(@builtin(local_invocation_id) lid: vec3<u32>) {
         let optJitter = 0.05 * sqrt(n);
         let minJitter = sqrt(optJitter);
         let maxJitter = 10.0;
-        let tr = max(traction, 1.0e-30);                                             // guards the division only (7.10)
+        let tr = max(traction, 1.0e-30);                                             // guards the division only
         let other = min(maxJitter, optJitter * traction / (n * n));
         var jitter = P.jitterTolerance * max(minJitter, other);
         var eff = S.speedEfficiency;
-        if (swing > 2.0 * tr) {                                                      // swing / traction > 2 in the exact form (contract 4.5 CONTRACT DECISION K4-1: 2 x is exact, a WGSL f32 division is not)
-            if (eff > 0.05) { eff = eff * 0.5; }                                     // the CPU's conditional multiply (7.2)
+        if (swing > 2.0 * tr) {                                                      // swing / traction > 2 in the exact form (2 x is exact, a WGSL f32 division is not)
+            if (eff > 0.05) { eff = eff * 0.5; }                                     // the CPU's conditional multiply
             jitter = max(jitter, P.jitterTolerance);
         }
         let targetSpeed = select(jitter * eff * traction / swing, 1.0e30, swing == 0.0);  // +Inf in the port; 1e30 gives the same min() below (\`target\` is reserved)

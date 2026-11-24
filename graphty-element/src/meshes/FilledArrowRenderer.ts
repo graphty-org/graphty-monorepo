@@ -12,7 +12,7 @@ import { Scene } from "@babylonjs/core/scene.js";
 
 import { EDGE_CONSTANTS } from "../constants/meshConstants";
 import { ArrowCap, arrowCapBatch } from "./ArrowCapBatch";
-import { EDGE_TRIM_GLSL } from "./edgeTrim";
+import { EDGE_TRIM_GLSL, ROW_END_GLSL } from "./edgeTrim";
 import { MaterialHelper } from "./MaterialHelper";
 import { PerSceneMaterials } from "./PerSceneMaterials";
 
@@ -169,7 +169,7 @@ export interface FilledArrowOptions {
     color: string; // Hex color
     opacity?: number; // 0-1
     clipEndX?: number; // X-axis clipping: undefined = no clipping, number = clip at X position
-    fill?: string; // An open cap's inside colour (ArrowStyle.fillColor); unset, the inside is empty
+    fill?: string; // An open cap's inside color (ArrowStyle.fillColor); unset, the inside is empty
 }
 
 /** How long a tee cap is along its line, as a fraction of its size: a bar a third as deep as its 1.5 width. */
@@ -307,12 +307,13 @@ varying float vClip;
 // head of its edge turned round), and what it stands back by; its place is read from the row
 // table each frame, so a move uploads no cap byte.
 attribute vec2 capRows;
-// The source end's gap, the target end's gap, the cap's own gap, and how far its centre sits
+// The source end's gap, the target end's gap, the cap's own gap, and how far its center sits
 // behind its tip at scale 1.
 attribute vec4 capPlace;
 uniform highp sampler2D rowPosition;
 uniform highp sampler2D rowExtent;
 ${EDGE_TRIM_GLSL}
+${ROW_END_GLSL}
 vec4 capTexel(highp sampler2D table, int i) {
     return texelFetch(table, ivec2(i & 1023, i >> 10), 0);
 }
@@ -353,8 +354,8 @@ void main() {
 
 #ifdef INSTANCES
     vec3 lineDir = arrowDirection;
-    // A hidden or handed-back slot holds a ZERO matrix (ArrowCapBatch.hide). Its centre then
-    // reads as the world origin, and since this shader builds the cap from the centre and
+    // A hidden or handed-back slot holds a ZERO matrix (ArrowCapBatch.hide). Its center then
+    // reads as the world origin, and since this shader builds the cap from the center and
     // arrowSize, not from the matrix, it would draw a full-size cap there. A placed slot's
     // bottom-right is 1, so a zero there means "draw nothing": collapse the cap to a point.
     float scale = finalWorld[3][3] == 0.0 || arrowHidden > 0.5 ? 0.0 : arrowSize;
@@ -369,14 +370,14 @@ void main() {
     vec3 worldCenter = vec3(finalWorld[3][0], finalWorld[3][1], finalWorld[3][2]);
 #ifdef CAP_PULLED
     // Edge.placeArrowHead over the include's ends: the tip stands its gap back from where the line
-    // meets the head's node, the centre its offset behind the tip, both along the trimmed line.
+    // meets the head's node, the center its offset behind the tip, both along the trimmed line.
     scale = 0.0;
     if (capRows.x >= 0.0 && capRows.y >= 0.0) {
         int fromRow = int(capRows.x + 0.5);
         int to = int(capRows.y + 0.5);
         vec4 a = capTexel(rowPosition, fromRow);
         vec4 b = capTexel(rowPosition, to);
-        if (a.w * b.w != 0.0) {
+        if (rowEnds(a, fromRow) && rowEnds(b, to)) {
             float fromScale;
             float toScale;
             EdgeTrimEnd source = capEnd(fromRow, a.w, capPlace.x, fromScale);
@@ -386,12 +387,12 @@ void main() {
             vec3 tip = ends.dst;
             bool placed = ends.hasSrc && ends.hasDst && ends.dst != ends.src;
             if (placed) {
-                // A closed end lies on the line between the centres, so that line's direction is
+                // A closed end lies on the line between the centers, so that line's direction is
                 // the trimmed line's, with fewer roundings.
                 lineDir = normalize(b.xyz - a.xyz);
             } else if (any(greaterThan(abs(b.xyz - a.xyz), vec3(0.01)))) {
                 // Edge.placeArrowFromCentres: the line has no ends (the nodes overlap), so the
-                // tip stands at the target's box along the line between the centres.
+                // tip stands at the target's box along the line between the centers.
                 lineDir = normalize(b.xyz - a.xyz);
                 target.radius = -1.0;
                 tip = b.xyz - lineDir * edgeTrimReach(-lineDir, target);
@@ -1322,7 +1323,7 @@ void main() {
      *
      * - "open-normal": the triangle's outline (Graphviz's onormal, Cytoscape.js's hollow triangle).
      * - "open-diamond": the diamond's outline (odiamond).
-     * - "open-dot": the dot's ring, centred on the origin (odot).
+     * - "open-dot": the dot's ring, centered on the origin (odot).
      * - "open-inverted": the inverted triangle's outline, its base across the tip (oinv).
      * - "open-box": the box's outline (obox, Cytoscape's OPEN_SQUARE).
      *
@@ -1408,10 +1409,10 @@ void main() {
     }
 
     /**
-     * Give a flat (2D) filled open cap its inside's colour: a material of two, the inside's in `fill`, the frame keeping
+     * Give a flat (2D) filled open cap its inside's color: a material of two, the inside's in `fill`, the frame keeping
      * the material it has.
      * @param mesh - The cap's mesh, its frame's 2D material on it.
-     * @param fill - The inside's colour.
+     * @param fill - The inside's color.
      * @param opacity - The cap's opacity.
      * @param scene - Babylon.js scene
      */
@@ -1574,7 +1575,7 @@ void main() {
      * @param build - Builds the mesh (with its material) for a new batch
      * @param options - The cap's scale, and whether its batch carries per-instance appearance
      * @param options.scale - The uniform scale the cap's normalized geometry is drawn at
-     * @param options.billboard - Whether the batch reads direction, size and colour per instance
+     * @param options.billboard - Whether the batch reads direction, size and color per instance
      * @returns The cap: one slot of the batch
      */
     static capOf(
@@ -1588,11 +1589,11 @@ void main() {
 
     /**
      * Draw one billboarded 3D arrow cap as a slot in its scene's batch for that shape. The
-     * direction, size, colour and opacity are the slot's own attributes, so caps of every look
+     * direction, size, color and opacity are the slot's own attributes, so caps of every look
      * share one draw call.
      * @param shape - The arrow type, which names the batch's geometry
      * @param createShape - Builds that geometry, for a new batch
-     * @param options - The cap's size (world-space length), colour and opacity
+     * @param options - The cap's size (world-space length), color and opacity
      * @param scene - Babylon.js scene
      * @param reuse - A cap to recolor and hand back when it is in this batch at this size
      * @returns The cap; point it with {@link ArrowCap.place}
@@ -1622,12 +1623,12 @@ void main() {
     }
 
     /**
-     * Give a batch's mesh the billboard shader, reading direction, size and colour from
+     * Give a batch's mesh the billboard shader, reading direction, size and color from
      * per-instance buffers instead of uniforms.
      * @param mesh - The batch's mesh
      * @param opacity - The opacity every cap in the batch is drawn at
      * @param scene - Babylon.js scene
-     * @param fill - An open cap's inside colour (`ArrowStyle.fillColor`), for a mesh its inside's triangles first
+     * @param fill - An open cap's inside color (`ArrowStyle.fillColor`), for a mesh its inside's triangles first
      *     ({@link createOpenOutline}); unset, one material for the whole cap
      * @returns The same mesh
      */
@@ -1711,20 +1712,12 @@ void main() {
      * but applies a 2D StandardMaterial instead of billboarded ShaderMaterial.
      * @param type - Arrow type (normal, diamond, box, dot, vee, tee, etc.)
      * @param length - Arrow length in world units
-     * @param _width - Arrow width in world units (reserved for future use)
      * @param color - Hex color string
      * @param opacity - Opacity value 0-1
      * @param scene - Babylon.js scene
      * @returns Mesh with StandardMaterial and XY plane rotation
      */
-    static create2DArrow(
-        type: string,
-        length: number,
-        _width: number,
-        color: string,
-        opacity: number,
-        scene: Scene,
-    ): Mesh {
+    static create2DArrow(type: string, length: number, color: string, opacity: number, scene: Scene): Mesh {
         // Get the appropriate geometry for the arrow type
         const geometry = this.getGeometryForType(type, scene);
 

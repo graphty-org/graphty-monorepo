@@ -184,12 +184,16 @@ describe("site-deploy.yml", () => {
 describe("graphty/sites/nightly.json", () => {
     const config = JSON.parse(readFileSync(new URL("../../graphty/sites/nightly.json", import.meta.url), "utf8"));
 
-    it("names the nightly site, its own datasets and no experiment yet", () => {
+    it("names the nightly site, its own datasets, the shared PostHog project and styles from files", () => {
         assert.deepEqual(config, {
             site: "nightly",
-            features: [],
+            features: ["file-styles"],
             datasets: "https://nightly.graphty.app/data/graph-samples/v1/",
             sentryEnvironment: "nightly",
+            analytics: {
+                posthogKey: "phc_x9GDNQ6fTHuntvM6CKzYpsrJMToDxRR7Y2YKQuL7PZbx",
+                posthogHost: "https://us.i.posthog.com",
+            },
         });
     });
 });

@@ -13,7 +13,7 @@ import type { Channel } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import React, { useRef, useState } from "react";
 
-import { cosmographOn, nodeModelsOn } from "../../features";
+import { cosmographOn } from "../../features";
 import { findTreeRow } from "../../graph-place/rows";
 import { isTypingTarget } from "../../keys/keys";
 import { useWorkspace } from "../../state/WorkspaceContext";
@@ -91,10 +91,7 @@ export function PartsPanel({ ctx: row }: Readonly<{ ctx: RowContext }>): React.J
     const [query, setQuery] = useState("");
     const box = useRef<HTMLInputElement>(null);
     const ctx: RowContext = { ...row, pickers: "listbox" };
-    const parts = partsFor(
-        ctx.side,
-        experimentChannelsOff({ cosmograph: cosmographOn(ctx.session), nodeModels: nodeModelsOn(ctx.session) }),
-    );
+    const parts = partsFor(ctx.side, experimentChannelsOff({ cosmograph: cosmographOn(ctx.session) }));
     const writes = writesOf(ctx.session, ctx);
     const written = (channel: Channel): boolean => writes.has(channel) || (ctx.many?.count(channel) ?? 0) > 0;
     // "/" in the panel, outside a text field, is Find a setting's: the graph's Find keeps it elsewhere.
@@ -132,7 +129,7 @@ export function PartsPanel({ ctx: row }: Readonly<{ ctx: RowContext }>): React.J
         });
     }
     return (
-        <div // NOSONAR(S6848): only catches the "/" key bubbling from the panel's own controls
+        <div // eslint-disable-line jsx-a11y/no-static-element-interactions -- only catches the "/" key bubbling from the panel's own controls
             onKeyDown={onKeyDown}
         >
             <section className="ws-style-group" data-group={ctx.side} data-style-parts="">

@@ -2,7 +2,7 @@
  * The environment every test that runs git -- directly, or through a script or a CLI under test --
  * must give it. Without it git reads the developer's own ~/.gitconfig: with commit.gpgsign=true
  * there, a test's throwaway `git commit` asks gpg-agent for a passphrase on the owner's terminal
- * in the middle of the pre-push gate. tools/ci-workflows.test.mjs fails if a test file runs git
+ * in the middle of a test run. tools/ci-workflows.test.mjs fails if a test file runs git
  * without importing this.
  *
  * The global config is a temporary file holding an identity, not /dev/null, so a commit works

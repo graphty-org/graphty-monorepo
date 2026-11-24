@@ -57,7 +57,7 @@ export const INSPECTOR_TITLE_ID = "ws-inspector-title";
 /**
  * Puts focus on the graph's heading in the inspector once a graph has opened (a sample, a file,
  * a project, a load from the Data page), so a screen reader starts with which graph it is and
- * how big; else, while the inspector shows something else, on the open place's list. A reader
+ * how big, or on the heading of the layer row the open selected; else, while the inspector shows something else, on the open place's list. A reader
  * who has already moved into the drawing, or into a dialog, while the graph was still being read
  * keeps their place.
  * @param readerStayed - the reader pressed nothing while the graph was read, so focus on the
@@ -67,10 +67,13 @@ export const INSPECTOR_TITLE_ID = "ws-inspector-title";
 export function focusOpenedGraph(readerStayed = false): void {
     const active = document.activeElement;
     const inDrawing = !readerStayed && active?.tagName === "GRAPHTY-ELEMENT";
-    if (inDrawing || (active?.closest('[role="dialog"]') ?? null) !== null) {
+    if (inDrawing || (active?.closest('[role="dialog"]') ?? null) !== null || typing()) {
         return;
     }
-    const title = document.querySelector<HTMLElement>(`[data-inspected="graph"] #${INSPECTOR_TITLE_ID}`);
+    // The graph's heading, or the heading of the layer row an open selects (#3409).
+    const title = document.querySelector<HTMLElement>(
+        `:is([data-inspected="graph"], [data-inspected="layer-row"]) #${INSPECTOR_TITLE_ID}`,
+    );
     if (title === null) {
         focusCurrentPlace();
     } else {
@@ -125,6 +128,9 @@ export function focusInspectorTitle(): void {
  */
 export function focusMainHeading(): void {
     const title = (): HTMLElement | null => document.getElementById(INSPECTOR_TITLE_ID);
+    if (typing()) {
+        return;
+    }
     if (title() !== null) {
         title()?.focus();
         return;
@@ -142,6 +148,15 @@ export function focusMainHeading(): void {
     };
     document.addEventListener("focusin", stop);
     observer.observe(document.body, { childList: true, subtree: true });
+}
+
+/**
+ * Whether focus is in a text field, as in a name being edited in place or a note being written
+ * that a reload put back (issues #9661, #9662): leaving it would end the edit.
+ * @returns true when it is.
+ */
+function typing(): boolean {
+    return document.activeElement?.matches("input:not([type=checkbox]):not([type=radio]), textarea") === true;
 }
 
 /** Everything that can take focus, before the checks `canFocus` makes. */
@@ -306,7 +321,7 @@ interface Held {
  */
 function saysOf(element: HTMLElement): string {
     const label = (element as HTMLInputElement).labels?.[0]?.textContent;
-    const name = element.getAttribute("aria-label") ?? label ?? element.textContent ?? "";
+    const name = element.getAttribute("aria-label") ?? label ?? element.textContent;
     const trimmed = name.replaceAll(/\s+/g, " ").trim().slice(0, 80);
     return trimmed === "" ? "" : `${element.tagName}|${element.getAttribute("role") ?? ""}|${trimmed}`;
 }
@@ -405,6 +420,7 @@ export function installFocusGuard(): () => void {
         }
     };
     let pending = 0;
+    let queued: ReturnType<typeof setTimeout> | undefined;
     const observer = new MutationObserver((records) => {
         // A view drawn again in place can select another tab under the focused one (a new view
         // opens on Values): the ring follows the selection, never resting on an unselected tab.
@@ -422,8 +438,9 @@ export function installFocusGuard(): () => void {
             return;
         }
         pending = requestAnimationFrame(() => {
-            setTimeout(() => {
+            queued = setTimeout(() => {
                 pending = 0;
+                queued = undefined;
                 rescue(history);
             });
         });
@@ -434,11 +451,22 @@ export function installFocusGuard(): () => void {
         attributes: true,
         attributeFilter: ["hidden", "style", "class", "disabled", "inert", "aria-selected"],
     });
+    // How the reader last pressed, for the inspector title's ring (frame.css, #9290).
+    const onPress = (event: Event): void => {
+        document.documentElement.dataset.wsLastPress = event.type === "keydown" ? "key" : "pointer";
+    };
     document.addEventListener("focusin", onFocusIn, true);
     document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("keydown", onPress, true);
+    document.addEventListener("pointerdown", onPress, true);
     return () => {
+        document.removeEventListener("keydown", onPress, true);
+        document.removeEventListener("pointerdown", onPress, true);
+        delete document.documentElement.dataset.wsLastPress;
         observer.disconnect();
         cancelAnimationFrame(pending);
+        // The frame may have run already and queued the rescue: a stopped guard moves no focus.
+        clearTimeout(queued);
         document.removeEventListener("focusin", onFocusIn, true);
         document.removeEventListener("keydown", onKeyDown);
     };

@@ -3,31 +3,38 @@ import { GraphtyLogger } from "@graphty/graphty-element/logging";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { VisuallyHidden } from "@mantine/core";
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 
 import { bootSignal } from "../bootSignal";
+import { APP_CALLER_KEY } from "../lib/analytics";
 import { findKept, reopenOwn } from "./autosave/autosave";
 import { createRegistry, type WorkspaceRegistration } from "./commands/registry";
+import { ScoreDialog } from "./data-place/ScoreDialog";
 import { ExportDialog } from "./export/ExportDialog";
-import { selectionWorkspaceOn } from "./features";
 import { focusIsLost, focusOpenedGraph, focusOpenedGraphLater, installFocusGuard } from "./frame/focus";
 import { HelpDialogs } from "./frame/HelpDialogs";
 import { NoticeSlot } from "./frame/NoticeSlot";
 import { loadedFrame, loadFrame } from "./frameLoader";
 import { useCommandKeys } from "./keys/useCommandKeys";
 import { ReportDialog } from "./privacy/ReportDialog";
+import { SurveyCard } from "./privacy/SurveyCard";
+import { useAnalyticsSends } from "./privacy/usageData";
 import { UsageDataCard } from "./privacy/UsageDataCard";
+import { useUsageEvents } from "./privacy/useUsageEvents";
 import { openingFile } from "./project/actions";
 import { ProjectDialogs } from "./project/ProjectDialogs";
 import { notReadWords } from "./project/words";
 import { REGISTRATIONS } from "./registrations";
 import { cardPalette } from "./selection/cardPalette";
+import { readAuthor, readPreference, TIMELINE_STYLE } from "./settings/preferences";
 import { SettingsDialog } from "./settings/SettingsDialog";
-import { NetworkDataDialog } from "./start/NetworkDataDialog";
+import { DraftOpenDialog } from "./source-steps/DraftOpenDialog";
 import { openAgain, useDropToOpen } from "./start/open";
 import { SamplesDialog } from "./start/SamplesDialog";
 import { StartScreen } from "./start/StartScreen";
 import {
     createWorkspaceStore,
+    keepLayout,
     keepPlace,
     keptBlank,
     keptEntry,
@@ -41,6 +48,7 @@ import {
 } from "./state/store";
 import { makeWorkspaceValue, WorkspaceContext } from "./state/WorkspaceContext";
 import { CustomModelHost } from "./style/CustomModelHost";
+import { wholeGraphRow } from "./style/row";
 import { ShaderEditorHost } from "./style/ShaderEditorHost";
 
 /** The workspace's facts about opening and reopening projects: ids and booleans, never data. */
@@ -108,6 +116,10 @@ export function Workspace({
         [store, registry, element],
     );
     useCommandKeys(value);
+    // Anonymous usage counts from the project's element and the panels (lib/analytics.ts).
+    useUsageEvents(element.session, store);
+    // The survey corner only where the page sends PostHog: the surveys come from it.
+    const usageAnalytics = useAnalyticsSends();
     // The project the workspace started with (a story's, a test's) is left as its maker set it.
     const [startProjectId] = useState(() => store.get().project?.id);
     // Set while a just-opened project's sample is read, so focus waits for it.
@@ -125,7 +137,9 @@ export function Workspace({
         // The app's choice for every project it opens (graphty-element's defaults stay neutral):
         // the style tree starts with Everything, Selected, Pinned and Hovered, Everything holds the
         // base look as values a reader edits, a pinned node wears a thin gray ring (under Selected,
-        // which wins), and a finished run's layer lands on top, where the reader sees it. Set
+        // which wins), a finished run's layer lands on top, where the reader sees it, and the
+        // Timeline Hidden row, added when the timeline first turns on, starts with the reader's
+        // Default timeline style. Set
         // before anything loads, so the rows are there from the first frame.
         // The app's run limits for selection steps (design/ui/selection-groups/spec.md, section 6):
         // a run that follows hover or edits starts under 50 ms; one above a second waits for Run.
@@ -133,18 +147,42 @@ export function Workspace({
         session.scope.setOptions({
             liveMs: 50,
             askAboveMs: 1000,
-            ...(selectionWorkspaceOn(session) ? { branchPalette: cardPalette(session.catalog.palettes()) } : {}),
+            branchPalette: cardPalette(session.catalog.palettes()),
         });
-        const defaults =
-            project?.id === startProjectId ||
-            (session.config.startingRows && session.config.editableBase && session.config.runPlacement === "top")
-                ? Promise.resolve()
-                : session.config.set({
+        // The app's starting cameras for every project (design/ui/camera-views-tours-and-capture.md,
+        // section 3.3): ordinary saved cameras the element writes once into a project that never had
+        // them, with no undo step, and never again once the reader changed them. Handed to every new
+        // element before its first load, whatever opens it.
+        const starting = session.views.setStartingCameras([
+            { name: "Top", follows: "topView", key: "7" },
+            { name: "Bottom", follows: "bottomView" },
+            { name: "Front", follows: "frontView", key: "1" },
+            { name: "Side", follows: "sideView", key: "3" },
+            { name: "Isometric", follows: "isometric" },
+        ]);
+        // The reader's name from Settings, which graphty-element stamps on each note and never
+        // saves in a project file, so each opened project is told it again.
+        const author = readAuthor();
+        const patch = {
+            ...(session.config.startingRows && session.config.editableBase && session.config.runPlacement === "top"
+                ? {}
+                : {
                       startingRows: true,
                       editableBase: true,
-                      runPlacement: "top",
+                      runPlacement: "top" as const,
                       pinnedStyle: PINNED_LOOK,
-                  });
+                      timelineHiddenLook: readPreference(TIMELINE_STYLE),
+                  }),
+            ...(author === "" || session.config.author === author ? {} : { author }),
+        };
+        // The starting choices are one step marked as the app's own, so they are not counted as the reader's.
+        const writeDefaults = (): Promise<unknown> =>
+            session.transaction("Starting settings", (tx) => tx.config.set(patch), {
+                callerKey: APP_CALLER_KEY,
+            });
+        const defaults = starting.then(() =>
+            project?.id === startProjectId || Object.keys(patch).length === 0 ? undefined : writeDefaults(),
+        );
         if (opening === null) {
             // Nothing waits on the app's starting choices here; a refusal is logged, not shown.
             void defaults.catch((error: unknown) => {
@@ -166,6 +204,15 @@ export function Workspace({
             // `history: "start"`; a project file or kept work does so on opening).
             .then(() => {
                 bootSignal({ line: "project opened" });
+                // A project opens with the row that paints every element selected (owner,
+                // 2026-10-21), so its first Style tab holds the node color and size. A reopened
+                // tab keeps the place it left. Drawn at once, so focus below finds the row.
+                const whole = wholeGraphRow(session);
+                if (opening.focus === undefined && store.get().inspected === null && whole !== undefined) {
+                    flushSync(() => {
+                        store.set({ inspected: { kind: "layer-row", id: whole } });
+                    });
+                }
                 focusLater(store.get().page === "panels");
                 opening.settle();
             })
@@ -243,6 +290,10 @@ export function Workspace({
                 }
             })
             .catch((error: unknown) => {
+                // Nothing is known about the kept work (graphty-element could not list it while
+                // another tab held the database): the start screen, never opening work again that
+                // another tab may be writing.
+                logger.info("decision", { decision: "landing", entry: null, reason: "kept-work-not-listed" });
                 bootSignal({ line: `kept work check failed: ${String(error)}`, error: true });
             })
             .finally(() => {
@@ -254,8 +305,19 @@ export function Workspace({
             live = false;
         };
     }, [store, checking]);
-    // The reader's place is kept for a reload of this tab while autosave keeps the work.
-    useEffect(() => (store.get().autosave ? keepPlace(store) : undefined), [store]);
+    // The reader's place is kept for a reload of this tab while autosave keeps the work, and the
+    // panel sizes, table dock and legend switch for the next visit.
+    useEffect(() => {
+        if (!store.get().autosave) {
+            return undefined;
+        }
+        const stops = [keepPlace(store), keepLayout(store)];
+        return () => {
+            stops.forEach((stop) => {
+                stop();
+            });
+        };
+    }, [store]);
     // The entry the project's work is written to, so a reload can tell work never written.
     useEffect(() => {
         const host = element.element;
@@ -395,13 +457,24 @@ export function Workspace({
             {projectOpen || checking ? null : <NoticeSlot returnFocus={firstDoor} />}
             <HelpDialogs />
             <ExportDialog />
+            <ScoreDialog />
             <ShaderEditorHost />
             <CustomModelHost />
             <SettingsDialog />
             <ReportDialog />
-            {/* The usage data question, on whatever page a first visit lands, until it is answered. */}
-            <UsageDataCard returnFocus={projectOpen ? undefined : firstDoor} />
+            {/* One corner for the usage data question (on whatever page a first visit lands, until it
+                is answered) and a short survey, only while usage data is shared (usage-analytics.md
+                section 4.4): stacked, so neither covers or hides the other. Where the page sends PostHog
+                nothing (a site with no PostHog ids, or off the site's own host), the
+                question alone, with no survey, in a plain wrapper that draws nothing: the card keeps
+                its place in the tree when site.json switches PostHog on, so it is not remounted and
+                keeps its answer line and focus. */}
+            <div className={usageAnalytics ? "ws-usage-corner" : undefined}>
+                <UsageDataCard returnFocus={projectOpen ? undefined : firstDoor} />
+                {usageAnalytics ? <SurveyCard /> : null}
+            </div>
             <ProjectDialogs />
+            <DraftOpenDialog />
             {/* The one status line, outside the start screen, the frame and every surface the Data
                 page hides, so it is on the page, empty, before anything is written to it and a
                 message is spoken once, politely, as it happens. Each write puts in a new text node,
@@ -410,7 +483,6 @@ export function Workspace({
                 <span key={announced}>{announcement}</span>
             </VisuallyHidden>
             <SamplesDialog />
-            <NetworkDataDialog />
         </WorkspaceContext.Provider>
     );
 }

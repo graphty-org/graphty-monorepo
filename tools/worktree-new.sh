@@ -5,7 +5,7 @@
 # records its owner; every branch is pushed).
 #
 # A bare `git worktree add` gives a checkout with no .env and no node_modules: tools that read
-# tokens from the checkout's .env (tools/sonar-gate.mjs) fail, and the
+# tokens from the checkout's .env (tools/results/client.mjs) fail, and the
 # commit-msg hook (`pnpm exec commitlint`) cannot run. This script adds the worktree, symlinks
 # the main checkout's .env into it (a link, so a token rotated in one place is rotated
 # everywhere) and runs `pnpm install --frozen-lockfile` there.
@@ -29,12 +29,11 @@
 #     [name]    the worktree's directory name (default: the branch, with / replaced by -)
 #     the issue, one of: --issue N, or --new-issue "<title>", or else a number of three or more digits
 #               in <branch> (fix/1234-scroll), which must be an open issue; --new-issue opens one
-#               labelled with a type (from the branch's prefix: fix/ bug, feat/ enhancement, docs/ documentation, else infrastructure, or --type),
+#               labeled with a type (from the branch's prefix: fix/ bug, feat/ enhancement, docs/ documentation, else infrastructure, or --type),
 #               --priority (default medium) and --effort (default medium)
 #     --owner   who owns the work, for the note (default: this Claude Code session)
 #     --full-images  check out the design/** images in full too (the design studio's worktree needs them)
 #
-# golden and golden-cut (made by tools/land.mjs) need no issue and are not pushed from here.
 # The worktree lands in .worktrees/<name>. Remove finished ones with tools/worktree-prune.sh.
 
 set -euo pipefail
@@ -46,9 +45,8 @@ retry() { "$@" || { sleep 2; "$@"; } || { sleep 5; "$@"; }; }
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Every run executes one copy of this script, the live copy in <main checkout>/.worktrees/land-live (put a
-# new version there with `tools/live.sh land <branch>`), whichever checkout's copy was called, as
-# tools/land.mjs does: it runs the live copy with the same arguments and directory. Without a live copy it
-# runs itself and says so. LAND_LIVE names the live worktree instead (tests). A handed-off run carries
+# new version there with `tools/live.sh land <branch>`), whichever checkout's copy was called: it runs the
+# live copy with the same arguments and directory. Without a live copy it runs itself and says so. LAND_LIVE names the live worktree instead (tests). A handed-off run carries
 # WORKTREE_NEW_LIVE_COPY and never hands off again, and drops the mark so nothing it starts inherits it.
 if [ -z "${WORKTREE_NEW_LIVE_COPY:-}" ]; then
     LIVE_ROOT="${LAND_LIVE:-$(dirname "$(git -C "$HERE" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || echo .)")/.worktrees/land-live}"
@@ -80,19 +78,16 @@ BASE="${POS[1]:-}"
 NAME="${POS[2]:-${BRANCH//\//-}}"
 [ -n "$BRANCH" ] || die "usage: worktree-new.sh <branch> [base] [name] [--issue N | --new-issue \"<title>\"] [--owner O] [--full-images]"
 
-case "$BRANCH" in golden | golden-cut) TRACKED="" ;; *) TRACKED=1 ;; esac
-if [ -n "$TRACKED" ]; then
-    [ -n "$ISSUE" ] && [ -n "$NEW_ISSUE" ] && die "give --issue N or --new-issue \"<title>\", not both"
-    [[ -z "$ISSUE" || "$ISSUE" =~ ^[0-9]+$ ]] || die "--issue takes a number, not $ISSUE"
-    # An explicit --issue or --new-issue wins over a number in the branch's name, which may be a year or
-    # a pull request (integrate/pipeline-2026-10-24 once labelled pull request #2026 in-progress).
-    NAMED_ISSUE=""
-    if [ -z "$ISSUE" ] && [ -z "$NEW_ISSUE" ]; then
-        NAMED_ISSUE=$(node "$HERE/branch-note.mjs" issue-of "$BRANCH" || true)
-        ISSUE="$NAMED_ISSUE"
-    fi
-    [ -n "$ISSUE" ] || [ -n "$NEW_ISSUE" ] || die "every branch belongs to an issue: name it in the branch (fix/1234-topic), or give --issue N, or --new-issue \"<title>\""
+[ -n "$ISSUE" ] && [ -n "$NEW_ISSUE" ] && die "give --issue N or --new-issue \"<title>\", not both"
+[[ -z "$ISSUE" || "$ISSUE" =~ ^[0-9]+$ ]] || die "--issue takes a number, not $ISSUE"
+# An explicit --issue or --new-issue wins over a number in the branch's name, which may be a year or
+# a pull request (integrate/pipeline-2026-10-24 once labeled pull request #2026 in-progress).
+NAMED_ISSUE=""
+if [ -z "$ISSUE" ] && [ -z "$NEW_ISSUE" ]; then
+    NAMED_ISSUE=$(node "$HERE/branch-note.mjs" issue-of "$BRANCH" || true)
+    ISSUE="$NAMED_ISSUE"
 fi
+[ -n "$ISSUE" ] || [ -n "$NEW_ISSUE" ] || die "every branch belongs to an issue: name it in the branch (fix/1234-topic), or give --issue N, or --new-issue \"<title>\""
 
 # The main checkout, even when this runs from inside another worktree.
 MAIN="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")"
@@ -125,7 +120,7 @@ if [ -n "$NAMED_ISSUE" ]; then
         die "#$NAMED_ISSUE, the number in $BRANCH, is not an open issue; name the issue with --issue N or --new-issue \"<title>\""
 fi
 
-if [ -n "$TRACKED" ] && [ -z "$ISSUE" ]; then
+if [ -z "$ISSUE" ]; then
     ISSUE=$(cd "$MAIN" && node "$HERE/branch-note.mjs" new-issue --title "$NEW_ISSUE" --branch "$BRANCH" \
         ${TYPE:+--type "$TYPE"} ${PRIORITY:+--priority "$PRIORITY"} ${EFFORT:+--effort "$EFFORT"}) ||
         die "could not open the issue"
@@ -146,12 +141,10 @@ if git -C "$MAIN" show-ref --verify --quiet "refs/heads/$BRANCH" \
 else
     # --no-track: the new branch's upstream is set by its first `git push -u` below, not to the base
     locked git -C "$MAIN" "${LFS_SLIM[@]}" worktree add --no-track -b "$BRANCH" "$DIR" "$BASE"
-    # A branch started from another branch is stacked on it: record that, so the pre-push gate
-    # measures this branch's changes from that branch, not origin/master (tools/push-base.mjs).
-    # golden-verified is a point on golden: such a branch lands in golden like one started from golden.
+    # A branch started from another branch is stacked on it: record that, so the push checks measure
+    # this branch's changes from that branch, not origin/master (tools/push-base.mjs).
     case "$BASE" in
         origin/master) ;;
-        origin/golden-verified) locked git -C "$MAIN" config "branch.$BRANCH.prBase" golden ;;
         origin/*) locked git -C "$MAIN" config "branch.$BRANCH.prBase" "${BASE#origin/}" ;;
     esac
 fi
@@ -162,18 +155,16 @@ else
     echo "note: $MAIN/.env does not exist, so there is no .env to link (see .env.example)" >&2
 fi
 
-if [ -n "$TRACKED" ]; then
-    locked git -C "$MAIN" config "branch.$BRANCH.issue" "$ISSUE"
-    if ! git -C "$DIR" rev-parse -q --verify '@{upstream}' >/dev/null 2>&1; then
-        # The push stays outside the lock; only setting the upstream writes .git/config.
-        { retry git -C "$DIR" push --no-verify -q origin "$BRANCH" &&
-            locked git -C "$DIR" branch -q --set-upstream-to="origin/$BRANCH"; } ||
-            echo "warning: could not push $BRANCH to origin; its first commit pushes it (.husky/post-commit)" >&2
-    fi
-    (cd "$DIR" && node "$HERE/branch-note.mjs" start --issue "$ISSUE" --branch "$BRANCH" --worktree "$DIR" \
-        ${OWNER:+--owner "$OWNER"}) ||
-        echo "warning: issue #$ISSUE is not labelled or noted yet; run: node tools/branch-note.mjs start --issue $ISSUE --branch $BRANCH --worktree $DIR" >&2
+locked git -C "$MAIN" config "branch.$BRANCH.issue" "$ISSUE"
+if ! git -C "$DIR" rev-parse -q --verify '@{upstream}' >/dev/null 2>&1; then
+    # The push stays outside the lock; only setting the upstream writes .git/config.
+    { retry git -C "$DIR" push --no-verify -q origin "$BRANCH" &&
+        locked git -C "$DIR" branch -q --set-upstream-to="origin/$BRANCH"; } ||
+        echo "warning: could not push $BRANCH to origin; its first commit pushes it (.husky/post-commit)" >&2
 fi
+(cd "$DIR" && node "$HERE/branch-note.mjs" start --issue "$ISSUE" --branch "$BRANCH" --worktree "$DIR" \
+    ${OWNER:+--owner "$OWNER"}) ||
+    echo "warning: issue #$ISSUE is not labeled or noted yet; run: node tools/branch-note.mjs start --issue $ISSUE --branch $BRANCH --worktree $DIR" >&2
 
 # husky (the prepare script) writes core.hooksPath to .git/config: run it under the lock, not inside the install.
 (cd "$DIR" && HUSKY=0 pnpm install --frozen-lockfile && locked pnpm exec husky)

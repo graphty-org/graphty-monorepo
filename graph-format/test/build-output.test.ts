@@ -120,7 +120,7 @@ describe("Build Output Tests", () => {
         expect(buildConfig.compilerOptions.rootDir).toBe(".");
         expect(buildConfig.compilerOptions.outDir).toBe("./dist");
         // The root entry is compiled by tsc alone (as algorithms/algorithms.ts is), so a tsc-only build
-        // (tools/prepush.sh runs `pnpm -r run build`) already yields the dist/graph-format.js and
+        // (`pnpm -r run build`) already yields the dist/graph-format.js and
         // dist/graph-format.d.ts that package.json "exports" point at; build:bundle then overwrites both.
         expect(buildConfig.include).toEqual(["graph-format.ts", "src/**/*.ts"]);
         expect(tsconfig.include).toContain("graph-format.ts");
@@ -142,10 +142,10 @@ describe("Build Output Tests", () => {
         expect(existsSync(resolve("./dist/src/index.d.ts"))).toBe(true);
     });
 
-    // A tsc-only build (`tools/prepush.sh` runs `pnpm -r run build`) compiles the graph-format.ts root
+    // A tsc-only build (`pnpm -r run build`) compiles the graph-format.ts root
     // entry and so already writes dist/graph-format.js -- as a re-export stub of the barrel, with a
     // sourceMappingURL comment beside it. Only build:bundle replaces it with the vite lib build, so the
-    // file existing does not mean a bundle exists: recognise the stub and skip, as the tests above do.
+    // file existing does not mean a bundle exists: recognize the stub and skip, as the tests above do.
     const bundlePath = resolve("./dist/graph-format.js");
     const bundleExists =
         existsSync(bundlePath) && !readFileSync(bundlePath, "utf-8").startsWith('export * from "./src/index.js";');

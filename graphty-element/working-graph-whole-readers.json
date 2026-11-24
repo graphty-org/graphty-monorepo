@@ -1,0 +1,277 @@
+{
+    "about": "Session readers that read the whole graph with no scope named, each one of the owner's agreed cases (2026-11-07). graphty-element/test/contracts/working-graph-readers.test.ts proves each still reads the whole graph; tools/check-working-graph.mjs lets this list only shrink. A new reader reads the view, or names the whole graph by its word. The case \"not agreed\" marks a reader the owner has not seen read the whole graph (design section 11); it is to be agreed or moved to the view. Under accessors, every function that names the whole graph with wholeGraph() (src/session/working/graphs.ts), each with its case; the lint rule local/whole-graph-by-name (eslint-rules/whole-graph-by-name.mjs) fails any other, and tools/check-working-graph.mjs lets this list only shrink too. accessorOwners are the files that hold the store; workingMints the files that may mark a snapshot as the working graph.",
+    "cases": ["filter", "full graph", "project file", "not agreed"],
+    "readers": [
+        {
+            "reader": "data.issues()",
+            "case": "not agreed",
+            "reason": "Design decision 74: an issue is a fact about the original, which every fix edits, so a filter neither hides an issue nor leaves a stale answer when it changes."
+        },
+        {
+            "reader": "data.snapshot()",
+            "case": "full graph",
+            "reason": "The original graph by name: the source of truth every edit, export and view is built from."
+        },
+        {
+            "reader": "data.store.getSnapshot()",
+            "case": "full graph",
+            "reason": "The store's own snapshot, the original graph the view is derived from."
+        },
+        {
+            "reader": "project.save()",
+            "case": "project file",
+            "reason": "The project file holds the original graph (agreed point 5): saving while filtered keeps what is hidden."
+        },
+        {
+            "reader": "scope.histogram()",
+            "case": "filter",
+            "reason": "What a filter card's brush and checklist read: a filter's own conditions count over the whole graph. A card on what is shown names within: \"visible\"."
+        },
+        {
+            "reader": "snapshot()",
+            "case": "full graph",
+            "reason": "The original graph by name, as data.snapshot()."
+        },
+        {
+            "reader": "time.extent()",
+            "case": "filter",
+            "reason": "The time window's own extent: the track the window is chosen on spans all of time."
+        }
+    ],
+    "accessorOwners": ["src/data/GraphStore.ts", "src/managers/DataManager.ts", "src/session/working/graphs.ts"],
+    "workingMints": [
+        "src/session/working/view.ts",
+        "src/algorithms/input/ScopedInput.ts",
+        "src/layout/LayoutEngine.ts"
+    ],
+    "accessors": [
+        {
+            "file": "src/session/projectFile.ts",
+            "function": "graphIdsOf",
+            "case": "project file",
+            "reason": "The project file holds the original graph: its ids, hidden nodes included."
+        },
+        {
+            "file": "src/session/groups.ts",
+            "function": "expandedGraph",
+            "case": "project file",
+            "reason": "The file saves the graph with every group expanded, hidden members included."
+        },
+        {
+            "file": "src/autosave/Autosaver.ts",
+            "function": "Autosaver.#metaOf",
+            "case": "project file",
+            "reason": "An autosave entry's counts describe the project file it writes, which holds the original graph."
+        },
+        {
+            "file": "src/autosave/Autosaver.ts",
+            "function": "Autosaver.#graphTaken",
+            "case": "project file",
+            "reason": "Whether the graph already holds data before a restore opens: a filter hiding everything still holds data."
+        },
+        {
+            "file": "src/data/export.ts",
+            "function": "buildExportSnapshot",
+            "case": "full graph",
+            "reason": "Export narrows the original to the scope it was asked for; export All is the whole graph by name."
+        },
+        {
+            "file": "src/data/export.ts",
+            "function": "writeNotes",
+            "case": "full graph",
+            "reason": "Notes are keyed by the original's rows; the export keeps only the scope's."
+        },
+        {
+            "file": "src/data/export.ts",
+            "function": "writeResults",
+            "case": "full graph",
+            "reason": "Reads only whether the original graph is directed."
+        },
+        {
+            "file": "src/session/data.ts",
+            "function": "SessionData.current",
+            "case": "full graph",
+            "reason": "Implements data.snapshot(), the original graph by name (listed under readers)."
+        },
+        {
+            "file": "src/session/data.ts",
+            "function": "consumerSnapshot",
+            "case": "full graph",
+            "reason": "Implements data.store.getSnapshot(), the store's own snapshot (listed under readers)."
+        },
+        {
+            "file": "src/session/GraphSession.ts",
+            "function": "componentLabelsOf",
+            "case": "filter",
+            "reason": "A component filter's own condition reads every node's component."
+        },
+        {
+            "file": "src/session/GraphSession.ts",
+            "function": "Session.status",
+            "case": "full graph",
+            "reason": "session.status counts the original graph beside what is shown."
+        },
+        {
+            "file": "src/session/GraphSession.ts",
+            "function": "buildSession",
+            "case": "not agreed",
+            "reason": "The source the session's working graph, data revision and planning are built from: the view is derived from it."
+        },
+        {
+            "file": "src/session/GraphSession.ts",
+            "function": "positionsOf",
+            "case": "not agreed",
+            "reason": "positions.get(id) finds a node's row in the element's rows, hidden or not: a position is kept for a hidden node."
+        },
+        {
+            "file": "src/session/GraphSession.ts",
+            "function": "positionsSnapshot",
+            "case": "not agreed",
+            "reason": "The positions copy covers every row of the element's array, hidden nodes keeping theirs."
+        },
+        {
+            "file": "src/session/GraphSession.ts",
+            "function": "resolveStore",
+            "case": "not agreed",
+            "reason": "Reads only the new row counts after a renumbering, for the arrays kept by row."
+        },
+        {
+            "file": "src/session/groups.ts",
+            "function": "createGroupsApi",
+            "case": "not agreed",
+            "reason": "Collapsing and expanding a group edits the original graph, hidden members included, so an expand loses nothing."
+        },
+        {
+            "file": "src/ai/tools/prompt.ts",
+            "function": "idsLine",
+            "case": "not agreed",
+            "reason": "How the graph's ids are spelled, for the assistant's prompt; to read the view."
+        },
+        {
+            "file": "src/algorithms/input/ScopedInput.ts",
+            "function": "createScopedInput",
+            "case": "not agreed",
+            "reason": "A run's input is derived from the original by its scope: the working graph's view for a run over what is shown."
+        },
+        {
+            "file": "src/managers/AlgorithmManager.ts",
+            "function": "AlgorithmManager.scopeOf",
+            "case": "not agreed",
+            "reason": "Checks a run's scope was resolved against the snapshot the element holds now."
+        },
+        {
+            "file": "src/managers/AlgorithmManager.ts",
+            "function": "mergedParallelEdges",
+            "case": "not agreed",
+            "reason": "Counts the parallel edges a run merges for its caveat, over the original; to count the run's input."
+        },
+        {
+            "file": "src/layout/LayoutEngine.ts",
+            "function": "StaticLayoutEngine.#load",
+            "case": "not agreed",
+            "reason": "Checks the engine's view is of the snapshot the element holds now, and arranges the whole graph when nothing is hidden or for an engine with no element."
+        },
+        {
+            "file": "src/layout/LayoutEngine.ts",
+            "function": "StaticLayoutEngine.#rowSource",
+            "case": "not agreed",
+            "reason": "Reads only whether the element's graph has any rows."
+        },
+        {
+            "file": "src/layout/LayoutEngine.ts",
+            "function": "LayoutEngine.pairWeights",
+            "case": "not agreed",
+            "reason": "Reads the weight of each edge the engine was handed (only shown ones), by its row in the original."
+        },
+        {
+            "file": "src/layout/D3GraphLayoutEngine.ts",
+            "function": "D3GraphEngine.publishPositions",
+            "case": "not agreed",
+            "reason": "Maps the bodies it holds (only shown nodes) to the element's rows to publish positions."
+        },
+        {
+            "file": "src/layout/D3GraphLayoutEngine.ts",
+            "function": "D3GraphEngine.holdRowBodies",
+            "case": "not agreed",
+            "reason": "Maps the bodies it holds to the element's rows to hold them still."
+        },
+        {
+            "file": "src/layout/D3GraphLayoutEngine.ts",
+            "function": "D3GraphEngine.loadArrangement",
+            "case": "not agreed",
+            "reason": "Maps the bodies it holds to the element's rows to read their positions."
+        },
+        {
+            "file": "src/layout/NGraphLayoutEngine.ts",
+            "function": "NGraphEngine.publishPositions",
+            "case": "not agreed",
+            "reason": "Maps the bodies it holds (only shown nodes) to the element's rows to publish positions."
+        },
+        {
+            "file": "src/layout/NGraphLayoutEngine.ts",
+            "function": "NGraphEngine.holdRowBodies",
+            "case": "not agreed",
+            "reason": "Maps the bodies it holds to the element's rows to hold them still."
+        },
+        {
+            "file": "src/layout/NGraphLayoutEngine.ts",
+            "function": "NGraphEngine.loadArrangement",
+            "case": "not agreed",
+            "reason": "Maps the bodies it holds to the element's rows to read their positions."
+        },
+        {
+            "file": "src/layout/SimulationLayoutEngine.ts",
+            "function": "SimulationLayoutEngine.init",
+            "case": "not agreed",
+            "reason": "Hands the simulation bridge the element's snapshot, from which it derives the working graph's view itself."
+        },
+        {
+            "file": "src/layout/SimulationLayoutEngine.ts",
+            "function": "SimulationLayoutEngine.loadArrangement",
+            "case": "not agreed",
+            "reason": "As init: the bridge derives the view from the element's snapshot."
+        },
+        {
+            "file": "src/managers/LayoutManager.ts",
+            "function": "LayoutManager.buildEngine",
+            "case": "not agreed",
+            "reason": "The default graph a layout's cluster column is read over, by the element's rows."
+        },
+        {
+            "file": "src/managers/LayoutManager.ts",
+            "function": "LayoutManager.lateRowsOf",
+            "case": "not agreed",
+            "reason": "The row source handed to d3 and ngraph for rows that arrive later; they map ids to rows."
+        },
+        {
+            "file": "src/managers/LayoutManager.ts",
+            "function": "LayoutManager.addBodies",
+            "case": "not agreed",
+            "reason": "Walks the element's rows to hand an engine a body per row, skipping each one the view hides."
+        },
+        {
+            "file": "src/managers/LayoutManager.ts",
+            "function": "LayoutManager.unbuiltEdgeRowsFor",
+            "case": "not agreed",
+            "reason": "Checks the engine's view is of the snapshot the element holds now."
+        },
+        {
+            "file": "src/managers/LayoutManager.ts",
+            "function": "LayoutManager.putOnPlane",
+            "case": "not agreed",
+            "reason": "Drops every placed row to Z = 0 in a 2D view, hidden rows included, so a node shown again is on the plane."
+        },
+        {
+            "file": "src/managers/LayoutManager.ts",
+            "function": "LayoutManager.holdMaskOf",
+            "case": "not agreed",
+            "reason": "A scoped layout's hold mask is over the element's rows."
+        },
+        {
+            "file": "src/managers/LayoutManager.ts",
+            "function": "LayoutManager.updatePositions",
+            "case": "not agreed",
+            "reason": "Freezes the store so a simulation sees new rows; reads nothing."
+        }
+    ]
+}

@@ -49,12 +49,12 @@ interface Relation {
  * Eigenvector centrality by power iteration on `(A + cI)`: like networkx's `A + I`, the identity shift
  * leaves the eigenvectors alone and makes the largest eigenvalue the only one of largest magnitude,
  * so a bipartite or periodic graph converges instead of oscillating. `c` is 1 on a directed relation and
- * `max(1, sqrt(d) / 2)` on a symmetric one (undirected, or `"total"`), `d` the largest neighbour count: a hub of
+ * `max(1, sqrt(d) / 2)` on a symmetric one (undirected, or `"total"`), `d` the largest neighbor count: a hub of
  * degree `d` puts eigenvalues near both `+sqrt(d)` and `-sqrt(d)`, and the larger shift keeps a star from
  * alternating slowly between them (a 50,000-node star stops in 14 passes, not 1,622).
  * The run stops when the change between passes is small relative to the vector, so the error left behind does
  * not grow with the node count. `A` holds the arc weights when the snapshot has them (the weights of parallel arcs
- * added), and otherwise a 1 for each neighbour however many parallel edges join them, as in the legacy neighbour
+ * added), and otherwise a 1 for each neighbor however many parallel edges join them, as in the legacy neighbor
  * sets. When the
  * relation has no cycle (no arcs, or a directed acyclic graph) its matrix is nilpotent and every
  * score is exactly 0.
@@ -129,13 +129,18 @@ function powerIterate(
         it++;
         let change = 0;
         let size = 0;
+        let squares = 0;
         for (let v = 0; v < n; v++) {
             change += Math.abs(raw[v] - previous[v]);
             size += Math.abs(raw[v]);
+            squares += raw[v] * raw[v];
         }
         converged = it > 1 && change < tol * size;
-        x.set(raw);
-        scaleToUnitLength(x);
+        // x = raw scaled to unit length, in the one pass (scaleToUnitLength's arithmetic, without a copy first).
+        const norm = squares > 0 ? Math.sqrt(squares) : 1;
+        for (let v = 0; v < n; v++) {
+            x[v] = raw[v] / norm;
+        }
         [raw, previous] = [previous, raw];
     }
     return { it, converged };
@@ -162,10 +167,10 @@ function shiftedStep(rel: Relation, shift: number, x: F64, raw: F64): void {
 
 /**
  * The identity shift of a symmetric relation: half the square root of the largest sum of squared weights over a
- * node's neighbours (its neighbour count when unweighted), not counting a self-loop, and at least 1 (networkx's
+ * node's neighbors (its neighbor count when unweighted), not counting a self-loop, and at least 1 (networkx's
  * `A + I`). Such a node bounds the largest eigenvalue from below by that square root, so the shift never outweighs
  * it. Mirrored in webgpu-graph-algorithms' eigenvector centrality.
- * @param rel - The relation, each neighbour once per row
+ * @param rel - The relation, each neighbor once per row
  * @returns The shift
  */
 function hubShift(rel: Relation): number {
@@ -215,11 +220,11 @@ interface FeederRows {
 }
 
 /**
- * Merge row `v` of the two sorted sources into `colIdx` from `k` on, each neighbour once, summing the weights of
+ * Merge row `v` of the two sorted sources into `colIdx` from `k` on, each neighbor once, summing the weights of
  * the arcs that join the pair.
  * @param src - The two sources
  * @param v - The row
- * @param colIdx - Neighbour indices, written
+ * @param colIdx - Neighbor indices, written
  * @param weights - Summed weights, written, or null when unweighted
  * @param k - The first free entry
  * @returns The first free entry after the row
@@ -244,12 +249,12 @@ function mergeFeederRow(src: FeederRows, v: number, colIdx: Uint32Array, weights
 }
 
 /**
- * Append neighbour `u` to the row being merged, or add `w` to its weight when it is the previous entry repeated.
- * @param colIdx - Neighbour indices, written
+ * Append neighbor `u` to the row being merged, or add `w` to its weight when it is the previous entry repeated.
+ * @param colIdx - Neighbor indices, written
  * @param weights - Summed weights, written, or null when unweighted
  * @param rowStart - The row's first entry
  * @param k - The first free entry
- * @param u - The neighbour
+ * @param u - The neighbor
  * @param w - The arc's weight
  * @returns The first free entry after the append
  */
@@ -275,13 +280,13 @@ function appendFeeder(
 }
 
 /**
- * The feeding relation as a CSR with each neighbour once per row, and with `weighted` the summed weight of the arcs
+ * The feeding relation as a CSR with each neighbor once per row, and with `weighted` the summed weight of the arcs
  * that join the pair. Snapshot rows are sorted, so a parallel arc is the previous entry repeated, and the `"total"`
  * row is a merge of two sorted rows.
  * @param s - The snapshot
  * @param mode - Which arcs feed a node on a directed snapshot
  * @param weighted - Whether to sum the arc weights
- * @returns Row pointers, neighbour indices and weights
+ * @returns Row pointers, neighbor indices and weights
  */
 function feeders(s: GraphSnapshot, mode: "in" | "out" | "total", weighted: boolean): Relation {
     const n = s.nodeCount;

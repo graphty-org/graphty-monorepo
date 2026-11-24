@@ -1,5 +1,5 @@
 /**
- * @file A plugin algorithm with no catalogue descriptor, run on a real `Graph`, is one undoable
+ * @file A plugin algorithm with no catalog descriptor, run on a real `Graph`, is one undoable
  * step: what it writes onto node and edge records and `graphResults`, the doors it calls on the
  * graph it was handed, and the suggested styles asked for with it, are recorded together, and
  * one undo takes them all back. The plugins are in `test/helpers/legacyPlugins.ts`.
@@ -191,13 +191,13 @@ describe("a plugin algorithm without a descriptor is one step", () => {
 
         const running = graph.runAlgorithm(LEGACY_NAMESPACE, "calls-doors");
         await session.data.updateNodes([{ id: "n1", values: { weight: 5 } }]);
-        const cancelled = await Promise.resolve(running).then(
+        const canceled = await Promise.resolve(running).then(
             () => false,
             (error: unknown) => (error as { name?: string }).name === "AbortError",
         );
         await operationQueueOf(graph).waitForCompletion();
 
-        assert.isTrue(cancelled, "the run was cancelled");
+        assert.isTrue(canceled, "the run was canceled");
         assert.isUndefined(graph.getNode("from-plugin"), "and wrote nothing");
         assert.lengthOf(session.history.steps, 1);
         await session.undo();

@@ -1,5 +1,8 @@
 # Re-measuring a build against cosmos.gl
 
+The performance matrix of both render paths, and its regression gate, use the same page and runner: see
+`PERF-MATRIX.md`.
+
 Measures one build of graphty-element against cosmos.gl 3.5.1 with the same harness as the baseline in
 `benchmarks/results/baseline/`. Everything below is run from `benchmarks/compare/` unless it says otherwise.
 

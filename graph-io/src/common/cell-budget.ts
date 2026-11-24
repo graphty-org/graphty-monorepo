@@ -63,12 +63,13 @@ export class CellBudgetBuilder extends GraphBuilder {
      * Create a builder with a limit.
      * @param options - the builder options
      * @param format - the format being read, for the error's report
-     * @param maxEmptyCells - the most empty slots allowed
+     * @param maxEmptyCells - the most empty slots allowed, which an importer that lays out a
+     *     table of its own before reading it (a workbook sheet) also holds itself to
      */
     constructor(
         options: GraphBuilderOptions,
         private readonly format: string,
-        private readonly maxEmptyCells: number,
+        readonly maxEmptyCells: number,
     ) {
         super(options);
     }

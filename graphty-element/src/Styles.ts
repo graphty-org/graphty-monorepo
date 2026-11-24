@@ -1,11 +1,10 @@
 import { StyleSchemaV1, StyleTemplate } from "./config";
-import { fetchJson } from "./data/source-bytes";
 
 /**
  * The element's configuration document: everything about a graph that is not a style layer.
  *
  * WHAT IT CARRIES. The id paths a record is read with, the view mode, the background, the layout
- * and its options, the algorithms to run on load, and the behaviour settings. Every one of those
+ * and its options, the algorithms to run on load, and the behavior settings. Every one of those
  * is reachable from a property on `<graphty-element>`; this is where the element keeps them.
  *
  * WHAT IT NO LONGER CARRIES. A stack of jmespath-selector style layers, and the methods that
@@ -44,17 +43,8 @@ export class Styles {
     }
 
     /**
-     * Creates a Styles instance from a JSON string.
-     * @param json - JSON string containing the configuration
-     * @returns New Styles instance
-     */
-    static fromJson(json: string): Styles {
-        const o = JSON.parse(json);
-        return this.fromObject(o);
-    }
-
-    /**
-     * Creates a Styles instance from a plain object.
+     * Creates a Styles instance from a plain object. Production code constructs `Styles` with a
+     * reader (see `Graph`); this and `default()` are conveniences for tests.
      * @param obj - Object containing the configuration
      * @returns New Styles instance
      */
@@ -63,16 +53,7 @@ export class Styles {
     }
 
     /**
-     * Fetches and creates a Styles instance from a URL.
-     * @param url - URL to fetch the configuration from
-     * @returns Promise resolving to new Styles instance
-     */
-    static async fromUrl(url: string): Promise<Styles> {
-        return Styles.fromObject((await fetchJson(url)) as object);
-    }
-
-    /**
-     * Creates a default Styles instance with minimal configuration.
+     * Creates a default Styles instance with minimal configuration, for tests.
      * @returns New default Styles instance
      */
     static default(): Styles {

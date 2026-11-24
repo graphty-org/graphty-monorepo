@@ -49,11 +49,11 @@ const SOURCES: readonly (readonly [kind: string, data: string])[] = [
 function assertIdentity(snapshot: GraphSnapshot, label: string): void {
     assert.isAbove(snapshot.edgeCount, 0, `${label} has edges`);
     assert.strictEqual(snapshot.nodes.get(IDENTITY_COLUMNS.nodeHash)?.nullCount, 0, `${label} node hashes`);
-    for (const name of [IDENTITY_COLUMNS.edgeHash, IDENTITY_COLUMNS.edgeOrdinal, IDENTITY_COLUMNS.edgeAmong]) {
-        assert.strictEqual(snapshot.edges.get(name)?.nullCount, 0, `${label} ${name}`);
-    }
-
-    const { nodeHash, edgeHash } = identityColumnsOf(snapshot);
+    // The edge columns are read through `identityColumnsOf`, as every reader reads them: under renderPath "batched" a
+    // minted edge is left out of the stored columns and completed on first read (`GraphStore.recordIngestedEdge`).
+    const { nodeHash, edgeHash, edgeOrdinal, edgeAmong } = identityColumnsOf(snapshot);
+    assert.lengthOf(edgeOrdinal, snapshot.edgeCount, `${label} ${IDENTITY_COLUMNS.edgeOrdinal}`);
+    assert.lengthOf(edgeAmong, snapshot.edgeCount, `${label} ${IDENTITY_COLUMNS.edgeAmong}`);
     for (let i = 0; i < snapshot.nodeCount; i++) {
         const { a, b } = hashNodeId(snapshot.ids.idOf(i));
         assert.deepEqual([nodeHash[2 * i], nodeHash[2 * i + 1]], [a, b], `${label} node ${i}`);

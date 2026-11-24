@@ -14,7 +14,7 @@
  * connected components -- runs on the CPU port and says so in its precision.
  *
  * The last block holds each of those runs to the algorithm of `@graphty/algorithms` run directly
- * over the snapshot the adapter reads. Where the answer depends on the order neighbours are tried
+ * over the snapshot the adapter reads. Where the answer depends on the order neighbors are tried
  * in -- the element tries them in the order their edges were declared -- the expected answer is
  * written out: it is what algorithms 2.x, which walked the same declaration order, answered.
  */
@@ -44,10 +44,19 @@ import { type AlgorithmOutput, detachedRunContext } from "../../src/algorithms/r
 import { StronglyConnectedComponentsAlgorithm } from "../../src/algorithms/StronglyConnectedComponentsAlgorithm";
 import type { NodeId } from "../../src/catalog/types";
 import { GraphtyError, isGraphtyError } from "../../src/errors";
-import type { Graph } from "../../src/Graph";
+import type { Caveats } from "../../src/session/runs/types";
 import { createFakeAccelerator, type FakeAccelerator } from "../../src/testing/fakeAccelerator";
-import { createMockGraph, type MockGraphOpts } from "../helpers/mockGraph";
 import { byId, edgeEnds, idsOf, referenceSnapshot } from "../helpers/reference-snapshot";
+import { createSessionGraph, type SessionGraph, type SessionGraphOpts } from "../helpers/session-graph";
+
+/**
+ * The facts an algorithm's caveats carry, empty when its output states none.
+ * @param caveats - The caveats.
+ * @returns The facts.
+ */
+function factsOf(caveats: Caveats | Omit<Caveats, "facts">): Caveats["facts"] {
+    return "facts" in caveats ? caveats.facts : [];
+}
 
 /**
  * A directed, weighted graph in which every node has an out-edge.
@@ -58,7 +67,7 @@ import { byId, edgeEnds, idsOf, referenceSnapshot } from "../helpers/reference-s
  * cheapest route are each the only one of their cost and a tie-break cannot make two correct
  * implementations disagree.
  */
-const FIXTURE: MockGraphOpts = {
+const FIXTURE: SessionGraphOpts = {
     nodes: [{ id: "A" }, { id: "B" }, { id: "C" }, { id: "D" }, { id: "E" }],
     edges: [
         { srcId: "A", dstId: "B", weight: 1 },
@@ -81,7 +90,7 @@ const FIXTURE: MockGraphOpts = {
  * flagged, because a style layer bound to the run would otherwise paint one of two coincident
  * lines and leave the other bare.
  */
-const PARALLEL: MockGraphOpts = {
+const PARALLEL: SessionGraphOpts = {
     nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
     edges: [
         { srcId: "A", dstId: "B", weight: 1 },
@@ -91,7 +100,7 @@ const PARALLEL: MockGraphOpts = {
 };
 
 /** Two pieces, so a partition has something to partition. */
-const TWO_PIECES: MockGraphOpts = {
+const TWO_PIECES: SessionGraphOpts = {
     nodes: [{ id: "A" }, { id: "B" }, { id: "C" }, { id: "X" }, { id: "Y" }],
     edges: [
         { srcId: "A", dstId: "B", weight: 1 },
@@ -107,8 +116,12 @@ const TWO_PIECES: MockGraphOpts = {
  * @param policy - The acceleration policy, when the case wants one other than `"auto"`.
  * @returns The graph.
  */
-async function graphWith(opts: MockGraphOpts, fake?: FakeAccelerator, policy?: "off" | "required"): Promise<Graph> {
-    const graph = await createMockGraph(opts);
+async function graphWith(
+    opts: SessionGraphOpts,
+    fake?: FakeAccelerator,
+    policy?: "off" | "required",
+): Promise<SessionGraph> {
+    const graph = await createSessionGraph(opts);
 
     if (policy !== undefined) {
         graph.acceleration.setPolicy(policy);
@@ -401,10 +414,7 @@ describe("the adapters that run through accelerated()", () => {
             assert.strictEqual(called(fake, "breadthFirstSearch"), 0);
             assert.strictEqual(output.caveats.precision, "f64");
             assert.strictEqual(output.graph?.targetFound, true);
-            assert.isTrue(
-                output.caveats.notes.some((note) => note.includes("stopped at C")),
-                output.caveats.notes.join(" | "),
-            );
+            assert.deepInclude(factsOf(output.caveats), { code: "bfs.target-reached", params: { target: "C" } });
         });
 
         it("bellman-ford, although the accelerator implements it: the element does not hand it over", async () => {
@@ -549,11 +559,11 @@ describe("the adapters that run through accelerated()", () => {
 
 /**
  * An undirected walk's fixture whose declaration order is not its node order: A's edges are
- * declared to D, then B, then C. The reference implementation tries neighbours in the order their
+ * declared to D, then B, then C. The reference implementation tries neighbors in the order their
  * edges were declared, so a walk that tried them in node order would reach them in another order.
  * Every weight differs, so a tree and a route are each the only one of their cost.
  */
-const DECLARED_ORDER: MockGraphOpts = {
+const DECLARED_ORDER: SessionGraphOpts = {
     nodes: [{ id: "A" }, { id: "B" }, { id: "C" }, { id: "D" }, { id: "E" }, { id: "F" }],
     edges: [
         { srcId: "A", dstId: "D", weight: 1 },
@@ -567,7 +577,7 @@ const DECLARED_ORDER: MockGraphOpts = {
 };
 
 /** Two strongly connected pieces and a loner, declared out of node order. */
-const STRONG: MockGraphOpts = {
+const STRONG: SessionGraphOpts = {
     nodes: [{ id: "A" }, { id: "B" }, { id: "C" }, { id: "D" }, { id: "E" }, { id: "F" }],
     edges: [
         { srcId: "C", dstId: "A" },
@@ -581,7 +591,7 @@ const STRONG: MockGraphOpts = {
 };
 
 /**
- * What a depth-first walk of `DECLARED_ORDER` from A visits, trying neighbours in declaration
+ * What a depth-first walk of `DECLARED_ORDER` from A visits, trying neighbors in declaration
  * order: the visit order, and every node it reached. Keyed by order ("pre" or "post") and target.
  */
 const DFS_EXPECTED: Record<string, { order: NodeId[]; visited: Set<NodeId> }> = {
@@ -602,7 +612,7 @@ const SCC_EXPECTED = {
 };
 
 /** A reciprocal pair the undirected view merges into one edge, and one more edge. */
-const RECIPROCAL: MockGraphOpts = {
+const RECIPROCAL: SessionGraphOpts = {
     nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
     edges: [
         { srcId: "A", dstId: "B", weight: 1 },
@@ -612,7 +622,7 @@ const RECIPROCAL: MockGraphOpts = {
 };
 
 /** A directed graph with a dangling node, D, so PageRank's redistribution rule is exercised. */
-const DANGLING: MockGraphOpts = {
+const DANGLING: SessionGraphOpts = {
     nodes: [{ id: "A" }, { id: "B" }, { id: "C" }, { id: "D" }],
     edges: [
         { srcId: "A", dstId: "B", weight: 1 },
@@ -652,7 +662,7 @@ function called(fake: FakeAccelerator, member: string): number {
  * @param field - The edge field to read.
  * @returns One value per declared edge.
  */
-function edgeFlags(graph: Graph, output: AlgorithmOutput, field: string): unknown[] {
+function edgeFlags(graph: SessionGraph, output: AlgorithmOutput, field: string): unknown[] {
     const values = valuesOf(output.edges);
     return [...graph.getDataManager().edges.values()].map((edge) => values.get(edge.id)?.[field]);
 }
@@ -982,19 +992,11 @@ describe("the traversal, path and tree adapters answer what the reference implem
                 );
             }
 
-            const { notes } = outside.result.summary().caveats;
-            assert.isFalse(
-                notes.some((note) => note.includes("personalization vector's nodes")),
-                notes.join(" | "),
-            );
-            assert.isTrue(
-                notes.some((note) => note.includes("lands on any node")),
-                notes.join(" | "),
-            );
-            assert.isTrue(
-                notes.some((note) => note.includes("1 personalization entry names a node outside this graph")),
-                notes.join(" | "),
-            );
+            const { facts } = outside.result.summary().caveats;
+            const codes = facts.map((fact) => fact.code);
+            assert.notInclude(codes, "pagerank.personalized");
+            assert.include(codes, "pagerank.personalization-unmatched");
+            assert.deepInclude(facts, { code: "pagerank.personalization-outside", params: { count: 1 } });
         });
 
         it("a personalization entry naming a node outside the graph is left out, and the rest share the jump", async () => {
@@ -1016,15 +1018,12 @@ describe("the traversal, path and tree adapters answer what the reference implem
                 );
             }
 
-            const { notes } = withOutside.result.summary().caveats;
-            assert.isTrue(
-                notes.some((note) => note.includes("personalization vector's nodes")),
-                notes.join(" | "),
+            const { facts } = withOutside.result.summary().caveats;
+            assert.include(
+                facts.map((fact) => fact.code),
+                "pagerank.personalized",
             );
-            assert.isTrue(
-                notes.some((note) => note.includes("1 personalization entry names a node outside this graph")),
-                notes.join(" | "),
-            );
+            assert.deepInclude(facts, { code: "pagerank.personalization-outside", params: { count: 1 } });
         });
 
         it("an undirected graph carries rank both ways along every edge", async () => {

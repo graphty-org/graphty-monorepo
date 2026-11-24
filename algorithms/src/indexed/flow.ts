@@ -29,8 +29,7 @@ export interface MaxFlowOptions extends WeightedOptions {
      */
     readonly algorithm?: "edmonds-karp" | "ford-fulkerson" | undefined;
     /**
-     * Per-arc capacity override, arcCount long -- the facade passes `expandEdges(s, shadow.data)`
-     * for exact f64 capacities. Without it the snapshot's arc weights are the capacities, and an
+     * Per-arc capacity override, arcCount long; f64 capacities here are used exactly. Without it the snapshot's arc weights are the capacities, and an
      * unweighted snapshot gives every edge capacity 1.
      */
     readonly weights?: NumericVector | undefined;
@@ -184,7 +183,7 @@ interface Residual {
 }
 
 /**
- * Group the arcs of row `u` of the doubled graph by neighbour (a run of arcs to the same node is
+ * Group the arcs of row `u` of the doubled graph by neighbor (a run of arcs to the same node is
  * one group, keyed by its first arc), and add each real arc's capacity to its group.
  * @param r - The doubled graph: the edges, then the same edges reversed
  * @param u - The row
@@ -219,7 +218,7 @@ function groupRow(
 
 /**
  * Build the pair-keyed residual graph of `s`. The visiting order starts as the legacy
- * `graphToMap` row order -- each neighbour at the first edge that joins it -- and a group with no
+ * `graphToMap` row order -- each neighbor at the first edge that joins it -- and a group with no
  * real arc is appended to its row when flow first reaches it, where the legacy residual Map
  * inserts the key.
  * @param s - The snapshot

@@ -25,7 +25,7 @@ import {
     type RecoverOptions,
 } from "./Autosaver";
 import { indexedDbAutosaveStore } from "./indexedDbStore";
-import { entryOfMeta, type PageSource } from "./recovery";
+import { entryOfMeta, navigationFacts, type PageSource, textOf } from "./recovery";
 import type {
     AutosaveApi,
     AutosaveAvailable,
@@ -115,6 +115,17 @@ export interface AutosaveEnvironment {
      * @returns The store.
      */
     defaultStore(): AutosaveStore | undefined;
+    /**
+     * The tab's window, whose `name` outlives a reload that loses session storage (Safari ending a
+     * background tab and loading it again). Optional: without it, no record is kept there.
+     */
+    readonly tab?: { name: string };
+    /**
+     * How this page load came about, where the browser says: "navigate", "reload" or "back_forward".
+     * Optional: without it, the load counts as a new one.
+     * @returns The navigation's type, or null.
+     */
+    navigationType?(): string | null;
 }
 
 /**
@@ -304,6 +315,8 @@ export function browserEnvironment(): AutosaveEnvironment {
             }
         },
         defaultStore: () => (typeof indexedDB === "undefined" ? undefined : indexedDbAutosaveStore()),
+        ...(globalThis.document === undefined ? {} : { tab: globalThis as unknown as { name: string } }),
+        navigationType: () => navigationFacts().navigationType,
     };
     return browser;
 }
@@ -339,6 +352,13 @@ const LEAVING_ITEM = "graphty-autosave:leaving:";
 const CAMERA_ITEM = "graphty-autosave:camera:";
 
 /**
+ * The stash name the camera is also kept under, with the work: a browser that ends a background
+ * tab can load it again with its session storage emptied (Safari), and the tab's own entry then
+ * still holds it.
+ */
+const CAMERA_STASH = "org.graphty.element.camera";
+
+/**
  * The entry a page of this tab left behind, if one really left; the mark is used up. A duplicated
  * tab's copy of the mark can only name a lock its original still holds, and waits out the timer.
  * @param env - The page.
@@ -354,15 +374,6 @@ function takeLeaving(env: AutosaveEnvironment, key: string): string | null {
     } catch {
         return null;
     }
-}
-
-/**
- * How this page was reached, for the logs.
- * @returns `navigate`, `reload`, `back_forward`, or null where the browser does not say.
- */
-function navigationType(): string | null {
-    const [entry] = (globalThis.performance?.getEntriesByType?.("navigation") ?? []) as PerformanceNavigationTiming[];
-    return entry?.type ?? null;
 }
 
 /**
@@ -399,6 +410,210 @@ function readItem(env: AutosaveEnvironment, name: string): string | null {
     }
 }
 
+/**
+ * The prefix of the tab's `window.name` while it holds this tab's record: the ids of the entries
+ * its pages wrote, newest last. Only random entry ids, never a key or data, since a page of another
+ * site this tab goes to may read the name. It is kept when a page leaves, so a later load of the tab
+ * that lost its session storage still finds its own entry.
+ */
+const TAB_RECORD = "graphty-autosave:";
+
+/**
+ * The most entry ids the tab's record keeps. One record serves every key and element of the page,
+ * so a page writing more than this many entries can push an older key's entry out of it.
+ */
+const TAB_RECORD_MAX = 16;
+
+/**
+ * Set in session storage by every page load that looks up a key. A load that finds it missing lost
+ * its session storage (or is a new tab): only such a load looks for its lost note.
+ */
+const TAB_ITEM = "graphty-autosave:tab";
+
+/** Whether each page load found its session storage lost, as it was when the load first asked. */
+const sessionLostBy = new WeakMap<AutosaveEnvironment, boolean>();
+
+/**
+ * Whether this page load's session storage was lost: true when it held no {@link TAB_ITEM}. The
+ * first call of a load sets the item, so every lookup calls it, noted or not.
+ * @param env - The page.
+ * @returns True when lost.
+ */
+function sessionLost(env: AutosaveEnvironment): boolean {
+    let lost = sessionLostBy.get(env);
+    if (lost === undefined) {
+        lost = readItem(env, TAB_ITEM) === null;
+        sessionLostBy.set(env, lost);
+        try {
+            env.sessionStorage()?.setItem(TAB_ITEM, "1");
+        } catch {
+            // No session storage here: every load counts as lost, as before the item.
+        }
+    }
+
+    return lost;
+}
+
+/** An adoption of a lost note, as {@link adoptLostOwn} answers it. */
+type LostOwnAdoption = Promise<{ id: string; by: LostOwnRule } | null>;
+
+/**
+ * The keys whose lost note each page load has looked for, with what the look found: once each, so
+ * a later mount never adopts, and a lookup made while the look runs gets the same answer (issue #9646).
+ */
+const lostLookedBy = new WeakMap<AutosaveEnvironment, Map<string, LostOwnAdoption>>();
+
+/**
+ * The keys this page load has looked for its lost note.
+ * @param env - The page.
+ * @returns Its map.
+ */
+function lostLooked(env: AutosaveEnvironment): Map<string, LostOwnAdoption> {
+    let looked = lostLookedBy.get(env);
+    if (looked === undefined) {
+        looked = new Map();
+        lostLookedBy.set(env, looked);
+    }
+
+    return looked;
+}
+
+/**
+ * The tab's record in `window.name`.
+ * @param env - The page.
+ * @returns Its entry ids, newest last, or null when the window's name holds no record.
+ */
+function tabRecord(env: AutosaveEnvironment): string[] | null {
+    const name = env.tab?.name;
+    return typeof name === "string" && name.startsWith(TAB_RECORD)
+        ? name
+              .slice(TAB_RECORD.length)
+              .split(",")
+              .filter((id) => id !== "")
+        : null;
+}
+
+/**
+ * Keep the tab's record, adding an entry as its newest. A window name the page set itself is
+ * never overwritten.
+ * @param env - The page.
+ * @param add - The entry, or null to only start the record.
+ * @param drop - An entry to forget, or null.
+ */
+function writeTabRecord(env: AutosaveEnvironment, add: string | null, drop: string | null = null): void {
+    const { tab } = env;
+    const ids = tabRecord(env);
+    if (tab === undefined || (ids === null && tab.name !== "") || (add !== null && ids?.at(-1) === add)) {
+        return;
+    }
+
+    const next = (ids ?? []).filter((id) => id !== add && id !== drop);
+    if (add !== null) {
+        next.push(add);
+    }
+
+    tab.name = TAB_RECORD + next.slice(-TAB_RECORD_MAX).join(",");
+}
+
+/**
+ * Note an entry as this tab's own, for a remount and for the next load.
+ * @param env - The page.
+ * @param key - The key.
+ * @param entry - The entry.
+ */
+function writeOwnNote(env: AutosaveEnvironment, key: string, entry: string): void {
+    ownEntries.set(key, entry);
+    try {
+        env.sessionStorage()?.setItem(OWN_ITEM + key, entry);
+    } catch {
+        // No session storage here: the registry still serves a remount.
+    }
+}
+
+/** How a load with no note in session storage found its own entry. */
+type LostOwnRule = "tab-record" | "newest-unheld";
+
+/**
+ * This tab's own entry when its session storage lost the note: Safari can end a tab in the
+ * background, with no `pagehide`, and load it again on return with empty session storage. The
+ * tab's record in `window.name` names it; where that is gone too, a reload or a history load takes
+ * the newest entry no live tab holds. A new tab (a "navigate" load) adopts nothing. The entry is
+ * claimed, so never one another open tab holds, and noted again as on any reload.
+ * @param env - The page.
+ * @param key - The key.
+ * @param metas - The key's entries.
+ * @param leaving - The entry the page this load replaces left marked, whose lock it may still hold.
+ * @returns The entry and the rule that found it, or null.
+ */
+async function adoptLostOwn(
+    env: AutosaveEnvironment,
+    key: string,
+    metas: readonly AutosaveEntryMeta[],
+    leaving: string | null,
+): LostOwnAdoption {
+    const looked = lostLooked(env);
+    const earlier = looked.get(key);
+    if (earlier !== undefined) {
+        return earlier;
+    }
+
+    if (!sessionLost(env)) {
+        return null;
+    }
+
+    const adoption = adoptLost(env, key, metas, leaving);
+    looked.set(key, adoption);
+    return adoption;
+}
+
+/**
+ * The look {@link adoptLostOwn} makes once per page load and key.
+ * @param env - The page.
+ * @param key - The key.
+ * @param metas - The key's entries.
+ * @param leaving - The entry the page this load replaces left marked.
+ * @returns The entry and the rule that found it, or null.
+ */
+async function adoptLost(
+    env: AutosaveEnvironment,
+    key: string,
+    metas: readonly AutosaveEntryMeta[],
+    leaving: string | null,
+): LostOwnAdoption {
+    const open = metas.filter((meta) => meta.ended !== "replaced");
+    const record = tabRecord(env);
+    let found: AutosaveEntryMeta | undefined;
+    let by: LostOwnRule = "tab-record";
+    if (record !== null) {
+        found = [...record]
+            .reverse()
+            .map((id) => open.find((meta) => meta.id === id))
+            .find((meta) => meta !== undefined);
+    } else if (["reload", "back_forward"].includes(env.navigationType?.() ?? "")) {
+        // ponytail: a heuristic, for a browser that kept neither session storage nor window.name. Never
+        // an older entry when the newest is held: that one is probably this tab's, reopened by another.
+        // Known misses, each forking or offering work rather than losing it: it can take work a closed
+        // tab left when this tab had written none; work of a tab in the back/forward cache, which holds
+        // no lock there (that tab writes a copy when shown again); and when several tabs of the key come
+        // back at once, the first to load can take another's newest work; and when another live tab's
+        // entry is the newest, this tab takes nothing and its own older entry is offered. A stricter
+        // rule (only one open entry) would miss the usual case, a store holding many closed tabs' work.
+        by = "newest-unheld";
+        found = open.reduce<AutosaveEntryMeta | undefined>(
+            (newest, meta) => (newest === undefined || textOf(meta.savedAt) > textOf(newest.savedAt) ? meta : newest),
+            undefined,
+        );
+    }
+
+    const waitMs = leaving === found?.id ? LEAVING_WAIT_MS : undefined;
+    if (found === undefined || !((await env.locks.own?.(lockName(key, found.id), waitMs)) ?? true)) {
+        return null;
+    }
+
+    writeOwnNote(env, key, found.id);
+    return { id: found.id, by };
+}
+
 /** What `start` is told. */
 export interface AutosaveStart {
     readonly session: GraphSession;
@@ -427,6 +642,22 @@ export interface AutosaveCamera {
      * @returns Settles once it is placed.
      */
     set(state: CameraState): Promise<void>;
+    /** @returns The saved tour playing now and its stop, or null. */
+    tour(): { name: string; stop: number } | null;
+    /**
+     * Play a saved tour on from a stop.
+     * @param name - The saved tour's name.
+     * @param stop - The stop.
+     * @returns Settles once the tour ends.
+     */
+    resumeTour(name: string, stop: number): Promise<unknown>;
+}
+
+/** Where the camera was, and the tour playing then, as `keepCamera` keeps them. */
+interface KeptCamera {
+    readonly entry: string;
+    readonly state: CameraState;
+    readonly tour?: { readonly name: string; readonly stop: number } | null;
 }
 
 /**
@@ -512,6 +743,8 @@ export class ElementAutosave {
     #departed = false;
     #reloadPage: () => Promise<void> = () => Promise.resolve();
     #camera: AutosaveCamera | undefined;
+    /** This tab's own entries when autosave started (the one it names, and the one before). */
+    #owns: readonly string[] = [];
 
     /** The API the element hands out as `autosaver`. */
     readonly api: AutosaveApi;
@@ -558,12 +791,49 @@ export class ElementAutosave {
             stashed: (name) => this.#saver?.stashed(name),
             requestPersistence: () => this.#requestPersistence(),
         };
-        this.api = Object.defineProperties(methods, {
-            status: { enumerable: true, get: () => this.#saver?.status ?? this.#status },
-            ready: { enumerable: true, get: () => this.#ready },
-            restored: { enumerable: true, get: () => this.#saver?.restored ?? null },
-        }) as AutosaveApi;
+        ElementAutosave.#owners.set(methods, this);
+        this.api = Object.defineProperties(methods, ElementAutosave.#apiGetters) as AutosaveApi;
     }
+
+    /** The autosave behind each `api`, for the getters below. */
+    static readonly #owners = new WeakMap<object, ElementAutosave>();
+
+    /**
+     * The autosave behind an `api`.
+     * @param api - An `api` this class made.
+     * @returns Its autosave.
+     */
+    static #of(api: object): ElementAutosave {
+        return ElementAutosave.#owners.get(api) as ElementAutosave;
+    }
+
+    /**
+     * `api`'s getters: the same three functions for every element, never a closure over one. V8
+     * keeps an accessor's function in the hidden class every element's `api` shares, so a closure
+     * there would keep the first element, its graph and its scene alive after it was removed
+     * (test/browser/element-removal-heap.test.ts).
+     */
+    static readonly #apiGetters: PropertyDescriptorMap = {
+        status: {
+            enumerable: true,
+            get(this: object): AutosaveStatus {
+                const owner = ElementAutosave.#of(this);
+                return owner.#saver?.status ?? owner.#status;
+            },
+        },
+        ready: {
+            enumerable: true,
+            get(this: object): Promise<AutosaveRestored | null> {
+                return ElementAutosave.#of(this).#ready;
+            },
+        },
+        restored: {
+            enumerable: true,
+            get(this: object): AutosaveRestored | null {
+                return ElementAutosave.#of(this).#saver?.restored ?? null;
+            },
+        },
+    };
 
     /** The element connected with autosave on: until it starts, it reports nothing to write. */
     connect(): void {
@@ -690,9 +960,11 @@ export class ElementAutosave {
 
         // This tab's own entry: an element of this tab that just left (a remount), else what
         // session storage kept across a reload or a discard.
-        const own = this.#readOwn(key);
+        sessionLost(this.#env);
         const before = readOwnBefore(this.#env, key);
+        const own = this.#readOwn(key) ?? (before === null ? await this.#adoptLost(store, key) : null);
         await this.#waitForOwns(key, [own, before]);
+        this.#owns = [own, before].filter((id): id is string => id !== null);
 
         saver.setFacts(await this.#gatherFacts(), true);
         const recover: RecoverOptions = {
@@ -737,6 +1009,25 @@ export class ElementAutosave {
         this.#startRevision = saver.status.revision;
         this.#finish(restored);
         this.#checkAtRisk(saver.status);
+    }
+
+    /**
+     * This tab's own entry when session storage lost its note ({@link adoptLostOwn}), unless a lookup
+     * of this page load already looked.
+     * @param store - The store.
+     * @param key - The autosave key.
+     * @returns The entry, or null.
+     */
+    async #adoptLost(store: AutosaveStore, key: string): Promise<string | null> {
+        const metas = lostLooked(this.#env).has(key) ? null : await listWithin(store, key).catch(() => null);
+        const adopted =
+            metas === null ? null : await adoptLostOwn(this.#env, key, metas, readItem(this.#env, LEAVING_ITEM + key));
+        writeTabRecord(this.#env, null);
+        if (adopted !== null) {
+            logger.info("own entry adopted", { entry: adopted.id, by: adopted.by });
+        }
+
+        return adopted?.id ?? null;
     }
 
     /**
@@ -795,6 +1086,8 @@ export class ElementAutosave {
             return;
         }
 
+        // A remount in this tab (a page that swaps its element) puts the camera back as a reload does.
+        this.#keepCamera(saver);
         const done = saver.depart().then(
             () => this.#store?.close?.(),
             () => this.#store?.close?.(),
@@ -1005,15 +1298,15 @@ export class ElementAutosave {
             this.#keepBefore(key, noted);
         }
 
-        if (noted === entry) {
-            return;
+        writeTabRecord(this.#env, entry);
+        // The entry named before stays newest in the record while it is kept, as ownAmong prefers it.
+        const kept = readOwnBefore(this.#env, key);
+        if (kept !== null && kept !== entry) {
+            writeTabRecord(this.#env, kept);
         }
 
-        ownEntries.set(key, entry);
-        try {
-            this.#env.sessionStorage()?.setItem(OWN_ITEM + key, entry);
-        } catch {
-            // No session storage here: the registry still serves a remount.
+        if (noted !== entry) {
+            writeOwnNote(this.#env, key, entry);
         }
     }
 
@@ -1056,6 +1349,8 @@ export class ElementAutosave {
      * @param key - The key.
      */
     #forgetOwn(key: string): void {
+        writeTabRecord(this.#env, null, readOwnItem(this.#env, key));
+        writeTabRecord(this.#env, null, readOwnBefore(this.#env, key));
         ownEntries.delete(key);
         this.#keepBefore(key, null);
         try {
@@ -1150,12 +1445,46 @@ export class ElementAutosave {
             return;
         }
 
+        let kept: KeptCamera;
         try {
-            const item = JSON.stringify({ entry: saver.entryId, state: this.#camera.get() });
-            this.#env.sessionStorage()?.setItem(CAMERA_ITEM + saver.key, item);
+            kept = { entry: saver.entryId, state: this.#camera.get(), tour: this.#camera.tour() };
         } catch {
-            // No session storage here, or no camera yet: the graph is framed as on any load.
+            // No camera yet: the graph is framed as on any load.
+            return;
         }
+
+        if (saver.started) {
+            // Never starts an entry by itself: work with no change of the reader's has none to keep.
+            saver.stash(CAMERA_STASH, kept);
+        }
+
+        try {
+            this.#env.sessionStorage()?.setItem(CAMERA_ITEM + saver.key, JSON.stringify(kept));
+        } catch {
+            // No session storage here: the camera comes back from the work's own entry.
+        }
+    }
+
+    /**
+     * The camera kept for an entry: this tab's session storage, else, for this tab's own entry,
+     * the copy kept with the work.
+     * @param saver - The writer, holding the restored entry's stash.
+     * @param entry - The restored entry.
+     * @returns What was kept, or null.
+     */
+    #keptCamera(saver: Autosaver, entry: string): KeptCamera | null {
+        try {
+            const text = this.#env.sessionStorage()?.getItem(CAMERA_ITEM + saver.key) ?? null;
+            const kept = text === null ? null : (JSON.parse(text) as KeptCamera);
+            if (kept?.entry === entry) {
+                return kept;
+            }
+        } catch {
+            // Nothing readable in session storage: the copy kept with the work is read below.
+        }
+
+        // Only this tab's own work: work opened in another tab is framed as usual.
+        return this.#owns.includes(entry) ? ((saver.stashed(CAMERA_STASH) as KeptCamera | undefined) ?? null) : null;
     }
 
     /**
@@ -1164,20 +1493,21 @@ export class ElementAutosave {
      */
     #placeCamera(entry: string): void {
         const camera = this.#camera;
-        const key = this.#saver?.key;
-        if (this.#options.keepCamera !== true || camera === undefined || key === undefined) {
+        const saver = this.#saver;
+        if (this.#options.keepCamera !== true || camera === undefined || saver === null) {
             return;
         }
 
-        try {
-            const text = this.#env.sessionStorage()?.getItem(CAMERA_ITEM + key) ?? null;
-            const kept = text === null ? null : (JSON.parse(text) as { entry: string; state: CameraState });
-            if (kept?.entry === entry) {
-                void camera.set(kept.state).catch(() => undefined);
-            }
-        } catch {
-            // Nothing readable kept: the graph is framed as on any load.
+        const kept = this.#keptCamera(saver, entry);
+        if (kept === null) {
+            return;
         }
+
+        const { tour } = kept;
+        void camera
+            .set(kept.state)
+            .then(() => (tour === undefined || tour === null ? undefined : camera.resumeTour(tour.name, tour.stop)))
+            .catch(() => undefined);
     }
 
     /**
@@ -1231,13 +1561,14 @@ export interface AutosaveLookupOptions {
  * Runs something against the store a lookup names, closing the default store afterwards.
  * @param options - The lookup's options.
  * @param act - What to do; receives no store where IndexedDB is missing.
+ * @param env - The page; the browser's by default.
  * @returns What `act` returned.
  */
 async function withLookupStore<T>(
     options: AutosaveLookupOptions,
     act: (store: AutosaveStore | undefined, env: AutosaveEnvironment) => Promise<T>,
+    env: AutosaveEnvironment = browserEnvironment(),
 ): Promise<T> {
-    const env = browserEnvironment();
     const store = options.store ?? env.defaultStore();
     try {
         return await act(store, env);
@@ -1282,8 +1613,7 @@ function listWithin(store: AutosaveStore, key: string): Promise<readonly Autosav
  * The work kept under an autosave key, read without an element: for a page that offers it before
  * it shows a graph, such as a start screen. The same list as `autosaver.list()`, oldest first;
  * `live` is true for an entry an element (in any tab) is writing now. Empty where the browser
- * keeps no storage, and empty after three seconds when another tab holds the browser's database
- * and does not let go (a tab the browser suspended in the middle of a write). Open an entry with `autosaver.restore(id)` on an element with the same key.
+ * keeps no storage. Open an entry with `autosaver.restore(id)` on an element with the same key.
  *
  * `own` is true for the one entry this tab was writing (after a reload, or after the browser
  * discarded the tab and loaded it again) once this tab holds its lock: the call takes the lock and
@@ -1296,49 +1626,86 @@ function listWithin(store: AutosaveStore, key: string): Promise<readonly Autosav
  * @param key - The autosave key.
  * @param options - Where to look.
  * @returns The entries.
+ * @throws A `GraphtyError` (as a rejection): `E_AUTOSAVE_STALLED` (`details: { afterMs, step: "list" }`)
+ *     when another tab holds the browser's database for three seconds and does not let go (a tab
+ *     the browser suspended in the middle of a write). Nothing is known about the kept work then:
+ *     not that there is none.
  */
 export function listAutosaves(key: string, options: AutosaveLookupOptions = {}): Promise<readonly AutosaveEntry[]> {
-    return withLookupStore(options, async (store, env) => {
-        if (store === undefined) {
-            return [];
-        }
+    return listAutosavesIn(browserEnvironment(), key, options);
+}
 
-        const noted = readOwnItem(env, key);
-        const before = readOwnBefore(env, key);
-        const leaving = takeLeaving(env, key);
-        const waited = noted !== null && leaving === noted;
-        // Before the list: the page that left may still be writing this entry's final commit.
-        if (waited) {
-            await env.locks.own?.(lockName(key, noted), LEAVING_WAIT_MS);
-        }
+/**
+ * {@link listAutosaves} on a given page.
+ * @param page - The page.
+ * @param key - The autosave key.
+ * @param options - Where to look.
+ * @returns The entries.
+ */
+export function listAutosavesIn(
+    page: AutosaveEnvironment,
+    key: string,
+    options: AutosaveLookupOptions = {},
+): Promise<readonly AutosaveEntry[]> {
+    return withLookupStore(
+        options,
+        async (store, env) => {
+            if (store === undefined) {
+                return [];
+            }
 
-        const metas = await listWithin(store, key);
-        if (metas === null) {
-            // Nothing to offer rather than a page that never starts; the element lists again itself.
-            logger.warn("kept work not listed: another tab holds the database", { afterMs: LIST_TIMEOUT_MS });
-            return [];
-        }
+            sessionLost(env);
+            const noted = readOwnItem(env, key);
+            const before = readOwnBefore(env, key);
+            const leaving = takeLeaving(env, key);
+            const waited = noted !== null && leaving === noted;
+            // Before the list: the page that left may still be writing this entry's final commit.
+            if (waited) {
+                await env.locks.own?.(lockName(key, noted), LEAVING_WAIT_MS);
+            }
 
-        // The entry named before, when the named one was never written or was replaced.
-        const candidate = ownAmong(metas, noted, before);
-        const exists = metas.some((meta) => meta.id === candidate);
-        const owned = candidate !== null && exists && ((await env.locks.own?.(lockName(key, candidate))) ?? true);
-        const held = await env.locks.held();
-        logger.info("kept work listed", {
-            noted: noted !== null,
-            before: candidate !== noted,
-            exists,
-            own: owned,
-            waited,
-            leavingMark: leaving !== null,
-            entries: metas.length,
-            navigationType: navigationType(),
-        });
-        return metas.map((meta) => ({
-            ...entryOfMeta(meta, held.has(lockName(key, meta.id))),
-            own: owned && meta.id === candidate,
-        }));
-    });
+            const metas = await listWithin(store, key);
+            if (metas === null) {
+                // Refused rather than answered empty: an empty list says nothing is kept, and a page
+                // that read it so opened again work another tab was writing (issue #6583). The page
+                // still starts; the element lists again itself.
+                logger.warn("kept work not listed: another tab holds the database", { afterMs: LIST_TIMEOUT_MS });
+                throw new GraphtyError({
+                    code: "E_AUTOSAVE_STALLED",
+                    message: `Autosave could not list key ${key} within ${String(LIST_TIMEOUT_MS)} ms.`,
+                    source: "data",
+                    details: { afterMs: LIST_TIMEOUT_MS, step: "list" },
+                });
+            }
+
+            // The entry named before, when the named one was never written or was replaced; else the
+            // one a tab whose session storage was lost finds again.
+            const adopted = noted === null && before === null ? await adoptLostOwn(env, key, metas, leaving) : null;
+            const candidate = adopted?.id ?? ownAmong(metas, noted, before);
+            const exists = metas.some((meta) => meta.id === candidate);
+            const owned =
+                adopted !== null ||
+                (candidate !== null && exists && ((await env.locks.own?.(lockName(key, candidate))) ?? true));
+            writeTabRecord(env, owned ? candidate : null);
+            const held = await env.locks.held();
+            logger.info("kept work listed", {
+                by: adopted?.by ?? (noted === null && before === null ? "none" : "session"),
+                noted: noted !== null,
+                before: candidate !== noted,
+                exists,
+                own: owned,
+                waited,
+                leavingMark: leaving !== null,
+                entries: metas.length,
+                navigationType: env.navigationType?.() ?? null,
+            });
+            return metas.map((meta) => ({
+                ...entryOfMeta(meta, held.has(lockName(key, meta.id))),
+                own: owned && meta.id === candidate,
+            }));
+        },
+        page,
+    );
 }
 
 /**

@@ -5,10 +5,9 @@
 ```ts
 
 import type { DuplicatePolicy } from '@graphty/graph-format';
+import type { GraphAnnotation } from '@graphty/graph-io/styles';
+import type { ImageAnnotation } from '@graphty/graph-io/styles';
 import type { NodeId as NodeId_2 } from '@graphty/graph-format';
-import type { StyleRuleOrigin } from '@graphty/graph-io/styles';
-import type { StyleRuleReason } from '@graphty/graph-io/styles';
-import type { StyleRuleRole } from '@graphty/graph-io/styles';
 import { z } from 'zod';
 
 // @public
@@ -60,6 +59,9 @@ export const COMMANDS: Readonly<{
     readonly "data.collapse": {
         readonly undo: "undoable";
     };
+    readonly "data.steps-set": {
+        readonly undo: "undoable";
+    };
     readonly "data.declare": {
         readonly undo: "undoable";
     };
@@ -67,9 +69,6 @@ export const COMMANDS: Readonly<{
         readonly undo: "undoable";
     };
     readonly "data.label": {
-        readonly undo: "undoable";
-    };
-    readonly "data.setFileStyles": {
         readonly undo: "undoable";
     };
     readonly "data.columns": {
@@ -88,6 +87,9 @@ export const COMMANDS: Readonly<{
         readonly undo: "undoable";
     };
     readonly "shader.set": {
+        readonly undo: "undoable";
+    };
+    readonly "asset.defaults": {
         readonly undo: "undoable";
     };
     readonly "visibility.set": {
@@ -144,7 +146,37 @@ export const COMMANDS: Readonly<{
     readonly "view.save": {
         readonly undo: "undoable";
     };
+    readonly "annotations.set": {
+        readonly undo: "undoable";
+    };
+    readonly "annotations.patch": {
+        readonly undo: "undoable";
+    };
     readonly "view.remove": {
+        readonly undo: "undoable";
+    };
+    readonly "view.rename": {
+        readonly undo: "undoable";
+    };
+    readonly "view.move": {
+        readonly undo: "undoable";
+    };
+    readonly "view.key": {
+        readonly undo: "undoable";
+    };
+    readonly "view.starting": {
+        readonly undo: "undoable";
+    };
+    readonly "tour.save": {
+        readonly undo: "undoable";
+    };
+    readonly "tour.remove": {
+        readonly undo: "undoable";
+    };
+    readonly "tour.rename": {
+        readonly undo: "undoable";
+    };
+    readonly "tour.move": {
         readonly undo: "undoable";
     };
     readonly "view.camera": {
@@ -186,7 +218,7 @@ export const COMMANDS: Readonly<{
 export function isSessionCommand(value: unknown): value is SessionCommand;
 
 // @public
-export type SessionCommand = AlgorithmRunCommand | AlgoLegacyCommand | AlgoRemoveCommand | AlgoMoveCommand | AlgoRenameCommand | DataCommand | DataDeriveCommand | DataIssuesCommand | SourceExpandOpCommand | StyleCommand | ShaderCommand | VisibilityCommand | SetCommand | NoteCommand | ViewCommand | ConfigSetCommand | PositionsCommand | LayoutCommand | BatchCommand;
+export type SessionCommand = AlgorithmRunCommand | AlgoLegacyCommand | AlgoRemoveCommand | AlgoMoveCommand | AlgoRenameCommand | DataCommand | DataDeriveCommand | DataIssuesCommand | SourceExpandOpCommand | DataStepsSetCommand | StyleCommand | ShaderCommand | AssetCommand | VisibilityCommand | SetCommand | NoteCommand | ViewCommand | TourCommand | AnnotationsCommand | ConfigSetCommand | PositionsCommand | LayoutCommand | BatchCommand;
 
 // (No @packageDocumentation comment for this package)
 

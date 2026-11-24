@@ -1,5 +1,5 @@
 /**
- * The option record of label propagation (design 3.3 line 807, 8.6). Types only.
+ * The option record of label propagation. Types only.
  */
 
 /**
@@ -13,8 +13,8 @@ export interface LabelPropagationOptions {
     /** The largest number of passes (default 100, as in `@graphty/algorithms`); a non-negative integer. */
     readonly maxIterations?: number | undefined;
     /**
-     * Sum the weights of the edges to each neighbour label (default true; an unweighted snapshot's edges weigh 1
-     * each, so a parallel edge counts once per copy); false counts every distinct neighbour once.
+     * Sum the weights of the edges to each neighbor label (default true; an unweighted snapshot's edges weigh 1
+     * each, so a parallel edge counts once per copy); false counts every distinct neighbor once.
      */
     readonly weighted?: boolean | undefined;
 }

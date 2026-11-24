@@ -1,17 +1,17 @@
 /**
- * The `reduce` primitive driver (spec 6 row 1): sum / min / max over f32, u32 or vec4f elements in two or three
- * dispatches of the `reduce` module (3.10.1). Level 1 folds WG elements per workgroup into per-workgroup partials
- * (the prelude's tree helpers, 4.3); a third level folds the partials again when the level-1 grid needed a 2D
+ * The `reduce` primitive driver: sum / min / max over f32, u32 or vec4f elements in two or three
+ * dispatches of the `reduce` module. Level 1 folds WG elements per workgroup into per-workgroup partials
+ * (the prelude's tree helpers); a third level folds the partials again when the level-1 grid needed a 2D
  * dispatch (more than MAX_WORKGROUPS_PER_DIM workgroups, i.e. more than MAX_1D_ITEMS elements); the FINAL level --
  * ONE workgroup whose lanes walk the remaining partials sequentially in index order -- writes one element
  * (4 or 16 bytes) at out[outOffset]. Every level reduces in a fixed order, so two runs are bitwise identical on one
- * device (spec 11.9 item 4); the subgroup twin (4.3) agrees to summation-order noise on f32 and bitwise on u32.
- * `count === 0` records level 1 over an empty plan (Kernel.dispatch records nothing, spec 5.6) and the FINAL level
+ * device; the subgroup twin agrees to summation-order noise on f32 and bitwise on u32.
+ * `count === 0` records level 1 over an empty plan (Kernel.dispatch records nothing) and the FINAL level
  * over 0 partials, which writes the identity element.
  *
- * The driver owns no device objects: the caller supplies a ReduceScope (P1: the tests build one over a GpuContext and
- * release its scratch in a finally; P2: CommandBatch supplies the same record with a Lease) and the compute pass to
- * record into. `src/primitives/**` never imports `src/context.ts` (the eslint zone of 2.4).
+ * The driver owns no device objects: the caller supplies a ReduceScope (the tests build one over a GpuContext and
+ * release its scratch in a finally; CommandBatch supplies the same record with a Lease) and the compute pass to
+ * record into. `src/primitives/**` never imports `src/context.ts` (an eslint zone).
  */
 
 import { MAX_WORKGROUPS_PER_DIM } from "../constants.js";
@@ -30,20 +30,20 @@ export type ReduceOp = "sum" | "min" | "max";
 /** The element type (4.5 DTYPE override: f32, u32, or vec4f lanes of f32). */
 export type ReduceDtype = "f32" | "u32" | "vec4f";
 
-/** What reduce() needs of its caller: a pass to record into, scratch, the ring and the cache (P1 has no CommandBatch yet; P2's batch supplies the same record). */
+/** What reduce() needs of its caller: a pass to record into, scratch, the ring and the cache (a CommandBatch supplies the same record). */
 export interface ReduceScope {
     readonly device: GPUDevice;
     readonly caps: PlanCaps;
     readonly pipelines: PipelineCache;
     readonly pool: BufferPool;
     readonly workgroupSize: number;
-    /** Acquires scratch released by the caller's scope (a Lease from P2; P1 releases in a finally). */
+    /** Acquires scratch released by the caller's scope (a Lease, or a finally in the tests). */
     scratch(byteLength: number, label: string): GPUBuffer;
     /** The uniform-slot writer: returns the binding and dynamic offset for a params record. */
     params(block: UniformBlock, values: UniformValues): { readonly binding: Binding; readonly offset: number };
 }
 
-/** A prepared reduce: records the 2-3 dispatches of spec 6 row 1 into a pass. */
+/** A prepared reduce: records its 2-3 dispatches into a pass. */
 export interface ReducePlanner {
     readonly op: ReduceOp;
     readonly dtype: ReduceDtype;

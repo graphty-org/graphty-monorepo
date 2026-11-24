@@ -6,6 +6,7 @@
 
 import type { ProviderType } from "../providers";
 import { deriveKeyFromPassphrase } from "./deriveKeyFromPassphrase";
+import { LEGACY_TAG, readLegacy } from "./legacyFormat";
 
 type StorageType = "localStorage" | "sessionStorage";
 
@@ -105,9 +106,8 @@ type Config = Required<PersistenceConfig>;
  * persistence back on once `ready()` resolves. A host calls `enablePersistence()`,
  * `disablePersistence()` and `setKey()` and nothing else.
  *
- * Keys saved by graphty-element before this format (encrypt-storage's) cannot be read with Web
- * Crypto. They are left untouched and treated as unreadable, so the reader enters them once more;
- * the first save replaces them.
+ * Keys saved by graphty-element before this format (with the `encrypt-storage` package) are read
+ * under the same encryption key and saved again in this format, so no saved key is lost.
  */
 export class ApiKeyManager {
     private readonly keys = new Map<ProviderType, string>();
@@ -133,7 +133,7 @@ export class ApiKeyManager {
     constructor(options: ApiKeyManagerOptions = {}) {
         this.storage = options.storage ?? "localStorage";
         this.prefix = options.prefix ?? DEFAULT_STORAGE_PREFIX;
-        void this.enqueue(() => this.restorePersistence()); // NOSONAR(S7059): restoring on construction is the class's contract; ready() awaits it
+        void this.enqueue(() => this.restorePersistence()); // eslint-disable-line sonarjs/no-async-constructor -- restoring on construction is the class's contract; ready() awaits it
     }
 
     /**
@@ -304,7 +304,6 @@ export class ApiKeyManager {
      * Remove a provider's key from memory and from both storages, wherever an earlier page or
      * another `storage` setting left it. {@link removeKey} reaches only the storage in use. The
      * other providers' keys stay where they are.
-     * @experimental assistant
      * @param provider - The provider type
      * @returns A promise that resolves once both storages are rewritten
      */
@@ -324,7 +323,6 @@ export class ApiKeyManager {
 
     /**
      * Remove every provider's key from memory and from both storages; see {@link forgetKey}.
-     * @experimental assistant
      * @returns A promise that resolves once both storages are cleared
      */
     forgetKeys(): Promise<void> {
@@ -341,7 +339,6 @@ export class ApiKeyManager {
     /**
      * Move the keys another `storage` setting left into the storage in use, so a key is never kept
      * in the one the host just moved away from. Nothing without persistence on.
-     * @experimental assistant
      * @returns A promise that resolves once the keys are moved
      */
     retireOtherStorage(): Promise<void> {
@@ -504,7 +501,7 @@ export class ApiKeyManager {
     private async open(config: Config): Promise<void> {
         if (storageArea(config.storage).getItem(itemName(config, KEYS_ITEM)) !== null) {
             const stored = parseKeys(await this.readItem(config, KEYS_ITEM));
-            // Another key, another passphrase, or a store saved by encrypt-storage
+            // Another key or another passphrase
             if (stored === null || this.persistenceConfig !== config) {
                 return;
             }
@@ -611,11 +608,15 @@ export class ApiKeyManager {
      * Read and decrypt a store item.
      * @param config - The store
      * @param item - The item's name
-     * @returns The value, or null when absent, in another format, or not decryptable with this key
+     * @returns The value, or null when absent, in an unknown format, or not decryptable with this key
      */
     private async readItem(config: Config, item: string): Promise<unknown> {
         try {
             const raw = storageArea(config.storage).getItem(itemName(config, item));
+            // Saved by encrypt-storage: read here, and the next save writes it in this format
+            if (raw?.startsWith(LEGACY_TAG)) {
+                return await readLegacy(raw, config.encryptionKey);
+            }
             if (!raw?.startsWith(FORMAT_TAG)) {
                 return null;
             }

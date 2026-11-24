@@ -1,9 +1,11 @@
 import {
     type AdjacencyView,
+    type GraphSnapshot,
     INVALID_INDEX,
     type NodeRef,
     type NumericVector,
     resolveNode,
+    type SnapshotFlags,
     type U32,
 } from "@graphty/graph-format";
 
@@ -13,10 +15,8 @@ import { IndexedMinHeap } from "./structures/min-heap.js";
 import type { WeightedOptions } from "./weights.js";
 
 /**
- * Single-source shortest paths, index-based (graph-format design 14.2 Port 2, line 3860).
- * `dist` is a `NumericVector` rather than the design's `F64` because ONE declaration serves both
- * the CPU port (which produces a `Float64Array`) and the dispatcher's decoration of an
- * accelerator's f32 result (plan decision PD-3, departure DEP-8A-C).
+ * Single-source shortest paths from one source. `dist` is a `NumericVector`: a `Float64Array` from the CPU run, a
+ * `Float32Array` when an accelerator answered through `accelerated()`.
  * @public
  */
 export interface SsspResult {
@@ -41,7 +41,7 @@ export interface SsspResult {
 export interface SsspOptions extends WeightedOptions {
     /** Stop relaxing beyond this distance. */
     readonly cutoff?: number | undefined;
-    /** Per-arc weight override, arcCount long -- the facade passes `expandEdges(s, shadow.data)`. */
+    /** Per-arc weight override, arcCount long; f64 weights here are used exactly. */
     readonly weights?: NumericVector | undefined;
 }
 
@@ -138,7 +138,13 @@ export function dijkstra(g: AdjacencyView, sourceNode: NodeRef, options: SsspOpt
     const { nodeCount, rowPtr, colIdx } = g;
     const weights: NumericVector | null = options.weighted === false ? null : (options.weights ?? g.weights);
     // A negative arc re-queues a popped node, so a negative cycle (or undirected edge) never ends.
-    checkWeights("dijkstra", weights, colIdx.length);
+    checkWeights(
+        "dijkstra",
+        weights,
+        colIdx.length,
+        false,
+        options.weights === undefined ? snapshotFlags(g) : undefined,
+    );
     const dist = new Float64Array(nodeCount).fill(Infinity);
     const predArc = new Uint32Array(nodeCount).fill(INVALID_INDEX);
     const heap = new IndexedMinHeap(nodeCount);
@@ -166,4 +172,13 @@ export function dijkstra(g: AdjacencyView, sourceNode: NodeRef, options: SsspOpt
         pathTo: (target: NodeRef): U32 => walkPredArcs(g, predArc, source, target),
         pathEdges: (target: NodeRef): U32 => walkPredEdges(g, predArc, source, target),
     };
+}
+
+/**
+ * The weight flags of `g` when it is a snapshot, which computed them over its own arcs at freeze; a bare view has none.
+ * @param g - The adjacency
+ * @returns The flags, or undefined
+ */
+function snapshotFlags(g: AdjacencyView): SnapshotFlags | undefined {
+    return "flags" in g ? (g as GraphSnapshot).flags : undefined;
 }

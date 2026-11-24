@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-// The pre-push gate's "Release dry run" (tools/prepush-source-checks.sh): when a push adds or changes a
-// package.json, a project.json, nx.json or release-hold.json, run `nx release --dry-run --skip-publish`
-// in the checkout and fail the push when it fails, so a change the release train cannot version is
-// stopped at its push, not at the next release attempt. 2026-10-23: two private projects tier 3 added,
+// The "Release dry run" of CI's Checks job (ci.yml): when a change adds or changes a package.json, a
+// project.json, nx.json or release-hold.json, run `nx release --dry-run --skip-publish` in the checkout
+// and fail when it fails, so a change the release train cannot version is stopped at its pull request,
+// not at the next release attempt. 2026-10-23: two private projects tier 3 added,
 // one with no "version" and no tag, held every release for days ("Unable to resolve the current version
 // from git tag ... and there is no version on disk to fall back to"; #3318).
 //
@@ -30,12 +30,16 @@ const GITHUB_REFUSED = /Request failed with status code (403|429)|rate limit exc
 export const NOT_CHECKED = 3;
 
 /**
- * nx's error line: the last non-blank line of a failed run's output, skipping nx's "--verbose" hint.
+ * nx's error line: the last non-blank line of a failed run's output, colors removed, skipping nx's
+ * "--verbose" hint and the dry-run NOTE nx prints after the error.
  * @param output - the run's stdout and stderr
  * @returns the line, or ""
  */
 function errorLine(output) {
-    const lines = output.split("\n").filter((l) => l.trim() && !/--verbose/.test(l));
+    const lines = output
+        .replaceAll(new RegExp(String.raw`${String.fromCodePoint(27)}\[[0-9;]*m`, "g"), "")
+        .split("\n")
+        .filter((l) => l.trim() && !/--verbose|"dryRun" flag means no changes/.test(l));
     return lines.at(-1) ?? "";
 }
 

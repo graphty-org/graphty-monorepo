@@ -23,7 +23,6 @@ import type { DatasetMeta } from '@graphty/graph-samples';
 import { DerivedGraph } from '@graphty/graph-format';
 import { DOT_LOSS } from '@graphty/graph-io';
 import { DuplicatePolicy } from '@graphty/graph-format';
-import { EdgeMask } from '@graphty/graph-format';
 import { Engine } from '@babylonjs/core/Engines/engine.js';
 import { EngineInstrumentation } from '@babylonjs/core/Instrumentation/engineInstrumentation.js';
 import { ExtractedStyles } from '@graphty/graph-io/styles';
@@ -38,13 +37,16 @@ import { GraphAnnotation } from '@graphty/graph-io/styles';
 import { GraphBuilder } from '@graphty/graph-format';
 import { GRAPHML_LOSS } from '@graphty/graph-io';
 import { GraphSnapshot } from '@graphty/graph-format';
+import type { ImageAnnotation } from '@graphty/graph-io/styles';
 import type { InstancedMesh } from '@babylonjs/core';
 import { JSON_LOSS } from '@graphty/graph-io';
 import type { LocationFormat } from 'babylonjs-map/location';
 import { LOSS } from '@graphty/graph-io';
-import { LossNote } from '@graphty/graph-io';
 import { Matrix } from '@babylonjs/core/Maths/math.vector.js';
 import { Mesh } from '@babylonjs/core/Meshes/mesh.js';
+import { ModelFormat } from 'babylonjs-models/detect';
+import type { ModelLimits as ModelLimits_2 } from 'babylonjs-models/files';
+import type { ModelSummary } from 'babylonjs-models/files';
 import { NEO4J_LOSS } from '@graphty/graph-io';
 import { NodeId as NodeId_2 } from '@graphty/graph-format';
 import { NodeMask } from '@graphty/graph-format';
@@ -67,14 +69,10 @@ import type { SourceListQuery } from '@graphty/graph-io';
 import type { SourceProbe } from '@graphty/graph-io';
 import type { SourceValidators } from '@graphty/graph-io';
 import { StyleNoteCode } from '@graphty/graph-io/styles';
-import type { StyleRuleOrigin } from '@graphty/graph-io/styles';
-import type { StyleRuleReason } from '@graphty/graph-io/styles';
-import type { StyleRuleRole } from '@graphty/graph-io/styles';
-import type { StyleTool } from '@graphty/graph-io/styles';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode.js';
 import { U32 } from '@graphty/graph-format';
 import { U8 } from '@graphty/graph-format';
-import { Vector2 } from '@babylonjs/core/Maths/math.vector.js';
+import type { Vector2 } from '@babylonjs/core/Maths/math.vector.js';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector.js';
 import { WebGPUEngine } from '@babylonjs/core/Engines/webgpuEngine.js';
 import type { WebXRDefaultExperience } from '@babylonjs/core/XR/webXRDefaultExperience.js';
@@ -137,13 +135,16 @@ export interface AiApprovalPreview {
     readonly algorithm?: string;
     readonly changedValues?: number;
     readonly costClass?: string;
+    readonly costUsd?: number;
     readonly edges?: number;
     readonly ids?: readonly {
         readonly id: string;
         readonly label: string;
     }[];
     readonly mode?: "merge" | "replace";
+    readonly model?: string;
     readonly nodes?: number;
+    readonly provider?: string;
     readonly removeEdges?: number;
     readonly removeNodes?: number;
     readonly run?: string;
@@ -161,7 +162,7 @@ export interface AiApprovalRequest {
     }[];
     readonly conversationId?: string;
     readonly createdAt?: string;
-    readonly gate: "slow" | "large" | "replaces" | "irreversible" | "network" | "policy" | "plan" | "web-content" | (string & {});
+    readonly gate: "slow" | "large" | "replaces" | "irreversible" | "network" | "policy" | "plan" | "web-content" | "paid" | (string & {});
     readonly id: string;
     readonly messageId?: string;
     readonly preview: AiApprovalPreview;
@@ -582,9 +583,7 @@ export type AiVoiceConversationMode = "turns" | "live";
 export interface AiVoiceEndEvent {
     code?: AiResultCode;
     params?: AiResultParams;
-    // (undocumented)
     reason: "user" | "timeout" | "error";
-    // (undocumented)
     type: "ai-voice-end";
 }
 
@@ -641,7 +640,6 @@ export interface AiVoiceStartEvent {
     code?: AiResultCode;
     mode?: AiVoiceConversationMode;
     params?: AiResultParams;
-    // (undocumented)
     type: "ai-voice-start";
 }
 
@@ -660,12 +658,9 @@ export interface AiVoiceSupportChangeEvent {
 
 // @public
 export interface AiVoiceTranscriptEvent {
-    // (undocumented)
     isFinal: boolean;
     pointing?: AiPointing;
-    // (undocumented)
     transcript: string;
-    // (undocumented)
     type: "ai-voice-transcript";
 }
 
@@ -710,21 +705,14 @@ export interface AssistantGateLimits {
 
 // @public
 export interface AttributeHistogramBin {
-    // (undocumented)
     count: number;
-    // (undocumented)
     max: number;
-    // (undocumented)
     min: number;
-    // (undocumented)
     range: string;
 }
 
 // @public
 export const captureScreenshot: GraphCommand;
-
-// @public
-export const captureVideo: GraphCommand;
 
 // @public
 export const clearStyles: GraphCommand;
@@ -926,15 +914,10 @@ export class MockLlmProvider implements LlmProvider {
 
 // @public
 export interface NumericStatistics {
-    // (undocumented)
     avg: number;
-    // (undocumented)
     count: number;
-    // (undocumented)
     max: number;
-    // (undocumented)
     median: number;
-    // (undocumented)
     min: number;
 }
 
@@ -998,7 +981,7 @@ export const sampleData: GraphCommand;
 
 // @public
 export class SchemaExtractor {
-    constructor(graph: Graph, options?: SchemaExtractorOptions);
+    constructor(graph: Graph | GraphSession, options?: SchemaExtractorOptions);
     extract(): SchemaSummary;
 }
 
@@ -1014,7 +997,7 @@ export interface SchemaExtractorOptions {
 
 // @public
 export class SchemaManager {
-    constructor(graph: Graph, options?: SchemaExtractorOptions);
+    constructor(graph: Graph | GraphSession, options?: SchemaExtractorOptions);
     extract(): SchemaSummary;
     getFormattedSchema(): string;
     getSchema(): SchemaSummary | null;

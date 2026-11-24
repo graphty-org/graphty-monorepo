@@ -6,9 +6,9 @@ import type { LayoutResult } from "../positions.js";
 export interface CommonLayoutOptions {
     /** Components per row, 2 or 3; default 2. */
     readonly dim?: 2 | 3 | undefined;
-    /** Size of the layout around its centre, a finite number > 0; default 1. What it measures is documented per layout. */
+    /** Size of the layout around its center, a finite number > 0; default 1. What it measures is documented per layout. */
     readonly scale?: number | undefined;
-    /** The centre (for `random`, the lowest corner of its cell, as in the legacy layout); missing components are 0, and every given one must be finite. Default the origin. */
+    /** The center (for `random`, the lowest corner of its cell, as in the legacy layout); missing components are 0, and every given one must be finite. Default the origin. */
     readonly center?: ArrayLike<number> | undefined;
     /**
      * Seed of a layout that draws random numbers: an integer >= 0 (0 is an ordinary seed), the same seed giving the
@@ -93,7 +93,7 @@ interface Resolved {
  * Validate and default the common options.
  * @param s - the snapshot the layout runs over
  * @param options - the caller's options
- * @returns the node count, dim, scale and a `dim`-component centre
+ * @returns the node count, dim, scale and a `dim`-component center
  */
 export function resolve(s: GraphSnapshot, options: CommonLayoutOptions): Resolved {
     // a number, not the option type: a JavaScript caller may pass any value
@@ -121,11 +121,11 @@ export function result(rows: F64, dim: 2 | 3, n: number): LayoutResult {
 }
 
 /**
- * Widen 2D rows to `dim` rows whose third component is the centre's z (NaN for an unplaced, NaN row); 2D rows come
+ * Widen 2D rows to `dim` rows whose third component is the center's z (NaN for an unplaced, NaN row); 2D rows come
  * back unchanged.
  * @param rows - `2 * n` values
  * @param dim - the output components per row
- * @param center - the centre; its third component is the z of every row
+ * @param center - the center; its third component is the z of every row
  * @returns `dim * n` values
  */
 export function planar(rows: F64, dim: 2 | 3, center: readonly number[]): F64 {

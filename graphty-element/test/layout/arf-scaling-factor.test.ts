@@ -1,6 +1,6 @@
 /**
  * ARF's `scalingFactor` is the number of scene units per layout unit: `@graphty/layout`'s arf puts the
- * farthest node 1 from the centre, and the engine multiplies by this option (default 50).
+ * farthest node 1 from the center, and the engine multiplies by this option (default 50).
  */
 import "../../src/layout";
 

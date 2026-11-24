@@ -61,17 +61,13 @@ Thumbs.db
 # Logs
 logs/
 *.log
-# webgpu-graph-algorithms review probe logs are committed on purpose (its docs/research/review/probes)
-!webgpu-graph-algorithms/docs/research/review/probes/*.log
+# webgpu-graph-algorithms review probe logs are committed on purpose (design/webgpu/plan-drafts-and-reviews/review/probes)
+!design/webgpu/plan-drafts-and-reviews/review/probes/*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
-
-# SonarQube scanner work directory, for scans run by hand (tools/sonar-gate.mjs and
-# tools/sonar-baseline.mjs write theirs under the git common directory instead)
-.scannerwork/
 
 # Coverage
 coverage/
@@ -113,8 +109,8 @@ playwright-report/
 # Vitest 4 copies each failing browser test's screenshot into .vitest-attachments/ beside the
 # config, as the attachment its reporters link to. Failure diagnostics, never committed.
 **/.vitest-attachments/
-# Vitest's blob reporter writes .vitest-reports/ beside the config when the CI shards (or the
-# pre-push gate, which runs them) merge their results. Test output, never committed; ignoring
+# Vitest's blob reporter writes .vitest-reports/ beside the config when the CI shards merge their
+# results. Test output, never committed; ignoring
 # it here also keeps a leftover run out of `prettier --check .`.
 **/.vitest-reports/
 
@@ -140,7 +136,14 @@ docs/layout/
 docs/graph-io/
 docs/public/graph-io/
 docs/visual-review/
+docs/graph-format/
+docs/graph-samples/
+docs/compact-mantine/
+docs/remote-logger/
+docs/babylonjs-map/
+docs/babylonjs-models/
 docs/cytoscape-extensions/
+docs/webgpu-graph-algorithms/
 
 # Layout package specific
 layout/examples/layout.js

@@ -23,7 +23,7 @@ function farthest(r: LayoutResult, center: number[]): number {
 
 describe("fitToBox", () => {
     it("fits the bounding box into the target, keeping the aspect ratio and centring the short side", () => {
-        // a 2 x 1 layout into a 100 x 100 box at (10, 20): the long side fills it, the short side is centred
+        // a 2 x 1 layout into a 100 x 100 box at (10, 20): the long side fills it, the short side is centered
         const out = fitToBox(result([-1, 0, 1, 1], 2), { x: 10, y: 20, w: 100, h: 100 });
         assert.deepStrictEqual(Array.from(out.positions), [10, 45, 110, 95]);
         assert.equal(out.dim, 2);

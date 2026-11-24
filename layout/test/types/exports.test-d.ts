@@ -6,6 +6,7 @@ import type {
     BfsLayoutOptions,
     BipartiteLayoutOptions,
     CommonLayoutOptions,
+    GeographicLayoutOptions,
     GridLayoutOptions,
     IndexedForceAtlas2Options,
     IndexedFruchtermanReingoldOptions,
@@ -28,6 +29,7 @@ expectTypeOf(layout.bipartite).toEqualTypeOf<Layout<BipartiteLayoutOptions>>();
 expectTypeOf(layout.circular).toEqualTypeOf<Layout<CommonLayoutOptions>>();
 expectTypeOf(layout.forceAtlas2).toEqualTypeOf<Layout<IndexedForceAtlas2Options>>();
 expectTypeOf(layout.fruchtermanReingold).toEqualTypeOf<Layout<IndexedFruchtermanReingoldOptions>>();
+expectTypeOf(layout.geographic).toEqualTypeOf<Layout<GeographicLayoutOptions>>();
 expectTypeOf(layout.grid).toEqualTypeOf<Layout<GridLayoutOptions>>();
 expectTypeOf(layout.kamadaKawai).toEqualTypeOf<Layout<KamadaKawaiOptions>>();
 expectTypeOf(layout.multipartite).toEqualTypeOf<Layout<MultipartiteLayoutOptions>>();

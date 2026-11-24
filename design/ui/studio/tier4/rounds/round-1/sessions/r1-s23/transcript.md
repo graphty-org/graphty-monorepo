@@ -61,4 +61,4 @@ What confused me:
 - The "Select | Hide" pair on the card had "Hide" lit up while the picture was showing the one node I wanted gone. "Hide" means "hide the non-matches", which reads the opposite way at first glance.
 - The Node id filter didn't apply while I was typing; it only kicked in after I clicked elsewhere, so for a moment I thought it did nothing.
 - "Has a value" / "Has no value" exist for site but not for Node id, so I only found them by trying a second column. Lucky the stray had a blank name; if it had a name I'd have been stuck.
-- Good: the counts are right there -- "12 of 13 nodes" at the top and "Full graph 13" on the right -- so I can see it's hidden, not gone. That I'd trust in front of a VP. Labels in the filter card ("Select", "Hide", the hint line) are tiny and grey; hard on my eyes.
+- Good: the counts are right there -- "12 of 13 nodes" at the top and "Full graph 13" on the right -- so I can see it's hidden, not gone. That I'd trust in front of a VP. Labels in the filter card ("Select", "Hide", the hint line) are tiny and gray; hard on my eyes.

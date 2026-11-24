@@ -12,7 +12,7 @@ import type { LayoutResult } from "../../src";
 import { rescaleInPlace } from "../../src/positions";
 
 /**
- * Golden rows put through the rescale every one-shot layout ends with: centred on their mean, the farthest at 1.
+ * Golden rows put through the rescale every one-shot layout ends with: centered on their mean, the farthest at 1.
  * @param rows - the golden rows in node-index order
  * @returns the rescaled rows
  */

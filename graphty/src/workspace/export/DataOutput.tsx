@@ -1,10 +1,11 @@
 import { EntityChip, MenuCheckItem, ModalFooter, PopoutManager } from "@graphty/compact-mantine";
 import type { ExportLoss } from "@graphty/graphty-element";
 import type { OptionDescriptor } from "@graphty/graphty-element/catalog";
-import { type GraphSession, projectFileName } from "@graphty/graphty-element/session";
-import { Alert, Badge, Button, Group, Input, Menu, Select, Stack, Text } from "@mantine/core";
+import { type GraphSession, isGraphtyError, projectFileName } from "@graphty/graphty-element/session";
+import { Alert, Badge, Box, Button, Group, Input, Menu, Select, Stack, Text } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
+import { allowlisted, count } from "../../lib/analytics";
 import { sourceName } from "../data-place/words";
 import { fileStylesOn } from "../features";
 import { useAsyncValue } from "../inspector/hooks";
@@ -12,6 +13,7 @@ import { formatNumber } from "../inspector/words";
 import { OptionsForm } from "../options/OptionsForm";
 import { SettingsPopout } from "../options/SettingsPopout";
 import { splitOptions } from "../options/splitOptions";
+import { useSessionEvents, VISIBILITY_EVENTS } from "../sessionEvents";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import {
     type DataChoices,
@@ -39,9 +41,10 @@ function failureOf(error: unknown, losses: readonly ExportLoss[] = []): Failure 
     if (refused.length > 0) {
         return refused;
     }
-    const code = (error as { code?: unknown } | null)?.code;
     // Worded by its code, as the image's failures are; an unknown code shows as itself.
-    return code === "E_UNSUPPORTED" ? "Format cannot hold this graph" : failureWords(error);
+    return isGraphtyError(error) && error.code === "E_UNSUPPORTED"
+        ? "Format cannot hold this graph"
+        : failureWords(error);
 }
 
 /**
@@ -202,7 +205,7 @@ interface ScopeOption {
  * @returns the options; All first.
  */
 async function scopeOptions(session: GraphSession): Promise<ScopeOption[]> {
-    const { nodeCount, edgeCount } = session.data.statistics();
+    const { nodeCount, edgeCount } = session.data.statistics({ scope: "all" });
     const loads = session.data.sources();
     const [shown, selected, bySource, ...sets] = await Promise.all([
         session.scope.count("visible"),
@@ -343,7 +346,7 @@ function columnsWritten(
  * @returns the options.
  */
 function writableOptions(session: GraphSession, row: Row): readonly OptionDescriptor[] {
-    return session.data.statistics().edgeCount === 0
+    return session.data.statistics({ scope: "all" }).edgeCount === 0
         ? row.options.filter((option) => option.name !== "table")
         : row.options;
 }
@@ -371,6 +374,36 @@ function ScopeChips({
                     </EntityChip>
                 );
             })}
+        </>
+    );
+}
+
+/**
+ * What the previewed file loses: a warning for what changes the data, a quiet line for what the
+ * format never holds (the element's `expected` losses, such as positions in CSV).
+ * @param props - Component props
+ * @param props.formatName - the format's name.
+ * @param props.warnings - the rows that change the data.
+ * @param props.notes - the rows the format never holds.
+ * @returns the warning and the line, each when it has rows.
+ */
+function PreviewLosses({
+    formatName,
+    warnings,
+    notes,
+}: Readonly<{ formatName: string; warnings: readonly LossRow[]; notes: readonly LossRow[] }>): React.JSX.Element {
+    return (
+        <>
+            {warnings.length > 0 ? (
+                <Alert color="yellow" role="note">
+                    <LossSummary lead={`Lost in ${formatName}`} rows={warnings} />
+                </Alert>
+            ) : null}
+            {notes.length > 0 ? (
+                <Box component="output" c="dimmed" display="block">
+                    <LossSummary lead={`Not in ${formatName}`} rows={notes} />
+                </Box>
+            ) : null}
         </>
     );
 }
@@ -426,7 +459,13 @@ export function DataOutput({
 }: Readonly<DataOutputProps>): React.JSX.Element {
     const { element, session } = useWorkspace();
     const project = useWorkspaceState((state) => state.project?.name ?? "untitled");
-    const [preview, setPreview] = useState<{ lines: string; notes: readonly LossRow[] } | null>(null);
+    const [preview, setPreview] = useState<{
+        lines: string;
+        /** What the format holds differently from the graph: shown as a warning. */
+        warnings: readonly LossRow[];
+        /** What the format never holds (the element's `expected` losses): shown as a quiet note. */
+        notes: readonly LossRow[];
+    } | null>(null);
     const [failure, setFailure] = useState<Failure | null>(null);
     const [busy, setBusy] = useState(false);
     /** The style losses of the export the reader asked to save, until they save anyway or choose again. */
@@ -451,7 +490,12 @@ export function DataOutput({
             .map((entry) => ({ value: entry.id, label: entry.plainName }));
 
     const { kinds, columns, chosen, written } = columnsWritten(session, table, choices);
-    const scopes = useAsyncValue(() => (session === null ? null : scopeOptions(session)), session === null ? 0 : 1);
+    // Read again as the data changes: a dialog reopened by a reload opens before its data is in.
+    const dataVersion = useSessionEvents(session, VISIBILITY_EVENTS, true);
+    const scopes = useAsyncValue(
+        () => (session === null ? null : scopeOptions(session)),
+        session === null ? -1 : dataVersion,
+    );
     const scope = scopes?.find((option) => option.value === choices.scope);
     const all = scopes?.[0]?.rows;
     const options = row === undefined ? {} : dataExportOptions(row, choices, written);
@@ -473,7 +517,11 @@ export function DataOutput({
                 ({ losses } = result);
                 const lines = binary ? `${formatName}: no preview` : await previewOf(result);
                 if (live) {
-                    setPreview({ lines, notes: lossRows(result.losses) });
+                    setPreview({
+                        lines,
+                        warnings: lossRows(result.losses.filter((loss) => !loss.expected)),
+                        notes: lossRows(result.losses.filter((loss) => loss.expected)),
+                    });
                     setFailure(null);
                 }
             })
@@ -516,6 +564,11 @@ export function DataOutput({
             }
             setStyleLosses(null);
             await element.downloadGraph(choices.format, { ...options, fileName: name });
+            count("export_done", {
+                kind: "graph",
+                format: allowlisted(choices.format, new Set(formats.map((entry) => entry.id))),
+                destination: "download",
+            });
             onDone(`Exported ${name}`, name);
         } catch (error) {
             setFailure(failureOf(error, losses));
@@ -650,14 +703,12 @@ export function DataOutput({
                         </Group>
                     </Alert>
                 ) : null}
-                {failure === null && styleLosses === null && preview !== null && preview.notes.length > 0 ? (
-                    <Alert color="yellow" role="note">
-                        <LossSummary lead={`Lost in ${formatName}`} rows={preview.notes} />
-                    </Alert>
+                {failure === null && styleLosses === null && preview !== null ? (
+                    <PreviewLosses formatName={formatName} warnings={preview.warnings} notes={preview.notes} />
                 ) : null}
                 <pre
                     className="ws-export-text"
-                    tabIndex={0} // NOSONAR(S6845): a scrolling region must take focus so a keyboard can scroll it
+                    tabIndex={0} // eslint-disable-line jsx-a11y/no-noninteractive-tabindex -- a scrolling region must take focus so a keyboard can scroll it
                     aria-label="Preview of the exported data"
                 >
                     {preview?.lines ?? "Writing the preview..."}

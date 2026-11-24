@@ -42,7 +42,7 @@ interface ChatListRowProps {
  * @param props.row - the chat
  * @param props.current - whether it is the open chat
  * @param props.onOpen - opens it
- * @param props.onRename - takes the new name, or null when the rename was cancelled, and how it ended
+ * @param props.onRename - takes the new name, or null when the rename was canceled, and how it ended
  * @param props.onDelete - deletes it, once confirmed
  * @returns the row
  */
@@ -224,7 +224,8 @@ export function ConversationList({ id, rows, openId, reload, onClose }: Conversa
             });
     };
     const remove = (row: ChatRow, index: number): void => {
-        const next = rows[index + 1] ?? rows[index - 1];
+        const near: readonly (ChatRow | undefined)[] = rows;
+        const next = near[index + 1] ?? near[index - 1];
         element
             ?.deleteAiConversation(row.id)
             .then(() => {
@@ -243,7 +244,7 @@ export function ConversationList({ id, rows, openId, reload, onClose }: Conversa
             });
     };
     return (
-        <section // NOSONAR(S6847): only catches Esc bubbling from the list's own controls
+        <section // eslint-disable-line jsx-a11y/no-noninteractive-element-interactions -- only catches Esc bubbling from the list's own controls
             ref={list}
             id={id}
             className="ws-assistant-log"

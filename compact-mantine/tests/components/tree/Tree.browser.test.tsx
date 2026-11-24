@@ -18,6 +18,7 @@ import {
     type TreeMove,
     type TreeNodeData,
 } from "../../../src/components/tree";
+import { contrast } from "../../harness/contrast";
 import { renderThemed, resetHarness } from "../../harness/measure";
 import { moveBy, moveTo, press, release } from "../../harness/mouse";
 import { touchEnd, touchMoveBy, touchMoveTo, touchStart } from "../../harness/touch";
@@ -1137,6 +1138,108 @@ describe("PageList: keyboard and pointer", () => {
         expect(onRename).toHaveBeenCalledWith("p2", "Two");
         expect(document.activeElement).toBe(screen.getAllByRole("gridcell")[1]);
     });
+
+    it("goes to the last page with End and back up with ArrowUp, past the divider", async () => {
+        await renderThemed(<PageList items={PAGES} defaultCurrent="p1" />);
+        const cells = screen.getAllByRole("gridcell");
+        await tabIn();
+        await userEvent.keyboard("{End}");
+        expect(document.activeElement).toBe(cells[3]);
+        await userEvent.keyboard("{ArrowUp}");
+        expect(document.activeElement).toBe(cells[1]);
+    });
+
+    it("renames on double-click, and reports nothing for a name left as it was or emptied", async () => {
+        const onRename = vi.fn();
+        await renderThemed(<PageList items={PAGES} onRename={onRename} />);
+        await userEvent.dblClick(screen.getByText("Page 1"));
+        await userEvent.keyboard("{Enter}");
+        await userEvent.dblClick(screen.getByText("Page 1"));
+        await userEvent.keyboard("{Control>}a{/Control}{Backspace}{Enter}");
+        expect(onRename).not.toHaveBeenCalled();
+        await userEvent.dblClick(screen.getByText("Page 1"));
+        await userEvent.keyboard("{Control>}a{/Control}First{Enter}");
+        expect(onRename).toHaveBeenCalledExactlyOnceWith("p1", "First");
+    });
+
+    it("does not rename without onRename, by F2 or by double-click, and a divider neither switches nor renames", async () => {
+        const onCurrentChange = vi.fn();
+        await renderThemed(<PageList items={PAGES} defaultCurrent="p1" onCurrentChange={onCurrentChange} />);
+        await userEvent.dblClick(screen.getByText("Page 2"));
+        expect(screen.queryByRole("textbox")).toBeNull();
+        expect(onCurrentChange).toHaveBeenLastCalledWith("p2", expect.anything());
+        await userEvent.keyboard("{F2}");
+        expect(screen.queryByRole("textbox")).toBeNull();
+        const calls = onCurrentChange.mock.calls.length;
+        await userEvent.dblClick(screen.getAllByRole("gridcell")[2]);
+        expect(onCurrentChange).toHaveBeenCalledTimes(calls);
+        expect(screen.getAllByRole("gridcell")[1]).toHaveAttribute("aria-current", "page");
+    });
+});
+
+describe("PageList: disabled rows, row keys and renaming from outside", () => {
+    const VIEWS = [
+        { id: "a", name: "Alpha" },
+        { id: "b", name: "Beta", disabledReason: "Needs a 3D drawing" },
+    ];
+
+    it("keeps a disabled row focusable with its reason, and never switches to it", async () => {
+        const onCurrentChange = vi.fn();
+        await renderThemed(<PageList items={VIEWS} current={null} onCurrentChange={onCurrentChange} />);
+        const cells = screen.getAllByRole("gridcell");
+        expect(cells[0]).not.toHaveAttribute("aria-current");
+        expect(cells[1]).toHaveAttribute("aria-disabled", "true");
+        expect(cells[1]).toHaveAccessibleDescription("Needs a 3D drawing");
+        await userEvent.click(screen.getByText("Beta"));
+        await userEvent.keyboard("{Enter} ");
+        expect(document.activeElement).toBe(cells[1]);
+        expect(onCurrentChange).not.toHaveBeenCalled();
+        await userEvent.keyboard("{ArrowUp}{Enter}");
+        expect(onCurrentChange).toHaveBeenCalledExactlyOnceWith("a", expect.anything());
+        expect(cells[0]).not.toHaveAttribute("aria-current");
+    });
+
+    it("hands a row the keys the list does not answer, and renames when told from outside", async () => {
+        const onRowKeyDown = vi.fn();
+        const onRename = vi.fn();
+        /**
+         * A list renamed from a button outside it, as a row menu's Rename does.
+         * @returns the host
+         */
+        function Host(): React.JSX.Element {
+            const [renaming, setRenaming] = React.useState<string | null>(null);
+            return (
+                <>
+                    <PageList
+                        items={VIEWS}
+                        onRowKeyDown={onRowKeyDown}
+                        onRename={onRename}
+                        renaming={renaming}
+                        onRenamingChange={setRenaming}
+                    />
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setRenaming("b");
+                        }}
+                    >
+                        Rename Beta
+                    </button>
+                </>
+            );
+        }
+        await renderThemed(<Host />);
+        await tabIn();
+        await userEvent.keyboard("{Delete}{ArrowDown}");
+        expect(onRowKeyDown).toHaveBeenCalledOnce();
+        expect(onRowKeyDown.mock.calls[0]?.[0]).toBe("a");
+        expect(onRowKeyDown.mock.calls[0]?.[1]).toMatchObject({ key: "Delete" });
+        await userEvent.click(screen.getByRole("button", { name: "Rename Beta" }));
+        expect(document.activeElement).toBe(screen.getByRole("textbox", { name: "Page name" }));
+        await userEvent.keyboard("Gamma{Enter}");
+        expect(onRename).toHaveBeenCalledExactlyOnceWith("b", "Gamma");
+        expect(screen.queryByRole("textbox")).toBeNull();
+    });
 });
 
 describe("PageList: second line, value and row menu", () => {
@@ -1293,7 +1396,7 @@ describe("Tree: row parts and row keys", () => {
 
     it("draws the swatch between the glyph and the name, and the count before the toggles", async () => {
         await renderThemed(<Tree items={PARTS} />);
-        const pr = row("PageRank");
+        const pr = row("PageRank 77");
         const kind = within(pr).getByTestId("kind").getBoundingClientRect();
         const ramp = within(pr).getByTestId("tree-swatch").getBoundingClientRect();
         const name = pr.querySelector(".cm-tree-name")!.getBoundingClientRect();
@@ -1309,15 +1412,21 @@ describe("Tree: row parts and row keys", () => {
         expect(getComputedStyle(count).opacity).toBe("1");
     });
 
-    it("describes the row by its count and its state, and keeps the name alone as its name", async () => {
+    it("names the row by its name and count, and describes it by its state", async () => {
+        // The name holds the text the row shows (WCAG 2.5.3, axe label-content-name-mismatch).
         await renderThemed(<Tree items={PARTS} />);
-        expect(row("PageRank")).toHaveAccessibleDescription("77 Running");
+        expect(row("PageRank 77")).toHaveAccessibleDescription("Running");
         expect(row("Degree")).toHaveAccessibleDescription("Failed: no edges");
+    });
+
+    it("keeps a given label as the whole name, and describes the row by its count", async () => {
+        await renderThemed(<Tree items={[{ id: "pr", name: "PageRank", label: "PageRank, 77 nodes", count: "77" }]} />);
+        expect(row("PageRank, 77 nodes")).toHaveAccessibleDescription("77");
     });
 
     it("draws a progress line, determinate or not", async () => {
         await renderThemed(<Tree items={PARTS} />);
-        const determinate = within(row("PageRank")).getByRole("progressbar", { name: "PageRank" });
+        const determinate = within(row("PageRank 77")).getByRole("progressbar", { name: "PageRank" });
         expect(determinate).toHaveAttribute("aria-valuenow", "25");
         const box = determinate.getBoundingClientRect();
         expect(box.height).toBeCloseTo(2, 1);
@@ -1405,24 +1514,6 @@ describe("ResultRow", () => {
     });
 });
 
-/**
- * The WCAG contrast ratio of two opaque `rgb()` colors.
- * @param a - one computed color
- * @param b - the other
- * @returns the ratio, 1 or more
- */
-function contrastOf(a: string, b: string): number {
-    const lum = (color: string): number => {
-        const [r, g, bl] = (color.match(/[\d.]+/g) ?? []).slice(0, 3).map((c) => {
-            const v = Number(c) / 255;
-            return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
-        });
-        return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
-    };
-    const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
-    return (hi + 0.05) / (lo + 0.05);
-}
-
 describe("Tree: a selected parent stands apart from its children", () => {
     for (const scheme of ["light", "dark"] as const) {
         // Figma's tints differ by 1.05:1 light and 1.2:1 dark; the AA option swaps them.
@@ -1437,7 +1528,7 @@ describe("Tree: a selected parent stands apart from its children", () => {
             expect(child.getAttribute("data-tint")).toMatch(/^child/);
             const parentFill = getComputedStyle(parent, "::after").backgroundColor;
             const band = getComputedStyle(child, "::before").backgroundColor;
-            expect(contrastOf(parentFill, band)).toBeGreaterThanOrEqual(1.25);
+            expect(contrast(parentFill, band)).toBeGreaterThanOrEqual(1.25);
         });
     }
 });
@@ -1547,5 +1638,47 @@ describe("Tree: one Tab stop with row toggles, and a right-click that selects", 
         await screen.findByRole("menuitem", { name: "Rename" });
         expect(onSelect).not.toHaveBeenCalled();
         expect(row("Row 0")).toHaveAttribute("aria-selected", "true");
+    });
+});
+
+describe("Tree: keys and clicks that change nothing", () => {
+    it("leaves the selection alone on a right-click when there is no row menu", async () => {
+        const onSelect = vi.fn();
+        await renderThemed(<Tree items={ITEMS} defaultSelected={["leaf"]} onSelect={onSelect} />);
+        await userEvent.click(row("Other"), { button: "right" });
+        expect(onSelect).not.toHaveBeenCalled();
+        expect(row("Leaf")).toHaveAttribute("aria-selected", "true");
+    });
+
+    it("does not rename on double-click without onRename", async () => {
+        await renderThemed(<Tree items={ITEMS} />);
+        await userEvent.dblClick(row("Leaf"));
+        expect(screen.queryByRole("textbox")).toBeNull();
+    });
+
+    it("keeps focus on a closed top-level row on ArrowLeft", async () => {
+        await renderThemed(<Tree items={ITEMS} defaultSelected={["leaf"]} />);
+        await tabIn();
+        expect(focused()).toBe("leaf");
+        await userEvent.keyboard("{ArrowLeft}");
+        expect(focused()).toBe("leaf");
+    });
+
+    it("extends from the focused row with Shift+ArrowDown once the anchor has been taken out of the selection", async () => {
+        await renderThemed(<Tree items={ITEMS} />);
+        await userEvent.click(row("Frame"));
+        await userEvent.click(row("Frame"), { modifiers: ["Control"] });
+        expect(row("Frame")).toHaveAttribute("aria-selected", "false");
+        await userEvent.keyboard("{Shift>}{ArrowDown}{/Shift}");
+        expect(row("Frame")).toHaveAttribute("aria-selected", "true");
+        expect(row("Other")).toHaveAttribute("aria-selected", "true");
+        expect(row("Leaf")).toHaveAttribute("aria-selected", "false");
+    });
+
+    it("with revealSelected, opens nothing for a selection whose folders are already open", async () => {
+        await renderThemed(<Tree items={ITEMS} defaultExpanded={["frame"]} selected={["rect"]} revealSelected />);
+        expect(row("Rect")).toHaveAttribute("aria-selected", "true");
+        expect(row("Frame")).toHaveAttribute("aria-expanded", "true");
+        expect(row("Other")).toHaveAttribute("aria-expanded", "false");
     });
 });

@@ -294,6 +294,25 @@ describe("the oracle SVG reader", () => {
         assert.lengthOf(readSvgPrimitives(svg).prims, 1);
     });
 
+    it("reads a shape filled with a pattern of a picture as that picture, and its stroked twin as its stroke", () => {
+        // cytoscapejs-specimen-images-charts background-repeat-repeat: Cytoscape.js fills the node with a canvas
+        // pattern of its picture, which svgcanvas writes as a <pattern> holding an <image>, then strokes the border
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="200" height="100">
+            <defs><pattern id="p" width="24" height="24" patternUnits="userSpaceOnUse"><image width="24" height="24" xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAIAAAAmkwkpAAAAGUlEQVR4nGP4f53BvG4HhESw/l9nYMApAwCqshoZGilQewAAAABJRU5ErkJggg=="/></pattern></defs>
+            <path fill="url(#p)" stroke="none" d="M 50 30 A 20 20 0 1 1 49.99 30 Z"/>
+            <path fill="url(#p)" stroke="rgb(80,80,80)" d="M 50 30 A 20 20 0 1 1 49.99 30 Z"/>
+        </svg>`;
+        const { prims } = readSvgPrimitives(svg);
+        assert.deepEqual(
+            prims.map((p) => [p.kind, p.stroke?.color ?? null]),
+            [
+                ["image", null],
+                ["shape", "#505050"],
+            ],
+        );
+        assert.closeTo(prims[0].box.x1 - prims[0].box.x0, 40, 0.5);
+    });
+
     it("reads each positioned tspan line's own box, which a label's alignment is read off", () => {
         const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">
             <text font-size="10px"><tspan x="20" y="20">a long line</tspan><tspan x="20" y="32">short</tspan></text>

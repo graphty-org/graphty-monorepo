@@ -435,6 +435,49 @@ export function drawnMargins(
 }
 
 /**
+ * How wide a text's ink is in a font, counted off a canvas it is drawn on.
+ *
+ * DRAWN AND COUNTED, NOT READ FROM `actualBoundingBoxLeft`/`Right`. WebKit reports those as the
+ * advance box widened by any overhang, not the ink itself, so the side bearings of every digit came
+ * in as ink: every candidate then missed by about 5% and `1500` beat the `999+` that was drawn
+ * (#9993). Counting pixels gives the same answer in every browser.
+ * @param text - The text.
+ * @param font - The CSS font.
+ * @returns The ink's width in canvas pixels, 0 when nothing is drawn.
+ */
+function inkWidth(text: string, font: string): number {
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (context === null) {
+        return 0;
+    }
+
+    context.font = font;
+    const metrics = context.measureText(text);
+    const pad = Math.ceil(metrics.fontBoundingBoxAscent);
+    canvas.width = Math.ceil(metrics.width) + 2 * pad;
+    canvas.height = Math.ceil(metrics.fontBoundingBoxAscent + metrics.fontBoundingBoxDescent) + 2 * pad;
+    // Resizing the canvas resets its state.
+    context.font = font;
+    context.textBaseline = "alphabetic";
+    context.fillText(text, pad, pad + metrics.fontBoundingBoxAscent);
+
+    const { data, width, height } = context.getImageData(0, 0, canvas.width, canvas.height);
+    let minX = width;
+    let maxX = -1;
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            if (data[(y * width + x) * 4 + 3] > INK_ALPHA) {
+                minX = Math.min(minX, x);
+                maxX = Math.max(maxX, x);
+            }
+        }
+    }
+
+    return maxX < minX ? 0 : maxX - minX + 1;
+}
+
+/**
  * Which of several texts a label's ink is, read in the font the browser actually drew.
  *
  * FONT-INDEPENDENT BY CONSTRUCTION, like {@link drawnMargins}: the widths come from this browser's
@@ -464,9 +507,8 @@ export function drawnText(
     context.font = font;
     let best = "";
     for (const text of candidates) {
-        const metrics = context.measureText(text);
-        const scale = label.texture.width / (metrics.width + marginX);
-        const predicted = (metrics.actualBoundingBoxLeft + metrics.actualBoundingBoxRight) * scale;
+        const scale = label.texture.width / (context.measureText(text).width + marginX);
+        const predicted = inkWidth(text, font) * scale;
         errors[text] = Math.abs(label.ink.width - predicted) / predicted;
         if (best === "" || errors[text] < errors[best]) {
             best = text;

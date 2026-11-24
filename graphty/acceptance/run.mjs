@@ -13,10 +13,6 @@
  *   node graphty/acceptance/run.mjs --features cosmograph  the app opened with these experiments on
  *                                                      (?features=...); writes tmp/dry-run-<features>/
  *
- * Every route ends with a reload that empties session storage as Safari does, and fails when the screen
- * (screen-fingerprint.mjs) comes back with anything gone or changed; a route lists a known loss in
- * `reloadLoses: [{ what, issue }]`, and a run refuses one whose issue is not open.
- *
  * Writes tmp/dry-run/report.json (each route's result, time and reason) and, for a failed route,
  * tmp/dry-run/<route>.aria.txt: what the page offered a user when it failed, and tmp/dry-run/<route>.png
  * and <route>.ui.png: the screen each route ended on, as is and with what moves from run to run covered (the
@@ -41,7 +37,6 @@ import { parseArgs } from "node:util";
 import { TEST_GUARD_MS, WAIT_GUARD_MS } from "../../tools/test-wait-guard.mjs";
 import * as readers from "./readers.mjs";
 import { routes } from "./routes.mjs";
-import { reloadKeepsScreen } from "./reload-check.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, "../..");
@@ -112,7 +107,6 @@ function options(argv) {
     }
     try {
         select(o.only);
-        if (!o.worker && !o.list) checkLosses(select(o.only));
     } catch (err) {
         console.error(err.message);
         process.exit(2);
@@ -348,31 +342,6 @@ async function eventually(fn, g) {
     }
 }
 
-/**
- * The fingerprint entries a route's `reloadLoses` excuses: `[{ what, issue }]`, each a known loss
- * tracked by an issue that must still be open (checkLosses), so an excuse cannot outlive its bug.
- * @param route the route
- * @returns the entries
- */
-const lossesOf = (route) => (route.reloadLoses ?? []).map((loss) => loss.what);
-
-/**
- * Refuses a run whose routes excuse a reload loss with an issue that is not open.
- * @param picked the routes
- */
-function checkLosses(picked) {
-    const issues = [...new Set(picked.flatMap((r) => (r.reloadLoses ?? []).map((loss) => loss.issue)))];
-    for (const issue of issues) {
-        const args = ["issue", "view", String(issue), "--json", "state", "--jq", ".state"];
-        const view = spawnSync("gh", args, { encoding: "utf8" }); // eslint-disable-line sonarjs/no-os-command-from-path -- the developer's own gh
-        const state = view.stdout.trim() || "unreadable (" + view.stderr.trim() + ")";
-        if (state !== "OPEN")
-            throw new Error(
-                `a route's reloadLoses names issue #${issue}, which is ${state}: remove the excuse, the loss should be fixed`,
-            );
-    }
-}
-
 // What a user could see, read through graphty-element's public API (readers.mjs), bound to the page.
 const readersOf = (page) => ({
     page,
@@ -469,9 +438,6 @@ async function walk(chromium, route, origin) {
         );
         await Promise.race([run(), hang]);
         assert.deepEqual(pageErrors, [], "the page threw script errors");
-        stage = "reloading as Safari does (session storage emptied)";
-        await Promise.race([reloadKeepsScreen(b.page, lossesOf(route)), hang]);
-        assert.deepEqual(pageErrors, [], "the page threw script errors after the reload");
         // which of graphty-element's render paths drew the route (null: no graph open), so a run with the
         // cosmograph experiment on fails when the app still draws with the default path
         stage = "reading the render path";

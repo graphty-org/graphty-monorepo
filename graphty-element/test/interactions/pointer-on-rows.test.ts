@@ -15,7 +15,9 @@ import { afterEach, assert, describe, it } from "vitest";
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
 import type { RenderPath } from "../../src/meshes/NodeBatch";
-import { dragHandlersBuilt } from "../../src/NodeBehavior";
+// dragHandlersBuilt is read through the module, not imported by name: the build from before the renderer work
+// lacks it, and this file's other cases run against that build too (benchmarks/compare/parity-vs-reference.mjs).
+import * as nodeBehavior from "../../src/NodeBehavior";
 import type { SourceExpanded } from "../../src/session/sources/types";
 import { loadRecordedSeed, PEOPLE_SEED } from "../../stories/fixtures/expand/source";
 import { click, hover, type Point } from "../helpers/real-input";
@@ -93,7 +95,7 @@ describe("pointer on rows", () => {
         describe(`on the ${path} path`, () => {
             it("builds a drag handler only for the node the pointer reaches", async () => {
                 const element = await mounted(path);
-                const before = dragHandlersBuilt();
+                const before = nodeBehavior.dragHandlersBuilt();
                 await element.session.data.addNodes(
                     Array.from({ length: 20 }, (_, id) => ({
                         id,
@@ -102,12 +104,16 @@ describe("pointer on rows", () => {
                 );
                 await settled(element);
                 drawnOn(element, path, 20);
-                assert.equal(dragHandlersBuilt() - before, 0, "no node has a handler before the pointer comes");
+                assert.equal(
+                    nodeBehavior.dragHandlersBuilt() - before,
+                    0,
+                    "no node has a handler before the pointer comes",
+                );
 
                 await hover(element, at(element, 7));
                 await element.waitForStableFrame();
 
-                assert.equal(dragHandlersBuilt() - before, 1, "the hovered node has one");
+                assert.equal(nodeBehavior.dragHandlersBuilt() - before, 1, "the hovered node has one");
                 assert.equal(element.session.selection.hovered, 7);
             });
 

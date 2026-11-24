@@ -67,6 +67,29 @@ public API. `real-input.test.ts` is the pattern for a new test. The others: `aut
 `selection-mark-contrast`, `stable-frame-waits-for-pending-visuals` and `union-hover`; the
 `@file` comment at the top of each says what it covers.
 
+### Pointing on both render paths (`pick-parity.test.ts`)
+
+Checks that hover, the `graphty-node-hover` event, `elementAt`, `screenToWorld`, the cursor and a
+click's selection agree with each other, on `renderPath: "objects"` and `"batched"`, for nodes of
+every size and place, every kind of edge, shift, ctrl and right-click selection, the Hovered and
+Selected layers' pixels on a plain edge, a hover on every node of a seeded 200-node graph, a hover
+while a force layout moves the node, and a click on a settled layout. Each case sets its own render
+path, so the forced-batched project skips the file. It runs with the rest of this project on pull
+requests (about two and a half minutes, most of it the 200-node hover):
+
+```bash
+npx vitest run --project=interactions test/interactions/pick-parity.test.ts
+```
+
+`pick-parity.reference.json` holds the objects answers of the build from before the renderer
+optimizations (commit 57c0ee700e); an objects answer that differs from it fails. To record it again,
+check that commit out in a detached worktree, build it, copy this test and
+`test/helpers/drawn-invariants.ts` there with `PATHS` set to `["objects"]`, run the file and keep
+each `[pick-parity]` line whose path is `objects` (key to value).
+
+The two `selection ctrl-click t0` entries are edited by hand: since #9907 a Ctrl-click adds the node to
+the selection (or takes it out) instead of replacing it, so they record the toggle, not that build's answer.
+
 ## Running Tests
 
 ### All Interaction Tests

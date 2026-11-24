@@ -243,6 +243,7 @@ const PREBUNDLED = [...BABYLON_SIDE_EFFECTS, ...LODASH_FUNCTIONS, ...AI_FRAMEWOR
 const XR_BROWSER_TESTS = [
     "test/browser/node-batch-xr.test.ts",
     "test/browser/xr-eye-plane.test.ts",
+    "test/interactions/xr/xr-batched-rows.test.ts",
     "test/browser/xr-session.test.ts",
     "test/browser/XRUIManager.test.ts",
     "test/browser/NodeBehavior-xr-compatibility.test.ts",

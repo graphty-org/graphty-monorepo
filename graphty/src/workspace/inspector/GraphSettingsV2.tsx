@@ -3,7 +3,7 @@
  * Background as one row whose Switch to picks Color or Sky (graphty-element's `graph.background`
  * family), with a shader added from its "+"; Canvas in three groups -- View (lighting, rotation,
  * highlight color), Framing (extent, padding) and Marks (same size at any depth, smallest mark);
- * Labels; and Shaders as today. Every line is a control, empty while the graph does not set it.
+ * Labels; and Shaders as today. Every line is a control, showing what the element does while the graph does not set it.
  */
 
 import {
@@ -19,6 +19,7 @@ import { styleFamily } from "@graphty/graphty-element/catalog";
 import {
     DEFAULT_BACKGROUND_COLOR,
     DEFAULT_FRAMING_EXTENT,
+    DEFAULT_LABEL_TEXT,
     FRAMING_EXTENT_VALUES,
     type FramingExtent,
     type GraphBackgroundConfig,
@@ -90,10 +91,12 @@ function useProjectVersion(session: GraphSession | null): void {
 
 /**
  * A number field (R5), Figma's number input as every v2 number line is (E183, E330): a letter slot, its name's
- * initial, is the scrub handle; the arrow keys step; no caret, empty when unset; clearing it unsets.
+ * initial, is the scrub handle; the arrow keys step; no caret; unset, it shows what the element does then
+ * (design "Input rules": no input is empty); clearing it unsets.
  * @param props - Component props
  * @param props.label - its name
  * @param props.value - the value, if set
+ * @param props.unset - what it shows while unset: the element's default, or a word where it has no one number
  * @param props.min - its least value
  * @param props.onWrite - writes a number, or undefined to unset
  * @returns The field
@@ -101,11 +104,13 @@ function useProjectVersion(session: GraphSession | null): void {
 function NumberField({
     label,
     value,
+    unset,
     min,
     onWrite,
 }: Readonly<{
     label: string;
     value: number | undefined;
+    unset: number | string;
     min?: number;
     onWrite: (value: number | undefined) => void;
 }>): React.JSX.Element {
@@ -116,7 +121,7 @@ function NumberField({
             numeric
             options={[]}
             glyph={scrubLetter(label)}
-            value={value ?? ""}
+            value={value ?? unset}
             min={min}
             onChange={(next) => {
                 if (typeof next === "number") {
@@ -421,6 +426,7 @@ export function GraphSettingsV2(): React.JSX.Element | null {
                                 <NumberField
                                     label="Rotation"
                                     value={viewRotation}
+                                    unset={0}
                                     onWrite={(value) => {
                                         session.config.set({ viewRotation: value }).catch(fail("Rotation"));
                                     }}
@@ -459,7 +465,7 @@ export function GraphSettingsV2(): React.JSX.Element | null {
                                 <SegmentsLine
                                     label="Framing extent"
                                     options={EXTENT_OPTIONS}
-                                    value={framing?.extent ?? ""}
+                                    value={framing?.extent ?? DEFAULT_FRAMING_EXTENT}
                                     onPick={(picked) => {
                                         const extent = FRAMING_EXTENT_VALUES.find((value) => value === picked);
                                         if (extent !== undefined) {
@@ -479,6 +485,8 @@ export function GraphSettingsV2(): React.JSX.Element | null {
                                 <NumberField
                                     label="Padding"
                                     value={framing?.padding}
+                                    // Unset, the element keeps a margin in proportion to the view.
+                                    unset="Auto"
                                     min={0}
                                     onWrite={(padding) => {
                                         setFraming({ padding });
@@ -519,6 +527,7 @@ export function GraphSettingsV2(): React.JSX.Element | null {
                                             label={which === "node" ? "Smallest node" : "Smallest edge"}
                                             min={0}
                                             value={minMarkSize?.[which]}
+                                            unset={0}
                                             onWrite={(value) => {
                                                 setMinMark(which, value);
                                             }}
@@ -568,7 +577,7 @@ export function GraphSettingsV2(): React.JSX.Element | null {
                             <SegmentsLine
                                 label="Label text"
                                 options={LABEL_TEXT_OPTIONS}
-                                value={labelText ?? ""}
+                                value={labelText ?? DEFAULT_LABEL_TEXT}
                                 onPick={(picked) => {
                                     const next = LABEL_TEXT_VALUES.find((value) => value === picked);
                                     if (next !== undefined) {
@@ -588,6 +597,8 @@ export function GraphSettingsV2(): React.JSX.Element | null {
                             <NumberField
                                 label="Label sample cell"
                                 value={labelSampleCell ?? undefined}
+                                // Unset, every label is built: no sampling.
+                                unset="Off"
                                 min={1}
                                 onWrite={(value) => {
                                     store.set({ labelSampleCell: value ?? null });

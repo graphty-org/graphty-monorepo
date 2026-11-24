@@ -125,6 +125,25 @@ describe("Graph settings v2", () => {
         });
     });
 
+    it("no input is empty: an unset field shows what the element does, each segment line has a pick", async () => {
+        const { panel } = await openGraphSettings();
+        const shown = (line: string): string => fieldOf(panel, line).value;
+        assert.strictEqual(shown("viewRotation"), "0");
+        assert.strictEqual(shown("framing.padding"), "Auto");
+        assert.strictEqual(shown("labels.sampleCell"), "Off");
+        const smallest = [...panel.querySelectorAll<HTMLInputElement>('[data-line="minMarkSize"] input')];
+        assert.deepEqual(
+            smallest.map((each) => each.value),
+            ["0", "0"],
+        );
+        for (const line of ["framing.extent", "labels.labelText"]) {
+            const picked = panel.querySelector<HTMLInputElement>(`[data-line="${line}"] input[type="radio"]:checked`);
+            assert.isNotNull(picked, `${line} has a pick`);
+        }
+        assert.isTrue(within(panel).getByRole("radio", { name: "Drawn" }).matches(":checked"));
+        assert.isTrue(within(panel).getByRole("radio", { name: "Canvas" }).matches(":checked"));
+    });
+
     it("switches the background Color -> Sky -> Color, keeping its color", async () => {
         const { element, panel } = await openGraphSettings();
         const color = within(panel).getByRole("textbox", { name: /^Background color(,|$)/ });

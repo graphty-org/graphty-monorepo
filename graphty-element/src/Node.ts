@@ -3402,6 +3402,13 @@ export class Node implements ModelUser {
             this.context.getLayoutManager().running = true;
         }
 
+        this.edgeEndsChanged();
+    }
+
+    /**
+     * Tell this node's edges to measure their ends again, without waking the layout: the node's size did not change.
+     */
+    private edgeEndsChanged(): void {
         if (resizedSink) {
             // A repaint of many nodes finds all their edges in one walk afterwards.
             resizedSink.add(this);
@@ -3445,9 +3452,10 @@ export class Node implements ModelUser {
         }
 
         // A body turning translucent (or opaque) moves where a plain line leaves it (`Edge.bareEnd`, #8281) though
-        // the node did not move, so its edges measure their ends again (issue #9875).
+        // the node did not move, so its edges measure their ends again (issue #9875). Its size did not change, so a
+        // settled `nodeGap` layout is not woken.
         if (seenThrough !== this.paintedOpacity < 1) {
-            this.geometryChanged();
+            this.edgeEndsChanged();
         }
 
         this.context.getNodeBatches?.()?.sync(this);

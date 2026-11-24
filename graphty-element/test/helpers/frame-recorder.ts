@@ -154,6 +154,10 @@ export function recordDrawnFrames<T = undefined>(
 
         const read = inFrame();
         const frame = readWebGpuFrame(graph);
+        // A read still in flight when the recorder stops, or queued behind one that failed, is never awaited by the
+        // chain below: a device lost meanwhile rejects it with nobody listening. The chain still sees each failure
+        // it reaches.
+        void frame.catch(() => undefined);
         landed = landed.then(
             async () => {
                 hand(await frame, read);

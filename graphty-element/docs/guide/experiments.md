@@ -252,7 +252,10 @@ shown and whether a pick decided it; `editStep(step, { clash })` changes a colum
 `pick` or `pickAll` decide cells. `draft.display(true)` draws the draft, where every element reads
 `graphty.draft` (`"merged"`, `"new"`, `"changed"`, `"removed"` or `"unchanged"`) for a style layer
 to show, and `draft.show("before" | "after")` switches between the graph as it is and as the
-commit would leave it. Each change fires `data:draft-changed` with a `reason` (`"opened"`,
+commit would leave it. `session.styles.showDraft({ merged, new })` draws the join preview in the
+two colors you pass: a ring on each node the commit would merge, a dashed border on each node it
+would add, and each edge it would add dashed. It suspends the style layers while it is drawn (they
+stay listed, and it is no undo step), is never saved, and its `end()` takes it off. Each change fires `data:draft-changed` with a `reason` (`"opened"`,
 `"changed"`, `"committed"`, `"discarded"`).
 
 While a draft is open every other data write and `session.undo()` / `redo()` are refused with

@@ -2257,7 +2257,8 @@ export interface FunctionDescriptor {
  * What a column does for the graph, beyond holding values: the node ids were read from it
  * (`"key"`), nodes are named by it (`"label"`), edge weights were read from it (`"weight"`),
  * edge endpoints (`"source"`, `"target"`), times (`"time"`) or the file's own edge ids
- * (`"edgeId"`), or node locations are read from it, one column per kind (`"latitude"`,
+ * (`"edgeId"`), each element's kind -- person, account, device -- is read from it (`"kind"`), or
+ * node locations are read from it, one column per kind (`"latitude"`,
  * `"longitude"`, `"coordinates"`, `"country"`, `"region"`, `"city"`), or node positions are read from
  * it (`"x"`, `"y"`, `"z"`).
  *
@@ -2271,6 +2272,7 @@ export type AttributeRole =
     | "target"
     | "time"
     | "edgeId"
+    | "kind"
     | "latitude"
     | "longitude"
     | "coordinates"

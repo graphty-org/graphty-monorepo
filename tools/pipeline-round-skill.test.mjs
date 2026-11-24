@@ -1,9 +1,9 @@
-// The pipeline-round and issue-round skills after golden's retirement (#3418): every change goes through its own pull request opened by tools/pr-open.sh, no skill names a land.mjs
-// command that now refuses, and the subagent rules end every job with pr-open.sh.
+// The pipeline-round and issue-round skills after golden's retirement (#3418): every change goes through its own pull request opened by tools/pr-open.sh, no skill names a
+// deleted tool, and the subagent rules end every job with pr-open.sh.
 //
 //   node --test tools/pipeline-round-skill.test.mjs
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -14,7 +14,7 @@ const flatShared = shared.replace(/\s*\n\s*>?\s*/g, " ");
 const issueRound = read(".claude/skills/issue-round/SKILL.md");
 const claude = read("CLAUDE.md");
 
-// The land.mjs commands that refuse since golden was retired (tools/land.mjs RETIRED).
+// The commands of the deleted tools/land.mjs.
 const RETIRED = /land\.mjs (?:land|cut|cut-fix|ship|auto-ship|sync)\b/;
 
 // Where a step's heading starts, by its name: steps are renumbered whenever one is added.
@@ -139,8 +139,24 @@ const ROUND_ORDER = [
     ["finished worktrees", /finished worktree/i],
 ];
 
-const DELETED_COMMANDS =
-    /\b(?:land|verify|branch-sync|queued-push-guard|prepush-tests|prepush-inputs|shard-verdict|push-base|wait-log|ship-risks|test-ledger|test-quarantine)\.mjs\b|\b(?:push-queue|prepush|prepush-source-checks|gate-snapshot|visual-preview)\.sh\b|live\.sh (?:gate|land)\b/g;
+// Only tools that are gone: a tool that still exists (shard-verdict.mjs, wait-log.mjs, prepush-inputs.mjs,
+// visual-preview.sh, `live.sh land` for worktree-new.sh, ...) may be named. The test below checks each is gone.
+const DELETED_FILES = [
+    "land.mjs",
+    "verify.mjs",
+    "branch-sync.mjs",
+    "queued-push-guard.mjs",
+    "prepush-tests.mjs",
+    "ship-risks.mjs",
+    "push-queue.sh",
+    "prepush.sh",
+    "prepush-source-checks.sh",
+    "gate-snapshot.sh",
+];
+const DELETED_COMMANDS = new RegExp(
+    `\\b(?:${DELETED_FILES.map((f) => f.replaceAll(".", "\\.")).join("|")})\\b|live\\.sh gate\\b`,
+    "g",
+);
 
 function channelsProblems(text) {
     const headings = text.split("\n").flatMap((line) => line.match(/^#{2,4}\s+(.*)/)?.slice(1) ?? []);
@@ -190,6 +206,12 @@ describe("pipeline-round skill in the channels order", () => {
             channelsProblems(`${ordered}\ntools/live.sh visual-review b, worktree-cleanup.mjs, branch-note.mjs\n`),
             [],
         );
+    });
+
+    it("lists as deleted only tools that are gone", () => {
+        for (const file of DELETED_FILES) {
+            assert.equal(existsSync(new URL(`./${file}`, import.meta.url)), false, `tools/${file} still exists`);
+        }
     });
 
     it("the skill follows the channels order and names no deleted command", () => {

@@ -1370,6 +1370,7 @@ const SHADERS_API: Readonly<Record<string, Door>> = {
 
 const STYLES_API: Readonly<Record<string, Door>> = {
     showBranches: exempt("a picking view: it suspends the stack's picture while a reader picks, never the stack"),
+    showDraft: exempt("a preview view: it suspends the stack's picture while a source draft is drawn, never the stack"),
     showingBranches: READ,
     shownBranches: READ,
     list: READ,
@@ -2063,6 +2064,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             ...CAPTURE_DOORS,
             planTour: READ,
             replaceTour: CAMERA,
+            tourPlace: READ,
+            resumeTour: CAMERA,
             applyCaptureCamera: CAMERA,
             getCameraState: READ,
             setCameraState: CAMERA,
@@ -3323,6 +3326,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             structureValue: READ,
             histogram: READ,
             valueCounts: READ,
+            kinds: READ,
             overRepresented: READ,
             groupTable: READ,
             // The column commands, each one batch.
@@ -3971,6 +3975,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             status: READ,
             authors: READ,
             tags: READ,
+            savedTarget: READ,
             counts: READ,
             toDocument: READ,
             mergeDocument: calls(

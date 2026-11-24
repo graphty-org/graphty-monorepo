@@ -302,7 +302,7 @@ export interface AttributeDescriptor {
 export type AttributeLeafNodes = "all" | "ends" | "none";
 
 // @public
-export type AttributeRole = "key" | "label" | "weight" | "source" | "target" | "time" | "edgeId" | "latitude" | "longitude" | "coordinates" | "country" | "region" | "city" | "x" | "y" | "z";
+export type AttributeRole = "key" | "label" | "weight" | "source" | "target" | "time" | "edgeId" | "kind" | "latitude" | "longitude" | "coordinates" | "country" | "region" | "city" | "x" | "y" | "z";
 
 // @public
 export type AttributeUse = {
@@ -1146,6 +1146,12 @@ export interface DraftTable {
     readonly weightCandidate?: string;
 }
 
+// @beta
+export interface DraftView {
+    readonly merged: string;
+    readonly new: string;
+}
+
 // @public
 export type DrawnAnnotation = GraphAnnotation | ImageAnnotation;
 
@@ -1210,6 +1216,11 @@ export type EdgeRecordInput = Readonly<Record<string, unknown>>;
 
 // @public
 export type EdgeRef = EdgeId | EdgeMember;
+
+// @public
+export interface ElementKinds extends ValueCounts {
+    readonly column: string;
+}
 
 // @public
 export interface ElementLayerSpec extends LayerSpec {
@@ -1779,6 +1790,12 @@ export interface GraphFraming {
     };
     readonly extent: "drawn" | "centers";
     readonly padding?: number;
+}
+
+// @public
+export interface GraphKinds {
+    readonly edges: ElementKinds | null;
+    readonly nodes: ElementKinds | null;
 }
 
 // @public
@@ -4530,6 +4547,7 @@ export interface NotesApi {
     list(options?: NoteListOptions): readonly Note[];
     mergeDocument(document: unknown, options?: NoteMergeOptions): NotesReport;
     remove(id: NoteId): void;
+    savedTarget(target: NoteTargetInput): NoteTarget | undefined;
     status(id: NoteId): NoteStatus;
     // (undocumented)
     tags(): readonly string[];
@@ -6850,6 +6868,7 @@ export interface SessionDataApi {
         readonly source?: SourceKey;
     }): readonly DataIssue[];
     joins(): readonly JoinRecord[];
+    kinds(): GraphKinds;
     lastImport(): LoadReport | null;
     lineage(ref: SourceElementRef): SourceLineage | null;
     listSource(source: SourceInput, query?: Omit<SourceListQuery<Record<string, unknown>>, "params">, options?: SourceLoadOptions): Promise<SourceListing>;
@@ -9065,6 +9084,10 @@ export interface StylesApi {
     showBranches(view: BranchesView): {
         end(): void;
         readonly notDrawn: readonly HiddenNotDrawn[];
+    };
+    // @beta
+    showDraft(view: DraftView): {
+        end(): void;
     };
     // @beta
     readonly showingBranches: boolean;

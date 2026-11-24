@@ -14,12 +14,15 @@ import type {
     SourceStorage,
 } from "@graphty/graphty-element/session";
 
-import type { WorkspaceStore } from "../state/store";
+import { askingDialog, type WorkspaceStore } from "../state/store";
 import { type ReportLine, reportLines } from "./saveV2Words";
 
-/** The dialog ids this file opens in the workspace's one dialog slot. */
-export const OPEN_V2_DIALOG = "open-v2";
-export const REPORT_V2_DIALOG = "report-v2";
+/**
+ * The dialog ids this file opens in the workspace's one dialog slot. Both are about a file being
+ * opened, held only by this page, so a reload does not reopen them.
+ */
+export const OPEN_V2_DIALOG = askingDialog("open-v2");
+export const REPORT_V2_DIALOG = askingDialog("report-v2");
 
 /** What the reader chose in the version 2 Save as dialog. */
 export interface SaveV2Choices {

@@ -4,18 +4,20 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import {
     approvalKeys,
     baselinesChangedBetween,
     contentHash,
     gateProblems,
+    GATE_USAGE,
     gatedProjects,
     MAX_THRESHOLD,
     newestResults,
     queueBaseSha,
     queuePullRequests,
+    runGate,
     seededAt,
     treeApprovalProblems,
     treeAt,
@@ -33,6 +35,30 @@ const HASH = "a".repeat(64);
 const sha256 = (data) => createHash("sha256").update(data).digest("hex");
 // card--legacy.png as makeRepo's master holds it.
 const LEGACY = sha256(readFileSync(join(FIXTURE, "compact-mantine/baselines/card--legacy.png")));
+
+/**
+ * Runs the gate command in this process, in a repository, as CI runs `node gate.mjs` there (a
+ * subprocess would be left out of the coverage, which v8 counts in this process only).
+ * @param {string} cwd the repository
+ * @param {string[]} args the command line
+ * @returns {{ stdout: string, stderr: string, status: number }} what it printed and its exit code
+ */
+function gateIn(cwd, args) {
+    const out = [];
+    const err = [];
+    const log = vi.spyOn(console, "log").mockImplementation((...a) => out.push(a.join(" ")));
+    const error = vi.spyOn(console, "error").mockImplementation((...a) => err.push(a.join(" ")));
+    const here = process.cwd();
+    process.chdir(cwd);
+    try {
+        const status = runGate(args);
+        return { stdout: out.join("\n"), stderr: err.join("\n"), status };
+    } finally {
+        process.chdir(here);
+        log.mockRestore();
+        error.mockRestore();
+    }
+}
 
 // A valid results.json whose items have these statuses.
 const results = (statuses, extra = {}) => ({
@@ -241,11 +267,7 @@ describe("seededAt", () => {
 
 describe("gate command", () => {
     const GATE = fileURLToPath(new URL("../trusted/gate.mjs", import.meta.url));
-    const run = (repo, captures) =>
-        spawnSync(process.execPath, [GATE, "--captures", captures, "--base", "master", "--head", "feature"], {
-            cwd: repo,
-            encoding: "utf8",
-        });
+    const run = (repo, captures) => gateIn(repo, ["--captures", captures, "--base", "master", "--head", "feature"]);
 
     // The fixture repository's config is the monorepo's: only compact-mantine has baselines.
     // Every other project in the monorepo's config, read from the config so a project added there
@@ -295,11 +317,19 @@ describe("gate command", () => {
     it("prints its usage without both arguments", () => {
         const out = spawnSync(process.execPath, [GATE], { encoding: "utf8" });
         expect(out.status).toBe(2);
+        expect(out.stderr).toContain("usage: visual-review gate");
+        const r = makeRepo();
+        expect(gateIn(r.repo, ["--base", "master"])).toMatchObject({ status: 2, stderr: GATE_USAGE });
+        expect(gateIn(r.repo, ["--captures", "x"]).status).toBe(2);
+        expect(gateIn(r.repo, ["--captures", "x", "--base", "master", "--pr", "0"]).status).toBe(2);
+    });
+
+    it("prints its usage on --help and passes", () => {
+        expect(gateIn(makeRepo().repo, ["--help"])).toMatchObject({ status: 0, stdout: GATE_USAGE });
     });
 });
 
 describe("the not-affected marker (skipped.json)", () => {
-    const GATE = fileURLToPath(new URL("../trusted/gate.mjs", import.meta.url));
     // An artifact holding only the marker the visual job writes for a project it did not capture.
     const marked = (dir, name, marker) => {
         mkdirSync(join(dir, name));
@@ -378,20 +408,15 @@ describe("the not-affected marker (skipped.json)", () => {
                 .map((p) => [`visual-${p}-1`, results(["unchanged"])]),
         );
         const run = (repo, ...extra) =>
-            spawnSync(
-                process.execPath,
-                [
-                    GATE,
-                    "--captures",
-                    marked(artifacts(others), "visual-compact-mantine-1", MARKER),
-                    "--base",
-                    "master",
-                    "--head",
-                    "feature",
-                    ...extra,
-                ],
-                { cwd: repo, encoding: "utf8" },
-            );
+            gateIn(repo, [
+                "--captures",
+                marked(artifacts(others), "visual-compact-mantine-1", MARKER),
+                "--base",
+                "master",
+                "--head",
+                "feature",
+                ...extra,
+            ]);
 
         it("passes a pull request that leaves out a project it cannot affect, and says so", () => {
             const out = run(makeRepo().repo);
@@ -674,16 +699,12 @@ describe("signed tree approvals", () => {
     });
 
     describe("the gate command", () => {
-        const GATE = fileURLToPath(new URL("../trusted/gate.mjs", import.meta.url));
         const captures = (statuses = ["unchanged"]) =>
             artifacts(
                 Object.fromEntries(Object.keys(CONFIG.projects).map((p) => [`visual-${p}-1`, results(statuses)])),
             );
         const run = (r, extra = [], dir = captures()) =>
-            spawnSync(process.execPath, [GATE, "--captures", dir, "--base", "master", "--head", "pr", ...extra], {
-                cwd: r.repo,
-                encoding: "utf8",
-            });
+            gateIn(r.repo, ["--captures", dir, "--base", "master", "--head", "pr", ...extra]);
 
         it("passes a signed tree whose captures match its baselines, and fails a capture that differs", () => {
             const r = repoWith(passkeysJson(KEY));

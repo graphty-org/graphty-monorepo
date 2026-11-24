@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { cpSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -70,5 +70,62 @@ describe("merge-results", () => {
         expect(some.problems).toEqual(["1 story files did not run or failed to load: b.stories.ts"]);
         expect(some.results.complete).toBe(false);
         expect(some.results.items.map((i) => i.status)).toEqual(["unchanged"]);
+    });
+
+    it("names every way a set of partials is not one whole capture of the project", async () => {
+        const root = repo({ "a--one.png": png(10) });
+        const baselines = join(root, "visual-baselines/graphty-element");
+        const files = ["a.stories.ts", "b.stories.ts"];
+        const shard = async (index, id) => {
+            const out = tempDir("story-test-shard-");
+            const v = visualStoryTest({ project: "graphty-element", out, root });
+            const ctx = context([png(10), png(10)]);
+            await v.commands.visualPlan(ctx, { id, chromatic: {} });
+            await v.commands.visualShot(ctx, { id, mode: null, chromatic: {}, console: [] });
+            await report(v, root, { shard: { index, count: 2 }, files, ran: { [`${id[0]}.stories.ts`]: [id] } });
+            return out;
+        };
+        const one = await shard(1, "a--one");
+        const two = await shard(2, "b--two");
+        // A copy of a partial with its results.json changed by `edit`.
+        const changed = (dir, edit) => {
+            const copy = tempDir("story-test-edited-");
+            cpSync(dir, copy, { recursive: true });
+            const r = read(dir);
+            edit(r);
+            writeFileSync(join(copy, "results.json"), JSON.stringify(r));
+            return copy;
+        };
+        const merge = async (dirs) =>
+            (await mergeResults({ project: "graphty-element", baselines, out: tempDir("m-"), dirs })).problems;
+
+        expect(await merge([one, changed(two, (r) => (r.partial.shard.count = 3))])).toContain(
+            "the partials disagree on the number of shards (2, 3)",
+        );
+        expect(await merge([one, changed(two, (r) => delete r.partial.ran)])).toContain(
+            "a partial does not list the project's story files",
+        );
+        expect(await merge([one, changed(two, (r) => r.partial.files.push("c.stories.ts"))])).toContain(
+            "the partials list different story files",
+        );
+        const other = changed(two, (r) => (r.project = "layout"));
+        expect(await merge([one, other])).toContain(`${other}: a capture of layout, not graphty-element`);
+        const short = changed(two, (r) => {
+            r.partial.reported = false;
+            r.partial.missing = ["b--two", "b--three"];
+        });
+        expect(await merge([one, short])).toContain(`${short}: incomplete: no visual step for b--two, b--three`);
+        const unreported = changed(two, (r) => (r.partial.reported = false));
+        expect(await merge([one, unreported])).toContain(`${unreported}: incomplete`);
+        expect(await merge([one, changed(two, (r) => (r.commit = "f".repeat(40)))])).toContain(
+            "the partials come from different commits",
+        );
+        const again = changed(one, (r) => (r.partial.shard.index = 2));
+        expect(await merge([one, again])).toContain(`a--one.png is in ${one} and ${again}`);
+        const many = ["c", "d", "e", "f", "g", "h"].map((f) => `${f}.stories.ts`);
+        const wide = (dir) => changed(dir, (r) => r.partial.files.push(...many));
+        expect(await merge([wide(one), wide(two)])).toContain(
+            "6 story files did not run or failed to load: c.stories.ts, d.stories.ts, e.stories.ts, f.stories.ts, g.stories.ts and 1 more",
+        );
     });
 });

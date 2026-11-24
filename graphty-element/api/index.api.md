@@ -281,7 +281,6 @@ abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<str
     static readonly loadedWeightByDefault: boolean;
     // @internal
     mixedDirection(): boolean | null;
-    // (undocumented)
     static namespace: string;
     get namespace(): string;
     protected nodeIndex(snapshot: GraphSnapshot, option: string, id: NodeId): number;
@@ -296,12 +295,10 @@ abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<str
     reachedAccelerator: GraphAccelerator | null;
     static register<T extends AlgorithmClass>(cls: T, options?: RegisterOptions): T;
     protected resolveOptions(options?: Partial<TOptions>): TOptions;
-    // (undocumented)
     abstract run(g: AlgorithmHost): Promise<void>;
     protected get schemaOptions(): TOptions;
     protected _schemaOptions: TOptions;
     static scopeInput?: ScopeInputDeclaration;
-    // (undocumented)
     static type: string;
     get type(): string;
     // @internal

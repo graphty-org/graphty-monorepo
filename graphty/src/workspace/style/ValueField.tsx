@@ -6,6 +6,7 @@ import { TextInput, VisuallyHidden } from "@mantine/core";
 import React from "react";
 
 import { modelName, useModelPicture } from "../canvas/models";
+import { stylePanelV2On } from "../features";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { ValueListbox, type ValueSection } from "./parts/ValueListbox";
@@ -402,6 +403,9 @@ function ChoiceValueField(props: KindFieldProps): React.JSX.Element {
     );
 }
 
+/** What an unset text field with no default reads in Style panel v2. */
+const NONE = "None";
+
 /**
  * Typed words, written on Enter or blur.
  * @param props - ValueField's props
@@ -409,22 +413,34 @@ function ChoiceValueField(props: KindFieldProps): React.JSX.Element {
  */
 function TextValueField(props: KindFieldProps): React.JSX.Element {
     const { label, value, shown, mixed, onChange } = props;
+    const { session } = useWorkspace();
     const words = typeof value === "string" ? value : "";
     let placeholder = typeof shown === "string" ? shown : "";
     if (mixed) {
         placeholder = "Mixed";
     }
+    // Style panel v2 (owner's input rules: every input has a value): unset, the field holds the words drawn there
+    // ("+"), or "None" where none are, as its value; left so, nothing is written.
+    const unsetWords =
+        session !== null && stylePanelV2On(session) && !mixed && words === "" ? placeholder || NONE : undefined;
+    const start = unsetWords ?? (mixed ? "" : words);
     return (
         <TextInput
             // Keyed by the value, so Undo or another edit shows the new words.
             key={mixed ? "mixed-field" : words}
             size="xs"
             aria-label={label}
-            defaultValue={mixed ? "" : words}
-            placeholder={placeholder}
+            defaultValue={start}
+            placeholder={unsetWords === undefined ? placeholder : undefined}
+            onFocus={(event) => {
+                // Typing replaces the words an unset field shows.
+                if (unsetWords !== undefined) {
+                    event.currentTarget.select();
+                }
+            }}
             onBlur={(event) => {
                 const next = event.currentTarget.value;
-                if (next !== "" && next !== words) {
+                if (next !== "" && next !== words && next !== unsetWords) {
                     onChange(next);
                 }
             }}

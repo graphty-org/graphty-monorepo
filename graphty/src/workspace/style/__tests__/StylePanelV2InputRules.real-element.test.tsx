@@ -63,7 +63,7 @@ const KNOWN_SLOT_NOT_AFTER_CONTROL: readonly string[] = [];
 const KNOWN_SHOWN_AT_REST: readonly string[] = [];
 
 /** Rows and pop-overs with an empty input. */
-const KNOWN_EMPTY: readonly string[] = ["edge.pattern", "node.image", "node.record"];
+const KNOWN_EMPTY: readonly string[] = [];
 
 /** The stylesheet rule hiding the link and settings buttons is missing or not limited to hover devices and no focus. */
 const KNOWN_HOVER_RULE_MISSING = false;

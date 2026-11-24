@@ -77,6 +77,7 @@ function Thumb({ pictureRef }: Readonly<{ pictureRef: string }>): React.JSX.Elem
  * @param props.pictureRef - what the layer's `node.texture` names, or undefined
  * @param props.expanded - whether the pop-over is open
  * @param props.onOpen - opens the pop-over
+ * @param props.none - what it reads with no picture, as its value
  * @returns The field
  */
 export function PictureField({
@@ -84,11 +85,14 @@ export function PictureField({
     pictureRef,
     expanded,
     onOpen,
+    none,
 }: Readonly<{
     label: string;
     pictureRef: string | undefined;
     expanded: boolean;
     onOpen: () => void;
+    /** What it reads with no picture, as its value (Style panel v2's "None"); "Choose" as a placeholder when left out. */
+    none?: string;
 }>): React.JSX.Element {
     const { session } = useWorkspace();
     const name = pictureRef === undefined || session === null ? undefined : pictureName(session, pictureRef);
@@ -96,9 +100,9 @@ export function PictureField({
         <PanelField
             kind="select"
             width="fill"
-            label={`${label}, ${name ?? "Choose"}`}
-            value={name ?? ""}
-            placeholder={name === undefined ? "Choose" : undefined}
+            label={`${label}, ${name ?? none ?? "Choose"}`}
+            value={name ?? none ?? ""}
+            placeholder={name === undefined && none === undefined ? "Choose" : undefined}
             aria-haspopup="dialog"
             aria-expanded={expanded}
             glyph={
@@ -374,5 +378,52 @@ export function PicturePopover({
                 </Popout.Content>
             </Popout.Panel>
         </Popout>
+    );
+}
+
+/**
+ * A picture line's control (R16, Style panel v2): the Picture field, reading "None" with no picture, opening the
+ * Picture pop-over beside it; a pick writes what the line names (an image asset's id or a pasted address).
+ * @param props - Component props
+ * @param props.label - the line's accessible name ("Label image")
+ * @param props.value - what the line names now
+ * @param props.onPick - writes a picked picture
+ * @returns The field and its pop-over
+ */
+export function PictureLine({
+    label,
+    value,
+    onPick,
+}: Readonly<{ label: string; value: unknown; onPick: (ref: string) => void }>): React.JSX.Element {
+    const [open, setOpen] = useState(false);
+    const box = useRef<HTMLDivElement>(null);
+    const ref = typeof value === "string" && value !== "" ? value : undefined;
+    const close = (): void => {
+        setOpen(false);
+    };
+    return (
+        <div ref={box}>
+            <PictureField
+                label={label}
+                pictureRef={ref}
+                expanded={open}
+                none="None"
+                onOpen={() => {
+                    setOpen(true);
+                }}
+            />
+            <PicturePopover
+                opened={open}
+                anchor={box}
+                current={ref}
+                onPick={(next) => {
+                    close();
+                    onPick(next);
+                }}
+                // A model is no picture: this line holds pictures only.
+                onModel={close}
+                onClose={close}
+            />
+        </div>
     );
 }

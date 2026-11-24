@@ -25,6 +25,7 @@ import { GLYPHS } from "../../glyphs";
 import { useWorkspace } from "../../state/WorkspaceContext";
 import { shownChannel } from "../offered";
 import { GradientBar } from "../parts/GradientRow";
+import { PictureLine } from "../PicturePopover";
 import { BoundValue, Field, type RowContext, StopVarying, type VaryTarget } from "../PropertyRow";
 import { lineIn, propose, removeLine, startingValue, writeIn } from "../row";
 import { ValueField } from "../ValueField";
@@ -506,6 +507,8 @@ function controlOf(args: LineControlArgs, rule: string): React.ReactNode {
             return selectControl(args);
         case "R13":
             return <FontSelect label={name} value={value} onPick={write} />;
+        case "R16":
+            return <PictureLine label={name} value={valueOf(label.style, field)} onPick={write} />;
         case "field":
             // A list of colors (a background gradient's): the shared gradient editor, spread evenly.
             return (

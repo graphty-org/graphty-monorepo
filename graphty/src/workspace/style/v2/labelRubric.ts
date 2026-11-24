@@ -325,7 +325,7 @@ export const LABEL_RUBRIC: LabelRubric = {
                 { field: "icon", name: "Icon", fullName: "Icon beside text", rule: "R14", advanced: true },
                 { field: "iconPosition", name: "Icon side", rule: "R8", advanced: true },
                 // A picture in the label beside or behind its words (yEd's label icon), its size and where it sits.
-                { field: "image", name: "Image", fullName: "Label image", rule: "R14", advanced: true },
+                { field: "image", name: "Image", fullName: "Label image", rule: "R16", advanced: true },
                 { field: "imageWidth", name: "Image size", pair: "imageHeight", letters: WH, advanced: true },
                 { field: "imageOffsetX", name: "Image offset", pair: "imageOffsetY", letters: XY, advanced: true },
                 { field: "progress", name: "Progress", advanced: true },

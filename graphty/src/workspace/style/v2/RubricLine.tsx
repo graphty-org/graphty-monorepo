@@ -20,6 +20,7 @@ import { GLYPHS } from "../../glyphs";
 import { useWorkspace } from "../../state/WorkspaceContext";
 import { shownChannel } from "../offered";
 import { ValueListbox } from "../parts/ValueListbox";
+import { PictureLine } from "../PicturePopover";
 import { Field, FieldLine, type RowContext, VarySlot, type VaryTarget } from "../PropertyRow";
 import { lineIn, needsFor, writeIn } from "../row";
 import { ValueField } from "../ValueField";
@@ -608,7 +609,7 @@ export function FontSelect({
     const first = held
         ?.split(",")[0]
         ?.trim()
-        .replace(/^["']|["']$/g, "");
+        .replaceAll(/^["']|["']$/g, "");
     const listed =
         held === undefined || fonts.some(([font]) => font === held) ? fonts : [...fonts, [held, first ?? held]];
     return (
@@ -620,6 +621,24 @@ export function FontSelect({
             value={held ?? null}
             onChange={(next) => {
                 onPick(String(next));
+            }}
+        />
+    );
+}
+
+/**
+ * A picture (R16): the Picture field, "None" with no picture.
+ * @param args - the line.
+ * @returns The control
+ */
+function pictureControl(args: ControlArgs): React.ReactNode {
+    const { descriptor, value, label, write } = args;
+    return (
+        <PictureLine
+            label={label}
+            value={value}
+            onPick={(ref) => {
+                write(descriptor.channel, ref);
             }}
         />
     );
@@ -768,6 +787,8 @@ const CONTROLS: Readonly<Record<Exclude<Rule, "field" | "R15" | "R17">, (args: C
     R13: fontControl,
     // Free text (R14): today's text field, which commits on Enter or blur.
     R14: valueControl,
+    // A picture (R16): the app's Picture field and pop-over.
+    R16: pictureControl,
     XY: pointControl,
 };
 

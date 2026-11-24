@@ -373,6 +373,12 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "ToggleWithContent",
 
     // Buttons, chrome, color, inputs, overlays, selection, tree
+    "AnglePicker",
+    "DataFieldPicker",
+    "FieldTypeGlyph",
+    "FontPicker",
+    "ImagePicker",
+    "PaletteBrowser",
     "ComboInput",
     "FileSource",
     "pickFiles",

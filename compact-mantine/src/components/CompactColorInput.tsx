@@ -851,6 +851,7 @@ export function CompactColorInput({
                 width={PANEL_GRID.POPOVER_WIDTH}
                 header={{
                     variant: "tabs",
+                    title: label ?? labels.colorPanelTitle,
                     defaultTab: "custom",
                     tabs: [
                         { id: "custom", label: tabWords.customTab, content: picker },

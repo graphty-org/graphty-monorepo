@@ -111,6 +111,11 @@ interface PopoutTabbedHeaderConfig {
      */
     tabs: PopoutTab[];
     /**
+     * The panel's name for a screen reader, which a tab strip does not draw. Defaults to the
+     * first tab's label; pass the field's name when the pop-out belongs to one.
+     */
+    title?: string;
+    /**
      * Which tab the panel opens on, by `id`. Defaults to the first one.
      *
      * The panel forgets which tab was selected when it closes, so a reopened

@@ -43,7 +43,7 @@ function Harness(
 
 /** @returns the trigger field */
 function trigger(): HTMLInputElement {
-    return screen.getByRole<HTMLInputElement>("textbox", { name: "Label font" });
+    return screen.getByRole<HTMLInputElement>("combobox", { name: "Label font" });
 }
 
 /** @returns the open list */
@@ -202,11 +202,21 @@ describe("FontPicker", () => {
     });
 
     it("offers no installed fonts where the browser lacks the API", async () => {
-        assert.isFalse("queryLocalFonts" in window);
-        await renderThemed(<Harness label="Label font" />);
-        await userEvent.click(trigger());
-        await list();
-        assert.isNull(screen.queryByRole("button", { name: "Show fonts on this computer" }));
+        // Chromium has Local Font Access; take it away as Firefox and Safari lack it.
+        const owner = "queryLocalFonts" in Window.prototype ? Window.prototype : window;
+        const held = Object.getOwnPropertyDescriptor(owner, "queryLocalFonts");
+        Reflect.deleteProperty(owner, "queryLocalFonts");
+        try {
+            assert.isFalse("queryLocalFonts" in window);
+            await renderThemed(<Harness label="Label font" />);
+            await userEvent.click(trigger());
+            await list();
+            assert.isNull(screen.queryByRole("button", { name: "Show fonts on this computer" }));
+        } finally {
+            if (held !== undefined) {
+                Object.defineProperty(owner, "queryLocalFonts", held);
+            }
+        }
     });
 
     it("lists the installed fonts after the reader asks for them", async () => {

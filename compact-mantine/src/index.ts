@@ -49,7 +49,19 @@ export { SplitButton, ToggleIconButton } from "./components/buttons";
 // with its drop hook and file picker, focus put on a field by program with its ring drawn, and the
 // scrub gesture a number field's handle uses, for a property row whose label scrubs its value, and
 // the check column of a themed list's option, for an option drawn with more than its label.
-export { ComboInput, FileSource, pickFiles, SearchInput, useFileDrop, VariablePill } from "./components/inputs";
+export {
+    AnglePicker,
+    ComboInput,
+    DataFieldPicker,
+    FieldTypeGlyph,
+    FileSource,
+    FontPicker,
+    ImagePicker,
+    pickFiles,
+    SearchInput,
+    useFileDrop,
+    VariablePill,
+} from "./components/inputs";
 export { FieldCaret, focusWithRing, ListboxCheck } from "./components/inputs/listbox";
 export { type ScrubCallbacks, useScrub } from "./components/inputs/useScrub";
 export { LISTBOX_CLASS_NAMES } from "./theme/components/inputs";
@@ -76,8 +88,9 @@ export { ALIGNMENT_MATRIX_VALUES, AlignmentMatrix } from "./components/selection
 // Chrome: the panel resize handle (9.9).
 export { ResizeHandle } from "./components/chrome/ResizeHandle";
 
-// Color: the color picker panel (7.3).
+// Color: the color picker panel (7.3) and the palette list its optional Palettes tab holds.
 export { ColorPickerPanel } from "./components/color/ColorPickerPanel";
+export { PaletteBrowser } from "./components/color/PaletteBrowser";
 
 // Tree and lists: the layer tree, the page list, inline rename and the find result row (10).
 export {
@@ -284,13 +297,28 @@ export type {
     UiGlyphProps,
 } from "./types";
 export type {
+    AnglePickerLabels,
+    AnglePickerProps,
     ComboInputItem,
     ComboInputOption,
     ComboInputProps,
     ComboInputSeparator,
+    DataField,
+    DataFieldAction,
+    DataFieldPickerLabels,
+    DataFieldPickerProps,
+    DataFieldType,
+    FieldTypeGlyphProps,
     FileDropState,
     FileSourceProps,
     FileSourceVariant,
+    FontPickerFont,
+    FontPickerLabels,
+    FontPickerProps,
+    FontPickerUpload,
+    ImagePickerItem,
+    ImagePickerLabels,
+    ImagePickerProps,
     PickFilesOptions,
     SearchInputProps,
     UseFileDropOptions,
@@ -312,16 +340,20 @@ export type {
 export type {
     AlignmentMatrixProps,
     AlignmentMatrixValue,
+    ColorPalette,
     ColorPickerFormat,
     ColorPickerPaintType,
     ColorPickerPanelLabels,
     ColorPickerPanelProps,
+    CompactColorInputLabels,
     FlatTreeRow,
     GradientEditorLabels,
     InlineRenameProps,
     PageListItem,
     PageListProps,
     PageRowProps,
+    PaletteBrowserLabels,
+    PaletteBrowserProps,
     ResizeHandleBounds,
     ResizeHandleEdge,
     ResizeHandleProps,

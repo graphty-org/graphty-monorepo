@@ -119,7 +119,9 @@ export function PopoutHeader({
                 <>
                     {/* A tab strip is not a title, so the panel is named by a
                         hidden one rather than by whichever tab is selected. */}
-                    <VisuallyHidden id={titleId}>{config.tabs[0]?.label ?? labels.settings}</VisuallyHidden>
+                    <VisuallyHidden id={titleId}>
+                        {config.title ?? config.tabs[0]?.label ?? labels.settings}
+                    </VisuallyHidden>
                     <Tabs
                         id={tabsId}
                         variant="pills"

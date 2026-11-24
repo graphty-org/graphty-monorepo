@@ -2,6 +2,7 @@ import React, { useState } from "react";
 
 import { PANEL_GRID } from "../../constants/panel";
 import { useCompactStyles } from "../../theme/useCompactStyles";
+import { matchesWordStart } from "../../utils/word-start";
 import { SearchInput } from "../inputs/SearchInput";
 import { EllipsizedName } from "../rows/EllipsizedName";
 import { ScrollArea } from "../ScrollArea";
@@ -66,25 +67,6 @@ export interface PaletteBrowserProps {
 const LIST_MAX_HEIGHT = PANEL_GRID.ROW_PITCH * 10;
 
 /**
- * A string as space-led lower-case words, so a word-start match is a substring test.
- * @param text - the text
- * @returns " word word"
- */
-function words(text: string): string {
-    return ` ${(text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []).join(" ")}`;
-}
-
-/**
- * Whether a typed search finds a name: each typed word starts a word of the name, in order.
- * @param name - the palette's name
- * @param typed - the search text
- * @returns true when it matches
- */
-function matches(name: string, typed: string): boolean {
-    return words(name).includes(words(typed.trim()).trimEnd());
-}
-
-/**
  * A list of named color sets, each drawn as its name above a strip of its colors. Picking one
  * calls `onPick`; loading its colors into swatches is the caller's (CompactColorInput does it
  * for its own picker when given `palettes`).
@@ -113,7 +95,8 @@ export function PaletteBrowser({
     const [query, setQuery] = useState("");
     const roving = useRovingFocus<HTMLFieldSetElement>("vertical");
     const searchable = palettes.length >= searchFrom;
-    const shown = searchable && query.trim() !== "" ? palettes.filter((p) => matches(p.name, query)) : palettes;
+    const shown =
+        searchable && query.trim() !== "" ? palettes.filter((p) => matchesWordStart(p.name, query)) : palettes;
 
     return (
         <div className="cm-palettes" data-testid="palette-browser">

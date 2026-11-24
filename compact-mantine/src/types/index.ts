@@ -59,7 +59,7 @@ export type {
 } from "./popout";
 
 // Panel components: the controls a property panel is assembled from.
-export type { CompactColorInputProps } from "../components/CompactColorInput";
+export type { CompactColorInputLabels, CompactColorInputProps } from "../components/CompactColorInput";
 export type { ControlGroupProps } from "../components/ControlGroup";
 export type { ControlSectionProps } from "../components/ControlSection";
 export type { GradientEditorProps } from "../components/GradientEditor";
@@ -133,6 +133,22 @@ export type {
     UseFileDropOptions,
     VariablePillProps,
 } from "../components/inputs";
+// The pickers, each named from its own module.
+export type { AnglePickerLabels, AnglePickerProps } from "../components/inputs/AnglePicker";
+export type {
+    DataField,
+    DataFieldAction,
+    DataFieldPickerLabels,
+    DataFieldPickerProps,
+} from "../components/inputs/DataFieldPicker";
+export type { DataFieldType, FieldTypeGlyphProps } from "../components/inputs/FieldTypeGlyph";
+export type {
+    FontPickerFont,
+    FontPickerLabels,
+    FontPickerProps,
+    FontPickerUpload,
+} from "../components/inputs/FontPicker";
+export type { ImagePickerItem, ImagePickerLabels, ImagePickerProps } from "../components/inputs/ImagePicker";
 
 // Overlays.
 export type {
@@ -161,6 +177,7 @@ export type {
     ColorPickerPanelLabels,
     ColorPickerPanelProps,
 } from "../components/color/ColorPickerPanel";
+export type { ColorPalette, PaletteBrowserLabels, PaletteBrowserProps } from "../components/color/PaletteBrowser";
 export type { GradientEditorLabels } from "../components/GradientEditor";
 export type {
     FlatTreeRow,

@@ -1,12 +1,11 @@
 import { Button } from "@mantine/core";
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 
-import { PANEL_GRID } from "../../constants/panel";
 import { useCollator } from "../../i18n";
 import { useCompactStyles } from "../../theme/useCompactStyles";
 import type { ChangeHandler } from "../../types/events";
-import { Popout, usePopout } from "../popout";
-import { PanelField } from "../rows/PanelField";
+import { matchesWordStart } from "../../utils/word-start";
+import { usePopout } from "../popout";
 import { FileSource } from "./FileSource";
 import {
     askedLocalFamilies,
@@ -23,6 +22,7 @@ import {
     quoteFamily,
 } from "./fontFamilies";
 import { ListboxCheck } from "./listbox";
+import { PickerPopout } from "./PickerPopout";
 import { SearchInput } from "./SearchInput";
 import { useFileDrop } from "./useFileDrop";
 
@@ -120,24 +120,6 @@ interface FontGroup {
     key: string;
     label: string;
     options: FontOption[];
-}
-
-/**
- * Whether a word of `text` starts with what was typed ("mono" finds "DejaVu Sans Mono" and
- * "ui-monospace").
- * @param text - the family or its shown name
- * @param query - the search
- * @returns whether it matches
- */
-function matchesWordStart(text: string, query: string): boolean {
-    const q = query.trim().toLowerCase();
-    return (
-        q === "" ||
-        text
-            .toLowerCase()
-            .split(/[^\p{L}\p{N}]+/u)
-            .some((word) => word.startsWith(q))
-    );
 }
 
 /**
@@ -468,34 +450,16 @@ export function FontPicker(props: Readonly<FontPickerProps>): React.JSX.Element 
     useCompactStyles();
     const { label, value, placeholder, disabled, disabledReason, labels: labelsProp } = props;
     const labels = { ...DEFAULT_LABELS, ...labelsProp };
-    const [opened, setOpened] = useState(false);
     const held = value === null ? "" : firstFamily(value);
-    // ArrowDown opens the list too, as on a select; Enter and Space come with Popout.Trigger.
-    const openOnArrowDown = (event: React.KeyboardEvent<HTMLInputElement>): void => {
-        if (event.key !== "ArrowDown" || disabled === true) {
-            return;
-        }
-        event.preventDefault();
-        setOpened(true);
-    };
-
     return (
-        <Popout opened={opened} onOpenChange={setOpened}>
-            <Popout.Trigger>
-                <PanelField
-                    kind="select"
-                    width="fill"
-                    label={label}
-                    value={held}
-                    placeholder={placeholder}
-                    disabled={disabled}
-                    disabledReason={disabledReason}
-                    onKeyDown={openOnArrowDown}
-                />
-            </Popout.Trigger>
-            <Popout.Panel width={PANEL_GRID.POPOVER_WIDTH} header={{ variant: "title", title: label }}>
-                <FontPickerBody {...props} labels={labels} held={held} />
-            </Popout.Panel>
-        </Popout>
+        <PickerPopout
+            label={label}
+            value={held}
+            placeholder={placeholder}
+            disabled={disabled}
+            disabledReason={disabledReason}
+        >
+            {() => <FontPickerBody {...props} labels={labels} held={held} />}
+        </PickerPopout>
     );
 }

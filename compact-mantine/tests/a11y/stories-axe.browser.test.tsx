@@ -3,8 +3,13 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import preview from "../../.storybook/preview";
 import * as SplitButton from "../../stories/components/actions/SplitButton.stories";
+import * as ColorPalettes from "../../stories/components/color/ColorPalettes.stories";
+import * as DataFieldPicker from "../../stories/components/data/DataFieldPicker.stories";
 import * as DataRow from "../../stories/components/data/DataRow.stories";
 import * as ProseBlock from "../../stories/components/data/ProseBlock.stories";
+import * as AnglePicker from "../../stories/components/inputs/AnglePicker.stories";
+import * as FontPicker from "../../stories/components/inputs/FontPicker.stories";
+import * as ImagePicker from "../../stories/components/inputs/ImagePicker.stories";
 import * as Menu from "../../stories/components/overlays/Menu.stories";
 import * as Modal from "../../stories/components/overlays/Modal.stories";
 import * as QuickActions from "../../stories/components/shell/QuickActions.stories";
@@ -26,8 +31,18 @@ import { axeFindings, OFF_BY_DESIGN } from "./axe";
  */
 setProjectAnnotations(preview);
 
+/** What this test needs of a composed story: rendering it and running its play function. */
+interface RunnableStory {
+    run: (context: { canvasElement: HTMLElement }) => Promise<void>;
+}
+
 const MODULES = {
+    AnglePicker,
+    ColorPalettes,
+    DataFieldPicker,
     DataRow,
+    FontPicker,
+    ImagePicker,
     Menu,
     Modal,
     Pagination,
@@ -55,7 +70,10 @@ describe.each(Object.entries(MODULES))("%s stories have no axe violations", (_na
         const stories = composeStories(module, { initialGlobals: { theme, contrast, schemes: "single" } });
         const off = OFF_BY_DESIGN[module.default.title ?? ""] ?? [];
 
-        it.each(Object.entries(stories))("%s", async (_story, Story) => {
+        // The union of this many modules' story types is too wide for TypeScript to keep, so each
+        // story is named by the one method this test calls.
+        const entries = Object.entries(stories) as [string, RunnableStory][];
+        it.each(entries)("%s", async (_story, Story) => {
             const canvasElement = document.createElement("div");
             document.body.appendChild(canvasElement);
             await Story.run({ canvasElement });

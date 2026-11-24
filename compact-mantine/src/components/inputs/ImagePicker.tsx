@@ -5,9 +5,9 @@ import { useCompactStyles } from "../../theme/useCompactStyles";
 import type { ChangeHandler } from "../../types/events";
 import { Popout, usePopout } from "../popout";
 import { EllipsizedName } from "../rows/EllipsizedName";
-import { PanelField } from "../rows/PanelField";
 import { useRovingFocus } from "../shell/roving";
 import { FileSource } from "./FileSource";
+import { PickerPopout } from "./PickerPopout";
 
 /** An image the reader can pick. */
 export interface ImagePickerItem {
@@ -231,34 +231,24 @@ export function ImagePicker(props: Readonly<ImagePickerProps>): React.JSX.Elemen
     if (value !== null) {
         shown = picked?.name ?? valueName ?? value;
     }
-    const heading = title ?? label;
-    const field = (
-        // eslint-disable-next-line jsx-a11y/prefer-tag-over-role -- a select-only combobox whose popup is a dialog (APG); a text box may not carry the aria-expanded Popout.Trigger adds, and no native element opens a dialog
-        <PanelField
-            role="combobox"
-            kind="select"
-            width="fill"
-            label={`${label}, ${shown}`}
-            value={shown}
-            glyph={<Thumb src={picked?.src} />}
-            disabled={disabled}
-            disabledReason={disabledReason}
-        />
-    );
     return (
         <div className="cm-image-picker">
-            <Popout>
-                <Popout.Trigger>{field}</Popout.Trigger>
-                <Popout.Panel
-                    width={PANEL_GRID.POPOVER_WIDTH}
-                    header={{ variant: "title", title: heading }}
-                    closeLabel={words.close(heading)}
-                >
+            <PickerPopout
+                label={label}
+                fieldLabel={`${label}, ${shown}`}
+                value={shown}
+                glyph={<Thumb src={picked?.src} />}
+                title={title}
+                closeLabel={words.close(title ?? label)}
+                disabled={disabled}
+                disabledReason={disabledReason}
+            >
+                {() => (
                     <Popout.Content>
                         <PickerBody {...props} words={words} />
                     </Popout.Content>
-                </Popout.Panel>
-            </Popout>
+                )}
+            </PickerPopout>
         </div>
     );
 }

@@ -181,7 +181,7 @@ describe("CompactColorInput Palettes tab", () => {
 describe("PaletteBrowser", () => {
     it("searches by word start from searchFrom palettes", async () => {
         await renderThemed(<PaletteBrowser palettes={TWELVE} onPick={vi.fn()} />);
-        await userEvent.type(screen.getByRole("textbox", { name: "Find palette" }), "to");
+        await userEvent.type(screen.getByRole("searchbox", { name: "Find palette" }), "to");
         const list = screen.getByRole("group", { name: "Palettes" });
         assert.deepEqual(
             within(list)
@@ -189,14 +189,14 @@ describe("PaletteBrowser", () => {
                 .map((b) => b.textContent),
             ["Earth tones"],
         );
-        await userEvent.clear(screen.getByRole("textbox", { name: "Find palette" }));
-        await userEvent.type(screen.getByRole("textbox", { name: "Find palette" }), "zz");
+        await userEvent.clear(screen.getByRole("searchbox", { name: "Find palette" }));
+        await userEvent.type(screen.getByRole("searchbox", { name: "Find palette" }), "zz");
         assert.strictEqual(screen.getByRole("status").textContent, 'No palette matches "zz"');
     });
 
     it("has no search box under searchFrom", async () => {
         await renderThemed(<PaletteBrowser palettes={THREE} onPick={vi.fn()} />);
-        assert.isNull(screen.queryByRole("textbox"));
+        assert.isNull(screen.queryByRole("searchbox"));
     });
 
     it("draws each palette's colors as equal segments of its strip", async () => {

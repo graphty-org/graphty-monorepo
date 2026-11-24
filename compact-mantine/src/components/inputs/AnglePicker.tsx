@@ -259,7 +259,7 @@ export function AnglePicker(props: Readonly<AnglePickerProps>): React.JSX.Elemen
                     width="fill"
                     value={angle}
                     onChange={handleFieldChange}
-                    unit={"°"}
+                    unit={"\u00b0"}
                     step={1}
                     decimalScale={0}
                     disabled={disabled}

@@ -88,7 +88,7 @@ function near(pic: Picture, x: number, y: number, test: (p: readonly number[]) =
  * @param p - The pixel.
  * @returns True when red and blue both lead green.
  */
-function magenta(p: readonly number[]): boolean {
+export function magenta(p: readonly number[]): boolean {
     return p[0] > p[1] + 60 && p[2] > p[1] + 60;
 }
 
@@ -97,7 +97,7 @@ function magenta(p: readonly number[]): boolean {
  * @param p - The pixel.
  * @returns True when blue leads red and green.
  */
-function blue(p: readonly number[]): boolean {
+export function blue(p: readonly number[]): boolean {
     return p[2] > p[0] + 60 && p[2] > p[1] + 60;
 }
 

@@ -898,6 +898,11 @@ export interface NodeBatchHost {
     meshesChanged(): void;
     /** A row drawn with no `Node` changed its drawn size or shape, which a `nodeGap` layout spaces it by. */
     resized?(): void;
+    /**
+     * A row drawn with no `Node` was painted again at another size or shape, so its edges end somewhere else:
+     * what `Node` tells its edges when its geometry changes (issue #9872).
+     */
+    reshaped?(row: number): void;
     /** Rows drawn with no `Node` that a new view no longer batches: each is to be painted again. */
     repaint?(rows: readonly number[]): void;
 }
@@ -1318,9 +1323,15 @@ export class NodeBatches {
         this.paintedBehindEdges ||= (paint.style.shape?.zIndex ?? 0) < 0;
         // what a fit, an edge's trim and a layout's gap read of the row, which no `Node` measures
         this.host.places.measure(row);
-        if (had === undefined || !sameSize(had, row)) {
+        const resized = had === undefined || !sameSize(had, row);
+        if (resized) {
             // as `Node` tells the layout when it is resized: nothing else re-reads a row's size
             this.host.resized?.();
+        }
+
+        // a new source is a new outline (a star's, not the sphere's it was painted over), even at the same size
+        if (had !== undefined && (resized || had.paintedSourceMesh !== source)) {
+            this.host.reshaped?.(index);
         }
 
         this.sync(row);

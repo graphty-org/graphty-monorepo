@@ -5628,6 +5628,9 @@ export class Graph implements GraphContext {
                             this.layoutManager.running = true;
                         }
                     },
+                    reshaped: (row) => {
+                        this.updateManager.remeasureEdgesAtRow(row);
+                    },
                 },
                 this.scene,
             );

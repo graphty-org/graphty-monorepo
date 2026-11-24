@@ -7,7 +7,7 @@
  * A change to the root ESLint config, tsconfig.base.json or vitest.base.mjs could break it unseen: 2,612
  * ESLint errors and a failing type-check had piled up by 2026-10-30 (#5172). This installs the package's
  * own dependencies (the type-aware rules need them), then lints it with the root config and type-checks
- * the backend and the page. CI's Checks job, the pre-push gate and check:quick run it through
+ * the backend and the page. CI's Checks job and check:quick run it through
  * `pnpm run lint:eslint-root`.
  *
  * Usage: node tools/lint-pipeline-health.mjs

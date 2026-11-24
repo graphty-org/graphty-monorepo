@@ -365,19 +365,24 @@ function locationControl({ label, field, name }: LineControlArgs): React.ReactNo
         ]),
     );
     return (
-        <Stack gap={4}>
-            <SegmentsLine
-                label={name}
-                options={grids.map((each) => ({ value: each, name: GRID_WORDS[each] }))}
-                value={grid}
-                onPick={(picked) => {
-                    const next =
-                        picked === "auto" ? "automatic" : placeAt(picked === "inside" ? "inside" : "outside", cell);
-                    if (next !== undefined) {
-                        label.write({ [field]: next });
-                    }
-                }}
-            />
+        // The grid beside its Outside / Inside / Auto, stacked, so the two take one row (owner's input rules: at most
+        // 6 rows, the grid counting as one).
+        <Group gap={8} wrap="nowrap" align="flex-start">
+            <div style={{ flex: 1, minWidth: 0 }}>
+                <SegmentsLine
+                    vertical={place !== undefined}
+                    label={name}
+                    options={grids.map((each) => ({ value: each, name: GRID_WORDS[each] }))}
+                    value={grid}
+                    onPick={(picked) => {
+                        const next =
+                            picked === "auto" ? "automatic" : placeAt(picked === "inside" ? "inside" : "outside", cell);
+                        if (next !== undefined) {
+                            label.write({ [field]: next });
+                        }
+                    }}
+                />
+            </div>
             {place === undefined ? null : (
                 <AlignmentMatrix
                     label={`${name} cell`}
@@ -392,7 +397,7 @@ function locationControl({ label, field, name }: LineControlArgs): React.ReactNo
                     }}
                 />
             )}
-        </Stack>
+        </Group>
     );
 }
 

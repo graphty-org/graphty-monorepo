@@ -249,6 +249,7 @@ export function PresetLine({
  * @param props.options - its options
  * @param props.value - the option set, if any
  * @param props.onPick - writes an option
+ * @param props.vertical - its segments stacked
  * @returns The control
  */
 export function SegmentsLine({
@@ -256,6 +257,7 @@ export function SegmentsLine({
     options,
     value,
     onPick,
+    vertical = false,
 }: Readonly<{
     label: string;
     options: readonly {
@@ -270,6 +272,8 @@ export function SegmentsLine({
     }[];
     value: string;
     onPick: (value: string) => void;
+    /** Its segments stacked, one under another (a Location's beside its grid). */
+    vertical?: boolean;
 }>): React.JSX.Element {
     const pictured = isPictured(options);
     const dim = (option: (typeof options)[number], label: React.ReactNode): React.ReactNode =>
@@ -285,6 +289,7 @@ export function SegmentsLine({
             label={label}
             fullWidth
             size="xs"
+            orientation={vertical ? "vertical" : undefined}
             value={value}
             onChange={onPick}
             data={options.map((option) => {
@@ -1077,7 +1082,11 @@ function OneLine({ ctx, line, row, named: alwaysNamed = false }: RubricLineProps
         fail,
         split,
     };
-    const control = line.unit === undefined ? CONTROLS[rule](args) : unitControl(args);
+    const control = withUnitBeside(
+        line.unit === undefined ? CONTROLS[rule](args) : unitControl(args),
+        args,
+        alwaysNamed,
+    );
     const channels = [channel, ...(line.pair === undefined ? [] : [line.pair])];
     // A pair's minus names both its channels, so it is told from its sub-group's ("Remove width and height").
     const removeWords =
@@ -1111,6 +1120,29 @@ function OneLine({ ctx, line, row, named: alwaysNamed = false }: RubricLineProps
             write(line.pair, own?.value);
         }
     });
+}
+
+/**
+ * A number's control with its unit's segments beside it (`unitBeside`), in a pop-over; under a row the number is
+ * alone, as its Unit line is not drawn there either.
+ * @param alone - the number's control.
+ * @param args - the line.
+ * @param underRow - drawn under a row.
+ * @returns The control
+ */
+function withUnitBeside(alone: React.ReactNode, args: ControlArgs, underRow: boolean): React.ReactNode {
+    const { line } = args;
+    if (line.unitBeside === undefined || underRow) {
+        return alone;
+    }
+    return (
+        <Group gap={8} wrap="nowrap">
+            <div style={{ flex: 1, minWidth: 0 }}>{alone}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+                {unitControl({ ...args, line: { ...line, unit: line.unitBeside } })}
+            </div>
+        </Group>
+    );
 }
 
 /**

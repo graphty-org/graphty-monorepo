@@ -55,6 +55,8 @@ export interface LineSpec {
     readonly units?: readonly Channel[];
     /** A Unit line (R8): each unit's name and the channel holding the value in that unit. */
     readonly unit?: readonly (readonly [string, Channel])[];
+    /** A number's Unit segments drawn beside it on its own line in a pop-over, in place of a Unit line of their own. */
+    readonly unitBeside?: readonly (readonly [string, Channel])[];
     /** A number's named presets (R5b), where the element names none for its channel. */
     readonly presets?: readonly { readonly id: string; readonly plainName: string }[];
     /**
@@ -136,6 +138,13 @@ export const OPTION_NAMES: Partial<Readonly<Record<Channel, Readonly<Record<stri
     "node.sizeSpace": { scene: { name: "Graph" }, pivot: { name: "Pivot" }, screen: { name: "Screen" } },
     "node.sizeMode": { scale: { name: "Scale" }, diameter: { name: "Diameter" }, uniform: { name: "Uniform" } },
     "node.modelFit": { contain: { name: "Contain" }, stretch: { name: "Stretch" } },
+    // Short words so four fit the line: the model's own colors, tinted, its plain parts painted, or all painted.
+    "node.modelTint": {
+        false: { name: "Off" },
+        true: { name: "Tint" },
+        untextured: { name: "Plain" },
+        replace: { name: "All" },
+    },
     "node.modelCenter": { bounds: { name: "Bounds" }, origin: { name: "Origin" } },
     "node.modelDoubleSided": { file: { name: "File" }, true: { name: "On" }, false: { name: "Off" } },
     // "": the option drawn while nothing is set, which picking unsets (design "Input rules": no empty line).
@@ -334,8 +343,9 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
     "shape:node.model": {
         main: [
             { channel: "node.shape", name: "Fallback shape", rule: "R10" },
-            { channel: "node.modelTint", name: "Tint", rule: "R9" },
-            { channel: "node.modelFit", name: null, rule: "R8f" },
+            // Four choices: grouped buttons (owner's input rules: fewer than six options).
+            { channel: "node.modelTint", name: "Tint", rule: "R8f" },
+            { channel: "node.modelFit", name: "Fit", rule: "R8f" },
             { channel: "node.modelCenter", name: "Center", rule: "R8" },
         ],
         groups: [
@@ -345,7 +355,7 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
                     { channel: "node.shapeRotation", name: "Rotation" },
                     { channel: "node.modelSourceUp", name: "Up", rule: "R9" },
                     { channel: "node.modelTurn", name: "Turn" },
-                    { channel: "node.modelDoubleSided", name: null, rule: "R8f" },
+                    { channel: "node.modelDoubleSided", name: "Double sided", rule: "R8f" },
                 ],
             },
             {
@@ -503,12 +513,14 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
         ],
     },
     border: {
-        common: [{ channel: "node.borderWidth", name: "Width", units: ["node.borderScreenWidth"] }],
+        // Width and its unit on one line, so a wave's line keeps the pop-over 6 rows tall.
+        common: [
+            { channel: "node.borderWidth", name: "Width", units: ["node.borderScreenWidth"], unitBeside: BORDER_UNIT },
+        ],
         main: [
             { channel: "node.borderOpacity", name: "Opacity" },
             { channel: "node.borderStyle", name: "Style", rule: "R10" },
             { channel: "node.borderPosition", name: "Position", rule: "R8" },
-            { channel: "node.borderWidth", name: "Unit", unit: BORDER_UNIT },
             // Drawn for a zigzag or sine wave border only: it appears for them.
             { channel: "node.borderWaveAmplitude", name: "Wave", pair: "node.borderWavePeriod" },
         ],

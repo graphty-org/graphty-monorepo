@@ -269,3 +269,27 @@ export function listOpensNext(channel: Channel): boolean {
 export function headerBottom(): number {
     return document.querySelector(".ws-header")?.getBoundingClientRect().bottom ?? 0;
 }
+
+/**
+ * Hands focus to its section's "+" when a row that holds focus goes away (its minus, Delete, or an
+ * Undo of the add), so focus never falls to the page (WCAG 2.4.3).
+ * @param box - the row.
+ */
+export function useFocusOnRemoval(box: RefObject<HTMLElement | null>): void {
+    useLayoutEffect(() => {
+        const node = box.current;
+        return () => {
+            if (!node?.contains(document.activeElement)) {
+                return;
+            }
+            const section = node.closest<HTMLElement>("[data-section]")?.dataset.section;
+            // Only focus that fell to the page: a tab that replaced this row's (a selection's first
+            // line made a layer) may already have handed focus to its own copy of the row.
+            requestAnimationFrame(() => {
+                if (section !== undefined && (document.activeElement ?? document.body) === document.body) {
+                    document.querySelector<HTMLElement>(`[data-section="${section}"] [data-plus]`)?.focus();
+                }
+            });
+        };
+    }, [box]);
+}

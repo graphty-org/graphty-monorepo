@@ -374,10 +374,6 @@ function embedEntry(build: MemberBuild, record: AssetRecord, key: string, source
  * @param layerIds - The layers naming it.
  */
 function addRef(build: MemberBuild, ref: string, layerIds: LayerId[]): void {
-    if (ref.startsWith(SAMPLE_PREFIX)) {
-        return; // Every reader ships the samples.
-    }
-
     const url = !isAssetId(ref);
     const record: AssetRecord | undefined = url ? build.assets.urlRecord(ref) : build.assets.get(ref);
     if (record?.state !== "accepted") {
@@ -742,6 +738,28 @@ function decodeFiles(
 }
 
 /**
+ * Add an entry's checked files as a dropped file is; a sample the file carries is held as its own
+ * copy, drawn instead of the build's.
+ * @param assets - The assets API.
+ * @param entry - The checked entry.
+ * @param given - Its files, checked against its digest.
+ * @returns The settled record.
+ */
+function addEntry(assets: AssetsApiInternal, entry: Entry, given: Map<string, Uint8Array>): Promise<AssetRecord> {
+    if (entry.id.startsWith(SAMPLE_PREFIX)) {
+        return assets.carrySample(entry.id, given, sampleOptions(entry));
+    }
+
+    return assets.add(
+        { files: given, ...(entry.main === "" ? {} : { main: entry.main }) },
+        {
+            name: entry.id,
+            ...(entry.skipped === undefined ? {} : { skipped: entry.skipped }),
+        },
+    );
+}
+
+/**
  * Put one checked entry's model back into the session: checked against its digest, then added
  * through `session.assets.add` as a dropped file is.
  * @param assets - The assets API.
@@ -760,10 +778,6 @@ async function restoreEntry(
         code: fact.code as GraphtyErrorCode,
         params: { ...fact.params, kind: ASSETS_MEMBER, id: entry.id },
     });
-    if (entry.id.startsWith(SAMPLE_PREFIX)) {
-        return fail({ code: "E_MODEL_NAME_TAKEN", params: {} });
-    }
-
     if (entry.stored === "url") {
         // Kept by URL: it loads from there, as the reader allows, and is checked against this.
         assets.expectDigest(entry.source as string, entry.sha256);
@@ -791,13 +805,7 @@ async function restoreEntry(
         return fail({ code: "E_MODEL_DIGEST_MISMATCH", params: {} });
     }
 
-    const record = await assets.add(
-        { files: given, ...(entry.main === "" ? {} : { main: entry.main }) },
-        {
-            name: entry.id,
-            ...(entry.skipped === undefined ? {} : { skipped: entry.skipped }),
-        },
-    );
+    const record = await addEntry(assets, entry, given);
     if (record.state !== "accepted") {
         return fail(record.problems[0] ?? { code: "E_MODEL_PARSE", params: {} });
     }
@@ -849,4 +857,102 @@ export async function restoreAssets(session: GraphSession, member: Record<string
     }
 
     return problems;
+}
+
+/**
+ * What {@link AssetsApiInternal.carrySample} takes from an entry.
+ * @param entry - The checked entry.
+ * @returns Its main file, skipped parts and digest.
+ */
+function sampleOptions(entry: Entry): { main?: string; skipped?: readonly string[]; sha256: string } {
+    return {
+        sha256: entry.sha256,
+        ...(entry.main === "" ? {} : { main: entry.main }),
+        ...(entry.skipped === undefined ? {} : { skipped: entry.skipped }),
+    };
+}
+
+/**
+ * Read every sample a node layer names that the session has not read yet, so a save carries it.
+ * @param session - The session.
+ * @returns One promise per sample being read; empty when every named sample is read.
+ */
+export function readNamedSamples(session: GraphSession): Promise<AssetRecord>[] {
+    const assets = assetsOf(session);
+    return [...modelRefs(session).keys()]
+        .filter((ref) => ref.startsWith(SAMPLE_PREFIX) && assets.get(ref as AssetId)?.state !== "accepted")
+        .map((ref) => assets.ready(ref));
+}
+
+/**
+ * The samples the node layers name, as `graphty-assets` entries with their files: what a style
+ * file carries so it opens the same way on a build whose sample changed or is gone.
+ * @param session - The session.
+ * @returns The entries of every named sample the session has read.
+ */
+function sampleEntries(session: GraphSession): Record<string, unknown>[] {
+    const build: MemberBuild = {
+        assets: assetsOf(session),
+        storage: () => "embed",
+        leftOut: [],
+        entries: [],
+        written: new Set<string>(),
+        digests: new Set<string>(),
+        bytes: 0,
+    };
+    for (const [ref, layerIds] of modelRefs(session)) {
+        if (ref.startsWith(SAMPLE_PREFIX)) {
+            addRef(build, ref, layerIds);
+        }
+    }
+
+    return build.entries;
+}
+
+/**
+ * Hold the samples a style file carries, before its layers name them. An entry that is not a
+ * carried sample, or whose files do not decode, is passed over: the layer draws the build's copy.
+ * @param session - The session.
+ * @param carried - The file's `assets`.
+ */
+function holdCarriedSamples(session: GraphSession, carried: unknown): void {
+    const assets = assetsOf(session);
+    for (const raw of Array.isArray(carried) ? carried : []) {
+        const entry = checkEntry(raw);
+        if (typeof entry === "string" || !entry.id.startsWith(SAMPLE_PREFIX) || entry.files === undefined) {
+            continue;
+        }
+
+        const given = decodeFiles(entry.files, assets.limits().maxBytes);
+        if (given instanceof Map) {
+            // A copy that fails its checks is dropped, and the layer reads the build's sample.
+            void assets.carrySample(entry.id, given, sampleOptions(entry)).catch(() => undefined);
+        }
+    }
+}
+
+/**
+ * Make a session's style files carry the samples their layers name: `toFile` writes them as
+ * `assets` (entries as the `graphty-assets` member writes them), and `applyTemplate` holds a
+ * file's copies before it applies the layers.
+ * @param session - The session.
+ */
+export function carrySamplesInStyleFiles(session: GraphSession): void {
+    const { styles } = session;
+    const toFile = styles.toFile.bind(styles);
+    const applyTemplate = styles.applyTemplate.bind(styles);
+    styles.toFile = () => {
+        const file = toFile();
+        const carried = sampleEntries(session);
+        return carried.length === 0 ? file : Object.freeze({ ...file, assets: Object.freeze(carried) });
+    };
+    styles.applyTemplate = (document, options) => {
+        const { assets, ...rest } = document as typeof document & { assets?: unknown };
+        if (assets === undefined) {
+            return applyTemplate(document, options);
+        }
+
+        holdCarriedSamples(session, assets);
+        return applyTemplate(rest, options);
+    };
 }

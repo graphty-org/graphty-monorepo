@@ -46,6 +46,7 @@ import {
     assetsMember,
     type AssetStorage,
     type ProjectAssetChoice,
+    readNamedSamples,
     restoreAssets,
     withAcceptedAssetIds,
 } from "./assets/projectMember";
@@ -4159,35 +4160,41 @@ export function projectOf(
                 );
             }
 
-            if (options.format === 2) {
-                if (!session.features.has("save-files-v2")) {
-                    return Promise.reject(featureOff("save-files-v2", "project.save"));
+            if (options.format === 2 && !session.features.has("save-files-v2")) {
+                return Promise.reject(featureOff("save-files-v2", "project.save"));
+            }
+
+            const saveAll = (): Promise<SavedProject> => {
+                if (options.format === 2) {
+                    return committedOnly(() => saveVersion2(options));
                 }
 
-                return committedOnly(() => saveVersion2(options));
-            }
+                const referenced =
+                    (session.data as Partial<Pick<SessionData, "referenceLoads">>).referenceLoads?.() ?? [];
+                // A load kept as a reference is read once to tell which rows the file can leave out;
+                // with a group collapsed the file holds the expanded graph, so it keeps copies.
+                if (referenced.length === 0 || expandedGraph(session) !== null) {
+                    return Promise.resolve(saveNow(options));
+                }
 
-            const referenced = (session.data as Partial<Pick<SessionData, "referenceLoads">>).referenceLoads?.() ?? [];
-            // A load kept as a reference is read once to tell which rows the file can leave out;
-            // with a group collapsed the file holds the expanded graph, so it keeps copies.
-            if (referenced.length === 0 || expandedGraph(session) !== null) {
-                return Promise.resolve(saveNow(options));
-            }
-
-            const derived = session.data.derivedColumns();
-            const named = (kind: "node" | "edge"): ReadonlySet<string> =>
-                new Set(derived.filter((column) => column.kind === kind).map((column) => column.name));
-            return planLeaveOut({
-                session,
-                loads: referenced,
-                computed: { node: named("node"), edge: named("edge") },
-                scratch,
-                network: network(),
-            }).then((plan) => {
-                // Worked out now, in the tick the file is written, from the graph as it is now.
-                const still = (session.data as SessionData).referenceLoads().map((each) => each.key);
-                return expandedGraph(session) === null ? saveNow(options, plan(new Set(still))) : saveNow(options);
-            });
+                const derived = session.data.derivedColumns();
+                const named = (kind: "node" | "edge"): ReadonlySet<string> =>
+                    new Set(derived.filter((column) => column.kind === kind).map((column) => column.name));
+                return planLeaveOut({
+                    session,
+                    loads: referenced,
+                    computed: { node: named("node"), edge: named("edge") },
+                    scratch,
+                    network: network(),
+                }).then((plan) => {
+                    // Worked out now, in the tick the file is written, from the graph as it is now.
+                    const still = (session.data as SessionData).referenceLoads().map((each) => each.key);
+                    return expandedGraph(session) === null ? saveNow(options, plan(new Set(still))) : saveNow(options);
+                });
+            };
+            // A sample a layer names is carried, so it is read first when nothing has drawn it yet.
+            const unread = readNamedSamples(session);
+            return unread.length === 0 ? saveAll() : Promise.allSettled(unread).then(saveAll);
         },
         markSaved(saved) {
             rememberOf.get(saved)?.();

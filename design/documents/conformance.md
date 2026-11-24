@@ -526,7 +526,7 @@ its section and number on the page the section heading names, or by page when it
 | Id | Input | Expected result | Rule |
 | --- | --- | --- | --- |
 | asset-1 | a project whose layer names a dropped GLB, saved | an assets member holding the GLB's bytes as base64, its `sha256` and `asset:<sha256>` id; `requires` lists `graphty-assets` | Writing 1, 2, 7 |
-| asset-2 | a layer naming `asset:sample/box` | not embedded, no problem | Writing 4 |
+| asset-2 | a layer naming `asset:sample/box` | embedded under `asset:sample/box` with the sample's files, read first if nothing drew it; only the samples the layers name | Writing 4 |
 | asset-3 | one GLB added unnamed and as `asset:ball`, both named by layers | two entries; only the first carries `files` | Writing 3 |
 | asset-4 | a layer naming a URL that loaded | an entry with `source` set to the URL; reopened, naming the URL fetches nothing | Writing 5; Reading 8 |
 | asset-5 | a layer naming a URL that never loaded, or an asset id the session does not hold | no entry; the save reports `W_MODEL_NOT_EMBEDDED` with `ref` and `layerIds` | Writing 5 |
@@ -538,7 +538,7 @@ its section and number on the page the section heading names, or by page when it
 | asset-11 | one byte of a file changed | skipped, `E_MODEL_DIGEST_MISMATCH`; its layer draws the placeholder and reports `E_MODEL_UNKNOWN_ASSET`; the other models draw | Reading 5, 9 |
 | asset-12 | an entry `asset:<64 hex>` whose hex is not its `sha256` | skipped, `E_MODEL_DIGEST_MISMATCH` | Reading 5 |
 | asset-13 | an entry whose files are a hostile model (a reference outside the set, an accessor bomb) | skipped with the code a dropped file gets (`E_MODEL_EXTERNAL_URL`, `E_MODEL_STRUCTURE`) | Reading 6 |
-| asset-14 | an entry named `asset:sample/box` | skipped, `E_MODEL_NAME_TAKEN` | Reading 7 |
+| asset-14 | an entry named `asset:sample/box` | held as the file's copy of the sample: its layers draw these files, not the build's, and nothing is fetched | Reading 7 |
 | asset-15 | an entry whose id the session already holds with other files | skipped, `E_MODEL_NAME_TAKEN`; the held model is unchanged | Reading 7 |
 | asset-16 | a reader that does not know `graphty-assets` | the file refused, `E_UNSUPPORTED`: the kind is in `requires` | Writing 7; container.md Reading a file 8 |
 | asset-17 | a layer naming a URL model, saved with `assets: { [url]: "url" }` | an entry with `source`, `sha256`, `"stored": "url"` and no files | Writing 7 |

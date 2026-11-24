@@ -252,6 +252,58 @@ describe("the layout filling the row table from a separate device", () => {
         assert.isAtLeast(new Set(drawn).size, 5, "every landing was drawn");
     });
 
+    it("draws the owed landing, not the CPU copy, in the first frame after a WebGL restore", async () => {
+        const graph = await running("batched", undefined, "webgl");
+        const table = graph.getRowTable();
+        assert.isNotNull(table);
+        await uploadedLanding(graph);
+        await landed(graph);
+        const lane = graph.getDataManager()[WRITABLE_LANE];
+        const written = lane.changes;
+        await landed(graph);
+        assert.strictEqual(lane.changes - written, 0, "the landing is owed, not written");
+
+        // Lose the context, then read the texture as the first frame drawn after the restore left it.
+        const gl = graph.engine.getRenderingCanvas()?.getContext("webgl2");
+        const extension = gl?.getExtension("WEBGL_lose_context");
+        assert.isDefined(extension ?? undefined, "the context can be lost");
+        const lost = new Promise<void>((resolve) => {
+            graph.on("render-lost", () => {
+                resolve();
+            });
+        });
+        extension?.loseContext();
+        await lost;
+        const firstFrame = new Promise<Float32Array>((resolve) => {
+            graph.canvas.addEventListener(
+                "webglcontextrestored",
+                () => {
+                    graph.scene.onAfterRenderObservable.addOnce(() => {
+                        graph.engine.stopRenderLoop();
+                        void table.positionTexture.readPixels()?.then((pixels) => {
+                            resolve(pixels as Float32Array);
+                        });
+                    });
+                },
+                { once: true },
+            );
+        });
+        await graph.restartRenderer();
+        const drawn = await firstFrame;
+
+        // Where the lane puts every row: the owed landing, written.
+        lane.settle();
+        table.flush();
+        const rows = table.rowPosition;
+        let worst = 0;
+        for (let i = 0; i < 4 * table.rows; i++) {
+            const want = rows[i] ?? 0;
+            worst = Math.max(worst, Math.abs((drawn[i] ?? Number.NaN) - want) / Math.max(1, Math.abs(want)));
+        }
+
+        assert.isBelow(worst, 1e-5, "the first frame after the restore drew the rows where the lane puts them");
+    });
+
     it("publishes every landing on the CPU under renderPath objects", async () => {
         const graph = await running("objects", undefined, "webgl");
         const lane = graph.getDataManager()[WRITABLE_LANE];

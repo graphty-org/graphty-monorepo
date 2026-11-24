@@ -40,7 +40,6 @@ import {
     keptEntry,
     keptOpener,
     keptPlace,
-    markWorkspaceUnmounting,
     newProjectId,
     stashPlace,
     useStoreValue,
@@ -104,12 +103,6 @@ export function Workspace({
     registrations = REGISTRATIONS,
 }: Readonly<WorkspaceProps>): React.JSX.Element {
     const [store] = useState(() => given ?? createWorkspaceStore(initialState));
-    useEffect(() => {
-        markWorkspaceUnmounting(store, false);
-        return () => {
-            markWorkspaceUnmounting(store, true);
-        };
-    }, [store]);
     const registry = useMemo(() => createRegistry(registrations), [registrations]);
     const [element, setElement] = useState<{ element: GraphtyElement | null; session: GraphSession | null }>({
         element: null,

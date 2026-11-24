@@ -516,6 +516,14 @@ describe("every label field is reachable from the Label row and draws (E673)", (
                 await closeSettings();
                 return "dark";
             }
+            if (field === "gradient" || field === "gradientType") {
+                // The Background group's Radial tab writes both: a gradient, of the radial kind.
+                const background = await openGroup(await openSettings(), "Background");
+                const radial = within(background).getByRole<HTMLInputElement>("radio", { name: "Radial" });
+                await userEvent.click(background.querySelector<HTMLElement>(`label[for="${radial.id}"]`) ?? radial);
+                await closeSettings();
+                return field === "gradient" ? true : "radial";
+            }
             const place = placeOf(field);
             assert.isDefined(place, `${field}: no line reaches it`);
             const pop = place.row === true ? undefined : await openSettings();

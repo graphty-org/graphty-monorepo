@@ -3607,6 +3607,8 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         plainName: "Node Glyph",
         shortName: "Glyph",
         group: "shape",
+        // An unset glyph draws nothing: a glyph starts as a letter.
+        start: "A",
         accepts: "text",
         stylePath: "glyph.text",
         renderable: true,
@@ -3618,6 +3620,8 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         plainName: "Node Glyph Font",
         shortName: "Glyph font",
         group: "shape",
+        // What an unset glyph font draws in (NodeDecorationMesh's buildGlyph).
+        default: "sans-serif",
         accepts: "text",
         stylePath: "glyph.font",
         renderable: true,

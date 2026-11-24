@@ -997,9 +997,13 @@ export class RowTable {
     /** Bring the tables up to the lane and send what changed. Runs before every frame. */
     flush(): void {
         const lane = this.lane();
+        // Babylon gives a texture back as it was made after a lost context, so every row goes
+        // up again; the same rule as the batches on this roster.
+        const whole = batchUploadFrames.isRestoring(this.scene);
         // Rows go up in whole texture lines from the CPU copy, so a publish the lane owes is written
-        // first, or the line would carry the rest of its rows back to an older landing.
-        if (this.positions.dirty && !this.catchUpLines(lane)) {
+        // first, or the line would carry the rest of its rows back to an older landing. A restore
+        // sends every row, so the whole owed publish is written: the landing the texture held is gone.
+        if (whole || (this.positions.dirty && !this.catchUpLines(lane))) {
             lane.settle();
         }
 
@@ -1022,9 +1026,6 @@ export class RowTable {
             this.copiedAt = -1;
         }
 
-        // Babylon gives a texture back as it was made after a lost context, so every row goes
-        // up again; the same rule as the batches on this roster.
-        const whole = batchUploadFrames.isRestoring(this.scene);
         for (const table of [this.positions, this.extents, this.outlines]) {
             const bytes = table.upload(whole);
             if (bytes > 0) {

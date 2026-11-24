@@ -274,6 +274,23 @@ function countPaths(alive: EdgeMask | null, scratch: BrandesScratch, source: num
 }
 
 /**
+ * Credit `v` with its share of successor `w`'s dependency, and the edge of the arc between them with the same share.
+ * @param sigma - Shortest-path counts
+ * @param delta - Dependencies, `v`'s written
+ * @param edge - Edge sums, or null
+ * @param e - The arc's edge
+ * @param v - The node credited
+ * @param w - Its successor
+ */
+function creditArc(sigma: Float64Array, delta: Float64Array, edge: F64 | null, e: number, v: number, w: number): void {
+    const c = (sigma[v] / sigma[w]) * (1 + delta[w]);
+    delta[v] += c;
+    if (edge !== null) {
+        edge[e] += c;
+    }
+}
+
+/**
  * Pull the dependencies one level up, deepest level first: each reached node's successors' into `delta`, and each
  * arc's share into `edge`.
  * @param alive - Kept edges, or null for all
@@ -294,11 +311,7 @@ function pullDependencies(alive: EdgeMask | null, scratch: BrandesScratch, tail:
             const w = colIdx[a];
             prev = w;
             if (depth[w] === next) {
-                const c = (sigma[v] / sigma[w]) * (1 + delta[w]);
-                delta[v] += c;
-                if (edge !== null) {
-                    edge[arcToEdge[a]] += c;
-                }
+                creditArc(sigma, delta, edge, arcToEdge[a], v, w);
             }
         }
     }
@@ -445,11 +458,7 @@ function gatherDependency(ws: WeightedSearch, v: number, edge: F64 | null): void
         const a = arcs[k];
         const w = colIdx[a];
         if (dist[v] + weights[a] === dist[w]) {
-            const c = (sigma[v] / sigma[w]) * (1 + delta[w]);
-            delta[v] += c;
-            if (edge !== null) {
-                edge[arcToEdge[a]] += c;
-            }
+            creditArc(sigma, delta, edge, arcToEdge[a], v, w);
         }
     }
 }

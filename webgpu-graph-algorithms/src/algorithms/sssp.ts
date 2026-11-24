@@ -245,6 +245,28 @@ export function normaliseCutoff(algorithm: string, cutoff: number | undefined): 
 }
 
 /**
+ * What a shortest-path run reads before any device work: its weight vector (none under `weighted: false`, which
+ * counts hops and so takes the breadth-first route) and its cutoff; a run already aborted is refused.
+ * @internal
+ * @param algorithm - the algorithm's name (the message prefix)
+ * @param s - the snapshot
+ * @param options - the caller's options
+ * @returns the weight vector, or null, and the cap
+ */
+export function runInputs(
+    algorithm: string,
+    s: GraphSnapshot,
+    options: (SsspOptions & GpuRunOptions) | undefined,
+): { vector: WeightVector | null; cutoff: number } {
+    const vector = options?.weighted === false ? null : resolveWeights(algorithm, s, options?.weights);
+    const cutoff = normaliseCutoff(algorithm, options?.cutoff);
+    if (options?.signal?.aborted) {
+        throw aborted(algorithm);
+    }
+    return { vector, cutoff };
+}
+
+/**
  * The weight vector of the run: the override, validated and narrowed, else the snapshot's column, else
  * null; scanned once on the host for the routing flags and the sum.
  * @internal
@@ -653,12 +675,7 @@ export async function ssspWithTuning(
     assertSource(ALGORITHM, source, n);
     const roundsPerSubmit = checkTuning(tuning);
     const dest = checkDest(ALGORITHM, options?.dest, n);
-    // weighted: false counts hops: no weight vector, so the run takes the breadth-first route
-    const vector = options?.weighted === false ? null : resolveWeights(ALGORITHM, s, options?.weights);
-    const cutoff = normaliseCutoff(ALGORITHM, options?.cutoff);
-    if (options?.signal?.aborted) {
-        throw aborted(ALGORITHM);
-    }
+    const { vector, cutoff } = runInputs(ALGORITHM, s, options);
     if (vector === null || vector.allOne) {
         return unitWeightRoute(ctx, s, source, cutoff, dest, options);
     }

@@ -61,12 +61,10 @@ import {
     bitsOf,
     checkDest,
     countReached,
-    normaliseCutoff,
     predBufferWords,
     predecessorPass,
-    resolveWeights,
+    runInputs,
     unitWeightRoute,
-    type WeightVector,
 } from "./sssp.js";
 
 const ALGORITHM = "bellmanFord";
@@ -251,12 +249,7 @@ export async function bellmanFordWithTuning(
     assertSource(ALGORITHM, source, n);
     const { maxRetries, roundsPerBatch } = checkTuning(tuning);
     const dest = checkDest(ALGORITHM, options?.dest, n);
-    const vector: WeightVector | null =
-        options?.weighted === false ? null : resolveWeights(ALGORITHM, s, options?.weights);
-    const cutoff = normaliseCutoff(ALGORITHM, options?.cutoff);
-    if (options?.signal?.aborted) {
-        throw aborted(ALGORITHM);
-    }
+    const { vector, cutoff } = runInputs(ALGORITHM, s, options);
     if (vector === null || vector.allOne) {
         const unit = await unitWeightRoute(ctx, s, source, cutoff, dest, options);
         return { result: { ...unit, hasNegativeCycle: false }, rounds: 0, retryExhaustedRounds: 0 };

@@ -180,6 +180,31 @@ function ranked(sources: number[], targets: number[], scores: number[], end: num
     };
 }
 
+/**
+ * Score one pair and keep it when its score is positive.
+ * @param score - The pair score
+ * @param u - The first node
+ * @param v - The second node
+ * @param sources - Kept first nodes, appended to
+ * @param targets - Kept second nodes, appended to
+ * @param scores - Kept scores, appended to
+ */
+function keepScored(
+    score: PairScore,
+    u: number,
+    v: number,
+    sources: number[],
+    targets: number[],
+    scores: number[],
+): void {
+    const x = score(u, v);
+    if (x > 0) {
+        sources.push(u);
+        targets.push(v);
+        scores.push(x);
+    }
+}
+
 function predict(s: GraphSnapshot, o: LinkPredictionOptions, score: PairScore): LinkPredictionResult {
     const sources: number[] = [];
     const targets: number[] = [];
@@ -193,12 +218,7 @@ function predict(s: GraphSnapshot, o: LinkPredictionOptions, score: PairScore): 
             if (v === u || (o.includeExisting !== true && s.hasArc(u, v))) {
                 continue;
             }
-            const x = score(u, v);
-            if (x > 0) {
-                sources.push(u);
-                targets.push(v);
-                scores.push(x);
-            }
+            keepScored(score, u, v, sources, targets, scores);
         }
     }
     const { topK } = o;
@@ -222,12 +242,7 @@ function candidatesOf(s: GraphSnapshot, u: number, o: CandidateOptions, score: P
             if (v === u || (o.includeExisting !== true && v < n && s.hasArc(u, v))) {
                 continue;
             }
-            const x = score(u, v);
-            if (x > 0) {
-                sources.push(u);
-                targets.push(v);
-                scores.push(x);
-            }
+            keepScored(score, u, v, sources, targets, scores);
         }
     }
     return ranked(sources, targets, scores, o.topK ?? 10);

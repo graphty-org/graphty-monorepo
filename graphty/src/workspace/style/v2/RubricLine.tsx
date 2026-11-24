@@ -1252,6 +1252,18 @@ function frameRule(line: LineSpec, rule: string): string {
 }
 
 /**
+ * The name a line draws above its control, or null: none where the control already says it (design "Input rules"):
+ * the font style toggles, each with its tooltip (R7t), and a color swatch named only "Color". A color with a name of
+ * its own ("Highlight", "Letter outline") keeps it: a swatch says it is a color, not which.
+ * @param name - the line's name.
+ * @param rule - its rubric rule.
+ * @returns the name above it, or null.
+ */
+function shownName(name: string | null, rule: string): string | null {
+    return rule === "R7t" || (rule === "R1" && name === "Color") ? null : name;
+}
+
+/**
  * One line's frame (design 2.2): its name, its control, its modifier slot and its minus.
  * @param props - Component props
  * @param props.line - what the line edits, for `data-line`
@@ -1309,7 +1321,7 @@ export function LineFrame({
             data-wide={wide === true ? "" : undefined}
             title={dimmed}
         >
-            <FieldLine name={name} settings={null}>
+            <FieldLine name={shownName(name, rule)} settings={null} above>
                 <div className="ws-field-control">{control}</div>
                 {/* `[link or ...] [-]`: the link or settings button right after its control, the minus right-most
                     (owner's input rules, design "Input rules"). */}

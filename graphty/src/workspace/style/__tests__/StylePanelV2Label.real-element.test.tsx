@@ -99,8 +99,10 @@ async function addLabel(tab: HTMLElement): Promise<HTMLElement> {
 function assertNamedUncut(root: HTMLElement): void {
     for (const line of root.querySelectorAll<HTMLElement>(".ws-row[data-line]")) {
         const address = line.getAttribute("data-line") ?? "";
-        const name = line.querySelector<HTMLElement>(".ws-field-name");
-        const words = name?.textContent ?? line.querySelector(".mantine-Checkbox-label")?.textContent ?? "";
+        // Named above (its legend), by a checkbox's own words, or by its swatch or toggles' own look.
+        const name = line.querySelector<HTMLElement>(".cm-legend-text");
+        const selfDescribing = line.querySelector(".cm-paint, [data-font-style]") === null ? "" : "self-describing";
+        const words = name?.textContent ?? line.querySelector(".mantine-Checkbox-label")?.textContent ?? selfDescribing;
         assert.notEqual(words, "", `${address} has a name`);
         if (name !== null) {
             assert.isAtMost(name.scrollWidth, name.clientWidth, `${address}: "${words}" is cut`);
@@ -135,8 +137,9 @@ describe("Style panel v2's Text section", () => {
                 "color writes the style's color",
             );
             assert.equal(labelStyle(session, id).size, 2, "and keeps its size");
-            const under = row.querySelector('.ws-row[data-line="node.labelStyle.color"] .ws-field-name');
-            assert.equal(under?.textContent, "Color", "set, the color shows under the row, named");
+            const under = row.querySelector('.ws-row[data-line="node.labelStyle.color"]');
+            // A swatch describes itself: no name beside or above it (owner, 2026-11-24).
+            assert.isNotNull(under?.querySelector(".cm-paint"), "set, the color shows under the row, as its swatch");
         });
         const pop = await popoverOf(row);
         const main = within(pop).getByRole("group", { name: "Main" });
@@ -201,9 +204,10 @@ describe("Style panel v2's Text section", () => {
         assert.isNull(within(pop).queryByRole("button", { name: "Add to node label settings" }));
         assertNamedUncut(within(pop).getByRole("group", { name: "Main" }));
         const advanced = await openAdvanced(pop);
-        const legends = [...advanced.querySelectorAll('[data-testid="control-group-label"]')].map(
-            (legend) => legend.textContent,
-        );
+        // Its sub-groups' legends, not its lines' own (a line's name is a legend over it too).
+        const legends = [...advanced.querySelectorAll('[data-testid="control-group-label"]')]
+            .filter((legend) => legend.closest(".ws-row, .ws-member") === null)
+            .map((legend) => legend.textContent);
         assert.deepEqual(legends, ["Main", ...LABEL_RUBRIC.groups.map((group) => group.name)]);
         assertNamedUncut(advanced);
         // A Text shadow color set while its switch is off switches the shadow on (no tick first).
@@ -300,7 +304,7 @@ describe("Style panel v2's Text section", () => {
         const tall = (bottom - top + 1) / (after.width / element.clientWidth);
         assert.isAtLeast(tall, 10, `the label is drawn ${String(tall)} px tall`);
         for (const line of row.querySelectorAll(".ws-row[data-line]")) {
-            const named = line.querySelector(".ws-field-name")?.textContent ?? line.getAttribute("data-rule");
+            const named = line.querySelector(".cm-legend-text")?.textContent ?? line.getAttribute("data-rule");
             assert.isTrue(named !== "" && named !== null, `${line.getAttribute("data-line") ?? ""} has a name`);
         }
         const color = await lineOf(row, "node.labelStyle.color");
@@ -313,7 +317,7 @@ describe("Style panel v2's Text section", () => {
         const row = await addLabel(tab);
         const pop = await popoverOf(row);
         const kind = await within(pop).findByRole("combobox", { name: "Kind" });
-        assert.strictEqual(kind.closest(".ws-field")?.querySelector(".ws-field-name")?.textContent, "Kind");
+        assert.strictEqual(kind.closest(".ws-member")?.querySelector(".cm-legend-text")?.textContent, "Kind");
     });
 
     it("a Label with no source yet reads No words, never an empty source (owner's input rules)", async () => {

@@ -91,7 +91,7 @@ describe("several labels per node", () => {
         const rows = await waitFor(() => {
             const found = [...sectionOf(tab, "node-text").querySelectorAll<HTMLElement>('[data-thing="label"]')];
             assert.deepEqual(
-                found.map((each) => each.querySelector(".ws-field-name")?.textContent),
+                found.map((each) => each.querySelector(".cm-legend-text")?.textContent),
                 ["Label", "Card 2"],
             );
             for (const each of found) {
@@ -100,7 +100,7 @@ describe("several labels per node", () => {
             return found;
         });
         for (const each of rows) {
-            const name = each.querySelector<HTMLElement>(".ws-field-name");
+            const name = each.querySelector<HTMLElement>(".cm-legend-text");
             const shown = each.querySelector<HTMLElement>(".mantine-Button-label");
             assert.instanceOf(name, HTMLElement);
             assert.instanceOf(shown, HTMLElement);
@@ -169,7 +169,7 @@ describe("several labels per node", () => {
             assert.instanceOf(shown, HTMLElement);
             assert.equal(shown.textContent, "Node id, above", "the source shows its place");
             assert.isAtMost(shown.scrollWidth, shown.clientWidth, `"${shown.textContent}" fits its field`);
-            const name = each.querySelector(".ws-field-name");
+            const name = each.querySelector(".cm-legend-text");
             assert.instanceOf(name, HTMLElement);
             assert.isAtMost(name.scrollWidth, name.clientWidth, `the row name "${name.textContent}" is uncut`);
         }

@@ -1,6 +1,7 @@
 import {
     ComboInput,
     CompactColorInput,
+    ControlGroup,
     Popout,
     PopoutButton,
     SegmentedControl,
@@ -1311,20 +1312,38 @@ function listOf(
 
 /**
  * A property row's one line: its name in the label column (none, the control spanning it, for a
- * Style panel v2 thing its section names), then the control and the trailing columns.
+ * Style panel v2 thing its section names), then the control and the trailing columns. In Style panel
+ * v2 (`above`) the name is never beside the control: it is compact-mantine's small label above it, a
+ * `ControlGroup` legend over the line, so the control, its link or settings button and its minus keep the whole
+ * line (owner, 2026-11-24). Not `Input.Wrapper`: its label would rename every control inside it (a segment line's
+ * radio group takes the wrapper's label in place of its own name) and its ids are for one input, not a line.
  * @param props - Component props
  * @param props.name - the name, or null for none
  * @param props.settings - a style's own "+" beside its name
+ * @param props.above - Style panel v2: the name above the line, never beside it
  * @param props.children - the control and the trailing columns
  * @returns The line
  */
 export function FieldLine({
     name,
     settings,
+    above = false,
     children,
-}: Readonly<{ name: string | null; settings: React.ReactNode; children: React.ReactNode }>): React.JSX.Element {
+}: Readonly<{
+    name: string | null;
+    settings: React.ReactNode;
+    above?: boolean;
+    children: React.ReactNode;
+}>): React.JSX.Element {
     if (name === null) {
         return <div className="ws-field ws-varies">{children}</div>;
+    }
+    if (above) {
+        return (
+            <ControlGroup label={name} actions={settings ?? undefined}>
+                <div className="ws-field ws-varies">{children}</div>
+            </ControlGroup>
+        );
     }
     return (
         <div className="ws-field ws-varies" data-named="">
@@ -1337,6 +1356,25 @@ export function FieldLine({
             {children}
         </div>
     );
+}
+
+/**
+ * The name a field's line draws: the thing's for a Style panel v2 thing row, else the field's; none for a Style panel
+ * v2 color named only "Color", which its swatch already says (design "Input rules").
+ * @param v2 - Style panel v2.
+ * @param descriptor - the property.
+ * @param label - the field's name.
+ * @param thing - the thing whose row it is, if any.
+ * @returns the name, or null.
+ */
+function lineNameOf(
+    v2: boolean,
+    descriptor: ChannelDescriptor,
+    label: string,
+    thing: FieldProps["thing"],
+): string | null {
+    const name = thing === undefined ? label : thing.name;
+    return v2 && descriptor.accepts === "color" && name === "Color" ? null : name;
 }
 
 /**
@@ -1544,6 +1582,8 @@ export function Field({
         label,
         breakdown: fieldBreakdown(ctx, channel, label, lines, pending),
     });
+    const v2 = stylePanelV2On(session);
+    const lineName = lineNameOf(v2, descriptor, label, thing);
     const removeName = thing?.removeLabel ?? removeNameOf(ctx, name);
     // An unset Style panel v2 line has no vary glyph and no minus, and is not marked set.
     const {
@@ -1566,7 +1606,7 @@ export function Field({
         >
             {/* One line: the name, the field, then two reserved 24 px columns, vary and minus,
                 so the field keeps its width (Figma's property row). */}
-            <FieldLine name={thing === undefined ? label : thing.name} settings={settings}>
+            <FieldLine name={lineName} settings={settings} above={v2}>
                 <div
                     className="ws-field-control"
                     title={thing?.hint}

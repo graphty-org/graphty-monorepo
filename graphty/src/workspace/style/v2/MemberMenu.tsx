@@ -135,8 +135,8 @@ function SwitchMenu<
               ];
     return (
         <span ref={boxRef} className="ws-member" {...attribute}>
-            {/* Named in the name column, as every line is (owner's input rules: every input is self describing). */}
-            <FieldLine name="Kind" settings={null}>
+            {/* Named by its legend above it, as every line is (owner's input rules: every input is self describing). */}
+            <FieldLine name="Kind" settings={null} above>
                 <div className="ws-field-control">
                     <PanelField
                         label="Kind"

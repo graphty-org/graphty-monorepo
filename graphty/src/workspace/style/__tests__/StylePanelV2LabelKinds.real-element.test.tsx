@@ -103,9 +103,19 @@ describe("a node's Label is Text or Glyph", () => {
                 line.checkVisibility(),
             );
             assert.isNotEmpty(lines, `${kind}'s pop-over has lines`);
-            // A typed value is no name: an input's value is not in its line's visible words.
+            // A typed value is no name: an input's value is not in its line's visible words. The font style toggles
+            // (R7t) name themselves, each in its hover tooltip, and a swatch named only "Color" says it is a color:
+            // neither carries a name above it (owner, 2026-11-24).
             assert.deepEqual(
-                lines.filter((line) => line.innerText.trim() === "" && line.title === "").map((l) => l.dataset.line),
+                lines
+                    .filter(
+                        (line) =>
+                            line.innerText.trim() === "" &&
+                            line.title === "" &&
+                            !line.matches('[data-rule="R7t"]') &&
+                            line.querySelector("[data-font-style], .cm-paint") === null,
+                    )
+                    .map((l) => l.dataset.line),
                 [],
                 `${kind}: every line is named or has a tooltip`,
             );

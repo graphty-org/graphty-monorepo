@@ -306,6 +306,33 @@ function same(got: unknown, want: unknown): boolean {
     return JSON.stringify(norm(got)) === JSON.stringify(norm(want));
 }
 
+/**
+ * A pop-over's sub-groups by name: not a line's own legend, which is a group too (a line named "Background" in the
+ * Background group).
+ * @param root - where to look.
+ * @param name - the sub-group's name.
+ * @returns the sub-groups.
+ */
+function subGroups(root: HTMLElement, name: string): HTMLElement[] {
+    return within(root)
+        .queryAllByRole("group", { name })
+        .filter((group) => group.closest(".ws-row, .ws-member") === null);
+}
+
+/**
+ * A pop-over's one sub-group by name, once shown.
+ * @param root - where to look.
+ * @param name - the sub-group's name.
+ * @returns the sub-group.
+ */
+async function subGroup(root: HTMLElement, name: string): Promise<HTMLElement> {
+    return waitFor(() => {
+        const [found] = subGroups(root, name);
+        assert.isDefined(found, `the ${name} sub-group`);
+        return found;
+    });
+}
+
 describe("every label field is reachable from the Label row and draws (E673)", () => {
     withFeatures(["file-styles", "style-panel-v2"]);
 
@@ -373,13 +400,13 @@ describe("every label field is reachable from the Label row and draws (E673)", (
             });
         };
         const legendOf = async (pop: HTMLElement, group: LabelGroup): Promise<HTMLElement> => {
-            const shown = within(pop).queryByRole("group", { name: group.name });
+            const shown = subGroups(pop, group.name)[0] ?? null;
             if (shown !== null) {
                 return shown;
             }
             await userEvent.click(within(pop).getByRole("button", { name: "Add to node label settings" }));
             await userEvent.click(await screen.findByRole("menuitem", { name: group.name }));
-            return within(pop).findByRole("group", { name: group.name });
+            return subGroup(pop, group.name);
         };
         const lineIn = async (root: HTMLElement, line: string): Promise<HTMLElement> =>
             waitFor(() => {
@@ -533,12 +560,10 @@ describe("every label field is reachable from the Label row and draws (E673)", (
             assert.isDefined(place, `${field}: no line reaches it`);
             const pop = place.row === true ? undefined : await openSettings();
             try {
-                let root = pop === undefined ? await rowOf() : within(pop).getByRole("group", { name: "Main" });
+                let root = pop === undefined ? await rowOf() : await subGroup(pop, "Main");
                 if (pop !== undefined && place.line.advanced === true) {
                     // A rare line: under its group's name (Main's too) in the pop-over's Advanced dialog.
-                    root = await within(await openAdvanced(pop)).findByRole("group", {
-                        name: place.group?.name ?? "Main",
-                    });
+                    root = await subGroup(await openAdvanced(pop), place.group?.name ?? "Main");
                 } else if (pop !== undefined && place.group !== undefined) {
                     root = await legendOf(pop, place.group);
                 }

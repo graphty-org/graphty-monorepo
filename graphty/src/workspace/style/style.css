@@ -872,63 +872,6 @@
     color: var(--cm-text-secondary);
 }
 
-/* Style panel v2: a name longer than its column ends in an ellipsis on one line, its whole name in
-   its tooltip, so every row keeps one height (design 2.2). */
-[data-style-panel-v2] .ws-field-name,
-[data-thing-popover] .ws-field-name {
-    overflow-wrap: normal;
-    white-space: nowrap;
-}
-
-/* Style panel v2: a text's source (R12) never cuts its row's name or its own words ("Node id, above"),
-   which at the default inspector width do not fit on one line beside the name, the link and chevron
-   glyphs and the Clear and settings columns (E206, E265). So the row is two lines: the name, uncut, as a
-   small label, and under it the source with its link or settings button and its Clear right after it.
-   Words longer than the whole width end in an ellipsis. */
-/* A named full-width segment line in a pop-over (R8f, R2: a label's Location, Unit, Direction) is two
-   lines the same way: its name, then its segments across the line (E674: every line is named). So is a
-   line of two inputs (an X | Y pair, data-wide), so neither number is cut, a sidebar row whose value is a pictured
-   list or a drop-down ("Triangle", "Straight", "Barnes-Hut"), so its value is never cut, a line of font style toggles (R7t),
-   so the toggles end well before the link slot (a finger's 32 px target reaches 4 px past each), and a row's Kind drop-down in the
-   sidebar, so its kind ("Basic shape") is never cut. */
-[data-style-panel-v2]
-    .ws-row:is([data-rule="R12"], [data-rule="R9"], [data-rule="R16"], [data-wide], :has(> .ws-field .ws-value-listbox))
-    > .ws-field[data-named],
-[data-style-panel-v2] .ws-member > .ws-field[data-named],
-[data-thing-popover]
-    .ws-row:is([data-rule="R8f"], [data-rule="R2"], :has([data-font-style]), [data-wide])
-    > .ws-field[data-named] {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-}
-
-[data-style-panel-v2]
-    .ws-row:is([data-rule="R12"], [data-rule="R9"], [data-rule="R16"], [data-wide], :has(> .ws-field .ws-value-listbox))
-    > .ws-field[data-named]
-    > .ws-field-label,
-[data-style-panel-v2] .ws-member > .ws-field[data-named] > .ws-field-label,
-[data-thing-popover]
-    .ws-row:is([data-rule="R8f"], [data-rule="R2"], :has([data-font-style]), [data-wide])
-    > .ws-field[data-named]
-    > .ws-field-label {
-    flex: 0 0 100%;
-    min-height: 24px;
-}
-
-[data-style-panel-v2]
-    .ws-row:is([data-rule="R12"], [data-rule="R9"], [data-rule="R16"], [data-wide], :has(> .ws-field .ws-value-listbox))
-    > .ws-field[data-named]
-    > .ws-field-control,
-[data-style-panel-v2] .ws-member > .ws-field[data-named] > .ws-field-control,
-[data-thing-popover]
-    .ws-row:is([data-rule="R8f"], [data-rule="R2"], :has([data-font-style]), [data-wide])
-    > .ws-field[data-named]
-    > .ws-field-control {
-    /* The line's width less its two 24px slots, which follow it on the same line. */
-    flex: 0 0 calc(100% - 48px);
-}
-
 /* Style panel v2's shader rows (Shaders, group outlines): the empty place column gives its width to
    the name, which the panel's 240 px would otherwise squeeze to nothing. */
 [data-style-panel-v2] .ws-shader-row .ws-field[data-shader-use] {

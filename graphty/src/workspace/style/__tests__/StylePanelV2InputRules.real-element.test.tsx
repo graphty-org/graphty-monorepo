@@ -16,7 +16,11 @@
  * - on every line, the minus is the right-most button;
  * - the link or settings button sits on its control's line, right after the control;
  * - the link and settings buttons are hidden at rest, shown on hover;
- * - no input is empty: no blank number or text field, no segment line with nothing picked.
+ * - no input is empty: no blank number or text field, no segment line with nothing picked;
+ * - names go above inputs, never beside them: every visible name on a line is compact-mantine's own (a field's
+ *   built-in label above it, a FieldRow caption, a ControlGroup legend), never text the app draws, and none sits
+ *   to the left of an input on its line (owner, 2026-11-24). Checked in rows, pop-overs, Advanced pop-overs, the link
+ *   dialog and Graph settings.
  *
  * The hover rule must also show the buttons on focus within the line and under (hover: none) (the owner uses an
  * iPad): the stylesheet check reads the rule that hides them.
@@ -34,7 +38,9 @@ import { afterAll, assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
-import { findValuePicker, screen, waitFor, within } from "../../../test/test-utils";
+import { findValuePicker, render, screen, waitFor, within } from "../../../test/test-utils";
+import { createWorkspaceStore } from "../../state/store";
+import { Workspace } from "../../Workspace";
 import { TEXT_THINGS } from "../v2/labelRubric";
 import { SECTIONS, type ThingSpec } from "../v2/things";
 import { showKind } from "./kindTab";
@@ -82,6 +88,9 @@ const KNOWN_SHOWN_AT_REST: readonly string[] = [];
 
 /** Rows and pop-overs with an empty input. */
 const KNOWN_EMPTY: readonly string[] = [];
+
+/** Rows, pop-overs, link dialogs and Graph settings with a name the app draws, or a name beside its input. */
+const KNOWN_NAMES_NOT_BUILT_IN: readonly string[] = [];
 
 /** The stylesheet rule hiding the link and settings buttons is missing or not limited to hover devices and no focus. */
 const KNOWN_HOVER_RULE_MISSING = false;
@@ -294,6 +303,83 @@ function emptyInputs(lines: readonly HTMLElement[]): string[] {
     });
 }
 
+/** compact-mantine's own name text: a field's built-in label above it, a FieldRow caption, a group legend. */
+const BUILT_IN_NAMES = ".cm-field-label, .cm-caption, .cm-legend-text, .cm-paint-label";
+
+/** Where words belong to a control itself: its value, its options, a checkbox's own label. */
+const IN_CONTROL =
+    'button, input, textarea, select, label, [role="combobox"], [role="radiogroup"], [role="slider"], [role="listbox"], [role="option"], [role="checkbox"], [role="radio"], [role="switch"]';
+
+/**
+ * Whether an element is drawn big enough to read (a visually hidden name is 1 px).
+ * @param element - the element.
+ * @returns whether it is.
+ */
+function readable(element: Element): boolean {
+    const box = element.getBoundingClientRect();
+    return box.width > 1 && box.height > 1 && getComputedStyle(element).visibility !== "hidden";
+}
+
+/**
+ * Whether an element is inside one of compact-mantine's components (a `cm-` class), up to a line.
+ * @param element - the element.
+ * @param line - where to stop.
+ * @returns whether it is.
+ */
+function compactMantine(element: Element, line: Element): boolean {
+    for (let at: Element | null = element; at !== null && at !== line.parentElement; at = at.parentElement) {
+        if ([...at.classList].some((name) => name.startsWith("cm-"))) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Lines with a name the app draws (words outside every control and every compact-mantine component), or a
+ * compact-mantine name to the left of an input on its own line (owner, 2026-11-24: "Labels for an input must never go
+ * to the left of the input").
+ * @param lines - the lines.
+ * @returns their names, with what is wrong.
+ */
+function namesNotBuiltIn(lines: readonly HTMLElement[]): string[] {
+    return lines.flatMap((line) => {
+        const wrong: string[] = [];
+        const inputs = [...line.querySelectorAll<HTMLElement>(CONTROLS)].filter(
+            (each) => laidOut(each) && each.closest(".cm-legend") === null,
+        );
+        const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+        for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+            const at = node.parentElement;
+            const words = node.textContent?.trim() ?? "";
+            // A drawing's words (an SVG title, the ramp editor's bars) are its tooltips, not a name; the ramp editor
+            // is compact-mantine's own.
+            if (
+                at === null ||
+                words === "" ||
+                !readable(at) ||
+                at.closest('svg, [data-testid="ramp-editor"]') !== null
+            ) {
+                continue;
+            }
+            const name = at.closest(BUILT_IN_NAMES);
+            if (name !== null) {
+                const box = name.getBoundingClientRect();
+                const beside = inputs.some((input) => {
+                    const b = input.getBoundingClientRect();
+                    return b.top < box.bottom - 1 && b.bottom > box.top + 1 && b.left >= box.right - 1;
+                });
+                if (beside) {
+                    wrong.push(`"${words}" beside its input`);
+                }
+            } else if (at.closest(IN_CONTROL) === null && !compactMantine(at, line)) {
+                wrong.push(`"${words}" drawn by the app`);
+            }
+        }
+        return wrong.length === 0 ? [] : [`${nameOf(line)}: ${wrong.join("; ")}`];
+    });
+}
+
 /**
  * The pop-out a trigger opens.
  * @param trigger - the trigger.
@@ -326,6 +412,8 @@ interface Found {
     notIcon: string[];
     /** Advanced pop-overs that closed or covered the pop-over they opened from. */
     covers: string[];
+    /** Lines with a name the app draws, or a name beside its input. */
+    names: string[];
     minus: string[];
     slot: string[];
     rest: string[];
@@ -430,6 +518,7 @@ function coveredBy(parent: HTMLElement, advanced: HTMLElement): string | undefin
 interface Walked {
     readonly covers: string[];
     readonly inPlace: string[];
+    readonly names: string[];
 }
 
 /**
@@ -498,6 +587,7 @@ async function deepLevels(
             if (why !== undefined) {
                 walked.covers.push(`${name}: ${why}`);
             }
+            walked.names.push(...namesNotBuiltIn(linesIn(own)).map((each) => `${name} > ${each}`));
             const reopenAdvanced = async (): Promise<HTMLElement> => {
                 const again = advancedButton(await reopen());
                 assert.isNotNull(again, "the Advanced button again");
@@ -558,23 +648,59 @@ async function deepLevels(
 }
 
 /**
- * How many components tall a link dialog is: each part of the binding from top to bottom, two choices on one line
- * counting once (a plain stack of parts counts by its parts).
+ * A link dialog's parts from top to bottom: the binding group's children, a plain stack's by its own parts.
+ * @param dialog - the link dialog.
+ * @returns the parts holding a control.
+ */
+function dialogParts(dialog: HTMLElement): HTMLElement[] {
+    const parts = (root: Element): HTMLElement[] =>
+        [...root.children].flatMap((child) => {
+            if (!(child instanceof HTMLElement)) {
+                return [];
+            }
+            if (child.classList.contains("mantine-Stack-root") && !child.hasAttribute("role")) {
+                return parts(child);
+            }
+            return laidOut(child) && child.querySelector(CONTROLS) !== null ? [child] : [];
+        });
+    const binding = dialog.querySelector('[role="group"][aria-label$=" binding"]');
+    return binding === null ? [] : parts(binding);
+}
+
+/**
+ * How many lines of controls a part takes from top to bottom: controls side by side count once, a choice that
+ * grows a second line under itself (a clamp's percentiles) counts twice. The ramp editor, its histogram with its
+ * value range, is one component (design "Input rules", "Link dialog").
+ * @param part - the part.
+ * @returns its lines.
+ */
+function partLines(part: HTMLElement): number {
+    if (part.matches('[data-testid="ramp-editor"]') || part.querySelector('[data-testid="ramp-editor"]') !== null) {
+        return 1;
+    }
+    const boxes = [...part.querySelectorAll(CONTROLS)]
+        .filter(readable)
+        .map((each) => each.getBoundingClientRect())
+        .sort((x, y) => x.top - y.top);
+    let bottom = Number.NEGATIVE_INFINITY;
+    let count = 0;
+    for (const box of boxes) {
+        if (box.top >= bottom - 1) {
+            count += 1;
+        }
+        bottom = Math.max(bottom, box.bottom);
+    }
+    return Math.max(count, 1);
+}
+
+/**
+ * How many components tall a link dialog is: each part's lines from top to bottom, two choices on one line
+ * counting once.
  * @param dialog - the link dialog.
  * @returns the count.
  */
 function componentsTall(dialog: HTMLElement): number {
-    const parts = (root: Element): number =>
-        [...root.children].reduce(
-            (sum, child) =>
-                sum +
-                (child.classList.contains("mantine-Stack-root") && !child.hasAttribute("role")
-                    ? parts(child)
-                    : Number(laidOut(child) && child.querySelector(CONTROLS) !== null)),
-            0,
-        );
-    const binding = dialog.querySelector('[role="group"][aria-label$=" binding"]');
-    return binding === null ? 0 : parts(binding);
+    return dialogParts(dialog).reduce((sum, part) => sum + partLines(part), 0);
 }
 
 /**
@@ -678,6 +804,7 @@ describe("Style panel v2's input rules (owner, 2026-11-23)", () => {
                 inPlace: [],
                 notIcon: pop === null ? [] : advancedNotIcon(pop, row),
                 covers: [],
+                names: namesNotBuiltIn(lines),
             };
             // Hovering a line shows its buttons.
             const shownNow = (button: HTMLElement): boolean => {
@@ -740,6 +867,7 @@ describe("Style panel v2's input rules (owner, 2026-11-23)", () => {
         });
         const tall = componentsTall(dialog);
         assert.isAbove(tall, 2, "the link dialog's parts are counted");
+        const names = namesNotBuiltIn(dialogParts(dialog));
         assert.isNull(advancedButton(dialog), "the link dialog has no Advanced");
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
@@ -751,6 +879,7 @@ describe("Style panel v2's input rules (owner, 2026-11-23)", () => {
             linkTall: tall > 6 ? String(tall) : undefined,
             notIcon: [],
             covers: [],
+            names,
             minus: [],
             slot: [],
             rest: [],
@@ -763,6 +892,114 @@ describe("Style panel v2's input rules (owner, 2026-11-23)", () => {
             walked,
         );
         FOUND.set("node.fill:bound", walked);
+    });
+
+    it("node.borderWidth bound: its link dialog stays 6 components tall with Clamp outliers on, One value and Fit to the data", async () => {
+        const { session, nodes } = await openGraph();
+        // A number of the data that two nodes carry and three lack, so No value has something to do. (A run's
+        // result is not used: graphty-element refuses One value on it, "the result covers only part of the graph".)
+        await session.data.addNodes([
+            { id: "d", weight: 1 },
+            { id: "e", weight: 5 },
+        ]);
+        await session.styles.update(nodes, {
+            set: { ...session.styles.get(nodes)?.set, "node.borderColor": "#111111", "node.borderWidth": 0.1 },
+        });
+        await session.styles.settled();
+        const tab = await openStyle("Key people");
+        // The width line under the border's row, linked to Degree from its link button, as a reader does.
+        const line = await waitFor(() => {
+            const found = tab.querySelector<HTMLElement>('.ws-row:has([aria-label="Node border width by attribute"])');
+            assert.isNotNull(found, "the width line");
+            return found;
+        });
+        await userEvent.hover(line);
+        await userEvent.click(within(line).getByRole("button", { name: "Node border width by attribute" }));
+        await userEvent.click(within(await findValuePicker()).getByRole("option", { name: /^weight(,|$)/i }));
+        // The bound line's pill opens its link dialog.
+        const pill = await waitFor(() => {
+            const found = tab.querySelector<HTMLElement>('[data-line="node.borderWidth"] .ws-varied button');
+            assert.isNotNull(found, "the bound width line's pill");
+            return found;
+        });
+        await userEvent.click(pill);
+        const dialog = await waitFor(() => {
+            const found = document.querySelector<HTMLElement>('[role="group"][aria-label$=" binding"]');
+            assert.isNotNull(found, "the link dialog is open");
+            return found.closest<HTMLElement>("[data-popout-id]") ?? found;
+        });
+        const states: string[] = [];
+        const names: string[] = [];
+        const measure = (state: string): void => {
+            const tall = componentsTall(dialog);
+            if (tall > 6) {
+                states.push(`${state}: ${String(tall)}`);
+            }
+            names.push(...namesNotBuiltIn(dialogParts(dialog)).map((each) => `${state} > ${each}`));
+        };
+        measure("plain");
+        // Clamp outliers on: its percentiles.
+        await userEvent.click(within(dialog).getByRole("checkbox", { name: "Clamp outliers" }));
+        await within(dialog).findByRole("spinbutton", { name: "Lowest percentile" });
+        measure("Clamp outliers");
+        // One value: its value.
+        const one = within(dialog).getByRole("radio", { name: "One value" });
+        const oneLabel = document.querySelector<HTMLElement>(`label[for="${one.id}"]`);
+        assert.isNotNull(oneLabel, "One value's label");
+        await userEvent.click(oneLabel);
+        await waitFor(() => {
+            assert.isTrue(one.matches(":checked"), "One value is picked");
+            assert.isNotNull(dialog.querySelector('[data-pair] [aria-label="Value"], [data-pair] input'), "its value");
+        });
+        measure("One value");
+        // An extent typed on the ramp: Fit to the data (a hand-set extent takes the clamp off).
+        const from = within(dialog).getByRole("textbox", { name: /^Values from/ });
+        await userEvent.click(from);
+        await userEvent.keyboard("{Control>}a{/Control}2{Enter}");
+        await within(dialog).findByRole("button", { name: "Fit to the data" });
+        measure("Fit to the data");
+        FOUND.set("node.borderWidth:bound", {
+            fourth: [],
+            inPlace: [],
+            linkTall: states.length === 0 ? undefined : states.join(", "),
+            notIcon: [],
+            covers: [],
+            names,
+            minus: [],
+            slot: [],
+            rest: [],
+            empty: [],
+        });
+    });
+
+    it("Graph settings: every name is compact-mantine's, above its input", async () => {
+        const store = createWorkspaceStore({ project: { name: "Pair", id: 1 }, inspected: { kind: "graph" } });
+        render(<Workspace store={store} />);
+        const element = await waitFor(() => {
+            const found = document.querySelector("graphty-element");
+            assert.isDefined(found?.session);
+            return found;
+        });
+        await element?.session.data.addNodes([{ id: "a" }, { id: "b" }]);
+        await userEvent.click(await screen.findByRole("tab", { name: "Style" }));
+        const panel = await waitFor(() => {
+            const found = document.querySelector<HTMLElement>("[data-graph-settings-v2]");
+            assert.isNotNull(found);
+            return found;
+        });
+        const lines = linesIn(panel);
+        assert.isAbove(lines.length, 4, "Graph settings' lines are read");
+        FOUND.set("graph.settings", {
+            fourth: [],
+            inPlace: [],
+            notIcon: [],
+            covers: [],
+            names: namesNotBuiltIn(lines),
+            minus: [],
+            slot: [],
+            rest: [],
+            empty: [],
+        });
     });
 
     it("the rule hiding link and settings buttons applies only on hover devices, outside hover and focus", () => {
@@ -792,7 +1029,7 @@ describe("Style panel v2's input rules (owner, 2026-11-23)", () => {
     });
 
     it("every rule's findings match its known-violations list", () => {
-        assert.lengthOf([...FOUND.keys()], WALKED.length + 1, "every thing was walked");
+        assert.lengthOf([...FOUND.keys()], WALKED.length + 3, "every thing was walked");
         const by = (pick: (found: Found) => string[] | string | undefined): Map<string, string> =>
             new Map(
                 [...FOUND].flatMap(([key, found]) => {
@@ -854,6 +1091,11 @@ describe("Style panel v2's input rules (owner, 2026-11-23)", () => {
                 "Empty inputs",
                 by((found) => found.empty),
                 KNOWN_EMPTY,
+            ),
+            compare(
+                "Names not compact-mantine's, or beside their input",
+                by((found) => found.names),
+                KNOWN_NAMES_NOT_BUILT_IN,
             ),
         ].filter((each) => each.fixed.length > 0 || each.added.length > 0);
         assert.deepEqual(results, []);

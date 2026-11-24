@@ -33,8 +33,9 @@ describe("Style panel v2's set lines under a row", () => {
             row.querySelector<HTMLElement>(`.ws-row[data-line="${channel}"]`);
         assert.isNull(sidebarLine("node.shadowBlur"), "an unset line is not in the sidebar");
         for (const line of row.querySelectorAll(".ws-row[data-line]")) {
-            const name = line.querySelector(".ws-field-name")?.textContent ?? "";
-            const checkbox = line.querySelector('input[type="checkbox"]');
+            const name = line.querySelector(".cm-legend-text")?.textContent ?? "";
+            // A checkbox names itself, and a swatch describes itself (owner, 2026-11-24).
+            const checkbox = line.querySelector('input[type="checkbox"], .cm-paint');
             assert.isTrue(name !== "" || checkbox !== null, `${line.getAttribute("data-line") ?? ""} is named`);
         }
 
@@ -56,7 +57,7 @@ describe("Style panel v2's set lines under a row", () => {
             assert.equal(written(session, id, "node.shadowBlur"), 4);
             const line = sidebarLine("node.shadowBlur");
             assert.isNotNull(line, "Blur shows under the row");
-            assert.equal(line.querySelector(".ws-field-name")?.textContent, "Blur");
+            assert.equal(line.querySelector(".cm-legend-text")?.textContent, "Blur");
         });
         const now = pop.getBoundingClientRect();
         assert.deepEqual([now.left, now.top], [box.left, box.top], "the pop-over keeps its place");

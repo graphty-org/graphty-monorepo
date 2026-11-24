@@ -226,7 +226,11 @@ describe("Graph settings v2", () => {
         }
         await dragAcross(padding, 20);
         await waitFor(() => {
-            assert.strictEqual(element.session.config.framing?.padding, 10, "20 px right scrubs Padding to 10");
+            // The test page is scaled into its frame, so a 20 px drag lands a hair off a whole pixel where the slot
+            // sits at a fractional x (9.99994): the scrub's own math, not a step, so within a thousandth.
+            const padding = element.session.config.framing?.padding;
+            assert.isDefined(padding, "20 px right scrubs Padding");
+            assert.closeTo(padding ?? 0, 10, 0.001, "20 px right scrubs Padding to 10");
         });
     });
 });

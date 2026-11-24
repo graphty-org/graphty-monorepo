@@ -232,23 +232,31 @@ export function BindingPopover(props: Readonly<BindingPopoverProps>): React.JSX.
             />
             {/* v2: what the number does with the value underneath, first (owner, 2026-11-23). */}
             {numberParts && v2 ? (
-                <Captioned>
-                    <SegmentsLine
-                        label="Operation"
-                        options={COMBINE_OPTIONS}
-                        value={binding.combine ?? "replace"}
-                        onPick={(mode) => {
-                            patch({ combine: combineOf(mode) });
-                        }}
-                    />
-                </Captioned>
+                <Beside other={parts.rampScale}>
+                    <Captioned>
+                        <SegmentsLine
+                            label="Operation"
+                            options={COMBINE_OPTIONS}
+                            value={binding.combine ?? "replace"}
+                            onPick={(mode) => {
+                                patch({ combine: combineOf(mode) });
+                            }}
+                        />
+                    </Captioned>
+                </Beside>
             ) : null}
             {parts.ramp}
             {parts.categorical ? (
                 <GroupsSection session={session} descriptor={descriptor} parts={parts} detail={detail} />
             ) : null}
             {numberParts ? (
-                <Range key={String(binding.range)} descriptor={descriptor} range={binding.range} patch={patch} />
+                <Range
+                    key={String(binding.range)}
+                    descriptor={descriptor}
+                    range={binding.range}
+                    patch={patch}
+                    captions={v2}
+                />
             ) : null}
             {v2 ? null : rare}
             {numberParts && !v2 ? <CombineField name={name} binding={binding} patch={patch} /> : null}
@@ -283,6 +291,10 @@ function RareChoices({
     v2: boolean;
 }>): React.JSX.Element | null {
     const { binding, patch } = parts;
+    const overflow =
+        v2 && parts.categorical && !detail && overflowLine(session, descriptor, parts) ? (
+            <OverflowField session={session} descriptor={descriptor} parts={parts} />
+        ) : null;
     const noValue =
         detail || !parts.noValue ? null : (
             <NoValue
@@ -291,23 +303,25 @@ function RareChoices({
                 missing={binding.missing ?? "skip"}
                 patch={patch}
                 segments={v2}
+                // Its one value on its own line beside its choice, unless the line is already a pair.
+                beside={overflow === null}
             />
         );
     if (!v2) {
         return noValue;
     }
     // What happens past the palette is a rare choice: it leaves the groups for the last line, beside No value.
-    const overflow =
-        parts.categorical && !detail && overflowLine(session, descriptor, parts) ? (
-            <OverflowField session={session} descriptor={descriptor} parts={parts} />
-        ) : null;
-    const rampRare = detail ? null : parts.rampRare;
-    if (rampRare === null && noValue === null && overflow === null) {
+    // A number's Scale is on its Operation line; a color ramp's has a line of its own.
+    const isNumber = descriptor.accepts === "number";
+    const rampScale = detail || isNumber ? null : parts.rampScale;
+    const rampClamp = detail ? null : parts.rampClamp;
+    if (rampScale === null && rampClamp === null && noValue === null && overflow === null) {
         return null;
     }
     return (
         <>
-            {rampRare}
+            {rampScale}
+            {rampClamp}
             {overflow === null || noValue === null ? (overflow ?? noValue) : <Pair>{[overflow, noValue]}</Pair>}
         </>
     );
@@ -327,6 +341,20 @@ function Pair({ children }: Readonly<{ children: readonly [React.ReactNode, Reac
             {children[1]}
         </Group>
     );
+}
+
+/**
+ * A line with another choice beside it when there is one (a number's Operation and its Scale), else the line alone.
+ * @param props - Component props
+ * @param props.other - the choice beside it, or null
+ * @param props.children - the line
+ * @returns The line
+ */
+function Beside({
+    other,
+    children,
+}: Readonly<{ other: React.ReactNode; children: React.ReactNode }>): React.JSX.Element {
+    return other === null || other === undefined ? <>{children}</> : <Pair>{[children, other]}</Pair>;
 }
 
 /**
@@ -509,8 +537,10 @@ interface Parts {
     /** The palette it paints with when it names none. */
     readonly palette: string | undefined;
     readonly ramp: React.ReactNode;
-    /** v2: the ramp's rarer choices (Scale, Clamp outliers), on one line; null without a ramp. */
-    readonly rampRare: React.ReactNode;
+    /** v2: the ramp's Scale (and Steps for a stepped scale); null without a ramp. */
+    readonly rampScale: React.ReactNode;
+    /** v2: the ramp's Clamp outliers line, with its percentiles or Fit to the data on it; null without a ramp. */
+    readonly rampClamp: React.ReactNode;
     readonly readAs: React.ReactNode;
     readonly list: React.ReactNode;
     /** Whether No value shows. */
@@ -558,9 +588,13 @@ function dataParts(
             preview !== null && !categorical && (isColor || descriptor.accepts === "number") ? (
                 <Ramp {...part} preview={preview} />
             ) : null,
-        rampRare:
+        rampScale:
             preview !== null && !categorical && (isColor || descriptor.accepts === "number") ? (
-                <RampRare {...part} preview={preview} />
+                <RampScale {...part} preview={preview} />
+            ) : null,
+        rampClamp:
+            preview !== null && !categorical && (isColor || descriptor.accepts === "number") ? (
+                <ClampLine binding={binding} patch={patch} />
             ) : null,
         readAs: (
             <>
@@ -634,7 +668,8 @@ function layerParts(
         asWritten: false,
         palette,
         ramp: null,
-        rampRare: null,
+        rampScale: null,
+        rampClamp: null,
         readAs: null,
         list: (
             <LayerGroupList
@@ -891,45 +926,185 @@ function numericScales(session: GraphSession): { value: string; label: string }[
 }
 
 /**
- * v2: a ramp's rarer choices, Scale and Clamp outliers, on one line.
+ * A stepped scale's Steps field. An element, not a component, so a `FieldRow` reads its caption from it.
+ * @param binding - the binding.
+ * @param preview - the element's preview of it.
+ * @param patch - writes a change.
+ * @returns The field.
+ */
+function stepsField(
+    binding: DataBinding,
+    preview: PartProps["preview"],
+    patch: (change: Partial<DataBinding>) => void,
+): React.JSX.Element {
+    return (
+        <PanelField
+            label="Steps"
+            kind="number"
+            width="fill"
+            value={binding.bins ?? preview.stepCounts.length}
+            min={2}
+            max={12}
+            decimalScale={0}
+            onChange={(bins) => {
+                patch({ bins: Number(bins) });
+            }}
+        />
+    );
+}
+
+/**
+ * Clamp outliers' switch or checkbox: on, it clamps at the 2nd and 98th percentiles.
+ * @param clamp - the clamp, if on.
+ * @param patch - writes a change.
+ * @param control - a switch, or a checkbox (Style panel v2).
+ * @returns The toggle.
+ */
+function clampToggle(
+    clamp: DataBinding["clamp"],
+    patch: (change: Partial<DataBinding>) => void,
+    control: "switch" | "checkbox",
+): React.JSX.Element {
+    return (
+        <ToggleRow
+            label="Clamp outliers"
+            control={control}
+            checked={clamp !== undefined}
+            onChange={(on) => {
+                patch(on ? { clamp: [2, 98], domain: undefined } : { clamp: undefined });
+            }}
+        />
+    );
+}
+
+/**
+ * The clamp's two percentile fields. Elements, not components, so a `FieldRow` reads their captions.
+ * @param clamp - the clamp.
+ * @param patch - writes a change.
+ * @returns The lowest and the highest percentile.
+ */
+function percentileFields(
+    clamp: NonNullable<DataBinding["clamp"]>,
+    patch: (change: Partial<DataBinding>) => void,
+): React.JSX.Element[] {
+    return [
+        <PanelField
+            key="low"
+            label="Lowest percentile"
+            kind="number"
+            width="fill"
+            value={clamp[0]}
+            min={0}
+            max={clamp[1]}
+            onChange={(low) => {
+                patch({ clamp: [Number(low), clamp[1]] });
+            }}
+        />,
+        <PanelField
+            key="high"
+            label="Highest percentile"
+            kind="number"
+            width="fill"
+            value={clamp[1]}
+            min={clamp[0]}
+            max={100}
+            onChange={(high) => {
+                patch({ clamp: [clamp[0], Number(high)] });
+            }}
+        />,
+    ];
+}
+
+/**
+ * v2: a ramp's Scale, and for a stepped scale its Steps beside it, on one line (a number's is beside its Operation).
+ * Its reset clears both.
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.binding - the binding
  * @param props.preview - the element's preview of it
  * @param props.patch - writes a change
- * @returns The lines
+ * @returns The line
  */
-function RampRare({ session, binding, preview, patch }: Readonly<PartProps>): React.JSX.Element {
+function RampScale({ session, binding, preview, patch }: Readonly<PartProps>): React.JSX.Element {
+    const scale = binding.scale ?? preview.scale;
+    const stepped = scale === "bins" || scale === "quantile";
     return (
-        <Pair>
-            <PanelLabelsProvider showLabels>
-                <FieldRow
-                    trailing={
-                        binding.scale !== undefined && (
-                            <ResetButton
-                                label="Scale"
-                                onClick={() => {
-                                    patch({ scale: undefined });
-                                }}
-                            />
-                        )
-                    }
-                >
-                    <PanelField
-                        label="Scale"
-                        kind="select"
-                        width="fill"
-                        // Unset, it shows the scale in force.
-                        data={numericScales(session)}
-                        value={binding.scale ?? preview.scale}
-                        onChange={(next) => {
-                            patch({ scale: String(next), palette: binding.palette });
-                        }}
-                    />
-                </FieldRow>
-            </PanelLabelsProvider>
-            <Clamp binding={binding} patch={patch} checkbox />
-        </Pair>
+        <PanelLabelsProvider showLabels>
+            <FieldRow
+                trailing={
+                    (binding.scale !== undefined || binding.bins !== undefined) && (
+                        <ResetButton
+                            label="Scale"
+                            onClick={() => {
+                                patch({ scale: undefined, bins: undefined });
+                            }}
+                        />
+                    )
+                }
+            >
+                <PanelField
+                    label="Scale"
+                    kind="select"
+                    width="fill"
+                    // Unset, it shows the scale in force.
+                    data={numericScales(session)}
+                    value={scale}
+                    onChange={(next) => {
+                        patch({ scale: String(next), palette: binding.palette });
+                    }}
+                />
+                {stepped ? stepsField(binding, preview, patch) : null}
+            </FieldRow>
+        </PanelLabelsProvider>
+    );
+}
+
+/**
+ * v2: Clamp outliers on one line with what it brings: its two percentiles once on, or Fit to the data once the
+ * ramp's extent is set by hand (a clamp and a hand-set extent exclude each other), so the link dialog never grows a
+ * line for them (owner's input rules: at most 6 components tall).
+ * @param props - Component props
+ * @param props.binding - the binding
+ * @param props.patch - writes a change
+ * @returns The line
+ */
+function ClampLine({
+    binding,
+    patch,
+}: Readonly<{ binding: DataBinding; patch: (change: Partial<DataBinding>) => void }>): React.JSX.Element {
+    const { clamp, domain } = binding;
+    return (
+        <Group gap={8} wrap="nowrap" align="flex-end" data-clamp-line="">
+            {clampToggle(clamp, patch, "checkbox")}
+            {clamp === undefined ? null : (
+                <PanelLabelsProvider showLabels>
+                    <FieldRow groupLabel="Clamp at percentiles" style={{ flex: "1 1 auto", minWidth: 0 }}>
+                        {percentileFields(clamp, patch)}
+                    </FieldRow>
+                </PanelLabelsProvider>
+            )}
+            {domain === undefined || domain === "auto" ? null : <FitToData patch={patch} />}
+        </Group>
+    );
+}
+
+/**
+ * Fit to the data: takes back an extent set by hand on the ramp.
+ * @param props - Component props
+ * @param props.patch - writes a change
+ * @returns The button
+ */
+function FitToData({ patch }: Readonly<{ patch: (change: Partial<DataBinding>) => void }>): React.JSX.Element {
+    return (
+        <Button
+            size="compact-xs"
+            variant="subtle"
+            onClick={() => {
+                patch({ domain: undefined });
+            }}
+        >
+            Fit to the data
+        </Button>
     );
 }
 
@@ -959,7 +1134,7 @@ function Ramp({
     const domain = preview.domain ?? [0, 0];
     const scale = binding.scale ?? preview.scale;
     const scales = numericScales(session);
-    // v2: Scale and Clamp outliers are on a line of their own (RampRare).
+    // v2: Scale and Clamp outliers are on lines of their own (RampScale, ClampLine).
     const v2 = stylePanelV2On(session);
     const palettes = session.catalog.palettes().filter((p) => p.kind !== "categorical");
     const shownPalette = session.styles.legendOf(layerId).find((block) => block.channel === descriptor.channel)
@@ -1051,17 +1226,8 @@ function Ramp({
                       }
                     : {})}
             />
-            {binding.domain !== undefined && binding.domain !== "auto" ? (
-                <Button
-                    size="compact-xs"
-                    variant="subtle"
-                    onClick={() => {
-                        patch({ domain: undefined });
-                    }}
-                >
-                    Fit to the data
-                </Button>
-            ) : null}
+            {/* v2: Fit to the data and Steps are on the Clamp outliers and Scale lines (ClampLine, RampScale). */}
+            {!v2 && binding.domain !== undefined && binding.domain !== "auto" ? <FitToData patch={patch} /> : null}
             {v2 ? null : <Clamp binding={binding} patch={patch} />}
             {perValue ? (
                 <QuietButton
@@ -1081,7 +1247,7 @@ function Ramp({
                     One color per value
                 </QuietButton>
             ) : null}
-            {scale === "bins" || scale === "quantile" ? (
+            {!v2 && (scale === "bins" || scale === "quantile") ? (
                 <PanelLabelsProvider showLabels>
                     <FieldRow
                         trailing={
@@ -1095,18 +1261,7 @@ function Ramp({
                             )
                         }
                     >
-                        <PanelField
-                            label="Steps"
-                            kind="number"
-                            width="fill"
-                            value={binding.bins ?? preview.stepCounts.length}
-                            min={2}
-                            max={12}
-                            decimalScale={0}
-                            onChange={(bins) => {
-                                patch({ bins: Number(bins) });
-                            }}
-                        />
+                        {stepsField(binding, preview, patch)}
                     </FieldRow>
                 </PanelLabelsProvider>
             ) : null}
@@ -1157,62 +1312,26 @@ function Ramp({
  * @param props - Component props
  * @param props.binding - the binding
  * @param props.patch - writes a change
- * @param props.checkbox - draws the switch as a checkbox (Style panel v2)
  * @returns The control
  */
 function Clamp({
     binding,
     patch,
-    checkbox = false,
 }: Readonly<{
     binding: DataBinding;
     patch: (change: Partial<DataBinding>) => void;
-    /** Style panel v2: a boolean is a checkbox (design 6, R7). */
-    checkbox?: boolean;
 }>): React.JSX.Element {
     const { clamp } = binding;
     return (
         <Stack gap={4}>
-            <ToggleRow
-                label="Clamp outliers"
-                control={checkbox ? "checkbox" : "switch"}
-                checked={clamp !== undefined}
-                onChange={(on) => {
-                    patch(on ? { clamp: [2, 98], domain: undefined } : { clamp: undefined });
-                }}
-            />
+            {clampToggle(clamp, patch, "switch")}
             {clamp === undefined ? null : (
                 <Group grow gap={8} role="group" aria-label="Clamp at percentiles">
-                    <PanelLabelsProvider showLabels>
-                        <FieldRow>
-                            <PanelField
-                                label="Lowest percentile"
-                                kind="number"
-                                width="fill"
-                                value={clamp[0]}
-                                min={0}
-                                max={clamp[1]}
-                                onChange={(low) => {
-                                    patch({ clamp: [Number(low), clamp[1]] });
-                                }}
-                            />
-                        </FieldRow>
-                    </PanelLabelsProvider>
-                    <PanelLabelsProvider showLabels>
-                        <FieldRow>
-                            <PanelField
-                                label="Highest percentile"
-                                kind="number"
-                                width="fill"
-                                value={clamp[1]}
-                                min={clamp[0]}
-                                max={100}
-                                onChange={(high) => {
-                                    patch({ clamp: [clamp[0], Number(high)] });
-                                }}
-                            />
-                        </FieldRow>
-                    </PanelLabelsProvider>
+                    {percentileFields(clamp, patch).map((field) => (
+                        <PanelLabelsProvider key={field.key} showLabels>
+                            <FieldRow>{field}</FieldRow>
+                        </PanelLabelsProvider>
+                    ))}
                 </Group>
             )}
         </Stack>
@@ -1322,16 +1441,20 @@ function QuietButton({
  * @param props.descriptor - the bound property
  * @param props.range - the binding's range, if it has one
  * @param props.patch - writes a change
+ * @param props.captions - Style panel v2: the names are compact-mantine's captions above the boxes
  * @returns The two fields
  */
 function Range({
     descriptor,
     range,
     patch,
+    captions = false,
 }: Readonly<{
     descriptor: ChannelDescriptor;
     range: DataBinding["range"];
     patch: (change: Partial<DataBinding>) => void;
+    /** Style panel v2: the names are compact-mantine's captions above the boxes. */
+    captions?: boolean;
 }>): React.JSX.Element {
     const [draft, setDraft] = useState<readonly [number | undefined, number | undefined]>(
         range ?? [undefined, undefined],
@@ -1345,30 +1468,43 @@ function Range({
             patch({ range: [low, high] });
         }
     };
+    const labels = [`${channelWord(descriptor.channel)} from`, `${channelWord(descriptor.channel)} to`] as const;
+    const box = (label: string, index: 0 | 1): React.JSX.Element => (
+        <ComboInput
+            label={label}
+            numeric
+            variant="outlined"
+            options={[]}
+            placeholder="Not set"
+            value={draft[index]}
+            min={descriptor.min}
+            max={descriptor.max}
+            onChange={(value) => {
+                set(index, value);
+            }}
+        />
+    );
+    if (captions) {
+        // v2: compact-mantine's captions above the pair (owner, 2026-11-24: names above, never the app's own).
+        return (
+            <PanelLabelsProvider showLabels>
+                <FieldRow groupLabel="Range">
+                    {box(labels[0], 0)}
+                    {box(labels[1], 1)}
+                </FieldRow>
+            </PanelLabelsProvider>
+        );
+    }
     return (
         <Group grow gap={8} role="group" aria-label="Range">
             {/* Named for what it sets: "Size from", "Size to", never "Paints" on a size. */}
-            {[`${channelWord(descriptor.channel)} from`, `${channelWord(descriptor.channel)} to`].map(
-                (label, index) => (
-                    // A visible label over each box, as the ramp's "Values from" and "Values to" have.
-                    <label key={label} style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
-                        <span className="cm-field-label">{label}</span>
-                        <ComboInput
-                            label={label}
-                            numeric
-                            variant="outlined"
-                            options={[]}
-                            placeholder="Not set"
-                            value={draft[index]}
-                            min={descriptor.min}
-                            max={descriptor.max}
-                            onChange={(value) => {
-                                set(index === 0 ? 0 : 1, value);
-                            }}
-                        />
-                    </label>
-                ),
-            )}
+            {labels.map((label, index) => (
+                // A visible label over each box, as the ramp's "Values from" and "Values to" have.
+                <label key={label} style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+                    <span className="cm-field-label">{label}</span>
+                    {box(label, index === 0 ? 0 : 1)}
+                </label>
+            ))}
         </Group>
     );
 }
@@ -1381,6 +1517,7 @@ function Range({
  * @param props.missing - the binding's `missing`
  * @param props.patch - writes a change
  * @param props.segments - draws the two choices as grouped buttons (Style panel v2)
+ * @param props.beside - Style panel v2: its one value beside its choice on the same line, not under it
  * @returns The control
  */
 function NoValue({
@@ -1389,6 +1526,7 @@ function NoValue({
     missing,
     patch,
     segments,
+    beside = false,
 }: Readonly<{
     session: GraphSession;
     descriptor: ChannelDescriptor;
@@ -1396,6 +1534,8 @@ function NoValue({
     patch: (change: Partial<LayerBinding>) => void;
     /** Style panel v2: two choices are grouped buttons (design "Input rules"). */
     segments: boolean;
+    /** Style panel v2: its one value beside its choice on the same line (so the dialog stays 6 lines tall). */
+    beside?: boolean;
 }>): React.JSX.Element {
     const given = missing === "skip" ? null : missing.value;
     // One value starts where a new line of this property would: the element's default for it.
@@ -1419,19 +1559,25 @@ function NoValue({
         patch({ missing: choice === "value" ? { value: start } : "skip" });
     };
     if (segments) {
+        const choice = (
+            <Captioned>
+                <SegmentsLine
+                    label="No value"
+                    options={[
+                        { value: "skip", name: "Leave as is" },
+                        { value: "value", name: "One value" },
+                    ]}
+                    value={given === null ? "skip" : "value"}
+                    onPick={pick}
+                />
+            </Captioned>
+        );
+        if (beside && field !== null) {
+            return <Pair>{[choice, <Captioned key="value">{field}</Captioned>]}</Pair>;
+        }
         return (
             <Stack gap={4}>
-                <Captioned>
-                    <SegmentsLine
-                        label="No value"
-                        options={[
-                            { value: "skip", name: "Leave as is" },
-                            { value: "value", name: "One value" },
-                        ]}
-                        value={given === null ? "skip" : "value"}
-                        onPick={pick}
-                    />
-                </Captioned>
+                {choice}
                 {field}
             </Stack>
         );

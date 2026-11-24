@@ -1,4 +1,11 @@
-import { ComboInput, CompactColorInput, PanelField, SegmentedControl, useScrub } from "@graphty/compact-mantine";
+import {
+    ComboInput,
+    CompactColorInput,
+    ControlGroup,
+    PanelField,
+    SegmentedControl,
+    useScrub,
+} from "@graphty/compact-mantine";
 import {
     type ShaderClockBinding,
     type ShaderDescriptor,
@@ -14,7 +21,7 @@ import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { type RowContext, VarySlot } from "./PropertyRow";
 import { type DataBinding, sourceName } from "./row";
-import { clockWords, colorName, enumWords, failureWords, SHADER_FACT_WORDS, usesWords } from "./words";
+import { clockWords, colorName, enumWords, failureWords, scrubLetter, SHADER_FACT_WORDS, usesWords } from "./words";
 
 /** One parameter's value: a number, a color or a word, a switch, or a clock binding. */
 type Value = ShaderParamValue;
@@ -104,6 +111,7 @@ function onGrid(option: ShaderParamDescriptor, value: number): number {
  * @param props - Component props
  * @param props.option - the parameter
  * @param props.label - its name
+ * @param props.lettered - Style panel v2: the field's own scrub letter, its name above it
  * @param props.value - the value in force
  * @param props.onCommit - writes a value
  * @param props.children - the label column
@@ -114,12 +122,15 @@ function NumberParam({
     label,
     value,
     onCommit,
+    lettered = false,
     children,
 }: Readonly<{
     option: ShaderParamDescriptor;
     label: string;
     value: number | undefined;
     onCommit: (value: number) => void;
+    /** Style panel v2: the field's own scrub letter, its name above it rather than a scrubbing name beside it. */
+    lettered?: boolean;
     children: (scrub: ReturnType<typeof useScrub>) => React.ReactNode;
 }>): React.JSX.Element {
     const [live, setLive] = useState<number | null>(null);
@@ -156,6 +167,7 @@ function NumberParam({
                     numeric
                     variant="outlined"
                     options={[]}
+                    glyph={lettered ? scrubLetter(label) : undefined}
                     value={live ?? value ?? ""}
                     min={min}
                     max={max}
@@ -357,13 +369,9 @@ function ParamRow({
             )}
         </span>
     );
-    const name = (scrub?: ReturnType<typeof useScrub>): React.ReactNode => (
-        <span className="ws-field-label" data-scrub={scrub === undefined ? undefined : ""} {...scrub}>
-            <span className="ws-field-name" title={label} aria-hidden>
-                {label}
-            </span>
-        </span>
-    );
+    // Style panel v2 draws the name above the line (the built-in field label), never beside it (owner, 2026-11-24).
+    const above = unsetRemoves;
+    const name = (scrub?: ReturnType<typeof useScrub>): React.ReactNode => paramName(above, label, scrub);
     const numeric = (option.type === "number" || option.type === "integer") && option.choices === undefined;
 
     const clock = clockOf(shown);
@@ -398,6 +406,7 @@ function ParamRow({
                 label={label}
                 value={typeof shown === "number" ? shown : undefined}
                 onCommit={write}
+                lettered={above}
             >
                 {(scrub) => name(scrub)}
             </NumberParam>
@@ -415,13 +424,58 @@ function ParamRow({
     }
     return (
         <div className="ws-row" data-option={option.name} data-set={set ? "" : undefined}>
-            <div className="ws-field ws-varies" data-named="">
+            <ParamLine label={label} above={above} swatch={option.type === "color"}>
                 {body}
                 {vary}
                 {minus}
-            </div>
+            </ParamLine>
         </div>
     );
+}
+
+/**
+ * A parameter's name in the label column, where it scrubs a number; none in Style panel v2, which names the line
+ * above it (ParamLine).
+ * @param above - Style panel v2.
+ * @param label - the name.
+ * @param scrub - the scrub handlers, for a number.
+ * @returns the name, or null.
+ */
+function paramName(above: boolean, label: string, scrub: ReturnType<typeof useScrub> | undefined): React.ReactNode {
+    if (above) {
+        return null;
+    }
+    return (
+        <span className="ws-field-label" data-scrub={scrub === undefined ? undefined : ""} {...scrub}>
+            <span className="ws-field-name" title={label} aria-hidden>
+                {label}
+            </span>
+        </span>
+    );
+}
+
+/**
+ * A parameter's line: its name in the label column, or in Style panel v2 compact-mantine's legend above
+ * it, never beside it (owner, 2026-11-24); a color named only "Color" has none, its swatch saying as much.
+ * @param props - Component props
+ * @param props.label - the parameter's name
+ * @param props.above - Style panel v2: the name above the line, not in the label column
+ * @param props.swatch - a color, whose swatch says it is one
+ * @param props.children - the name column, the control, the vary and minus slots
+ * @returns The line
+ */
+function ParamLine({
+    label,
+    above,
+    swatch,
+    children,
+}: Readonly<{ label: string; above: boolean; swatch: boolean; children: React.ReactNode }>): React.JSX.Element {
+    const field = (
+        <div className="ws-field ws-varies" data-named={above ? undefined : ""}>
+            {children}
+        </div>
+    );
+    return !above || (swatch && label === "Color") ? field : <ControlGroup label={label}>{field}</ControlGroup>;
 }
 
 /**

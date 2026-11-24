@@ -461,6 +461,8 @@ Added 2026-11-24:
   the shape, pattern and arrow lists with their section drop-down, the data field picker, the link dialog with its
   color table's swatch picker and "Set properties", and a link dialog opened from a line inside the Advanced
   pop-over.)
+- "Labels for an input must never go to the left of the input. Always use the built-in label that adds a small label
+  above the component" (approved 2026-11-24)
 
 ### How they are applied (decisions)
 
@@ -473,7 +475,8 @@ Added 2026-11-24:
   back buttons. The link dialog opens as a pop-out of its own: from a sidebar line, beside the panel; from a line
   in a pop-over (the Advanced pop-over included), beside that pop-over.
 - **Height.** "Components tall" counts lines from top to bottom with every sub-group shown: two inputs on one
-  line count once, a Kind line and a Combine or operation line count, each list item counts. Over 6, the rarer
+  line count once, a Kind line and a Combine or operation line count, each list item counts. A caption line above an
+  input does not count as a row toward the six-row pop-over limit. Over 6, the rarer
   or optional lines move to the Advanced pop-over. A sub-group's legend holding its "+" (Main's) is a line too;
   the Advanced "..." sits in the header and is no line.
 - **Components.** A single color: `CompactColorInput`. A gradient: compact-mantine `GradientEditor`. A list of
@@ -487,15 +490,21 @@ Added 2026-11-24:
   toggles the weight between the regular and the bold weight; the numeric weight is in the label's advanced
   settings. graphty-element's label style carries underline and strikethrough (an additive API change where
   missing).
-- **Self describing.** A line's name is the small label above its control or the name column beside it; an
-  icon-only control has a hover tooltip naming it. A full-width segment line of words (a size's Unit) and the
-  Kind drop-down are named too, and the link dialog's grouped buttons (Operation, More values than colors, No
-  value) carry their name above them.
+- **Names above, never beside (approved 2026-11-24).** Names go above inputs, never beside them: every input's
+  visible name is a compact-mantine caption (FieldRow label above) or group legend (ControlGroup); app code never
+  draws its own name text next to an input. A full-width line (a control with its link and minus) takes a
+  `ControlGroup` legend over it (the same 9/14 caption), since `FieldRow`'s columns keep the 240 px grid and hold
+  one trailing control, not a link and a minus; a pair takes one name ("W / H"). An input whose
+  icon or affordance describes it gets no name: a color swatch whose name would only be "Color", the B / I / U / S
+  toggles, a checkbox (its own words). A color with a name of its own ("Highlight", "Letter outline") keeps it: a
+  swatch says it is a color, not which. An icon-only control has a hover tooltip naming it.
+- **Self describing.** A full-width segment line of words (a size's Unit) and the Kind drop-down are named too,
+  and the link dialog's grouped buttons (Operation, More values than colors, No value) carry their name above them.
 - **Every input has a value.** An unset input shows its default: the value graphty-element would draw there
   (what the layers beneath draw, else graphty-element's default), in the normal text color. Never an empty
   field, a placeholder-only field, or a segment line with nothing selected. The minus still shows only when the
   layer sets the value.
-- **Slot order.** Every line reads `[name] [control] [link or ...] [-]`: the link or settings button right after
+- **Slot order.** Every line reads `[control] [link or ...] [-]`, its name above it: the link or settings button right after
   its control on the same line, the minus the right-most icon. A list's "+" sits before the minus.
 - **Hover.** The link and settings buttons are hidden until the line is hovered, and also shown while focus is
   within the line, while their own pop-out is open, and always on devices without hover (`(hover: none)`: the
@@ -524,9 +533,12 @@ Added 2026-11-24:
   stripes' band Size and Frame. A Size pop-over's width and height pair is "W / H", so no second "Size" shows
   under its main value. An edge's Animation pop-over holds its Speed line (and its link).
 - **Link dialog.** At most 6 components tall, with no Advanced of its own, so one opened from the Advanced
-  pop-over never needs a fourth level. Two choices that go together share a line. A number: source, Operation,
-  the histogram with its value range, the from / to output, Scale | Clamp outliers, No value. A color: source,
-  palette, the group table, More values than colors | No value. It is 312 wide in v2, so a pair's halves read
+  pop-over never needs a fourth level. Two choices that go together share a line, in every state. A number:
+  source, Operation | Scale (and Steps for a stepped scale), the histogram with its value range, the from / to
+  output, Clamp outliers (with its two percentiles once on, or Fit to the data once the extent is set by hand),
+  No value (with its one value beside it once One value is picked). A color ramp: source, the ramp, Scale,
+  Clamp outliers as above. A color by groups: source, palette, the group table, More values than colors | No
+  value, and its one value under them. It is 312 wide in v2, so a pair's halves read
   whole. A bound value's dialog is the same dialog.
 - **Free text and pictures.** An unset text field holds the words drawn there ("+" for a badge's suffix) as its
   value, or "None" where none are drawn; left so, nothing is written. A picture (a label's image, a node image's

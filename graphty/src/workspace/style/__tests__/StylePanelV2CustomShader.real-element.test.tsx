@@ -25,9 +25,10 @@ const BUILT_IN = "glass-marble";
  * @returns one signature a line.
  */
 function signatures(pop: HTMLElement): string[] {
-    return [...pop.querySelectorAll<HTMLElement>(".ws-field")].flatMap((line) => {
-        const name = line.querySelector(".ws-field-name")?.getAttribute("title");
-        if (name === null || name === undefined || name === "Place") {
+    // Each parameter's line (not the use's Place line), by the parameter it edits.
+    return [...pop.querySelectorAll<HTMLElement>(".ws-row[data-option]")].flatMap((line) => {
+        const name = line.dataset.option;
+        if (name === undefined) {
             return [];
         }
         const fields = [...line.querySelectorAll("input")].map((input) =>

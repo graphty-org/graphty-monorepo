@@ -98,7 +98,7 @@ describe("Style panel v2: options that would change nothing", () => {
         assert.isTrue(graph.checked, "Graph, the default, is the unit shown");
         // Words alone say nothing of what they choose: the line's name is shown above them (owner's input rules).
         assert.strictEqual(
-            pop.querySelector('[data-line="node.sizeSpace"] .ws-field-name')?.textContent,
+            pop.querySelector('[data-line="node.sizeSpace"] .cm-legend-text')?.textContent,
             "Unit",
             "Graph | Pivot | Screen is named",
         );
@@ -155,7 +155,7 @@ describe("Style panel v2: options that would change nothing", () => {
             ] as const) {
                 const row = effects.querySelector(`[data-thing="${thing}"]`);
                 assert.isNotNull(row, thing);
-                assert.strictEqual(row?.querySelector(".ws-field-name")?.textContent, name);
+                assert.strictEqual(row?.querySelector(".cm-legend-text")?.textContent, name);
             }
         });
     });

@@ -3835,6 +3835,14 @@ export class LayoutManager implements Manager {
         // whatever part of the graph has arrived -- the nodes without their edges, when the edges
         // come in a later pass -- and start the pre-steps from a different arrangement: the same
         // data and seed then settled somewhere else than when the layout was built over it.
+        // Batched: a row drawn with no `Node` reaches a static engine only through the freeze, which
+        // marks it stale; with no freeze here the engine published its old answer and the add's
+        // placement -- and a refusal of it, such as bfs over a disconnected graph -- fell to a later
+        // frame, after the awaited add had resolved. Objects told it by `addNode` and keeps master's path.
+        if (this.dataManager.renderLimits?.batched() === true) {
+            wholeGraph(this.dataManager);
+        }
+
         try {
             if (!this.preStepsOwed) {
                 this.layoutEngine.updatePositions(nodes);

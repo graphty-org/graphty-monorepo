@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 /**
  * test-select.mjs -- which tests a change needs, decided from the change alone (design/ci/fast-pipeline.md,
- * section 5). It is ADVISORY: nothing runs fewer tests because of it. tools/test-select-replay.mjs replays
- * past changes to count the failures it would have missed (design/ci/test-selection-replay.md).
+ * section 5). It is ADVISORY: nothing runs fewer tests because of it.
  *
  * For each test shard of tools/ci-test-matrix.mjs it answers "all", "none" or a list of test files, with
  * the reasons. The same change always gives the same answer.

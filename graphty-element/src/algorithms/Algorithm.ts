@@ -26,6 +26,7 @@ import {
     orientationOf,
     runInputOf,
     runScopeOf,
+    runSignalOf,
     type ScopedInputOptions,
     type ScopeInputDeclaration,
 } from "./input/ScopedInput";
@@ -704,7 +705,10 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
                 // The CPU port, through the SAME dispatcher: one call site, one result shape, one
                 // loop in the adapter above. Over a large graph its listed members compute in a
                 // Worker the element owns, so the page keeps drawing (see offThread.ts).
-                return { value: await fn(cpuDispatcher(snapshot), snapshot), precision: CPU_PRECISION };
+                return {
+                    value: await fn(cpuDispatcher(snapshot, runSignalOf(this)), snapshot),
+                    precision: CPU_PRECISION,
+                };
             },
         };
     }

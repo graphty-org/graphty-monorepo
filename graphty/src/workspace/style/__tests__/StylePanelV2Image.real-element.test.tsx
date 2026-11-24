@@ -3,6 +3,7 @@
  * clicks: Image's settings hold "Wrap around shape"; off, the picture is placed on the node (`node.image`), on, it
  * wraps over the 3D surface (`node.texture`) and the placing settings are dimmed, from graphty-element's own
  * `drawnWhen`; the picture on the canvas changes each way. Fill's Kind select lists no Picture.
+ * A label's image is the same Picture field and pop-over, and graphty-element draws the picked picture.
  * Wrap around shape needs the node-models experiment (`node.texture` is its channel): review it at
  * ?features=file-styles,style-panel-v2,node-models.
  */
@@ -140,7 +141,7 @@ describe("Style panel v2's Image wraps around the shape", () => {
             assert.strictEqual(written(session, nodes, "node.image"), asset, "off again: placed");
             assert.isUndefined(written(session, nodes, "node.texture"));
         });
-        // Escape closes the Advanced dialog, then the pop-over.
+        // Escape goes back from the Advanced view, then closes the pop-over.
         await userEvent.keyboard("{Escape}");
         await userEvent.keyboard("{Escape}");
 
@@ -151,5 +152,36 @@ describe("Style panel v2's Image wraps around the shape", () => {
             .map((item) => item.textContent.trim());
         assert.deepEqual(members, ["Solid", "Gradient"]);
         await userEvent.keyboard("{Escape}");
+    });
+
+    it("a label's image is picked from the Picture pop-over, reads None before, and is drawn", async () => {
+        const { session, element, nodes } = await openGraph();
+        await session.styles.update(nodes, { set: { ...session.styles.get(nodes)?.set, "node.label": "Hi" } });
+        await session.styles.settled();
+        await switchView("2D");
+        const tab = await openStyle("Key people");
+        const row = await rowOf(sectionOf(tab, "node-text"), "label");
+        const pop = await openSettings(row, "Node label settings");
+        const advanced = await openAdvanced(pop);
+        const field = await waitFor(() => {
+            const found = advanced.querySelector<HTMLInputElement>('[data-line="node.labelStyle.image"] input');
+            assert.isNotNull(found, "the Label image field");
+            return found;
+        });
+        assert.equal(field.value, "None", "no picture reads None");
+        const before = await picture(element);
+        await userEvent.click(field);
+        const dialog = await screen.findByRole("dialog", { name: "Picture" });
+        const file = new File([await (await fetch(colormapUrl)).arrayBuffer()], "colormap.png");
+        await choose(dialog, "Choose picture", [file]);
+        await waitFor(() => {
+            const style = written(session, nodes, "node.labelStyle") as { image?: string } | undefined;
+            assert.match(String(style?.image), /^asset:/, "the label's image names the picked picture");
+        });
+        await session.styles.settled();
+        // graphty-element loads an image asset named by a label from its bytes.
+        await waitFor(async () => {
+            assert.isAbove(pixelsApart(before, await picture(element)), 0, "the label draws its picture");
+        });
     });
 });

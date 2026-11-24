@@ -317,12 +317,17 @@ export async function kindOf(row: HTMLElement, title: string | RegExp): Promise<
 }
 
 /**
- * Opens a pop-over's Advanced dialog (its rare settings, the second and last pop-out level), as a reader does.
+ * Opens a pop-over's Advanced view (its rare settings, drilled into the pop-over in place), as a reader does; an
+ * Advanced view already open is returned as it is (its Advanced line is then hidden under it).
  * @param pop - the pop-over.
- * @returns the dialog.
+ * @returns the view.
  */
 export async function openAdvanced(pop: HTMLElement): Promise<HTMLElement> {
-    const button = await within(pop).findByRole("button", { name: / advanced settings$/ });
+    const button = await waitFor(() => {
+        const found = pop.querySelector<HTMLElement>('button[aria-label$=" advanced settings"]');
+        assert.isNotNull(found, "the Advanced line");
+        return found;
+    });
     if (button.getAttribute("aria-expanded") !== "true") {
         await userEvent.click(button);
     }

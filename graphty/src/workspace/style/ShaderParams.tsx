@@ -57,6 +57,8 @@ interface ShaderParamsProps {
      * design "Input rules": every input has a value).
      */
     readonly unsetRemoves?: boolean;
+    /** The parameters drawn, by id, in the catalog's order; every one when left out. */
+    readonly only?: readonly string[];
 }
 
 /** How far a whole bounded range is scrubbed across, in CSS pixels. */
@@ -615,6 +617,7 @@ function FactRow({
  * @param props.onUnbind - stops one varying
  * @param props.facts - whether its Uses and Cost lines are drawn
  * @param props.unsetRemoves - a set parameter's minus reads Remove, not Reset
+ * @param props.only - the parameters drawn; every one when left out
  * @returns The rows
  */
 export function ShaderParams({
@@ -627,6 +630,7 @@ export function ShaderParams({
     onUnbind,
     facts = true,
     unsetRemoves = false,
+    only,
 }: Readonly<ShaderParamsProps>): React.JSX.Element {
     const box = useRef<HTMLDivElement>(null);
     // The pop-out puts focus on the field marked to take it: the first parameter's.
@@ -635,20 +639,22 @@ export function ShaderParams({
     }, []);
     return (
         <div ref={box} className="ws-shader-params" data-shader={descriptor.id}>
-            {descriptor.params.map((option) => (
-                <ParamRow
-                    key={option.name}
-                    ctx={ctx}
-                    channel={channel}
-                    descriptor={descriptor}
-                    option={option}
-                    value={values[option.name]}
-                    binding={bindings[option.name]}
-                    onChange={onChange}
-                    onUnbind={onUnbind}
-                    unsetRemoves={unsetRemoves}
-                />
-            ))}
+            {descriptor.params
+                .filter((option) => only === undefined || only.includes(option.name))
+                .map((option) => (
+                    <ParamRow
+                        key={option.name}
+                        ctx={ctx}
+                        channel={channel}
+                        descriptor={descriptor}
+                        option={option}
+                        value={values[option.name]}
+                        binding={bindings[option.name]}
+                        onChange={onChange}
+                        onUnbind={onUnbind}
+                        unsetRemoves={unsetRemoves}
+                    />
+                ))}
             {facts && (
                 <>
                     <FactRow label="Uses" testId="shader-uses">

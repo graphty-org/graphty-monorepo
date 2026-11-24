@@ -49,7 +49,7 @@ import {
 } from "./rubric";
 import { LineFrame, type RowSlots, RubricLine } from "./RubricLine";
 import { RowSettings } from "./ThingLine";
-import { FirstLines, ThingPopover } from "./ThingPopover";
+import { type ExtraGroup, FirstLines, ThingPopover } from "./ThingPopover";
 import { mainOf, setOn, type ThingSpec } from "./things";
 import { ValueButton } from "./ValueButton";
 
@@ -59,9 +59,14 @@ import { ValueButton } from "./ValueButton";
  * @param props - Component props
  * @param props.ctx - the row
  * @param props.entry - the use
+ * @param props.only - the parameters drawn; every one when left out
  * @returns The parameters, or nothing for a shader the catalog does not know
  */
-export function UseParams({ ctx, entry }: Readonly<{ ctx: RowContext; entry: ShaderEntry }>): React.JSX.Element | null {
+export function UseParams({
+    ctx,
+    entry,
+    only,
+}: Readonly<{ ctx: RowContext; entry: ShaderEntry; only?: readonly string[] }>): React.JSX.Element | null {
     const { store } = useWorkspace();
     if (entry.descriptor === undefined) {
         return null;
@@ -80,6 +85,7 @@ export function UseParams({ ctx, entry }: Readonly<{ ctx: RowContext; entry: Sha
             bindings={bindingsOf(ctx, entry)}
             facts={false}
             unsetRemoves
+            only={only}
             onChange={(param, value) => {
                 writeParam(ctx, entry, param, value).catch(fail);
             }}
@@ -91,14 +97,53 @@ export function UseParams({ ctx, entry }: Readonly<{ ctx: RowContext; entry: Sha
 }
 
 /**
- * The parameters of the shader drawn in the shapes' place, in the Shape pop-over's Main (design 7.1).
- * @param props - Component props
- * @param props.ctx - the row
- * @returns The parameters, or nothing when no shader draws there
+ * How many of the shapes'-place shader's parameters the Shape pop-over's main lines hold: under its tab strip, Shape
+ * and Rotation lines, so the pop-over stays 6 rows tall (owner's input rules).
  */
-function ReplaceParams({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.Element | null {
+const REPLACE_MAIN_PARAMS = 3;
+
+/** The most lines a group pop-over holds (owner's input rules). */
+const GROUP_LINES = 6;
+
+/**
+ * The parameters of the shader drawn in the shapes' place (design 7.1): the first few in the Shape pop-over's main
+ * lines, the rest in groups of its "..." menu, at most 6 each; a single one left over stays in the main lines, as a
+ * group of one line joins them (owner's input rules, 2026-11-24).
+ * @param ctx - the row.
+ * @param replacing - the shader use drawn in the shapes' place, if any.
+ * @returns the main lines, and the groups; nothing with no shader there.
+ */
+function replaceParams(
+    ctx: RowContext,
+    replacing: unknown,
+): { main: React.ReactNode; groups: readonly ExtraGroup[] } | undefined {
+    if (replacing === undefined) {
+        return undefined;
+    }
     const entry = shaderEntries(ctx).find((each) => placeOf(each) === "replace");
-    return entry === undefined ? null : <UseParams ctx={ctx} entry={entry} />;
+    const names = entry?.descriptor?.params.map((param) => param.name) ?? [];
+    if (entry === undefined) {
+        return { main: undefined, groups: [] };
+    }
+    const kept = names.length - REPLACE_MAIN_PARAMS === 1 ? names.length : REPLACE_MAIN_PARAMS;
+    const rest = names.slice(kept);
+    const values = paramsOf(entry);
+    const groups: ExtraGroup[] = [];
+    for (let at = 0; at < rest.length; at += GROUP_LINES) {
+        const only = rest.slice(at, at + GROUP_LINES);
+        groups.push({
+            name: at === 0 ? "More parameters" : `More parameters ${String(at / GROUP_LINES + 1)}`,
+            node: <UseParams ctx={ctx} entry={entry} only={only} />,
+            set: only.some((name) => name in values),
+            // One parameter at a time: each write reads the use the one before it left.
+            unset: () =>
+                only.reduce<Promise<void>>(
+                    (done, name) => done.then(() => writeParam(ctx, entry, name, undefined)),
+                    Promise.resolve(),
+                ),
+        });
+    }
+    return { main: <UseParams ctx={ctx} entry={entry} only={names.slice(0, kept)} />, groups };
 }
 
 /**
@@ -180,6 +225,21 @@ function setLinesOf(
             return true;
         },
     );
+}
+
+/**
+ * The pop-over's first main line, the row's main value's: none where a list (strands, stripes, a record's fields)
+ * edits it, as the list is its one editor (owner, 2026-11-24).
+ * @param rubric - the thing's rubric.
+ * @param main - the row's main channel.
+ * @param listed - whether the pop-over draws a list of it.
+ * @returns the line, if any.
+ */
+function popoverHead(rubric: ThingRubric, main: Channel, listed: boolean): LineSpec | undefined {
+    if (rubric.row !== undefined) {
+        return rubric.row;
+    }
+    return listed ? undefined : { channel: main };
 }
 
 /** What a thing row's main line is drawn from: see `MainLine`. */
@@ -450,6 +510,7 @@ export function ThingRow({
     // A shader drawn in the shapes' place is the Shape row's member (design 5): its row names it.
     const replacing = thing.id === "shape" ? replaceUse(ctx) : undefined;
     const rubric = rubricFor(ctx, thing.id, main.channel, replacing !== undefined);
+    const params = replaceParams(ctx, replacing);
     const covered = new Set(rubric === undefined ? [] : rubricChannels(rubric));
     // Every channel the minus takes off: the thing's own and every line of its rubric.
     const all = [...new Set([...channels, ...covered])];
@@ -489,8 +550,9 @@ export function ThingRow({
                             <FirstLines ctx={ctx} main={main} />
                         </>
                     }
-                    head={rubric.row ?? { channel: main.channel }}
-                    extra={replacing === undefined ? undefined : <ReplaceParams ctx={ctx} />}
+                    head={popoverHead(rubric, main.channel, popoverList !== undefined)}
+                    extra={params?.main}
+                    moreGroups={params?.groups}
                     after={popoverList}
                 />
             )}

@@ -19,6 +19,16 @@ import { lineChannels, type LineSpec, rubricChannels, type SubGroup, type ThingR
 import { LineFrame, RubricLine, SegmentsLine } from "./RubricLine";
 import { setOn } from "./things";
 
+/** A group of the "..." menu whose lines are not rubric lines (a shader's parameters): drawn as given. */
+export interface ExtraGroup extends MenuGroup {
+    /** Its lines. */
+    readonly node: React.ReactNode;
+    /** Whether the layer sets one of them. */
+    readonly set: boolean;
+    /** Takes them off the layer. */
+    readonly unset: () => Promise<void>;
+}
+
 /** Props for PopoverShell. */
 interface PopoverShellProps<G extends MenuGroup> {
     readonly ctx: RowContext;
@@ -97,6 +107,7 @@ export function PopoverShell<G extends MenuGroup>({
  * @param props.extra - more lines at the end of Main
  * @param props.after - a sub-group always shown after Main (a list thing's list)
  * @param props.head - the row's main value's line, Main's first
+ * @param props.moreGroups - groups after the rubric's, drawn as given (a shader's parameters)
  * @returns The contents
  */
 export function ThingPopover({
@@ -107,6 +118,7 @@ export function ThingPopover({
     extra,
     after,
     head,
+    moreGroups = [],
 }: Readonly<{
     ctx: RowContext;
     rubric: ThingRubric;
@@ -115,6 +127,7 @@ export function ThingPopover({
     extra?: React.ReactNode;
     after?: React.ReactNode;
     head?: LineSpec;
+    moreGroups?: readonly ExtraGroup[];
 }>): React.JSX.Element {
     const { store } = useWorkspace();
     // Main starts with the row's main value, which binds from its by-data link like every line (design 2.6).
@@ -135,19 +148,25 @@ export function ThingPopover({
             // A condition on the line's own other value (a pair's second number) never hides it.
             own.filter((channel) => !lineChannels(line).includes(channel)),
         ) || lineChannels(line).some((channel) => setOn(ctx, channel));
-    const groups = rubric.groups ?? [];
-    const onUnset = (group: SubGroup): void => {
-        unsetIn(
-            ctx,
-            group.lines.flatMap((line) => lineChannels(line)),
-        ).catch((error: unknown) => {
+    const groups: readonly (SubGroup | ExtraGroup)[] = [...(rubric.groups ?? []), ...moreGroups];
+    const onUnset = (group: SubGroup | ExtraGroup): void => {
+        const done =
+            "node" in group
+                ? group.unset()
+                : unsetIn(
+                      ctx,
+                      group.lines.flatMap((line) => lineChannels(line)),
+                  );
+        done.catch((error: unknown) => {
             store.set({ notice: { message: failureWords(group.name, "removed", error), error: true } });
         });
     };
-    const linesOf = (group: SubGroup): React.ReactNode =>
-        group.lines
-            .filter((line) => shown(line))
-            .map((line) => <RubricLine key={`${group.name}-${line.channel}`} ctx={ctx} line={line} />);
+    const linesOf = (group: SubGroup | ExtraGroup): React.ReactNode =>
+        "node" in group
+            ? group.node
+            : group.lines
+                  .filter((line) => shown(line))
+                  .map((line) => <RubricLine key={`${group.name}-${line.channel}`} ctx={ctx} line={line} />);
     return (
         <PopoverShell
             ctx={ctx}
@@ -164,7 +183,7 @@ export function ThingPopover({
             extra={extra}
             after={after}
             groups={groups}
-            isSet={(group) => groupSet(ctx, group)}
+            isSet={(group) => ("node" in group ? group.set : groupSet(ctx, group))}
             onUnset={onUnset}
             // The row's common lines lead the main lines: under the row only once set, here always (design 2.5).
             main={mainLines

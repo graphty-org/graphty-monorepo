@@ -1,6 +1,6 @@
 /**
  * @file The `style` section codec, version 2: style layers, palettes, shaders, the style tree, value labels and the assets the layers draw (spec 4.2).
- * Experimental (`save-files-v2`).
+ *
  *
  * A section that opens and is saved again unchanged is written back exactly as read: the codec
  * remembers, per session, each layer as the file held it beside the form the session gave it, and
@@ -20,6 +20,7 @@ import type {
 import { isGraphtyError } from "../../../errors/GraphtyError";
 import { assetsMember, restoreAssets, withAcceptedAssetIds } from "../../assets/projectMember";
 import { dispatcherOf } from "../../dispatchers";
+import type { ProjectSaveOptions } from "../../projectFile";
 import { channelDescriptor, isEnumCount } from "../../styles/channels";
 import { quotePath, renamePaths, renameRunInPath } from "../../styles/predicate";
 import type { GraphSession } from "../../types";
@@ -515,9 +516,15 @@ function palettesFor(
  * @param session - The session.
  * @param problems - Where to report the layers left out.
  * @param toView - Whether the same save writes the view section, which carries those layers.
+ * @param assets - How the save keeps each model or picture, as `project.save` takes it.
  * @returns What the codec writes.
  */
-function compose(session: GraphSession, problems: DocumentProblem[], toView = false): SectionWrite {
+function compose(
+    session: GraphSession,
+    problems: DocumentProblem[],
+    toView = false,
+    assets: ProjectSaveOptions["assets"] = {},
+): SectionWrite {
     const memory = memoryOf(session);
     const document = withAcceptedAssetIds(session, session.styles.toDocument());
     const ids = session.styles
@@ -589,14 +596,14 @@ function compose(session: GraphSession, problems: DocumentProblem[], toView = fa
         const { path, value } = valueLabelOf(key);
         return { path: renameRunInPath(path, runName), value, label };
     });
-    const assets = assetsMember(session).member?.assets as JsonObject[] | undefined;
+    const kept = assetsMember(session, assets).member?.assets as JsonObject[] | undefined;
     const body: JsonObject = {
         ...(palettes.length === 0 ? {} : { palettes }),
         ...(document.shaders === undefined ? {} : { shaders: document.shaders.map(({ id, text }) => ({ id, text })) }),
         layers,
         ...(tree === undefined ? {} : { tree }),
         ...(valueLabels.length === 0 ? {} : { valueLabels }),
-        ...(assets === undefined ? {} : { assets }),
+        ...(kept === undefined ? {} : { assets: kept }),
     };
 
     if (memory.body?.baseline === JSON.stringify(body)) {
@@ -1260,7 +1267,9 @@ export const styleCodec: SectionCodec = {
     bound: false,
     members: ["palettes", "shaders", "layers", "tree", "valueLabels", "assets"],
     write(context: WriteContext) {
-        return Promise.resolve(compose(context.session, context.problems, context.sections.has("view")));
+        return Promise.resolve(
+            compose(context.session, context.problems, context.sections.has("view"), context.assets),
+        );
     },
     read,
 };

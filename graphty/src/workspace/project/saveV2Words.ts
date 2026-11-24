@@ -1,5 +1,5 @@
 /**
- * The words of the version 2 save and open dialogs (the "save-files-v2" experiment): section
+ * The words of the version 2 save and open dialogs: section
  * names, the save presets, one line per section from graphty-element's counts, and a report line
  * per code graphty-element reports. graphty-element hands back counts and codes; the words, the
  * presets and their order are the app's.

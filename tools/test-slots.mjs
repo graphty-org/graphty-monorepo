@@ -202,15 +202,36 @@ export function workerShare(env = process.env, cores = cpus().length, usable = a
 }
 
 /**
- * This run's own Vite cache directory when GRAPHTY_TEST_SHARD names it as one of several shards of one
- * package run side by side in one checkout (no tool in this repository sets it today). Sharing one cache, every shard that finds it stale re-optimizes it at once
- * and deletes the chunks the others are loading (issue #3319). Set it as a vitest config's
- * `cacheDir`, at the root and on every inline project that does not extend the root.
+ * This run's own Vite cache directory, so runs side by side in one checkout never share one. Every
+ * browser config sets `optimizeDeps.force`, so each run deletes and re-bundles its dependencies when it
+ * starts; in one shared directory a second run starting deleted the chunks the first was still loading,
+ * and the first run's next test file failed with "Failed to fetch dynamically imported module"
+ * (issues #3319, #9956). With GRAPHTY_TEST_SHARD set it is that shard's directory; otherwise it is this
+ * process's, and the directories of runs no longer alive are removed here (not on exit: vitest already
+ * holds ten exit listeners, and an eleventh prints a MaxListenersExceededWarning). `force` re-bundles every run anyway, so a directory of its own costs nothing. Set it as a vitest
+ * config's `cacheDir`, at the root and on every inline project that does not extend the root.
  * @param env the environment (GRAPHTY_TEST_SHARD)
- * @returns node_modules/.vite/shard-<shard>, or undefined (Vite's own default) when GRAPHTY_TEST_SHARD is unset
+ * @param pid this run's process
+ * @returns node_modules/.vite/shard-<shard>, or the absolute path of node_modules/.vite/run-<pid>
  */
-export function shardCacheDir(env = process.env) {
-    return env.GRAPHTY_TEST_SHARD ? `node_modules/.vite/shard-${env.GRAPHTY_TEST_SHARD}` : undefined;
+export function shardCacheDir(env = process.env, pid = process.pid) {
+    if (env.GRAPHTY_TEST_SHARD) {
+        return `node_modules/.vite/shard-${env.GRAPHTY_TEST_SHARD}`;
+    }
+    const parent = join(process.cwd(), "node_modules/.vite");
+    let names = [];
+    try {
+        names = readdirSync(parent);
+    } catch {
+        // No cache yet.
+    }
+    for (const name of names) {
+        const owner = /^run-(\d+)$/.exec(name)?.[1];
+        if (owner !== undefined && !alive({ pid: Number(owner), start: null })) {
+            rmSync(join(parent, name), { recursive: true, force: true });
+        }
+    }
+    return join(parent, `run-${pid}`);
 }
 
 /**

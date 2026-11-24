@@ -156,6 +156,8 @@ const CODES_FROM_THE_DESIGN = [
     "E_SHADER_REFUSED",
     // an immersive session the browser or headset would not start (issue #7236)
     "E_XR_SESSION_FAILED",
+    // a step of an immersive session's frame threw; the session keeps drawing (issue #9919)
+    "E_XR_FRAME_FAILED",
     "E_MISSING_PACKAGE",
     "E_UNSUPPORTED",
     "E_READONLY",
@@ -253,6 +255,7 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_NO_WEBGL":
         case "E_SHADER_REFUSED":
         case "E_XR_SESSION_FAILED":
+        case "E_XR_FRAME_FAILED":
         case "E_MISSING_PACKAGE":
             return "hardware";
         case "E_UNSUPPORTED":

@@ -1,7 +1,7 @@
 /**
- * @file Version 1 files to version 2 (spec 9.1). Experimental (`save-files-v2`).
+ * @file Version 1 files to version 2 (spec 9.1).
  *
- * Called by `project.open` only with the experiment on and `migrate: true`; each function returns
+ * Called by `project.open` only with `migrate: true`; each function returns
  * undefined for anything it does not migrate, and the file is then read as before. Pure: it reads
  * the file it is given and nothing else, never a session.
  *

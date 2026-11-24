@@ -1,0 +1,91 @@
+{
+    "name": "intro-growth-30",
+    "title": "Growth (30 s)",
+    "note": "The same take as Growth (new), sped up in the edit to about 30 s with nothing removed: the 2D growth and the tail lose the most, the flight and the pull back the least, the opening still the slowest part. Music is the same PLACEHOLDER track, played from its build at a faster tempo so its final hit lands on the logo (~/intros/growth/v5/s30/music.sh).",
+    "top": true,
+    "crossfadeMs": 1500,
+    "music": {
+        "file": "~/intros/growth/v5/s30/music-30.wav",
+        "gain": -1,
+        "fadeOut": 1.5
+    },
+    "bpm": 60.51,
+    "offset": 0.937,
+    "sections": [
+        {
+            "marker": "Intro",
+            "items": [
+                {
+                    "clip": "growth-world",
+                    "bleed": true,
+                    "zoom": false,
+                    "caption": "",
+                    "at": ["open", 7],
+                    "to": ["seam", 0],
+                    "ramp": [
+                        [["open", 0], 5.4],
+                        [["grow", 21], 6.3],
+                        [["grow", 36], 7.2],
+                        [["indigo", 0], 7.6],
+                        [["lift", 0], 7.2],
+                        [["grow3d", 4.5], 8.0],
+                        [["grow3d", 12], 8.6],
+                        [["communities", 0], 9.0],
+                        [["hush", 0], 14.0],
+                        [["route", 0], 14.25],
+                        [["flight", 0], 4.6],
+                        [["close", -11.4], 13.8],
+                        [["close", -3.3], 4.6],
+                        [["close", 0], 4.6]
+                    ]
+                },
+                {
+                    "clip": "growth-world",
+                    "bleed": true,
+                    "zoom": false,
+                    "caption": "",
+                    "at": ["onglobe", 0],
+                    "to": ["turn", 3.1],
+                    "ramp": [
+                        [["onglobe", 0], 4.6],
+                        [["pull", 3], 4.7],
+                        [["pull", 4.16], 9.6],
+                        [["pull", 7.84], 10.2],
+                        [["pull", 11.84], 10.8],
+                        [["pull", 27.84], 11.6],
+                        [["pull", 40.16], 6.4],
+                        [["pull", 42], 6.4],
+                        [["pull", 48], 5.8],
+                        [["pull", 52], 4.6],
+                        [["turn", 0], 3.0],
+                        [["turn", 0.8], 1.8],
+                        [["turn", 1.6], 1]
+                    ]
+                },
+                {
+                    "card": "title",
+                    "over": {
+                        "clip": "growth-world",
+                        "at": ["turn", 1.6]
+                    },
+                    "zoom": false,
+                    "lines": ["See what your connected data is hiding"],
+                    "hold": 1.0,
+                    "veil": 0.3,
+                    "logoY": 460,
+                    "linesY": 872,
+                    "scrim": 0.5,
+                    "strong": true,
+                    "sfx": [
+                        {
+                            "file": "~/audio/impact.wav",
+                            "at": 0,
+                            "gain": -6
+                        }
+                    ]
+                }
+            ]
+        }
+    ],
+    "grain": 2
+}

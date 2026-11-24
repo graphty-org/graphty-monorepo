@@ -469,79 +469,92 @@ describe.each([
     { path: "batched", view: "2d" },
     { path: "batched", view: "3d" },
 ] as const)("a dashed edge between rows with no Node on the $path path in $view", ({ path, view }) => {
-    it("keeps both ends on its nodes as drawn on every frame of the move", async () => {
-        const element = document.createElement("graphty-element");
-        element.renderPath = path;
-        element.style.display = "block";
-        element.style.width = `${String(WIDTH)}px`;
-        element.style.height = `${String(HEIGHT)}px`;
-        document.body.appendChild(element);
-        cleanups.push(() => {
-            element.remove();
-        });
-        await element.updateComplete;
-        await element.setViewMode(view);
-        await element.session.styles.add({
-            name: "Dashed",
-            target: "edge",
-            selector: { match: "everything" },
-            set: { "edge.style": "dash" },
-        });
-        await operationQueueOf(element.graph).waitForCompletion();
-        await element.waitForStableFrame();
-        // Added once the element has drawn: the batched path stores these rows with no Node.
-        await element.session.data.addNodes([
-            { id: "a", position: { x: -4, y: -1, z: 0 } },
-            { id: "b", position: { x: 4, y: -1, z: 0 } },
-        ]);
-        await element.session.data.addEdges([{ source: "a", target: "b", directed: false }]);
-        await element.graph.setLayout("fixed", { dim: 3 });
-        await operationQueueOf(element.graph).waitForCompletion();
-        await element.waitForStableFrame();
+    // A Node built part way through the move (a selection, a hover, a read of the node) is drawn by the same move.
+    it.each([
+        { built: "no node", when: "never" },
+        { built: "node a", when: "part way" },
+    ] as const)(
+        "keeps both ends on its nodes as drawn on every frame of the move, $built built $when",
+        async ({ when }) => {
+            const element = document.createElement("graphty-element");
+            element.renderPath = path;
+            element.style.display = "block";
+            element.style.width = `${String(WIDTH)}px`;
+            element.style.height = `${String(HEIGHT)}px`;
+            document.body.appendChild(element);
+            cleanups.push(() => {
+                element.remove();
+            });
+            await element.updateComplete;
+            await element.setViewMode(view);
+            await element.session.styles.add({
+                name: "Dashed",
+                target: "edge",
+                selector: { match: "everything" },
+                set: { "edge.style": "dash" },
+            });
+            await operationQueueOf(element.graph).waitForCompletion();
+            await element.waitForStableFrame();
+            // Added once the element has drawn: the batched path stores these rows with no Node.
+            await element.session.data.addNodes([
+                { id: "a", position: { x: -4, y: -1, z: 0 } },
+                { id: "b", position: { x: 4, y: -1, z: 0 } },
+            ]);
+            await element.session.data.addEdges([{ source: "a", target: "b", directed: false }]);
+            await element.graph.setLayout("fixed", { dim: 3 });
+            await operationQueueOf(element.graph).waitForCompletion();
+            await element.waitForStableFrame();
 
-        const scene = element.graph.getScene();
-        const edge = [...element.graph.getDataManager().edges.values()][0];
-        assert.isNull(edgeInternals.drawn(edge).pulled, "the dashed line is laid on the CPU, not pulled");
-        const runner = (): ReturnType<typeof transitionsOf> => transitionsOf(element.graph.getLayoutManager());
-        const misses: string[] = [];
-        let moving = 0;
-        const watch = scene.onAfterRenderObservable.add(() => {
-            const a = element.nodeScreenPosition("a");
-            const b = element.nodeScreenPosition("b");
-            if (runner()?.active !== true || a === undefined || b === undefined) {
-                return;
-            }
-
-            moving++;
-            const [src, dst] = drawnEnds(element, edge).map((end) => element.worldToScreen(end));
-            for (const [end, node, other] of [
-                [src, a, b],
-                [dst, b, a],
-            ] as const) {
-                // on the line between the nodes as drawn, in screen pixels, and near its own node
-                const along = { x: other.x - node.x, y: other.y - node.y };
-                const span = Math.hypot(along.x, along.y);
-                const rel = { x: end.x - node.x, y: end.y - node.y };
-                const off = Math.abs(rel.x * along.y - rel.y * along.x) / span;
-                if (off > 1 || Math.hypot(rel.x, rel.y) > span / 2) {
-                    misses.push(`frame ${String(moving)}: end ${JSON.stringify(end)} off its node by ${String(off)}`);
+            const scene = element.graph.getScene();
+            const edge = [...element.graph.getDataManager().edges.values()][0];
+            assert.isNull(edgeInternals.drawn(edge).pulled, "the dashed line is laid on the CPU, not pulled");
+            const runner = (): ReturnType<typeof transitionsOf> => transitionsOf(element.graph.getLayoutManager());
+            const misses: string[] = [];
+            let moving = 0;
+            const watch = scene.onAfterRenderObservable.add(() => {
+                const a = element.nodeScreenPosition("a");
+                const b = element.nodeScreenPosition("b");
+                if (runner()?.active !== true || a === undefined || b === undefined) {
+                    return;
                 }
+
+                moving++;
+                if (when === "part way" && moving === 3) {
+                    nodeOf(element, "a");
+                }
+
+                const [src, dst] = drawnEnds(element, edge).map((end) => element.worldToScreen(end));
+                for (const [end, node, other] of [
+                    [src, a, b],
+                    [dst, b, a],
+                ] as const) {
+                    // on the line between the nodes as drawn, in screen pixels, and near its own node
+                    const along = { x: other.x - node.x, y: other.y - node.y };
+                    const span = Math.hypot(along.x, along.y);
+                    const rel = { x: end.x - node.x, y: end.y - node.y };
+                    const off = Math.abs(rel.x * along.y - rel.y * along.x) / span;
+                    if (off > 1 || Math.hypot(rel.x, rel.y) > span / 2) {
+                        misses.push(
+                            `frame ${String(moving)}: end ${JSON.stringify(end)} off its node by ${String(off)}`,
+                        );
+                    }
+                }
+            });
+            cleanups.push(() => scene.onAfterRenderObservable.remove(watch));
+
+            await element.session.config.set({ layoutTransition: { transition: "e7/linear", seconds: 0.6 } });
+            await element.graph.setLayout("e7-row");
+            await until(element, "the move ends", () => runner()?.active === false);
+            if (path === "batched") {
+                assert.strictEqual(
+                    dataManagerInternals.nodesBuilt(element.graph.getDataManager()),
+                    when === "never" ? 0 : 1,
+                    "only the nodes the test read have a Node",
+                );
             }
-        });
-        cleanups.push(() => scene.onAfterRenderObservable.remove(watch));
 
-        await element.session.config.set({ layoutTransition: { transition: "e7/linear", seconds: 0.6 } });
-        await element.graph.setLayout("e7-row");
-        await until(element, "the move ends", () => runner()?.active === false);
-        if (path === "batched") {
-            assert.strictEqual(
-                dataManagerInternals.nodesBuilt(element.graph.getDataManager()),
-                0,
-                "no node has a Node",
-            );
-        }
-
-        assert.isAbove(moving, 1, "the move was drawn over several frames");
-        assert.deepEqual(misses.slice(0, 3), [], "each end sits on its node as drawn on every frame");
-    });
+            assert.isAbove(moving, 1, "the move was drawn over several frames");
+            assert.deepEqual(misses.slice(0, 3), [], "each end sits on its node as drawn on every frame");
+        },
+    );
 });

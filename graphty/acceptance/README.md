@@ -80,11 +80,22 @@ each frees up.
 
 graphty-element draws a graph one of two ways: its default render path, one mesh per node and edge,
 and the batched path, which draws every node and edge from tables on the GPU. The app switches to the
-batched path only with its `cosmograph` experiment on (`?features=cosmograph`), so the dry run walks
-the default path alone. The canvas test below and the selection workspace's test take `--features` to
-open the app with experiments on, and `compare-reports.mjs` puts two runs side by side: it prints each
-scenario whose result differs, with both reasons, and exits 1 when one does.
-`pnpm run check:quick --with-dry-run` runs the canvas test both ways after the routes.
+batched path only with its `cosmograph` experiment on (`?features=cosmograph`). The dry run, the canvas
+test below and the selection workspace's test all take `--features` to open the app with experiments
+on, and `compare-reports.mjs` puts two runs side by side: it prints each route or scenario whose result
+differs, with both reasons, and exits 1 when one does. A route that passes on the default path and fails
+on the batched one is a defect in graphty-element's batched path, fixed there.
+
+```bash
+node graphty/acceptance/run.mjs                          # tmp/dry-run/report.json
+node graphty/acceptance/run.mjs --features cosmograph    # tmp/dry-run-cosmograph/report.json
+node graphty/acceptance/compare-reports.mjs tmp/dry-run/report.json tmp/dry-run-cosmograph/report.json
+```
+
+`pnpm run check:quick --with-dry-run` does all of it: the routes both ways and compared, the canvas test
+both ways, and the selection workspace's test both ways (in Chromium) and compared. With the app built,
+the whole walk takes about ten minutes, most of it the selection workspace's matrix, so it runs before a
+pull request that reaches the app or graphty-element's batched path, not on every one.
 
 ### Pointing at the canvas: `canvas-uat.mjs`
 

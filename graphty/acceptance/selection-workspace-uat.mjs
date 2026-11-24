@@ -104,9 +104,19 @@ class Visit {
             () => document.querySelector("graphty-element")?.session?.data.nodes().length > 0,
         );
         const graph = await inPage(this.page, () => {
-            const s = document.querySelector("graphty-element").session;
-            return { nodes: s.data.nodes().map((r) => ({ ...r })), edges: s.data.edges().map((r) => ({ ...r })) };
+            const el = document.querySelector("graphty-element");
+            const s = el.session;
+            return {
+                renderPath: el.renderPath,
+                nodes: s.data.nodes().map((r) => ({ ...r })),
+                edges: s.data.edges().map((r) => ({ ...r })),
+            };
         });
+        // The cosmograph experiment must really draw with the batched render path, or a run with it on
+        // checks the default path twice.
+        if (on.split(",").includes("cosmograph") && graph.renderPath !== "batched") {
+            throw new Error(`the cosmograph experiment drew with the ${graph.renderPath} render path, not batched`);
+        }
         this.nodes = graph.nodes;
         this.edges = graph.edges;
         this.all = new Set((this.side === "node" ? graph.nodes : graph.edges).map((r) => String(r.id)));

@@ -50,8 +50,19 @@ function sandbox({ affected = "graph-format", env = {}, args = [], files = {} } 
                 `${JSON.stringify(out(name))} + process.argv.slice(2).join("-") + ".json"`,
             ),
         );
-    writeFileSync(join(repo, "graphty/acceptance/run.mjs"), envDump(out("dryrun.json"), "STUB_RC_DRYRUN"));
+    perWalk("run.mjs", "dryrun");
     perWalk("canvas-uat.mjs", "canvas");
+    // walks whose arguments hold paths: one line of arguments per walk, appended to <name>
+    const appendWalk = (script, name, rcVar) =>
+        writeFileSync(
+            join(repo, `graphty/acceptance/${script}`),
+            `import { appendFileSync } from "node:fs";\n` +
+                `appendFileSync(${JSON.stringify(out(name))}, JSON.stringify(process.argv.slice(2)) + "\\n");\n` +
+                `process.exit(Number(process.env.${rcVar} ?? 0));\n`,
+        );
+    appendWalk("selection-workspace-uat.mjs", "workspace", "STUB_RC_DRYRUN");
+    appendWalk("compare-reports.mjs", "compare", "STUB_RC_COMPARE");
+    writeFileSync(join(repo, "tools/with-browser.sh"), `#!/bin/sh\nexec "$@"\n`, { mode: 0o755 });
     writeFileSync(join(repo, "package.json"), "{}");
     writeFileSync(
         join(dir, "bin/pnpm"),
@@ -92,6 +103,16 @@ function sandbox({ affected = "graph-format", env = {}, args = [], files = {} } 
             return undefined;
         }
     };
+    const lines = (name) => {
+        try {
+            return readFileSync(out(name), "utf8")
+                .trim()
+                .split("\n")
+                .map((l) => JSON.parse(l));
+        } catch {
+            return [];
+        }
+    };
     const result = {
         r,
         pnpm: readFileSync(out("pnpm"), "utf8"),
@@ -101,6 +122,9 @@ function sandbox({ affected = "graph-format", env = {}, args = [], files = {} } 
         dryRun: read("dryrun.json"),
         canvas: read("canvas.json"),
         canvasBatched: read("canvas--features-cosmograph.json"),
+        dryRunBatched: read("dryrun--features-cosmograph.json"),
+        workspace: lines("workspace"),
+        compared: lines("compare"),
         budgets: read("budgets.json"),
         steps: (() => {
             try {
@@ -232,14 +256,29 @@ describe("tools/check-quick.sh", () => {
     });
 
     it("with --with-dry-run, builds the app and walks every route of the dry run", () => {
-        const { r, pnpm, dryRun, canvas, canvasBatched } = sandbox({ args: ["--with-dry-run"] });
+        const { r, pnpm, dryRun, dryRunBatched, canvas, canvasBatched, workspace, compared } = sandbox({
+            args: ["--with-dry-run"],
+        });
         assert.equal(r.status, 0, r.stdout + r.stderr);
         assert.match(pnpm, /^exec nx run graphty:build$/m);
         assert.ok(dryRun, "the dry run ran");
         assert.deepEqual(dryRun.argv, []);
         assert.deepEqual(canvas?.argv, [], "the canvas test ran");
         assert.deepEqual(canvasBatched?.argv, ["--features", "cosmograph"], "and on the batched render path");
+        assert.deepEqual(dryRunBatched?.argv, ["--features", "cosmograph"], "the routes on the batched render path");
+        assert.equal(workspace.length, 2, "the selection workspace's test on both render paths");
+        assert.ok(workspace.some((a) => a.includes("--features") && a.includes("cosmograph")));
+        assert.deepEqual(compared, [
+            ["tmp/dry-run/report.json", "tmp/dry-run-cosmograph/report.json"],
+            ["tmp/selection-workspace-uat/report.json", "tmp/selection-workspace-uat-cosmograph/report.json"],
+        ]);
         assert.match(r.stdout, /\[PASS\] Dry run of the graphty app/);
+    });
+
+    it("fails the dry run when a route's result differs between the render paths", () => {
+        const { r } = sandbox({ args: ["--with-dry-run"], env: { STUB_RC_COMPARE: "1" } });
+        assert.equal(r.status, 1);
+        assert.match(r.stdout, /\[FAIL\] quick check: Dry run of the graphty app/);
     });
 
     it("names a failed dry run, and never walks a stale build when the app build fails", () => {

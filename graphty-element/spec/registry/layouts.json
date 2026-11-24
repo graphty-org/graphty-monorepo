@@ -785,7 +785,7 @@
                 {
                     "name": "spacing",
                     "type": "number",
-                    "default": 3,
+                    "default": 0,
                     "min": 0
                 },
                 {

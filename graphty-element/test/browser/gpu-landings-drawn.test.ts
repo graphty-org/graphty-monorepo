@@ -260,10 +260,16 @@ interface PointerFrame {
  * in one of them and, where the picture says whose ink is on top there, be that node. A moving node passing over
  * the pinned one is rightly hovered when it is drawn in front; a hover answered from a frame that was never drawn,
  * or naming a node drawn behind another, fails. The target must be drawn green and every other node blue.
+ *
+ * Where two nodes overlap at the same depth (all of them in 2D), the objects path's ray pick names the earlier
+ * mesh while the picture shows the later one on top; batched names the one drawn last. That is the objects path's
+ * behavior from before the row renderer, so with `tiesToFirst` a hovered node that overlaps another under the
+ * pointer passes whichever of them is drawn on top; it must still be under the pointer in a drawn frame.
  * @param element - The element.
  * @param ids - Every node.
  * @param target - The green node.
  * @param point - Where the pointer goes, in CSS pixels.
+ * @param tiesToFirst - An overlap at the same depth is hovered as the earlier node, not the one drawn on top.
  * @returns The hovered node.
  */
 async function hoverAgainstFrames(
@@ -271,6 +277,7 @@ async function hoverAgainstFrames(
     ids: readonly string[],
     target: string,
     point: { x: number; y: number },
+    tiesToFirst: boolean,
 ): Promise<string> {
     let drawn = 0;
     let moveSeq = -1;
@@ -320,7 +327,11 @@ async function hoverAgainstFrames(
     console.log(`[gpu-landings] hover ${id}, moved at ${String(moveSeq)}, answered at ${String(seq)}: ${shown}`);
     assert.isTrue(
         window.some(
-            (f) => f.under.includes(id) && (f.onTop === "neither" || (f.onTop === "target") === (id === target)),
+            (f) =>
+                f.under.includes(id) &&
+                (f.onTop === "neither" ||
+                    (f.onTop === "target") === (id === target) ||
+                    (tiesToFirst && f.under.length > 1)),
         ),
         `the hovered node ${id} is drawn on top at the pointer in a frame from the move to the answer: ${shown}`,
     );
@@ -468,7 +479,13 @@ GPU_CASES.each(["batched", "objects"] as const)("GPU layout landings drawn on %s
             await framesOf(element, graph.ids, graph.pairs, 1, { faults: () => ({ ownColor: [target] }) });
             const at = element.nodeScreenPosition(target);
             assert.isDefined(at);
-            const answer = await hoverAgainstFrames(element, graph.ids, target, { x: at.x, y: at.y });
+            const answer = await hoverAgainstFrames(
+                element,
+                graph.ids,
+                target,
+                { x: at.x, y: at.y },
+                path === "objects",
+            );
             const reports = await framesOf(element, graph.ids, graph.pairs, 10, {
                 faults: () => ({ ownColor: [target] }),
             });

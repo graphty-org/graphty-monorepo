@@ -17,7 +17,7 @@ import { userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
-import { kindOf, openKind, openProject, openStyle, pickKind, sectionOf, written } from "./v2Harness";
+import { kindOf, openProject, openStyle, pickKind, sectionOf, written } from "./v2Harness";
 
 /**
  * Waits for a thing's row in a section.
@@ -50,10 +50,10 @@ async function openSettings(row: HTMLElement, name: string): Promise<HTMLElement
 }
 
 /**
- * Picks the Sticker from the shader gallery Switch to opens beside the pop-over (design 5, rule 1).
+ * Picks the Sticker from the shader gallery the Shader choice opens beside it (design 5, rule 1).
  */
 async function pickSticker(): Promise<void> {
-    const gallery = await screen.findByRole("dialog", { name: "Sticker" });
+    const gallery = await screen.findByRole("dialog", { name: "Shader" });
     await userEvent.click(within(gallery).getByRole("button", { name: "Sticker" }));
 }
 
@@ -97,11 +97,12 @@ describe("Style panel v2's Switch to", () => {
         const size = (): Element | null => shape.querySelector('[data-thing="size"] [data-line="node.size"]');
         assert.isNotNull(size(), "Size is its own row");
         assert.isNull(row.querySelector('[data-line="node.size"]'), "not a line of the Shape row");
-        assert.equal(await kindOf(row, "Node shape"), "Basic shape");
+        assert.equal(await kindOf(row, "Node shape"), "Basic");
 
-        await pickKind(row, "Node shape", "Sticker");
+        // The same Basic, Model and Shader as a model's or shader's tabs (owner, 2026-11-24), under the row.
+        await pickKind(row, "Node shape", "Shader");
         // The row keeps its basic shape until a sticker is picked.
-        await screen.findByRole("dialog", { name: "Sticker" });
+        await screen.findByRole("dialog", { name: "Shader" });
         assert.equal(written(session, id, "node.shape"), "star", "nothing switches before the pick");
         await pickSticker();
         await waitFor(() => {
@@ -115,9 +116,9 @@ describe("Style panel v2's Switch to", () => {
         assert.isNotNull(size(), "the Size row stays");
         assert.lengthOf(shape.querySelectorAll('[data-thing="shape"]'), 1, "still one Shape row, in the same section");
 
-        // The Sticker's row starts its pop-over with the Basic shape, Model and Shader tabs.
+        // The Sticker's row starts its pop-over with the Basic, Model and Shader tabs.
         assert.equal(await kindOf(after, "Node shape"), "Shader");
-        await pickKind(after, "Node shape", "Basic shape");
+        await pickKind(after, "Node shape", "Basic");
         await waitFor(() => {
             assert.equal(written(session, id, "node.shape"), "star", "the star comes back");
             assert.equal(written(session, id, "node.cornerRadius"), 0.2, "with its corners");
@@ -137,7 +138,7 @@ describe("Style panel v2's Switch to", () => {
         });
         const tab = await openStyle("Key people");
         const row = await rowOf(sectionOf(tab, "node-shape"), "shape");
-        await pickKind(row, "Node shape", "Sticker");
+        await pickKind(row, "Node shape", "Shader");
         await pickSticker();
         await waitFor(() => {
             assert.isUndefined(written(session, id, "node.shape"));
@@ -200,7 +201,7 @@ describe("Style panel v2's Switch to", () => {
 describe("Style panel v2's keys inside a thing's pop-over", () => {
     withFeatures(["file-styles", "style-panel-v2"]);
 
-    it("emptying W and pressing Enter unsets only the width, and Backspace on the Kind select changes nothing", async () => {
+    it("emptying W and pressing Enter unsets only the width, and Backspace on the Kind line changes nothing", async () => {
         const { session, id } = await openStar();
         await session.styles.update(id, {
             set: {
@@ -230,15 +231,16 @@ describe("Style panel v2's keys inside a thing's pop-over", () => {
         assert.equal(written(session, id, "node.cornerRadius"), 0.2, "its corners stay");
         assert.equal(written(session, id, "node.size"), 2, "its size stays");
 
-        // The Kind list opened and closed again with Escape, Backspace on the Kind select changes nothing.
+        // Backspace on the Kind line's picked button changes nothing.
         await userEvent.keyboard("{Escape}");
-        await openKind(row, "Node shape");
-        await userEvent.keyboard("{Escape}");
-        await waitFor(() => {
-            assert.isNull(screen.queryByRole("listbox"));
-        });
+        const basic = row.querySelector<HTMLInputElement>('[data-member-menu] input[type="radio"]:checked');
+        assert.isNotNull(basic, "the Kind line's picked button");
+        // Its own label clicked: focus on it, nothing changed.
+        const label = row.querySelector<HTMLElement>(`label[for="${basic.id}"]`);
+        assert.isNotNull(label);
+        await userEvent.click(label);
         await userEvent.keyboard("{Backspace}");
-        assert.equal(written(session, id, "node.shape"), "star", "Backspace on the Kind select leaves the shape");
+        assert.equal(written(session, id, "node.shape"), "star", "Backspace on the Kind line leaves the shape");
         assert.equal(written(session, id, "node.size"), 2);
     });
 });

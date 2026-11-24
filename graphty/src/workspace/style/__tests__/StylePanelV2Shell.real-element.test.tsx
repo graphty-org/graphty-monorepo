@@ -247,9 +247,10 @@ describe("Style panel v2 on", () => {
         );
     });
 
-    it("Escape closes a '+' menu whose first item is disabled, with focus still on its '+'", async () => {
+    it("Escape closes a '+' menu holding a disabled item, with focus still on its '+'", async () => {
         const { session, nodes } = await openGraph();
-        // A row at graphty-element's label cap lists Label, first in its Text menu, but not pickable.
+        // A row at graphty-element's label cap lists Label in its Text menu, but not pickable. The labels already
+        // drawn come first (the main label leading), each to edit, which the cap never disables.
         const labels = Array.from({ length: LABEL_CAP }, (_, at) => ({ id: `l${String(at)}`, text: "x" }));
         await session.styles.update(nodes, {
             set: { ...session.styles.get(nodes)?.set, "node.label": "x", "node.labels": labels },
@@ -260,8 +261,12 @@ describe("Style panel v2 on", () => {
         await userEvent.click(add);
         const menu = await screen.findByRole("menu");
         const items = within(menu).getAllByRole("menuitem");
-        assert.equal(items[0]?.textContent, "Label", "Label is the first item");
-        assert.equal(items[0]?.getAttribute("data-disabled"), "true", "the first item is disabled");
+        assert.equal(items[0]?.getAttribute("aria-label"), "Edit Label", "the main label, to edit, is the first item");
+        assert.notEqual(items[0]?.getAttribute("data-disabled"), "true", "editing a drawn label is never capped");
+        const label = items.find(
+            (item) => item.textContent === "Label" && item.getAttribute("aria-label")?.startsWith("Edit ") !== true,
+        );
+        assert.equal(label?.getAttribute("data-disabled"), "true", "Label, which would add one, is disabled");
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
             assert.isNull(screen.queryByRole("menu"), "Escape closed the menu");

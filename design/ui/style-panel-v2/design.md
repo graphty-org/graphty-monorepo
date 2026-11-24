@@ -464,21 +464,48 @@ Added 2026-11-24:
 - "Labels for an input must never go to the left of the input. Always use the built-in label that adds a small label
   above the component" (approved 2026-11-24)
 
+Added 2026-11-24 (one-of choices are tabs; any-of groups are a menu):
+
+- When a pop-over's settings depend on choosing one of several alternatives (only one can be in effect at a
+  time, such as a fill that is Solid or Gradient, or two ways of setting the same value, such as Custom or
+  Palettes in a color picker), show the alternatives as a strip of tabs at the top of the pop-over. Picking a
+  tab is picking the value. The strip is all icons when every choice has a common-knowledge icon (each with a
+  tooltip), otherwise all words. At most five tabs; six or more alternatives use a drop-down. The strip counts
+  as one of the pop-over's six rows. Tabs are not in-place pop-overs: every tab stays visible and nothing opens
+  on top of another view.
+- Use tabs only when each choice shows different settings; a one-of whose settings are the same for every
+  choice is a grouped-buttons line.
+- A pop-over has at most one tab strip, for its defining choice. A nested one-of that changes settings is
+  merged into that strip when every combination fits five tabs; otherwise it is a line, and its settings
+  appear under it when they apply.
+- When a thing has independent groups of settings that can all be in effect at once (a label's Position,
+  Wrap and Badge), its "..." opens a menu listing the groups, marking each one that is set, and choosing a
+  group opens that group's own pop-over beside the current one. A thing with only one group opens it directly
+  from "...". Only one group pop-over is open at a time. Every group pop-over is at most six rows; a group that
+  would be taller is split into two menu entries, never given a "..." of its own.
+- A "..." menu has at most 16 entries, grouped under headings of at most 6 entries each.
+- A group of one line is not a menu entry: it joins the main pop-over.
+- A list of copies of the same thing (pie slices, gradient stops, strands) is neither tabs nor a menu: it stays
+  a list with "+". "+" adds copies to a list; it is never used to reveal a group of settings.
+
+This replaces the earlier wording that the Advanced "..." opens a new pop-over: "..." opens a menu of the
+thing's groups when it has more than one, and each opens a new pop-over.
+
 ### How they are applied (decisions)
 
 - **Nesting: pop-overs beside, never in place.** The panel is level 0. The two-level limit counts the panel's own
-  pop-overs: a row's settings pop-over is level 1, and the Advanced pop-over its header's "..." opens is level 2.
+  pop-overs: a row's settings pop-over is level 1, and a group pop-over its header's "..." opens is level 2.
   A dedicated component (a color picker, a drop-down's list, the Picture picker, a shape, pattern or arrow list
   with its section drop-down, the data field picker, the link dialog and what it opens) is not a pop-over level:
   it may open from level 1 or level 2 as the third, and nothing opens a fourth. Nothing replaces a pop-over's
   content: every pop-out opens beside the one it came from, which stays open with its own title, and there are no
   back buttons. The link dialog opens as a pop-out of its own: from a sidebar line, beside the panel; from a line
-  in a pop-over (the Advanced pop-over included), beside that pop-over.
+  in a pop-over (a group pop-over included), beside that pop-over.
 - **Height.** "Components tall" counts lines from top to bottom with every sub-group shown: two inputs on one
   line count once, a Kind line and a Combine or operation line count, each list item counts. A caption line above an
   input does not count as a row toward the six-row pop-over limit. Over 6, the rarer
-  or optional lines move to the Advanced pop-over. A sub-group's legend holding its "+" (Main's) is a line too;
-  the Advanced "..." sits in the header and is no line.
+  or optional lines move to a group in the "..." menu. A tab strip counts as a line; the "..." sits in the header
+  and is no line.
 - **Components.** A single color: `CompactColorInput`. A gradient: compact-mantine `GradientEditor`. A list of
   6 or more options: a drop-down (`PanelField kind="select"`, or the existing `ValueListbox` for pictured
   lists). Fewer than six exclusive options: grouped buttons (`SegmentedControl`). A number with a fixed minimum
@@ -517,21 +544,23 @@ Added 2026-11-24:
   a plain number's pop-over has no Combine line: it shows only where a layer already writes a combine (a file,
   an earlier version), named "Combine", so that value stays changeable.
 
-- **Advanced pop-over.** When its thing has rare settings, a pop-over's header holds a "..." icon button (the
-  row settings button's glyph and size, tooltip and name "Advanced settings") before its close button. It opens
-  the Advanced pop-over beside the pop-over, which stays open: on the left when there is room, else on the right,
-  else below or above where there is more room (an iPad held upright, 768 x 1024), its content then scrolling, so
-  it never covers the pop-over. "..." again, or its own close button, closes only it; closing the pop-over closes
-  both. The rubric marks a sub-group `advanced` (a thing's) or a line `advanced` (a label's); the Advanced
-  pop-over shows every such group, always, under its name, with the group's minus once set, and those groups
-  leave the "+" menu. Its lines carry their link button where the value can be linked: the link dialog opens from
-  there as the third level. A line under a switch (a label's "Opacity" under Letter outline) is called by its
-  whole name there. Every label sub-group (Position, Letters, Wrap, Background, Box stroke, shadows, Callout,
-  Badge, Behavior) and the chart's stroke colors are there, so a label pop-over is Kind, Main, Font, Style,
-  Location; a Glyph's is Kind, Glyph, Size, Color, Style (its Font in Advanced). So are an arrow's Open caps fill,
-  a pattern's Wave, Force curves' Curve and
-  stripes' band Size and Frame. A Size pop-over's width and height pair is "W / H", so no second "Size" shows
-  under its main value. An edge's Animation pop-over holds its Speed line (and its link).
+- **"..." menu and group pop-overs (2026-11-24).** A pop-over's main lines are always shown; there is no Main
+  legend and no "+" that reveals a group of settings ("+" only adds copies to a list). A thing with groups of
+  settings has a "..." icon button in its pop-over's header (compact-mantine `Popout.Panel` `more`), drawn in the
+  brand ink while a group is set. With one group, "..." opens it directly; with more, it opens a menu of the
+  groups (compact-mantine `MenuGroupItem`, a dot marking each set group), under headings of at most 6 entries
+  where there are more than 6, at most 16 entries in all. Choosing a group opens that group's own pop-over
+  beside the pop-over (compact-mantine `placement="beside"`: the start side when it fits, else the end side, else
+  below or above where there is more room, as on an iPad held upright), which stays open and uncovered. One group
+  pop-over is open at a time. A group pop-over is at most 6 rows, titled with the group's name, with a "-" in its
+  header that unsets the whole group once set; its lines carry their link, so the link dialog opens from there as
+  the third level. A line under a switch is called by its whole name there. A group of one line joins the main
+  pop-over. The rubric's `SubGroup.heading` (a label group's too) names the menu heading.
+- **Tabs.** A one-of whose choices show different settings is the pop-over's first row: compact-mantine
+  `SegmentedControl` (all words, or all icons with tooltips), at most 5 choices; picking one is picking the value
+  (a family member, a kind, a route). A one-of whose choices show the same settings is a grouped-buttons line
+  (or a drop-down at 6 or more). A line that depends on a one-of in the same pop-over is drawn only when it
+  applies or when the layer sets it; a line that depends on the view (2D or 3D) stays dimmed.
 - **Link dialog.** At most 6 components tall, with no Advanced of its own, so one opened from the Advanced
   pop-over never needs a fourth level. Two choices that go together share a line, in every state. A number:
   source, Operation | Scale (and Steps for a stepped scale), the histogram with its value range, the from / to

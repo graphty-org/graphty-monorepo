@@ -2,7 +2,7 @@
  * @file The `view` section codec, version 1 (spec/README.md 4.7, 5 and 8.2): the session a file is
  * opened to -- camera, saved views, selection, pinned positions, every set, the visibility in force,
  * the layer order and the layers that name elements or a dataset, every run record in the order
- * made, and the layout record. Experimental (`save-files-v2`).
+ * made, and the layout record.
  *
  * Opening restores the session: sets, visibility, layers and runs come back under their saved
  * ids, and each run is rerun or restored from saved results. What the session holds no state for

@@ -37,6 +37,11 @@ with `context: "xr"`. The rejection is a `GraphtyError`: `E_UNSUPPORTED` when XR
 browser has no WebXR, `E_XR_SESSION_FAILED` when the browser or headset would not start the session
 (its `cause` is what the browser said). Nothing is left half built, so asking again starts clean.
 
+A running session keeps drawing when something run for one of its frames throws (Babylon.js's own
+XR input, or your code observing the frame): the step is skipped for that frame, and the failure is
+reported once per session as an `error` event with `context: "xr"` and a `GraphtyError` with code
+`E_XR_FRAME_FAILED` (its `cause` is what was thrown).
+
 Changing `element.xr` (or calling `setXRConfig`) during a session leaves the session running: the
 drag settings under `input` apply at once, and the session settings (`vr`, `ar`,
 `input.handTracking`, `input.nearInteraction`) from the next session. Only turning `xr.enabled`

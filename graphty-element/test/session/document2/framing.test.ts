@@ -14,7 +14,7 @@ import { assert, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../../session";
 import { isGraphtyError } from "../../../src/errors";
-import { FEATURES } from "../../../src/features/registry";
+import { GRADUATED_FEATURES } from "../../../src/features/registry";
 import { openDocument2, saveDocument2 } from "../../../src/session/document2/document";
 import {
     assertIJson,
@@ -31,7 +31,6 @@ import type { CodecRegistry, DocumentSection, JsonObject, SectionCodec } from ".
 const SPEC = new URL("../../../spec/", import.meta.url);
 const readJson = (path: string): JsonObject => JSON.parse(readFileSync(new URL(path, SPEC), "utf8")) as JsonObject;
 const ON = { features: ["save-files-v2"] };
-const OFF = { features: [] };
 
 const ajv = new Ajv2020({ allErrors: true, strict: false });
 const addFormats = (addFormatsModule as unknown as { default?: typeof addFormatsModule }).default ?? addFormatsModule;
@@ -116,29 +115,17 @@ async function codeOf(promise: Promise<unknown>): Promise<string> {
 
 const codes = (problems: readonly { code: string }[]): string[] => problems.map((problem) => problem.code);
 
-describe("the save-files-v2 experiment", () => {
-    it("is declared for issue 8029", () => {
-        const feature = FEATURES.find((each) => each.id === "save-files-v2");
-        assert.deepEqual(feature && { issue: feature.issue, since: feature.since }, {
-            issue: 8029,
-            since: "2026-11-14",
-        });
+describe("version 2 saves", () => {
+    it("is a graduated experiment: any session saves and opens version 2", async () => {
+        assert.include(GRADUATED_FEATURES, "save-files-v2");
+        const session: GraphSession = createGraphSession({ features: [] });
+        const saved = await session.project.save({ format: 2 });
+        assert.strictEqual((JSON.parse(saved.text) as JsonObject).version, 2);
+        await session.project.open(JSON.stringify(readJson("examples/minimal/minimal.graphty.json")));
+        session.dispose();
     });
 
-    it("off, refuses format 2 and saves and opens version 1 as before", async () => {
-        const session: GraphSession = createGraphSession(OFF);
-        assert.strictEqual(await codeOf(session.project.save({ format: 2 })), "E_FEATURE_OFF");
-
-        const saved = await session.project.save();
-        const document = JSON.parse(saved.text) as JsonObject;
-        assert.strictEqual(document.version, 1);
-        assert.strictEqual(
-            await codeOf(session.project.open(JSON.stringify(readJson("examples/minimal/minimal.graphty.json")))),
-            "E_UNSUPPORTED_VERSION",
-        );
-    });
-
-    it("on, still saves version 1 unless asked for format 2", async () => {
+    it("still saves version 1 unless asked for format 2", async () => {
         const session = createGraphSession(ON);
         const document = JSON.parse((await session.project.save()).text) as JsonObject;
         assert.strictEqual(document.version, 1);

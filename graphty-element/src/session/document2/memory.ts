@@ -2,7 +2,7 @@
  * @file What the version 2 framing and codecs remember of one session between an open and the next
  * save, forgotten at every project boundary: a version 1 open, a replacing load, the graph
  * cleared, a different source. A replacing load keeps the data id (spec 3.3). Experimental
- * (`save-files-v2`).
+ *.
  */
 
 import { type BoundaryReason, onProjectBoundary } from "../project/boundary";

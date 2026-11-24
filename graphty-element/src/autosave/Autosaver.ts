@@ -30,11 +30,21 @@ import { onProjectBoundary } from "../session/project/boundary";
 import { markProjectUnsaved, onSourceRecords } from "../session/projectFile";
 import { ELEMENT_VERSION } from "../session/runs";
 import type { CodedFact } from "../session/shared";
+import { type SavedSourceDraft, sourceDraftHooks } from "../session/sourceDraftHooks";
 import { openingKeptWork } from "../session/sources/references";
 import type { GraphSession, ProjectSlice } from "../session/types";
 import { filterDraftHooks, reopenFilterDrafts, type SavedFilterDraft } from "../session/visibility/draftHooks";
 import { wholeGraph } from "../session/working/graphs";
-import { buildParts, draftsOf, EVERY_PART, type PartTag, PartTooLarge, reassemble, stashOf } from "./parts";
+import {
+    buildParts,
+    draftsOf,
+    EVERY_PART,
+    type PartTag,
+    PartTooLarge,
+    reassemble,
+    sourceDraftOf,
+    stashOf,
+} from "./parts";
 import {
     canRead,
     changedSettings,
@@ -598,6 +608,12 @@ export class Autosaver {
             drafts.changed.add(changed);
             this.#stops.push(() => drafts.changed.delete(changed));
         }
+        // So is an open draft of the sources and steps.
+        this.#stops.push(
+            session.on("data:draft-changed", () => {
+                this.#mark(["drafts"], false, false);
+            }),
+        );
         this.#told = JSON.stringify(this.status);
     }
 
@@ -1582,6 +1598,7 @@ export class Autosaver {
         let text: string;
         let stash: Map<string, unknown>;
         let drafts: SavedFilterDraft[];
+        let sourceDraft: SavedSourceDraft | null;
         let sizes: Map<string, number>;
         try {
             // A whole entry, so the write watchdog's allowance rather than the listing's.
@@ -1595,6 +1612,7 @@ export class Autosaver {
                 text = JSON.stringify(reassemble(entry.meta, entry.parts));
                 stash = stashOf(entry.parts);
                 drafts = draftsOf(entry.parts);
+                sourceDraft = sourceDraftOf(entry.parts);
                 sizes = sizesAfter(new Map(), entry.parts);
             } catch {
                 return giveUp({ code: "E_BAD_DOCUMENT", params: { id: meta.id } });
@@ -1677,12 +1695,18 @@ export class Autosaver {
 
         // After the restore's own commit, so the drafts' write is an ordinary one of the restored entry.
         const dropped = reopenFilterDrafts(this.#session.visibility, drafts);
-        if (dropped.length > 0) {
+        const sourceDropped =
+            sourceDraft !== null &&
+            !(await (sourceDraftHooks(this.#session.data)
+                ?.reopen(sourceDraft)
+                .catch(() => false) ?? false));
+        if (dropped.length > 0 || sourceDropped) {
             report = {
                 ...report,
                 problems: [
                     ...report.problems,
                     ...dropped.map((id) => ({ code: "W_FILTER_DRAFT_DROPPED" as const, params: { id } })),
+                    ...(sourceDropped ? [{ code: "W_SOURCE_DRAFT_DROPPED" as const, params: {} }] : []),
                 ],
             };
         }

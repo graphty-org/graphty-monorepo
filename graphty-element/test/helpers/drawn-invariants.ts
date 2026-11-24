@@ -128,7 +128,7 @@ function hue(p: readonly number[]): number | undefined {
  * @param p - The pixel.
  * @returns True when its hue is near magenta's.
  */
-function magenta(p: readonly number[]): boolean {
+function magentaHue(p: readonly number[]): boolean {
     const h = hue(p);
     return h !== undefined && h >= 280 && h <= 320;
 }
@@ -138,7 +138,7 @@ function magenta(p: readonly number[]): boolean {
  * @param p - The pixel.
  * @returns True when its hue is near the nodes' blue.
  */
-function blue(p: readonly number[]): boolean {
+function blueHue(p: readonly number[]): boolean {
     const h = hue(p);
     return h !== undefined && h >= 210 && h <= 250;
 }
@@ -149,7 +149,26 @@ function blue(p: readonly number[]): boolean {
  * @returns True when it has a hue and it is neither.
  */
 function other(p: readonly number[]): boolean {
-    return hue(p) !== undefined && !magenta(p) && !blue(p);
+    return hue(p) !== undefined && !magentaHue(p) && !blueHue(p);
+}
+
+/**
+ * Whether a pixel is strongly the edges' magenta (#ff00ff): red and blue both lead green by 60. Stricter than
+ * the hue test above, which also takes a faint antialiased tint.
+ * @param p - The pixel.
+ * @returns True when red and blue both lead green.
+ */
+export function magenta(p: readonly number[]): boolean {
+    return p[0] > p[1] + 60 && p[2] > p[1] + 60;
+}
+
+/**
+ * Whether a pixel is strongly the nodes' blue (#2040ff): blue leads red and green by 60.
+ * @param p - The pixel.
+ * @returns True when blue leads red and green.
+ */
+export function blue(p: readonly number[]): boolean {
+    return p[2] > p[0] + 60 && p[2] > p[1] + 60;
 }
 
 /**
@@ -190,7 +209,7 @@ export async function undrawnNodes(element: Graphty, ids: readonly string[], giv
     const pic = given ?? (await picture(element));
     const bg = pic.background;
     const ink = (p: readonly number[]): boolean =>
-        !magenta(p) && Math.abs(p[0] - bg[0]) + Math.abs(p[1] - bg[1]) + Math.abs(p[2] - bg[2]) > 60;
+        !magentaHue(p) && Math.abs(p[0] - bg[0]) + Math.abs(p[1] - bg[1]) + Math.abs(p[2] - bg[2]) > 60;
     return ids.filter((id) => {
         const at = center(element, id);
         return at === undefined || !near(pic, at.x, at.y, ink);
@@ -232,7 +251,7 @@ export async function undrawnEdges(
                 const y = a.y + (b.y - a.y) * t;
                 // A point under a node, or under other ink drawn over the edge (its label's box),
                 // shows that instead: it tells nothing.
-                return !covered(x, y) && !near(pic, x, y, other) && !near(pic, x, y, magenta);
+                return !covered(x, y) && !near(pic, x, y, other) && !near(pic, x, y, magentaHue);
             })
         );
     });
@@ -256,7 +275,7 @@ export function drawnRadius(pic: Picture, centers: readonly { x: number; y: numb
                 [0, -1],
             ].map(([dx, dy]) => {
                 let r = 0;
-                while (blue(pic.at(c.x + dx * (r + 1), c.y + dy * (r + 1)) ?? [0, 0, 0])) {
+                while (blueHue(pic.at(c.x + dx * (r + 1), c.y + dy * (r + 1)) ?? [0, 0, 0])) {
                     r++;
                 }
 
@@ -298,8 +317,8 @@ export async function arrowTipsOff(
         const x = b.x - ((b.x - a.x) * reach) / length;
         const y = b.y - ((b.y - a.y) * reach) / length;
         // Another node drawn over the tip hides it.
-        const hidden = blue(pic.at(x, y) ?? [0, 0, 0]);
-        return !hidden && !near(pic, x, y, magenta);
+        const hidden = blueHue(pic.at(x, y) ?? [0, 0, 0]);
+        return !hidden && !near(pic, x, y, magentaHue);
     });
 }
 
@@ -341,7 +360,7 @@ export async function strayInk(
     const stray: string[] = [];
     pic.each((p, x, y) => {
         if (
-            (magenta(p) || blue(p)) &&
+            (magentaHue(p) || blueHue(p)) &&
             !nodes.some((c) => Math.hypot(x - c.x, y - c.y) <= nodeBand) &&
             !segments.some(([a, b]) => toSegment(x, y, a, b) <= edgeBand) &&
             !loops.some((c) => Math.hypot(x - c.x, y - c.y) <= radius * LOOP_REACH + SLACK)

@@ -1,5 +1,5 @@
 /**
- * The version 2 save and open dialogs (the "save-files-v2" experiment): Save as with its sections,
+ * The version 2 save and open dialogs: Save as with its sections,
  * presets, copy or reference per source and file form; Open with its sections, runs, referenced
  * sources and binding; and the report either shows after. Every fact comes from graphty-element
  * (`project.describe`, `project.inspect`, the save and open reports); the words are the app's.
@@ -357,7 +357,7 @@ export interface SaveFilesV2DialogsProps {
 }
 
 /**
- * Save as... with version 2 files on (`#/project-menu/save-as`): the name, a preset per use case,
+ * Save as... (`#/project-menu/save-as`): the name, a preset per use case,
  * the sections with what each holds, copy or reference for the sources, and the file's form. The
  * whole project is kept in this browser, as Save as keeps it; anything else downloads as a copy.
  * @param props - the dialog id and the save.
@@ -876,7 +876,7 @@ function loadable(facts: ProjectFileFacts | undefined): DocumentSection[] {
 }
 
 /**
- * Open with version 2 files on: a version 2 file is asked about before it opens -- a warning per
+ * Open: a version 2 file is asked about before it opens -- a warning per
  * held section, the sections to load, each run rerun or restored, its referenced sources (fetching
  * one is the reader's click) and whether sections written on other data bind by key. A section
  * file other than data is added to the project, so it shows what it is, what it adds and what it

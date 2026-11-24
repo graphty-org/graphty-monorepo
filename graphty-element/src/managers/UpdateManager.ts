@@ -4789,29 +4789,7 @@ export class UpdateManager implements Manager {
             }
         }
 
-        // A row with no Node is in no walk, so a move of the table's rows says only that an edge at
-        // such a row may have moved (see placedEdgesAtRows).
-        // Only a placed row drawn somewhere else moves one: a seeded new row, or a freeze that renumbered rows,
-        // leaves every other row where it was, and walking every placed edge for them was the cost of an add
-        // (issue #9164).
-        const lane = writableLane(this.dataManager);
-        const relocations = lane?.relocations ?? Number.NaN;
-        const laneMoved = relocations !== this.lastLaneRelocations;
-        this.lastLaneRelocations = relocations;
-        const listed = lane?.rowsChangedSince(this.lastLaneChanges) ?? null;
-        // A GPU landing owes the lane its publish (ElementPositions.owe): its rows moved, but `changes` waits for the
-        // publish, so the lane lists none of them, and placing the edges of no row left every arrowed edge between
-        // rows with no Node where it was first drawn. A move the lane cannot list asks every placed edge.
-        this.unbuiltRowsChanged = laneMoved && listed?.length === 0 ? null : listed;
-        this.lastLaneChanges = lane?.changes ?? -1;
-        this.unbuiltRowsMoved =
-            this.transitionRowsMoved ||
-            (rowsMoved && laneMoved && total === undefined && nodeCount < this.dataManager.nodes.size);
-        if (this.transitionRowsMoved) {
-            // The lane names none of the rows a transition moved: every placed edge is asked.
-            this.unbuiltRowsChanged = null;
-            this.transitionRowsMoved = false;
-        }
+        this.noteUnbuiltRows(rowsMoved, total === undefined && nodeCount < this.dataManager.nodes.size);
         // A share of the graph's nodes, not of the `Node`s walked: under "batched" one built `Node` that moved
         // was every `Node`, and walked every edge (issue #9164).
         nodeCount = total ?? Math.max(nodeCount, this.dataManager.nodes.size);
@@ -4825,6 +4803,36 @@ export class UpdateManager implements Manager {
         }
 
         return moved.length > nodeCount * MOST_MOVED_SHARE ? true : moved;
+    }
+
+    /**
+     * Record which rows with no Node moved since the last walk of the nodes, for {@link nodesMoved}.
+     *
+     * A row with no Node is in no walk, so a move of the table's rows says only that an edge at
+     * such a row may have moved (see placedEdgesAtRows).
+     * Only a placed row drawn somewhere else moves one: a seeded new row, or a freeze that renumbered rows,
+     * leaves every other row where it was, and walking every placed edge for them was the cost of an add
+     * (issue #9164).
+     * @param rowsMoved - Whether the table moved a row other than by a `Node`'s own mesh (see {@link movedWalk}).
+     * @param walkMissedNodes - Whether the walk saw fewer than every node of the graph.
+     */
+    private noteUnbuiltRows(rowsMoved: boolean, walkMissedNodes: boolean): void {
+        const lane = writableLane(this.dataManager);
+        const relocations = lane?.relocations ?? Number.NaN;
+        const laneMoved = relocations !== this.lastLaneRelocations;
+        this.lastLaneRelocations = relocations;
+        const listed = lane?.rowsChangedSince(this.lastLaneChanges) ?? null;
+        // A GPU landing owes the lane its publish (ElementPositions.owe): its rows moved, but `changes` waits for the
+        // publish, so the lane lists none of them, and placing the edges of no row left every arrowed edge between
+        // rows with no Node where it was first drawn. A move the lane cannot list asks every placed edge.
+        this.unbuiltRowsChanged = laneMoved && listed?.length === 0 ? null : listed;
+        this.lastLaneChanges = lane?.changes ?? -1;
+        this.unbuiltRowsMoved = this.transitionRowsMoved || (rowsMoved && laneMoved && walkMissedNodes);
+        if (this.transitionRowsMoved) {
+            // The lane names none of the rows a transition moved: every placed edge is asked.
+            this.unbuiltRowsChanged = null;
+            this.transitionRowsMoved = false;
+        }
     }
 
     /**

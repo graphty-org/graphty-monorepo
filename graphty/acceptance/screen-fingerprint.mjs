@@ -98,15 +98,18 @@ export function screenFingerprint() {
 }
 
 /**
- * How two fingerprints differ: what went and what came. A reload that changes what the reader
- * picked ("selected: test" became "selected: Everything") shows on both sides.
+ * How two fingerprints differ: what went, and what came in its place. A reload that changes what the
+ * reader picked ("selected: test" became "selected: Everything") shows on both sides; an entry that
+ * only came (a list that now shows the option the reader picked) is no loss and is not reported.
  * @param before - the fingerprint before.
  * @param after - the fingerprint after.
  * @param allowed - entries either side may differ on.
- * @returns the entries only before ("missing") and only after ("appeared").
+ * @returns the entries only before ("missing") and the entries only after of a kind that went ("appeared").
  */
 export function fingerprintChanges(before, after, allowed = []) {
     const missing = before.filter((each) => !after.includes(each) && !allowed.includes(each));
-    const appeared = after.filter((each) => !before.includes(each) && !allowed.includes(each));
+    const kind = (entry) => entry.slice(0, entry.indexOf(":"));
+    const went = new Set(missing.map((each) => kind(each)));
+    const appeared = after.filter((each) => !before.includes(each) && !allowed.includes(each) && went.has(kind(each)));
     return { missing, appeared };
 }

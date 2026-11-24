@@ -236,9 +236,9 @@ export class PipelineCache {
             device.createBindGroupLayout({ ...descriptor, label: `${spec.id}/layout${group}` }),
         );
         const pipelineLayout = device.createPipelineLayout({ bindGroupLayouts: layouts, label: `${spec.id}|layout` });
-        const popped = device.popErrorScope();
-        const info = await module.getCompilationInfo();
-        const scopeError = await popped;
+        // Awaited together: awaiting the compilation info first left the scope's promise with no handler, so a
+        // device instance dropped mid-compile rejected both and the scope's rejection went unhandled (issue #9929).
+        const [info, scopeError] = await Promise.all([module.getCompilationInfo(), device.popErrorScope()]);
         const errors = info.messages.filter((message) => message.type === "error");
         if (errors.length > 0) {
             const preludeLines = composed.bodyLine - 1;

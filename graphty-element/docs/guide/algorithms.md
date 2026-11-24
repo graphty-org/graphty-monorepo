@@ -449,6 +449,35 @@ if (run.partial) {
 
 The codes are in the [table below](#why-a-run-stopped-early).
 
+## Stopping a run
+
+Every built-in algorithm can be stopped while it runs. Slow work is computed off the page, so the
+page stays usable during the run and a Cancel button can be clicked:
+
+```typescript
+const cancel = document.querySelector<HTMLButtonElement>("#cancel")!;
+const run = element.run("betweenness");
+cancel.hidden = false;
+cancel.onclick = () => run.cancel();
+
+try {
+    const result = await run;
+    console.log(result.summary().max);
+} catch (error) {
+    // A canceled run keeps nothing: no result and no coloring.
+    if (!(error instanceof DOMException && error.name === "AbortError")) {
+        throw error;
+    }
+    console.log("canceled");
+} finally {
+    cancel.hidden = true;
+}
+```
+
+An `AbortSignal` works the same way: `element.run("betweenness", {}, { signal })`. Before anything
+runs, `element.session.estimate({ op: "algo.run", algorithm: "betweenness" })` answers
+`cancelable: true` and `blocksFrame: false` for every built-in algorithm.
+
 ## What a result says
 
 graphty-element does not write sentences for a reader. What a run has to say about its own numbers

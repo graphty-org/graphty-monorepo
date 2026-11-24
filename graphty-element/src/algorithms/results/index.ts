@@ -20,5 +20,6 @@ export {
     declaredCaveats,
     detachedRunContext,
     forEachChunked,
+    unscoredPartition,
     type ResultFieldSpec,
 } from "./types";

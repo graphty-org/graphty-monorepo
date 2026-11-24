@@ -16,10 +16,11 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import type { EdgeId, FieldDescriptor, ResultShape } from "../../catalog/types";
+import type { EdgeId, FieldDescriptor, NodeId, ResultShape } from "../../catalog/types";
 import type { ResultElementValues } from "../../session/results";
 import type { Caveats, RunDirection, RunProgressReport } from "../../session/runs";
 import type { ScopedInput, ScopedInputOptions } from "../input/ScopedInput";
+import { communityFieldSpecs } from "./fields";
 
 // ---------------------------------------------------------------------------------------------
 // What a run says it filled
@@ -251,4 +252,27 @@ export async function forEachChunked<T>(
 
     context.signal.throwIfAborted();
     context.report({ phase, completed: total, total });
+}
+
+/**
+ * A partition with no score of its own, published as each node's group: the labels read in
+ * chunks that yield the frame.
+ * @param context - The run's controls.
+ * @param nodeIds - The nodes to publish, in order.
+ * @param ids - The graph the labels index, which finds each node's row.
+ * @param ids.indexOf - The row of a node.
+ * @param labels - The group of every row.
+ * @returns The community output, but for its caveats; 0 for a node the labels do not cover.
+ */
+export async function unscoredPartition(
+    context: RunControls,
+    nodeIds: readonly NodeId[],
+    ids: { indexOf(id: NodeId): number },
+    labels: ArrayLike<number>,
+): Promise<Pick<AlgorithmOutput, "shape" | "fields" | "nodes">> {
+    const nodes: ResultElementValues[] = [];
+    await forEachChunked(context, "grouping-nodes", nodeIds, (nodeId) => {
+        nodes.push({ id: nodeId, values: { group: labels[ids.indexOf(nodeId)] ?? 0 } });
+    });
+    return { shape: "community", fields: communityFieldSpecs(false), nodes };
 }

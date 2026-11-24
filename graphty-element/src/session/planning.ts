@@ -20,6 +20,7 @@ import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 import { planar } from "@graphty/layout";
 
 import { askedWeight, type LoadedWeightFact, resolveRunWeight } from "../algorithms/input/weight";
+import { algorithmByKey } from "../catalog/algorithms";
 import { layoutAlias, layoutDescriptor, layoutEntry, layoutIdForEngine } from "../catalog/layouts";
 import type {
     AlgorithmDescriptor,
@@ -442,6 +443,10 @@ function costInput(
             ...(measurements === undefined ? {} : { measurements }),
             acceleratorAvailable: context.acceleratorAvailable(),
             ...(command.sample === undefined ? {} : { sample: command.sample }),
+            // A built-in run never holds the page: its heavy work computes in the element's Worker
+            // or in chunks that yield the frame, and Cancel stops it (algorithms/offThread.ts). An
+            // extension's own compute makes no such promise.
+            chunked: algorithmByKey(command.algorithm) !== undefined,
         },
     };
 }

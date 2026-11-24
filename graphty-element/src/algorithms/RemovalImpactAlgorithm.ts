@@ -139,12 +139,12 @@ export class RemovalImpactAlgorithm extends DeclaredAlgorithm<RemovalImpactOptio
         }
         const removedEdgeIds = new Set(this.schemaOptions.edges);
 
-        context.report({ phase: "finding-pieces", total: null });
         const rows = nodeIds.map((id) => graph.ids.indexOf(id)).filter((row) => row !== INVALID_INDEX);
         const before = unionFind(graph.nodeCount);
         const after = unionFind(graph.nodeCount);
         let removedEdges = 0;
-        for (const edge of edges) {
+        // In chunks that yield the frame, so the page stays live and Cancel is heard.
+        await forEachChunked(context, "finding-pieces", edges, (edge) => {
             const s = graph.ids.indexOf(edge.source);
             const t = graph.ids.indexOf(edge.target);
             before.union(s, t);
@@ -153,8 +153,7 @@ export class RemovalImpactAlgorithm extends DeclaredAlgorithm<RemovalImpactOptio
             } else {
                 after.union(s, t);
             }
-        }
-        context.signal.throwIfAborted();
+        });
 
         const survivors = rows.filter((row) => !removedRows.has(row));
         const sizesBefore = pieceSizes(rows, before.pieceOf);

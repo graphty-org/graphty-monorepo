@@ -1,6 +1,6 @@
 // The route algorithms import the same helper set, so this list is a deliberate parallel of DijkstraAlgorithm.ts.
 // jscpd:ignore-start
-import { allSimplePaths, SIMPLE_PATHS_DEFAULT_MAX_PATHS } from "@graphty/algorithms";
+import { SIMPLE_PATHS_DEFAULT_MAX_PATHS } from "@graphty/algorithms";
 import { INVALID_INDEX } from "@graphty/graph-format";
 import { z } from "zod";
 
@@ -11,6 +11,7 @@ import { caveat } from "../session/runs/caveatFacts";
 import { Algorithm } from "./Algorithm";
 import type { SimplifyPolicy } from "./input/derivedInputs";
 import { scopeEdges, type ScopeInputDeclaration } from "./input/ScopedInput";
+import { offThread } from "./offThread";
 import {
     type AlgorithmOutput,
     type AlgorithmRunContext,
@@ -148,7 +149,7 @@ export class AllPathsAlgorithm extends DeclaredAlgorithm<AllPathsOptions> {
         context.report({ phase: "searching-for-paths", total: null });
         // The transpose keeps the node and edge spaces, so the result reads the same either way.
         const searched = directed && direction === "in" ? snapshot.transpose().snapshot : snapshot;
-        const found = allSimplePaths(searched, sourceIndex, targetIndex, {
+        const found = await offThread("allSimplePaths", searched, context.signal, sourceIndex, targetIndex, {
             maxLength: maxLength ?? undefined,
             maxPaths,
         });

@@ -7,10 +7,13 @@
  * an iPad, where the reader saw the whole page stop. The element owns the Worker -- a consumer
  * writes nothing -- and the result is the one the same port computes on the page.
  *
- * WHICH WORK. Only the dispatcher members listed in {@link OFF_THREAD_MEMBERS}, whose published
- * result is plain data (typed arrays and numbers) and so crosses to the page unchanged, and only
- * over a graph of {@link OFF_THREAD_MIN_ELEMENTS} or more, where the copy of the graph is small
- * next to the work. Everything else runs where it always ran.
+ * WHICH WORK. The dispatcher members listed in {@link OFF_THREAD_MEMBERS} and the library calls in
+ * `offThreadTasks.ts`, whose result is plain data (typed arrays and numbers) and so crosses to the
+ * page unchanged, over a graph where the copy is small next to the work: one of
+ * {@link OFF_THREAD_MIN_ELEMENTS} or more, or, for the work that grows with nodes times the graph
+ * ({@link SUPERLINEAR}), one where that product reaches {@link OFF_THREAD_MIN_PAIRS} -- a dense
+ * graph of a few thousand elements froze the page through Betweenness. Everything else runs where
+ * it always ran.
  *
  * CANCEL STOPS THE WORK. A run's signal reaches the call: when it aborts, the call rejects with the
  * signal's reason at once and the Worker computing it is terminated, so a canceled Betweenness
@@ -23,16 +26,18 @@
  * failure then surfaces as the port's own error, with its own code.
  */
 
-import { accelerated, type AcceleratedAlgorithms } from "@graphty/algorithms";
+import { accelerated, type AcceleratedAlgorithms, walkPredArcs, walkPredEdges } from "@graphty/algorithms";
 import type { GraphSnapshot } from "@graphty/graph-format";
 
 import type { OffThreadReply, OffThreadRequest } from "./offThreadProtocol";
+import { OFF_THREAD_TASKS, type OffThreadTask } from "./offThreadTasks";
 
 /**
  * The dispatcher members computed in the Worker: each returns plain data and takes a snapshot
  * first. Left out: the linear passes (components, degrees, a breadth-first search), which finish
- * before a copy would; the shortest-path searches, whose result carries a `pathTo` the element
- * calls; and `depthFirstSearch`, which takes a view rather than a snapshot.
+ * before a copy would; Dijkstra, near-linear, whose result carries a `pathTo` the element calls;
+ * and `depthFirstSearch`, which takes a view rather than a snapshot. Bellman-Ford's `pathTo` is
+ * put back on the page (see {@link cpuDispatcher}).
  */
 const OFF_THREAD_MEMBERS: ReadonlySet<string> = new Set([
     "pageRank",
@@ -60,10 +65,47 @@ const OFF_THREAD_MEMBERS: ReadonlySet<string> = new Set([
     "maximumBipartiteMatching",
     "commonNeighborsPrediction",
     "adamicAdarPrediction",
+    "bellmanFord",
 ]);
 
 /** The smallest graph, in nodes plus edges, worth copying to the Worker. */
 const OFF_THREAD_MIN_ELEMENTS = 10_000;
+
+/** The work that grows with nodes times the graph, or faster: worth a copy on a smaller graph. */
+const SUPERLINEAR: ReadonlySet<string> = new Set<string>([
+    "betweennessCentrality",
+    "edgeBetweennessCentrality",
+    "closenessCentrality",
+    "allPairsShortestPath",
+    "girvanNewman",
+    "stoerWagner",
+    "kargerMinCut",
+    "bellmanFord",
+    "spectralClustering",
+    "markovClustering",
+    "hierarchicalClustering",
+    "allSimplePaths",
+] satisfies (keyof AcceleratedAlgorithms | OffThreadTask)[]);
+
+/**
+ * The smallest nodes times (nodes plus edges) worth copying for superlinear work: about a
+ * frame's worth of Betweenness, so the copy is small next to it.
+ */
+const OFF_THREAD_MIN_PAIRS = 1_000_000;
+
+/**
+ * Whether a call over this graph is worth copying to the Worker.
+ * @param name - The member or task.
+ * @param snapshot - The graph it runs over.
+ * @returns True when the work outweighs the copy.
+ */
+function worthACopy(name: string, snapshot: GraphSnapshot): boolean {
+    const elements = snapshot.nodeCount + snapshot.edgeCount;
+    return (
+        elements >= OFF_THREAD_MIN_ELEMENTS ||
+        (SUPERLINEAR.has(name) && snapshot.nodeCount * elements >= OFF_THREAD_MIN_PAIRS)
+    );
+}
 
 /** One request waiting for its answer, how to send it, and how to compute it on the page instead. */
 interface Waiting {
@@ -264,7 +306,7 @@ function callOffThread(
 
 /**
  * The CPU dispatcher for a run over one snapshot: the listed members computed in the Worker when
- * the graph is large enough and a Worker can run, every other member on the page.
+ * the graph is large enough for them and a Worker can run, every other member on the page.
  * @param snapshot - The graph the run is over.
  * @param signal - The run's signal: aborting it rejects a Worker call at once and stops its work.
  * @returns The dispatcher.
@@ -272,7 +314,8 @@ function callOffThread(
 export function cpuDispatcher(snapshot: GraphSnapshot, signal?: AbortSignal): AcceleratedAlgorithms {
     const onPage = accelerated(null);
 
-    if (snapshot.nodeCount + snapshot.edgeCount < OFF_THREAD_MIN_ELEMENTS) {
+    if (!worthACopy("betweennessCentrality", snapshot)) {
+        // Not worth a copy even for the heaviest member.
         return onPage;
     }
 
@@ -286,10 +329,58 @@ export function cpuDispatcher(snapshot: GraphSnapshot, signal?: AbortSignal): Ac
             return (over: GraphSnapshot, ...args: unknown[]): Promise<unknown> => {
                 const call = (): Promise<unknown> =>
                     (own as (s: GraphSnapshot, ...rest: unknown[]) => Promise<unknown>).call(target, over, ...args);
-                const off = workerOrNull();
+                const off = worthACopy(member, over) ? workerOrNull() : null;
+                const answer =
+                    off === null ? call() : callOffThread(off, { member, snapshot: over, args }, call, signal);
 
-                return off === null ? call() : callOffThread(off, { member, snapshot: over, args }, call, signal);
+                // The route walk is a function, which the Worker's answer cannot carry: put it back.
+                return member === "bellmanFord" ? answer.then((value) => withRouteWalk(over, args[0], value)) : answer;
             };
         },
     });
+}
+
+/**
+ * A shortest-path result with its `pathTo` and `pathEdges` over its predecessor arcs.
+ * @param over - The graph searched.
+ * @param source - The source row.
+ * @param value - The result, as the Worker or the page answered it.
+ * @returns The result with its route walk.
+ */
+function withRouteWalk(over: GraphSnapshot, source: unknown, value: unknown): unknown {
+    const result = value as { predArc: Uint32Array<ArrayBuffer> };
+    const from = source as number;
+    return {
+        ...result,
+        pathTo: (target: number) => walkPredArcs(over, result.predArc, from, target),
+        pathEdges: (target: number) => walkPredEdges(over, result.predArc, from, target),
+    };
+}
+
+/** A task's arguments after the graph. */
+type TaskArgs<K extends OffThreadTask> = (typeof OFF_THREAD_TASKS)[K] extends (s: never, ...rest: infer R) => unknown
+    ? R
+    : never;
+
+/**
+ * Compute one library call of `offThreadTasks.ts` in the Worker when the graph is large enough
+ * for it and a Worker can run, and on the page otherwise; the answer is the same either way.
+ * @param task - The task.
+ * @param snapshot - The graph it runs over.
+ * @param signal - The run's signal: aborting it rejects the call at once and stops its Worker.
+ * @param args - Its other arguments.
+ * @returns What the task returned.
+ */
+export async function offThread<K extends OffThreadTask>(
+    task: K,
+    snapshot: GraphSnapshot,
+    signal: AbortSignal | undefined,
+    ...args: TaskArgs<K>
+): Promise<ReturnType<(typeof OFF_THREAD_TASKS)[K]>> {
+    const run = OFF_THREAD_TASKS[task] as (s: GraphSnapshot, ...rest: unknown[]) => unknown;
+    const onPage = (): Promise<unknown> => Promise.resolve().then(() => run(snapshot, ...args));
+    const off = worthACopy(task, snapshot) ? workerOrNull() : null;
+    const answer = off === null ? onPage() : callOffThread(off, { member: task, snapshot, args }, onPage, signal);
+
+    return (await answer) as ReturnType<(typeof OFF_THREAD_TASKS)[K]>;
 }

@@ -1,18 +1,16 @@
-import { markovClustering } from "@graphty/algorithms";
 import { z } from "zod";
 
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
-import type { ResultElementValues } from "../session/results";
 import { caveat } from "../session/runs/caveatFacts";
 import { Algorithm } from "./Algorithm";
 import { type ScopeInputDeclaration, scopeNodeIds } from "./input/ScopedInput";
+import { offThread } from "./offThread";
 import {
     type AlgorithmOutput,
     type AlgorithmRunContext,
-    communityFieldSpecs,
     DeclaredAlgorithm,
     declaredCaveats,
-    forEachChunked,
+    unscoredPartition,
 } from "./results";
 import type { OptionsSchema } from "./types/OptionSchema";
 
@@ -124,18 +122,15 @@ export class MarkovClusteringAlgorithm extends DeclaredAlgorithm<MarkovClusterin
         const { inflation, expansion, maxIterations, selfLoops } = this.schemaOptions;
 
         context.report({ phase: "spreading-flow", total: null });
-        const value = markovClustering(snapshot, { inflation, expansion, maxIterations, selfLoops });
-        context.signal.throwIfAborted();
-
-        const nodes: ResultElementValues[] = [];
-        await forEachChunked(context, "grouping-nodes", nodeIds, (nodeId) => {
-            nodes.push({ id: nodeId, values: { group: value.labels[snapshot.ids.indexOf(nodeId)] ?? 0 } });
+        const value = await offThread("markovClustering", snapshot, context.signal, {
+            inflation,
+            expansion,
+            maxIterations,
+            selfLoops,
         });
 
         return {
-            shape: "community",
-            fields: communityFieldSpecs(false),
-            nodes,
+            ...(await unscoredPartition(context, nodeIds, snapshot.ids, value.labels)),
             caveats: declaredCaveats({
                 method: "markov-clustering",
                 direction: "undirected",

@@ -1,18 +1,16 @@
-import { hierarchicalClustering } from "@graphty/algorithms";
 import { z } from "zod";
 
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
-import type { ResultElementValues } from "../session/results";
-import { caveat } from "../session/runs/caveatFacts";
 import { Algorithm } from "./Algorithm";
 import { type ScopeInputDeclaration, scopeNodeIds } from "./input/ScopedInput";
+import { offThread } from "./offThread";
 import {
     type AlgorithmOutput,
     type AlgorithmRunContext,
-    communityFieldSpecs,
+    caveat,
     DeclaredAlgorithm,
     declaredCaveats,
-    forEachChunked,
+    unscoredPartition,
 } from "./results";
 import type { OptionsSchema } from "./types/OptionSchema";
 
@@ -94,22 +92,12 @@ export class HierarchicalClusteringAlgorithm extends DeclaredAlgorithm<Hierarchi
         const { clusters, linkage } = this.schemaOptions;
 
         context.report({ phase: "merging-clusters", total: null });
-        const tree = hierarchicalClustering(snapshot, { linkage });
-        context.signal.throwIfAborted();
-
-        // The merge tree cannot be cut into fewer clusters than it has unlinked parts, nor more than nodes.
-        const cut = Math.min(Math.max(clusters, tree.roots.length), snapshot.nodeCount);
-        const value = tree.cutAt({ clusters: cut });
-
-        const nodes: ResultElementValues[] = [];
-        await forEachChunked(context, "grouping-nodes", nodeIds, (nodeId) => {
-            nodes.push({ id: nodeId, values: { group: value.labels[snapshot.ids.indexOf(nodeId)] ?? 0 } });
-        });
+        // Cut no finer than the tree's unlinked parts, nor finer than nodes (see offThreadTasks.ts).
+        const value = await offThread("hierarchicalClustering", snapshot, context.signal, { linkage, clusters });
+        const { cut } = value;
 
         return {
-            shape: "community",
-            fields: communityFieldSpecs(false),
-            nodes,
+            ...(await unscoredPartition(context, nodeIds, snapshot.ids, value.labels)),
             caveats: declaredCaveats({
                 method: `hierarchical-clustering-${linkage}`,
                 direction: "undirected",

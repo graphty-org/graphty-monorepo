@@ -1,5 +1,4 @@
-import { astar } from "@graphty/algorithms";
-import { detHypot, type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
+import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 import { z } from "zod";
 
 import type { EdgeId } from "../catalog/types";
@@ -9,6 +8,7 @@ import { caveat } from "../session/runs/caveatFacts";
 import { Algorithm } from "./Algorithm";
 import type { SimplifyPolicy } from "./input/derivedInputs";
 import { scopeEdges, type ScopeInputDeclaration, scopeNodeIds } from "./input/ScopedInput";
+import { offThread } from "./offThread";
 import {
     type AlgorithmOutput,
     type AlgorithmRunContext,
@@ -47,27 +47,29 @@ interface AStarOptions extends Record<string, unknown> {
 }
 
 /**
- * The straight-line distance between two nodes' current positions, as an A* heuristic over a
- * snapshot's node indices. A node with no position yet estimates 0, which never misleads the search.
+ * Each searched node's current position, three numbers per node index, for the straight-line A*
+ * heuristic; a node with no position yet reads NaN, which estimates 0 and never misleads the search.
+ * Numbers rather than a function, so the search can run in the element's Worker.
  * @param graph - The declared graph, which carries the element's position column.
  * @param searched - The snapshot the search runs over.
- * @returns The heuristic.
+ * @returns The positions, or null when the graph has none.
  */
-function layoutDistance(graph: GraphSnapshot, searched: GraphSnapshot): (node: number, target: number) => number {
+function layoutPositions(graph: GraphSnapshot, searched: GraphSnapshot): Float64Array | null {
     const column = graph.nodes.byRole("position");
     const xyz = column?.dtype === "f32" || column?.dtype === "f64" ? column.data : null;
     if (xyz === null) {
-        return () => 0;
+        return null;
     }
 
-    const rowOf = (index: number): number => graph.ids.indexOf(searched.ids.idOf(index));
+    const out = new Float64Array(searched.nodeCount * 3).fill(Number.NaN);
+    for (let index = 0; index < searched.nodeCount; index++) {
+        const row = graph.ids.indexOf(searched.ids.idOf(index));
+        if (row !== INVALID_INDEX) {
+            out.set([xyz[row * 3], xyz[row * 3 + 1], xyz[row * 3 + 2]], index * 3);
+        }
+    }
 
-    return (node, target) => {
-        const a = rowOf(node) * 3;
-        const b = rowOf(target) * 3;
-        const d = detHypot(xyz[a] - xyz[b], xyz[a + 1] - xyz[b + 1], xyz[a + 2] - xyz[b + 2]);
-        return Number.isFinite(d) ? d : 0;
-    };
+    return out;
 }
 
 /**
@@ -126,10 +128,10 @@ export class AStarAlgorithm extends DeclaredAlgorithm<AStarOptions> {
         const { source, target } = endpointIds(snapshot, this.schemaOptions);
         const sourceIndex = this.nodeIndex(snapshot, "source", source);
         const targetIndex = this.nodeIndex(snapshot, "target", target);
-        const estimate = heuristic === "none" ? () => 0 : layoutDistance(input.graph, snapshot);
+        const positions = heuristic === "none" ? null : layoutPositions(input.graph, snapshot);
 
         context.report({ phase: "searching-for-the-route", total: null });
-        const value = astar(snapshot, sourceIndex, targetIndex, estimate);
+        const value = await offThread("astar", snapshot, context.signal, sourceIndex, targetIndex, positions);
         context.signal.throwIfAborted();
 
         const orderOf = new Map<number, number>();

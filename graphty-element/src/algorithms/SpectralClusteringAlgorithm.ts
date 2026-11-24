@@ -1,19 +1,17 @@
-import { spectralClustering } from "@graphty/algorithms";
 import { z } from "zod";
 
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
-import type { ResultElementValues } from "../session/results";
 import { caveat } from "../session/runs/caveatFacts";
 import { Algorithm } from "./Algorithm";
 import { drawSeed } from "./drawSeed";
 import { type ScopeInputDeclaration, scopeNodeIds } from "./input/ScopedInput";
+import { offThread } from "./offThread";
 import {
     type AlgorithmOutput,
     type AlgorithmRunContext,
-    communityFieldSpecs,
     DeclaredAlgorithm,
     declaredCaveats,
-    forEachChunked,
+    unscoredPartition,
 } from "./results";
 import type { OptionsSchema } from "./types/OptionSchema";
 
@@ -129,18 +127,15 @@ export class SpectralClusteringAlgorithm extends DeclaredAlgorithm<SpectralClust
         const seed = this.schemaOptions.seed ?? drawSeed();
 
         context.report({ phase: "embedding-nodes", total: null });
-        const value = spectralClustering(snapshot, { k: clusters, laplacianType: laplacian, maxIterations, seed });
-        context.signal.throwIfAborted();
-
-        const nodes: ResultElementValues[] = [];
-        await forEachChunked(context, "grouping-nodes", nodeIds, (nodeId) => {
-            nodes.push({ id: nodeId, values: { group: value.labels[snapshot.ids.indexOf(nodeId)] ?? 0 } });
+        const value = await offThread("spectralClustering", snapshot, context.signal, {
+            k: clusters,
+            laplacianType: laplacian,
+            maxIterations,
+            seed,
         });
 
         return {
-            shape: "community",
-            fields: communityFieldSpecs(false),
-            nodes,
+            ...(await unscoredPartition(context, nodeIds, snapshot.ids, value.labels)),
             caveats: declaredCaveats({
                 method: "spectral-clustering",
                 direction: "undirected",

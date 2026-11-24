@@ -6,9 +6,13 @@ import { accelerated } from "@graphty/algorithms";
 import { fromBytes } from "@graphty/graph-format";
 
 import type { OffThreadReply, OffThreadRequest } from "./offThreadProtocol";
+import { OFF_THREAD_TASKS } from "./offThreadTasks";
 
-/** The CPU port, the same one the page runs. */
-const port = accelerated(null) as unknown as Record<string, (...args: unknown[]) => Promise<unknown>>;
+/** The CPU port and the library calls, the same ones the page runs. */
+const port = { ...accelerated(null), ...OFF_THREAD_TASKS } as unknown as Record<
+    string,
+    (...args: unknown[]) => unknown
+>;
 
 /**
  * The plain data of a result: its own fields, without the functions a port may add for
@@ -35,7 +39,7 @@ function handle(event: MessageEvent<OffThreadRequest>): void {
     };
 
     try {
-        void port[member](fromBytes(bytes, { validate: "none" }), ...args).then(
+        void Promise.resolve(port[member](fromBytes(bytes, { validate: "none" }), ...args)).then(
             (value) => {
                 reply({ id, ok: true, value: plain(value) });
             },

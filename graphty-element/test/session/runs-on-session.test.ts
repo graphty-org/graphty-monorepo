@@ -226,7 +226,24 @@ describe("runs on the session", () => {
         assert.isTrue(estimate.available);
         assert.isBelow(estimate.seconds, 1, "counting two degrees is not slow");
         assert.strictEqual(estimate.basisFacts.nodes, 2);
+        assert.isTrue(estimate.cancelable, "a built-in run can be stopped");
+        assert.isFalse(estimate.blocksFrame, "and never holds the page");
         assert.strictEqual(harness.session.run(command).id, "degree");
+        harness.session.dispose();
+    });
+
+    it("estimates a slow built-in run on a big graph as cancelable and leaving the page live", () => {
+        const { harness } = withRunner();
+        const ids = Array.from({ length: 3000 }, (_, at) => ({ id: `n${String(at)}` }));
+        harness.add(
+            ids,
+            ids.map((node, at) => ({ src: node.id, dst: ids[(at + 1) % ids.length].id })),
+        );
+
+        const estimate = harness.session.estimate({ op: "algo.run", algorithm: "betweenness" });
+
+        assert.isTrue(estimate.cancelable, "Cancel stops it");
+        assert.isFalse(estimate.blocksFrame, "it computes off the page, so the page keeps drawing");
         harness.session.dispose();
     });
 

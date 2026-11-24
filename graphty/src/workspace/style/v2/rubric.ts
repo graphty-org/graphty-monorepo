@@ -32,6 +32,7 @@ export type Rule =
     | "R13"
     | "R14"
     | "R15"
+    | "R16"
     | "R17"
     | "XY"
     | "field";
@@ -224,7 +225,8 @@ export const SIZE_CHANNELS: readonly Channel[] = [
 const SIZE_RUBRIC: ThingRubric = {
     main: [
         { channel: "node.sizeSpace", name: "Unit", rule: "R8f" },
-        { channel: "node.width", name: "Size", pair: "node.height", letters: ["W", "H"] },
+        // "W / H", so the pop-over names no second "Size" under its main value.
+        { channel: "node.width", name: "W / H", pair: "node.height", letters: ["W", "H"] },
     ],
     groups: [
         {
@@ -372,7 +374,7 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
         common: [{ channel: "node.imageOpacity", name: "Opacity" }],
         main: [
             { channel: "node.imageFit", name: "Fit", rule: "R8f" },
-            { channel: "node.imageFallback", name: "Fallback", rule: "field" },
+            { channel: "node.imageFallback", name: "Fallback", rule: "R16" },
         ],
         groups: [
             {
@@ -451,12 +453,18 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
     },
     stripes: {
         rowOwns: ["node.stripeSizes", "node.stripeOpacities"],
-        main: [
-            { channel: "node.stripeDirection", name: "Direction", rule: "R8" },
-            { channel: "node.stripeSize", name: "Size" },
-        ],
+        main: [{ channel: "node.stripeDirection", name: "Direction", rule: "R8" }],
+        // The band size and frame are rarer than the colors and direction: in Advanced, so the pop-over stays 6
+        // lines tall with its list's first two stripes.
         groups: [
-            { name: "Frame", advanced: true, lines: [{ channel: "node.stripeFrame", name: "Frame", rule: "R17" }] },
+            {
+                name: "Bands",
+                advanced: true,
+                lines: [
+                    { channel: "node.stripeSize", name: "Size" },
+                    { channel: "node.stripeFrame", name: "Frame", rule: "R17" },
+                ],
+            },
         ],
     },
     chart: {
@@ -651,8 +659,8 @@ function edgeEnd(end: EdgeEnd): ThingRubric {
         ],
         main: [],
         groups: [
-            // An open cap's fill is an everyday line, so it stays in the pop-over.
-            { name: "Open caps", lines: [{ channel: at("FillColor"), name: "Fill" }] },
+            // An open cap's fill is rarer than its size and color: in Advanced, so the pop-over stays 6 lines tall.
+            { name: "Open caps", advanced: true, lines: [{ channel: at("FillColor"), name: "Fill" }] },
             {
                 name: "Cap",
                 advanced: true,
@@ -676,7 +684,7 @@ function edgeEnd(end: EdgeEnd): ThingRubric {
                 advanced: true,
                 lines: [
                     ...(middle ? [] : [{ channel: at("Stack"), name: "Stack", rule: "R15" as const }]),
-                    { channel: at("Image"), name: "Image", rule: "field" },
+                    { channel: at("Image"), name: "Image", rule: "R16" },
                 ],
             },
         ],
@@ -730,7 +738,12 @@ export const EDGE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
                     { channel: "edge.dashArray", name: "Custom", rule: "R14" },
                 ],
             },
-            { name: "Wave", lines: [{ channel: "edge.waveAmplitude", name: "Wave", pair: "edge.wavePeriod" }] },
+            // A wave is rarer than dashes: in Advanced, so the pop-over stays 6 lines tall.
+            {
+                name: "Wave",
+                advanced: true,
+                lines: [{ channel: "edge.waveAmplitude", name: "Wave", pair: "edge.wavePeriod" }],
+            },
         ],
     },
     // The Outline item's rows (kindGroups.ts, C7), by the kind's color: color and Width, then Opacity (ia-design 2).
@@ -825,8 +838,10 @@ export const EDGE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
                     },
                 ],
             },
+            // Rarer than the springs: in Advanced, so the pop-over stays 6 lines tall.
             {
                 name: "Curve",
+                advanced: true,
                 lines: [
                     { channel: "edge.supportUnit", name: "Unit size" },
                     { channel: "edge.supportScale", name: "Scale", rule: "R8" },
@@ -837,6 +852,8 @@ export const EDGE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
     visibility: { row: { channel: "edge.visible", name: "Visibility", rule: "R8" }, main: [] },
     // An edge Record is its label table (design 4.2), its rows the list editor's (R15, `ItemList.tsx`).
     record: { rowOwns: ["edge.labelTable"], main: [] },
+    // The speed is the row's; the pop-over holds its line, which varies by data, as every main value's does.
+    animation: { row: { channel: "edge.animationSpeed", name: "Speed" }, main: [] },
 };
 
 /**

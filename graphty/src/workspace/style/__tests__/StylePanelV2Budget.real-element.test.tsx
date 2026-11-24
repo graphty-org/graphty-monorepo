@@ -1,9 +1,9 @@
 /**
  * Style panel v2's mark budget on the REAL graphty-element (design/ui/style-panel-v2/design.md,
  * section 3 and acceptance checks 4 and 10): the default Everything node tab draws at most 26 hit
- * targets and at most one caret a section, an empty layer at most 8, the minus is the far-right slot
- * on every set line, and hovering a row draws nothing new on the graph (design 2.4: hover keeps
- * today's highlight).
+ * targets and at most one caret a section (Shape two: its list and its Kind), an empty layer at most 8, the
+ * minus is the far-right slot on every set line, and hovering a row draws nothing new on the graph (design 2.4:
+ * hover keeps today's highlight).
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -65,9 +65,11 @@ describe("Style panel v2's budget", () => {
         });
         const marks = marksIn(tab);
         assert.isAtMost(marks, 26, `the Everything node tab draws ${String(marks)} marks`);
+        // A basic shape has no settings pop-over (owner, 2026-11-23): its Kind drop-down is the line under its row,
+        // so Shape draws two carets, the shape list and its Kind; every other section one at most.
         const shape = tab.querySelector<HTMLElement>('[data-section="node-shape"]');
-        assert.lengthOf(shape === null ? [] : caretsIn(shape), 1, "the shape list is Shape's one caret");
-        for (const section of sectionsIn(tab)) {
+        assert.lengthOf(shape === null ? [] : caretsIn(shape), 2, "the shape list and its Kind are Shape's carets");
+        for (const section of sectionsIn(tab).filter((each) => each !== shape)) {
             assert.isAtMost(caretsIn(section).length, 1, `${String(section.dataset.section)} has one caret at most`);
         }
     });

@@ -12,7 +12,7 @@ import { Scene } from "@babylonjs/core/scene.js";
 
 import { EDGE_CONSTANTS } from "../constants/meshConstants";
 import { ArrowCap, arrowCapBatch } from "./ArrowCapBatch";
-import { EDGE_TRIM_GLSL } from "./edgeTrim";
+import { EDGE_TRIM_GLSL, ROW_END_GLSL } from "./edgeTrim";
 import { MaterialHelper } from "./MaterialHelper";
 import { PerSceneMaterials } from "./PerSceneMaterials";
 
@@ -313,6 +313,7 @@ attribute vec4 capPlace;
 uniform highp sampler2D rowPosition;
 uniform highp sampler2D rowExtent;
 ${EDGE_TRIM_GLSL}
+${ROW_END_GLSL}
 vec4 capTexel(highp sampler2D table, int i) {
     return texelFetch(table, ivec2(i & 1023, i >> 10), 0);
 }
@@ -376,7 +377,7 @@ void main() {
         int to = int(capRows.y + 0.5);
         vec4 a = capTexel(rowPosition, fromRow);
         vec4 b = capTexel(rowPosition, to);
-        if (a.w * b.w != 0.0) {
+        if (rowEnds(a, fromRow) && rowEnds(b, to)) {
             float fromScale;
             float toScale;
             EdgeTrimEnd source = capEnd(fromRow, a.w, capPlace.x, fromScale);

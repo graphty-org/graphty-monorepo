@@ -7,6 +7,5 @@
     "../../stories/NodeModels.stories.ts ModelAndTextureByUrl": "Its model is served by the Storybook server, which this project does not start",
     "../../stories/Screenshot.stories.ts Image": "Fails on objects here: its play reads a capture this harness does not make",
     "../../stories/shaders/EdgePresets.stories.ts EdgeChange": "Fails on objects here: its play waits on a removed edge in a run with no Storybook args",
-    "../../stories/LabelStyles.stories.ts Animation": "Hangs on objects here: its play counts 20 drawn frames (labelMotion) of a still graph that draws no more frames, until the global hang guard",
     "../../stories/LabelStyles.stories.ts DepthFade": "Fails on objects here: its play finds the nearest label 76 units from the camera at this canvas size, past the 65 it expects"
 }

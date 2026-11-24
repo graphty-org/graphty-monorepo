@@ -141,6 +141,8 @@ describe("DataFieldPicker, multi mode", () => {
         const list = await open(trigger);
         assert.isNull(within(list).queryByRole("option", { name: /All starting with/ }));
         await userEvent.keyboard("expr_");
+        assert.isNotNull(screen.queryByRole("button", { name: "Done" }), "Done stays while a search is typed");
+        assert.isNull(screen.queryByRole("button", { name: "Clear search" }));
         await userEvent.click(within(list).getByRole("option", { name: 'All starting with "expr_"' }));
         await userEvent.click(within(list).getByRole("option", { name: 'All except starting with "expr_"' }));
         assert.deepEqual(seen.matched, [
@@ -156,5 +158,17 @@ describe("DataFieldPicker, multi mode", () => {
         await userEvent.click(within(list).getByRole("option", { name: "Text" }));
         assert.deepEqual(seen.actions, ["text"]);
         assert.isNotNull(screen.queryByRole("listbox", { name: "Pie data" }));
+    });
+
+    it("draws the first picked value's glyph on the trigger, in the order picked", async () => {
+        const { trigger } = await renderMulti();
+        const list = await open(trigger);
+        await userEvent.click(within(list).getByRole("option", { name: /^animals/ }));
+        await userEvent.click(within(list).getByRole("option", { name: /^expr_1/ }));
+        const outside = [...document.querySelectorAll("[data-field-type]")].filter((glyph) => !list.contains(glyph));
+        assert.deepEqual(
+            outside.map((glyph) => glyph.getAttribute("data-field-type")),
+            ["list"],
+        );
     });
 });

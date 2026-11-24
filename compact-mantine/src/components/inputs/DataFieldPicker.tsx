@@ -324,7 +324,8 @@ function MultiFieldPicker(props: Readonly<DataFieldPickerMultiProps>): React.JSX
     const [query, setQuery] = useState("");
     const checked = new Set(values);
     const action = actionValue === undefined ? undefined : actions.find((a) => a.id === actionValue);
-    const first = fields.find((field) => checked.has(field.id));
+    // The trigger reads the first value in the host's order (its first entry), not the first checked row listed.
+    const first = values.map((id) => fields.find((field) => field.id === id)).find((field) => field !== undefined);
     const words = action?.label ?? shown ?? first?.name ?? "";
     const typed = query.trim();
     const rows: QuickAction[] = [
@@ -403,6 +404,7 @@ function MultiFieldPicker(props: Readonly<DataFieldPickerMultiProps>): React.JSX
                             row.value.startsWith(EXCEPT) ||
                             [row.label, ...(row.keywords ?? [])].some((each) => matchesWordStart(each, search))
                         }
+                        keepSearchAction
                         searchAction={
                             <Button
                                 size="compact-sm"

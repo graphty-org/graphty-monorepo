@@ -94,6 +94,11 @@ export interface QuickActionsProps {
      */
     searchAction?: React.ReactNode;
     /**
+     * Keep `searchAction` in its place while there is search text, in place of the clear button: for an action the
+     * reader needs at any time, as a multi-pick's Done. @default false
+     */
+    keepSearchAction?: boolean;
+    /**
      * Rows are checked and unchecked, several at once: each row draws a check column and is `aria-selected` by its own
      * `selected`, and the list is `aria-multiselectable`. Running a row is the host's toggle. @default false
      */
@@ -205,6 +210,7 @@ function defaultFilter(action: QuickAction, query: string): boolean {
  * @param props.filter - Which actions match the search
  * @param props.header - Rendered between the search field and the list
  * @param props.searchAction - A trailing action at the right end of the search field
+ * @param props.keepSearchAction - Keep the trailing action while there is search text, in place of the clear button
  * @param props.listId - The id of the result list, for a header control to name in `aria-controls`
  * @param props.truncate - Cut a long name at the end or in the middle
  * @param props.descriptions - Each description under the name or at the end of its line
@@ -229,6 +235,7 @@ export function QuickActions({
     filter = defaultFilter,
     header,
     searchAction,
+    keepSearchAction = false,
     multiselectable = false,
     listId: listIdProp,
     truncate = "end",
@@ -366,7 +373,7 @@ export function QuickActions({
                 />
                 {search !== "" || searchAction ? (
                     <span className="cm-qa-search-action">
-                        {search === "" ? (
+                        {search === "" || (keepSearchAction && searchAction) ? (
                             searchAction
                         ) : (
                             <CloseButton

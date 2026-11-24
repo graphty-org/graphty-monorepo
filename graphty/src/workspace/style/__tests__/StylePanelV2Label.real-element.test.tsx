@@ -353,7 +353,8 @@ describe("Style panel v2's Text section", () => {
         const pop = await popoverOf(row);
         // Margin is in the Box size group, and appears only while it applies (design "Input rules", "Tabs").
         const box = await openGroup(pop, "Box size");
-        await lineOf(box, "node.labelStyle.padding");
+        // The group has drawn once its first line is there.
+        await lineOf(box, "node.labelStyle.lineBox");
         assert.isNull(
             box.querySelector('[data-line="node.labelStyle.marginTop"]'),
             "no Margin while box padding is set",

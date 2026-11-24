@@ -91,6 +91,9 @@ check that commit out in a detached worktree, build it, copy this test and
 `test/helpers/drawn-invariants.ts` there with `PATHS` set to `["objects"]`, run the file and keep
 each `[pick-parity]` line whose path is `objects` (key to value).
 
+The two `selection ctrl-click t0` entries are edited by hand: since #9907 a Ctrl-click adds the node to
+the selection (or takes it out) instead of replacing it, so they record the toggle, not that build's answer.
+
 ## Running Tests
 
 ### All Interaction Tests

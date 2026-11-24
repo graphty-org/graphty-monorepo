@@ -664,6 +664,9 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     // ARROW_LENGTH 10 and the normal arrow's half width 0.35 of its length
                     length: (size) => 10 * size,
                     aspect: 0.7,
+                    // arrow_type_normal0 widens the triangle with a pen past 4 points (0.35 * penwidth / 4), its
+                    // length unchanged: 7 x 10 at penwidth 4, 12.25 x 10 at 7 (Graphviz 16.1.0 -Tsvg)
+                    width: (size, width) => 7 * size * Math.max(1, width / 4),
                     // each arrow type's length factor and the half width its arrow_type_* function draws
                     shapes: {
                         tee: { length: 0.2, aspect: 5 },
@@ -681,7 +684,7 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                         "other:curve": { length: 0.5, aspect: 2 },
                         "other:inv-curve": { length: 0.5, aspect: 2 },
                     },
-                    source: "graphviz lib/common/arrows.c (ARROW_LENGTH 10, Arrowtypes lenfact, arrow_type_normal 0.35, arrow_type_crow 0.45, arrow_type_tee, arrow_type_box 0.4, arrow_type_diamond 1/3, arrow_type_dot, arrow_type_curve)",
+                    source: "graphviz lib/common/arrows.c (ARROW_LENGTH 10, Arrowtypes lenfact, arrow_type_normal 0.35 widened by penwidth / 4 past 4, arrow_type_crow 0.45, arrow_type_tee, arrow_type_box 0.4, arrow_type_diamond 1/3, arrow_type_dot, arrow_type_curve)",
                 },
                 node: {
                     fillOpacity: v(0, `${GV}/style/ (default "", not filled)`),

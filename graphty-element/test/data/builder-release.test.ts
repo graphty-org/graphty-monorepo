@@ -90,6 +90,31 @@ describe("letting the builder go after a load", () => {
         assert.deepStrictEqual(release(store), { released: true, revivals: 0 });
     });
 
+    it("answers a hover's incident-edge lookup from the snapshot, with no rebuild (issue #9834)", () => {
+        for (const directed of [true, false]) {
+            const kept = storeWith(false, () => directed);
+            const letGo = storeWith(true, () => directed);
+            for (const store of [kept, letGo]) {
+                load(store, 50, 200);
+                store.getSnapshot();
+                store.releaseIdle();
+            }
+            assert.deepStrictEqual(release(letGo), { released: true, revivals: 0 });
+
+            for (let id = 0; id < 50; id++) {
+                const expected = kept.incidentEdgeIds([id]).sort((a, b) => a - b);
+                assert.isNotEmpty(expected);
+                assert.deepStrictEqual(
+                    letGo.incidentEdgeIds([id]).sort((a, b) => a - b),
+                    expected,
+                    `node ${id}`,
+                );
+            }
+            assert.deepStrictEqual(letGo.incidentEdgeIds([999]), [], "a node the graph does not hold");
+            assert.deepStrictEqual(release(letGo), { released: true, revivals: 0 }, `directed ${directed}`);
+        }
+    });
+
     it("rebuilds it on the first write, and the graph comes out as if it had been kept", () => {
         const graphs = [true, false].map((on) => {
             const store = storeWith(on);

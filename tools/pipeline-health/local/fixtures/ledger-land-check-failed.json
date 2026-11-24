@@ -20,12 +20,12 @@
     "failures": [
         {
             "file": "githerd/test/owners.test.mjs",
-            "name": "the push log of tools/push-queue.sh > names the branch, the commit and the session found up the process chain",
-            "line": "Error: Command failed: bash tools/push-queue.sh git push -q origin HEAD:feat/x",
+            "name": "the push log of tools/push.sh > names the branch, the commit and the session found up the process chain",
+            "line": "Error: Command failed: bash tools/push.sh git push -q origin HEAD:feat/x",
             "key": "a5d3075b5ef81d29",
             "signature": "c670d627be7a53a5",
             "status": "fail",
-            "message": "Error: Command failed: bash /home/someone/Projects/graphty-monorepo/.worktrees/land-check-1/tools/push-queue.sh git push -q origin HEAD:feat/x\nnode_modules is out of date with pnpm-lock.yaml; run pnpm install\n\n pushWithEntry test/owners.test.mjs:450:21"
+            "message": "Error: Command failed: bash /home/someone/Projects/graphty-monorepo/.worktrees/land-check-1/tools/push.sh git push -q origin HEAD:feat/x\nnode_modules is out of date with pnpm-lock.yaml; run pnpm install\n\n pushWithEntry test/owners.test.mjs:450:21"
         },
         {
             "file": "githerd/test/owners.test.mjs",

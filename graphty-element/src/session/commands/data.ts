@@ -40,6 +40,7 @@ import { GRAPHVIZ_ENGINES, graphvizLayoutId } from "../../layout/graphviz/engine
 import { POINTS_PER_UNIT } from "../../layout/graphviz/toDot";
 import { GraphtyLogger } from "../../logging/GraphtyLogger.js";
 import { isValueType, VALUE_TYPES } from "../columns";
+import { designateDeclaredKinds } from "../kinds";
 import type { UndoableContext, UndoableDefinition } from "../project/Dispatcher";
 import { type Draft, frozenRecord } from "../project/draft";
 import { edgeKey, nodeKey } from "../project/graphOps";
@@ -1081,6 +1082,8 @@ export const dataImport: UndoableDefinition<DataImportCommand> = {
 
         // The time field the file declares, designated in this same step.
         await designateDeclaredTime(outcome?.reader?.declaredTime, ctx);
+        // The kind columns the file declares, in this same step.
+        await designateDeclaredKinds(outcome?.reader, ctx);
         // The file's styles, in this same step.
         sceneScale = await applyFileStyles(command, outcome ?? null, ctx);
         if (earlier !== null) {

@@ -18,6 +18,7 @@
 
 import { type AbstractMesh, DynamicTexture, type Mesh, type StandardMaterial } from "@babylonjs/core";
 
+import { drawnFrames } from "../test/helpers/drawn-frames";
 import type { Drawn } from "./assertions";
 
 /** Alpha at or below which a pixel counts as bare canvas rather than ink. */
@@ -519,17 +520,13 @@ export async function labelMotion(scene: Drawn, frames = 20): Promise<{ scale: n
         });
     };
 
-    await new Promise<void>((resolve) => {
-        let seen = 0;
-        const observer = scene.graph.scene.onAfterRenderObservable.add(() => {
-            read();
-            seen++;
-            if (seen >= frames) {
-                scene.graph.scene.onAfterRenderObservable.remove(observer);
-                resolve();
-            }
-        });
-    });
+    // ONE NEW OBSERVER PER FRAME, through `drawnFrames`. The element draws on demand, and a newly
+    // added frame observer is what asks it for the next frame; a single observer left in place asks
+    // once, so on a still graph (the capture, whose animation is off) the count never reached its end.
+    for (let seen = 0; seen < frames; seen++) {
+        await drawnFrames(scene.graph.scene, 1);
+        read();
+    }
 
     return { scale, position };
 }

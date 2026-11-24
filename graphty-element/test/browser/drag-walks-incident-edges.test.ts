@@ -1,6 +1,6 @@
 /**
- * @file Counted-work scaling of a drag: while a real mouse drags one node, a frame visits that
- * node's edges and no others, on a graph of n and of 4n nodes. Every frame of a drag used to walk
+ * @file Counted-work scaling of a drag: while a real mouse drags one node, each update pass that moves it
+ * visits that node's edges once and no others, on a graph of n and of 4n nodes. Every frame of a drag used to walk
  * every edge of the graph to find the few that moved: at a million edges that walk is the frame
  * (design/rendering/row-renderer.md, stage 2). Counted, never timed (issue #1643).
  */
@@ -161,13 +161,41 @@ function listed(visits: readonly Visit[]): string {
 }
 
 /**
- * Drag node `t` with the real mouse, counting edge visits and frames once the drag is under way
- * (the press selects and the first move pins the node, and either repaint walks every edge once).
+ * Record the update passes that moved node `t`: after each pass, whether where it is drawn changed.
+ * @param element - The element.
+ * @returns The passes so far, and a stop that restores the update.
+ */
+function passesMoving(element: Graphty): { moved: Set<number>; stop: () => void } {
+    const dragged = element.graph.getDataManager().nodes.get("t");
+    assert.isDefined(dragged, "t is built");
+    const updates = element.graph.getUpdateManager();
+    const original = updates.update.bind(updates);
+    const moved = new Set<number>();
+    let last = dragged.drawnPosition.clone();
+    const spy = vi.spyOn(updates, "update").mockImplementation((frameMs?: number) => {
+        original(frameMs);
+        const now = dragged.drawnPosition;
+        if (!now.equals(last)) {
+            moved.add(updates.getRenderFrameCount());
+            last = now.clone();
+        }
+    });
+    return {
+        moved,
+        stop: () => {
+            spy.mockRestore();
+        },
+    };
+}
+
+/**
+ * Drag node `t` with the real mouse, counting edge visits and the update passes that moved it once the drag is
+ * under way (the press selects and the first move pins the node, and either repaint walks every edge once).
  * @param size - The node count.
  * @param layout - The layout it is arranged by.
  * @param during - Run before the pointer's move of this number, if given.
  * @param path - The render path, or undefined for the element's default.
- * @returns The edge visits, the frames they were made on, how far the dragged edge's middle moved, and the
+ * @returns The edge visits, the passes that moved `t`, how far the dragged edge's middle moved, and the
  *     nodes hovered while the pointer held the node.
  */
 async function dragCounted(
@@ -176,7 +204,7 @@ async function dragCounted(
     during?: { move: number; run: (element: Graphty) => void },
     path?: "batched",
     edgeStyle?: Record<string, unknown>,
-): Promise<{ visits: Visit[]; frames: number; followed: number; hovered: string[]; batched: boolean }> {
+): Promise<{ visits: Visit[]; moved: Set<number>; followed: number; hovered: string[]; batched: boolean }> {
     const element = await mounted(size, layout, path, edgeStyle);
     const position = element.nodeScreenPosition("t");
     assert.isDefined(position, "node t is drawn");
@@ -210,6 +238,7 @@ async function dragCounted(
     const frame = element.graph.scene.onBeforeRenderObservable.add(() => {
         frames++;
     });
+    const moving = passesMoving(element);
     try {
         for (let move = 1; move <= MOVES; move++) {
             if (during?.move === move) {
@@ -222,6 +251,7 @@ async function dragCounted(
 
         await nextFrame();
     } finally {
+        moving.stop();
         counted.stop();
         frame.remove();
         element.removeEventListener("graphty-node-hover", heard);
@@ -235,7 +265,7 @@ async function dragCounted(
     assert.isDefined(after, "its line is still drawn");
     return {
         visits,
-        frames,
+        moved: moving.moved,
         followed: after.subtract(before).length(),
         hovered,
         batched: element.renderPath === "batched",
@@ -247,15 +277,29 @@ describe("a drag", () => {
         "visits only the dragged node's edges, at any graph size, on %s",
         async (layout) => {
             for (const size of SIZES) {
-                const { visits, frames, followed, hovered, batched } = await dragCounted(size, layout);
+                const { visits, moved, followed, hovered, batched } = await dragCounted(size, layout);
                 assert.deepEqual(hovered, [], "no node is hovered while the pointer holds one");
-                const message = `${String(visits.length)} edge visits on ${String(frames)} frames at ${String(size)} nodes`;
+                const message = `${String(visits.length)} edge visits in ${String(moved.size)} passes moving t at ${String(size)} nodes`;
                 // on the batched path an edge pulled from the row table follows its node on the card, with no visit
                 if (!batched) {
                     assert.isAbove(visits.length, 0, message);
                 }
 
-                assert.isAtMost(visits.length, frames * DEGREE, `${message}:\n${listed(visits)}`);
+                // Per update pass that moved t, not per drawn frame: the loop draws a pass only when the picture is
+                // not final, so a pass that moved t can go undrawn, and its visits are still the drag's (issue #9529).
+                // Each visit is one of t's edges, made once in a pass that moved t: so never more than three a pass,
+                // whatever the graph's size.
+                const stray = visits.filter(({ edge, pass }) => !edge.startsWith("t-") || !moved.has(pass));
+                assert.deepEqual(
+                    stray,
+                    [],
+                    `${message}: a visit of another edge, or in a pass that did not move t:\n${listed(visits)}`,
+                );
+                assert.strictEqual(
+                    new Set(visits.map(({ edge, pass }) => `${String(pass)} ${edge}`)).size,
+                    visits.length,
+                    `${message}: an edge visited twice in one pass:\n${listed(visits)}`,
+                );
                 assert.isAbove(followed, 0, "the dragged node's edge followed it");
             }
         },

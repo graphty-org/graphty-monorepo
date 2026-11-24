@@ -362,14 +362,16 @@ async function writeProject(
     await nameTheProject(workspace, session, newName);
     const name = session.project.name ?? headerName(workspace);
     const state = fileState(workspace);
-    // The sources as the reader last chose them in Save as: a version 1 file, which keeps all of
-    // the project, unless only a version 2 file keeps a source by reference.
+    // The sources as the reader last chose them in Save as, else as the opened file kept them: a
+    // version 1 file, which keeps all of the project, unless only a version 2 file keeps a source
+    // by reference.
     const choices = await stillNamed(session, v2 ?? state.v2);
-    const version2 = choices !== null && !(await version1Keeps(session, choices));
+    const embed = choices?.embed ?? (await keptStorage(session));
+    const version2 = !(await version1Keeps(session, embed));
     const saved = await browserProjects.save(session, {
         ...(target === null ? {} : { id: target }),
         ...(Object.keys(assets).length === 0 ? {} : { assets }),
-        ...(version2 ? { format: 2 as const, sections: choices.sections, embed: choices.embed } : {}),
+        ...(version2 ? { format: 2 as const, embed, ...(choices === null ? {} : { sections: choices.sections }) } : {}),
     });
     count("project_saved", { kind: "browser", as: target === null ? "new" : "again" });
     state.target = saved.id;
@@ -397,11 +399,11 @@ async function writeProject(
  * on, each source's choice is handed to graphty-element (`data.setCopy`), which version 1 files
  * keep, so the Data sources list marks it too; with them off, only a version 2 file references.
  * @param session - the project's session.
- * @param choices - what the reader chose in Save as.
+ * @param embed - copy or reference per source, as the reader chose in Save as or the open file kept.
  * @returns true when a version 1 file keeps every choice.
  */
-async function version1Keeps(session: GraphSession, choices: SaveV2Choices): Promise<boolean> {
-    const referenced = Object.keys(choices.embed).filter((id) => choices.embed[id] === "referenced");
+async function version1Keeps(session: GraphSession, embed: SaveV2Choices["embed"]): Promise<boolean> {
+    const referenced = Object.keys(embed).filter((id) => embed[id] === "referenced");
     if (referenced.length === 0) {
         return true;
     }
@@ -409,7 +411,7 @@ async function version1Keeps(session: GraphSession, choices: SaveV2Choices): Pro
         return false;
     }
     const keys = new Map((await session.project.describe()).sources.map((source) => [source.id, source.key]));
-    for (const [id, storage] of Object.entries(choices.embed)) {
+    for (const [id, storage] of Object.entries(embed)) {
         const key = keys.get(id);
         if (key !== undefined) {
             session.data.setCopy(key, storage === "referenced" ? "reference" : "copy");
@@ -420,6 +422,17 @@ async function version1Keeps(session: GraphSession, choices: SaveV2Choices): Pro
         const key = keys.get(id);
         return key !== undefined && kept.get(key) === "reference";
     });
+}
+
+/**
+ * How each source is kept when the reader has not chosen in Save as: as graphty-element says a
+ * save keeps it, so a reference the opened file held stays one.
+ * @param session - the project's session.
+ * @returns copy or reference per source record id.
+ */
+async function keptStorage(session: GraphSession): Promise<SaveV2Choices["embed"]> {
+    const { sources } = await session.project.describe();
+    return Object.fromEntries(sources.map((source) => [source.id, source.storage]));
 }
 
 /**
@@ -564,11 +577,12 @@ export async function saveLocalCopy({ workspace, element, session }: CommandCont
         const fileName = projectFileName(name);
         // As Save writes it: a version 2 file only when Save as kept a source by reference.
         const choices = session === null ? null : await stillNamed(session, fileState(workspace).v2);
-        if (session !== null && choices !== null && !(await version1Keeps(session, choices))) {
+        const embed = session === null ? {} : (choices?.embed ?? (await keptStorage(session)));
+        if (session !== null && !(await version1Keeps(session, embed))) {
             await element.downloadProject({
                 format: 2,
-                sections: choices.sections,
-                embed: choices.embed,
+                embed,
+                ...(choices === null ? {} : { sections: choices.sections }),
                 ...(Object.keys(assets).length === 0 ? {} : { assets }),
                 fileName,
                 markSaved: false,

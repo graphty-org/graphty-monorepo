@@ -579,6 +579,13 @@ export interface GraphSnapshotContract extends AdjacencyView {
      */
     edgeList(): EdgeListView;
     /**
+     * Every logical edge's weight at full precision, in edge order: `edgeList().weights` stores 32-bit
+     * floats (0.1 reads back as 0.10000000149011612), while this returns the exact value each edge was
+     * given. A fresh array on every call; null when the graph is unweighted.
+     * @returns Float64Array(edgeCount), or null
+     */
+    edgeWeights(): F64 | null;
+    /**
      * rowPtr differences materialized; a self-loop counted once. Cached and shared.
      * @returns Uint32Array(n)
      */

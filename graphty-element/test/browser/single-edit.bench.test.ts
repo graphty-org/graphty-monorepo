@@ -10,7 +10,10 @@
  *   npx vitest run --project=browser-bench test/browser/single-edit.bench.test.ts
  * VITE_SINGLE_EDIT_SIZES picks the sizes as `nodes/edges,...` (default 1000/10000, 9000/90000 and
  * 99000/990000: clear of the 10,000-node detail threshold, and just under the default ceilings so an add
- * is not refused) and VITE_SINGLE_EDIT_PATHS
+ * is not refused; without a GPU, `GRAPHTY_BROWSER_GPU` unset as in CI, only the first two: on CI's software
+ * renderer the two 99,000-node cases took about 1,255 s, half the Browser Benchmarks job's budget (#9898), and
+ * the counted work asserted below already fails at 9,000 nodes for an edit that walks every edge) and
+ * VITE_SINGLE_EDIT_PATHS
  * the paths (default `objects,batched`). Each edit prints, as `[single-edit]`, the time until its
  * promise resolves, the time until the frame that draws it has been updated (once the graph is
  * loaded and at rest the render loop is stopped and `graph.update()` drives the frames, so the
@@ -43,7 +46,10 @@ import { dispatcherOf } from "../../src/session/GraphSession";
 // a test-only walk of the whole graph that a consumer never runs, so it is off for the timings.
 (globalThis as { __GRAPHTY_STRICT_STATE__?: boolean }).__GRAPHTY_STRICT_STATE__ = false;
 
-const SIZES = String(import.meta.env.VITE_SINGLE_EDIT_SIZES ?? "1000/10000,9000/90000,99000/990000")
+const GPU = ((import.meta.env as Record<string, string | undefined>).GRAPHTY_BROWSER_GPU ?? "") !== "";
+/** Without a GPU the 99,000-node size is left out by default: see the file comment. */
+const DEFAULT_SIZES = GPU ? "1000/10000,9000/90000,99000/990000" : "1000/10000,9000/90000";
+const SIZES = String(import.meta.env.VITE_SINGLE_EDIT_SIZES ?? DEFAULT_SIZES)
     .split(",")
     .map((size) => size.split("/").map(Number) as [number, number]);
 const PATHS = String(import.meta.env.VITE_SINGLE_EDIT_PATHS ?? "objects,batched").split(",") as (

@@ -8300,6 +8300,7 @@ export class RenderManager implements Manager {
     init(): Promise<void>;
     // @internal
     pickGroupOutline(x: number, y: number): GroupOutlinePick | null;
+    relightBatches(): void;
     requestFrame(): void;
     // @internal
     resize(): void;

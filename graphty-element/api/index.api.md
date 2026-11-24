@@ -9401,6 +9401,8 @@ export class UpdateManager implements Manager {
     // @internal
     placeEdgesOfNode(node: Node_2): void;
     // @internal
+    placeEdgesOfRow(row: number): void;
+    // @internal
     plainLabelRows(): {
         row: number;
         id: NodeIdType_2;

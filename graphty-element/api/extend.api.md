@@ -221,7 +221,6 @@ abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<str
     static readonly loadedWeightByDefault: boolean;
     // @internal
     mixedDirection(): boolean | null;
-    // (undocumented)
     static namespace: string;
     get namespace(): string;
     protected nodeIndex(snapshot: GraphSnapshot, option: string, id: NodeId_2): number;
@@ -236,12 +235,10 @@ abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<str
     reachedAccelerator: GraphAccelerator | null;
     static register<T extends AlgorithmClass>(cls: T, options?: RegisterOptions): T;
     protected resolveOptions(options?: Partial<TOptions>): TOptions;
-    // (undocumented)
     abstract run(g: AlgorithmHost): Promise<void>;
     protected get schemaOptions(): TOptions;
     protected _schemaOptions: TOptions;
     static scopeInput?: ScopeInputDeclaration;
-    // (undocumented)
     static type: string;
     get type(): string;
     // @internal
@@ -364,13 +361,10 @@ export interface AlgorithmStatics {
     // @deprecated (undocumented)
     hasOptions(): boolean;
     hasZodOptions(): boolean;
-    // (undocumented)
     namespace: string;
-    // (undocumented)
     optionsSchema: OptionsSchema;
     scopeInput?: ScopeInputDeclaration;
     suggestedName?: (options: Readonly<Record<string, unknown>>) => SuggestedName | undefined;
-    // (undocumented)
     type: string;
     version?: string;
     zodOptionsSchema?: OptionsSchema_2;
@@ -1707,6 +1701,13 @@ export type GraphtyErrorCode =
 * stays in 3D and the next attempt starts clean. Recoverable: asking again can succeed.
 */
 | "E_XR_SESSION_FAILED"
+/**
+* Something run for one frame of an immersive session threw: Babylon.js's own XR input, or
+* code observing the frame. The session keeps drawing; the step that threw is skipped for that
+* frame. `details.mode` is `"vr"` or `"ar"` and `cause` carries what was thrown. Reported once
+* per session for each distinct message, as `graph-error` (context `"xr"`), never thrown.
+*/
+| "E_XR_FRAME_FAILED"
 /**
 * A feature the caller asked for needs an optional peer package that is not installed.
 * `details.package` names the package to install and `details.feature` the feature that

@@ -2557,20 +2557,37 @@ export class UpdateManager implements Manager {
     }
 
     /**
+     * Make the `Edge`s built at a row drawn with no `Node` measure their ends again and place them, after the row's
+     * drawn size or shape changed: as {@link remeasureEdgesOf} does for a resized `Node` (issue #9857).
+     * @param row - The node row.
+     * @internal
+     */
+    placeEdgesOfRow(row: number): void {
+        this.placeEdgesOfRows([row]);
+    }
+
+    /**
      * Make the edges of resized nodes measure again, and place them this frame. While a load holds
      * the draw they wait for their own paint, or for the walk that ends the repaint.
      * @param resized - The nodes this frame resized.
      */
     private remeasureEdgesOf(resized: ReadonlySet<Node>): void {
+        for (const node of resized) {
+            this.remeasureEdgesAt(node.id);
+        }
+    }
+
+    /**
+     * Make the edges of one node measure again, and place them this frame unless a load holds the draw.
+     * @param id - The node.
+     */
+    private remeasureEdgesAt(id: NodeIdType): void {
         this.sceneChanged = true;
         const place = !this.dataManager.drawHeld;
-
-        for (const node of resized) {
-            for (const edge of this.edgesAt(node.id)) {
-                edge.invalidatePositionCache();
-                if (place) {
-                    this.edgesToPlace.push(edge);
-                }
+        for (const edge of this.edgesAt(id)) {
+            edge.invalidatePositionCache();
+            if (place) {
+                this.edgesToPlace.push(edge);
             }
         }
     }
@@ -2603,6 +2620,15 @@ export class UpdateManager implements Manager {
      */
     private builtEdges(): MapIterator<Edge> {
         return dataManagerInternals.builtEdges(this.dataManager).values();
+    }
+
+    /** Lay every built edge again from its ends' places now, however little they moved since it was last laid. */
+    private relayEveryEdge(): void {
+        for (const edge of this.builtEdges()) {
+            edge.invalidatePositionCache();
+        }
+        this.forceEdgeWalk();
+        this.updateEdges();
     }
 
     /**
@@ -3356,9 +3382,16 @@ export class UpdateManager implements Manager {
         // One clock reading for the whole pass, so every node of a layout transition is placed at
         // the same moment; the move ends after the pass that placed its last frame.
         const transitions = transitionsOf(this.layoutManager);
+        const moving = transitions?.active === true;
         transitions?.beginPass();
         this.runUpdatePass(frameMs);
         transitions?.endPass();
+        // The move landed this pass: its last step can be shorter than the distance an edge counts as a
+        // move, which left an edge at the place before (a pixel short on some loads, issue #9925). Every
+        // edge is laid again at the landed places, once.
+        if (moving && !transitions.active) {
+            this.relayEveryEdge();
+        }
 
         // After the nodes have moved for this pass, so a node's depth is the one it is drawn at.
         const scaled = this.sizeNodesForView();
@@ -3376,11 +3409,7 @@ export class UpdateManager implements Manager {
                     UpdateManager.RETRIM_COUNTER,
                     dataManagerInternals.builtEdges(this.dataManager).size,
                 );
-                for (const edge of this.builtEdges()) {
-                    edge.invalidatePositionCache();
-                }
-                this.forceEdgeWalk();
-                this.updateEdges();
+                this.relayEveryEdge();
             }
         }
         this.refreshScreenBorders();
@@ -4264,6 +4293,9 @@ export class UpdateManager implements Manager {
 
     /** How many meshes the scene held last frame, so one appearing or going unfreezes it. */
     private lastMeshCount = -1;
+
+    /** Which meshes were shown last frame ({@link shownMeshesChecksum}), so one shown or hidden unfreezes it. */
+    private lastShownMeshes = Number.NaN;
 
     /** Set by a freeze that renumbered rows, so the next edge pass writes every pulled line's rows again. */
     private pulledRowsMoved = false;
@@ -5361,7 +5393,20 @@ export class UpdateManager implements Manager {
 
         this.lastMeshCount = meshCount;
 
-        const changed = this.sceneChanged || structureChanged || this.cameraMoved();
+        // NOR IS A MESH SHOWN OR HIDDEN. A consumer's own mesh in `graph.scene`, hidden with
+        // `setEnabled(false)` or `isVisible = false` at rest, stayed in the frozen list and on
+        // screen (issue #9923); one shown stayed missing. Babylon tells nobody about either, so
+        // which meshes are shown is read here, as one checksum: a read per mesh, no allocation.
+        const shown = shownMeshesChecksum(scene);
+        const shownChanged = shown !== this.lastShownMeshes;
+
+        this.lastShownMeshes = shown;
+        if (shownChanged) {
+            // The frame on screen is no longer the finished one, whoever made the change.
+            this.pending.changed();
+        }
+
+        const changed = this.sceneChanged || structureChanged || shownChanged || this.cameraMoved();
 
         this.sceneChanged = false;
 
@@ -5811,6 +5856,27 @@ export class UpdateManager implements Manager {
  * @param nodes - The selected nodes, at least one.
  * @returns Their center, in world space.
  */
+/**
+ * A checksum of which of the scene's meshes are shown (enabled and visible): it changes when any one
+ * mesh is shown or hidden. Each shown mesh adds its `uniqueId` scrambled by a multiplicative hash,
+ * so two changes in one frame cancel only by a 1-in-2^32 chance.
+ * @param scene - The scene.
+ * @returns The checksum.
+ */
+function shownMeshesChecksum(scene: Scene): number {
+    const { meshes } = scene;
+    let sum = 0;
+    for (let i = 0; i < meshes.length; i++) {
+        const mesh = meshes[i];
+        if (mesh.isVisible && mesh.isEnabled()) {
+            // Wrapped to 32 bits, so the sum never loses precision however many meshes there are.
+            sum = (sum + Math.imul(mesh.uniqueId, 0x9e3779b1)) >>> 0;
+        }
+    }
+
+    return sum;
+}
+
 function selectionCenter(nodes: readonly Node[]): Vector3 {
     const center = nodes[0].drawnPosition.clone();
     for (const node of nodes.slice(1)) {

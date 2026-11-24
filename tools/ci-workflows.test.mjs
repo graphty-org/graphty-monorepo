@@ -867,7 +867,9 @@ describe("ci.yml", () => {
             const deadline = Number(/\+ (\d+) \* 60 \)\)" >> "\$GITHUB_ENV"/.exec(perf.steps[0].run)?.[1]);
             assert.match(perf.steps[0].run, /^echo "DEADLINE=/, "the first step notes the deadline");
             const benches = perf.steps.filter((s) =>
-                /nx run algorithms:benchmark|vitest run --project=\S*bench/.test(s.run ?? ""),
+                /nx run algorithms:benchmark|vitest run --project=\S*bench|tools\/load-time\.mjs --pair/.test(
+                    s.run ?? "",
+                ),
             );
             assert.equal(benches.length, count, name);
             for (const s of benches) assert.match(s.run, /^\$GITHUB_WORKSPACE\/tools\/before-deadline\.sh /, s.name);

@@ -1,5 +1,5 @@
 /**
- * @file The section codecs version 2 reads and writes, by section. Experimental (`save-files-v2`).
+ * @file The section codecs version 2 reads and writes, by section.
  */
 
 import { dataCodec } from "./codecs/data";

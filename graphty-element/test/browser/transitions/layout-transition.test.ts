@@ -19,7 +19,10 @@ import {
     type SnapshotLayoutInput,
 } from "../../../extend";
 import type { Graphty } from "../../../index.js";
-import { type Edge, edgeInternals } from "../../../src/Edge";
+import type { Edge } from "../../../src/Edge";
+// edgeInternals is read through the module, not imported by name: the build from before the renderer work lacks
+// it, and this file's other cases run against that build too (benchmarks/compare/parity-vs-reference.mjs).
+import * as edgeModule from "../../../src/Edge";
 import { operationQueueOf } from "../../../src/Graph";
 import { dataManagerInternals } from "../../../src/managers/DataManager";
 import type { RenderPath } from "../../../src/meshes/NodeBatch";
@@ -203,7 +206,7 @@ async function until(element: Graphty, what: string, holds: () => boolean): Prom
  * @returns Its two ends, source first.
  */
 function drawnEnds(element: Graphty, edge: Edge): [Vector3, Vector3] {
-    const { lineBatch, lineSlots, pulled } = edgeInternals.drawn(edge);
+    const { lineBatch, lineSlots, pulled } = edgeModule.edgeInternals.drawn(edge);
     if (pulled !== null) {
         const table = element.graph.getRowTable();
         assert.isNotNull(table, "a pulled line is drawn from the row table");
@@ -293,11 +296,13 @@ describe("layout transitions", () => {
         { path: "objects", view: "2d", edge: "arrow" },
         { path: "objects", view: "2d", edge: "no-head" },
         { path: "objects", view: "2d", edge: "undirected" },
+        { path: "objects", view: "3d", edge: "arrow" },
         { path: "objects", view: "3d", edge: "no-head" },
         { path: "objects", view: "3d", edge: "undirected" },
         { path: "batched", view: "2d", edge: "arrow" },
         { path: "batched", view: "2d", edge: "no-head" },
         { path: "batched", view: "2d", edge: "undirected" },
+        { path: "batched", view: "3d", edge: "arrow" },
         { path: "batched", view: "3d", edge: "no-head" },
         { path: "batched", view: "3d", edge: "undirected" },
     ] as const)("an edge ($edge) on the $path path in $view", (setup) => {
@@ -507,7 +512,10 @@ describe.each([
 
             const scene = element.graph.getScene();
             const edge = [...element.graph.getDataManager().edges.values()][0];
-            assert.isNull(edgeInternals.drawn(edge).pulled, "the dashed line is laid on the CPU, not pulled");
+            assert.isNull(
+                edgeModule.edgeInternals.drawn(edge).pulled,
+                "the dashed line is laid on the CPU, not pulled",
+            );
             const runner = (): ReturnType<typeof transitionsOf> => transitionsOf(element.graph.getLayoutManager());
             const misses: string[] = [];
             let moving = 0;

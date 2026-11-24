@@ -220,23 +220,6 @@ export async function copied(graph: Graph): Promise<void> {
 }
 
 /**
- * Waits for the first landing of the layout's current load to reach the texture, by copy or by upload, after this
- * call. Batches in flight across a load land without writing a row, and how many there are depends on how far the
- * device runs behind the page, so a fixed number of landings after an edit does not reach the new load's first.
- * @param graph - The graph.
- */
-export async function wroteRows(graph: Graph): Promise<void> {
-    const table = graph.getRowTable();
-    assert.isNotNull(table);
-    const { copies } = table;
-    const uploads = table.positionUploads;
-    while (table.copies === copies && table.positionUploads === uploads) {
-        assertCanLand(graph);
-        await nextFrame();
-    }
-}
-
-/**
  * Collects the layout's errors from now on.
  * @param graph - The graph.
  * @returns The errors so far.

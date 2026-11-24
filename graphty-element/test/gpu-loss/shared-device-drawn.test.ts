@@ -24,7 +24,6 @@ import {
     submitLayout,
     textureDiff,
     toldRowsLanded,
-    wroteRows,
 } from "./shared-device";
 
 describe("the layout filling the row table on a shared device", () => {
@@ -330,9 +329,9 @@ describe("the layout filling the row table on a shared device", () => {
         assert.isNotNull(table);
         await copied(graph);
         await graph.addNodes([{ id: "late" }]);
-        // the load's first landing goes up by upload: the ring is attached a batch after a load
-        await wroteRows(graph);
-        await landed(graph);
+        // the load's first landing goes up by upload (the ring is attached a batch after a load), and the added row,
+        // told to the ring as the layout places it, is sent again over the landings of the batches then in flight
+        await toldRowsLanded(graph);
         const { copies } = table;
         const uploads = table.positionUploads;
         await landed(graph);

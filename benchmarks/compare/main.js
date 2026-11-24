@@ -496,18 +496,24 @@ const landingInterval = (wall, landings) => (landings > 0 ? +(wall / landings).t
 // nodeScreenPosition reports them in that frame, it records whether the marker color is at the node's center, at
 // three points along the edge, and 8 px beside the edge's midpoint (the control). For each marker edge that moved
 // at least 5 px across its own line within the last 30 drawn frames it records whether the marker is at this
-// frame's midpoint or at that earlier frame's: an edge that follows its nodes is found on this one.
+// frame's midpoint or at that earlier frame's: an edge that follows its nodes is found on this one. A marker found
+// at neither, with something drawn over this frame's midpoint (nodes packed together, a pile of faint edges), is
+// hidden there: it is counted apart, not read as an edge left behind. Only the background at the midpoint says the
+// marker is not where its nodes are.
 
 /** Reads a WebGL drawing buffer and answers whether a color is near a CSS point. */
-function frameReader(gl, canvas) {
+function frameReader(gl, canvas, clear) {
     const W = canvas.width,
         H = canvas.height;
     const sx = W / canvas.clientWidth,
         sy = H / canvas.clientHeight;
     const buf = new Uint8Array(W * H * 4);
     const hit = (px2, py2, test) => px2 >= 0 && py2 >= 0 && px2 < W && py2 < H && test(buf, 4 * (py2 * W + px2));
+    const bg = [clear.r, clear.g, clear.b].map((c) => Math.round(c * 255));
     return {
         read: () => gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, buf),
+        // the background color: nothing drawn here, or only a few faint edges
+        isBare: (b, o) => bg.every((c, k) => Math.abs(b[o + k] - c) <= 32),
         // the color anywhere in the 3 x 3 device pixels around a CSS point
         has(x, y, test) {
             const cx = Math.round(x * sx),
@@ -539,10 +545,16 @@ function checkMovedEdge(f, e, a, b, history, reader) {
             pmy = (pa.y + pb.y) / 2;
         // a 3 px line and a 3 x 3 window reach 2.5 px
         if (lineOffset(pmx, pmy, a.x, a.y, b.x, b.y) < 5 || lineOffset(mx, my, pa.x, pa.y, pb.x, pb.y) < 5) continue;
+        const cur = reader.has(mx, my, isProbeEdge),
+            prev = reader.has(pmx, pmy, isProbeEdge);
+        if (!cur && !prev && !reader.has(mx, my, reader.isBare)) {
+            f.hidden++;
+            return;
+        }
         f.moving++;
         f.back += history.length - k;
-        if (reader.has(mx, my, isProbeEdge)) f.curInked++;
-        if (reader.has(pmx, pmy, isProbeEdge)) f.prevInked++;
+        if (cur) f.curInked++;
+        if (prev) f.prevInked++;
         return;
     }
 }
@@ -568,7 +580,7 @@ function checkEdge(f, e, pos, history, reader) {
 function checkDrawnFrame(el, reader, history, first) {
     reader.read();
     const f = { nodes: 0, nodesInked: 0, points: 0, pointsInked: 0, ctrl: 0, ctrlInked: 0 };
-    Object.assign(f, { moving: 0, curInked: 0, prevInked: 0, back: 0, moved: 0, p0: null });
+    Object.assign(f, { moving: 0, hidden: 0, curInked: 0, prevInked: 0, back: 0, moved: 0, p0: null });
     const at = new Map();
     const pos = (id) => {
         if (!at.has(id)) at.set(id, el.nodeScreenPosition(id));
@@ -603,6 +615,8 @@ function frameRates(frames) {
         minEdgeInkRate: valid.length ? Math.min(...valid) : null,
         // edges that moved across their line: marker on this frame's midpoint, on the earlier frame's
         movingEdges: frames.map((f) => f.moving),
+        // moving edges found at neither midpoint with something drawn over this frame's: left out of the rates
+        hiddenEdges: frames.map((f) => f.hidden),
         curInkRate: rate("curInked", "moving"),
         prevInkRate: rate("prevInked", "moving"),
         // how many frames back that earlier frame was, on average
@@ -1061,7 +1075,7 @@ async function graphtyAdapter({
         async frameCheck(name, count) {
             if (!gl) return { error: "no WebGL context: the frame check reads the WebGL drawing buffer" };
             if (!probe) return { error: "the page was set up without the probe option" };
-            const reader = frameReader(gl, graph.engine.getRenderingCanvas());
+            const reader = frameReader(gl, graph.engine.getRenderingCanvas(), graph.scene.clearColor);
             const frames = [];
             const history = [];
             const obs = graph.scene.onAfterRenderObservable.add(

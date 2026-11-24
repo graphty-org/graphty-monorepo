@@ -69,9 +69,13 @@ page's `frame-check` mode (`run.mjs ... frame-check`) colors 200 nodes and 200 e
 every other edge faint (still drawn and moved, so a dense picture does not bury the markers), starts the
 layout, and reads every drawn frame inside the frame. For each marker edge that moved at least 5 px across its
 own line within the last 30 drawn frames it records whether the marker is at the midpoint of its two ends in
-this frame (`nodeScreenPosition`) or at its midpoint in that earlier frame. `follow` is the share of the
+this frame (`nodeScreenPosition`) or at its midpoint in that earlier frame. A marker found at neither while
+something is drawn over this frame's midpoint (nodes packed together as a layout starts, a pile of faint edges)
+is counted as hidden (`hiddenEdges`) and left out, since the picture cannot say where that edge is; only the
+background at the midpoint counts against the edge. `follow` is the share of the
 marker seen on this frame's midpoint that is not also on the old one; an edge left behind its nodes drops it
-(edges updated only every 15th frame dropped it from about 0.5 to 0.17 at 1,000 nodes). HEAD fails when its
+(edges updated only every 15th frame dropped it from about 0.5 to 0.17 at 1,000 nodes, and from 0.96 to
+0.17 with the GPU layout at 10,000). HEAD fails when its
 `follow` is at or below 0, or 0.25 below the reference's. When the markers are hidden on a build (nodes drawn
 over them, or a layout still packed), the stage says nothing was checked rather than passing. A screenshot of
 each run lands in `frames/shots/`. WebGL only.

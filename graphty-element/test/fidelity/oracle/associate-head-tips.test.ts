@@ -47,65 +47,83 @@ const edge = (id: string, source: string, target: string): PEdge => ({
     label: null,
 });
 
+/**
+ * A line from x whose head's base lies on q's outline and whose head points at p.
+ * @param tip - where the head's tip lies on the line's axis (p's outline is at x = 120)
+ * @returns the edges read from the drawing
+ */
+function readTowardP(tip: number): PEdge[] {
+    let index = 0;
+    const prim = (over: Partial<Prim> & { points: Pt[] }): Prim => ({
+        index: index++,
+        tag: "path",
+        kind: "shape",
+        box: boxOfPoints(over.points),
+        closed: true,
+        corners: 0,
+        fill: { color: "#cccccc", opacity: 1, gradient: null },
+        stroke: null,
+        text: null,
+        markers: { start: false, end: false },
+        hint: null,
+        ...over,
+    });
+    const prims = [
+        ...NODES.map(([, x, y, r]) => prim({ points: disc(x, y, r) })),
+        // the line from x's outline to the head's base, then the head, its tip on p's outline
+        prim({
+            kind: "path",
+            closed: false,
+            points: [
+                [380, 300],
+                [140, 300],
+            ],
+            fill: null,
+            stroke: { color: INK, opacity: 1, width: 1, dash: null, dashClass: "solid" },
+        }),
+        prim({
+            points: [
+                [tip, 300],
+                [140, 306],
+                [140, 294],
+                [tip, 300],
+            ],
+            corners: 3,
+            fill: { color: INK, opacity: 1, gradient: null },
+        }),
+    ];
+    const guide: PScene = {
+        side: "graphty",
+        width: 600,
+        height: 500,
+        background: "#ffffff",
+        nodes: NODES.map(node),
+        // graphty draws both pairs: the base's node decided it on the base, x -> q
+        edges: [edge("e1", "x", "p"), edge("e2", "x", "q")],
+        groups: [],
+        texts: [],
+        strays: [],
+    };
+    return associate(prims, 600, 500, guide).scene.edges;
+}
+
 describe("a line's end where its own arrowhead points", () => {
     it("reads a line whose head's base lies on one node's outline and tip on another's as the tip's node's", () => {
-        let index = 0;
-        const prim = (over: Partial<Prim> & { points: Pt[] }): Prim => ({
-            index: index++,
-            tag: "path",
-            kind: "shape",
-            box: boxOfPoints(over.points),
-            closed: true,
-            corners: 0,
-            fill: { color: "#cccccc", opacity: 1, gradient: null },
-            stroke: null,
-            text: null,
-            markers: { start: false, end: false },
-            hint: null,
-            ...over,
-        });
-        const prims = [
-            ...NODES.map(([, x, y, r]) => prim({ points: disc(x, y, r) })),
-            // the line from x's outline to the head's base, then the head, its tip on p's outline
-            prim({
-                kind: "path",
-                closed: false,
-                points: [
-                    [380, 300],
-                    [140, 300],
-                ],
-                fill: null,
-                stroke: { color: INK, opacity: 1, width: 1, dash: null, dashClass: "solid" },
-            }),
-            prim({
-                points: [
-                    [120, 300],
-                    [140, 306],
-                    [140, 294],
-                    [120, 300],
-                ],
-                corners: 3,
-                fill: { color: INK, opacity: 1, gradient: null },
-            }),
-        ];
-        const guide: PScene = {
-            side: "graphty",
-            width: 600,
-            height: 500,
-            background: "#ffffff",
-            nodes: NODES.map(node),
-            // graphty draws both pairs: the base's node decided it on the base, x -> q
-            edges: [edge("e1", "x", "p"), edge("e2", "x", "q")],
-            groups: [],
-            texts: [],
-            strays: [],
-        };
-        const o = associate(prims, 600, 500, guide).scene;
+        const edges = readTowardP(120);
         assert.deepEqual(
-            o.edges.map((e) => `${e.source}->${e.target}`),
+            edges.map((e) => `${e.source}->${e.target}`),
             ["x->p"],
         );
-        assert.strictEqual(o.edges[0]?.arrows.length, 1);
+        assert.strictEqual(edges[0]?.arrows.length, 1);
+    });
+
+    // Cytoscape desktop stops a square head about 2.4 px short of its node (cx2-signor-aml 35 -> 38, its base on
+    // mir-143's outline, was read as 35 -> 55 and every later line from KIT took the next one's pair)
+    it("reads a head whose tip stops 2.4 px short of its node as pointing at it", () => {
+        assert.deepEqual(
+            readTowardP(122.4).map((e) => `${e.source}->${e.target}`),
+            ["x->p"],
+        );
     });
 
     // vis-network runs each line on to its nodes' centers and paints every arrowhead after every node, at the target's

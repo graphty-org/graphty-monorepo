@@ -180,7 +180,7 @@ export class KatzCentralityAlgorithm extends MetricAlgorithm<KatzCentralityOptio
         // would otherwise hold it until its device is torn down.
         const transposed = mode === "out" && direction === "directed" ? snapshot.transpose().snapshot : null;
         // The algorithms package derives the alpha a run without one uses; resolved here so the caveat names it.
-        const alpha = katzAlpha(transposed ?? snapshot, { alpha: chosenAlpha ?? undefined });
+        const alpha = katzAlpha(transposed ?? snapshot, { alpha: chosenAlpha ?? undefined, weighted: false });
 
         context.report({ phase: "iterating", completed: 0, total: nodeIds.length, params: { maxIterations } });
         let outcome;

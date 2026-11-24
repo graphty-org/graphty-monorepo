@@ -1549,9 +1549,16 @@ export function translateFileStyles(input: TranslateInput): Translation {
  * @param encode - A layer's bindings, rewritten in place.
  */
 function readTextAsMarkup(encode: Encoding): void {
-    for (const [channel, binding] of Object.entries(encode) as [Channel, Binding][]) {
-        if ("by" in binding && channelDescriptor(channel)?.accepts === "text") {
-            encode[channel] = { ...binding, markup: true };
+    // A layer graphty wrote into an older file is carried over as it was written, a malformed binding included,
+    // and refused where it is checked.
+    for (const [channel, binding] of Object.entries(encode) as [Channel, unknown][]) {
+        if (
+            typeof binding === "object" &&
+            binding !== null &&
+            "by" in binding &&
+            channelDescriptor(channel)?.accepts === "text"
+        ) {
+            encode[channel] = { ...(binding as Binding), markup: true };
         }
     }
 }

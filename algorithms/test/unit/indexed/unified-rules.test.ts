@@ -289,7 +289,8 @@ describe("one convergence rule", () => {
 
     it("stops Katz at the first pass whose L1 change is below tolerance times the vector's size", () => {
         // A Katz run that misses the tolerance throws, so the passes are written out here: x(0) = beta and
-        // x(k + 1) = alpha * (the weighted sum of x(k) over the in-arcs) + beta, at the defaults alpha 0.1, beta 1.
+        // x(k + 1) = alpha * (the weighted sum of x(k) over the in-arcs) + beta, at alpha 0.1 (passed, since an
+        // omitted alpha is derived from the graph) and the default beta 1.
         const rev = s.reverse();
         const katz = (passes: number): ArrayLike<number> => {
             let x = new Float64Array(n).fill(1);
@@ -306,7 +307,7 @@ describe("one convergence rule", () => {
             }
             return x;
         };
-        expect(katzCentrality(s, { tolerance }).iterations).toBe(
+        expect(katzCentrality(s, { alpha: 0.1, tolerance }).iterations).toBe(
             expectedStop(katz, new Float64Array(n).fill(1), (x) => tolerance * size(x)),
         );
     });

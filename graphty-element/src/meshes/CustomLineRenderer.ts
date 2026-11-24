@@ -78,8 +78,10 @@ export interface JoinedLineOptions {
     color: string;
     /** Opacity 0-1; default 1. */
     opacity?: number;
-    /** Whether `width` is in world units, so the line zooms with the graph (2D, and patterns). */
+    /** Whether `width` is in world units, so the line zooms with the graph. */
     worldWidth?: boolean;
+    /** Whether it is drawn in the 2D view, where no line writes depth that could cut a farther one. */
+    flat?: boolean;
     /** The fewest screen pixels wide the line is drawn at any zoom (`line.minScreenWidth`); default 0. */
     minScreenWidth?: number;
     /**
@@ -161,7 +163,7 @@ function setPattern(material: ShaderMaterial, options: JoinedLineOptions): void 
 
 /**
  * The lean program's defines for a straight pulled line: none, the lean rectangle, or the lean
- * rectangle with shader-smoothed edges. A 3D line (its width not in world units) also drops the
+ * rectangle with shader-smoothed edges. A 3D line (not `flat`) also drops the
  * outer half of its smoothed fringe and its near-invisible fragments (`EDGE_LINE_AA_CUT`), which
  * would write depth and cut a hole in a farther line it crosses; the 2D view has no such hole and
  * keeps the whole fringe.
@@ -173,7 +175,7 @@ function leanDefines(options: JoinedLineOptions): string[] {
         return [
             "#define EDGE_PULLED_LEAN",
             "#define EDGE_LINE_AA",
-            ...(options.worldWidth === true ? [] : ["#define EDGE_LINE_AA_CUT"]),
+            ...(options.flat === true ? [] : ["#define EDGE_LINE_AA_CUT"]),
         ];
     }
 

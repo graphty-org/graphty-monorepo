@@ -743,6 +743,7 @@ export class EdgeMesh {
                 color: options.color,
                 opacity: this.opacityOf(style),
                 worldWidth: true,
+                flat: true,
                 minScreenWidth: style.line?.minScreenWidth,
                 opaque: this.drawsOpaque(style),
                 pulled: true,

@@ -18,6 +18,7 @@ import { type Edge, type EdgeCapEnd, edgeInternals } from "../Edge";
 import type { DrawnNodeSpot, Graph, NodeScreenPosition } from "../Graph";
 import { dataManagerInternals } from "../managers/DataManager";
 import type { ArrowCap } from "../meshes/ArrowCapBatch";
+import { lineWidthInWorldUnits } from "../meshes/EdgeMesh";
 import type { NodeDecorationMetadata } from "../meshes/NodeDecorationMesh";
 import type { PanelGradientShape, RichTextLabel } from "../meshes/RichTextLabel";
 import { pixelsPerUnit } from "../meshes/screenSize";
@@ -578,22 +579,16 @@ function nodeOutline(
 }
 
 /**
- * How wide a line is drawn on screen, by the line renderers' rules: world units of `width / 40`
- * in 2D, `width * 20` screen units over the clip w in 3D (CustomLineRenderer's vertex shader).
+ * How wide a line is drawn on screen: its `line.width` in world units, as every line renderer draws it
+ * (`lineWidthInWorldUnits`), at the scale of the line's middle.
  * @param width - The style's `line.width`.
  * @param mid - The line's middle, in the world.
  * @param camera - The camera.
- * @param is2D - Whether the view is flat.
  * @param css - CSS pixels per render pixel.
  * @returns The width in CSS pixels.
  */
-function lineWidthPx(width: number, mid: Vector3, camera: Camera, is2D: boolean, css: number): number {
-    if (is2D) {
-        return (width / 40) * pixelsPerUnit(camera, mid) * css;
-    }
-    const clipW =
-        camera.mode === Camera.ORTHOGRAPHIC_CAMERA ? 1 : Vector3.TransformCoordinates(mid, camera.getViewMatrix()).z;
-    return (width * 10) / Math.max(clipW, 1e-6);
+function lineWidthPx(width: number, mid: Vector3, camera: Camera, css: number): number {
+    return lineWidthInWorldUnits(width) * pixelsPerUnit(camera, mid) * css;
 }
 
 /** A visible node as the figure reads it: where it is on screen, and its center in the world. */
@@ -658,7 +653,6 @@ function edgeLines(
     texts: FigureText[],
     caps: FigureDrawing["caps"][number][],
 ): FigureDrawing["edges"][number][] {
-    const is2D = graph.getViewMode() === "2d";
     const root = graph.scene.getTransformNodeByName("graph-root")?.getWorldMatrix() ?? Matrix.Identity();
     const fromWorld = root.clone().invert();
     const edges: FigureDrawing["edges"][number][] = [];
@@ -670,7 +664,7 @@ function edgeLines(
         }
         const line = style.line ?? {};
         const mid = Vector3.Center(src.centre, dst.centre);
-        const px = Math.max(lineWidthPx(line.width ?? 0.25, mid, camera, is2D, css), line.minScreenWidth ?? 0);
+        const px = Math.max(lineWidthPx(line.width ?? 0.25, mid, camera, css), line.minScreenWidth ?? 0);
         if (px <= 0) {
             continue;
         }

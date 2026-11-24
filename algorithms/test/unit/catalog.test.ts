@@ -128,6 +128,8 @@ const NO_OPTIONS = new Set([
     "kCoreDecomposition",
     "triangleCount",
     "hasCycle",
+    "articulationPoints",
+    "bridges",
 ]);
 
 function codeOf(fn: () => unknown): unknown {

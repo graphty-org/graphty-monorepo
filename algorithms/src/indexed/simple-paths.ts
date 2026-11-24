@@ -2,6 +2,7 @@ import { type AdjacencyView, type NodeRef } from "@graphty/graph-format";
 
 import { checkNumber } from "../errors.js";
 import { checkStart } from "./bfs.js";
+import { refuseWeights } from "./weights.js";
 
 /** The most paths `allSimplePaths` returns when `maxPaths` is not set. */
 export const SIMPLE_PATHS_DEFAULT_MAX_PATHS = 1000;
@@ -78,7 +79,8 @@ function isParallel(g: AdjacencyView, u: number, a: number): boolean {
  * @param targetNode - The node every path ends at: its index, or `{ id }`
  * @param options - The caps
  * @returns The paths, as node and edge indices
- * @throws RangeError with code `E_BAD_NODE` for a node that is not in the graph, `E_BAD_OPTION` for a bad cap
+ * @throws RangeError with code `E_BAD_NODE` for a node that is not in the graph, `E_BAD_OPTION` for a bad cap or
+ *   `weighted: true` (paths are counted in edges, so weights make no difference)
  * @public
  */
 export function allSimplePaths(
@@ -87,6 +89,7 @@ export function allSimplePaths(
     targetNode: NodeRef,
     options: SimplePathsOptions = {},
 ): SimplePathsResult {
+    refuseWeights("allSimplePaths", options);
     const source = checkStart(g, sourceNode, "source");
     const target = checkStart(g, targetNode, "target");
     const maxLength = Math.min(cap("maxLength", options.maxLength, g.nodeCount), g.nodeCount - 1);

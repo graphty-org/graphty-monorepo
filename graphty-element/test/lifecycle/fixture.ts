@@ -228,7 +228,13 @@ el.addEventListener("graphty-autosave-status", (e) => {
     }
 });
 el.addEventListener("graphty-autosave-at-risk", (e) => report("at-risk", { params: e.detail.params }));
-el.addListener("tour-progress", (e) => report("tour", { tour: e.tour, stop: e.stop, phase: e.phase }));
+// production-compat runs this page against production's published element, which may predate the
+// tour-progress event and refuse it with a TypeError; that build simply reports no tour.
+try {
+    el.addListener("tour-progress", (e) => report("tour", { tour: e.tour, stop: e.stop, phase: e.phase }));
+} catch (error) {
+    if (!(error instanceof TypeError)) throw error;
+}
 // Every entry not restored, and why: the ready report carries them, so a test reads the page's
 // whole decision from one report whatever order the reports arrive in.
 const available = [];

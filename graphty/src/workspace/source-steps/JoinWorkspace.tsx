@@ -792,11 +792,11 @@ function JoinWorkspace({
     const { store, element } = useWorkspace();
     const titleId = useId();
     const box = useRef<HTMLDialogElement>(null);
-    // on reload: fresh: in flight: the element draft being edited, which a reload discards along with the closed workspace
+    // on reload: fresh: in flight: the draft being edited; autosave keeps it, and the next opening picks it up
     const [opened, setOpened] = useState<{ readonly draft: SourceDraft | null } | null>(null);
     const draft = opened?.draft ?? null;
     const nextId = useRef(0);
-    // on reload: fresh: in flight: picks of cards with no step yet, part of the discarded draft
+    // on reload: fresh: in flight: picks of cards with no step yet, which the closed workspace drops
     const [pending, setPending] = useState<readonly PendingCard[]>([]);
     // on reload: fresh: pointer: the card opened for a look
     const [open, setOpen] = useState<string | null>(null);

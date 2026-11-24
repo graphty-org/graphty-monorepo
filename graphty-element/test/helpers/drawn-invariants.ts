@@ -88,7 +88,7 @@ function near(pic: Picture, x: number, y: number, test: (p: readonly number[]) =
  * @param p - The pixel.
  * @returns True when red and blue both lead green.
  */
-function magenta(p: readonly number[]): boolean {
+export function magenta(p: readonly number[]): boolean {
     return p[0] > p[1] + 60 && p[2] > p[1] + 60;
 }
 
@@ -97,7 +97,7 @@ function magenta(p: readonly number[]): boolean {
  * @param p - The pixel.
  * @returns True when blue leads red and green.
  */
-function blue(p: readonly number[]): boolean {
+export function blue(p: readonly number[]): boolean {
     return p[2] > p[0] + 60 && p[2] > p[1] + 60;
 }
 
@@ -225,4 +225,20 @@ export async function strayInk(
         return stray.length < 5;
     });
     return stray;
+}
+
+/**
+ * Whether one stable frame shows a pixel near a CSS point that passes a test: the color a style layer
+ * paints on a node or an edge, read where it is drawn.
+ * @param element - The element.
+ * @param point - The point, in CSS pixels from the element's top-left corner.
+ * @param test - The test, on an RGB pixel.
+ * @returns True when a pixel within {@link REACH} of the point passes.
+ */
+export async function inkNear(
+    element: Graphty,
+    point: { x: number; y: number },
+    test: (p: readonly number[]) => boolean,
+): Promise<boolean> {
+    return near(await picture(element), point.x, point.y, test);
 }

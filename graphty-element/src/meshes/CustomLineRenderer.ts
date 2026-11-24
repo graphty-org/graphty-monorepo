@@ -280,9 +280,10 @@ function joinedLineSamplers(options: JoinedLineOptions): string[] {
     }
 
     const tables = ["rowPosition", "edgeRows", "edgeHidden", "edgeOrder"];
-    // a straight piece stops at a translucent row's outline (`PULLED_TRIM_GLSL`)
+    // a straight piece stops at a translucent row's outline (`PULLED_TRIM_GLSL`); both read whether a hidden row has a
+    // place (`ROW_END_GLSL`)
     return options.pulledCurve === true
-        ? [...tables, "edgeRoutes", "edgeSlots"]
+        ? [...tables, "edgeRoutes", "edgeSlots", "rowExtent"]
         : [...tables, "rowExtent", "rowOutline"];
 }
 

@@ -11,7 +11,9 @@
 import type { EdgeId, SourceKey } from "../catalog/types";
 import { GraphtyError } from "../errors/GraphtyError";
 import type { ColumnRef } from "./shared";
+import type { SavedSourceDraft } from "./sourceDraftHooks";
 import type { StepsAct } from "./sources/steps/acts";
+import { copyKey } from "./sources/steps/build";
 import {
     built,
     draftAdd,
@@ -681,6 +683,111 @@ export class SourceDraftHandle implements SourceDraft {
         this.host.release();
         this.host.emit({ draft: this.id, reason: "discarded" });
     }
+
+    /**
+     * The draft as autosave keeps it: every state it went through, so Undo still steps back after a
+     * restore, and the rows of the sources it staged (the committed ones come back with the work).
+     * @returns It, as plain JSON.
+     */
+    saved(): SavedSourceDraft {
+        const held = this.host.committedCopies();
+        const copies: Record<string, unknown> = {};
+        const states = [...this.history, this.state].map((state) => {
+            for (const [id, copy] of Object.entries(state.copies)) {
+                if (!(id in held)) {
+                    copies[id] = copy;
+                }
+            }
+            return {
+                value: state.value,
+                copies: Object.keys(state.copies),
+                owned: [...state.owned],
+                ...(state.origins === undefined ? {} : { origins: state.origins }),
+                ...(state.questions === undefined ? {} : { questions: state.questions }),
+                ...(state.asking === undefined ? {} : { asking: [...state.asking] }),
+                ...(state.given === undefined ? {} : { given: state.given }),
+            };
+        });
+        return { askOverlap: this.options.askOverlap === true, shown: this.shown, states, copies };
+    }
+
+    /**
+     * Put back the states a kept draft went through, over the committed sources and steps.
+     * @param saved - The draft as {@link saved} kept it.
+     * @returns False when a copy a state reads is gone, which leaves the draft as it opened.
+     */
+    restore(saved: SavedSourceDraft): boolean {
+        const rows: Record<string, Copies[string]> = {
+            ...(saved.copies as Copies),
+            ...this.host.committedCopies(),
+        };
+        const committed = this.base.value.sources;
+        const renamed = renamedCopies(saved.states as readonly SavedState[], committed);
+        const states: DraftState[] = [];
+        for (const each of saved.states as readonly SavedState[]) {
+            const ids = each.copies.map((id) => renamed.get(id) ?? id);
+            if (ids.some((id) => !(id in rows))) {
+                return false;
+            }
+            const sources = Object.fromEntries(
+                Object.entries(each.value.sources).map(([id, src]) => [
+                    id,
+                    committed[id] === undefined ? src : { ...src, origin: committed[id].origin },
+                ]),
+            );
+            states.push({
+                value: { ...each.value, sources },
+                copies: Object.fromEntries(ids.map((id) => [id, rows[id]])),
+                owned: new Set(each.owned),
+                ...(each.origins === undefined ? {} : { origins: each.origins }),
+                ...(each.questions === undefined ? {} : { questions: each.questions }),
+                ...(each.asking === undefined ? {} : { asking: new Set(each.asking) }),
+                ...(each.given === undefined ? {} : { given: each.given }),
+            });
+        }
+        const current = states.pop();
+        if (current === undefined) {
+            return false;
+        }
+        this.history.push(...states);
+        this.state = built(current);
+        this.host.emit({ draft: this.id, reason: "changed" });
+        return true;
+    }
+}
+
+/** One state of a draft as {@link SourceDraftHandle.saved} keeps it. */
+interface SavedState {
+    readonly value: DraftState["value"];
+    readonly copies: readonly string[];
+    readonly owned: readonly string[];
+    readonly origins?: DraftState["origins"];
+    readonly questions?: DraftState["questions"];
+    readonly asking?: readonly string[];
+    readonly given?: DraftState["given"];
+}
+
+/**
+ * The copy ids the committed sources' rows are held under now, by the ids a kept draft read them
+ * by: once the work is opened again a committed source's rows may be held under another copy id.
+ * @param states - The kept states.
+ * @param committed - The committed sources now.
+ * @returns The new copy id by the kept one.
+ */
+function renamedCopies(
+    states: readonly SavedState[],
+    committed: DraftState["value"]["sources"],
+): ReadonlyMap<string, string> {
+    const renamed = new Map<string, string>();
+    for (const each of states) {
+        for (const [id, src] of Object.entries(each.value.sources)) {
+            const now = committed[id];
+            if (now !== undefined) {
+                renamed.set(copyKey(src), copyKey(now));
+            }
+        }
+    }
+    return renamed;
 }
 
 /**

@@ -52,8 +52,9 @@ describe("one role list", () => {
         assert.deepEqual(words("edge"), ["Source", "Target", "Id", "Kind", "Weight", "Time"]);
         // A load that cannot be read again offers only the roles a column takes in place, as
         // Fields does.
-        assert.notIncludeMembers(headerRoles("node", false), ["key", "kind"]);
-        assert.deepEqual(headerRoles("edge", false), ["weight", "time"]);
+        assert.notInclude(headerRoles("node", false), "key");
+        assert.include(headerRoles("node", false), "kind");
+        assert.deepEqual(headerRoles("edge", false), ["kind", "weight", "time"]);
         // Fields lists the same roles: its fixed rows, then its "+" entries that are roles. The kind
         // a whole file names (Kind of node) and an edge's end kinds are load choices, not a column's.
         for (const [side, kind] of [

@@ -7,3 +7,22 @@ compatibility_date = "2026-10-01"
 [[r2_buckets]]
 binding = "CACHE"
 bucket_name = "graphty-nx-cache"
+
+# Hard daily caps (UTC day), enforced in src/cap.js: past one the Worker answers 429 and touches nothing, and
+# CI builds without the cache until midnight UTC. Each is 30% of what the Workers Paid plan or R2 includes,
+# scaled to a day (10M requests, 1M Class A and 10M Class B operations a month); CI uses about 25,000 GETs a day
+# (about 260 CI runs, three cache-using jobs each). Change a cap here and redeploy.
+[vars]
+CAP_REQUESTS = 100000
+CAP_R2_CLASS_A = 10000
+CAP_R2_CLASS_B = 100000
+
+# The cap counter: one Durable Object holding the day's totals, written once per 50 requests or minute per
+# isolate (src/cap.js), so it costs about 2% of the requests it counts.
+[[durable_objects.bindings]]
+name = "DAILY_COUNT"
+class_name = "DailyCount"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["DailyCount"]

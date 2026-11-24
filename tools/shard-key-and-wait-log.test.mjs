@@ -1,12 +1,11 @@
-// Tests of the gate's input keys and the wait log (design/ci/fast-pipeline.md, build order step 1):
-//  - a pass is keyed by what the gate reads -- the files, the installed lockfile, the gate's own scripts,
-//    the lane environment -- never by the branch or the commit, so it is reused for an identical tree
-//    (another worktree, a commit that changes no file, golden's land commit) and never when any of those
-//    inputs changes;
+// Tests of a test shard's input key and the wait log:
+//  - a shard's key is made of what it reads -- its package and related ones, the files outside the
+//    packages, the installed lockfile, the rule that judges a run -- never of the branch, the commit or
+//    the build outputs, so the same tree has the same key in every worktree;
 //  - every wait for a slot or a lock is logged with who held it.
 // Each test works in throwaway git repositories.
 //
-//   node tools/gate-inputs.test.mjs   (part of pnpm run test:ci-workflows)
+//   node tools/shard-key-and-wait-log.test.mjs   (part of pnpm run test:ci-workflows)
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -16,35 +15,22 @@ import { fileURLToPath } from "node:url";
 import { after, describe, it } from "node:test";
 
 import { isolateGit } from "./isolated-git-env.mjs";
-import { gateKey, inputKey } from "./prepush-inputs.mjs";
 import { acquire } from "./test-slots.mjs";
 import { logWait } from "./wait-log.mjs";
 
-const TMP = mkdtempSync(join(tmpdir(), "gate-inputs-"));
+const TMP = mkdtempSync(join(tmpdir(), "shard-key-"));
 after(() => rmSync(TMP, { recursive: true, force: true }));
 isolateGit();
 
 const TOOLS = fileURLToPath(new URL(".", import.meta.url));
 let made = 0;
-// The environment without the base the gate running these tests may have exported.
-// The tests run inside the gate, so drop the gate's own settings (PREPUSH_LIGHT, PREPUSH_ALL, the hook's
-// PUSH_REMOTE_*, ...):
-// a test sets each one it needs.
-const OUR_ENV = Object.fromEntries(
-    Object.entries(process.env).filter(
-        ([k]) => k !== "PUSH_BASE_REF" && !k.startsWith("PREPUSH_") && !k.startsWith("PUSH_REMOTE"),
-    ),
-);
 
-// A checkout with the gate's tools in it: a source file, an ignored dist/ and tmp/, an installed lockfile.
+// A checkout with the key's tools in it: a source file, an ignored dist/ and tmp/, an installed lockfile.
 function repo() {
     const dir = join(TMP, `repo-${++made}`);
     mkdirSync(join(dir, "tools/lib"), { recursive: true });
-    mkdirSync(join(dir, ".husky"));
     mkdirSync(join(dir, "node_modules/.pnpm"), { recursive: true });
-    for (const f of ["prepush-inputs.mjs", "push-base.mjs", "wait-log.mjs", "lib/git.mjs"])
-        copyFileSync(join(TOOLS, f), join(dir, "tools", f));
-    writeFileSync(join(dir, ".husky/pre-push"), "hook\n");
+    for (const f of ["prepush-inputs.mjs", "lib/git.mjs"]) copyFileSync(join(TOOLS, f), join(dir, "tools", f));
     writeFileSync(join(dir, ".gitignore"), "node_modules/\ndist/\ntmp/\n");
     writeFileSync(join(dir, "a.ts"), "a\n");
     writeFileSync(join(dir, "pnpm-lock.yaml"), "lock\n");
@@ -57,119 +43,12 @@ function repo() {
     git("init", "-q", "-b", "main");
     git("add", ".");
     git("commit", "-q", "-m", "a");
-    const inputs = (...args) =>
-        spawnSync(process.execPath, [join(dir, "tools/prepush-inputs.mjs"), ...args], {
-            cwd: dir,
-            encoding: "utf8",
-            env: OUR_ENV,
-        });
-    return { dir, git, inputs, key: (env = {}) => gateKey(dir, dir, env) };
+    return { dir, git };
 }
 
-describe("the gate key", () => {
-    it("is the same for an identical tree: another commit, another branch, another worktree", () => {
-        const r = repo();
-        const before = r.key();
-        r.git("commit", "-q", "--allow-empty", "-m", "nothing changes");
-        assert.equal(r.key(), before, "a commit that changes no file");
-        r.git("checkout", "-q", "-b", "feat/x");
-        assert.equal(r.key(), before, "another branch");
-        writeFileSync(join(r.dir, "b.ts"), "b\n");
-        const edited = r.key();
-        r.git("add", "b.ts");
-        assert.equal(r.key(), edited, "the same file staged");
-        r.git("commit", "-q", "-m", "b");
-        assert.equal(r.key(), edited, "the same file committed");
-        r.git("rm", "-q", "b.ts");
-        r.git("commit", "-q", "-m", "back");
-        assert.equal(r.key(), before, "back to the same files");
-        // A second worktree at a merge commit with the same tree, as golden's land commit of a branch
-        // that merged golden first, with its own install of the same lockfile.
-        const merge = r.git("commit-tree", "HEAD^{tree}", "-p", "HEAD", "-p", "main", "-m", "land: feat/x");
-        const other = join(TMP, `worktree-${made}`);
-        r.git("worktree", "add", "-q", "--detach", other, merge);
-        mkdirSync(join(other, "node_modules/.pnpm"), { recursive: true });
-        writeFileSync(join(other, "node_modules/.pnpm/lock.yaml"), "lock\n");
-        assert.equal(gateKey(other, r.dir, {}), before, "the land commit in another worktree");
-        mkdirSync(join(r.dir, "dist"));
-        writeFileSync(join(r.dir, "dist/out.js"), "x\n");
-        assert.equal(r.key(), before, "an ignored build output");
-        assert.equal(r.key({ GRAPHTY_TEST_SLOTS: "8", PUSH_BASE_REF: "origin/golden" }), before, "slots and base");
-    });
-
-    it("never lets a branch stacked on an unlanded branch stand for a push measured from master or golden", () => {
-        const r = repo();
-        const checked = r.key({ PUSH_BASE_REF: "origin/master" });
-        assert.equal(r.key({ PUSH_BASE_REF: "origin/golden" }), checked, "golden, like master, was gated");
-        assert.equal(r.key({ PUSH_BASE_REF: "origin/golden-cut" }), checked);
-        // The stacked branch S tests only its commits since its parent F; golden's land commit of S,
-        // with the same files, must still run the gate over F's commits.
-        r.git("update-ref", "refs/remotes/origin/fix/parent", "HEAD");
-        const stacked = r.key({ PUSH_BASE_REF: "origin/fix/parent" });
-        assert.notEqual(stacked, checked);
-        assert.equal(r.key({ PUSH_BASE_REF: "origin/fix/parent" }), stacked, "the same stacked base again");
-        r.git("commit", "-q", "--allow-empty", "-m", "the parent moves");
-        r.git("update-ref", "refs/remotes/origin/fix/parent", "HEAD");
-        assert.notEqual(r.key({ PUSH_BASE_REF: "origin/fix/parent" }), stacked, "a parent at another commit");
-    });
-
-    it("changes with any file, the installed lockfile, the gate's scripts or the lanes", () => {
-        const r = repo();
-        const base = r.key();
-        const changed = (why, edit, undo) => {
-            edit();
-            assert.notEqual(r.key(), base, why);
-            undo();
-            assert.equal(r.key(), base, `${why}, undone`);
-        };
-        const file = (path, text) => {
-            const old = existsSync(join(r.dir, path)) ? readFileSync(join(r.dir, path), "utf8") : null;
-            return [
-                () => writeFileSync(join(r.dir, path), text),
-                () => (old === null ? rmSync(join(r.dir, path)) : writeFileSync(join(r.dir, path), old)),
-            ];
-        };
-        changed("an edit", ...file("a.ts", "b\n"));
-        changed("an untracked file", ...file("new.ts", "n\n"));
-        changed("the installed lockfile", ...file("node_modules/.pnpm/lock.yaml", "lock 2\n"));
-        changed("the gate's tools", ...file("tools/x.sh", "x\n"));
-        changed("the gate's hook", ...file(".husky/pre-push", "hook 2\n"));
-        assert.notEqual(r.key({ GRAPHTY_GPU_REQUIRE: "nvidia" }), base, "a GRAPHTY_ lane");
-        assert.notEqual(r.key({ PREPUSH_ALL: "1" }), base, "PREPUSH_ALL");
-        assert.notEqual(r.key({ PREPUSH_LIGHT: "1" }), base, "the light gate is not the full one");
-        assert.equal(r.key({ PREPUSH_LIGHT: "0" }), base, "PREPUSH_LIGHT=0 is the full gate, as unset is");
-    });
-
-    it("counts the gate's version when the gate is another checkout than the one it checks", () => {
-        const checked = repo();
-        const gate = repo();
-        const before = gateKey(checked.dir, gate.dir, {});
-        writeFileSync(join(gate.dir, "tools/prepush.sh"), "a newer gate\n");
-        assert.notEqual(gateKey(checked.dir, gate.dir, {}), before, "an uncommitted gate change");
-        gate.git("add", ".");
-        gate.git("commit", "-q", "-m", "gate");
-        assert.notEqual(gateKey(checked.dir, gate.dir, {}), before, "a committed gate change");
-        writeFileSync(join(gate.dir, "a.ts"), "not a gate file\n");
-        const again = gateKey(checked.dir, gate.dir, {});
-        writeFileSync(join(gate.dir, "a.ts"), "still not\n");
-        assert.equal(gateKey(checked.dir, gate.dir, {}), again, "a file outside the gate's tools/ and .husky/");
-    });
-
-    it("puts the installed lockfile and the gate's version in every test shard's key", () => {
-        const shard = { shard: "s", package: "p", "test-command": "true", "needs-browser": false };
-        const files = new Map([["p/a.ts", "1"]]);
-        const roots = new Map([["p", "p"]]);
-        const key = (context) => inputKey(shard, files, roots, new Set(["p"]), new Map(), {}, context);
-        const base = key({ lock: "l", gate: "g" });
-        assert.equal(key({ lock: "l", gate: "g" }), base);
-        assert.notEqual(key({ lock: "l2", gate: "g" }), base, "the installed lockfile");
-        assert.notEqual(key({ lock: "l", gate: "g2" }), base, "the gate's version");
-    });
-});
-
 describe("a test shard's key", () => {
-    // Package p depends on q; r is unrelated. The gate is a checkout of its own, as .worktrees/gate-live
-    // is, holding a copy of the gate's scripts.
+    // Package p depends on q; r is unrelated. The tools are a checkout of their own, whose
+    // tools/shard-verdict.mjs judges a run.
     const graph = {
         roots: new Map([
             ["p", "p"],
@@ -187,9 +66,9 @@ describe("a test shard's key", () => {
         mkdirSync(join(dir, path, ".."), { recursive: true });
         writeFileSync(join(dir, path), text);
     };
-    const gate = repo();
-    for (const f of ["shard-verdict.mjs", "x.mjs"]) write(gate.dir, `tools/${f}`, `${f}\n`);
-    const gateInputs = import(join(gate.dir, "tools/prepush-inputs.mjs"));
+    const tools = repo();
+    for (const f of ["shard-verdict.mjs", "x.mjs"]) write(tools.dir, `tools/${f}`, `${f}\n`);
+    const inputs = import(join(tools.dir, "tools/prepush-inputs.mjs"));
     const checkout = () => {
         const r = repo();
         for (const p of ["p", "q", "r"]) write(r.dir, `${p}/src/a.ts`, `${p}\n`);
@@ -198,7 +77,7 @@ describe("a test shard's key", () => {
         r.git("commit", "-q", "-m", "packages");
         return r;
     };
-    const keyOf = async (dir) => (await gateInputs).shardKeys(dir, graph)()(shard);
+    const keyOf = async (dir) => (await inputs).shardKeys(dir, graph)()(shard);
 
     it("is the same for the same tree in two worktrees, whatever their build outputs hold", async () => {
         const r = checkout();
@@ -212,19 +91,19 @@ describe("a test shard's key", () => {
         assert.equal(await keyOf(other), await keyOf(r.dir));
     });
 
-    it("is not changed by what a run writes, nor by a gate change outside the rule that judges a run", async () => {
+    it("is not changed by what a run writes, nor by a tool change outside the rule that judges a run", async () => {
         const r = checkout();
         const before = await keyOf(r.dir);
         write(r.dir, "p/coverage/index.html", "report\n");
         write(r.dir, "p/.coverage-parts/p-1/coverage-final.json", "{}\n");
         write(r.dir, "p/dist/p.js", "rebuilt\n");
-        write(r.dir, "tmp/prepush-tests/p-1.log", "Tests  1 passed (1)\n");
-        write(gate.dir, "tools/x.mjs", "a gate fix that went live during the run\n");
+        write(r.dir, "tmp/test-results/p-1.log", "Tests  1 passed (1)\n");
+        write(tools.dir, "tools/x.mjs", "a tool fix that went live during the run\n");
         write(r.dir, "r/src/a.ts", "a package p does not read\n");
         assert.equal(await keyOf(r.dir), before);
     });
 
-    it("changes with the files the shard reads, the installed lockfile and the gate's verdict rule", async () => {
+    it("changes with the files the shard reads, the installed lockfile and the verdict rule", async () => {
         const r = checkout();
         const base = await keyOf(r.dir);
         const changed = async (why, dir, path, text) => {
@@ -241,46 +120,7 @@ describe("a test shard's key", () => {
         await changed("a root file", r.dir, "pnpm-lock.yaml", "lock 2\n");
         await changed("the checkout's own tools", r.dir, "tools/run-tests.sh", "x\n");
         await changed("the installed lockfile", r.dir, "node_modules/.pnpm/lock.yaml", "lock 2\n");
-        await changed("the gate's verdict rule", gate.dir, "tools/shard-verdict.mjs", "stricter\n");
-    });
-});
-
-describe("pass records (prepush-inputs.mjs passed / record)", () => {
-    it("are found from any worktree with the same inputs, and never after a change", () => {
-        const r = repo();
-        const key = r.inputs("key").stdout.trim();
-        assert.match(key, /^[0-9a-f]{64}$/);
-        assert.equal(r.inputs("passed", "gate", key).status, 1, "nothing passed yet");
-        assert.equal(r.inputs("record", "gate", key).status, 0);
-        const pass = JSON.parse(r.inputs("passed", "gate", key).stdout);
-        assert.equal(pass.branch, "main");
-        assert.equal(pass.sha, r.git("rev-parse", "HEAD"));
-        assert.equal(r.inputs("passed", "source", key).status, 1, "a pass of one kind is not another's");
-
-        // Another worktree of the same repository on another branch, same files: the same pass.
-        const other = join(TMP, `worktree-${made}`);
-        r.git("worktree", "add", "-q", "-b", "golden", other);
-        mkdirSync(join(other, "node_modules/.pnpm"), { recursive: true });
-        writeFileSync(join(other, "node_modules/.pnpm/lock.yaml"), "lock\n");
-        const there = (...args) =>
-            spawnSync(process.execPath, [join(other, "tools/prepush-inputs.mjs"), ...args], {
-                cwd: other,
-                encoding: "utf8",
-                env: OUR_ENV,
-            });
-        assert.equal(there("passed", "gate").status, 0, "reused on golden's identical tree");
-        writeFileSync(join(other, "a.ts"), "changed\n");
-        assert.equal(there("passed", "gate").status, 1, "not after an edit");
-    });
-
-    it("are refused when the checkout changed while the checks ran", () => {
-        const r = repo();
-        const key = r.inputs("key").stdout.trim();
-        writeFileSync(join(r.dir, "a.ts"), "edited during the run\n");
-        const refused = r.inputs("record", "gate", key);
-        assert.equal(refused.status, 1);
-        assert.match(refused.stderr, /changed while the gate checks ran/);
-        assert.equal(r.inputs("passed", "gate", key).status, 1);
+        await changed("the verdict rule", tools.dir, "tools/shard-verdict.mjs", "stricter\n");
     });
 });
 
@@ -289,10 +129,10 @@ describe("the wait log", () => {
 
     it("writes one JSON line per wait, and nothing when it is off", () => {
         const file = join(TMP, "waits-direct.jsonl");
-        logWait({ kind: "gate-slot", start: 1000, end: 4000, waiter: "w", heldBy: ["h"] }, file);
+        logWait({ kind: "test-slot", start: 1000, end: 4000, waiter: "w", heldBy: ["h"] }, file);
         assert.deepEqual(read(file), [
             {
-                kind: "gate-slot",
+                kind: "test-slot",
                 start: new Date(1000).toISOString(),
                 end: new Date(4000).toISOString(),
                 ms: 3000,

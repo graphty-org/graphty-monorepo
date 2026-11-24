@@ -843,8 +843,8 @@ const config = defineConfig({
                 // tools/, nx.json or project.json referenced. Under it these 601 cases ran only when
                 // somebody typed `npm run test:mesh` by hand; the 542 that drove mocks also ran inside
                 // "default", in an environment with no document, which is the split that made the one
-                // file driving real classes the one file no gate ran. One home now: --project=mesh, the
-                // pre-push gate (tools/prepush.sh), and CI's graphty-element-default shard.
+                // file driving real classes the one file no gate ran. One home now: --project=mesh, run by
+                // CI's graphty-element-default shard.
                 //
                 // test/mesh-testing/real-mesh-simple.test.ts deliberately ALSO runs in the "browser"
                 // project. Here its canvas is the polyfill, whose measureText is text.length * 8; there it

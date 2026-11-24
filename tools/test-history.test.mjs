@@ -1,5 +1,5 @@
-// Tests of tools/test-history.mjs on a fixture ledger in a temporary directory (records written the way the gate
-// and verification write them, the index rebuilt from them), and of its use in tools/test-changed.mjs.
+// Tests of tools/test-history.mjs on a fixture ledger in a temporary directory (records written the way test runs
+// wrote them, the index rebuilt from them), and of its use in tools/test-changed.mjs.
 //
 //   node tools/test-history.test.mjs   (part of pnpm run test:ci-workflows)
 import assert from "node:assert/strict";
@@ -10,7 +10,7 @@ import { after, describe, it } from "node:test";
 
 import { SHARDS } from "./ci-test-matrix.mjs";
 import { rankPlan } from "./test-changed.mjs";
-import { budget, rank, rankFiles, replay, score, scoreFromPlan, UNMEASURED_MS, writeMiss } from "./test-history.mjs";
+import { budget, rank, rankFiles, score, scoreFromPlan, UNMEASURED_MS } from "./test-history.mjs";
 import { failureHashes, openLedger, rebuild, relFile, writeRecord } from "./test-ledger.mjs";
 
 const dir = mkdtempSync(join(tmpdir(), "test-history-"));
@@ -36,7 +36,7 @@ const rec = (ledger, o) => {
         v: 1,
         id,
         kind: o.kind,
-        branch: o.kind === "verify" ? "golden" : "b",
+        branch: o.kind === "verify" ? "master" : "b",
         commit: o.commit ?? `c${seq}`,
         tree: null,
         base: null,
@@ -68,31 +68,24 @@ const C = "layout/test/c.test.ts";
 
 describe("score", () => {
     const env = ledgerAt("main", (l) => {
-        // B failed on golden 2 hours ago; C failed only on a branch's land check, which golden-side history ignores.
+        // B failed on the base branch 2 hours ago; C failed only on a branch's own run, which history ignores.
         rec(l, { kind: "verify", at: NOW - 2 * HOUR, files: [[B, 0, 1, 4000]], fail: [B] });
         rec(l, { kind: "land-check", at: NOW - HOUR, files: [[C, 0, 1, 9000]], fail: [C] });
         for (const ms of [1000, 3000, 2000]) rec(l, { kind: "verify", at: NOW - 3 * HOUR, files: [[A, 1, 0, ms]] });
-        writeMiss(l, {
-            culprit: "f00dfeed",
-            branch: "fix/1-x",
-            changed: ["layout/src/x.ts"],
-            tests: [{ file: C, ran: false }],
-        });
     });
 
-    it("adds 2 for an edited file, 1 for a golden failure in 7 days, 3 per culprit whose miss shares a changed file", () => {
+    it("adds 2 for an edited file and 1 for a failure on the base branch in 7 days", () => {
         const ledger = openLedger(env);
         try {
             const { scores, why } = score(ledger, [A, B, C], [A, "layout/src/x.ts"]);
             assert.equal(why, null);
             assert.deepEqual(
                 [A, B, C].map((f) => scores.get(f).score),
-                [2, 1, 3],
+                [2, 1, 0],
             );
-            assert.match(scores.get(C).why[0], /failed after landing fix\/1-x, which also changed layout\/src\/x\.ts/);
-            assert.match(scores.get(B).why[0], /failed on golden 1x in 7 days/);
+            assert.match(scores.get(B).why[0], /failed on the base branch 1x in 7 days/);
             assert.equal(scores.get(A).ms, 2000, "the median of the recorded runs");
-            assert.equal(scores.get(C).score, 3, "a land check's failure is not golden-side history");
+            assert.equal(scores.get(C).score, 0, "a branch's own failure is not base-branch history");
         } finally {
             ledger.db.close();
         }
@@ -113,16 +106,16 @@ describe("score", () => {
         const ranked = rankFiles([A, B, C], [A, "layout/src/x.ts"], env).ranked;
         assert.deepEqual(
             ranked.map((r) => r.file),
-            [C, A, B],
+            [A, B, C],
         );
         assert.deepEqual(
             budget(ranked, 1).taken.map((r) => r.file),
-            [C],
+            [A],
             "one file even past the budget",
         );
         assert.deepEqual(
             budget(ranked, 12).taken.map((r) => r.file),
-            [C, A],
+            [A, B],
         );
     });
 });
@@ -162,31 +155,6 @@ describe("without history", () => {
 
     it("score() of no ledger counts edits only", () => {
         assert.equal(rank(score({ why: "x" }, [A], [A]).scores)[0].score, 2);
-    });
-});
-
-describe("replay", () => {
-    it("counts would-drops, their time and a would-miss of the drop rule, and adds of golden failures", () => {
-        const env = ledgerAt("replay", (l) => {
-            for (let i = 0; i < 20; i++) rec(l, { kind: "verify", at: NOW - 20 * HOUR + i, files: [[A, 1, 0, 1000]] });
-            rec(l, { kind: "verify", at: NOW - 3 * HOUR, files: [[B, 0, 1, 5000]], fail: [B] });
-            rec(l, { kind: "land-check", at: NOW - HOUR, files: [[A, 0, 1, 1000]], fail: [A] });
-        });
-        const ledger = openLedger(env);
-        try {
-            const r = replay(ledger, dir, { misses: [{ file: B, at: new Date(NOW).toISOString() }] });
-            assert.equal(r.gateRuns, 1);
-            assert.equal(r.dropRuns, 1, "20 passing golden runs, no failure: dropped");
-            assert.equal(r.dropMs, 1000);
-            assert.deepEqual(
-                r.wouldMiss.map((m) => m.file),
-                [A],
-            );
-            assert.equal(r.addFiles, 0, "a change of unknown files touches no package");
-            assert.equal(r.missesCaught.length, 1, "B failed on golden before the miss");
-        } finally {
-            ledger.db.close();
-        }
     });
 });
 

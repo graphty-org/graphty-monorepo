@@ -1884,6 +1884,8 @@ export class Graphty extends LitElement {
             camera: {
                 get: () => this.#graph.getCameraState(),
                 set: (state) => this.#graph.setCameraState(state, { animate: false }),
+                tour: () => this.#graph.tourPlace(),
+                resumeTour: (name, stop) => this.#graph.resumeTour(name, stop),
             },
             reloadPage: async () => {
                 if (pristine !== undefined) {

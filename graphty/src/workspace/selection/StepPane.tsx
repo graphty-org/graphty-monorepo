@@ -361,36 +361,21 @@ function LinksChoice({
     where,
     onChoice,
 }: Readonly<{ where: boolean; onChoice: (where: boolean) => void }>): React.JSX.Element {
-    // compact-mantine's SegmentedControl switches on mouse-down, inside the mousedown event (Figma).
-    // Choosing "Edges where ..." closes the settings and focuses the Edge value field before the
-    // browser runs the press's own focus step, which then finds the pressed option gone and clears
-    // focus to the page. A press that makes that choice skips the browser's step, keeping the focus
-    // the choice moves (issue #8920). compact-mantine is locked to Figma, so this sits in its use
-    // until #8927 fixes the control itself; then delete it.
-    const keepMovedFocus = (event: React.MouseEvent<HTMLDivElement>): void => {
-        const option = event.target instanceof Element ? event.target.closest("label")?.control : null;
-        if (!where && option instanceof HTMLInputElement && option.value === "where") {
-            event.preventDefault();
-        }
-    };
     return (
-        // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- not a control: it only keeps the focus a choice below moved
-        <div onMouseDown={keepMovedFocus}>
-            <CaptionedRow>
-                <SegmentedControl
-                    label="Edges"
-                    fullWidth
-                    data={[
-                        { value: "all", label: "All edges" },
-                        { value: "where", label: "Edges where ..." },
-                    ]}
-                    value={where ? "where" : "all"}
-                    onChange={(next) => {
-                        onChoice(next === "where");
-                    }}
-                />
-            </CaptionedRow>
-        </div>
+        <CaptionedRow>
+            <SegmentedControl
+                label="Edges"
+                fullWidth
+                data={[
+                    { value: "all", label: "All edges" },
+                    { value: "where", label: "Edges where ..." },
+                ]}
+                value={where ? "where" : "all"}
+                onChange={(next) => {
+                    onChoice(next === "where");
+                }}
+            />
+        </CaptionedRow>
     );
 }
 

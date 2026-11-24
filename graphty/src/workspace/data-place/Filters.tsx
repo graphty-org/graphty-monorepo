@@ -593,8 +593,12 @@ function FilterCard({
         // One undo step, through the session: an empty name goes back to the cards' summary.
         void writeCondition(store, () => session.visibility.updateCondition(id, { name: next }));
     };
-    // on reload: gap #9662: a card renamed in place
-    const [renaming, setRenaming] = useState(false);
+    // A card renamed in place is kept in the store, so a reload reopens its box.
+    const renameKey = `filter:${id}`;
+    const renaming = useWorkspaceState((state) => state.renamingRow === renameKey);
+    const setRenaming = (on: boolean): void => {
+        store.set({ renamingRow: on ? renameKey : null });
+    };
     const renameProps = { name: draftName, onRename: rename };
     // A selection is said as its title says it; a rule no editor reads, in its own words.
     const name = title;

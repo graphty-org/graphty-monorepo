@@ -310,8 +310,9 @@ export interface AutosaveOptions {
     readonly store: AutosaveStore;
     /**
      * Put the camera back where this tab left it when this tab's work reopens after a reload or a
-     * discarded tab, instead of framing the graph; false. The camera is kept for the tab, not with
-     * the work, so work opened in another tab is framed as usual.
+     * discarded tab, instead of framing the graph, and play a saved tour that was playing on from
+     * its stop; false. Kept for the tab, also when the browser empties the tab's session storage
+     * (Safari), so work opened in another tab is framed as usual.
      */
     readonly keepCamera: boolean;
 }

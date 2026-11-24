@@ -3,6 +3,11 @@
 name = "graphty-release-scheduler"
 main = "src/worker.js"
 compatibility_date = "2026-10-01"
+# Its cap: no public URL, so nothing but the crons below can invoke it (5 runs a day, each a handful of GitHub API
+# calls). The Worker has no fetch handler, and with a workers.dev URL a stranger's request would still be a billed
+# invocation. test/index.test.mjs holds both, and the cron count, in place.
+workers_dev = false
+preview_urls = false
 
 [triggers]
 # UTC: the full run's 00:00, 06:00, 12:00 and 18:00 slots, and the daily deploy key check at 03:17

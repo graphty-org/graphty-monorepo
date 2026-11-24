@@ -675,6 +675,11 @@ export class SimulationLayoutEngine extends LayoutEngine {
     /** The simulation filling the row table on the card, or null on the upload path. */
     #drawn: DrawnRun | null = null;
     /**
+     * The rows a ring waits for the table to grow to, or -1. A freeze that adds nodes reloads the layout before the
+     * graph grows its row table (observers run in subscription order), so the ring is attached at the next step.
+     */
+    #drawnShort = -1;
+    /**
      * The `weight` the running simulation was built with, or undefined for a simulation that reads
      * no weight: a load whose answer differs rebuilds it.
      */
@@ -1296,6 +1301,10 @@ export class SimulationLayoutEngine extends LayoutEngine {
             return;
         }
 
+        if (this.#drawnShort >= 0) {
+            this.#attachDrawn(this.#drawnShort);
+        }
+
         const iterations = this.#batchIterations();
         const arrangement = this.#arrangement;
         const batch = simulation.step(iterations);
@@ -1903,6 +1912,10 @@ export class SimulationLayoutEngine extends LayoutEngine {
             target.table.rows < nodeCount ||
             this.#origin !== null
         ) {
+            if (drawn !== null && target !== null && target.table.rows < nodeCount && this.#origin === null) {
+                this.#drawnShort = nodeCount;
+            }
+
             return;
         }
 
@@ -1946,6 +1959,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
     #detachDrawn(): void {
         const run = this.#drawn;
         this.#drawn = null;
+        this.#drawnShort = -1;
         if (run === null) {
             return;
         }

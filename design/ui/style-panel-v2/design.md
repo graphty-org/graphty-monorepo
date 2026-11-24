@@ -152,11 +152,11 @@ written.
 from it open beside it, never in its place (Input rules, "Nesting"); pickers are plain `Popout`s (SettingsPopout
 refuses nesting).
 
-- **Header**: the thing's name, and the Advanced "..." before the close button when the thing has rare settings
-  (Input rules, "Advanced pop-over"). The popover's "+" (`AddButton`), listing the thing's sub-groups not shown yet
-  (at most 12), sits on the Main legend: compact-mantine's `Popout` header actions are icon buttons with an
-  `onClick` and cannot hold a menu, and compact-mantine is locked to Figma.
-- **Switch to is not in the popover**: it is on the row (2.4).
+- **Header**: the thing's name, and the "..." (compact-mantine `Popout.Panel` `more`) before the close button when
+  the thing has groups of settings (Input rules, '"..." menu and group pop-overs'). There is no "+" in the
+  popover except on a list.
+- **Tabs**: a family's members or a kind group's kinds whose settings differ are the popover's first row, a tab
+  strip (Input rules, "Tabs"); the same choice shown under a row with no popover (a basic Shape) is a drop-down.
 - **First lines**: there is no separate By data line. Every line, the main value's included, carries its own
   by-data link in its trailing slot; a line that holds no value of its own (a Unit line) draws none. A line of two
   values (a pair) has one link whose list opens with a "Which value" choice (E680). For a switchable thing, a **Show** line (R7 checkbox, the one control for
@@ -166,23 +166,22 @@ refuses nesting).
   Show line, so every thing has exactly one control for being off. Then
   **Combine** (R8 icon segments Set / Add / Subtract / Multiply / Divide, `COMBINE_WORDS` in `words.ts`) on
   number lines only.
-- **Main** sub-group: always shown, with its lines empty until written. Its first line is the row's main value
+- **Main lines**: always shown, under no legend. Its first line is the row's main value
   (Color, Visible, Shading ...), then the row's common lines (Width, Strength, Size, Color ...), then the
   thing's own Main lines. The main value binds from its line's by-data link (`GLYPHS.link`) like any other line;
   bound, the line shows the column name and draws the existing Stop varying (detach) glyph, `GLYPHS.unlink`, in
   that slot (E355: the by-data control keeps its look).
-- **Other sub-groups**: a `PlusList` at group level (an always-open `ControlGroup` legend with "-", which unsets
-  every line in it) over at most 10 lines. A sub-group shows when it holds a set line or the reader adds it from
-  "+". Adding a switchable sub-group (Callout) writes its on field (`pointer`); it has no "On" line. Label shadow
-  holds two looks, so its Text shadow and Box shadow lines are their on fields.
+- **Groups**: each its own pop-over beside the popover, opened from the "..." menu (at most 6 rows, a "-" in its
+  header that unsets every line in it). A look's line (a Text shadow color) switches its look on when set
+  (graphty-element's `needs`).
 - **Lines**: unset, the control shows the value graphty-element would draw (Input rules, "Every input has a
   value"), with no "-"; writing a value sets it and shows "-". A set boolean unchecked writes
   `false`; "-" unsets it. A location line draws only its segments until written (R2).
 - **Never empty**: a row whose main value can be bound always has its main value line in Main, bound or not,
   so its "..." always opens lines. A row whose main value cannot be bound and whose thing has no other settings
   leaves its "..." slot empty (as Figma does) and is drawn `[<> name] [main] [-]`.
-- **Depth**: panel, the settings popover, its Advanced pop-over beside it, and a dedicated component (a picker,
-  the link dialog) beside either; never in place, never a fourth (Input rules, "Nesting"). No tabs. The popover opens scrolled to its first set line; height follows content, capped at the viewport.
+- **Depth**: panel, the settings popover, a group pop-over beside it, and a dedicated component (a picker,
+  the link dialog) beside either; never in place, never a fourth (Input rules, "Nesting"). The popover opens scrolled to its first set line; height follows content, capped at the viewport.
 
 ## 3. Marks, counted
 

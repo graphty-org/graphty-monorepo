@@ -90,7 +90,7 @@ describe(`a consumer's view of the scene (${PATH})`, () => {
         const { scene } = element.graph;
         scene.clearColor.set(0, 0, 0, 1);
         await drawnFrames(scene, 2);
-        // Every gap between two neighbours in a row, and the canvas corners: background on the objects path.
+        // Every gap between two neighbors in a row, and the canvas corners: background on the objects path.
         const gaps: Point[] = [
             { x: 4, y: 4 },
             { x: 396, y: 4 },

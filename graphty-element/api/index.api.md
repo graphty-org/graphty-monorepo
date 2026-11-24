@@ -873,6 +873,12 @@ export class DataManager implements Manager {
         loading(active: boolean): void;
         removing(nodes: readonly NodeIdType[], edges: readonly EdgeId[]): void;
     }): void;
+    // @internal
+    builtEdgesOfPairs(pairs: Iterable<readonly [NodeIdType, NodeIdType]>, freeze: boolean): {
+        readonly a: NodeIdType;
+        readonly b: NodeIdType;
+        readonly edges: Edge[];
+    }[] | null;
     clear(): void;
     get directed(): boolean;
     get directionSettledBy(): DirectionProvenance;
@@ -884,6 +890,8 @@ export class DataManager implements Manager {
     edgeDirected(row: number): boolean;
     get edges(): ReadonlyMap<string, Edge>;
     get edgesByIndex(): readonly (Edge | undefined)[];
+    // @internal
+    edgeSetChangesSince(version: number): readonly (readonly [NodeIdType, NodeIdType])[] | null;
     edgeVersion: number;
     getEdge(edgeId: string): Edge | undefined;
     getEdgesBetween(srcNodeId: NodeIdType, dstNodeId: NodeIdType): readonly Edge[];
@@ -3245,6 +3253,10 @@ export class Graph implements GraphContext {
         extent?: CameraViewExtent;
     }): CameraState;
     restartRenderer(): Promise<void>;
+    // @internal
+    resumeTour(name: string, stop: number): Promise<{
+        reason: TourEndReason;
+    }>;
     retryLastAiCommand(): Promise<ExecutionResult>;
     get rowCounts(): RowCounts;
     run(algorithm: AlgorithmKey, params?: Record<string, unknown>, options?: StartOptions): Run;
@@ -3334,6 +3346,11 @@ export class Graph implements GraphContext {
     stopInputRecording(): RecordedInputEvent[];
     stopVoiceInput(): void;
     get styles(): Styles;
+    // @internal
+    tourPlace(): {
+        name: string;
+        stop: number;
+    } | null;
     update(frameMs?: number): void;
     updateEdges(updates: {
         id: string;
@@ -5583,6 +5600,8 @@ export abstract class LayoutEngine {
     protected config?: Record<string, unknown>;
     static descriptor?: AuthoredLayoutDescriptor;
     dispose(): void;
+    // @internal
+    get edgeCount(): number;
     protected edgeProblems(drawn: ReadonlyMap<string, Edge>): string[];
     abstract get edges(): Iterable<Edge>;
     protected get followerGroups(): ReadonlyMap<number, readonly number[]>;
@@ -5719,7 +5738,7 @@ export class LayoutManager implements Manager {
     get isSettled(): boolean;
     get layoutEngine(): LayoutEngine | undefined;
     get layoutType(): string | undefined;
-    loadArrangement(restoring: boolean, wrote?: boolean, byReader?: boolean): void;
+    loadArrangement(restoring: boolean, wrote?: boolean, byReader?: boolean): boolean;
     get motion(): LayoutMotion;
     get nodes(): Iterable<Node_2>;
     onMotion: ((motion: LayoutMotion) => void) | null;
@@ -5727,6 +5746,8 @@ export class LayoutManager implements Manager {
     placeGroups(): void;
     // @internal
     get preStepsInFlight(): boolean;
+    // @internal
+    publishOrReport(): boolean;
     reducedMotion: boolean;
     // @internal
     releaseDetachedScope(): void;
@@ -7649,6 +7670,7 @@ export interface NotesApi {
     list(options?: NoteListOptions): readonly Note[];
     mergeDocument(document: unknown, options?: NoteMergeOptions): NotesReport;
     remove(id: NoteId): void;
+    savedTarget(target: NoteTargetInput): NoteTarget | undefined;
     status(id: NoteId): NoteStatus;
     // (undocumented)
     tags(): readonly string[];
@@ -9360,11 +9382,17 @@ export class UpdateManager implements Manager {
     meshesShownOrHidden(): void;
     // @internal
     nodeRowSelected(row: number): boolean;
+    // @internal
+    nodeRowsMoved(remap: ArrayLike<number>): void;
     nothingIsOwed(): boolean;
     onceNothingIsOwed(callback: () => void): () => void;
     operationsPending: (() => boolean) | null;
     readonly pending: PendingWork;
     picturesLoading: (() => boolean) | null;
+    // @internal
+    placeBuiltNode(node: Node_2): void;
+    // @internal
+    placeEdgesOfNode(node: Node_2): void;
     // @internal
     plainLabelRows(): {
         row: number;

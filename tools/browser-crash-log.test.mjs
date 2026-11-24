@@ -1,9 +1,19 @@
 // node --test tools/browser-crash-log.test.mjs
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
+import { createRequire } from "node:module";
 import { test } from "node:test";
 
 import { logBrowserCrashes } from "./browser-crash-log.mjs";
+
+// Loaded before any provider is watched, as graphty-element's vitest config loads it through its imports (#9850).
+const { debug: playwrightDebug } = createRequire(import.meta.url)("playwright-core/lib/utilsBundle");
+
+test("Playwright's browser log is on even when Playwright loaded before the first provider", () => {
+    const { provider } = fakeProvider();
+    logBrowserCrashes(provider);
+    assert.equal(playwrightDebug.enabled("pw:browser"), true);
+});
 
 /**
  * A provider shaped like vitest's PlaywrightBrowserProvider, over event emitters for its browser, context and pages.

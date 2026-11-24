@@ -313,11 +313,18 @@ export function SelectionEditor({
     // The step being added as the last render drew it: a picker that closes twice takes it back once.
     const addingNow = useRef(adding);
     addingNow.current = adding;
-    // on reload: gap #9662: a group renamed in place
-    const [renaming, setRenaming] = useState<string | null>(null);
-    // The selection's own name being typed in the title bar (a filter card's).
-    // on reload: gap #9662: the selection renamed in place
-    const [renamingTitle, setRenamingTitle] = useState(false);
+    // The name being edited in place: a group's id, or TITLE for the selection's own (a filter
+    // card's, in the title bar). Kept with the open workspace (selectionWorkspace.renaming), so a
+    // reload reopens its box.
+    // on reload: fresh: derived: read back from the kept selectionWorkspace when the editor mounts
+    const [renaming, setRenaming] = useState<string | null>(() => {
+        const kept = store.get().selectionWorkspace;
+        return kept?.owner === owner ? (kept.renaming ?? null) : null;
+    });
+    const renamingTitle = renaming === TITLE;
+    const setRenamingTitle = (on: boolean): void => {
+        setRenaming(on ? TITLE : null);
+    };
     // The cards folded to their header line; a new group folds every card before it.
     // on reload: gap #9702: cards the reader folded
     const [folded, setFolded] = useState<ReadonlySet<string>>(() => new Set());
@@ -603,16 +610,17 @@ export function SelectionEditor({
         openedNew.current = onEmptyCancel !== undefined;
         const kept = store.get().selectionWorkspace?.selected ?? null;
         setSelected(kept);
+        setRenaming(store.get().selectionWorkspace?.renaming ?? null);
         focusAfter.current =
             kept === null ? [`[data-row="${TITLE}"]`] : [`[data-row="${CSS.escape(kept)}"]`, `[data-row="${TITLE}"]`];
     }, [named, store, restoredFrom, reading.rule, session.scope, onEmptyCancel]);
-    // The step shown is kept with the open workspace.
+    // The step shown, and the name being edited, are kept with the open workspace.
     useEffect(() => {
         const was = store.get().selectionWorkspace;
-        if (was?.owner === owner && (was.selected ?? null) !== selected) {
-            store.set({ selectionWorkspace: { ...was, selected } });
+        if (was?.owner === owner && ((was.selected ?? null) !== selected || (was.renaming ?? null) !== renaming)) {
+            store.set({ selectionWorkspace: { ...was, selected, renaming } });
         }
-    }, [store, owner, selected, named]);
+    }, [store, owner, selected, renaming, named]);
     // Leaving the place it was opened in is Done.
     useEffect(() => {
         if (open && place !== openedIn.current) {
@@ -1478,7 +1486,7 @@ export function SelectionEditor({
             // A card narrowed by a new condition stays open while its picker is up.
             folded={adding === null ? folded : new Set([...folded].filter((id) => id !== adding.branch))}
             onFoldedChange={setFolded}
-            renaming={renaming}
+            renaming={renamingTitle ? null : renaming}
             onRenamingChange={setRenaming}
             onRename={(branchId, typed) => {
                 const text = typed.trim();

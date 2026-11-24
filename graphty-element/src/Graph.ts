@@ -486,6 +486,8 @@ const KEYS_THAT_DRAW_NOTHING: Readonly<Partial<Record<string, ReadonlySet<string
         "data.knownFields.edgeTimeParseZone",
         "data.knownFields.edgeTimeEndPath",
         "data.knownFields.edgeTimeSpellsPath",
+        "data.knownFields.nodeKindPath",
+        "data.knownFields.edgeKindPath",
     ]),
     graph: new Set(
         [ISSUES_VALUE, SOURCE_VALUE, SOURCES_VALUE, PROVENANCE_VALUE, COLUMNS_VALUE].map((name) => `v:${name}`),
@@ -1580,7 +1582,7 @@ export class Graph implements GraphContext {
                 this.layoutManager.running = false;
             },
             loadArrangement: (restoring, wrote, byReader) => {
-                this.layoutManager.loadArrangement(restoring, wrote, byReader);
+                const loaded = this.layoutManager.loadArrangement(restoring, wrote, byReader);
                 if (restoring) {
                     this.layoutManager.running = false;
                 }
@@ -1588,8 +1590,11 @@ export class Graph implements GraphContext {
                 // The edges are redrawn only when coordinates were written: a redraw re-fits
                 // every edge's arrowheads, and a graph step undone with nothing to place -- a
                 // removal, whose rows come back where they were -- would pay for all of them to
-                // move none.
-                this.updateManager.redrawArrangement(wrote);
+                // move none. The nodes are redrawn only when the engine took the lane again: with
+                // nothing moved, an undo of one value would walk every node (issue #9164).
+                if (loaded || wrote) {
+                    this.updateManager.redrawArrangement(wrote);
+                }
             },
             pin: (id, pinned) => {
                 const node = this.getNode(id);
@@ -1826,10 +1831,18 @@ export class Graph implements GraphContext {
                 this.#resident = event.next;
                 this.#rowTable?.replaced(event.report.nodeRemap, dataManagerInternals.builtNodes(this.dataManager));
                 this.#nodeBatches?.rowsMoved(event.report.nodeRemap);
+                this.stylePainter.rowsMoved(event.report.nodeRemap, event.report.edgeRemap, {
+                    nodes: event.next.nodeCount,
+                    edges: event.next.edgeCount,
+                });
                 this.#edgeRowLines?.rowsMoved(event.report.nodeRemap, event.report.edgeRemap);
                 // a pulled line is drawn from the row table, so there are none without one
                 if (event.report.nodeRemap !== null && this.#rowTable) {
                     this.updateManager.rowsRenumbered();
+                }
+
+                if (event.report.nodeRemap !== null) {
+                    this.updateManager.nodeRowsMoved(event.report.nodeRemap);
                 }
                 // The derived inputs of scoped runs are over the snapshot that has gone: released
                 // now unless a run still holds one, and then when it lets go.
@@ -5249,13 +5262,16 @@ export class Graph implements GraphContext {
         // so a run of queued adds repaints once, not once per add. Everything else -- undo,
         // redo, a rollback, an edit, a session verb -- is painted here, in its own pass.
         if (paintsWhole) {
-            // A forward add over a picture that is current names what it changed; undo, redo
-            // and a paint an earlier write left owed have no such list.
+            // An edit, an undo or a redo over a picture that is current names what it changed, as
+            // each touches the keys of the rows it moved; a restore, a rollback and a paint an
+            // earlier write left owed have no such list. The hook still paints the whole graph when
+            // the rows moved in a way it cannot follow (issue #9164).
             // Crossing `largeGraphThreshold` changes every node's detail, not only the rows it touched.
             const large = this.#overDetailBudget();
             const flipped = large !== this.#paintedLarge;
             this.#paintedLarge = large;
-            const changed = cause === "command" && !dispatcher.paintOwed && !flipped ? dirty : null;
+            const listed = cause === "command" || cause === "undo" || cause === "redo";
+            const changed = listed && !dispatcher.paintOwed && !flipped ? dirty : null;
             dispatcher.paintOwed = false;
             this.#passRepainted = true;
             await repaintGraphPass(this.session, changed, () => this.repaintFromSession());
@@ -8801,6 +8817,8 @@ export class Graph implements GraphContext {
         const tour: TourHandle = {
             name,
             stops,
+            stop: 0,
+            played: false,
             ended: false,
             reason: undefined,
             wake: undefined,
@@ -8913,6 +8931,7 @@ export class Graph implements GraphContext {
      */
     async #flyTour(tour: TourHandle, flown: FlownTour, easing: EasingName, authored = false): Promise<void> {
         const progress = (stop: number, phase: TourProgressEvent["phase"]): void => {
+            tour.stop = stop;
             const view = flown.views[stop];
             this.eventManager.emit("tour-progress", {
                 tour: tour.name,
@@ -8923,7 +8942,9 @@ export class Graph implements GraphContext {
             } satisfies Omit<TourProgressEvent, "type">);
         };
 
-        for (const [index, state] of flown.states.entries()) {
+        // From the stop it starts at: the first unless a reload plays it on (`resumeTour`).
+        for (let index = tour.stop; index < flown.states.length; index++) {
+            const state = flown.states[index];
             const { duration, hold } = flown.plan.stops[index];
             if (tour.ended) {
                 return;
@@ -9026,6 +9047,36 @@ export class Graph implements GraphContext {
         tour: TourInput,
         options?: { easing?: EasingName; restoreCamera?: boolean; signal?: AbortSignal },
     ): Promise<{ /** How the tour ended. */ reason: TourEndReason }> {
+        return this.#playTour(tour, options, 0);
+    }
+
+    /**
+     * Where the tour playing now is, for autosave's `keepCamera`: a saved tour's name and the stop
+     * it is at; null when no tour plays, or it was given inline or is being recorded.
+     * @returns The tour's name and stop, or null.
+     * @internal
+     */
+    tourPlace(): { name: string; stop: number } | null {
+        const tour = this.#tour;
+        return tour?.played === true && tour.name !== null ? { name: tour.name, stop: tour.stop } : null;
+    }
+
+    /**
+     * Play a saved tour on from one of its stops, for autosave's `keepCamera` after a reload.
+     * @param name - The saved tour's name.
+     * @param stop - The stop to play on from.
+     * @returns How the tour ended.
+     * @internal
+     */
+    async resumeTour(name: string, stop: number): Promise<{ reason: TourEndReason }> {
+        return this.#playTour(name, undefined, stop);
+    }
+
+    async #playTour(
+        tour: TourInput,
+        options: { easing?: EasingName; restoreCamera?: boolean; signal?: AbortSignal } | undefined,
+        from: number,
+    ): Promise<{ reason: TourEndReason }> {
         const flown = this.#checkedTour(tour);
         const { signal } = options ?? {};
         if (signal?.aborted === true) {
@@ -9034,6 +9085,8 @@ export class Graph implements GraphContext {
 
         const before = options?.restoreCamera === true ? this.getCameraState() : undefined;
         const handle = this.#beginTour(flown.name, flown.states.length);
+        handle.played = true;
+        handle.stop = from;
         const onAbort = (): void => {
             this.#finishTour(handle, "canceled");
         };
@@ -12073,6 +12126,10 @@ interface TourHandle {
     readonly name: string | null;
     /** How many stops it has. */
     readonly stops: number;
+    /** The stop it is at; before it flies, the stop it starts from. */
+    stop: number;
+    /** Played by `playTour`, so a reload can play it on; a recording's tour is not. */
+    played: boolean;
     ended: boolean;
     reason: TourEndReason | undefined;
     /** Ends the hold the tour waits in, at once. */

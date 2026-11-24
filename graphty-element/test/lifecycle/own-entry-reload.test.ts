@@ -221,6 +221,54 @@ describe.each(ENGINES)("%s", (engine) => {
         );
     });
 
+    it("puts the camera back with keepCamera after a reload that emptied session storage, as Safari's (issue #9663)", async () => {
+        const key = `own-camera-lost-${engine}`;
+        const dir = profile(engine);
+        const context = await launch(engine, dir);
+        track(() => context.close(), dir);
+        const page = await context.newPage();
+        await page.goto(fx.url({ key, tab: `${key}.a`, keepCamera: 1 }));
+        await page.waitForFunction("window.fixture !== undefined");
+        await page.evaluate("fixture.ready()");
+        await editSaved(page, key);
+        const placed = { position: { x: 12, y: 5, z: -30 }, target: { x: 0, y: 0, z: 0 } };
+        await page.evaluate(`fixture.placeCamera(${JSON.stringify(placed)})`);
+        const { navigated } = await reloadKilled(page, key);
+        if (navigated) {
+            // Playwright's Firefox reloads as a new navigation: a new tab's load, framed as usual.
+            return;
+        }
+
+        await page.waitForFunction("window.fixture !== undefined");
+        await page.evaluate("fixture.ready()");
+        await page.waitForFunction(
+            "Math.abs(fixture.camera().position.x - 12) < 0.01 && Math.abs(fixture.camera().position.z + 30) < 0.01",
+        );
+    });
+
+    it("plays a saved tour on from its stop after a reload with keepCamera (issue #9663)", async () => {
+        const key = `own-tour-${engine}`;
+        const tab = `${key}.a`;
+        const dir = profile(engine);
+        const context = await launch(engine, dir);
+        track(() => context.close(), dir);
+        const page = await context.newPage();
+        await page.goto(fx.url({ key, tab, keepCamera: 1 }));
+        await page.waitForFunction("window.fixture !== undefined");
+        await page.evaluate("fixture.ready()");
+        await editSaved(page, key);
+        let from = fx.log.length;
+        await page.evaluate("fixture.playWalk()");
+        await fx.report(tab, "tour", from, (e) => e.stop === 1 && e.phase === "hold");
+        // The saved tour is the reader's change: wait until it is written.
+        await fx.report(tab, "saved", from);
+
+        from = fx.log.length;
+        await page.reload();
+        const resumed = await fx.report(tab, "tour", from);
+        assert.deepInclude(resumed, { tour: "walk", stop: 1 }, "the tour plays on from the stop it was at");
+    });
+
     it("waits out the lock of the page it replaces, and gets the entry", async () => {
         const key = `own-late-${engine}`;
         const { context, page } = await opened(key);

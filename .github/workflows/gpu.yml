@@ -3,8 +3,7 @@
 # The paid T4 runs in exactly two places (owner decision, 2026-10-06): the release train, which calls this
 # workflow on the commit it is about to release and publishes nothing unless it passes
 # (release.yml, job "t4"), and a manual dispatch. Pull requests and master pushes never start it; their GPU
-# coverage is CI's software-GPU shards (lavapipe and SwiftShader) and the pre-push gate's run on the developer's
-# own NVIDIA card. A red T4 holds the WHOLE release and opens one "Release held: T4 GPU failed on <sha>" issue;
+# coverage is CI's software-GPU shards (lavapipe and SwiftShader). A red T4 holds the WHOLE release and opens one "Release held: T4 GPU failed on <sha>" issue;
 # the next train that passes the T4 releases everything at once and closes that issue.
 # The full paired benchmark (master's tip against the latest release, every group) is gpu-weekly-paired.yml.
 # The lane is ONE job, and needs a runner that lives longer than 30 minutes. On the free machine.dev plan a runner

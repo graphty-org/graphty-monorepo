@@ -19,7 +19,7 @@ import { JoinScreen } from "../join/JoinScreen";
 import { NotesPlace } from "../notes/NotesPlace";
 import { PrivacyChip } from "../privacy/PrivacyChip";
 import { NodeMenu } from "../server/NodeMenu";
-import { DOCK_DEFAULT, DOCK_MAX, DOCK_MIN, PANEL_MAX, PANEL_MIN } from "../state/store";
+import { DOCK_DEFAULT, DOCK_MAX, DOCK_MIN, PANEL_MAX, PANEL_MIN, type WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { TableDock } from "../table/TableDock";
 import { TimeDock } from "../time/TimeDock";
@@ -48,6 +48,9 @@ interface FrameProps {
     /** Called with the element and its session once it has come up, and with nulls when it goes. */
     onElementReady: (element: GraphtyElement | null, session: GraphSession | null) => void;
 }
+
+/** The project each store holds its drafts for (a note, a message, a source card being made). */
+const draftsFor = new WeakMap<WorkspaceStore, number>();
 
 /**
  * The workspace frame (tier1-design.md section 2): the header across the top; under it the rail,
@@ -100,8 +103,14 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
         }
     }, [place, store]);
     // A note or a message being written, or a source card, is about this project's graph: another
-    // project drops it.
+    // project drops it. Not the project this store already held them for: a reload mounts the frame
+    // again on the same work, and what the reader was writing comes back with it (issue #9661).
     useEffect(() => {
+        const was = draftsFor.get(store);
+        draftsFor.set(store, projectId);
+        if (was === undefined || was === projectId) {
+            return;
+        }
         store.set({
             noteDraft: null,
             assistantDraft: "",

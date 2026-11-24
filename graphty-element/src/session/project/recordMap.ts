@@ -171,9 +171,10 @@ const MAX_GAP = 1024;
  *
  * Under `"batched"` a writer may also start a dense run (row-renderer.md 4.6, stage 127): while
  * every key written is a counter above every one held, values sit in an array by counter and the
- * `Map` itself holds nothing, so a load of a million rows makes no `Map.set`. Any other write
- * moves the run into the `Map` first, in order, so the map always answers as a `Map` does,
- * insertion order included. A map whose writer never asks for a run is a plain `Map`.
+ * `Map` itself holds nothing, so a load of a million rows makes no `Map.set`. Any other write goes
+ * into the `Map`, which comes after the run in order, and the run takes no more appends while the
+ * `Map` holds anything, so the map always answers as a `Map` does, insertion order included. A map
+ * whose writer never asks for a run is a plain `Map`.
  */
 export class RecordMap<K> extends Map<K, GraphRecord> {
     private readonly sources: RowSource[] = [];
@@ -267,7 +268,8 @@ export class RecordMap<K> extends Map<K, GraphRecord> {
             return this;
         }
 
-        if (counter >= 0 && at >= this.dense.length && at - this.dense.length <= MAX_GAP) {
+        // Appended to the run only while nothing follows it in the Map, so the run stays first in order.
+        if (super.size === 0 && counter >= 0 && at >= this.dense.length && at - this.dense.length <= MAX_GAP) {
             while (this.dense.length < at) {
                 this.dense.push(undefined);
             }
@@ -277,24 +279,10 @@ export class RecordMap<K> extends Map<K, GraphRecord> {
             return this;
         }
 
-        // A key a Map would put anywhere but last: hand the run to the Map, then write it there.
-        this.spill();
+        // A key a Map would put anywhere but at the end of the run -- a deleted id put back by an undo,
+        // an id before the run -- goes into the Map, which follows the run in order. Moving the whole run
+        // into the Map instead wrote a Map entry per edge on the first undo of a removal (issue #9164).
         return super.set(key, value as GraphRecord);
-    }
-
-    /** Move the dense run into the `Map`, in counter order, which is the order it was written. */
-    private spill(): void {
-        const { dense, denseKeys: keys } = this;
-        this.dense = null;
-        if (dense === null || keys === undefined) {
-            return;
-        }
-
-        dense.forEach((value, at) => {
-            if (value !== undefined) {
-                super.set(keys.keyOf(this.first + at), value as GraphRecord);
-            }
-        });
     }
 
     /**
@@ -308,7 +296,7 @@ export class RecordMap<K> extends Map<K, GraphRecord> {
         }
 
         const at = (this.denseKeys as DenseKeys<K>).counterOf(key) - this.first;
-        return at >= 0 ? this.dense[at] : undefined;
+        return (at >= 0 ? this.dense[at] : undefined) ?? super.get(key);
     }
 
     /**
@@ -328,6 +316,8 @@ export class RecordMap<K> extends Map<K, GraphRecord> {
                 yield [(keys as DenseKeys<K>).keyOf(this.first + at), value];
             }
         }
+
+        yield* super.entries() as Iterable<[K, GraphRecord | number]>;
     }
 
     /**
@@ -345,6 +335,8 @@ export class RecordMap<K> extends Map<K, GraphRecord> {
                 yield value;
             }
         }
+
+        yield* super.values() as Iterable<GraphRecord | number>;
     }
 
     /**
@@ -372,7 +364,7 @@ export class RecordMap<K> extends Map<K, GraphRecord> {
      * @returns The count.
      */
     override get size(): number {
-        return this.dense === null ? super.size : this.held;
+        return (this.dense === null ? 0 : this.held) + super.size;
     }
 
     /**
@@ -391,7 +383,7 @@ export class RecordMap<K> extends Map<K, GraphRecord> {
      * @returns True when it does.
      */
     override has(key: K): boolean {
-        return this.dense === null ? super.has(key) : this.raw(key) !== undefined;
+        return this.raw(key) !== undefined;
     }
 
     /**
@@ -405,13 +397,20 @@ export class RecordMap<K> extends Map<K, GraphRecord> {
         }
 
         const at = (this.denseKeys as DenseKeys<K>).counterOf(key) - this.first;
-        if (at < 0 || this.dense[at] === undefined) {
-            return false;
+        if (at < 0 || at >= this.dense.length || this.dense[at] === undefined) {
+            return super.delete(key);
         }
 
         this.dense[at] = undefined;
         if (--this.held === 0) {
             this.dense = null;
+            return true;
+        }
+
+        // The last ids taken off the end of the run, so putting them back (a redo of an add, or the
+        // next add) appends to it again instead of going into the Map (issue #9164).
+        while (this.dense.length > 0 && this.dense.at(-1) === undefined) {
+            this.dense.pop();
         }
 
         return true;

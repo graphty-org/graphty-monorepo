@@ -2,7 +2,9 @@
 // a time limit. nx 22's cache client (packages/nx/src/native/cache/http_remote_cache.rs) builds its HTTP client
 // with no timeout and fails the task on a request error, so one stalled GET or PUT hung a master Build job until
 // its 12-minute limit (issue #4193). Here a stall becomes what nx already treats as harmless: a GET that stalls
-// answers 404 (a miss: nx builds the task itself) and a PUT that stalls answers 403 (nx skips the store).
+// answers 404 (a miss: nx builds the task itself) and a PUT that stalls answers 403 (nx skips the store). The same
+// goes for a 429 (the Worker's daily cap, tools/nx-cache-worker/src/cap.js) or a 5xx: nx fails the task on either,
+// so they become a miss or a refused store, once, with no retry.
 //
 // Usage: node tools/nx-cache-proxy.mjs <upstream url>. Prints its own URL on one line on stdout, then serves
 // until it is killed (in CI, at the end of the job). Log lines go to stderr.
@@ -62,7 +64,12 @@ async function forward(req) {
             signal: controller.signal,
         });
         if (!put) clearTimeout(timer);
-        return { status: response.status, body: await readBody(response, controller) };
+        const answer = await readBody(response, controller);
+        if (response.status === 429 || response.status >= 500) {
+            log(`${req.method} ${req.url}: upstream answered ${response.status}`);
+            return { status: put ? 403 : 404, body: answer };
+        }
+        return { status: response.status, body: answer };
     } catch (error) {
         const why = error.name === "AbortError" ? `no answer in ${limit} ms` : error.message;
         log(`${req.method} ${req.url}: ${why}`);

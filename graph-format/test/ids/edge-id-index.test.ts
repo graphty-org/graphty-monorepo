@@ -155,6 +155,29 @@ describe("EdgeIdIndex", () => {
         expect(index.built).toBe(true);
     });
 
+    it("looks rising numeric ids up without a map, and falls back to one when they stop rising", () => {
+        const data = new Uint32Array([3, 7, 8, 20]);
+        const column = numericColumn("u32", data) as unknown as FakeColumn;
+        const index = new EdgeIdIndex(column as unknown as Column);
+        expect([3, 7, 8, 20].map((id) => index.indexOf(id))).toEqual([0, 1, 2, 3]);
+        expect([0, 5, 21, -0, Number.NaN].map((id) => index.indexOf(id))).toEqual(Array(5).fill(INVALID_INDEX));
+        expect(index.indexOf("7")).toBe(INVALID_INDEX);
+        expect(index.has(8)).toBe(true);
+        expect(index.size).toBe(4);
+        expect(index.built).toBe(true);
+        // A write that breaks the rise: the next lookup builds the map and finds the lowest row.
+        data[3] = 7;
+        column.version = 1;
+        expect(index.built).toBe(false);
+        expect(index.indexOf(7)).toBe(1);
+        expect(index.indexOf(20)).toBe(INVALID_INDEX);
+        expect(index.size).toBe(3);
+        // An unset row also leaves it to the map.
+        const gapped = new EdgeIdIndex(numericColumn("f64", new Float64Array([0, 1, 2]), [1]));
+        expect([0, 1, 2].map((id) => gapped.indexOf(id))).toEqual([0, INVALID_INDEX, 2]);
+        expect(new EdgeIdIndex(numericColumn("f64", new Float64Array([-0, 4]))).indexOf(0)).toBe(0);
+    });
+
     it("keeps the lowest edge index when the column is not unique", () => {
         const index = new EdgeIdIndex(stringColumn(["x", "x"]));
         expect(index.indexOf("x")).toBe(0);

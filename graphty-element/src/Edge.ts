@@ -25,6 +25,7 @@ import type { LocationMapFrame } from "./layout/locationMap/place";
 import { dataManagerInternals } from "./managers/DataManager";
 import type { GraphContext } from "./managers/GraphContext";
 import { LabelDeclutter } from "./managers/LabelDeclutter";
+import type { RowRenumbering } from "./managers/RowRenumbering";
 import { bootstrapEdgePaint, type EdgePaint } from "./managers/StylePainter";
 import type { ArrowCap } from "./meshes/ArrowCapBatch";
 import { type ArrowStackPart, parseArrowStack } from "./meshes/arrowStack";
@@ -145,6 +146,25 @@ const DEFAULT_ARC_HEIGHT = { arc: 0.25, "great-circle": 0.1 } as const;
  * @internal
  */
 export const pulledLines = { version: 0 };
+
+/** Each scene's edges whose line is pulled, so a renumbering visits only them (`UpdateManager.followRenumberedRows`). */
+const pulledByScene = new WeakMap<object, Set<Edge>>();
+
+/**
+ * The edges of a scene whose line is pulled ({@link Edge.isPulled}), kept as each line is pulled and let go.
+ * @param scene - The scene.
+ * @returns They: a live set.
+ * @internal
+ */
+export function pulledEdgesOf(scene: object): Set<Edge> {
+    let edges = pulledByScene.get(scene);
+    if (edges === undefined) {
+        edges = new Set();
+        pulledByScene.set(scene, edges);
+    }
+
+    return edges;
+}
 
 /** Style keys a pulled line can carry; any other set keeps the edge an object edge (`Edge.pullsLine`). */
 const PULLED_STYLE_KEYS = new Set(["line", "label", "arrowHead", "arrowTail", "band", "visible"]);
@@ -587,16 +607,43 @@ function shaded(batch: EdgeLineBatch | null): ShadedEdgeBatch | null {
 const liftRule = new WeakMap<object, { frame: number; draws: boolean }>();
 
 /** Writes an edge's row; see {@link placeEdgeRow}. */
-let writeEdgeRow: (edge: Edge, row: number) => void;
+let writeEdgeRow: (edge: Edge, row: number, renumbering: RowRenumbering | null) => void;
 
 /**
  * Move an edge to a row of the current snapshot. Only the data manager calls it, as an edge is
  * added, removed or renumbered by a compacting freeze.
  * @param edge - The edge.
  * @param row - Its logical edge index, or INVALID_INDEX.
+ * @param renumbering - The renumberings of the graph's edge rows, which bring the row forward when
+ *     it is next read; null for a row nothing renumbers.
  */
-export function placeEdgeRow(edge: Edge, row: number): void {
-    writeEdgeRow(edge, row);
+export function placeEdgeRow(edge: Edge, row: number, renumbering: RowRenumbering | null = null): void {
+    writeEdgeRow(edge, row, renumbering);
+}
+
+/** Reads and writes an edge's build serial; see {@link edgeBuildSerial}. */
+let buildSerialOf: { get(edge: Edge): number; set(edge: Edge, serial: number): void };
+
+/**
+ * Where an edge stands in its data manager's edge map, oldest first; 0 before the manager has put it there. Kept
+ * on the edge, not in a WeakMap: a curve restyle under "batched" builds an `Edge` for each stored row, and an
+ * entry in a WeakMap for each of half a million made the restyle slower, in the setting and in the collector.
+ * @param edge - The edge.
+ * @returns Its serial.
+ * @internal
+ */
+export function edgeBuildSerial(edge: Edge): number {
+    return buildSerialOf.get(edge);
+}
+
+/**
+ * Record where an edge stands in its data manager's edge map; see {@link edgeBuildSerial}.
+ * @param edge - The edge.
+ * @param serial - Its serial.
+ * @internal
+ */
+export function setEdgeBuildSerial(edge: Edge, serial: number): void {
+    buildSerialOf.set(edge, serial);
 }
 
 /** Writes an edge's record; see {@link adoptEdgeRecord}. */
@@ -784,18 +831,39 @@ export class Edge {
      * @returns The row.
      */
     get index(): number {
-        return this.row;
-    }
+        // A freeze that renumbered the rows since this edge last read its row is applied now, not
+        // to every edge of the graph at the freeze (issue #9164).
+        const { renumbering } = this;
+        if (renumbering !== null && this.readAt !== renumbering.epoch) {
+            this.row = renumbering.resolve(this.row, this.readAt);
+            this.readAt = renumbering.epoch;
+        }
 
-    private set index(row: number) {
-        this.row = row;
+        return this.row;
     }
 
     private row: number = INVALID_INDEX;
 
+    /** The renumberings the row follows; see {@link placeEdgeRow}. */
+    private renumbering: RowRenumbering | null = null;
+
+    /** The renumbering epoch {@link Edge.row} was read at. */
+    private readAt = 0;
+
+    /** Where it stands in its data manager's edge map; see {@link edgeBuildSerial}. */
+    private buildSerial = 0;
+
     static {
-        writeEdgeRow = (edge, row) => {
-            edge.index = row;
+        writeEdgeRow = (edge, row, renumbering) => {
+            edge.row = row;
+            edge.renumbering = renumbering;
+            edge.readAt = renumbering?.epoch ?? 0;
+        };
+        buildSerialOf = {
+            get: (edge) => edge.buildSerial,
+            set: (edge, serial) => {
+                edge.buildSerial = serial;
+            },
         };
         edgeInternals.drawn = (edge) => ({
             lineBatch: edge.lineBatch,
@@ -3391,6 +3459,7 @@ export class Edge {
         }
 
         pulledLines.version++;
+        pulledEdgesOf(this.context.getScene()).add(this);
         this.pulled = {
             batch,
             piece,
@@ -3703,6 +3772,7 @@ export class Edge {
 
             this.pulled = null;
             pulledLines.version++;
+            pulledEdgesOf(this.context.getScene()).delete(this);
             return;
         }
 

@@ -2065,6 +2065,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             ...CAPTURE_DOORS,
             planTour: READ,
             replaceTour: CAMERA,
+            tourPlace: READ,
+            resumeTour: CAMERA,
             applyCaptureCamera: CAMERA,
             getCameraState: READ,
             setCameraState: CAMERA,
@@ -2430,6 +2432,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getEdge: READ,
             getEdgesBetween: READ,
             drawnBundle: READ,
+            edgeSetChangesSince: READ,
+            // May freeze the snapshot first, as getSnapshot does.
+            builtEdgesOfPairs: LANE,
             edgeDirected: READ,
             incidentEdgeIds: READ,
             // Called while no edge is drawn: the one the row above added waits for its endpoint.
@@ -2514,6 +2519,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getStats: READ,
             hasLayoutEngine: READ,
             updatePositions: TRANSPORT,
+            // The frame's own publish of a stale static layout, reporting a refusal as updatePositions does.
+            publishOrReport: TRANSPORT,
             onRest: RENDER,
             onMotion: RENDER,
             checkMotion: RENDER,
@@ -2544,6 +2551,14 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
     {
         name: "SupportPoints",
         file: "src/meshes/supportPoints.ts",
+        half: "renderer",
+        whole: RENDER,
+    },
+    {
+        // The renumberings of edge rows the data manager keeps, so each `Edge` brings its row forward when read: a
+        // record of what the store already renumbered, which changes nothing a project saves.
+        name: "RowRenumbering",
+        file: "src/managers/RowRenumbering.ts",
         half: "renderer",
         whole: RENDER,
     },
@@ -3307,6 +3322,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             structureValue: READ,
             histogram: READ,
             valueCounts: READ,
+            kinds: READ,
             overRepresented: READ,
             groupTable: READ,
             // The column commands, each one batch.
@@ -3956,6 +3972,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             status: READ,
             authors: READ,
             tags: READ,
+            savedTarget: READ,
             counts: READ,
             toDocument: READ,
             mergeDocument: calls(
@@ -4307,6 +4324,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             read: READ,
             generation: READ,
             changes: READ,
+            relocations: READ,
             moved: LANE,
             write: LANE,
             fillUnplaced: LANE,
@@ -4322,6 +4340,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             owedRowsRead: READ,
             keeps: READ,
             unsettledView: READ,
+            // The rows written since a count of changes, so a reader places only those; reads, writes nothing.
+            rowsChangedSince: READ,
         },
     },
     {
@@ -4488,6 +4508,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             publishedBounds: READ,
             // The size a "screen"-sized node of size 1 is drawn against (`node.sizeSpace`).
             nodeScreenReference: READ,
+            // How many edges it holds, counted with no sweep of the list; the frame loop reads it.
+            edgeCount: READ,
         },
     },
     {

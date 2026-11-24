@@ -72,7 +72,7 @@ test("maps every source and posts no host path, gate log, cwd or session id", as
     assert.equal(inv[0].outcome, "failed");
     assert.deepEqual(inv[0].files, [["githerd/test/owners.test.mjs", 17, 3, 0, 2588]]);
     assert.deepEqual(Object.keys(inv[0].failures[0]), ["file", "name", "message"]);
-    assert.match(inv[0].failures[0].message, /bash tools\/push-queue\.sh git push/);
+    assert.match(inv[0].failures[0].message, /bash tools\/push\.sh git push/);
     assert.equal(inv[1].runUrl, "https://github.com/graphty-org/graphty-monorepo/actions/runs/40148074821");
     assert.equal(inv[1].reusedFrom, "local.1792890000000-1-graphty-element-default");
     // A daily grouping-ledger line posts only its issues per merged PR, 2+ issue share, released share, ready groups and

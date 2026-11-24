@@ -81,7 +81,7 @@ describe.each(["objects", "batched"] as const)("on the %s render path", (path) =
             const manager = graph.getDataManager();
 
             await graph.setLayout("fixed");
-            await session.styles.add({
+            const defaults = await session.styles.add({
                 name: "Defaults",
                 target: "node",
                 selector: { match: "everything" },
@@ -110,8 +110,11 @@ describe.each(["objects", "batched"] as const)("on the %s render path", (path) =
             let clock = performance.now();
             vi.spyOn(performance, "now").mockImplementation(() => (clock += 1000));
 
-            // A data change repaints the whole graph from the bottom of the stack.
-            const update = graph.updateNodes([{ id: "a", touched: true }]);
+            // Changing the bottom layer repaints the whole graph from the bottom of the stack. A data
+            // change no longer does: it repaints only the rows it touched, at once (issue #9164).
+            const update = session.styles
+                .update(defaults.id, { set: { "node.shape": "box", "node.labelColor": "#00ff00" } })
+                .then(async () => session.styles.settled());
             let finished = false;
             void update.then(() => {
                 finished = true;

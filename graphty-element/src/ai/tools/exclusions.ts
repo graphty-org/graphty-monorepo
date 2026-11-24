@@ -284,6 +284,8 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     ]),
     // How a capture's camera ends a tour and is put back: the capture's own machinery.
     { root: "Graph", members: ["replaceTour", "applyCaptureCamera"], reason: "internal-handle", kind: BY_DESIGN },
+    // How autosave's keepCamera plays a running tour on after a reload: autosave's own machinery.
+    { root: "Graph", members: ["resumeTour"], reason: "internal-handle", kind: BY_DESIGN },
     // A figure is a file for the reader to save; its SVG text is nothing the assistant reads or acts on.
     { root: "Graphty", members: ["exportFigure"], reason: "raw-data", kind: BY_DESIGN },
     // The live handle modelPreview returns: it draws in a canvas of its own, which no tool can show.
@@ -783,6 +785,8 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { root: "StepsReading", reason: "panel-state", kind: BY_DESIGN },
     { root: "SetsApi", members: ["pathKind"], reason: "covered-by", by: "sets.get", kind: BY_DESIGN },
     { root: "NotesApi", members: ["toDocument", "mergeDocument"], reason: "whole-document", kind: BY_DESIGN },
+    // How an editor holds a note being written across a reload; the assistant writes notes whole.
+    { root: "NotesApi", members: ["savedTarget"], reason: "panel-state", kind: BY_DESIGN },
     {
         root: "ProjectApi",
         members: ["save", "markSaved", "assetChoices", "describe", "inspect"],
@@ -1173,6 +1177,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
             "nodeCache",
             "meshCache",
             "getSnapshot",
+            "builtEdgesOfPairs",
             "positions",
             "updateStyles",
             "setGraphContext",
@@ -1261,6 +1266,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
             "stepBatch",
             "takeFrameHold",
             "updatePositions",
+            "publishOrReport",
             "onRest",
             "restoring",
             "replacing",

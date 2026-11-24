@@ -323,9 +323,11 @@ import type {
     EdgePageOptions,
     EdgeRecord,
     EdgeRecordInput,
+    ElementKinds,
     FindKind,
     FindOptions,
     FindResult,
+    GraphKinds,
     GraphStatistics,
     GroupSummary,
     GroupTable,
@@ -420,8 +422,23 @@ import type { WorkingGraph, WorkingScope, WorkingView } from "./working/view";
 /** A node or an edge of a source-steps build. */
 type BuiltElementOf = BuiltNode | BuiltEdge;
 
+/** The attribute a load's kind mapping (`TableMapping.kind` and the like) writes each row's kind to. */
+const LOADED_KIND = "kind";
+
+/** The column names a node or edge kind is most often kept under, as `roleCandidate("kind")` offers them. */
+const KIND_COLUMNS: readonly string[] = ["type", "Type", "kind", "Kind", "category", "Category"];
+
 /** A value a column holds that can be given a name (`data.label`) or counted. */
 type ColumnScalar = string | number | boolean;
+
+/**
+ * Whether a value is a {@link ColumnScalar}.
+ * @param value - The value.
+ * @returns True for a string, number or boolean.
+ */
+function isColumnScalar(value: unknown): value is ColumnScalar {
+    return typeof value === "string" || typeof value === "number" || typeof value === "boolean";
+}
 
 /** Every summary `groupTable` writes. */
 const GROUP_SUMMARIES: readonly GroupSummary[] = ["count", "sum", "min", "max", "mean", "median"];
@@ -1160,6 +1177,7 @@ const ROLE_FIELDS: Readonly<Record<"node" | "edge", Partial<Readonly<Record<Colu
         label: "nodeLabelPath",
         weight: "nodeWeightPath",
         time: "nodeTimePath",
+        kind: "nodeKindPath",
         ...LOCATION_KIND_FIELDS,
         x: "nodeXPath",
         y: "nodeYPath",
@@ -1171,6 +1189,7 @@ const ROLE_FIELDS: Readonly<Record<"node" | "edge", Partial<Readonly<Record<Colu
         weight: "edgeWeightPath",
         time: "edgeTimePath",
         edgeId: "edgeIdPath",
+        kind: "edgeKindPath",
     },
 };
 
@@ -7745,6 +7764,9 @@ export class SessionData implements SessionDataApi {
         );
         add("edge", "time", knownFields.edgeTimePath);
         add("edge", "edgeId", knownFields.edgeIdPath);
+        const kinds = this.kindColumns();
+        put("node", "kind", kinds.node);
+        put("edge", "kind", kinds.edge);
         // The columns a load read the node ids and the edge ends from carry them as rows load, so
         // the real column (`account`, `from`) is the key, not only the id the element keeps.
         for (const { mapping } of this.storedSources()) {
@@ -7889,6 +7911,11 @@ export class SessionData implements SessionDataApi {
         if (role === "label") {
             const text = free.filter((a) => a.type === "string" || a.type === "category");
             return LABEL_COLUMNS.find((name) => text.some((a) => a.name === name)) ?? null;
+        }
+
+        if (role === "kind") {
+            const groups = free.filter((a) => a.type === "category" || a.type === "string");
+            return KIND_COLUMNS.find((name) => groups.some((a) => a.name === name)) ?? null;
         }
 
         if (role === "weight" && kind === "edge") {
@@ -8727,6 +8754,56 @@ export class SessionData implements SessionDataApi {
 
         const values = [...counts].sort((a, b) => b[1] - a[1]).map(([value, count]) => Object.freeze({ value, count }));
         return Object.freeze({ values: Object.freeze(values), missing, total });
+    }
+
+    /**
+     * The column each kind of element reads its kind from: the one the data configuration names
+     * (`data.setRole`, or a file that declares kinds), else the `kind` attribute a load's mapping
+     * wrote (`TableMapping.kind`, `kindName`, `sourceKind`, `targetKind`).
+     * @returns the node and edge columns, each null when none plays the role
+     */
+    private kindColumns(): { readonly node: string | null; readonly edge: string | null } {
+        const { knownFields } = this.readConfig();
+        const set = (value: unknown): boolean => value !== undefined && value !== null;
+        const tables = this.storedSources().flatMap(({ mapping }) => Object.values(mapping?.tables ?? {}));
+        const nodeKinds = tables.some((table) =>
+            table.rowsAre === "nodes"
+                ? set(table.kind) || set(table.kindName)
+                : set(table.sourceKind) || set(table.targetKind),
+        );
+        const edgeKinds = tables.some((table) => table.rowsAre !== "nodes" && set(table.kind));
+        const node = knownFields.nodeKindPath ?? (nodeKinds ? LOADED_KIND : null);
+        const edge = knownFields.edgeKindPath ?? (edgeKinds ? LOADED_KIND : null);
+        return { node, edge };
+    }
+
+    /**
+     * How many nodes and edges there are of each kind, read from the column with the `kind` role.
+     * @returns the counts of each kind of element, null for one with no kind column
+     */
+    kinds(): GraphKinds {
+        const columns = this.kindColumns();
+        const count = (kind: "node" | "edge"): ElementKinds | null => {
+            const column = columns[kind];
+            if (column === null) {
+                return null;
+            }
+
+            const snapshot = this.current();
+            const rows = kind === "node" ? snapshot.nodeCount : snapshot.edgeCount;
+            const { counts, present, total } = tallyScalars(
+                rows,
+                this.valueReader(kind, `data.${column}`),
+                this.shownOf(kind, undefined),
+                true,
+            );
+            const values = [...counts]
+                .sort((a, b) => b[1] - a[1])
+                .map(([value, n]) => Object.freeze({ value, count: n }));
+            return Object.freeze({ column, values: Object.freeze(values), missing: total - present, total });
+        };
+
+        return Object.freeze({ nodes: count("node"), edges: count("edge") });
     }
 
     /**
@@ -10272,6 +10349,7 @@ function narrows(filter: SourceElementsFilter): boolean {
  * @param rows - How many rows to read.
  * @param valueAt - A row's value.
  * @param shown - The rows to count, or null for every row.
+ * @param items - Whether a list value counts once under each distinct scalar item it holds.
  * @returns The counts (a Map keeps first-seen order, so a stable sort keeps a tie in it), how many
  *     rows carried a scalar, and how many rows were counted.
  */
@@ -10279,6 +10357,7 @@ function tallyScalars(
     rows: number,
     valueAt: (index: number) => unknown,
     shown: U32 | null = null,
+    items = false,
 ): { counts: Map<ColumnScalar, number>; present: number; total: number } {
     const counts = new Map<ColumnScalar, number>();
     let present = 0;
@@ -10290,9 +10369,15 @@ function tallyScalars(
 
         total++;
         const value = valueAt(index);
-        if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+        if (isColumnScalar(value)) {
             present++;
             counts.set(value, (counts.get(value) ?? 0) + 1);
+        } else if (items && Array.isArray(value)) {
+            const scalars = new Set(value.filter(isColumnScalar));
+            present += scalars.size > 0 ? 1 : 0;
+            for (const each of scalars) {
+                counts.set(each, (counts.get(each) ?? 0) + 1);
+            }
         }
     }
 

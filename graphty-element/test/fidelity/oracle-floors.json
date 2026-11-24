@@ -4090,9 +4090,9 @@
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
-            "edge.present": 0.993,
-            "edge.extra": 0.99,
-            "edge.route": 0.967,
+            "edge.present": 1,
+            "edge.extra": 0.997,
+            "edge.route": 0.97,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -4101,14 +4101,14 @@
             "edge.dashPeriod": 1,
             "edge.gradient": 1,
             "edge.arrow": 0.998,
-            "edge.arrowShape": 0.997,
+            "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
             "edge.arrowFill": 1,
             "edge.arrowColor": 1,
-            "edge.arrowLength": 0.997,
+            "edge.arrowLength": 1,
             "edge.arrowWidth": 1,
-            "edge.arrowToSpacing": 0.997,
+            "edge.arrowToSpacing": 1,
             "group.present": 1,
             "group.extra": 1,
             "group.box": 1,
@@ -4161,9 +4161,9 @@
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
-            "edge.present": 0.993,
-            "edge.extra": 0.99,
-            "edge.route": 0.967,
+            "edge.present": 1,
+            "edge.extra": 0.997,
+            "edge.route": 0.97,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -4172,12 +4172,12 @@
             "edge.dashPeriod": 1,
             "edge.gradient": 1,
             "edge.arrow": 0.998,
-            "edge.arrowShape": 0.997,
+            "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
             "edge.arrowFill": 1,
             "edge.arrowColor": 1,
-            "edge.arrowLength": 0.997,
+            "edge.arrowLength": 1,
             "edge.arrowWidth": 1,
             "edge.arrowToSpacing": 1,
             "group.present": 1,
@@ -7615,11 +7615,11 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.canvas": 0.98,
-            "raster.edge": 0.97,
-            "raster.label": 0.91,
-            "raster.nodeBody": 0.92,
-            "raster.nodeOutline": 0.96,
+            "raster.canvas": 0.99,
+            "raster.edge": 0.98,
+            "raster.label": 0.92,
+            "raster.nodeBody": 0.95,
+            "raster.nodeOutline": 0.97,
             "edge.wiggle": 1
         },
         "cyjs-genemania@matched": {
@@ -30076,7 +30076,7 @@
             "raster.arrowhead": 0.96,
             "raster.canvas": 0.99,
             "raster.edge": 0.91,
-            "raster.label": 0.92,
+            "raster.label": 0.95,
             "raster.nodeBody": 0.99,
             "raster.nodeOutline": 0.97,
             "edge.wiggle": 1
@@ -30149,7 +30149,7 @@
             "raster.arrowhead": 0.96,
             "raster.canvas": 0.99,
             "raster.edge": 0.91,
-            "raster.label": 0.92,
+            "raster.label": 0.95,
             "raster.nodeBody": 0.99,
             "raster.nodeOutline": 0.97,
             "edge.wiggle": 1
@@ -56179,40 +56179,6 @@
         }
     },
     "drops": {
-        "cx2-signor-aml": {
-            "edge.arrowShape": {
-                "floor": 0.997,
-                "to": 0.996,
-                "reason": "heads hidden in both drawings are no longer judged, so the recorded failures weigh more (#8191)",
-                "date": "2026-11-22"
-            },
-            "edge.arrowLength": {
-                "floor": 0.997,
-                "to": 0.996,
-                "reason": "heads hidden in both drawings are no longer judged, so the recorded failures weigh more (#8191)",
-                "date": "2026-11-22"
-            },
-            "edge.arrowToSpacing": {
-                "floor": 0.997,
-                "to": 0.996,
-                "reason": "heads hidden in both drawings are no longer judged, so the recorded failures weigh more (#8191)",
-                "date": "2026-11-22"
-            }
-        },
-        "cx2-signor-aml@matched": {
-            "edge.arrowShape": {
-                "floor": 0.997,
-                "to": 0.996,
-                "reason": "heads hidden in both drawings are no longer judged, so the recorded failures weigh more (#8191)",
-                "date": "2026-11-22"
-            },
-            "edge.arrowLength": {
-                "floor": 0.997,
-                "to": 0.996,
-                "reason": "heads hidden in both drawings are no longer judged, so the recorded failures weigh more (#8191)",
-                "date": "2026-11-22"
-            }
-        },
         "cx2-syn-mappings": {
             "stray.present": {
                 "floor": 0.5,

@@ -10,6 +10,7 @@ import { DISCARD_DIALOG, KEEP_ASSETS_DIALOG, SAVE_AS_DIALOG } from "../../projec
 import { OPEN_V2_DIALOG, REPORT_V2_DIALOG } from "../../project/saveV2";
 import { EXPAND_DIALOG, SERVER_DIALOG } from "../../server/commands";
 import { NETWORK_DIALOG } from "../../start/NetworkDataDialog";
+import { ON_RELOAD } from "../../state/store";
 import { TOOLBAR_POPOVERS } from "../../toolbar/popover";
 import { panelId } from "../useUsageEvents";
 
@@ -28,7 +29,10 @@ function literalDialogIds(): Set<string> {
     const ids = new Set<string>();
     for (const text of Object.values(sources)) {
         for (const match of text.matchAll(/\bdialog: "([a-z][a-z0-9:-]*)"/g)) {
-            ids.add(match[1]);
+            // The store's reload record (`dialog: "kept"`) says what a reload does, not a dialog.
+            if (match[1] !== ON_RELOAD.dialog) {
+                ids.add(match[1]);
+            }
         }
     }
     return ids;

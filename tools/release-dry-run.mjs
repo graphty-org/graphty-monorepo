@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-// The pre-push gate's "Release dry run" (tools/prepush-source-checks.sh): when a push adds or changes a
-// package.json, a project.json, nx.json or release-hold.json, run `nx release --dry-run --skip-publish`
-// in the checkout and fail the push when it fails, so a change the release train cannot version is
-// stopped at its push, not at the next release attempt. 2026-10-23: two private projects tier 3 added,
+// The "Release dry run" of CI's Checks job (ci.yml): when a change adds or changes a package.json, a
+// project.json, nx.json or release-hold.json, run `nx release --dry-run --skip-publish` in the checkout
+// and fail when it fails, so a change the release train cannot version is stopped at its pull request,
+// not at the next release attempt. 2026-10-23: two private projects tier 3 added,
 // one with no "version" and no tag, held every release for days ("Unable to resolve the current version
 // from git tag ... and there is no version on disk to fall back to"; #3318).
 //

@@ -66,7 +66,13 @@
  * it, which is what dashing the center line and then stroking each dash would draw.
  */
 
-import { EDGE_TRIM_GLSL, ROW_EXTENT_ELLIPSE, ROW_EXTENT_ROUND, ROW_EXTENT_SEEN_THROUGH } from "./edgeTrim";
+import {
+    EDGE_TRIM_GLSL,
+    ROW_END_GLSL,
+    ROW_EXTENT_ELLIPSE,
+    ROW_EXTENT_ROUND,
+    ROW_EXTENT_SEEN_THROUGH,
+} from "./edgeTrim";
 import { CURVE_STRIDE, PULLED_CURVE_GLSL } from "./pulledCurve";
 
 /** The longest miter drawn, as a multiple of half the line's width (SVG's and Canvas's limit). */
@@ -189,8 +195,9 @@ const LEAN_CORNERS = LEAN_TEMPLATE_INDICES.map((i) => LEAN_TEMPLATE_OF[i] ?? 0);
  * which `JOIN_TEMPLATE_INDICES` turns into its template vertex (#6389). A straight piece between node
  * centers is all this reads, written as `EdgeLineBatch.place` writes it: its neighbors are its
  * own ends and its run is zero. A free piece (rows below 0), a piece flagged in `edgeHidden` (a byte a
- * piece, four to a texel) and a piece with a row of w = 0 (hidden or not placed) get every point at
- * the origin, as a hidden slot does, and draw nothing.
+ * piece, four to a texel) and a piece with a row of w = 0 and no place get every point at the origin, as
+ * a hidden slot does, and draw nothing. A row a style or filter hides keeps its place (`ROW_EXTENT_HIDDEN_PLACED`): its
+ * pieces end at its center, as the objects path draws them.
  * Every line after this is the plain line's, so the two draw the same pixels.
  *
  * A piece takes two texels: (source row, target row, width, opacity), then (red, green, blue). So
@@ -226,6 +233,7 @@ export const PULLED_TRIM_GLSL = `
 uniform highp sampler2D rowExtent;
 uniform highp sampler2D rowOutline;
 ${EDGE_TRIM_GLSL}
+${ROW_END_GLSL}
 
 // one function a table: WebGPU's GLSL takes no sampler as an argument
 vec4 pulledExtent(int i) {
@@ -379,6 +387,8 @@ ${pulledTexelGlsl("edgeSlots", "pulledSlotsTexel")}
 // set by pullEdge for a slot past its own curve's pieces: the vertex is put outside the clip volume
 bool pulledSkip = false;
 const int PIECE_TEXELS = 4;
+uniform highp sampler2D rowExtent;
+${ROW_END_GLSL}
 #else
 const int PIECE_TEXELS = 2;
 ${PULLED_TRIM_GLSL}
@@ -458,7 +468,7 @@ void pullEdge() {
         vec4 b = pulledRow(int(rows.y + 0.5));
 #ifdef EDGE_PULLED_CURVE
         vec4 end = pulledRowsTexel(texel + 3);
-        if (a.w * b.w != 0.0) {
+        if (rowEnds(a, int(rows.x + 0.5)) && rowEnds(b, int(rows.y + 0.5))) {
             vec4 counts = vec4(span.xyz, end.w);
             vec4 cut = vec4(span.w, end.xyz);
             int prev = j == 0 ? 0 : j - 1;
@@ -484,7 +494,7 @@ void pullEdge() {
         pNext2 = pB;
     }
 #else
-        if (a.w * b.w != 0.0) {
+        if (rowEnds(a, int(rows.x + 0.5)) && rowEnds(b, int(rows.y + 0.5))) {
             pA = a.xyz;
             pB = b.xyz;
             // a straight piece's spare float: how far it stops before a head drawn from the row table

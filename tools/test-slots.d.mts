@@ -12,8 +12,8 @@ export declare function workerShare(
     usable?: number,
 ): number | undefined;
 /**
- * This run's own Vite cache directory when it runs as one shard of the pre-push gate
- * (GRAPHTY_TEST_SHARD, set by tools/prepush-tests.mjs), else undefined (Vite's own default). Set it
+ * This run's own Vite cache directory when GRAPHTY_TEST_SHARD names it as one of several shards of
+ * one package run side by side in one checkout (no tool sets it today), else undefined (Vite's own default). Set it
  * as a vitest config's `cacheDir`, at the root and on every inline project that does not extend it.
  * @param env - the environment (GRAPHTY_TEST_SHARD)
  */

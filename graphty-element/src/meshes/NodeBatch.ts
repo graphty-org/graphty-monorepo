@@ -20,7 +20,7 @@ import { batchUploadFrames } from "./FrameRoster";
 import { handOverTogether } from "./handOverTogether";
 import type { MeshCache } from "./MeshCache";
 import { NodeMesh, styleOpacity } from "./NodeMesh";
-import { attachRowPull } from "./RowPullPlugin";
+import { attachRowPull, glowRowsInPlace } from "./RowPullPlugin";
 import type { Point2 } from "./shapeOutlines";
 
 /**
@@ -137,6 +137,8 @@ export class NodeBatch {
         if (source.material) {
             attachRowPull(source.material);
         }
+
+        glowRowsInPlace(this.mesh);
 
         this.setBuffers();
     }
@@ -896,8 +898,12 @@ export interface NodeBatchHost {
     sourceOf(paint: NodePaint): Mesh;
     /** Babylon's list of active meshes no longer holds. */
     meshesChanged(): void;
-    /** A row drawn with no `Node` changed its drawn size or shape, which a `nodeGap` layout spaces it by. */
-    resized?(): void;
+    /**
+     * A row drawn with no `Node` changed its drawn size or shape, which a `nodeGap` layout spaces it by and the
+     * `Edge`s built at it trim their ends to.
+     * @param row - The row.
+     */
+    resized?(row: number): void;
     /** Rows drawn with no `Node` that a new view no longer batches: each is to be painted again. */
     repaint?(rows: readonly number[]): void;
 }
@@ -1318,9 +1324,10 @@ export class NodeBatches {
         this.paintedBehindEdges ||= (paint.style.shape?.zIndex ?? 0) < 0;
         // what a fit, an edge's trim and a layout's gap read of the row, which no `Node` measures
         this.host.places.measure(row);
-        if (had === undefined || !sameSize(had, row)) {
+        // a new source is a new outline (a star's, not the sphere's it was painted over), even at the same size (#9872)
+        if (had === undefined || !sameSize(had, row) || had.paintedSourceMesh !== source) {
             // as `Node` tells the layout when it is resized: nothing else re-reads a row's size
-            this.host.resized?.();
+            this.host.resized?.(index);
         }
 
         this.sync(row);

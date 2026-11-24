@@ -194,6 +194,7 @@ import type { SelectionTextMode } from "./selection";
 import { searchOf } from "./selection/targets";
 import type { CodedFact, ColumnRef, ProgressChange } from "./shared";
 import { draftOpenError, SourceDraftHandle } from "./sourceDraft";
+import { type SavedSourceDraft, setSourceDraftHooks } from "./sourceDraftHooks";
 import { ExpansionState, type HostEdge, type LoadStamp, type SourceHost } from "./sources/host";
 import {
     isSourceFactKey,
@@ -1461,6 +1462,37 @@ export class SessionData implements SessionDataApi {
         this.neighborLists = new RevisionCache(() => pages.revision(), NEIGHBOR_LISTS_KEPT);
         this.attributeCache = new RevisionCache(() => pages.dataRevision());
         this.edgeColumns = new RevisionCache(() => pages.dataRevision());
+        // Autosave keeps an open source draft with the work and opens it again after a restore.
+        setSourceDraftHooks(this, {
+            saved: () => this.sourceDraft?.saved() ?? null,
+            reopen: (saved) => this.reopenDraft(saved),
+        });
+    }
+
+    /**
+     * Open again a source draft autosave kept, drawn as it was.
+     * @param saved - The draft as autosave kept it.
+     * @returns False when it could not be: the experiment is off, a draft is open, or the rows it
+     *   read are gone.
+     */
+    private async reopenDraft(saved: SavedSourceDraft): Promise<boolean> {
+        if (!this.stepsOn() || this.sourceDraft !== null) {
+            return false;
+        }
+        this.draft({ askOverlap: saved.askOverlap });
+        const draft = this.sourceDraft as SourceDraftHandle | null;
+        if (draft === null) {
+            return false;
+        }
+        if (!draft.restore(saved)) {
+            draft.dispose();
+            return false;
+        }
+        if (saved.shown.on) {
+            await draft.display(true);
+            await draft.show(saved.shown.side);
+        }
+        return true;
     }
 
     /**

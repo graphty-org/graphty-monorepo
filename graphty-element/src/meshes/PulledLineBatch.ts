@@ -405,8 +405,8 @@ export class PulledLineBatch {
      * @param switches - Whether {@link drawLinesLean} may switch it to the lean program: a straight
      *     batch drawing the join template, 2D or 3D.
      * @param rowShapes - The row table's `rowExtent` and `rowOutline` textures, asked each frame, for a straight
-     *     piece's shader to stop at a translucent row's outline (`PULLED_TRIM_GLSL`); null for a shader that reads
-     *     neither (a curve's, whose ends are cut on the CPU).
+     *     piece's shader to stop at a translucent row's outline (`PULLED_TRIM_GLSL`), and for every shader to tell a
+     *     hidden row with a place from one with none (`ROW_END_GLSL`); null for a shader that reads neither.
      */
     constructor(
         mesh: Mesh,
@@ -962,7 +962,10 @@ export class PulledLineBatch {
         if (this.rowShapes !== null) {
             const { extentTexture, outlineTexture } = this.rowShapes();
             material?.setTexture("rowExtent", extentTexture);
-            material?.setTexture("rowOutline", outlineTexture);
+            // a curve's shader reads only whether a hidden end has a place, not the outlines
+            if (!this.curve) {
+                material?.setTexture("rowOutline", outlineTexture);
+            }
         }
         this.followRest(material);
         this.flushRoutes();

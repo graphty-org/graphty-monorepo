@@ -802,7 +802,7 @@ export class EdgeMesh {
                 curve,
                 leanLine === false ? undefined : LEAN_TEMPLATE,
                 kind === true && pattern === undefined,
-                curve ? null : rows,
+                rows,
             );
         });
     }

@@ -12,6 +12,7 @@ import { Scene } from "@babylonjs/core/scene.js";
 
 import { EDGE_CONSTANTS } from "../constants/meshConstants";
 import { ArrowCap, type ArrowCapBatch, arrowCapBatch, pulledCapHosts } from "./ArrowCapBatch";
+import { ROW_END_GLSL } from "./edgeTrim";
 import { MaterialHelper } from "./MaterialHelper";
 import { PerSceneMaterials } from "./PerSceneMaterials";
 
@@ -311,6 +312,7 @@ attribute vec4 capPull;
 uniform float capPlaced;
 uniform highp sampler2D rowPosition;
 uniform highp sampler2D rowExtent;
+${ROW_END_GLSL}
 // One texel of each table; no sampler is passed to a function, which WebGPU's translation refuses.
 vec4 capPosition(int i) {
     return texelFetch(rowPosition, ivec2(i & 1023, i >> 10), 0);
@@ -369,7 +371,8 @@ void main() {
         float r2 = ta.y * b.w;
         vec3 d = b.xyz - a.xyz;
         float span = length(d);
-        if (a.w * b.w != 0.0 && span > r1 + r2) {
+        // a hidden row with a place keeps its caps, at its center (ROW_EXTENT_HIDDEN_PLACED); one with none draws none
+        if (rowEnds(a, fromRow) && rowEnds(b, to) && span > r1 + r2) {
             vec3 dir = d / span;
             vec3 s = a.xyz + dir * r1;
             vec3 tip = b.xyz - dir * r2;

@@ -1,10 +1,10 @@
 /**
  * Style panel v2's Image absorbs the old Fill kind Picture (ia-design 2), on the REAL graphty-element and real
- * clicks: Image's settings hold "Wrap around shape"; off, the picture is placed on the node (`node.image`), on, it
- * wraps over the 3D surface (`node.texture`) and the placing settings are dimmed, from graphty-element's own
- * `drawnWhen`; the picture on the canvas changes each way. Fill's Kind select lists no Picture.
+ * clicks: Image's pop-over starts with On node and Wrapped tabs; On node places the picture on the node
+ * (`node.image`), Wrapped wraps it over the 3D surface (`node.texture`) and the placing settings leave the pop-over,
+ * from graphty-element's own `drawnWhen`; the picture on the canvas changes each way. Fill's tabs list no Picture.
  * A label's image is the same Picture field and pop-over, and graphty-element draws the picked picture.
- * Wrap around shape needs the node-models experiment (`node.texture` is its channel): review it at
+ * Wrapped needs the node-models experiment (`node.texture` is its channel): review it at
  * ?features=file-styles,style-panel-v2,node-models.
  */
 
@@ -20,9 +20,8 @@ import colormapUrl from "../__fixtures__/car-kit/Textures/colormap.png?url";
 import { choose } from "./modelHarness";
 import {
     closeSettings,
-    openAdvanced,
     openGraph,
-    openKind,
+    openGroup,
     openStyle,
     picture,
     pixelsApart,
@@ -98,7 +97,7 @@ describe("Style panel v2's Image wraps around the shape", () => {
         });
     }
 
-    it("Wrap around shape moves the picture from the node's plate to its 3D surface and back", async () => {
+    it("the Wrapped tab moves the picture from the node's plate to its 3D surface and back", async () => {
         const { session, element, nodes } = await openGraph();
         await session.styles.update(nodes, { set: { "node.color": "#E8590C", "node.shape": "box", "node.size": 3 } });
         await session.styles.settled();
@@ -118,41 +117,55 @@ describe("Style panel v2's Image wraps around the shape", () => {
 
         const row = await rowOf(fill, "image");
         const pop = await openSettings(row, "Node image settings");
-        // Wrap around shape is a rare setting: the pop-over's Advanced dialog's (design "Input rules").
-        const wrap = await within(await openAdvanced(pop)).findByRole("checkbox", { name: "Wrap around shape" });
-        assert.isFalse((wrap as HTMLInputElement).checked, "off: placed on the node");
+        // On node or Wrapped is the pop-over's tab strip, its first row (design "Input rules", "Tabs").
+        const stripTab = async (name: string): Promise<HTMLInputElement> => {
+            const strip = await waitFor(() => {
+                const found = pop.querySelector<HTMLElement>("[data-strip]");
+                assert.isNotNull(found, "the tab strip");
+                return found;
+            });
+            return within(strip).getByRole<HTMLInputElement>("radio", { name });
+        };
+        const click = async (radio: HTMLInputElement): Promise<void> => {
+            await userEvent.click(pop.querySelector<HTMLElement>(`label[for="${radio.id}"]`) ?? radio);
+        };
+        assert.isTrue((await stripTab("On node")).checked, "placed on the node");
         const fitLine = pop.querySelector('.ws-row[data-line="node.imageFit"]');
         assert.isNotNull(fitLine, "Fit");
         assert.isNull(dimmed(fitLine), "Fit draws while the picture is placed");
-        await userEvent.click(wrap);
+        await click(await stripTab("Wrapped"));
         await waitFor(() => {
-            assert.strictEqual(written(session, nodes, "node.texture"), asset, "on: the same picture wraps");
+            assert.strictEqual(written(session, nodes, "node.texture"), asset, "Wrapped: the same picture wraps");
             assert.isUndefined(written(session, nodes, "node.image"), "and is no longer placed");
         });
         const wrapped = await picture(element);
         assert.isAbove(pixelsApart(placed, wrapped), 0, "the picture moves from the plate to the surface");
         await waitFor(() => {
-            const fit = pop.querySelector('.ws-row[data-line="node.imageFit"]');
-            assert.isNotNull(fit);
-            assert.equal(dimmed(fit), "Only when Wrap around shape is off", "placing settings dim while wrapped");
+            assert.isNull(
+                pop.querySelector('.ws-row[data-line="node.imageFit"]'),
+                "placing settings leave the Wrapped tab",
+            );
         });
 
-        await userEvent.click(within(await openAdvanced(pop)).getByRole("checkbox", { name: "Wrap around shape" }));
+        await click(await stripTab("On node"));
         await waitFor(() => {
-            assert.strictEqual(written(session, nodes, "node.image"), asset, "off again: placed");
+            assert.strictEqual(written(session, nodes, "node.image"), asset, "On node again: placed");
             assert.isUndefined(written(session, nodes, "node.texture"));
         });
-        // Escape goes back from the Advanced view, then closes the pop-over.
-        await userEvent.keyboard("{Escape}");
-        await userEvent.keyboard("{Escape}");
+        await closeSettings();
 
-        // The picture's one home is Image: Fill's Kind select lists no Picture.
-        const list = await openKind(await rowOf(fill, "fill"), "Node fill");
-        const members = within(list)
-            .getAllByRole("option")
-            .map((item) => item.textContent.trim());
-        assert.deepEqual(members, ["Solid", "Gradient"]);
-        await userEvent.keyboard("{Escape}");
+        // The picture's one home is Image: Fill's tabs list no Picture.
+        const fillPop = await openSettings(await rowOf(fill, "fill"), "Node fill settings");
+        const strip = await waitFor(() => {
+            const found = fillPop.querySelector<HTMLElement>("[data-strip]");
+            assert.isNotNull(found, "the Fill's tabs");
+            return found;
+        });
+        const members = within(strip)
+            .getAllByRole("radio")
+            .map((radio) => strip.querySelector(`label[for="${radio.id}"]`)?.textContent.trim() ?? "");
+        assert.deepEqual(members, ["Solid", "Linear", "Radial"]);
+        await closeSettings();
     });
 
     it("a label's image is picked from the Picture pop-over, reads None before, and is drawn", async () => {
@@ -163,7 +176,7 @@ describe("Style panel v2's Image wraps around the shape", () => {
         const tab = await openStyle("Key people");
         const row = await rowOf(sectionOf(tab, "node-text"), "label");
         const pop = await openSettings(row, "Node label settings");
-        const advanced = await openAdvanced(pop);
+        const advanced = await openGroup(pop, "Icon and image");
         const field = await waitFor(() => {
             const found = advanced.querySelector<HTMLInputElement>('[data-line="node.labelStyle.image"] input');
             assert.isNotNull(found, "the Label image field");
@@ -184,7 +197,7 @@ describe("Style panel v2's Image wraps around the shape", () => {
         await waitFor(async () => {
             assert.isAbove(pixelsApart(before, await picture(element)), 0, "the label draws its picture");
         });
-        // Focus is back on the field, so Escape goes back from the Advanced view, then closes the pop-over.
+        // Focus is back on the field, so Escape closes its group pop-over, then the pop-over.
         assert.strictEqual(document.activeElement, field, "focus is back on the Label image field");
         await closeSettings();
     });

@@ -14,6 +14,7 @@ import { labelRuledOut } from "./drawn";
 import { LabelFieldLine, type LabelLineContext } from "./LabelFieldLine";
 import {
     BACKGROUND,
+    BACKGROUND_TABS,
     flatOf,
     LABEL_COVERED,
     LABEL_RUBRIC,
@@ -29,13 +30,6 @@ import { setOn } from "./things";
 
 /** The group a caption's distance from its end sits in (design 7.2). */
 const POSITION = "Position";
-
-/** The Background group's tabs: a single color, or a gradient of either kind. */
-const BACKGROUND_TABS = [
-    { value: "solid", name: "Solid" },
-    { value: "linear", name: "Linear" },
-    { value: "radial", name: "Radial" },
-] as const;
 
 /** The Background lines each tab shows (any line the layer sets shows too). */
 const BACKGROUND_LINES: Readonly<Record<(typeof BACKGROUND_TABS)[number]["value"], readonly LabelField[]>> = {

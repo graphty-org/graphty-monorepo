@@ -489,13 +489,22 @@ function controlOf(args: LineControlArgs, rule: string): React.ReactNode {
             );
         case "R8":
         case "R8f": {
-            const values = descriptor.accepts === "boolean" ? ["true", "false"] : (descriptor.values ?? []);
+            // "": the option drawn while nothing is set, which picking unsets (design "Input rules": no empty line).
+            const unsetNamed = LABEL_OPTION_NAMES[field]?.[""] !== undefined;
+            const values = [
+                ...(descriptor.accepts === "boolean" ? ["true", "false"] : (descriptor.values ?? [])),
+                ...(unsetNamed ? [""] : []),
+            ];
             return (
                 <SegmentsLine
                     label={name}
                     options={segmentOptions({ channel: field }, values, LABEL_OPTION_NAMES) ?? []}
                     value={typeof value === "string" || typeof value === "boolean" ? String(value) : ""}
                     onPick={(picked) => {
+                        if (picked === "") {
+                            write(undefined);
+                            return;
+                        }
                         write(descriptor.accepts === "boolean" ? picked === "true" : picked);
                     }}
                 />

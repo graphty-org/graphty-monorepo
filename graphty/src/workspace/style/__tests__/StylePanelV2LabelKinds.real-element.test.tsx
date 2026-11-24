@@ -21,8 +21,8 @@ import { screen, waitFor, within } from "../../../test/test-utils";
 import {
     closeSettings,
     kindOf,
-    openAdvanced,
     openGraph,
+    openGroup,
     openProject,
     openStyle,
     pickKind,
@@ -201,25 +201,32 @@ describe("a node's Label is Text or Glyph", () => {
                 assert.isNotNull(found, "the pop-over is open");
                 return found;
             });
-        for (const kind of ["Card", "Pill", "Glyph"]) {
-            await userEvent.click(await within(await panelOf()).findByRole("combobox", { name: "Kind" }));
-            await userEvent.click(within(await screen.findByRole("listbox")).getByRole("option", { name: kind }));
+        // A text's looks are its Look line, under the Text and Glyph tabs (design "Input rules", "Tabs").
+        for (const look of ["Card", "Pill"]) {
+            await userEvent.click(await within(await panelOf()).findByRole("combobox", { name: "Look" }));
+            await userEvent.click(within(await screen.findByRole("listbox")).getByRole("option", { name: look }));
             await waitFor(async () => {
-                const box = await within(await panelOf()).findByRole<HTMLInputElement>("combobox", { name: "Kind" });
-                assert.equal(box.value, kind, `the pop-over stays open, on ${kind}`);
+                const box = await within(await panelOf()).findByRole<HTMLInputElement>("combobox", { name: "Look" });
+                assert.equal(box.value, look, `the pop-over stays open, on ${look}`);
             });
         }
+        const glyphTab = within(await panelOf()).getByRole<HTMLInputElement>("radio", { name: "Glyph" });
+        await userEvent.click(document.querySelector<HTMLElement>(`label[for="${glyphTab.id}"]`) ?? glyphTab);
+        await waitFor(async () => {
+            const tabNow = within(await panelOf()).getByRole<HTMLInputElement>("radio", { name: "Glyph" });
+            assert.isTrue(tabNow.checked, "the pop-over stays open, on Glyph");
+        });
         const pop = await panelOf();
         const glyph = within(pop).getByRole<HTMLInputElement>("textbox", { name: "Node glyph" });
         assert.equal(glyph.value, "A", "the glyph shows its letter");
-        // At most 6 lines tall (owner's input rules): Kind, Glyph, Size, Color, Style, Advanced.
+        // At most 6 lines tall (owner's input rules): the tabs, Glyph, Size, Color, Style; its Letters group beside.
         const tops = new Set(
             [...pop.querySelectorAll<HTMLElement>(".ws-row, .ws-member")]
                 .filter((line) => line.parentElement?.closest(".ws-row") === null && line.checkVisibility())
                 .map((line) => Math.round(line.getBoundingClientRect().top)),
         );
         assert.isAtMost(tops.size, 6, "the Glyph pop-over is 6 lines tall at most");
-        const advanced = await openAdvanced(pop);
+        const advanced = await openGroup(pop);
         const font = within(advanced).getByRole<HTMLInputElement>("combobox", { name: "Node glyph font" });
         assert.equal(font.value, "Sans serif", "the font shows what an unset glyph is drawn in");
     });

@@ -15,7 +15,7 @@ import { userEvent } from "vitest/browser";
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import { showKind } from "./kindTab";
-import { openAdvanced, openGraph, openStyle, switchView, written } from "./v2Harness";
+import { openGraph, openGroup, openStyle, switchView, written } from "./v2Harness";
 
 interface Case {
     readonly name: string;
@@ -24,7 +24,7 @@ interface Case {
     readonly set: Readonly<Record<string, unknown>>;
     readonly settings: string;
     readonly group: string;
-    /** The group is a rare one: always shown in the pop-over's Advanced dialog (design "Input rules"). */
+    /** The group is one of the pop-over's "..." menu, else its lines are the pop-over's own (design "Input rules"). */
     readonly advanced?: true;
     /** The fields tabbed through in order: the first is clicked, each later one must have focus. */
     readonly fields: readonly string[];
@@ -38,7 +38,7 @@ const CASES: readonly Case[] = [
         view: "2D",
         set: {},
         settings: "Edge line settings",
-        group: "Fade",
+        group: "Blend and fade",
         advanced: true,
         fields: ["Edge fade start", "Edge fade end"],
         writes: ["edge.fadeStart", "edge.fadeEnd"],
@@ -126,12 +126,7 @@ describe("Style panel v2: a pop-over field tabbed past keeps focus in the pop-ov
             const pop = await popover();
             let root = pop;
             if (each.advanced === true) {
-                root = await openAdvanced(pop);
-            } else {
-                await userEvent.click(
-                    within(pop).getByRole("button", { name: `Add to ${each.settings.replace(/^E/, "e")}` }),
-                );
-                await userEvent.click(await screen.findByRole("menuitem", { name: each.group }));
+                root = await openGroup(pop, each.group);
             }
             await userEvent.click(await within(root).findByLabelText(each.fields[0], { selector: "input" }));
             await userEvent.keyboard("{Control>}a{/Control}0.4{Tab}");
@@ -146,7 +141,7 @@ describe("Style panel v2: a pop-over field tabbed past keeps focus in the pop-ov
                 // A pair of lines shares one remove button (the springs' length and constant), next in tab order.
                 await skipButtons();
                 await waitFor(() => {
-                    const next = document.querySelector(`[data-thing-popover] input[aria-label="${field}"]`);
+                    const next = root.querySelector(`input[aria-label="${field}"]`);
                     assert.isNotNull(next, `${field} is still in the pop-over`);
                     const active = document.activeElement;
                     assert.strictEqual(

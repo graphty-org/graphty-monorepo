@@ -18,7 +18,7 @@ import { userEvent } from "vitest/browser";
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import { LABEL_RUBRIC } from "../v2/labelRubric";
-import { openAdvanced, openGraph, openProject, openStyle, picture, sectionOf, written } from "./v2Harness";
+import { groupNames, openGraph, openGroup, openProject, openStyle, picture, sectionOf, written } from "./v2Harness";
 
 /**
  * The layer's label style object.
@@ -142,13 +142,10 @@ describe("Style panel v2's Text section", () => {
             assert.isNotNull(under?.querySelector(".cm-paint"), "set, the color shows under the row, as its swatch");
         });
         const pop = await popoverOf(row);
-        const main = within(pop).getByRole("group", { name: "Main" });
         assert.deepEqual(
-            [...main.querySelectorAll(".ws-row[data-line]")].map((line) => line.getAttribute("data-line")),
-            LABEL_RUBRIC.main
-                .filter((line) => line.advanced !== true)
-                .map((line) => `node.labelStyle.${line.field}${line.unit === undefined ? "" : ":unit"}`),
-            "Main holds Font to Location (Show and the size unit are Advanced), and no second Size or Color",
+            [...pop.querySelectorAll(".ws-row[data-line]")].map((line) => line.getAttribute("data-line")),
+            LABEL_RUBRIC.main.map((line) => `node.labelStyle.${line.field}${line.unit === undefined ? "" : ":unit"}`),
+            "the pop-over holds Show to Location, and no second Size or Color",
         );
         await userEvent.keyboard("{Escape}");
 
@@ -163,7 +160,7 @@ describe("Style panel v2's Text section", () => {
         await userEvent.keyboard("{Escape}");
     });
 
-    it("the Advanced view holds Background; the corner radius line writes and its minus takes the key off", async () => {
+    it("the Background group holds the corners; the corner radius line writes and its minus takes the key off", async () => {
         const { session, id } = await openProject();
         const tab = await openStyle("Key people");
         const row = await addLabel(tab);
@@ -173,9 +170,9 @@ describe("Style panel v2's Text section", () => {
             assert.isNotNull(found);
             return found;
         });
-        assert.isNull(within(pop).queryByRole("group", { name: "Background" }), "Background is not the pop-over's");
-        // Background is a rare group: in the pop-over's Advanced view, always shown (design "Input rules").
-        const background = await within(await openAdvanced(pop)).findByRole("group", { name: "Background" });
+        assert.isNull(pop.querySelector('[data-line="node.labelStyle.cornerRadius"]'), "Corners is not the pop-over's");
+        // Background is a group of the label's "..." menu, its own pop-over beside (design "Input rules").
+        const background = await openGroup(pop, "Background");
         const corners = await lineOf(background, "node.labelStyle.cornerRadius");
         await typeInto(corners, "4");
         await waitFor(() => {
@@ -189,7 +186,7 @@ describe("Style panel v2's Text section", () => {
         assert.isDefined(session.styles.get(id)?.encode?.["node.label"], "the label stays");
     });
 
-    it("every label sub-group is in the Advanced view, named uncut; a look's line switches it on; a minus unsets it", async () => {
+    it("every label group is a menu entry, named uncut; a look's line switches it on; the minus unsets it", async () => {
         const { session, id } = await openProject();
         const tab = await openStyle("Key people");
         const row = await addLabel(tab);
@@ -199,26 +196,26 @@ describe("Style panel v2's Text section", () => {
             assert.isNotNull(found);
             return found;
         });
-        // The pop-over keeps its everyday lines (6 tall at most, owner's input rules); every sub-group is its
-        // Advanced view's, which drills into the pop-over in place, so it has no "+".
+        // The pop-over keeps its everyday lines (6 tall at most, owner's input rules); every group is its "..."
+        // menu's, each opening beside it, so it has no "+".
         assert.isNull(within(pop).queryByRole("button", { name: "Add to node label settings" }));
-        assertNamedUncut(within(pop).getByRole("group", { name: "Main" }));
-        const advanced = await openAdvanced(pop);
-        // Its sub-groups' legends, not its lines' own (a line's name is a legend over it too).
-        const legends = [...advanced.querySelectorAll('[data-testid="control-group-label"]')]
-            .filter((legend) => legend.closest(".ws-row, .ws-member") === null)
-            .map((legend) => legend.textContent);
-        assert.deepEqual(legends, ["Main", ...LABEL_RUBRIC.groups.map((group) => group.name)]);
-        assertNamedUncut(advanced);
+        assertNamedUncut(pop);
+        assert.deepEqual(
+            await groupNames(pop),
+            LABEL_RUBRIC.groups.map((group) => group.name),
+        );
+        const shadow = await openGroup(pop, "Text shadow");
+        assertNamedUncut(shadow);
         // A Text shadow color set while its switch is off switches the shadow on (no tick first).
-        const shadow = within(advanced).getByRole("group", { name: "Label shadow" });
         const color = await lineOf(shadow, "node.labelStyle.shadowColor");
         await userEvent.click(within(color).getByRole("textbox"));
         await userEvent.keyboard("{Control>}a{/Control}FF0000{Enter}");
         await waitFor(() => {
             assert.isTrue(labelStyle(session, id).shadow, "the color switches the text shadow on");
         });
-        await userEvent.click(within(shadow).getByRole("button", { name: "Remove label shadow" }));
+        const panel = shadow.closest<HTMLElement>("[data-popout-id]");
+        assert.isNotNull(panel);
+        await userEvent.click(within(panel).getByRole("button", { name: "Remove text shadow" }));
         await waitFor(() => {
             assert.notProperty(labelStyle(session, id), "shadow", "the minus unsets the group");
         });
@@ -311,13 +308,19 @@ describe("Style panel v2's Text section", () => {
         assert.isNotNull(color.querySelector(".cm-paint"), "the color line is a color control with a swatch");
     });
 
-    it("the label pop-over's Kind line shows its name", async () => {
+    it("the label pop-over starts with its Text and Glyph tabs, its Look line named above it", async () => {
         await openProject();
         const tab = await openStyle("Key people");
         const row = await addLabel(tab);
         const pop = await popoverOf(row);
-        const kind = await within(pop).findByRole("combobox", { name: "Kind" });
-        assert.strictEqual(kind.closest(".ws-member")?.querySelector(".cm-legend-text")?.textContent, "Kind");
+        const strip = await waitFor(() => {
+            const found = pop.querySelector<HTMLElement>("[data-strip]");
+            assert.isNotNull(found, "the tab strip");
+            return found;
+        });
+        assert.isTrue(within(strip).getByRole<HTMLInputElement>("radio", { name: "Text" }).checked, "Text is picked");
+        const look = await within(pop).findByRole("combobox", { name: "Look" });
+        assert.strictEqual(look.closest(".ws-member")?.querySelector(".cm-legend-text")?.textContent, "Look");
     });
 
     it("a Label with no source yet reads No words, never an empty source (owner's input rules)", async () => {
@@ -333,7 +336,7 @@ describe("Style panel v2's Text section", () => {
         assert.isNotNull(within(row).queryByRole("button", { name: "Node label source, No words" }));
     });
 
-    it("a label's Margin is dimmed while its box padding is set, the padding standing in for it", async () => {
+    it("a label's Margin leaves the Box size group while its box padding is set, the padding standing in for it", async () => {
         const { session, id } = await openProject();
         await session.styles.update(id, {
             set: { "node.color": "#E8590C", "node.label": "Hello", "node.labelStyle": { boxPadding: 4 } },
@@ -345,9 +348,12 @@ describe("Style panel v2's Text section", () => {
             return found;
         });
         const pop = await popoverOf(row);
-        // Margin is a rare Box stroke line: the pop-over's Advanced dialog's (design "Input rules").
-        const margin = await lineOf(await openAdvanced(pop), "node.labelStyle.marginTop");
-        assert.isTrue(margin.hasAttribute("data-dimmed"), "dimmed while box padding is set");
-        assert.match(margin.getAttribute("title") ?? "", /Box padding|padding/i, "its tooltip names what it waits on");
+        // Margin is in the Box size group, and appears only while it applies (design "Input rules", "Tabs").
+        const box = await openGroup(pop, "Box size");
+        await lineOf(box, "node.labelStyle.padding");
+        assert.isNull(
+            box.querySelector('[data-line="node.labelStyle.marginTop"]'),
+            "no Margin while box padding is set",
+        );
     });
 });

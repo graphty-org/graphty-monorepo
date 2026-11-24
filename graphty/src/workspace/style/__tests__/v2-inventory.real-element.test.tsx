@@ -35,6 +35,7 @@ import graphSettingsSource from "../../inspector/GraphSettingsV2.tsx?raw";
 import { startForOrNone } from "../row";
 import { KIND_GROUPS } from "../v2/kindGroups";
 import {
+    BACKGROUND_TABS,
     LABEL_COVERED,
     LABEL_OPTION_NAMES,
     LABEL_RUBRIC,
@@ -442,6 +443,9 @@ describe("Style panel v2's style inventory", () => {
             } else if (unitOf) {
                 // A Unit line writes the field with one unit and takes it off with the others.
                 offered = values;
+            } else if (descriptor.field === "gradientType") {
+                // The label Background group's Linear and Radial tabs (LabelPopover.tsx).
+                offered = BACKGROUND_TABS.map((tab) => tab.value);
             } else if (descriptor.field === "look") {
                 // A look is a kind of its text's row, picked from the Kind select in its "..." settings (E196).
                 offered = KIND_GROUPS.flatMap((group) =>

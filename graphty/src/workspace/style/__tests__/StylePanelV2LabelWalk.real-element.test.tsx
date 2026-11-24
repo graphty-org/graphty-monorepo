@@ -4,8 +4,8 @@
  * and real input. For each field the layer holds what the field needs beside it to draw (its `drawnWhen` partners,
  * as graphty-element's own label-fields render test sets them), except the partners graphty-element names as its
  * `needs` (a look's switch): those the panel must write from the reader's one click, and the walk checks it did and
- * that the field draws more than its needs alone. Then a reader opens the row's settings, adds the
- * field's group from "+" where it is not shown yet, finds the field's line, sets it by clicking and typing, and
+ * that the field draws more than its needs alone. Then a reader opens the row's settings, opens the
+ * field's group from the "..." menu where it is in one, finds the field's line, sets it by clicking and typing, and
  * the canvas is compared before and after. The walk fails on a field no line reaches, a write that misses, and a
  * write that draws nothing. `pickable` changes no pixel: its effect is that a click on the label selects its node.
  */
@@ -31,7 +31,7 @@ import {
     type LabelLineSpec,
 } from "../v2/labelRubric";
 import { choose } from "./modelHarness";
-import { openAdvanced, openGraph, openStyle, pickKind, picture, pixelsApart, sectionOf, written } from "./v2Harness";
+import { openGraph, openGroup, openStyle, pickKind, picture, pixelsApart, sectionOf, written } from "./v2Harness";
 
 type Style = Partial<Record<LabelField, unknown>>;
 
@@ -181,7 +181,7 @@ interface Place {
     readonly row?: true;
     readonly group?: LabelGroup;
     readonly line: LabelLineSpec;
-    readonly how: "field" | "pair" | "side" | "unit" | "on" | "toggle";
+    readonly how: "field" | "pair" | "side" | "unit" | "toggle";
 }
 
 /**
@@ -199,10 +199,6 @@ function placeOf(field: LabelField): Place | undefined {
         return { row: true, line: onRow, how: "field" };
     }
     for (const [group, lines] of shelves) {
-        // A group all of whose lines are rare is the Advanced dialog's, always shown there: its switch is a line.
-        if (group?.on === field && !group.lines.every((line) => line.advanced === true)) {
-            return { group, line: { field }, how: "on" };
-        }
         for (const line of lines) {
             if (line.unit !== undefined) {
                 if (line.unit.some((unit) => unit.field === field || Object.keys(unit.also ?? {}).includes(field))) {
@@ -306,33 +302,6 @@ function same(got: unknown, want: unknown): boolean {
     return JSON.stringify(norm(got)) === JSON.stringify(norm(want));
 }
 
-/**
- * A pop-over's sub-groups by name: not a line's own legend, which is a group too (a line named "Background" in the
- * Background group).
- * @param root - where to look.
- * @param name - the sub-group's name.
- * @returns the sub-groups.
- */
-function subGroups(root: HTMLElement, name: string): HTMLElement[] {
-    return within(root)
-        .queryAllByRole("group", { name })
-        .filter((group) => group.closest(".ws-row, .ws-member") === null);
-}
-
-/**
- * A pop-over's one sub-group by name, once shown.
- * @param root - where to look.
- * @param name - the sub-group's name.
- * @returns the sub-group.
- */
-async function subGroup(root: HTMLElement, name: string): Promise<HTMLElement> {
-    return waitFor(() => {
-        const [found] = subGroups(root, name);
-        assert.isDefined(found, `the ${name} sub-group`);
-        return found;
-    });
-}
-
 describe("every label field is reachable from the Label row and draws (E673)", () => {
     withFeatures(["file-styles", "style-panel-v2"]);
 
@@ -387,26 +356,17 @@ describe("every label field is reachable from the Label row and draws (E673)", (
             });
         };
         const closeSettings = async (): Promise<void> => {
-            // Escape closes the Advanced dialog first, then the pop-over.
-            if (document.querySelector("[data-advanced]") !== null) {
+            // Escape closes the group pop-over first, then the pop-over.
+            if (document.querySelector("[data-group-pop]") !== null) {
                 await userEvent.keyboard("{Escape}");
                 await waitFor(() => {
-                    assert.isNull(document.querySelector("[data-advanced]"));
+                    assert.isNull(document.querySelector("[data-group-pop]"));
                 });
             }
             await userEvent.keyboard("{Escape}");
             await waitFor(() => {
                 assert.isNull(document.querySelector("[data-thing-popover]"));
             });
-        };
-        const legendOf = async (pop: HTMLElement, group: LabelGroup): Promise<HTMLElement> => {
-            const shown = subGroups(pop, group.name)[0] ?? null;
-            if (shown !== null) {
-                return shown;
-            }
-            await userEvent.click(within(pop).getByRole("button", { name: "Add to node label settings" }));
-            await userEvent.click(await screen.findByRole("menuitem", { name: group.name }));
-            return subGroup(pop, group.name);
         };
         const lineIn = async (root: HTMLElement, line: string): Promise<HTMLElement> =>
             waitFor(() => {
@@ -560,18 +520,10 @@ describe("every label field is reachable from the Label row and draws (E673)", (
             assert.isDefined(place, `${field}: no line reaches it`);
             const pop = place.row === true ? undefined : await openSettings();
             try {
-                let root = pop === undefined ? await rowOf() : await subGroup(pop, "Main");
-                if (pop !== undefined && place.line.advanced === true) {
-                    // A rare line: under its group's name (Main's too) in the pop-over's Advanced dialog.
-                    root = await subGroup(await openAdvanced(pop), place.group?.name ?? "Main");
-                } else if (pop !== undefined && place.group !== undefined) {
-                    root = await legendOf(pop, place.group);
-                }
-                if (place.how === "on") {
-                    // Adding its group switches it on; its line shows it on.
-                    const line = await lineIn(root, `node.labelStyle.${field}`);
-                    assert.isTrue(within(line).getByRole("checkbox").matches(":checked"), field);
-                    return true;
+                // A group's line is in its own pop-over, opened from the "..." menu (design "Input rules").
+                let root = pop ?? (await rowOf());
+                if (pop !== undefined && place.group !== undefined) {
+                    root = await openGroup(pop, place.group.name);
                 }
                 if (place.how === "unit") {
                     const line = await lineIn(root, `node.labelStyle.${place.line.field}:unit`);

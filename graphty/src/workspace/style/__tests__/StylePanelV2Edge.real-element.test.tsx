@@ -21,7 +21,7 @@ import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { showKind } from "./kindTab";
-import { openAdvanced, pickKind, picture, pixelsApart, popoverLine, sectionOf, written } from "./v2Harness";
+import { openGroup, pickKind, picture, pixelsApart, popoverLine, sectionOf, written } from "./v2Harness";
 
 /**
  * Opens three nodes, two edges and a layer "Links" over every edge that sets only its color, on
@@ -262,10 +262,8 @@ describe("Style panel v2's edge things", () => {
 
         await userEvent.click(within(patternRow).getByRole("button", { name: /^Edge pattern settings/ }));
         const pop = await found(document, "[data-thing-popover]");
-        await userEvent.click(within(pop).getByRole("button", { name: "Add to edge pattern settings" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Dashes" }));
-        const pattern = await within(pop).findByRole("group", { name: "Dashes" });
-        const dash = await found(pattern, '.ws-row[data-line="edge.dashLength"]');
+        // A dot pattern draws its dash and gap, so the line is the pop-over's own (design "Input rules").
+        const dash = await found(pop, '.ws-row[data-line="edge.dashLength"]');
         await typeInto(dash, "0.4");
         await waitFor(() => {
             assert.equal(written(session, id, "edge.dashLength"), 0.4);
@@ -291,9 +289,10 @@ describe("Style panel v2's edge things", () => {
         });
         await userEvent.click(within(row).getByRole("button", { name: /^Edge target settings/ }));
         const pop = await found(document, "[data-thing-popover]");
-        // A caption's label groups are all its Advanced view's, as a label's are (design "Input rules"): no "+".
+        // A caption's label groups are its "..." menu's, as a label's are (design "Input rules"): no "+".
         assert.isNull(within(pop).queryByRole("button", { name: "Add to edge target settings" }));
-        const position = await within(await openAdvanced(pop)).findByRole("group", { name: "Position" });
+        const position = (await openGroup(pop, "Position")).closest<HTMLElement>("[data-popout-id]");
+        assert.isNotNull(position, "the Position pop-over");
         await typeInto(await found(position, '.ws-row[data-line="edge.arrowHeadTextDistance"]'), "0.5");
         await waitFor(() => {
             assert.equal(written(session, id, "edge.arrowHeadTextDistance"), 0.5);
@@ -304,7 +303,7 @@ describe("Style panel v2's edge things", () => {
             assert.isUndefined(written(session, id, "edge.arrowHeadTextDistance"), "the distance goes");
         });
         assert.deepEqual(written(session, id, "edge.arrowHeadTextStyle"), { size: 12 }, "the size stays");
-        // Escape goes back from the Advanced view, then closes the pop-over.
+        // Escape closes the Position pop-over, then the pop-over.
         await userEvent.keyboard("{Escape}");
         await userEvent.keyboard("{Escape}");
         await undo();
@@ -446,10 +445,7 @@ describe("Style panel v2's edge things", () => {
         const patternRow = await found(line, '[data-thing="pattern"]');
         await userEvent.click(within(patternRow).getByRole("button", { name: /^Edge pattern settings/ }));
         const pop = await found(document, "[data-thing-popover]");
-        await userEvent.click(within(pop).getByRole("button", { name: "Add to edge pattern settings" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Dashes" }));
-        const dashes = await within(pop).findByRole("group", { name: "Dashes" });
-        await typeInto(await found(dashes, '.ws-row[data-line="edge.dashArray"]'), "8 1 2 1");
+        await typeInto(await found(pop, '.ws-row[data-line="edge.dashArray"]'), "8 1 2 1");
         await waitFor(() => {
             assert.equal(written(session, id, "edge.dashArray"), "8 1 2 1");
         });

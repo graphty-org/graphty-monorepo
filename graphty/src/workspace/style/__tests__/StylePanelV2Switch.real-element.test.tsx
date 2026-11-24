@@ -115,8 +115,8 @@ describe("Style panel v2's Switch to", () => {
         assert.isNotNull(size(), "the Size row stays");
         assert.lengthOf(shape.querySelectorAll('[data-thing="shape"]'), 1, "still one Shape row, in the same section");
 
-        // The Sticker's row has the same Kind select.
-        assert.equal(await kindOf(after, "Node shape"), "Sticker");
+        // The Sticker's row starts its pop-over with the Basic shape, Model and Shader tabs.
+        assert.equal(await kindOf(after, "Node shape"), "Shader");
         await pickKind(after, "Node shape", "Basic shape");
         await waitFor(() => {
             assert.equal(written(session, id, "node.shape"), "star", "the star comes back");
@@ -152,11 +152,11 @@ describe("Style panel v2's Switch to", () => {
         });
     });
 
-    it("Fill switches Solid -> Gradient -> Solid from its row, starting from the color it had, one Undo each", async () => {
+    it("Fill switches Solid -> Linear -> Solid from its tabs, starting from the color it had, one Undo each", async () => {
         const { session, id } = await openProject();
         const tab = await openStyle("Key people");
         const fill = sectionOf(tab, "node-fill");
-        await pickKind(await rowOf(fill, "fill"), "Node fill", "Gradient");
+        await pickKind(await rowOf(fill, "fill"), "Node fill", "Linear");
         await waitFor(() => {
             const colors = written(session, id, "node.gradientColors");
             assert.isString(colors);
@@ -170,7 +170,7 @@ describe("Style panel v2's Switch to", () => {
             assert.isUndefined(written(session, id, "node.gradientColors"));
         });
 
-        await pickKind(await rowOf(fill, "fill"), "Node fill", "Gradient");
+        await pickKind(await rowOf(fill, "fill"), "Node fill", "Linear");
         await waitFor(() => {
             assert.isString(written(session, id, "node.gradientColors"));
         });

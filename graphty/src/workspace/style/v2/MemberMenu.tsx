@@ -447,7 +447,8 @@ export function MemberMenu({
             return;
         }
         if (tab.key === SHADER_TAB && shaders.length > 0) {
-            setPicking({ to: shaders[0], pick: "shader" });
+            // The gallery lists every shader: titled by the tab, not by one shader.
+            setPicking({ to: { ...shaders[0], name: "Shader" }, pick: "shader" });
             return;
         }
         if (gradient !== undefined && tab.key.startsWith(`${gradient}:`)) {
@@ -488,7 +489,7 @@ export function MemberMenu({
                 <ReplaceGallery
                     ctx={ctx}
                     anchor={box}
-                    title="Shader"
+                    title={picking.to.name}
                     onPick={(id) => {
                         go(`${SHADER_TAB}${id}`, id);
                     }}

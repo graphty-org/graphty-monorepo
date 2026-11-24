@@ -332,7 +332,7 @@ describe("a label's look is a kind of its row", () => {
         });
     });
 
-    it("an End caption's Kind select lists its ends, then its looks; a look writes only the caption's look", async () => {
+    it("an End caption's End buttons pick its end and its Look line its look; a look writes only the caption's look", async () => {
         const { session, edges } = await openGraph();
         await session.styles.update(edges, {
             set: { "edge.color": "#E8590C", "edge.arrowHeadText": "to", "edge.arrowHeadTextStyle": { size: 2 } },
@@ -341,22 +341,18 @@ describe("a label's look is a kind of its row", () => {
         const tab = await openStyle("Links");
         await showKind("edge");
         const text = sectionOf(tab, "edge-text");
-        const list = await openKind(text, "edge target");
-        // Each group's heading, then its options.
-        const items = [...list.querySelectorAll('[role="option"], [class*="groupLabel"]')].map((element) =>
-            element.getAttribute("role") === "option" ? element.textContent : `${element.textContent}:`,
+        const list = await openKind(text, "edge target", "Look");
+        // Its ends are grouped buttons named End above them (they show the same settings), its looks this list.
+        const ends = document.querySelector<HTMLElement>('[data-kind-menu="edge.endCaption"]');
+        assert.isNotNull(ends, "the End line");
+        assert.deepEqual(
+            within(ends)
+                .getAllByRole("radio")
+                .map((radio) => ends.querySelector(`label[for="${radio.id}"]`)?.textContent.trim()),
+            ["Target", "Source"],
         );
-        assert.deepEqual(items, [
-            "Kind:",
-            "Target",
-            "Source",
-            "Look:",
-            "End caption",
-            "Card",
-            "Dark",
-            "Pill",
-            "Callout",
-        ]);
+        const items = [...list.querySelectorAll('[role="option"]')].map((element) => element.textContent);
+        assert.deepEqual(items, ["End caption", "Card", "Dark", "Pill", "Callout"]);
         const before = restOf(session, edges, "edge.arrowHeadTextStyle");
         await userEvent.click(within(list).getByRole("option", { name: "Dark" }));
         await waitFor(() => {

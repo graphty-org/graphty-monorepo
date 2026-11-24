@@ -175,7 +175,7 @@ export const LABEL_RUBRIC: LabelRubric = {
             lines: [
                 { field: "minScreenSize", name: "Min size" },
                 { field: "minNodeScreenSize", name: "Min node" },
-                { field: "declutter", name: "Declutter", rule: "R8" },
+                { field: "declutter", name: "Declutter", rule: "R8f" },
                 { field: "depthFade", name: "Depth fade" },
                 { field: "depthFadeNear", name: "Fade", pair: "depthFadeFar" },
             ],
@@ -393,10 +393,10 @@ export const LABEL_OPTION_NAMES: Readonly<Partial<Record<LabelField, Readonly<Re
     },
     shiftOf: { box: { name: "Box" }, words: { name: "Words" } },
     gapOf: { box: { name: "Box" }, words: { name: "Words" } },
-    declutter: { degree: { name: "Degree" }, size: { name: "Size" } },
+    // Unset, only the layout's own declutter hides labels: "Off", which picking unsets (no empty line).
+    declutter: { degree: { name: "Degree" }, size: { name: "Size" }, "": { name: "Off" } },
     backgroundShape: { rectangle: { name: "Box" }, circle: { name: "Circle" } },
     borderStyle: { solid: { name: "Solid" }, double: { name: "Double" } },
-    gradientType: { linear: { name: "Linear" }, radial: { name: "Radial" } },
     gradientDirection: { vertical: { name: "Down" }, horizontal: { name: "Across" }, diagonal: { name: "Diagonal" } },
     weight: { normal: { name: "Regular" }, bold: { name: "Bold" } },
 };
@@ -434,6 +434,13 @@ export function labelLineFields(line: LabelLineSpec): readonly LabelField[] {
 
 /** The label group whose tab strip is Solid, Linear or Radial. */
 export const BACKGROUND = "Background";
+
+/** The Background group's tabs: a single color, or a gradient of either kind (`gradientType`). */
+export const BACKGROUND_TABS = [
+    { value: "solid", name: "Solid" },
+    { value: "linear", name: "Linear" },
+    { value: "radial", name: "Radial" },
+] as const;
 
 /**
  * Every field a group's lines edit, and the Background group's gradient fields its tab strip writes.

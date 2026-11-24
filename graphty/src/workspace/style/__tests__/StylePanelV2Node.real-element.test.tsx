@@ -15,7 +15,7 @@ import { userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
-import { openAdvanced, openProject, openStyle, sectionOf, written } from "./v2Harness";
+import { openProject, openStyle, sectionOf, written } from "./v2Harness";
 
 /**
  * Waits for a thing's row in a section.
@@ -124,10 +124,7 @@ describe("Style panel v2's node things", () => {
             assert.equal(written(session, id, "node.borderPosition"), "inside");
         });
 
-        // The width's unit is a rare setting: the pop-over's Advanced dialog's (design "Input rules").
-        const pop = document.querySelector<HTMLElement>("[data-thing-popover]");
-        assert.isNotNull(pop);
-        await openAdvanced(pop);
+        // The width's unit is a line of the pop-over (design "Input rules": a one-line group joins it).
         await clickSegment("Screen");
         await waitFor(() => {
             assert.equal(written(session, id, "node.borderScreenWidth"), 2, "the value moves to Screen");

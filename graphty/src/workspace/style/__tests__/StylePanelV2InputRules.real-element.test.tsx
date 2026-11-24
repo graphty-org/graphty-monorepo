@@ -1,17 +1,22 @@
 /**
  * The owner's input rules (design/ui/style-panel-v2/design.md, "Input rules (owner, 2026-11-23)") that a test can
  * see, on the REAL graphty-element and real clicks. Every thing of v2's own section table (things.ts) is added to a
- * layer from its section's "+", its row's settings pop-over is opened and every sub-group is added from the
- * pop-over's "+", and then:
+ * layer from its section's "+", its row's settings pop-over is opened, every group of its "..." menu is opened
+ * beside it, and every tab of every tab strip is picked, and then:
  *
- * - the pop-over is at most 6 lines tall, two inputs on one line counting once;
- * - the panel's own pop-overs nest at most two deep (a row's pop-over is 1, the Advanced pop-over its header's "..."
- *   opens is 2); a dedicated component (a color picker, a drop-down's list, the Picture picker, a pictured list, the
+ * - the pop-over, each of its tabs and each group pop-over is at most 6 lines tall, two inputs on one line counting
+ *   once;
+ * - a pop-over has at most one tab strip, of at most five tabs, and no two of its tabs show the same settings
+ *   (owner, 2026-11-24: one-of choices are tabs only where each shows different settings);
+ * - a "..." menu has at most 16 entries, under headings of at most 6 each; a set group has its mark in the menu;
+ *   one group pop-over is open at a time; no "+" reveals a group of settings (a "+" adds copies to a list);
+ * - the panel's own pop-overs nest at most two deep (a row's pop-over is 1, a group pop-over its header's "..." opens
+ *   is 2); a dedicated component (a color picker, a drop-down's list, the Picture picker, a pictured list, the
  *   data field picker, the link dialog) may open from either as the third level, and nothing goes to a fourth;
  * - nothing replaces a pop-over's content in place: no back button anywhere, and a pop-over keeps its title and
  *   content while what it opens is open (owner, 2026-11-24: "do not use in-place pop-overs");
- * - every Advanced entry is a "..." icon button named "Advanced settings", and the pop-over it opens leaves its
- *   pop-over open and uncovered (owner, 2026-11-24; and at 768 x 1024, an iPad held upright);
+ * - the "..." is an icon button named "More settings" in the pop-over's header, and the group pop-over it opens
+ *   leaves its pop-over open and uncovered (owner, 2026-11-24; and at 768 x 1024, an iPad held upright);
  * - the link dialog is at most 6 components tall, with no Advanced of its own;
  * - on every line, the minus is the right-most button;
  * - the link or settings button sits on its control's line, right after the control;
@@ -19,7 +24,7 @@
  * - no input is empty: no blank number or text field, no segment line with nothing picked;
  * - names go above inputs, never beside them: every visible name on a line is compact-mantine's own (a field's
  *   built-in label above it, a FieldRow caption, a ControlGroup legend), never text the app draws, and none sits
- *   to the left of an input on its line (owner, 2026-11-24). Checked in rows, pop-overs, Advanced pop-overs, the link
+ *   to the left of an input on its line (owner, 2026-11-24). Checked in rows, pop-overs, group pop-overs, the link
  *   dialog and Graph settings.
  *
  * The hover rule must also show the buttons on focus within the line and under (hover: none) (the owner uses an
@@ -44,7 +49,7 @@ import { Workspace } from "../../Workspace";
 import { TEXT_THINGS } from "../v2/labelRubric";
 import { SECTIONS, type ThingSpec } from "../v2/things";
 import { showKind } from "./kindTab";
-import { advancedButton, openAdvanced, openGraph, openStyle, sectionOf } from "./v2Harness";
+import { entryName, moreButton, openGraph, openGroup, openStyle, sectionOf } from "./v2Harness";
 
 type Side = "node" | "edge";
 
@@ -64,11 +69,32 @@ const KNOWN_IN_PLACE: readonly string[] = [];
 /** Link dialogs more than 6 components tall. */
 const KNOWN_LINK_TALL: readonly string[] = [];
 
-/** Pop-overs whose Advanced entry is not the "..." icon button named "Advanced settings". */
-const KNOWN_ADVANCED_NOT_ICON: readonly string[] = [];
+/** Pop-overs whose "..." is not the icon button named "More settings" in their header. */
+const KNOWN_MORE_NOT_ICON: readonly string[] = [];
 
-/** Pop-overs whose Advanced pop-over closes or covers the pop-over it opened from. */
-const KNOWN_ADVANCED_COVERS: readonly string[] = [];
+/** Pop-overs whose group pop-over closes or covers the pop-over it opened from. */
+const KNOWN_GROUP_COVERS: readonly string[] = [];
+
+/** Pop-overs with more than one tab strip, a strip of more than five tabs, or two tabs showing the same settings. */
+const KNOWN_STRIPS: readonly string[] = [];
+
+/** Pop-overs one of whose tabs is more than 6 lines tall. */
+const KNOWN_TAB_TALL: readonly string[] = [];
+
+/** "..." menus of more than 16 entries, or with a heading over more than 6. */
+const KNOWN_MENU_LONG: readonly string[] = [];
+
+/** Group pop-overs more than 6 lines tall. */
+const KNOWN_GROUP_TALL: readonly string[] = [];
+
+/** Pop-overs with a "+" that reveals a group of settings instead of adding a copy to a list. */
+const KNOWN_PLUS_REVEALS: readonly string[] = [];
+
+/** "..." menus where a set group has no mark. */
+const KNOWN_SET_UNMARKED: readonly string[] = [];
+
+/** Pop-overs that let two group pop-overs be open at once. */
+const KNOWN_TWO_GROUPS_OPEN: readonly string[] = [];
 
 /**
  * A compact-mantine component's own inner pop-out, not counted as a fourth level: the app cannot change it
@@ -156,7 +182,7 @@ function laidOut(element: Element): boolean {
  * @returns the lines.
  */
 function linesIn(root: HTMLElement): HTMLElement[] {
-    return [...root.querySelectorAll<HTMLElement>(".ws-row, .ws-member, .cm-legend")].filter(
+    return [...root.querySelectorAll<HTMLElement>(".ws-row, .ws-member, .cm-legend, [data-strip]")].filter(
         (line) =>
             line.parentElement?.closest(".ws-row") === null && laidOut(line) && line.querySelector(CONTROLS) !== null,
     );
@@ -408,10 +434,24 @@ interface Found {
     inPlace: string[];
     /** The link dialog's height, when over 6 components. */
     linkTall?: string;
-    /** Advanced entries that are not the "..." icon button named "Advanced settings". */
+    /** A "..." that is not the icon button named "More settings" in the header. */
     notIcon: string[];
-    /** Advanced pop-overs that closed or covered the pop-over they opened from. */
+    /** Group pop-overs that closed or covered the pop-over they opened from. */
     covers: string[];
+    /** Tab strips: more than one, more than five tabs, or two tabs showing the same settings. */
+    strips?: string[];
+    /** Tabs more than 6 lines tall. */
+    tabTall?: string[];
+    /** A "..." menu over 16 entries, or a heading over 6. */
+    menu?: string[];
+    /** Group pop-overs more than 6 lines tall. */
+    groupTall?: string[];
+    /** A "+" revealing a group of settings. */
+    plus?: string[];
+    /** Set groups without their mark in the menu. */
+    unmarked?: string[];
+    /** Two group pop-overs open at once. */
+    twoOpen?: string[];
     /** Lines with a name the app draws, or a name beside its input. */
     names: string[];
     minus: string[];
@@ -461,30 +501,163 @@ async function addThing(
 }
 
 /**
- * Adds every sub-group a pop-over's "+" offers, as a reader does.
- * @param pop - the pop-over.
+ * Buttons that reveal a group of settings with "+" (a pop-over's "Add to ... settings"): a "+" only adds copies to a
+ * list (owner, 2026-11-24).
+ * @param root - the pop-over.
+ * @returns their names.
  */
-async function addEveryGroup(pop: HTMLElement): Promise<void> {
-    for (;;) {
-        const plus = within(pop).queryByRole("button", { name: /^Add to .* settings$/ });
-        if (plus === null) {
-            return;
-        }
-        await userEvent.click(plus);
-        const items = await screen.findAllByRole("menuitem");
-        const item = items.find(
-            (each) => each.getAttribute("aria-disabled") !== "true" && !each.hasAttribute("disabled"),
-        );
-        if (item === undefined) {
-            await userEvent.keyboard("{Escape}");
-            return;
-        }
-        const before = linesIn(pop).length;
-        await userEvent.click(item);
-        await waitFor(() => {
-            assert.isAbove(linesIn(pop).length, before, `${item.textContent ?? ""} adds lines`);
-        });
+function plusReveals(root: HTMLElement): string[] {
+    return [...root.querySelectorAll<HTMLElement>("button[aria-label]")]
+        .map((button) => button.getAttribute("aria-label") ?? "")
+        .filter((label) => /^Add to .* settings$/.test(label));
+}
+
+/** One entry of a "..." menu: its group, its heading, and whether it bears the set mark. */
+interface MenuEntry {
+    readonly name: string;
+    readonly heading: string;
+    readonly marked: boolean;
+}
+
+/**
+ * A pop-over's "..." menu as a reader sees it, opened and closed again: its entries in order under their headings. A
+ * "..." that opens its one group directly is that group's entry.
+ * @param pop - the pop-over.
+ * @returns the entries; none without a "...".
+ */
+async function menuOf(pop: HTMLElement): Promise<MenuEntry[]> {
+    const button = moreButton(pop);
+    if (button === null) {
+        return [];
     }
+    if (button.getAttribute("aria-haspopup") === "dialog") {
+        const group = await openGroup(pop);
+        const entry = { name: group.dataset.groupPop ?? "", heading: "", marked: button.hasAttribute("data-set") };
+        await userEvent.click(button);
+        await waitFor(() => {
+            assert.isFalse(group.isConnected, "its group pop-over closed");
+        });
+        return [entry];
+    }
+    await userEvent.click(button);
+    const menu = await screen.findByRole("menu");
+    const entries: MenuEntry[] = [];
+    let heading = "";
+    for (const each of menu.querySelectorAll<HTMLElement>('.mantine-Menu-label, [role="menuitem"]')) {
+        if (each.getAttribute("role") === "menuitem") {
+            entries.push({ name: entryName(each), heading, marked: each.hasAttribute("data-set") });
+        } else {
+            heading = each.textContent.trim();
+        }
+    }
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => {
+        assert.isFalse(menu.isConnected, "the menu closed");
+    });
+    return entries;
+}
+
+/**
+ * What a menu breaks: more than 16 entries, or a heading over more than 6 (owner, 2026-11-24).
+ * @param entries - the menu's entries.
+ * @returns what is wrong.
+ */
+function menuLong(entries: readonly MenuEntry[]): string[] {
+    const headings = new Map<string, number>();
+    for (const entry of entries) {
+        headings.set(entry.heading, (headings.get(entry.heading) ?? 0) + 1);
+    }
+    return [
+        ...(entries.length > 16 ? [`${String(entries.length)} entries`] : []),
+        ...[...headings]
+            .filter(([, count]) => count > 6)
+            .map(([heading, count]) => `${heading || "(no heading)"}: ${String(count)}`),
+    ];
+}
+
+/**
+ * The settings a surface shows, as the set of its lines' addresses, for telling two tabs apart.
+ * @param root - the surface.
+ * @returns the addresses, sorted and joined.
+ */
+function settingsShown(root: HTMLElement): string {
+    return [...root.querySelectorAll<HTMLElement>(".ws-row[data-line]")]
+        .filter((line) => laidOut(line) && line.closest("[data-strip]") === null)
+        .map((line) => line.dataset.line ?? "")
+        .sort()
+        .join(" ");
+}
+
+/**
+ * Picks every tab of a surface's tab strip, as a reader does, and names what breaks the tab rules (owner,
+ * 2026-11-24): more than one strip, more than five tabs, two tabs showing the same settings, a tab over 6 lines. A
+ * tab that opens a picker first (Model, Shader) is closed again with nothing picked; a tab that takes the pop-over
+ * away (Basic shape, which has none) ends the walk.
+ * @param surface - the pop-over or group pop-over.
+ * @returns the strips' and the tall tabs' findings.
+ */
+async function walkTabs(surface: HTMLElement): Promise<{ strips: string[]; tall: string[] }> {
+    const strips = [...surface.querySelectorAll<HTMLElement>("[data-strip]")].filter(
+        (strip) => laidOut(strip) && strip.parentElement?.closest("[data-strip]") === null,
+    );
+    const found = { strips: strips.length > 1 ? [`${String(strips.length)} strips`] : [], tall: [] as string[] };
+    const [strip] = strips;
+    if (strip === undefined) {
+        return found;
+    }
+    const radios = [...strip.querySelectorAll<HTMLInputElement>('input[type="radio"]')];
+    if (radios.length > 5) {
+        found.strips.push(`${String(radios.length)} tabs`);
+    }
+    const seen = new Map<string, string>();
+    const panels = (): number => document.querySelectorAll("[data-popout-id]").length;
+    for (const radio of radios) {
+        if (!surface.isConnected || radio.disabled) {
+            break;
+        }
+        const label = surface.querySelector<HTMLElement>(`label[for="${radio.id}"]`);
+        const name = label?.textContent.trim() || radio.value;
+        const before = panels();
+        await userEvent.click(label ?? radio);
+        // Picked, or a picker opened beside it first, or the pop-over went with the kind.
+        const picker = await waitFor(() => {
+            const opened = panels() > before;
+            assert.isTrue(radio.checked || opened || !surface.isConnected, `${name} is picked`);
+            return opened && !radio.checked;
+        });
+        if (picker) {
+            await userEvent.keyboard("{Escape}");
+            await waitFor(() => {
+                assert.strictEqual(panels(), before, `${name}'s picker closed`);
+            });
+            continue;
+        }
+        if (!surface.isConnected) {
+            break;
+        }
+        await session().styles.settled();
+        const tall = linesTall(surface);
+        if (tall > 6) {
+            found.tall.push(`${name}: ${String(tall)}`);
+        }
+        const shown = settingsShown(surface);
+        const same = seen.get(shown);
+        if (same !== undefined) {
+            found.strips.push(`${same} and ${name} show the same settings`);
+        }
+        seen.set(shown, name);
+    }
+    return found;
+}
+
+/**
+ * The open graph's session, for waiting on a write a tab made.
+ * @returns the session.
+ */
+function session(): GraphSession {
+    const element = document.querySelector("graphty-element");
+    assert.isDefined(element?.session, "the graph");
+    return element.session;
 }
 
 /**
@@ -498,9 +671,9 @@ function overlap(a: DOMRect, b: DOMRect): boolean {
 }
 
 /**
- * Whether the pop-over an Advanced pop-over opened from is still open and visible beside it.
+ * Whether the pop-over a group pop-over opened from is still open and visible beside it.
  * @param parent - the pop-over's panel.
- * @param advanced - the Advanced pop-over's panel.
+ * @param advanced - the group pop-over's panel.
  * @returns why not, or undefined.
  */
 function coveredBy(parent: HTMLElement, advanced: HTMLElement): string | undefined {
@@ -522,12 +695,12 @@ interface Walked {
 }
 
 /**
- * Whether a pop-out is the panel's own pop-over (the Advanced pop-over) rather than a dedicated component.
+ * Whether a pop-out is the panel's own pop-over (a group pop-over) rather than a dedicated component.
  * @param opened - what a trigger opened.
  * @returns whether it is a pop-over level of the panel.
  */
 function panelPopover(opened: HTMLElement): boolean {
-    return opened.hasAttribute("data-advanced-pop");
+    return opened.querySelector("[data-group-pop]") !== null || opened.hasAttribute("data-group-pop");
 }
 
 /**
@@ -552,7 +725,10 @@ async function deepLevels(
     const found: string[] = [];
     let surface = pop;
     const triggers = (root: HTMLElement): HTMLElement[] =>
-        [...root.querySelectorAll<HTMLElement>('button[aria-haspopup="dialog"]')].filter(laidOut);
+        [...root.querySelectorAll<HTMLElement>('button[aria-haspopup="dialog"]')].filter(
+            // The header's "..." and its groups are walked by `walkGroups`.
+            (each) => laidOut(each) && each !== moreButton(root),
+        );
     const titleOf = (root: HTMLElement): string => root.querySelector("h2")?.textContent ?? "";
     const count = triggers(surface).length;
     for (let at = 0; at < count; at++) {
@@ -581,32 +757,8 @@ async function deepLevels(
         if (level > 3 || (level > 2 && panelPopover(opened))) {
             found.push(`${name} (level ${String(level)})`);
         } else if (panelPopover(opened)) {
-            const parent = trigger.closest<HTMLElement>("[data-popout-id]");
-            assert.isNotNull(parent, `${name}'s pop-over`);
-            const why = coveredBy(parent, own);
-            if (why !== undefined) {
-                walked.covers.push(`${name}: ${why}`);
-            }
-            walked.names.push(...namesNotBuiltIn(linesIn(own)).map((each) => `${name} > ${each}`));
-            const reopenAdvanced = async (): Promise<HTMLElement> => {
-                const again = advancedButton(await reopen());
-                assert.isNotNull(again, "the Advanced button again");
-                await userEvent.click(again);
-                const content = await openedBy(again);
-                return content.closest<HTMLElement>("[data-popout-id]") ?? content;
-            };
-            found.push(...(await deepLevels(own, reopenAdvanced, walked, level)).map((each) => `${name} > ${each}`));
-            // "..." again closes only the Advanced pop-over.
-            const again = advancedButton(parent);
-            if (again !== null) {
-                await userEvent.click(again);
-                await waitFor(() => {
-                    assert.isFalse(opened.isConnected, `${name} again closes its pop-over`);
-                });
-                if (!parent.isConnected) {
-                    walked.covers.push(`${name}: "..." again closed its pop-over too`);
-                }
-            }
+            // A group pop-over is opened from the "..." alone, walked by `walkGroups`.
+            walked.inPlace.push(`${name} opened a group pop-over`);
         } else if (level === 3) {
             // A third level is a dedicated component: anything it opens is a fourth, but for its own parts.
             for (const inner of own.querySelectorAll<HTMLElement>("[aria-haspopup]")) {
@@ -704,35 +856,84 @@ function componentsTall(dialog: HTMLElement): number {
 }
 
 /**
- * Advanced entries in a pop-over that are not the "..." icon button named "Advanced settings": any other button
- * naming Advanced, or that button with words or another glyph than the row's settings "...".
+ * What is wrong with a pop-over's "...": any button naming Advanced, or a "..." with words, without its glyph, or
+ * outside the header (owner, 2026-11-24: the "..." is always an icon).
  * @param pop - the pop-over's panel.
- * @param row - the row, whose settings button draws the "..." glyph.
  * @returns what is wrong.
  */
-function advancedNotIcon(pop: HTMLElement, row: HTMLElement): string[] {
-    const wrong = [...pop.querySelectorAll<HTMLElement>("button")]
+function moreNotIcon(pop: HTMLElement): string[] {
+    const panel = pop.closest<HTMLElement>("[data-popout-id]") ?? pop;
+    const wrong = [...panel.querySelectorAll<HTMLElement>("button")]
         .filter((each) => /advanced/i.test(`${each.getAttribute("aria-label") ?? ""} ${each.textContent}`))
-        .filter((each) => each.getAttribute("aria-label") !== "Advanced settings")
         .map((each) => `a button "${each.getAttribute("aria-label") ?? each.textContent}"`);
-    const button = advancedButton(pop);
-    if (button === null) {
-        return wrong;
-    }
-    const glyph = (of: Element | null | undefined): string => of?.querySelector("svg")?.getAttribute("class") ?? "";
-    const dots = glyph(
-        [...row.querySelectorAll<HTMLElement>("button[aria-label]")].find((each) =>
-            / settings( has configured values)?$/.test(each.getAttribute("aria-label") ?? ""),
-        ),
-    );
-    const box = button.getBoundingClientRect();
+    const button = [...panel.querySelectorAll<HTMLElement>('button[aria-label="More settings"]')];
     return [
         ...wrong,
-        ...(button.textContent.trim() === "" ? [] : [`"${button.textContent}" in it`]),
-        ...(glyph(button) === dots && dots !== "" ? [] : [`glyph ${glyph(button)}, not ${dots}`]),
-        ...(box.width === 24 && box.height === 24 ? [] : [`${String(box.width)} x ${String(box.height)}`]),
-        ...(button.closest('[data-testid="popout-header"]') === null ? ["not in the header"] : []),
+        ...button.flatMap((each) => [
+            ...(each.textContent.trim() === "" ? [] : [`"${each.textContent}" in it`]),
+            ...(each.querySelector("svg") === null ? ["no glyph"] : []),
+            ...(each.closest('[data-testid="popout-header"]') === null ? ["not in the header"] : []),
+        ]),
     ];
+}
+
+/**
+ * Opens every group of a pop-over's "..." menu beside it, as a reader does, each in turn, the one before still open,
+ * and checks each: one group pop-over open at a time, its mark in the menu when set, at most 6 lines tall, beside its
+ * pop-over and not over it, its lines' names, minus, link slot, hover and values, its tabs, and what it opens.
+ * @param pop - the pop-over's content.
+ * @param reopen - opens the pop-over again, when Escape closed it with what it opened.
+ * @param found - where findings go.
+ */
+async function walkGroups(pop: HTMLElement, reopen: () => Promise<HTMLElement>, found: Found): Promise<void> {
+    const entries = await menuOf(pop);
+    found.menu = menuLong(entries);
+    found.groupTall = [];
+    found.unmarked = [];
+    found.twoOpen = [];
+    for (const entry of entries) {
+        let surface = pop.isConnected ? pop : await reopen();
+        const group = await openGroup(surface, entry.name);
+        const panel = group.closest<HTMLElement>("[data-popout-id]");
+        assert.isNotNull(panel, `${entry.name}'s pop-over`);
+        const open = document.querySelectorAll("[data-group-pop]").length;
+        if (open > 1) {
+            found.twoOpen.push(`${entry.name}: ${String(open)} open`);
+        }
+        const tall = linesTall(panel);
+        if (tall > 6) {
+            found.groupTall.push(`${entry.name}: ${String(tall)}`);
+        }
+        if (group.querySelector("[data-set]") !== null && !entry.marked) {
+            found.unmarked.push(entry.name);
+        }
+        const parent = surface.closest<HTMLElement>("[data-popout-id]");
+        assert.isNotNull(parent, "the pop-over's panel");
+        const why = coveredBy(parent, panel);
+        if (why !== undefined) {
+            found.covers.push(`${entry.name}: ${why}`);
+        }
+        found.plus = [...(found.plus ?? []), ...plusReveals(panel).map((each) => `${entry.name} > ${each}`)];
+        // At rest: the pointer on the Style tab's own tab, outside the group pop-over.
+        await userEvent.hover(screen.getByRole("tab", { name: "Style" }));
+        const lines = linesIn(panel);
+        const at = (list: string[]): string[] => list.map((each) => `${entry.name} > ${each}`);
+        found.names.push(...at(namesNotBuiltIn(lines)));
+        found.minus.push(...at(minusNotLast(lines)));
+        found.slot.push(...at(slotNotAfterControl(lines)));
+        found.rest.push(...at(shownAtRest(lines)));
+        found.empty.push(...at(emptyInputs(lines)));
+        const reopenGroup = async (): Promise<HTMLElement> => {
+            surface = await reopen();
+            const again = await openGroup(surface, entry.name);
+            return again.closest<HTMLElement>("[data-popout-id]") ?? again;
+        };
+        found.fourth.push(...at(await deepLevels(panel, reopenGroup, found, 2)));
+        const live = document.querySelector<HTMLElement>(`[data-group-pop="${entry.name}"]`) ?? (await reopenGroup());
+        const tabs = await walkTabs(live.closest<HTMLElement>("[data-popout-id]") ?? live);
+        found.strips = [...(found.strips ?? []), ...at(tabs.strips)];
+        found.tabTall = [...(found.tabTall ?? []), ...at(tabs.tall)];
+    }
 }
 
 /**
@@ -780,9 +981,6 @@ describe("Style panel v2's input rules (owner, 2026-11-23)", () => {
             // A row with no settings (a basic Shape: its drop-down is its settings) is checked alone.
             const settings = settingsButtons();
             const pop = settings.length === 0 ? null : await openSettings();
-            if (pop !== null) {
-                await addEveryGroup(pop);
-            }
             const tall = pop === null ? 0 : linesTall(pop);
 
             // At rest: the pointer on the Style tab's own tab, outside the row and the pop-over.
@@ -802,9 +1000,10 @@ describe("Style panel v2's input rules (owner, 2026-11-23)", () => {
                 empty: emptyInputs(lines),
                 fourth: [],
                 inPlace: [],
-                notIcon: pop === null ? [] : advancedNotIcon(pop, row),
+                notIcon: pop === null ? [] : moreNotIcon(pop),
                 covers: [],
                 names: namesNotBuiltIn(lines),
+                plus: pop === null ? [] : plusReveals(pop),
             };
             // Hovering a line shows its buttons.
             const shownNow = (button: HTMLElement): boolean => {
@@ -825,6 +1024,14 @@ describe("Style panel v2's input rules (owner, 2026-11-23)", () => {
                 }
             }
             found.fourth = pop === null ? [] : await deepLevels(pop, openSettings, found);
+            if (pop !== null) {
+                // Its groups, each beside it from the "...", then its tabs, which write the layer, last.
+                await walkGroups(pop.isConnected ? pop : await openSettings(), openSettings, found);
+                const live = pop.isConnected ? pop : await openSettings();
+                const tabs = await walkTabs(live);
+                found.strips = [...(found.strips ?? []), ...tabs.strips];
+                found.tabTall = [...(found.tabTall ?? []), ...tabs.tall];
+            }
             FOUND.set(walk.key, found);
         });
     }
@@ -868,7 +1075,7 @@ describe("Style panel v2's input rules (owner, 2026-11-23)", () => {
         const tall = componentsTall(dialog);
         assert.isAbove(tall, 2, "the link dialog's parts are counted");
         const names = namesNotBuiltIn(dialogParts(dialog));
-        assert.isNull(advancedButton(dialog), "the link dialog has no Advanced");
+        assert.isNull(moreButton(dialog), 'the link dialog has no "..."');
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
             assert.isFalse(dialog.isConnected, "the link dialog closed");
@@ -1063,14 +1270,49 @@ describe("Style panel v2's input rules (owner, 2026-11-23)", () => {
                 KNOWN_LINK_TALL,
             ),
             compare(
-                'Advanced not the "..." icon button',
+                '"..." not the icon button in the header',
                 by((found) => found.notIcon),
-                KNOWN_ADVANCED_NOT_ICON,
+                KNOWN_MORE_NOT_ICON,
             ),
             compare(
-                "Advanced pop-over closes or covers its pop-over",
+                "Group pop-over closes or covers its pop-over",
                 by((found) => found.covers),
-                KNOWN_ADVANCED_COVERS,
+                KNOWN_GROUP_COVERS,
+            ),
+            compare(
+                "Tab strips: more than one, more than five tabs, or two tabs alike",
+                by((found) => found.strips),
+                KNOWN_STRIPS,
+            ),
+            compare(
+                "Tabs over 6 lines tall",
+                by((found) => found.tabTall),
+                KNOWN_TAB_TALL,
+            ),
+            compare(
+                '"..." menus over 16 entries or 6 under a heading',
+                by((found) => found.menu),
+                KNOWN_MENU_LONG,
+            ),
+            compare(
+                "Group pop-overs over 6 lines tall",
+                by((found) => found.groupTall),
+                KNOWN_GROUP_TALL,
+            ),
+            compare(
+                'A "+" revealing a group of settings',
+                by((found) => found.plus),
+                KNOWN_PLUS_REVEALS,
+            ),
+            compare(
+                "Set groups without their mark",
+                by((found) => found.unmarked),
+                KNOWN_SET_UNMARKED,
+            ),
+            compare(
+                "Two group pop-overs open at once",
+                by((found) => found.twoOpen),
+                KNOWN_TWO_GROUPS_OPEN,
             ),
             compare(
                 "Minus not the right-most button",
@@ -1102,7 +1344,7 @@ describe("Style panel v2's input rules (owner, 2026-11-23)", () => {
     });
 });
 
-describe("Style panel v2's Advanced pop-over on an iPad held upright (owner, 2026-11-24)", () => {
+describe("Style panel v2's group pop-over on an iPad held upright (owner, 2026-11-24)", () => {
     withFeatures(["file-styles", "style-panel-v2"]);
     beforeAll(async () => {
         await page.viewport(768, 1024);
@@ -1111,7 +1353,7 @@ describe("Style panel v2's Advanced pop-over on an iPad held upright (owner, 202
         await page.viewport(1200, 900);
     });
 
-    it("node.label: at 768 x 1024 its Advanced pop-over leaves the label pop-over open and uncovered", async () => {
+    it("node.label: at 768 x 1024 each group pop-over leaves the label pop-over open and uncovered", async () => {
         const { session, nodes } = await openGraph();
         await session.styles.update(nodes, {
             set: { ...session.styles.get(nodes)?.set, [TEXT_THINGS.node.label.words]: "Hello" },
@@ -1128,9 +1370,13 @@ describe("Style panel v2's Advanced pop-over on an iPad held upright (owner, 202
         const settings = within(row).getByRole("button", { name: /^Node label settings/ });
         await userEvent.click(settings);
         const pop = await openedBy(settings);
-        const advanced = await openAdvanced(pop);
-        const own = advanced.closest<HTMLElement>("[data-popout-id]");
-        assert.isNotNull(own);
-        assert.isUndefined(coveredBy(pop, own));
+        const panel = pop.closest<HTMLElement>("[data-popout-id]") ?? pop;
+        // A short group and the tallest, each beside the pop-over, above or below it here.
+        for (const name of ["Position", "Letters"]) {
+            const group = await openGroup(pop, name);
+            const own = group.closest<HTMLElement>("[data-popout-id]");
+            assert.isNotNull(own);
+            assert.isUndefined(coveredBy(panel, own), name);
+        }
     });
 });

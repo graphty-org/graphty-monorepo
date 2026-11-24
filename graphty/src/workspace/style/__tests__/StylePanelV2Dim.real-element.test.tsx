@@ -14,7 +14,7 @@ import { userEvent } from "vitest/browser";
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import { showKind } from "./kindTab";
-import { openAdvanced, openGraph, openShaderList, openStyle, sectionOf, switchView } from "./v2Harness";
+import { openGraph, openGroup, openShaderList, openStyle, sectionOf, switchView } from "./v2Harness";
 
 /**
  * The tooltip of a dimmed line or item (or of the dimmed row around it), or null when it is not dimmed.
@@ -48,15 +48,16 @@ describe("Style panel v2 dims what draws nothing in this view", () => {
         await openStyle("Links");
         await showKind("edge");
         const line = sectionOf(await screen.findByTestId("style-tab"), "edge-line");
-        // Lift is a rare setting: the Edge line pop-over's Advanced dialog's (design "Input rules").
+        // Lift is in the Edge line pop-over's Shape group (design "Input rules").
         const openLine = async (): Promise<HTMLElement> => {
             await userEvent.click(within(line).getByRole("button", { name: "Edge line settings" }));
-            return openAdvanced(
+            return openGroup(
                 await waitFor(() => {
                     const found = document.querySelector<HTMLElement>("[data-thing-popover]");
                     assert.isNotNull(found);
                     return found;
                 }),
+                "Shape",
             );
         };
         assert.strictEqual(session.layout.arrangedDimension, "3d");

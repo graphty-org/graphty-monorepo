@@ -222,26 +222,12 @@ describe("Style panel v2's by-data links", () => {
                 assert.isNotNull(found);
                 return found;
             });
-            // Every sub-group shown, by real clicks on its "+".
-            // A group all of whose lines are rare is the Advanced pop-over's (design "Input rules"): its lines' links
-            // are checked there by StylePanelV2CommonLines; here, a rare field is met from its line under the row.
-            for (const group of LABEL_RUBRIC.groups.filter((each) =>
-                each.lines.some((line) => line.advanced !== true),
-            )) {
-                if (within(pop).queryByRole("group", { name: group.name }) === null) {
-                    await userEvent.click(within(pop).getByRole("button", { name: /^Add to .* settings$/ }));
-                    await userEvent.click(await screen.findByRole("menuitem", { name: group.name }));
-                    await within(pop).findByRole("group", { name: group.name });
-                }
-            }
+            // A group's lines are its own pop-over's, opened from the "..." menu (design "Input rules"): their links
+            // are checked there by StylePanelV2CommonLines; here, a group's field is met from its line under the row.
             const varying = varyingFields(kind.side, kind.style);
             assert.isAbove(varying.size, 0, "the kind has fields that vary");
             const met = new Set<string>();
-            for (const line of [
-                ...LABEL_RUBRIC.common,
-                ...LABEL_RUBRIC.main,
-                ...LABEL_RUBRIC.groups.flatMap((g) => g.lines),
-            ]) {
+            for (const line of [...LABEL_RUBRIC.common, ...LABEL_RUBRIC.main]) {
                 const fields = [
                     line.field,
                     ...(line.toggles ?? []),
@@ -249,7 +235,7 @@ describe("Style panel v2's by-data links", () => {
                     ...(line.pair === undefined ? [] : [line.pair]),
                 ];
                 const linked = fields.filter((field) => varying.has(field));
-                if (linked.length === 0 || line.unit !== undefined || line.advanced === true) {
+                if (linked.length === 0 || line.unit !== undefined) {
                     continue;
                 }
                 const drawn = [row, pop]
@@ -277,10 +263,10 @@ describe("Style panel v2's by-data links", () => {
                     met.add(field);
                 }
             }
-            // A rare field's line is the Advanced pop-over's, met here from under the row once set.
+            // A group's field's line is its group pop-over's, met here from under the row once set.
             const rare = new Set(
-                [...LABEL_RUBRIC.main, ...LABEL_RUBRIC.groups.flatMap((g) => g.lines)]
-                    .filter((line) => line.advanced === true)
+                LABEL_RUBRIC.groups
+                    .flatMap((g) => g.lines)
                     .flatMap((line) => [
                         line.field,
                         ...(line.units ?? []),

@@ -17,7 +17,7 @@ import { withFeatures } from "../../../test/features";
 import { screen, waitFor } from "../../../test/test-utils";
 import { flatOf, type LabelField } from "../v2/labelRubric";
 import { showKind } from "./kindTab";
-import { advancedButton, openAdvanced, openGraph, openStyle } from "./v2Harness";
+import { groupNames, openGraph, openGroup, openStyle } from "./v2Harness";
 
 /** A line's by-data link (design 2.6, E551). */
 const LINK = 'button[aria-label$=" by attribute"]';
@@ -167,9 +167,9 @@ async function readLines(tab: HTMLElement, seen: Map<string, Line>, links: Links
             return found;
         });
         take(pop, "pop-over");
-        // Its rare settings: the Advanced dialog's lines follow the same pattern (design "Input rules").
-        if (advancedButton(pop) !== null) {
-            take(await openAdvanced(pop), "advanced");
+        // Its groups' lines, each opened from its "...", follow the same pattern (design "Input rules").
+        for (const name of await groupNames(pop)) {
+            take(await openGroup(pop, name), name);
             await userEvent.keyboard("{Escape}");
         }
         await userEvent.keyboard("{Escape}");

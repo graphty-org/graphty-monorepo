@@ -15,7 +15,6 @@ import {
     LABEL_RUBRIC,
     type LabelField,
     labelFieldDescriptor,
-    labelGroupFields,
     labelLineFields,
     type LabelLineSpec,
 } from "../v2/labelRubric";
@@ -101,13 +100,14 @@ describe("Style panel v2's control rubric", () => {
         }
     });
 
-    it("no sub-group passes 8 lines and no '+' menu 12 sub-groups", () => {
+    it('no group passes 6 lines or holds one, and no "..." menu passes 16 groups (owner, 2026-11-24)', () => {
         for (const [thing, rubric] of RUBRICS) {
-            assert.isAtMost(rubric.main.length, 8, `${thing} Main`);
+            assert.isAtMost(rubric.main.length, 8, `${thing} main lines`);
             assert.isAtMost(rubric.common?.length ?? 0, 2, `${thing} common lines`);
-            assert.isAtMost(rubric.groups?.length ?? 0, 12, `${thing} "+"`);
+            assert.isAtMost(rubric.groups?.length ?? 0, 16, `${thing} "..." menu`);
             for (const group of rubric.groups ?? []) {
-                assert.isAtMost(group.lines.length, 8, `${thing} ${group.name}`);
+                assert.isAtMost(group.lines.length, 6, `${thing} ${group.name}`);
+                assert.isAbove(group.lines.length, 1, `${thing} ${group.name}: a one-line group joins the main lines`);
             }
         }
     });
@@ -153,11 +153,6 @@ describe("Style panel v2's label rubric", () => {
                 assert.include(LABEL_STYLE_FIELDS, field, `${line.field}: ${field}`);
             }
         }
-        for (const group of LABEL_RUBRIC.groups) {
-            if (group.on !== undefined) {
-                assert.equal(labelFieldDescriptor(group.on)?.accepts, "boolean", `${group.name} switches on`);
-            }
-        }
     });
 
     it("every segment line names the element's values and fits where it sits", () => {
@@ -166,7 +161,10 @@ describe("Style panel v2's label rubric", () => {
         );
         assert.isAbove(segments.length, 8);
         for (const { line, place } of segments) {
-            const values = line.unit === undefined ? (labelFieldDescriptor(line.field)?.values ?? []) : [];
+            // "": the option drawn while nothing is set (an "Off" that unsets), named where the field has no default.
+            const unset = LABEL_OPTION_NAMES[line.field]?.[""] === undefined ? [] : [""];
+            const values =
+                line.unit === undefined ? [...(labelFieldDescriptor(line.field)?.values ?? []), ...unset] : [];
             if (line.unit === undefined) {
                 assert.sameMembers(Object.keys(LABEL_OPTION_NAMES[line.field] ?? {}), [...values], line.field);
             }
@@ -185,188 +183,42 @@ describe("Style panel v2's label rubric", () => {
         }
     });
 
-    it("holds ia-design's label groups: their fields, their order and a divider after Position and Box stroke", () => {
+    it("holds the label's sixteen groups under four headings, each at most six lines, every field placed once", () => {
         const fields = (lines: readonly LabelLineSpec[]): readonly LabelField[] => [
             ...new Set(lines.flatMap((line) => labelLineFields(line))),
         ];
         assert.sameMembers([...fields(LABEL_RUBRIC.common)], ["size", "sizePx", "letterSize", "color"], "the row");
         assert.sameMembers(
             [...fields(LABEL_RUBRIC.main)],
-            // the Size unit line writes Screen's sizeMode with sizePx; the look is a kind of the row (E196)
-            [
-                "enabled",
-                "font",
-                "weight",
-                "italic",
-                "underline",
-                "strikethrough",
-                "textAlign",
-                "location",
-                "sizeMode",
-                "size",
-                "sizePx",
-                "letterSize",
-            ],
-            "Main",
+            ["enabled", "font", "weight", "italic", "underline", "strikethrough", "location"],
+            "the pop-over's main lines",
         );
-        // Show, Font, the Bold / Italic / Underline / Strikethrough toggles on one line, Align, Location, then the
-        // size unit's segments (owner, 2026-11-23).
-        assert.deepEqual(
-            LABEL_RUBRIC.main.map((line) => (line.unit === undefined ? line.name : "size unit")),
-            ["Show", "Font", "Style", "Align", "Location", "size unit"],
-        );
-        const IA: readonly (readonly [string, readonly LabelField[]])[] = [
-            [
-                "Position",
-                [
-                    "attachOffset",
-                    "offsetX",
-                    "offsetY",
-                    "box",
-                    "onTop",
-                    "shiftX",
-                    "shiftY",
-                    "shiftOf",
-                    "gapOf",
-                    "keepInView",
-                ],
-            ],
-            [
-                "Letters",
-                [
-                    "weight",
-                    "opacity",
-                    "lineHeight",
-                    "rotation",
-                    "runAlign",
-                    "outline",
-                    "outlineWidth",
-                    "outlineOpacity",
-                ],
-            ],
-            [
-                "Wrap",
-                [
-                    "wrapWidth",
-                    "maxLines",
-                    "wrapAnywhere",
-                    "wrapEllipsis",
-                    "maxLinesEllipsis",
-                    "keepBlankLines",
-                    "wrapTrailingSpace",
-                    "wrapSkipEndSpace",
-                    "wrapSpaceCount",
-                ],
-            ],
-            [
-                "Background",
-                [
-                    "background",
-                    "backgroundOpacity",
-                    "backgroundShape",
-                    "cornerRadius",
-                    "padding",
-                    "boxPadding",
-                    "gradient",
-                    "gradientType",
-                    "gradientColors",
-                    "gradientDirection",
-                ],
-            ],
-            [
-                "Box stroke",
-                [
-                    "borderWidth",
-                    "borderColor",
-                    "borderOpacity",
-                    "borderAlign",
-                    "borderStyle",
-                    "lineBox",
-                    "marginTop",
-                    "marginRight",
-                    "marginBottom",
-                    "marginLeft",
-                ],
-            ],
-            [
-                "Label shadow",
-                [
-                    "shadow",
-                    "shadowColor",
-                    "shadowBlur",
-                    "shadowOffsetX",
-                    "shadowOffsetY",
-                    "panelShadow",
-                    "panelShadowColor",
-                    "panelShadowBlur",
-                    "panelShadowOffsetX",
-                    "panelShadowOffsetY",
-                ],
-            ],
-            [
-                "Callout",
-                ["pointer", "pointerDirection", "pointerWidth", "pointerHeight", "pointerOffset", "pointerCurve"],
-            ],
-            [
-                "Badge",
-                [
-                    "badge",
-                    "icon",
-                    "iconPosition",
-                    "image",
-                    "imageWidth",
-                    "imageHeight",
-                    "imageOffsetX",
-                    "imageOffsetY",
-                    "progress",
-                    "maxNumber",
-                    "overflowSuffix",
-                    "smartOverflow",
-                ],
-            ],
-            [
-                "Behavior",
-                [
-                    "minScreenSize",
-                    "declutter",
-                    "minNodeScreenSize",
-                    "depthFade",
-                    "depthFadeNear",
-                    "depthFadeFar",
-                    "animation",
-                    "animationSpeed",
-                    "pickable",
-                    "closeButton",
-                ],
-            ],
-        ];
-        assert.deepEqual(
-            LABEL_RUBRIC.groups.map((group) => group.name),
-            IA.map(([name]) => name),
-        );
-        for (const [name, members] of IA) {
-            const group = LABEL_RUBRIC.groups.find((each) => each.name === name);
-            assert.sameMembers([...new Set(labelGroupFields(group ?? { name, lines: [] }))], [...members], name);
+        // Owner, 2026-11-24: at most 16 entries, under headings of at most 6 each; every group at most 6 rows.
+        assert.lengthOf(LABEL_RUBRIC.groups, 16);
+        const headings = [...new Set(LABEL_RUBRIC.groups.map((group) => group.heading))];
+        assert.deepEqual(headings, ["Placement", "Letters", "Box", "Extras"]);
+        for (const heading of headings) {
+            assert.isAtMost(LABEL_RUBRIC.groups.filter((group) => group.heading === heading).length, 6, heading);
         }
-        assert.deepEqual(
-            LABEL_RUBRIC.groups.filter((group) => group.divider === true).map((group) => group.name),
-            ["Position", "Box stroke"],
-        );
-        // Every one of graphty-element's 90 label fields has its one place.
+        for (const group of LABEL_RUBRIC.groups) {
+            // The Background group's tab strip is a row of its own.
+            const rows = group.lines.length + (group.name === "Background" ? 1 : 0);
+            assert.isAtMost(group.name === "Background" ? 5 : rows, 6, group.name);
+            assert.isAbove(group.lines.length, 1, `${group.name}: a group of one line joins the main lines`);
+        }
+        // Every one of graphty-element's label fields has its one place.
         assert.sameMembers([...LABEL_COVERED], [...LABEL_STYLE_FIELDS]);
         // A line's whole name: a short one under its look's switch ("Color" under Text shadow) is called by it.
         const names = (group: string): readonly (string | undefined)[] =>
             LABEL_RUBRIC.groups.find((each) => each.name === group)?.lines.map((line) => line.fullName ?? line.name) ??
             [];
         assert.includeMembers(
-            [...names("Letters")],
+            [...names("Letter outline")],
             ["Letter outline", "Letter outline width", "Letter outline opacity"],
         );
-        assert.includeMembers(
-            [...names("Label shadow")],
-            ["Text shadow", "Text shadow color", "Box shadow", "Box shadow color"],
-        );
-        assert.includeMembers([...names("Badge")], ["Icon beside text", "Icon side"]);
+        assert.includeMembers([...names("Text shadow")], ["Text shadow", "Text shadow color"]);
+        assert.includeMembers([...names("Box shadow")], ["Box shadow", "Box shadow color"]);
+        assert.includeMembers([...names("Icon and image")], ["Icon beside text", "Icon side"]);
     });
 
     it("a location (R2) draws its Outside / Inside / Auto segments on a full line, its name above them", () => {
@@ -381,13 +233,10 @@ describe("Style panel v2's label rubric", () => {
         }
     });
 
-    it("Main holds at most 8 lines, the nine groups at most 10 each, and nothing says Scene or World", () => {
+    it("the main lines are at most 4 and nothing says Scene or World", () => {
         assert.isAtMost(LABEL_RUBRIC.common.length, 2);
-        assert.isAtMost(LABEL_RUBRIC.main.length, 8);
-        assert.equal(LABEL_RUBRIC.groups.length, 9, "ia-design's nine label groups");
-        for (const group of LABEL_RUBRIC.groups) {
-            assert.isAtMost(group.lines.length, 10, group.name);
-        }
+        // With the Text and Glyph tabs and the Look line, the pop-over stays six rows (owner's input rules).
+        assert.isAtMost(LABEL_RUBRIC.main.length, 4);
         const names = [
             ...Object.values(LABEL_OPTION_NAMES).flatMap((options) => Object.values(options ?? {}).map((o) => o.name)),
             ...lines.flatMap(({ line }) => [line.name ?? "", ...(line.unit ?? []).map((unit) => unit.name)]),

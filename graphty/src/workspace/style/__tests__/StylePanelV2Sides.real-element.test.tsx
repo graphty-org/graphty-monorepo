@@ -14,7 +14,7 @@ import { userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
-import { openAdvanced, openGraph, openProject, openStyle, sectionOf, written } from "./v2Harness";
+import { openGraph, openGroup, openProject, openStyle, sectionOf, written } from "./v2Harness";
 
 /**
  * Waits for a line in a part of the page.
@@ -76,8 +76,8 @@ describe("Style panel v2 splits a padding into its sides from a line of its own"
             assert.isNotNull(found);
             return found;
         });
-        // Margin is a rare Box stroke line: the pop-over's Advanced dialog's (design "Input rules").
-        const pop = await openAdvanced(await popoverOf(row, /^Node label settings/));
+        // Margin is in the label's Box size group (design "Input rules").
+        const pop = await openGroup(await popoverOf(row, /^Node label settings/), "Box size");
         const margin = await lineOf(pop, "node.labelStyle.marginTop");
         assert.lengthOf(inputsOf(margin), 1, "one number while the sides are joined");
 
@@ -127,8 +127,11 @@ describe("Style panel v2 splits a padding into its sides from a line of its own"
             assert.isNotNull(found);
             return found;
         });
-        // Fit to label is a rare setting: the pop-over's Advanced dialog's (design "Input rules").
-        const pop = await openAdvanced(await popoverOf(row, /^Node size settings/));
+        // Fit to label is a group of the Size pop-over; its padding appears once a fit is picked (design "Input rules").
+        const pop = await openGroup(await popoverOf(row, /^Node size settings/), "Fit to label");
+        const fit = await lineOf(pop, "node.labelFit");
+        const inside = within(fit).getByRole("radio", { name: "Inside" });
+        await userEvent.click(fit.querySelector<HTMLElement>(`label[for="${inside.id}"]`) ?? inside);
         const padding = await lineOf(pop, "node.labelPaddingX");
         assert.lengthOf(inputsOf(padding), 1, "one number while X and Y are joined");
 

@@ -17,8 +17,8 @@ import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import { showKind } from "./kindTab";
 import {
-    openAdvanced,
     openGraph,
+    openGroup,
     openProject,
     openStyle,
     picture,
@@ -108,9 +108,8 @@ describe("Style panel v2: options that would change nothing", () => {
         assert.isUndefined(optionDim(pop, "Node size space", "Screen"));
         // What a number does with the value underneath is chosen in the link dialog only (owner, 2026-11-23).
         assert.isNull(within(pop).queryByRole("radiogroup", { name: "Combine" }), "no Combine on a plain size");
-        // The mode and the depth are rare settings: the pop-over's Advanced view's, drilled into it in place
-        // (design "Input rules").
-        const advanced = await openAdvanced(pop);
+        // The mode and the depth are the Extents group's, opened beside from the "..." menu (design "Input rules").
+        const advanced = await openGroup(pop, "Extents");
         const scale = within(
             within(advanced).getByRole("radiogroup", { name: "Node size mode" }),
         ).getByRole<HTMLInputElement>("radio", {
@@ -127,7 +126,7 @@ describe("Style panel v2: options that would change nothing", () => {
         await switchView("3D");
         const again = await openSettings(sectionOf(tab, "node-shape"), "size", "Node size settings");
         assert.isUndefined(optionDim(again, "Node size space", "Pivot"), "Pivot draws in 3D");
-        assert.isUndefined(lineDim(await openAdvanced(again), "node.depth"), "so does depth");
+        assert.isUndefined(lineDim(await openGroup(again, "Extents"), "node.depth"), "so does depth");
         await userEvent.keyboard("{Escape}");
         await userEvent.keyboard("{Escape}");
 
@@ -135,7 +134,10 @@ describe("Style panel v2: options that would change nothing", () => {
         await session.styles.update(id, { set: { "node.color": "#E8590C", "node.size": 2, "node.shape": "box" } });
         await session.styles.settled();
         const box = await openSettings(sectionOf(tab, "node-shape"), "size", "Node size settings");
-        assert.isUndefined(optionDim(await openAdvanced(box), "Node size mode", "Uniform"), "Uniform draws a box anew");
+        assert.isUndefined(
+            optionDim(await openGroup(box, "Extents"), "Node size mode", "Uniform"),
+            "Uniform draws a box anew",
+        );
         await userEvent.keyboard("{Escape}");
         await userEvent.keyboard("{Escape}");
     });
@@ -201,9 +203,9 @@ describe("Style panel v2: options that would change nothing", () => {
             assert.isNotNull(found);
             return found;
         });
-        // graphty-element draws a unit scale once a unit is set and the scale is not (drawnDefault). Curve is a rare
-        // group: the pop-over's Advanced view's.
-        const curve = await openAdvanced(pop);
+        // graphty-element draws a unit scale once a unit is set and the scale is not (drawnDefault). The scale and the
+        // unit are lines of the pop-over.
+        const curve = pop;
         const scale = within(curve).getByRole("radiogroup", { name: "Edge support scale" });
         const unit = within(scale).getByRole<HTMLInputElement>("radio", { name: "Unit" });
         assert.isTrue(unit.checked, "Unit, what is drawn, is the scale shown");
@@ -214,12 +216,10 @@ describe("Style panel v2: options that would change nothing", () => {
         await waitFor(() => {
             assert.strictEqual(written(session, edges, "edge.supportScale"), "drawing");
         });
+        // The unit size draws only for a Unit scale, so it leaves the pop-over (design "Input rules", "Tabs").
         await waitFor(() => {
-            const open = document.querySelector<HTMLElement>("[data-advanced-pop] [data-thing-popover]");
-            assert.isNotNull(open);
-            assert.match(lineDim(open, "edge.supportUnit") ?? "", /^Only when .+ is Unit$/);
+            assert.isNull(pop.querySelector('.ws-row[data-line="edge.supportUnit"]'));
         });
-        await userEvent.keyboard("{Escape}");
         await userEvent.keyboard("{Escape}");
     });
 
@@ -229,10 +229,11 @@ describe("Style panel v2: options that would change nothing", () => {
         await session.styles.update(id, { set: { "node.color": "#E8590C", "node.size": 2 } });
         await session.styles.settled();
         const tab = await openStyle("Key people");
-        // Fit to label is a rare setting: always shown in the Advanced dialog, its Fit line dimmed while it draws nothing.
+        // Fit to label is a group of the "..." menu, its Fit line dimmed while it draws nothing: what it waits on (a
+        // label) is not set in this pop-over.
         const fitItem = async (): Promise<string | null> => {
             const pop = await openSettings(sectionOf(tab, "node-shape"), "size", "Node size settings");
-            const title = lineDim(await openAdvanced(pop), "node.labelFit") ?? null;
+            const title = lineDim(await openGroup(pop, "Fit to label"), "node.labelFit") ?? null;
             await userEvent.keyboard("{Escape}");
             await userEvent.keyboard("{Escape}");
             return title;
@@ -254,24 +255,26 @@ describe("Style panel v2: options that would change nothing", () => {
         assert.isNull(await fitItem(), "a label bound to data is a label to fit");
     });
 
-    it("a border's Waves is dimmed until the border is a zigzag or a sinewave", async () => {
+    it("a border's Wave line appears once the border is a zigzag or a sinewave", async () => {
         const { session, nodes } = await openGraph();
-        const waves = async (): Promise<string | null> => {
+        const waves = async (): Promise<boolean> => {
             const tab = await openStyle("Key people");
             const pop = await openSettings(sectionOf(tab, "node-effects"), "border", "Node border settings");
-            // Waves is a rare setting: always shown in the Advanced dialog, dimmed while it draws nothing.
-            const title = lineDim(await openAdvanced(pop), "node.borderWaveAmplitude") ?? null;
+            // The Style line is in the same pop-over: a line it rules out appears once it applies.
+            await waitFor(() => {
+                assert.isNotNull(pop.querySelector('.ws-row[data-line="node.borderStyle"]'), "the pop-over is drawn");
+            });
+            const shown = pop.querySelector('.ws-row[data-line="node.borderWaveAmplitude"]') !== null;
             await userEvent.keyboard("{Escape}");
-            await userEvent.keyboard("{Escape}");
-            return title;
+            return shown;
         };
         const border = { "node.color": "#E8590C", "node.borderColor": "#000000", "node.borderWidth": 0.4 };
         await session.styles.update(nodes, { set: border });
         await session.styles.settled();
-        assert.match((await waves()) ?? "", /^Only when .+ is .*Zigzag/i, "a solid border draws no wave");
+        assert.isFalse(await waves(), "a solid border draws no wave");
         await session.styles.update(nodes, { set: { ...border, "node.borderStyle": "zigzag" } });
         await session.styles.settled();
-        assert.isNull(await waves(), "a zigzag border draws its wave");
+        assert.isTrue(await waves(), "a zigzag border draws its wave");
     });
 
     for (const view of ["2D", "3D"] as const) {

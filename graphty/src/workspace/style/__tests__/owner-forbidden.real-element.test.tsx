@@ -239,7 +239,13 @@ async function walkPopovers(seen: Seen): Promise<void> {
         for (const each of floating()) {
             look(seen, each);
         }
-        // A family row's kinds are its pop-over's first line, the Kind select.
+        // A family row's kinds are its pop-over's first line: tabs, or the Kind select.
+        for (const each of floating()) {
+            for (const radio of each.querySelectorAll<HTMLInputElement>('[data-strip] input[type="radio"]')) {
+                const words = each.querySelector(`label[for="${radio.id}"]`)?.textContent.trim() ?? radio.value;
+                seen.sectionItems?.add(`${section}:${words}`);
+            }
+        }
         // The pop-over's own Kind (a basic Shape row draws one in the panel too).
         const kind =
             floating()

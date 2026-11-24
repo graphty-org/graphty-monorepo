@@ -242,22 +242,48 @@ export function settingsName(title: string | RegExp): RegExp {
 }
 
 /**
- * Opens a row's "..." settings and its Kind select, as a reader does: the Kind line is the pop-over's first.
+ * Opens a row's "..." settings and its Kind drop-down, as a reader does: the Kind line is the pop-over's first (a
+ * basic Shape row draws one in the panel). A kind drawn as tabs or grouped buttons has no list: see `pickKind`.
  * @param row - the row (or a section holding one row with that settings button).
  * @param title - the row's name with its kind ("Node shape"), or its settings button's name.
- * @returns the open Kind list.
+ * @param name - the line's name: "Kind", "End" or "Look".
+ * @returns the open list.
  */
-export async function openKind(row: HTMLElement, title: string | RegExp): Promise<HTMLElement> {
+export async function openKind(row: HTMLElement, title: string | RegExp, name = "Kind"): Promise<HTMLElement> {
+    const scope = await kindScope(row, title);
+    await userEvent.click(await within(scope).findByRole("combobox", { name }));
+    return screen.findByRole("listbox");
+}
+
+/**
+ * Where a row's Kind is drawn: its settings pop-over, opened as a reader does, or the row itself when it has none.
+ * @param row - the row.
+ * @param title - the row's name with its kind.
+ * @returns the pop-over or the row.
+ */
+async function kindScope(row: HTMLElement, title: string | RegExp): Promise<HTMLElement> {
     const settings = within(row).queryByRole("button", { name: settingsName(title) });
-    // A pick leaves the pop-over open: a second click on "..." would close it. A row with no settings (a basic
-    // shape) draws its Kind under it.
+    // A pick leaves the pop-over open: a second click on "..." would close it.
     if (settings !== null && settings.getAttribute("aria-expanded") !== "true") {
         await userEvent.click(settings);
     }
-    // The pop-over's own Kind: a basic Shape row draws one in the panel too.
-    const scope = settings === null ? within(row) : within(await popoutOf(settings));
-    await userEvent.click(await scope.findByRole("combobox", { name: "Kind" }));
-    return screen.findByRole("listbox");
+    return settings === null ? row : popoutOf(settings);
+}
+
+/**
+ * The tab or grouped button of a kind, where the kind is drawn so (design "Input rules", "Tabs").
+ * @param scope - the pop-over or row.
+ * @param kind - the kind's name.
+ * @returns its radio, or null when the kind is a drop-down's option.
+ */
+function kindRadio(scope: HTMLElement, kind: string): HTMLInputElement | null {
+    const radios = [...scope.querySelectorAll<HTMLInputElement>('.ws-member input[type="radio"]')];
+    return (
+        radios.find((radio) => {
+            const label = scope.querySelector(`label[for="${radio.id}"]`);
+            return (label?.textContent ?? radio.value).trim() === kind || radio.value === kind;
+        }) ?? null
+    );
 }
 
 /**
@@ -281,20 +307,43 @@ async function popoutOf(button: HTMLElement): Promise<HTMLElement> {
  * @param kind - the kind's name.
  */
 export async function pickKind(row: HTMLElement, title: string | RegExp, kind: string): Promise<void> {
-    const list = await openKind(row, title);
+    const scope = await kindScope(row, title);
+    const radio = await waitFor(() => {
+        const found = kindRadio(scope, kind);
+        assert.isTrue(found !== null || scope.querySelector('.ws-member [role="combobox"]') !== null, "the Kind line");
+        return found;
+    });
+    if (radio !== null) {
+        const label = scope.querySelector<HTMLElement>(`label[for="${radio.id}"]`);
+        await userEvent.click(label ?? radio);
+        return;
+    }
+    const list = await openKind(row, title, kindName(scope));
     await userEvent.click(within(list).getByRole("option", { name: kind }));
 }
 
 /**
- * Closes the open settings pop-over with Escape, as a reader does: its Advanced pop-over closes first, and a view
+ * The name of the drop-down a kind is picked from: the Kind ("End" for an arrow's), else a text's Look.
+ * @param scope - the pop-over or row.
+ * @returns the name.
+ */
+function kindName(scope: HTMLElement): string {
+    const box = scope.querySelector<HTMLElement>(
+        '[data-kind-menu] [role="combobox"], [data-member-menu] [role="combobox"]',
+    );
+    return box?.getAttribute("aria-label") ?? "Look";
+}
+
+/**
+ * Closes the open settings pop-over with Escape, as a reader does: its group pop-over closes first, and a view
  * drilled into it goes back first, each on an Escape of its own when focus is in it.
  */
 export async function closeSettings(): Promise<void> {
-    const advanced = document.querySelector("[data-advanced-pop]");
-    if (advanced !== null) {
+    const group = document.querySelector("[data-group-pop]");
+    if (group !== null) {
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
-            assert.isFalse(advanced.isConnected, "the Advanced pop-over closed");
+            assert.isFalse(group.isConnected, "the group pop-over closed");
         });
     }
     const drilled = document.querySelector("[data-drill-view]:not([hidden])");
@@ -319,71 +368,135 @@ export async function closeSettings(): Promise<void> {
  */
 export async function kindOf(row: HTMLElement, title: string | RegExp): Promise<string> {
     const settings = within(row).queryByRole("button", { name: settingsName(title) });
-    if (settings === null) {
-        return (await within(row).findByRole<HTMLInputElement>("combobox", { name: "Kind" })).value;
+    const scope = await kindScope(row, title);
+    const read = await waitFor(() => {
+        const checked = scope.querySelector<HTMLInputElement>(
+            '[data-kind-menu] input[type="radio"]:checked, [data-member-menu] input[type="radio"]:checked',
+        );
+        const box = scope.querySelector<HTMLInputElement>(
+            '[data-kind-menu] input[role="combobox"], [data-member-menu] input[role="combobox"]',
+        );
+        const look = scope.querySelector<HTMLInputElement>('[data-look-menu] input[role="combobox"]');
+        assert.isTrue(checked !== null || box !== null || look !== null, "the Kind line");
+        const tab =
+            checked === null
+                ? undefined
+                : (scope.querySelector(`label[for="${checked.id}"]`)?.textContent?.trim() ?? checked.value);
+        // A text's tab is its look's: the Look line names it.
+        if (look !== null && (tab === undefined || tab === "Text")) {
+            return look.value;
+        }
+        return tab ?? box?.value ?? "";
+    });
+    if (settings !== null) {
+        await closeSettings();
     }
-    if (settings.getAttribute("aria-expanded") !== "true") {
-        await userEvent.click(settings);
-    }
-    const kind = await within(await popoutOf(settings)).findByRole<HTMLInputElement>("combobox", { name: "Kind" });
-    const { value } = kind;
-    await closeSettings();
-    return value;
+    return read;
 }
 
 /**
- * A pop-over's Advanced button: the "..." in its header, or null when it has no rare settings.
+ * A pop-over's "..." button in its header, or null when it has no groups of settings.
  * @param pop - the pop-over, or an element in it.
  * @returns the button.
  */
-export function advancedButton(pop: HTMLElement): HTMLElement | null {
+export function moreButton(pop: HTMLElement): HTMLElement | null {
     const panel = pop.closest<HTMLElement>("[data-popout-id]") ?? pop;
-    return panel.querySelector<HTMLElement>('[data-testid="popout-header"] button[aria-label="Advanced settings"]');
+    return panel.querySelector<HTMLElement>('[data-testid="popout-header"] button[aria-label="More settings"]');
 }
 
 /**
- * Opens a pop-over's Advanced pop-over (its rare settings, beside it) from the "..." in its header, as a reader does;
- * one already open is returned as it is.
+ * The names of a pop-over's groups of settings, from its "..." menu (closed again), or its one group's.
  * @param pop - the pop-over.
- * @returns the Advanced pop-over's content.
+ * @returns the names; none without a "...".
  */
-export async function openAdvanced(pop: HTMLElement): Promise<HTMLElement> {
+export async function groupNames(pop: HTMLElement): Promise<string[]> {
+    const button = moreButton(pop);
+    if (button === null) {
+        return [];
+    }
+    if (button.getAttribute("aria-haspopup") === "dialog") {
+        const content = await openGroup(pop);
+        const name = content.dataset.groupPop ?? "";
+        await userEvent.click(button);
+        await waitFor(() => {
+            assert.isFalse(content.isConnected, "the group pop-over closed");
+        });
+        return [name];
+    }
+    await userEvent.click(button);
+    const items = await screen.findAllByRole("menuitem");
+    const names = items.map((item) => entryName(item));
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => {
+        assert.lengthOf(screen.queryAllByRole("menuitem"), 0, "the menu closed");
+    });
+    return names;
+}
+
+/**
+ * A "..." menu entry's group name, without the ", set" a set group's entry is read with.
+ * @param item - the entry.
+ * @returns the name.
+ */
+export function entryName(item: HTMLElement): string {
+    return item.textContent.replace(/, set$/, "").trim();
+}
+
+/**
+ * Opens a group of a pop-over's settings beside it, as a reader does: its "..." opens the group directly when it is
+ * the only one, else a menu where the group is picked. A group already open is returned as it is.
+ * @param pop - the pop-over.
+ * @param name - the group's name; any for a pop-over with one group.
+ * @returns the group pop-over's content.
+ */
+export async function openGroup(pop: HTMLElement, name?: string): Promise<HTMLElement> {
+    const open = document.querySelector<HTMLElement>("[data-group-pop]");
+    if (open !== null && (name === undefined || open.dataset.groupPop === name)) {
+        return open;
+    }
     const button = await waitFor(() => {
-        const found = advancedButton(pop);
-        assert.isNotNull(found, "the Advanced button");
+        const found = moreButton(pop);
+        assert.isNotNull(found, 'the "..." button');
         return found;
     });
-    if (button.getAttribute("aria-expanded") !== "true") {
-        await userEvent.click(button);
+    await userEvent.click(button);
+    if (button.getAttribute("aria-haspopup") !== "dialog") {
+        assert.isDefined(name, "a group's name to pick from the menu");
+        const item = (await screen.findAllByRole("menuitem")).find((each) => entryName(each) === name);
+        assert.isDefined(item, `the "${name}" entry`);
+        await userEvent.click(item);
     }
     return waitFor(() => {
-        const id = button.getAttribute("aria-controls");
-        const dialog = id === null ? null : document.getElementById(id);
-        assert.isNotNull(dialog, "the Advanced dialog is open");
-        return dialog;
+        const found = document.querySelector<HTMLElement>(
+            name === undefined ? "[data-group-pop]" : `[data-group-pop="${name}"]`,
+        );
+        assert.isNotNull(found, `the ${name ?? ""} group pop-over is open`);
+        return found;
     });
 }
 
 /**
- * A line of a pop-over, or of its Advanced dialog when the line is one of its rare settings.
+ * A line of a pop-over, or of the group pop-over holding it, opened from its "..." as a reader does.
  * @param pop - the pop-over.
  * @param selector - the line.
  * @returns the line.
  */
 export async function popoverLine(pop: HTMLElement, selector: string): Promise<HTMLElement> {
-    // The pop-over has drawn once the line (or its Advanced button) is there.
+    // The pop-over has drawn once the line (or its "...") is there.
     const here = await waitFor(() => {
         const line = pop.querySelector<HTMLElement>(selector);
-        assert.isTrue(line !== null || advancedButton(pop) !== null, "the pop-over is drawn");
+        assert.isTrue(line !== null || moreButton(pop) !== null, "the pop-over is drawn");
         return line;
     });
     if (here !== null) {
         return here;
     }
-    const dialog = await openAdvanced(pop);
-    return waitFor(() => {
-        const line = dialog.querySelector<HTMLElement>(selector);
-        assert.isNotNull(line, `${selector} in the pop-over or its Advanced dialog`);
-        return line;
-    });
+    for (const name of await groupNames(pop)) {
+        const group = await openGroup(pop, name);
+        const line = group.querySelector<HTMLElement>(selector);
+        if (line !== null) {
+            return line;
+        }
+    }
+    throw new Error(`${selector} is in neither the pop-over nor one of its groups`);
 }

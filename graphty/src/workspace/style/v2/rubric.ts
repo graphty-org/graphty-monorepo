@@ -155,13 +155,6 @@ export const OPTION_NAMES: Partial<Readonly<Record<Channel, Readonly<Record<stri
         none: { name: "None", glyph: "gradientNone" },
     },
     "edge.supportScale": { unit: { name: "Unit" }, drawing: { name: "Drawing" } },
-    // The Route pop-over's tab strip: the route glyphs, each with its word as its tooltip.
-    "edge.route": {
-        straight: { name: "Straight", glyph: "routeStraight" },
-        arc: { name: "Arc", glyph: "routeArc" },
-        "great-circle": { name: "Great circle", glyph: "routeGreatCircle" },
-        bundled: { name: "Bundled", glyph: "routeBundled" },
-    },
     "edge.colorFrom": { none: { name: "Own" }, source: { name: "Source" }, target: { name: "Target" } },
     "edge.bendCurve": {
         corners: { name: "Corners", glyph: "bendCorners" },
@@ -325,6 +318,11 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
                     { channel: "node.shapePoints", name: "Points", rule: "R15" },
                     { channel: "node.shapeStretchPoints" },
                     { channel: "node.shapeParts", name: "Extra pieces", rule: "R15" },
+                ],
+            },
+            {
+                name: "Inner lines",
+                lines: [
                     { channel: "node.shapeLines", name: "Inner lines", rule: "R15" },
                     { channel: "node.shapeLineWidth", name: "Inner line width" },
                     { channel: "node.shapeLineHaloColor", name: "Inner line backing" },
@@ -722,8 +720,8 @@ export const EDGE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
     // The route is a value list like Shape's and Pattern's, each route with its icon, and Curve its line (ia-design 2).
     route: {
         row: { channel: "edge.route", name: "Route", rule: "R10" },
-        // Each route draws different lines, so its pop-over starts with them as tabs, each line appearing for its route.
-        strip: { channel: "edge.route", name: null, rule: "R8" },
+        // Not tabs: Arc and Great circle draw the same lines (owner, 2026-11-24: tabs only where each choice shows
+        // different settings). Each line appears for the routes that draw it.
         common: [{ channel: "edge.curvature", name: "Curve" }],
         main: [
             { channel: "edge.arcRadius", name: "Radius" },

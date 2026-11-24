@@ -194,7 +194,8 @@ export function ruledOut(ctx: RowContext, channel: Channel, own: readonly Channe
 }
 
 /**
- * Whether a label style field is ruled out by another field of the style, not by the view (see `ruledOut`).
+ * Whether a label style field is ruled out by another field of the style, not by the view (see `ruledOut`), and not
+ * by a partner it writes itself.
  * @param ctx - the row.
  * @param styleChannel - the text kind's label style channel.
  * @param style - the layer's own label style.
@@ -209,7 +210,13 @@ export function labelRuledOut(
 ): boolean {
     const read = labelReader(ctx, styleChannel, style);
     const found = labelFieldDrawn(field, read, viewOf(ctx.session));
-    return !found.drawn && !("dimension" in found.unmet);
+    if (found.drawn || !("field" in found.unmet)) {
+        return false;
+    }
+    // A partner the line writes itself from the reader's one click (graphty-element's `needs`: a look's switch) does
+    // not rule it out.
+    const { field: partner } = found.unmet;
+    return labelFieldDescriptor(field)?.needs?.some((need) => need.field === partner) !== true;
 }
 
 /**

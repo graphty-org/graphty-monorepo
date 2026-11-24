@@ -13,7 +13,7 @@ import { userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
-import { openAdvanced, openGraph, openStyle, picture, pixelsApart, sectionOf, written } from "./v2Harness";
+import { openGraph, openGroup, openStyle, picture, pixelsApart, sectionOf, written } from "./v2Harness";
 
 /** How near (by RGB distance) a pixel must be to count as drawn in a color. */
 const NEAR = 90;
@@ -159,8 +159,8 @@ describe("Style panel v2's list things", () => {
             assert.isNotNull(found);
             return found;
         });
-        // Frame is a rare setting: the pop-over's Advanced dialog's (design "Input rules"), each side showing 0.
-        await userEvent.click(await within(await openAdvanced(pop)).findByRole("spinbutton", { name: "Frame top" }));
+        // Frame is in the Bands group, its "..." opening it directly (design "Input rules"), each side showing 0.
+        await userEvent.click(await within(await openGroup(pop)).findByRole("spinbutton", { name: "Frame top" }));
         await userEvent.keyboard("{Control>}a{/Control}0.2{Tab}");
         await waitFor(() => {
             assert.strictEqual(written(session, nodes, "node.stripeFrame"), "0.2 0 0 0");

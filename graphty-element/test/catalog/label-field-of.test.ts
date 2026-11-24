@@ -19,11 +19,13 @@ describe("labelFieldOf", () => {
         for (const target of ["node", "edge"] as const) {
             const fields = channelsFor(target).flatMap(({ channel }) => {
                 const found = labelFieldOf(channel);
-                return found === undefined ? [] : [found];
+                return found === undefined ? [] : [{ channel, ...found }];
             });
             assert.isAbove(fields.length, 30);
-            for (const { into, field } of fields) {
-                assert.equal(into, `${target}.labelStyle`);
+            for (const { channel, into, field } of fields) {
+                // An external label's own look (node.xlabelColor) lands in its own style, a label's in the label's.
+                const kind = channel.startsWith(`${target}.xlabel`) ? "xlabelStyle" : "labelStyle";
+                assert.equal(into, `${target}.${kind}`, channel);
                 assert.include(LABEL_STYLE_FIELDS, field);
             }
         }

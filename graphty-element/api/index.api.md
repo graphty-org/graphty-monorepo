@@ -5140,6 +5140,13 @@ export type GraphtyWarningCode =
 */
 | "W_FILTER_DRAFT_DROPPED"
 /**
+* The draft of the sources and steps autosave kept could not be opened again after a restore
+* (the source-steps experiment is off, or the rows it read are gone), so it was dropped. In an
+* autosave restore's report; no params.
+* Since 3.40.0.
+*/
+| "W_SOURCE_DRAFT_DROPPED"
+/**
 * A style layer's `{ match: "ids" }` selector names ids no element of the layer's target answers
 * to, by either spelling of an integer id, so they paint nothing. `params.target` is `"node"` or
 * `"edge"`, and `params.ids` the ids as the layer named them.

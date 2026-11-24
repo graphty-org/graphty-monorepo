@@ -28,6 +28,7 @@ import { currentMember, isHeld, type MemberChoice, type MemberPick, membersOf, s
 import { type KindGroup, type KindMember, kindsShown, lookOf, PLAIN_LOOK, switchKind, writeLook } from "./kindGroups";
 import { entryLook, entryOf, writeEntry } from "./labelEntries";
 import { TEXT_THINGS } from "./labelRubric";
+import { markReopening } from "./reopening";
 import { SegmentsLine } from "./RubricLine";
 
 /** The places a shader for the shapes' place is picked from. */
@@ -282,7 +283,9 @@ export function KindMenu({
     };
     const switchTo = (to: KindMember | undefined): void => {
         if (to !== undefined && to.id !== now.id) {
-            done(switchKind(ctx, group, now, to), to.plainName);
+            const switched = switchKind(ctx, group, now, to);
+            markReopening(`${ctx.side}:${to.id}`, switched);
+            done(switched, to.plainName);
         }
     };
     const choice = (member: KindMember): { key: string; name: string; disabled: boolean } => ({

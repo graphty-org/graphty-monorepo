@@ -38,6 +38,7 @@ import { TEXT_THINGS, type TextThing } from "./labelRubric";
 import { unsetIn } from "./lineWrites";
 import { firstItemWords, ITEM_LISTS, listOf } from "./lists";
 import { EntryLookMenu, KindMenu, MemberMenu, ReplaceGallery } from "./MemberMenu";
+import { takeReopening } from "./reopening";
 import { rowNames } from "./rowNames";
 import {
     lineChannels,
@@ -497,6 +498,12 @@ export function ThingRow({
         }
         onOpened?.();
     }, [opening, thing.id, onOpened]);
+    // A row drawn for the kind its pop-over just switched to opens that pop-over again.
+    useEffect(() => {
+        if (kind !== undefined && takeReopening(`${ctx.side}:${kind.id}`)) {
+            setOpen(true);
+        }
+    }, [ctx.side, kind]);
     // A kind group's row (a Label of kind Text or Glyph) edits its kind's main channel.
     const main = mainOf(ctx, kind === undefined ? thing : { ...thing, main: [kind.head], start: kind.head }, channels);
     if (main === undefined) {

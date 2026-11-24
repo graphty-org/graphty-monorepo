@@ -327,6 +327,23 @@ export class RowScan {
     }
 
     /**
+     * Whether a canvas point lands on one row's own shape, tested as {@link RowScan.shapeRayHit} tests
+     * each row, with no walk over the others.
+     * @param row - The row.
+     * @param x - X in CSS pixels.
+     * @param y - Y in CSS pixels.
+     * @returns Whether it does, or undefined for a row the scan leaves to Babylon's pick.
+     */
+    hitsRowAt(row: number, x: number, y: number): boolean | undefined {
+        const { scene, rowRay } = this;
+        const hit = this.narrow(row, this.root?.computeWorldMatrix() ?? this.identity, (world) => {
+            scene.createPickingRayToRef(x, y, world, rowRay, null, false);
+            return rowRay;
+        });
+        return hit === null ? undefined : hit.hit;
+    }
+
+    /**
      * The row a world ray hits: {@link RowScan.shapeRayHit} for what has no screen point.
      * @param ray - The ray.
      * @returns The nearest row hit, or null.
@@ -852,6 +869,15 @@ export function hoverNodeId(scene: Scene, x: number, y: number): HoverPick | Pro
 
     const answer = ({ texel, drawn }: IdPick): HoverPick => {
         if (texel === ID_OBJECT || (texel === ID_NONE && ids.hiddenRows())) {
+            return { id: pickNodeId(scene, x, y) };
+        }
+
+        // The target draws a row smaller than a pixel larger than it is, and answers for a whole pixel, so a
+        // pointer up to about a pixel off a row's shape can read it there. A read answered from the frame on
+        // screen (WebGL: no `drawn`) is checked against the row's own shape, and a miss asks the pick a click
+        // asks, so hover never names a node where a click and elementAt find none (#9915). Only that row is
+        // tested; the walk happens only on a miss, along a node's rim.
+        if (texel >= 0 && drawn === undefined && rowScans.get(scene)?.hitsRowAt(texel, x, y) === false) {
             return { id: pickNodeId(scene, x, y) };
         }
 

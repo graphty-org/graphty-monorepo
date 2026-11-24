@@ -18,8 +18,6 @@ import {
     projectFileName,
     type ProjectOpenOptions,
     type ProjectSaveReport,
-    type SourceCopyChoice,
-    type SourceKey,
 } from "@graphty/graphty-element/session";
 
 import { count, graphSizeBucket } from "../../lib/analytics";
@@ -27,7 +25,7 @@ import { forgetKeptWork } from "../autosave/autosave";
 import type { CommandContext } from "../commands/registry";
 import { openDataPage } from "../data-page/request";
 import { sourceName } from "../data-place/words";
-import { saveFilesV2On, sourceReferencesOn } from "../features";
+import { sourceReferencesOn } from "../features";
 import { focusOpenedGraphLater } from "../frame/focus";
 import { runHeld, withHeldShaders } from "../settings/heldShaders";
 import { addSource, incomingFiles } from "../start/open";
@@ -345,7 +343,7 @@ export function saveProblemSentence(name: string, error: unknown): string {
  * @param ctx.session - the project's session.
  * @param target - the `browserProjects` id to write again, or null for a new record.
  * @param newName - the name Save as gives the project, or null to keep its name.
- * @param v2 - with version 2 files on, what the reader chose in Save as; null to save as last chosen.
+ * @param v2 - what the reader chose in Save as; null to save as last chosen.
  * @returns false when the reader canceled the question about files from the web.
  */
 async function writeProject(
@@ -364,25 +362,24 @@ async function writeProject(
     await nameTheProject(workspace, session, newName);
     const name = session.project.name ?? headerName(workspace);
     const state = fileState(workspace);
-    // With version 2 files on, the browser keeps a version 2 file: the sections and sources as
-    // the reader last chose them in Save as, else as graphty-element saves by default.
-    const on = saveFilesV2On(session);
-    const choices = on ? await stillNamed(session, v2 ?? state.v2) : null;
+    // The browser keeps a version 2 file: the sections and sources as the reader last chose them
+    // in Save as, else as graphty-element saves by default.
+    const choices = await stillNamed(session, v2 ?? state.v2);
     const saved = await browserProjects.save(session, {
         ...(target === null ? {} : { id: target }),
         ...(Object.keys(assets).length === 0 ? {} : { assets }),
-        ...(on ? { format: 2 as const } : {}),
-        ...(on && choices !== null ? { sections: choices.sections, embed: choices.embed } : {}),
+        format: 2,
+        ...(choices === null ? {} : { sections: choices.sections, embed: choices.embed }),
     });
     count("project_saved", { kind: "browser", as: target === null ? "new" : "again" });
     state.target = saved.id;
-    if (on && v2 !== null) {
+    if (v2 !== null) {
         state.v2 = v2;
     }
     await refreshStored();
     workspace.set({ notice: { message: withLeftOut(session, `Saved ${name} in this browser.`, saved.report) } });
     // Save as reports what the save left out; a later Save says only that it saved.
-    if (on && v2 !== null) {
+    if (v2 !== null) {
         await reportSave(workspace, session, `Saved ${name}`, saved.report);
     }
     return true;
@@ -424,7 +421,7 @@ async function reportSave(
 }
 
 /**
- * Save as... with version 2 files on: a full file of every section the project needs is kept in
+ * Save as...: a full file of every section the project needs is kept in
  * this browser as the project, as Save as keeps it; any other choice (some sections, or a section
  * file) is a copy, downloaded under the name graphty-element gives it, and changes neither where
  * Save goes nor what is unsaved.
@@ -490,15 +487,6 @@ export async function saveProject(ctx: CommandContext): Promise<void> {
 }
 
 /**
- * Save as...: names the project and keeps it in this browser as a new project.
- * @param ctx - the command context.
- * @param name - the name the reader gave.
- */
-export async function saveProjectAs(ctx: CommandContext, name: string): Promise<void> {
-    await saveAs(ctx, name, () => writeProject(ctx, null, name));
-}
-
-/**
  * Runs a Save as write, renaming the project back when it fails.
  * @param ctx - the command context.
  * @param name - the name the reader gave.
@@ -520,8 +508,7 @@ async function saveAs(ctx: CommandContext, name: string, write: () => Promise<bo
 }
 
 /**
- * Save local copy...: downloads the project file (with version 2 files on, a version 2 file as
- * Save writes it). A copy: where Save goes and what is unsaved do not change.
+ * Save local copy...: downloads the project file, a version 2 file as Save writes it. A copy: where Save goes and what is unsaved do not change.
  * @param ctx - the command context.
  * @param ctx.workspace - the workspace store.
  * @param ctx.element - the element, which downloads.
@@ -538,7 +525,7 @@ export async function saveLocalCopy({ workspace, element, session }: CommandCont
             return;
         }
         const fileName = projectFileName(name);
-        if (session !== null && saveFilesV2On(session)) {
+        if (session !== null) {
             // A version 2 file, of the sections and sources as the reader last chose them in Save as.
             const choices = await stillNamed(session, fileState(workspace).v2);
             await element.downloadProject({
@@ -548,10 +535,8 @@ export async function saveLocalCopy({ workspace, element, session }: CommandCont
                 fileName,
                 markSaved: false,
             });
-        } else if (Object.keys(assets).length === 0) {
-            await element.downloadGraph("graphty", { fileName });
         } else {
-            await element.downloadProject({ assets, fileName, markSaved: false });
+            await element.downloadGraph("graphty", { fileName });
         }
         count("export_done", { kind: "project", destination: "download" });
     } catch {
@@ -810,7 +795,7 @@ function heldNotice(workspace: WorkspaceStore, session: GraphSession, notice: No
 }
 
 /**
- * With version 2 files on, asks about a version 2 file from anywhere but the reader's own
+ * Asks about a version 2 file from anywhere but the reader's own
  * browser-kept projects before it opens (those open at once); the answer is kept on the pending
  * file, for an open again after Discard.
  * @param workspace - the workspace store.
@@ -819,7 +804,7 @@ function heldNotice(workspace: WorkspaceStore, session: GraphSession, notice: No
  * @returns false when the reader canceled.
  */
 async function askBeforeOpen(workspace: WorkspaceStore, session: GraphSession, pending: PendingFile): Promise<boolean> {
-    if (!saveFilesV2On(session) || pending.v2 !== undefined) {
+    if (pending.v2 !== undefined) {
         return true;
     }
     if (pending.storedId !== undefined) {
@@ -1074,22 +1059,4 @@ export async function removeRecent(entry: RecentProject): Promise<void> {
     }
     await browserProjects.remove(entry.id);
     await refreshStored();
-}
-
-/**
- * Hands the dialog's pending choices to graphty-element (`data.setCopy`), as its Save is pressed;
- * a source removed while the dialog was open is skipped.
- * @param session - the element's session, or null.
- * @param pending - the dialog's choices.
- */
-export function applyCopies(session: GraphSession | null, pending: ReadonlyMap<SourceKey, SourceCopyChoice>): void {
-    if (session === null || !sourceReferencesOn(session)) {
-        return;
-    }
-    const listed = new Set(session.data.sources().map((each) => each.key));
-    for (const [source, copy] of pending) {
-        if (listed.has(source)) {
-            session.data.setCopy(source, copy);
-        }
-    }
 }

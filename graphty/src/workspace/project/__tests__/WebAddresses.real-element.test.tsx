@@ -25,9 +25,7 @@ import { clearRecent } from "../recent";
 
 // These tests drive the Style panel the app shows with file styles off; the panel by part of the
 // drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
-// They save through the name-only Save as; version 2 save files replace it, tested in
-// SaveFilesV2.real-element.test.tsx.
-withoutFeatures(["file-styles", "save-files-v2"]);
+withoutFeatures(["file-styles"]);
 
 const MODEL = "https://models.example.com/kit/panel.glb";
 const PICTURE = "https://pictures.example.com/dot.png";
@@ -200,7 +198,7 @@ async function pasteModel(session: GraphSession, tab: HTMLElement): Promise<void
 }
 
 /**
- * The `graphty-assets` entries of the one project kept in this browser, once it is kept.
+ * The asset entries of the one project kept in this browser, once it is kept.
  * @returns the entries.
  */
 async function keptEntries(): Promise<Record<string, unknown>[]> {
@@ -210,10 +208,11 @@ async function keptEntries(): Promise<Record<string, unknown>[]> {
         assert.isDefined(found);
         return found;
     });
+    // A version 2 file: the style section carries the assets its layers draw.
     const saved = JSON.parse(await file.text()) as {
-        members: { kind: string; assets?: Record<string, unknown>[] }[];
+        sections: { style?: { assets?: Record<string, unknown>[] } };
     };
-    return saved.members.find((member) => member.kind === "graphty-assets")?.assets ?? [];
+    return saved.sections.style?.assets ?? [];
 }
 
 describe("web addresses in the Style tab, with node models", () => {

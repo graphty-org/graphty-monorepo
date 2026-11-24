@@ -1,7 +1,7 @@
 /**
  * @file The `data` section codec, version 2: the build stamp, the source records (embedded or
  * referenced), the reader source's operations, the type registry, conversions, data issues, the
- * join history and the merged graph (spec/README.md 4.1). Experimental (`save-files-v2`).
+ * join history and the merged graph (spec/README.md 4.1).
  *
  * Known gaps: what this writes from today's model, which has no data store
  * (design/data/data-store-options.md is not built), and so cannot fill truthfully:

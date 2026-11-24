@@ -1,15 +1,13 @@
 import { ModalFooter, SegmentedControl } from "@graphty/compact-mantine";
 import type { GraphSession, ProjectAssetChoice } from "@graphty/graphty-element/session";
 import { Button, Group, Modal, Stack, Text } from "@mantine/core";
-import React, { lazy, Suspense, useEffect, useRef, useState } from "react";
+import React, { lazy, Suspense, useEffect, useState } from "react";
 
 import { modelName, pictureName } from "../canvas/models";
-import { saveFilesV2On } from "../features";
 import { megabytes } from "../start/library";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { chipLine, middleCut } from "../style/modelWords";
 import {
-    applyCopies,
     type AssetChoices,
     assetQuestion,
     DISCARD_DIALOG,
@@ -17,91 +15,12 @@ import {
     KEEP_ASSETS_DIALOG,
     openPending,
     SAVE_AS_DIALOG,
-    saveProjectAs,
     saveProjectAsV2,
 } from "./actions";
-import { NameField } from "./NameField";
 import { NetworkPrompt } from "./NetworkPrompt";
-import { type PendingCopies, SourceCopyControl } from "./SourceCopyControl";
 
-// The version 2 dialogs load only when the save-files-v2 experiment is on.
+// The version 2 save and open dialogs, loaded on demand.
 const SaveFilesV2Dialogs = lazy(async () => ({ default: (await import("./saveV2Lazy")).SaveFilesV2Dialogs }));
-
-/**
- * Save as... (`#/project-menu/save-as`): titled with the project's name, the name a field with
- * its text selected; Enter keeps the project in this browser under that name.
- * @returns The dialog
- */
-function SaveAsDialog(): React.JSX.Element {
-    const workspace = useWorkspace();
-    const opened = useWorkspaceState((state) => state.dialog === SAVE_AS_DIALOG);
-    const current = useWorkspaceState((state) => state.project?.name ?? "");
-    const [name, setName] = useState(current);
-    const [saving, setSaving] = useState(false);
-    // While the data source settings pop-over is open, Escape closes it and not the dialog.
-    const [settingsOpen, setSettingsOpen] = useState(false);
-    // The data source choices picked here: handed to graphty-element on Save, dropped on Cancel.
-    const [pending, setPending] = useState<PendingCopies>(new Map());
-
-    // Whether another dialog took the slot during a save (the question about files from the web,
-    // or Save as pressed again over it): the save then leaves the slot to that dialog.
-    const left = useRef(false);
-    // Read through a call: the effect sets it while the save awaits, which TypeScript's narrowing
-    // after `left.current = false` cannot see.
-    const hasLeft = (): boolean => left.current;
-    useEffect(() => {
-        setSettingsOpen(false);
-        setPending(new Map());
-        if (opened) {
-            setName(current);
-        } else {
-            left.current = true;
-        }
-    }, [opened, current]);
-
-    const close = (): void => {
-        workspace.store.set({ dialog: null });
-    };
-    const trimmed = name.trim();
-    const save = async (): Promise<void> => {
-        if (trimmed === "" || saving) {
-            return;
-        }
-        setSaving(true);
-        left.current = false;
-        try {
-            applyCopies(workspace.session, pending);
-            await saveProjectAs(workspace, trimmed);
-            if (!hasLeft()) {
-                close();
-            }
-        } finally {
-            setSaving(false);
-        }
-    };
-
-    return (
-        <Modal opened={opened} onClose={close} closeOnEscape={!settingsOpen} title={`Save ${current} as`}>
-            <form
-                onSubmit={(event) => {
-                    event.preventDefault();
-                    void save();
-                }}
-            >
-                <NameField value={name} onChange={setName} />
-                <SourceCopyControl pending={pending} onPending={setPending} onSettingsOpen={setSettingsOpen} />
-                <ModalFooter mt="md">
-                    <Button variant="default" onClick={close}>
-                        Cancel
-                    </Button>
-                    <Button type="submit" disabled={trimmed === ""} loading={saving}>
-                        Save
-                    </Button>
-                </ModalFooter>
-            </form>
-        </Modal>
-    );
-}
 
 /**
  * The unsaved-changes question, asked when Back to start or opening another project would throw
@@ -348,13 +267,9 @@ export function ProjectDialogs(): React.JSX.Element {
 
     return (
         <>
-            {saveFilesV2On(session) ? (
-                <Suspense fallback={null}>
-                    <SaveFilesV2Dialogs saveAsDialog={SAVE_AS_DIALOG} save={saveProjectAsV2} />
-                </Suspense>
-            ) : (
-                <SaveAsDialog />
-            )}
+            <Suspense fallback={null}>
+                <SaveFilesV2Dialogs saveAsDialog={SAVE_AS_DIALOG} save={saveProjectAsV2} />
+            </Suspense>
             <DiscardDialog />
             <KeepAssetsDialog />
             <NetworkPrompt />

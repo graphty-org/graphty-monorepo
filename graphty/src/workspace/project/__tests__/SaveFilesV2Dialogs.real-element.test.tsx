@@ -1,5 +1,5 @@
 /**
- * The version 2 Save as, Open and report dialogs (the "save-files-v2" experiment) on the REAL
+ * The version 2 Save as, Open and report dialogs on the REAL
  * graphty-element, past the paths SaveFilesV2.real-element.test.tsx walks: a custom choice of
  * sections, nothing chosen and no name; copy or reference for each source; a source on the web that
  * Open asks before fetching and whose Refresh fails; runs rerun or restored; sections written on
@@ -13,7 +13,6 @@ import { browserProjects, type GraphSession } from "@graphty/graphty-element/ses
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { commands, userEvent } from "vitest/browser";
 
-import { withFeatures } from "../../../test/features";
 import { openBy } from "../../../test/open";
 import { pickSample } from "../../../test/samples-dialog";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
@@ -103,8 +102,6 @@ afterEach(() => {
 });
 
 describe("version 2 Save as, Open and report dialogs", () => {
-    withFeatures(["save-files-v2"]);
-
     it("Save as: a custom choice, a full file again, nothing chosen, no name, and Cancel", async () => {
         await start();
         const dialog = await saveAs(SAMPLE);

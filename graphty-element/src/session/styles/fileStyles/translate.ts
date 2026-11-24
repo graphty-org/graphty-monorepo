@@ -1524,8 +1524,9 @@ export function translateFileStyles(input: TranslateInput): Translation {
     }
 
     const layers = inRuleOrder(byKind, extracted.styles.rules);
+    // A layer rebuilt from one graphty wrote keeps its bindings as written; only the file's own rules' text is markup.
     for (const layer of layers) {
-        if (layer.spec.encode !== undefined) {
+        if (layer.fallback === undefined && layer.spec.encode !== undefined) {
             readTextAsMarkup(layer.spec.encode);
         }
     }
@@ -1549,8 +1550,7 @@ export function translateFileStyles(input: TranslateInput): Translation {
  * @param encode - A layer's bindings, rewritten in place.
  */
 function readTextAsMarkup(encode: Encoding): void {
-    // A layer graphty wrote into an older file is carried over as it was written, a malformed binding included,
-    // and refused where it is checked.
+    // A test or a damaged file can hand a malformed binding through; it is refused where layers are checked.
     for (const [channel, binding] of Object.entries(encode) as [Channel, unknown][]) {
         if (
             typeof binding === "object" &&

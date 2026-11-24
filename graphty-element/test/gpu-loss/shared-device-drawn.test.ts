@@ -321,6 +321,28 @@ describe("the layout filling the row table on a shared device", () => {
         assert.isAtLeast(box[5], 300);
     });
 
+    // The layout reloads before the table grows to the added row: the ring then waited for a later edge edit, and every
+    // landing in between went up by upload.
+    it("keeps copying landings after a node with no edges is added mid-run", async () => {
+        const graph = await running("batched");
+        const table = graph.getRowTable();
+        assert.isNotNull(table);
+        await copied(graph);
+        await graph.addNodes([{ id: "late" }]);
+        // the load's first landing goes up by upload (the ring is attached a batch after a load), and the added row,
+        // told to the ring as the layout places it, is sent again over the landings of the batches then in flight
+        await toldRowsLanded(graph);
+        const { copies } = table;
+        const uploads = table.positionUploads;
+        await landed(graph);
+        await landed(graph);
+        await landed(graph);
+
+        assert.isAtLeast(table.copies - copies, 2, `uploads ${String(table.positionUploads - uploads)}`);
+        assert.strictEqual(table.positionUploads - uploads, 0);
+        assert.isBelow((await textureDiff(graph)).worst, 1e-5);
+    });
+
     it("shows the rows added while it runs once the layout places them", async () => {
         const graph = await running("batched");
         const table = graph.getRowTable();

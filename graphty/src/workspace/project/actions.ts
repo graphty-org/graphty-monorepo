@@ -378,9 +378,14 @@ async function writeProject(
     }
     await refreshStored();
     workspace.set({ notice: { message: withLeftOut(session, `Saved ${name} in this browser.`, saved.report) } });
-    // Save as reports what the save left out; a later Save says only that it saved.
+    // Save as reports what the save left out. A later Save reports only what the file no longer
+    // keeps of the project (W_MEMBER_LEFT_OUT: work version 2 files do not hold yet, such as
+    // renamed columns), so the reader learns before reopening loses it.
+    const lost = (saved.report?.leftOut ?? []).filter((fact) => fact.code === "W_MEMBER_LEFT_OUT");
     if (v2 !== null) {
         await reportSave(workspace, session, `Saved ${name}`, saved.report);
+    } else if (lost.length > 0 && saved.report !== undefined) {
+        await reportSave(workspace, session, `Saved ${name}`, { ...saved.report, leftOut: lost });
     }
     return true;
 }

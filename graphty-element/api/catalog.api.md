@@ -1989,6 +1989,7 @@ export type LabelDeclutterOrder = "degree" | "size";
 // @public
 export interface LabelEntry {
     readonly id: string;
+    readonly name?: string;
     readonly off?: true;
     readonly style?: LabelStyle;
     readonly text?: string;

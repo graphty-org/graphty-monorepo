@@ -2711,7 +2711,8 @@ function labelListChannel(target: "node" | "edge"): ChannelDescriptor {
         stylePath: "labels",
         renderable: true,
         caveat:
-            `Several labels on one ${target}, each { id, text?, style?, off? }. Entries merge by id across ` +
+            `Several labels on one ${target}, each { id, name?, text?, style?, off? }; the element never draws a name, ` +
+            `it keeps and saves it for an editor to show. Entries merge by id across ` +
             `layers, field by field; \`${target}.labelStyle\` and the label field channels are the base style ` +
             `of every entry. The entry with id "label" is \`${target}.label\`'s own label; an entry with no text draws its words. ` +
             `A field of one label varies by data through the encode key "${target}.labels.<id>.<field>". ` +
@@ -7205,13 +7206,29 @@ export function mergeLabelEntries(held: unknown, over: unknown): readonly LabelE
             continue;
         }
 
-        const base = beneath?.off === true ? undefined : beneath;
-        const text = entry.text ?? base?.text;
-        const style = entryStyleOver(base?.style, entry.style);
-        out.set(id, { id, ...(text === undefined ? {} : { text }), ...(style === undefined ? {} : { style }) });
+        out.set(id, entryOver(id, beneath?.off === true ? undefined : beneath, entry));
     }
 
     return [...out.values()];
+}
+
+/**
+ * One label entry over the entry with its id beneath: each field it names wins, its style field by field.
+ * @param id - The label's id.
+ * @param base - The entry beneath, or undefined.
+ * @param entry - What this layer writes.
+ * @returns The merged entry.
+ */
+function entryOver(id: string, base: LabelEntry | undefined, entry: Partial<LabelEntry>): LabelEntry {
+    const name = entry.name ?? base?.name;
+    const text = entry.text ?? base?.text;
+    const style = entryStyleOver(base?.style, entry.style);
+    return {
+        id,
+        ...(name === undefined ? {} : { name }),
+        ...(text === undefined ? {} : { text }),
+        ...(style === undefined ? {} : { style }),
+    };
 }
 
 /**

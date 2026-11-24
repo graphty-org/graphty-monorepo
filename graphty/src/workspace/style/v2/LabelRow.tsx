@@ -6,10 +6,14 @@
  * is written until a source is picked or a line is set. Size and Color are drawn under it whether set or not.
  */
 
+import "./labelRename.css";
+
+import { ContextMenu, InlineRename } from "@graphty/compact-mantine";
 import { type Channel, type ChannelDescriptor } from "@graphty/graphty-element/catalog";
 import type { LabelStyle } from "@graphty/graphty-element/schema";
 import React, { useState } from "react";
 
+import { CommandMenuItem } from "../../frame/menus";
 import { GLYPHS } from "../../glyphs";
 import { useWorkspace } from "../../state/WorkspaceContext";
 import { SourcePicker } from "../LabelSection";
@@ -18,7 +22,7 @@ import type { RowContext } from "../PropertyRow";
 import { type DataBinding, type Line, lineIn, propose, textBinding, writeIn } from "../row";
 import { ValueField } from "../ValueField";
 import { failureWords } from "../words";
-import { entryOf, entryWords, listChannel, writeEntry } from "./labelEntries";
+import { entryOf, entryWords, listChannel, nameFree, writeEntry } from "./labelEntries";
 import { LabelFieldLine, type LabelLineContext, type LabelPatch } from "./LabelFieldLine";
 import { LabelPopover } from "./LabelPopover";
 import {
@@ -207,6 +211,7 @@ export function LabelRow({
     onOpenChange,
 }: LabelRowProps): React.JSX.Element {
     const { store } = useWorkspace();
+    const [renaming, setRenaming] = useState(false);
     const styleLine = entry === undefined ? lineIn(ctx, kind.style) : undefined;
     const style = entry === undefined ? styleOf(styleLine) : (entryOf(ctx, entry)?.style ?? {});
     const words = entry === undefined ? lineIn(ctx, kind.words) : entryWords(ctx, entry);
@@ -332,28 +337,91 @@ export function LabelRow({
             <LabelPopover label={label} others={others} first={member} />
         </RowSettings>
     );
+    const frame = (
+        <LineFrame
+            line={entry === undefined ? kind.words : `${ctx.side}.labels.${entry}.text`}
+            name={name}
+            set
+            rule="R12"
+            control={
+                <TextSource
+                    ctx={ctx}
+                    kind={kind}
+                    title={title}
+                    opensAtOnce={pending && words === undefined}
+                    words={words}
+                    also={sharedWhere(ctx, kind, entry)}
+                    onWrite={writeWords}
+                />
+            }
+            modifier={settings}
+            removeName={removeLabel}
+            onRemove={onRemove}
+        />
+    );
+    // A further label is renamed in place (its entry's name): a double-click on its name, F2 on the row, or the
+    // row's menu (a right-click, a touch held, Shift+F10). An empty name, its own or another label's writes nothing.
+    const rename = (typed: string): void => {
+        setRenaming(false);
+        const next = typed.trim();
+        if (entry === undefined || !nameFree(ctx, entry, next)) {
+            return;
+        }
+        writeEntry(ctx, entry, { name: next }).catch((error: unknown) => {
+            store.set({ notice: { message: failureWords(title, "renamed", error), error: true } });
+        });
+    };
+    const startRename = (): void => {
+        setRenaming(true);
+    };
+    const head =
+        entry === undefined ? (
+            frame
+        ) : (
+            <ContextMenu
+                target={
+                    // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- only catches a double-click on the name and F2 bubbling from the row's own controls; the menu's Rename is the keyboard and touch door
+                    <div
+                        className="sp2-label-head"
+                        data-renaming={renaming ? "" : undefined}
+                        onDoubleClick={(event) => {
+                            if ((event.target as Element).closest('[data-testid="control-group-label"]') !== null) {
+                                startRename();
+                            }
+                        }}
+                        onKeyDown={(event) => {
+                            if (event.key === "F2") {
+                                event.preventDefault();
+                                startRename();
+                            }
+                        }}
+                    >
+                        {renaming ? (
+                            <InlineRename
+                                value={name}
+                                label={`${title} name`}
+                                onCommit={rename}
+                                onCancel={() => {
+                                    setRenaming(false);
+                                }}
+                            />
+                        ) : null}
+                        {frame}
+                    </div>
+                }
+            >
+                <CommandMenuItem
+                    icon={<GLYPHS.rename size={14} aria-hidden />}
+                    label="Rename"
+                    shortcut="F2"
+                    reason={null}
+                    onRun={startRename}
+                />
+            </ContextMenu>
+        );
     return (
         <>
-            <LineFrame
-                line={entry === undefined ? kind.words : `${ctx.side}.labels.${entry}.text`}
-                name={name}
-                set
-                rule="R12"
-                control={
-                    <TextSource
-                        ctx={ctx}
-                        kind={kind}
-                        title={title}
-                        opensAtOnce={pending && words === undefined}
-                        words={words}
-                        also={sharedWhere(ctx, kind, entry)}
-                        onWrite={writeWords}
-                    />
-                }
-                modifier={settings}
-                removeName={removeLabel}
-                onRemove={onRemove}
-            />
+            {head}
             {/* Every line of the label the layer sets, in the pop-over's order, named (design 2.5). */}
             {setLines.map((line) => (
                 <LabelFieldLine key={`${line.field}-${line.name ?? ""}`} label={label} line={line} named />

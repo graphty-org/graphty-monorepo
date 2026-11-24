@@ -1,0 +1,11 @@
+/*
+ * A further label's name field, in the place of the name it renames (LabelRow.tsx). The name is hidden, not
+ * removed, so the row's controls stay mounted and take focus back when the field closes.
+ */
+.sp2-label-head[data-renaming] > .ws-row > [data-testid="control-group"] > [data-testid="control-group-header"] {
+    display: none;
+}
+
+.sp2-label-head > .cm-rename {
+    margin-bottom: 4px;
+}

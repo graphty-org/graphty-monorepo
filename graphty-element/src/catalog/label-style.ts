@@ -183,6 +183,12 @@ export interface LabelEntry {
     readonly style?: LabelStyle;
     /** True removes the label with this id the layers beneath give. */
     readonly off?: true;
+    /**
+     * The label's name, as the reader typed it; absent, an application names it from its look. The
+     * element never draws it: it is kept, merged by id like `text`, saved and restored.
+     * @since 3.68.0
+     */
+    readonly name?: string;
 }
 
 /** How a label is drawn. */

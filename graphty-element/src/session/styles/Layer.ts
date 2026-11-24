@@ -763,10 +763,10 @@ function checkLabelStyle(
 }
 
 /** The members a label list entry may carry. */
-const LABEL_ENTRY_KEYS: ReadonlySet<string> = new Set(["id", "text", "style", "off"]);
+const LABEL_ENTRY_KEYS: ReadonlySet<string> = new Set(["id", "name", "text", "style", "off"]);
 
 /**
- * Check a label list: a list of `{ id, text?, style?, off? }`, each id written once.
+ * Check a label list: a list of `{ id, name?, text?, style?, off? }`, each id written once.
  * @param descriptor - The channel.
  * @param value - The value.
  * @param path - Where it sits in the specification.
@@ -793,11 +793,12 @@ function checkLabelEntries(
             entry.id === "" ||
             Object.keys(entry).some((key) => !LABEL_ENTRY_KEYS.has(key)) ||
             (entry.text !== undefined && typeof entry.text !== "string") ||
+            (entry.name !== undefined && typeof entry.name !== "string") ||
             (entry.off !== undefined && entry.off !== true)
         ) {
             return {
                 code: "E_BAD_LAYER",
-                message: 'A label is { id: "<id>", text?, style?, off?: true }.',
+                message: 'A label is { id: "<id>", name?, text?, style?, off?: true }.',
                 path: where,
             };
         }

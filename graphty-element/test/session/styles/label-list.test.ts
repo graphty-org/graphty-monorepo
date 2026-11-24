@@ -265,6 +265,47 @@ describe("a label list", () => {
         assert.isNull(parseLabelFieldAddress("node.label"));
     });
 
+    it("keeps a label's name: merged by id, listed beneath, saved, and a name that is not words refused", async () => {
+        assert.deepStrictEqual(
+            mergeLabelEntries([{ id: "top", name: "Price", text: "T" }], [{ id: "top", text: "U" }]),
+            [{ id: "top", name: "Price", text: "U" }],
+        );
+        assert.strictEqual(mergeLabelEntries([{ id: "top", name: "A" }], { top: { name: "B" } })[0]?.name, "B");
+
+        const session = createGraphSession();
+        await session.data.addNodes([{ id: "a" }]);
+        const low = await session.styles.add({
+            name: "Low",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.labels": [{ id: "top", name: "Price", text: "T" }] },
+        });
+        const top = await session.styles.add({
+            name: "Top",
+            target: "node",
+            selector: { match: "everything" },
+            set: {},
+        });
+        assert.strictEqual(session.styles.labelsBeneath("node", top.id)[0]?.name, "Price");
+        const saved = session.styles.get(low.id)?.set?.["node.labels"] as readonly { name?: string }[] | undefined;
+        assert.strictEqual(saved?.[0]?.name, "Price");
+
+        let refused: unknown;
+        try {
+            await session.styles.add({
+                name: "Bad",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.labels": [{ id: "x", name: 3 as unknown as string }] },
+            });
+        } catch (error) {
+            refused = error;
+        }
+
+        assert.strictEqual((refused as { code?: string } | undefined)?.code, "E_BAD_LAYER");
+        session.dispose();
+    });
+
     it("draws an entry's named look beneath its own fields", async () => {
         const held = painterHarness(NODES, EDGES);
         await held.styles.add({

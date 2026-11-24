@@ -21,7 +21,7 @@ import type { Encoding, Layer } from "@graphty/graphty-element/session";
 
 import type { RowContext } from "../PropertyRow";
 import { type DataBinding, type Line, lineIn, lineOf, writeLine } from "../row";
-import { lookOf } from "./kindGroups";
+import { lookOf, PLAIN_LOOK } from "./kindGroups";
 import { TEXT_THINGS } from "./labelRubric";
 
 /**
@@ -132,6 +132,42 @@ export function entryNumber(ctx: RowContext, ids: readonly string[], id: string)
 }
 
 /**
+ * A further label's name: the one the reader gave it (its entry's `name`, on the row or beneath), else its look's
+ * name and its number ("Card 2"), so two labels never read the same (E263).
+ * @param ctx - the row.
+ * @param id - its id.
+ * @param n - its number (`entryNumber`).
+ * @returns the name.
+ */
+export function entryName(ctx: RowContext, id: string, n: number): string {
+    const given = entryOf(ctx, id)?.name ?? beneathEntry(ctx, id)?.name;
+    if (given !== undefined) {
+        return given;
+    }
+    const look = entryLook(ctx, id);
+    const base = LABEL_LOOKS.find((each) => each.id === look && each.id !== PLAIN_LOOK)?.plainName ?? "Label";
+    return `${base} ${String(n)}`;
+}
+
+/**
+ * Whether a further label may take a name: not empty, not its name now, and no other label's (case aside).
+ * @param ctx - the row.
+ * @param id - its id.
+ * @param name - the name typed, trimmed.
+ * @returns true when the name may be written.
+ */
+export function nameFree(ctx: RowContext, id: string, name: string): boolean {
+    const ids = [...new Set([...drawnBeneath(ctx).keys(), ...entryIds(ctx)])];
+    const main = LABEL_LOOKS.find((each) => each.id === lookOf(ctx, TEXT_THINGS[ctx.side].label.style))?.plainName;
+    const taken = [
+        "Label",
+        ...(main === undefined ? [] : [main]),
+        ...ids.map((each) => entryName(ctx, each, entryNumber(ctx, ids, each))),
+    ].map((each) => each.toLowerCase());
+    return name !== "" && !taken.includes(name.toLowerCase());
+}
+
+/**
  * The further labels the row sets, each a row of its own: every entry but the main label's and those switched off.
  * @param ctx - the row.
  * @returns their ids, in the list's order.
@@ -180,6 +216,8 @@ export function entryWords(ctx: RowContext, id: string): Line | undefined {
 
 /** A change to one further label: its words (fixed text or a binding) and its style, undefined keeping each. */
 export interface EntryChange {
+    /** Its name, as the reader typed it. */
+    readonly name?: string;
     readonly text?: string;
     readonly binding?: DataBinding;
     /** Its whole style; an empty one takes the style off. */
@@ -209,8 +247,10 @@ export async function writeEntry(ctx: RowContext, id: string, change: EntryChang
     const now: LabelEntry = list.find((entry) => entry.id === id) ?? { id };
     const style = change.style ?? now.style;
     const text = change.binding === undefined ? (change.text ?? now.text) : undefined;
+    const name = change.name ?? now.name;
     const next: LabelEntry = {
         id,
+        ...(name === undefined ? {} : { name }),
         ...(text === undefined ? {} : { text }),
         ...(style === undefined || Object.keys(style).length === 0 ? {} : { style }),
     };

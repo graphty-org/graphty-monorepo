@@ -17,6 +17,7 @@ import { Divider } from "@mantine/core";
 import React, { useRef, useState } from "react";
 
 import { cosmographOn } from "../../features";
+import { GLYPHS } from "../../glyphs";
 import { useWorkspace } from "../../state/WorkspaceContext";
 import type { FoundHome } from "../parts/find";
 import { FindSettingBox, FindSettingResults } from "../parts/FindSetting";
@@ -35,7 +36,9 @@ import { viewDim } from "./drawn";
 import { replaceUse } from "./families";
 import { kindGroupOf, type KindMember, kindsShown, kindStarts, lineWidthOf, ownsOf, PLAIN_LOOK } from "./kindGroups";
 import {
+    beneathEntry,
     entryIds,
+    entryName,
     entryNumber,
     freshEntryId,
     labelsBeneath,
@@ -520,26 +523,41 @@ function ThingSection({
             }),
         ),
     ];
-    // Label's "+" also adds a label in each look but the plain one, which Label adds (E196): never a Glyph. It
-    // also offers, by number, each further label a layer beneath draws, to restyle that label here (E263, E265).
-    const beneathOptions = (label: AddOption): AddOption[] =>
-        labelsBeneath(ctx)
-            .filter((id) => !shownIds.includes(id))
-            .map((id) => ({
-                ...label,
-                key: `${ENTRY_WAIT}${id}`,
-                label: `${label.label} ${String(entryNumber(ctx, shownIds, id))}`,
-                // Restyling a label already drawn adds none, so the cap never holds it back.
-                disabled: ctx.many === undefined ? undefined : true,
-                dimmed: undefined,
-                // What it draws, the words its row shows ("name, below"), as its tooltip: no words in the bar (E106).
-                hint: labelWords(ctx, id),
-            }));
+    // Label's "+" also adds a label in each look but the plain one, which Label adds (E196): never a Glyph.
     const plus = groups.map((group) =>
-        group.flatMap((option) =>
-            option.key === "label" ? [option, ...lookOptions(ctx, option), ...beneathOptions(option)] : [option],
-        ),
+        group.flatMap((option) => (option.key === "label" ? [option, ...lookOptions(ctx, option)] : [option])),
     );
+    // Above them, apart, the further labels already drawn: the row's own and those a layer beneath draws, to restyle
+    // here (E263, E265). Each has a pencil, as it edits a label rather than adding one, and picking it opens its
+    // pop-over.
+    const label = plus.flat().find((option) => option.key === "label");
+    const own = entryIds(ctx);
+    const existing: AddOption[] =
+        label === undefined
+            ? []
+            : [
+                  ...new Set([
+                      ...own,
+                      ...labelsBeneath(ctx),
+                      ...shownIds.filter((id) => beneathEntry(ctx, id) !== undefined),
+                  ]),
+              ]
+                  .sort((a, b) => entryNumber(ctx, shownIds, a) - entryNumber(ctx, shownIds, b))
+                  .map((id) => {
+                      const name = entryName(ctx, id, entryNumber(ctx, shownIds, id));
+                      // What it draws, the words its row shows ("name, below"), in its tooltip: no words in the bar (E106).
+                      const words = labelWords(ctx, id);
+                      return {
+                          key: `${ENTRY_WAIT}${id}`,
+                          label: name,
+                          icon: <GLYPHS.rename size={14} aria-hidden />,
+                          name: `Edit ${name}`,
+                          hint: words === "" ? `Edit ${name}` : `Edit ${name}: ${words}`,
+                          // Restyling a label already drawn adds none, so the cap never holds it back.
+                          disabled: ctx.many === undefined ? undefined : true,
+                      };
+                  });
+    plus.unshift(existing);
     const options = plus.flat().filter((option) => option.disabled !== true);
     // A Label already drawn adds a further label (labelEntries.ts), waiting for its source as the first does.
     const fail = (error: unknown): void => {
@@ -577,8 +595,12 @@ function ThingSection({
             return;
         }
         if (id.startsWith(ENTRY_WAIT)) {
-            // A label a layer beneath draws: its row, waiting for the first thing the reader changes on it.
-            setWaiting((now) => (now.includes(id) ? now : [...now, id]));
+            // A label already drawn: its pop-over opens, and one a layer beneath draws gets a row here, waiting for
+            // the first thing the reader changes on it.
+            if (!entryIds(ctx).includes(id.slice(ENTRY_WAIT.length))) {
+                setWaiting((now) => (now.includes(id) ? now : [...now, id]));
+            }
+            setOpening(id);
             return;
         }
         const [thingId, look] = id.split(LOOK_SEP) as [string, LabelLookId | undefined];
@@ -679,7 +701,7 @@ function ThingSection({
                                 kind={kind}
                                 entry={entry}
                                 pending={waiting.includes(key) || (entry === undefined && waiting.includes(thing.id))}
-                                opening={opening === thing.id}
+                                opening={opening === (entry === undefined ? thing.id : key)}
                                 onOpened={() => {
                                     setOpening(undefined);
                                 }}

@@ -620,6 +620,10 @@ export interface AddOption {
     readonly dimmed?: string;
     /** What it does, as its tooltip, where its name alone does not say. */
     readonly hint?: string;
+    /** Drawn before its name, such as a pencil on an item that edits something already there. */
+    readonly icon?: React.ReactNode;
+    /** Its accessible name, where it says more than its words ("Edit card 2"); it holds them. */
+    readonly name?: string;
 }
 
 /**
@@ -827,7 +831,9 @@ function menuItem(option: AddOption, onAdd: (key: string) => void): React.JSX.El
     const item = (each: AddOption): React.JSX.Element => (
         <Menu.Item
             key={each.key}
+            leftSection={each.icon}
             rightSection={each.detail}
+            aria-label={each.name}
             disabled={each.disabled}
             data-dimmed={each.dimmed === undefined ? undefined : ""}
             title={each.dimmed ?? each.hint}

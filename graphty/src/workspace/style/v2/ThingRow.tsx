@@ -4,7 +4,7 @@
  * the whole thing off the layer in one undo step.
  */
 
-import { type Channel, type ChannelDescriptor, LABEL_LOOKS } from "@graphty/graphty-element/catalog";
+import { type Channel, type ChannelDescriptor } from "@graphty/graphty-element/catalog";
 import React, { useEffect, useRef, useState } from "react";
 
 import { useWorkspace } from "../../state/WorkspaceContext";
@@ -29,8 +29,8 @@ import { swatchesOf } from "./colorItems";
 import { dimOf } from "./drawn";
 import { familyOf, pickReplace, replaceUse } from "./families";
 import { ItemListEditor } from "./ItemListEditor";
-import { kindGroupOf, type KindMember, PLAIN_LOOK } from "./kindGroups";
-import { entryLook, removeEntry } from "./labelEntries";
+import { kindGroupOf, type KindMember } from "./kindGroups";
+import { beneathEntry, entryName, entryOf, removeEntry } from "./labelEntries";
 import { LabelRow } from "./LabelRow";
 import { TEXT_THINGS, type TextThing } from "./labelRubric";
 import { unsetIn } from "./lineWrites";
@@ -350,14 +350,16 @@ function rowNames(
     kind: KindMember | undefined,
     entry: { readonly id: string; readonly n: number } | undefined,
 ): { readonly name: string; readonly title: string } {
-    const entryLooks = entry === undefined ? undefined : entryLook(ctx, entry.id);
-    const lookName = LABEL_LOOKS.find((each) => each.id === entryLooks && each.id !== PLAIN_LOOK)?.plainName;
-    const named = kind !== undefined && kind.id !== "text" && (kind.look === undefined || thing.id === "label");
-    const base = lookName ?? (named ? kind.plainName : thing.name);
     const kindWord = ctx.side === "node" ? "Node" : "Edge";
-    const number = entry === undefined ? "" : ` ${String(entry.n)}`;
-    // A further label's number is in its visible name, so two labels never read the same (E263).
-    return { name: `${base}${number}`, title: `${kindWord} ${base.toLowerCase()}${number}` };
+    if (entry !== undefined) {
+        // A further label's name is the reader's, else its look's and its number (labelEntries.ts).
+        const name = entryName(ctx, entry.id, entry.n);
+        const given = entryOf(ctx, entry.id)?.name ?? beneathEntry(ctx, entry.id)?.name;
+        return { name, title: `${kindWord} ${given === undefined ? name.toLowerCase() : name}` };
+    }
+    const named = kind !== undefined && kind.id !== "text" && (kind.look === undefined || thing.id === "label");
+    const base = named ? kind.plainName : thing.name;
+    return { name: base, title: `${kindWord} ${base.toLowerCase()}` };
 }
 
 /**

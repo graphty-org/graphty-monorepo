@@ -149,10 +149,11 @@ written.
 ### 2.6 Settings popover
 
 `SettingsPopout` (264 px) beside the panel at the row's height; closes on outside click and Escape. Views opened
-from it drill into it in place (Input rules, "Nesting, by drill-in"); pickers are plain `Popout`s (SettingsPopout
+from it open beside it, never in its place (Input rules, "Nesting"); pickers are plain `Popout`s (SettingsPopout
 refuses nesting).
 
-- **Header**: the thing's name. The popover's "+" (`AddButton`), listing the thing's sub-groups not shown yet
+- **Header**: the thing's name, and the Advanced "..." before the close button when the thing has rare settings
+  (Input rules, "Advanced pop-over"). The popover's "+" (`AddButton`), listing the thing's sub-groups not shown yet
   (at most 12), sits on the Main legend: compact-mantine's `Popout` header actions are icon buttons with an
   `onClick` and cannot hold a menu, and compact-mantine is locked to Figma.
 - **Switch to is not in the popover**: it is on the row (2.4).
@@ -180,8 +181,8 @@ refuses nesting).
 - **Never empty**: a row whose main value can be bound always has its main value line in Main, bound or not,
   so its "..." always opens lines. A row whose main value cannot be bound and whose thing has no other settings
   leaves its "..." slot empty (as Figma does) and is drawn `[<> name] [main] [-]`.
-- **Depth**: panel, one popover (settings, or `BindingPopover` in its place, with Back), one picker beside it.
-  No tabs. The popover opens scrolled to its first set line; height follows content, capped at the viewport.
+- **Depth**: panel, the settings popover, its Advanced pop-over beside it, and a dedicated component (a picker,
+  the link dialog) beside either; never in place, never a fourth (Input rules, "Nesting"). No tabs. The popover opens scrolled to its first set line; height follows content, capped at the viewport.
 
 ## 3. Marks, counted
 
@@ -450,21 +451,31 @@ Rules for style inputs:
 - Linking buttons and settings buttons must be positioned on the same line after to the control they are linking
   the value to. They should be hidden until on-hover
 
+Added 2026-11-24:
+
+- The 'advanced' button is always a '...' icon
+- The 'advanced' button opens a new pop-over, it doesn't replace the current pop-over
+- do not use in-place pop-overs
+- "when I said no more than two levels of pop-overs, I wasn't thinking of dedicated components. the things you just
+  named are fine as third-level pop-overs." (The things named: color pickers, drop-down lists, the picture picker,
+  the shape, pattern and arrow lists with their section drop-down, the data field picker, the link dialog with its
+  color table's swatch picker and "Set properties", and a link dialog opened from a line inside the Advanced
+  pop-over.)
+
 ### How they are applied (decisions)
 
-- **Nesting, by drill-in.** The panel is level 0. A row's settings pop-over is level 1. Whatever opens from inside
-  the pop-over as a view of its own (its Advanced view, the link-a-value dialog, a bound value's dialog, a shape,
-  pattern or arrow list) drills in: it replaces the pop-over's content in place, with a back button in the
-  header that returns to what was there, and the header's title names it. A view opened from a drilled view
-  drills again, in the same pop-out. So drilled views stay level 1, and the pickers any of them opens (a color
-  picker, a drop-down's list, the Picture pop-over) are level 2, the last: nothing opens a third, and a drilled
-  view may hold colors and drop-downs. Escape goes back one view; the close button closes the pop-over. A link
-  dialog opened from a line under a row (no pop-over) is a pop-out of its own and hosts drill-in the same way.
-  Built as `Pop` (`graphty/src/workspace/options/Drill.tsx`) over compact-mantine's `Popout`: the back button is
-  the header's action button (the header has no slot before its title, so it sits before the close button).
+- **Nesting: pop-overs beside, never in place.** The panel is level 0. The two-level limit counts the panel's own
+  pop-overs: a row's settings pop-over is level 1, and the Advanced pop-over its header's "..." opens is level 2.
+  A dedicated component (a color picker, a drop-down's list, the Picture picker, a shape, pattern or arrow list
+  with its section drop-down, the data field picker, the link dialog and what it opens) is not a pop-over level:
+  it may open from level 1 or level 2 as the third, and nothing opens a fourth. Nothing replaces a pop-over's
+  content: every pop-out opens beside the one it came from, which stays open with its own title, and there are no
+  back buttons. The link dialog opens as a pop-out of its own: from a sidebar line, beside the panel; from a line
+  in a pop-over (the Advanced pop-over included), beside that pop-over.
 - **Height.** "Components tall" counts lines from top to bottom with every sub-group shown: two inputs on one
   line count once, a Kind line and a Combine or operation line count, each list item counts. Over 6, the rarer
-  or optional lines move to the Advanced view. A sub-group's legend holding its "+" (Main's) is a line too.
+  or optional lines move to the Advanced pop-over. A sub-group's legend holding its "+" (Main's) is a line too;
+  the Advanced "..." sits in the header and is no line.
 - **Components.** A single color: `CompactColorInput`. A gradient: compact-mantine `GradientEditor`. A list of
   6 or more options: a drop-down (`PanelField kind="select"`, or the existing `ValueListbox` for pictured
   lists). Fewer than six exclusive options: grouped buttons (`SegmentedControl`). A number with a fixed minimum
@@ -497,19 +508,26 @@ Rules for style inputs:
   a plain number's pop-over has no Combine line: it shows only where a layer already writes a combine (a file,
   an earlier version), named "Combine", so that value stays changeable.
 
-- **Advanced view.** A pop-over's last line is "Advanced" when its thing has rare settings: a full-width button
-  that drills into the pop-over (Nesting). The rubric marks a sub-group `advanced` (a thing's) or a line
-  `advanced` (a label's); the dialog shows every such group, always, under its name, with the group's minus once
-  set, and those groups leave the "+" menu. Its lines draw no link button. A line under a switch (a label's
-  "Opacity" under Letter outline) is called by its whole name there. Every label sub-group (Position, Letters,
-  Wrap, Background, Box stroke, shadows, Callout, Badge, Behavior) and the chart's stroke colors are there, so a
-  label pop-over is Kind, Main, Font, Style, Location, Advanced; a Glyph's is Kind, Glyph, Size, Color, Style,
-  Advanced (its Font in Advanced). So are an arrow's Open caps fill, a pattern's Wave, Force curves' Curve and
+- **Advanced pop-over.** When its thing has rare settings, a pop-over's header holds a "..." icon button (the
+  row settings button's glyph and size, tooltip and name "Advanced settings") before its close button. It opens
+  the Advanced pop-over beside the pop-over, which stays open: on the left when there is room, else on the right,
+  else below or above where there is more room (an iPad held upright, 768 x 1024), its content then scrolling, so
+  it never covers the pop-over. "..." again, or its own close button, closes only it; closing the pop-over closes
+  both. The rubric marks a sub-group `advanced` (a thing's) or a line `advanced` (a label's); the Advanced
+  pop-over shows every such group, always, under its name, with the group's minus once set, and those groups
+  leave the "+" menu. Its lines carry their link button where the value can be linked: the link dialog opens from
+  there as the third level. A line under a switch (a label's "Opacity" under Letter outline) is called by its
+  whole name there. Every label sub-group (Position, Letters, Wrap, Background, Box stroke, shadows, Callout,
+  Badge, Behavior) and the chart's stroke colors are there, so a label pop-over is Kind, Main, Font, Style,
+  Location; a Glyph's is Kind, Glyph, Size, Color, Style (its Font in Advanced). So are an arrow's Open caps fill,
+  a pattern's Wave, Force curves' Curve and
   stripes' band Size and Frame. A Size pop-over's width and height pair is "W / H", so no second "Size" shows
   under its main value. An edge's Animation pop-over holds its Speed line (and its link).
-- **Link dialog.** Its main view keeps the source, Operation (numbers), the histogram and range, the from/to
-  output and the palette and group table; Scale, Clamp outliers, No value and More values than colors drill in
-  from its "Advanced" line.
+- **Link dialog.** At most 6 components tall, with no Advanced of its own, so one opened from the Advanced
+  pop-over never needs a fourth level. Two choices that go together share a line. A number: source, Operation,
+  the histogram with its value range, the from / to output, Scale | Clamp outliers, No value. A color: source,
+  palette, the group table, More values than colors | No value. It is 312 wide in v2, so a pair's halves read
+  whole. A bound value's dialog is the same dialog.
 - **Free text and pictures.** An unset text field holds the words drawn there ("+" for a badge's suffix) as its
   value, or "None" where none are drawn; left so, nothing is written. A picture (a label's image, a node image's
   Fallback, an arrow's Image) is the app's Picture field and pop-over (R16), reading "None" with no picture. A
@@ -695,7 +713,7 @@ label by `id` and merges per field (`mergeLabelStyle`); the save format is the l
 
 ### 7.5 Vary by data (`BindingPopover`)
 
-One page, opened in place of the settings popover with Back. The field's type picks the starting mapping, as
+One page, opened as a pop-out of its own beside what it opened from (Input rules, "Nesting" and "Link dialog"). The field's type picks the starting mapping, as
 today. Its pickers (field, palette, colors) are the one picker beside it.
 
 | Sub-group                      | Settings                                                                                                                       |

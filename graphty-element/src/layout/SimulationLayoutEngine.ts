@@ -1306,9 +1306,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
             return;
         }
 
-        if (this.#drawnShort >= 0) {
-            this.#attachDrawn(this.#drawnShort);
-        }
+        this.#attachShort();
 
         const iterations = this.#batchIterations();
         const arrangement = this.#arrangement;
@@ -1392,6 +1390,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
             this.#applyCollision(this.#snapshot.nodeCount);
         }
 
+        this.#attachShort();
         this.#iterationsDone += iterations;
         this.#syncWork();
         try {
@@ -1960,6 +1959,13 @@ export class SimulationLayoutEngine extends LayoutEngine {
         this.#sendDrawnTransform(run);
     }
 
+    /** Attaches the ring a load left waiting for the table to grow, before the next batch or publish. */
+    #attachShort(): void {
+        if (this.#drawnShort >= 0) {
+            this.#attachDrawn(this.#drawnShort);
+        }
+    }
+
     /** Back to the upload path: the ring stops, and the table tells no simulation of its writes. */
     #detachDrawn(): void {
         const run = this.#drawn;
@@ -1989,6 +1995,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * @returns The run, or null.
      */
     #drawnRun(): DrawnRun | null {
+        this.#attachShort();
         const run = this.#drawn;
         if (run === null) {
             return null;

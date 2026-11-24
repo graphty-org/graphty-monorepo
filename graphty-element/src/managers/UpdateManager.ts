@@ -2548,6 +2548,16 @@ export class UpdateManager implements Manager {
     }
 
     /**
+     * Make the `Edge`s built at a row drawn with no `Node` measure their ends again and place them, after the row's
+     * drawn size or shape changed: as {@link remeasureEdgesOf} does for a resized `Node` (issue #9857).
+     * @param row - The node row.
+     * @internal
+     */
+    placeEdgesOfRow(row: number): void {
+        this.placeEdgesOfRows([row]);
+    }
+
+    /**
      * Make the edges of resized nodes measure again, and place them this frame. While a load holds
      * the draw they wait for their own paint, or for the walk that ends the repaint.
      * @param resized - The nodes this frame resized.

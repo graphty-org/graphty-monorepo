@@ -12,6 +12,12 @@
  * before that check: they build rows and hide the defect. The "and then" cases call them on
  * purpose, part way through a run.
  *
+ * The "and then" steps include a real wheel zoom, a real drag on empty canvas (it turns the 3D camera
+ * and pans the 2D one) and a resize of the element; a node pushed past the canvas's edge by one of
+ * them is not required to be drawn. A last case removes the element while ngraph runs, inserts it
+ * again in a later task (a new engine, row table and picking buffers), checks the frames of the
+ * layout it resumes and hovers nodes with the real mouse.
+ *
  * Run (from graphty-element; about four minutes for each project):
  *   ../tools/with-browser.sh ../tools/low-priority.sh npx vitest run --project=browser \
  *     test/browser/edges-follow-running-layout.test.ts
@@ -37,7 +43,7 @@ import {
     undrawnEdges,
     undrawnNodes,
 } from "../helpers/drawn-invariants";
-import { drag, hover, nodePoint } from "../helpers/real-input";
+import { drag, hover, nodePoint, wheel } from "../helpers/real-input";
 import { edgeBetween } from "../helpers/testSetup";
 
 type View = "2d" | "3d";
@@ -190,6 +196,26 @@ afterEach(() => {
 });
 
 /**
+ * The style layers that give nodes and edges the inks the frame checks tell apart.
+ * @param element - The element.
+ * @param kind - The edges loaded.
+ */
+async function addInk(element: Graphty, kind: Kind): Promise<void> {
+    await element.session.styles.add({
+        name: "Node ink",
+        target: "node",
+        selector: { match: "everything" },
+        set: { "node.color": "#2040ff", "node.size": 1 },
+    });
+    await element.session.styles.add({
+        name: "Edge ink",
+        target: "edge",
+        selector: { match: "everything" },
+        set: { "edge.color": "#ff00ff", "edge.width": 6, ...KIND_STYLE[kind] },
+    });
+}
+
+/**
  * An element already drawn, empty, then given the disjoint fixture: the way a file loads in the
  * graphty app, and the only way rows are stored with no Node on the batched path.
  * @param path - The render path.
@@ -211,18 +237,7 @@ async function mounted(path: RenderPath, view: View, kind: Kind): Promise<Grapht
     });
     await element.updateComplete;
     await element.setViewMode(view);
-    await element.session.styles.add({
-        name: "Node ink",
-        target: "node",
-        selector: { match: "everything" },
-        set: { "node.color": "#2040ff", "node.size": 1 },
-    });
-    await element.session.styles.add({
-        name: "Edge ink",
-        target: "edge",
-        selector: { match: "everything" },
-        set: { "edge.color": "#ff00ff", "edge.width": 6, ...KIND_STYLE[kind] },
-    });
+    await addInk(element, kind);
     await operationQueueOf(element.graph).waitForCompletion();
     await element.waitForStableFrame();
 
@@ -261,6 +276,8 @@ function assertLazy(element: Graphty): void {
 interface Run {
     /** Frames where at least one node moved, each checked. */
     moving: number;
+    /** Of those, the frames checked from the start of the "and then" step on. */
+    afterStep: number;
     /** What was wrong, frame by frame. */
     misses: string[];
     /** The largest distance any node moved between the first and last moving frames, in CSS pixels. */
@@ -333,37 +350,62 @@ function frameCheck(
         );
     return {
         check: (picture) => {
-            const { ids, pairs, arrows, allowed = [] } = shown();
-            const now = centers(ids);
-            const moved = furthest(last, now);
-            last = now;
+            const { ids: all, pairs: allPairs, arrows: allArrows, allowed = [] } = shown();
+            const everywhere = centers(all);
+            const moved = furthest(last, everywhere);
+            last = everywhere;
             if (moved < STILL_PX) {
                 return undefined;
             }
 
-            if (drawnRadius(picture, [...now.values()]) < MIN_RADIUS_PX) {
+            // A camera move or a resize can put a node past the canvas's edge, where it is not drawn: only
+            // the nodes wholly on the canvas, and the edges between two of them, must be drawn. Any edge's
+            // ink is still allowed, and the nodes off it still count as places ink may be.
+            const radius = drawnRadius(picture, [...everywhere.values()]);
+            const canvas = element.graph.engine.getRenderingCanvas();
+            const width = canvas?.clientWidth ?? 0;
+            const height = canvas?.clientHeight ?? 0;
+            const margin = radius + 2;
+            const inView = (id: string): boolean => {
+                const c = everywhere.get(id);
+                return (
+                    c !== undefined && c.x >= margin && c.y >= margin && c.x <= width - margin && c.y <= height - margin
+                );
+            };
+            const ids = all.filter(inView);
+            const both = (pair: Pair): boolean => inView(pair[0]) && inView(pair[1]);
+            const pairs = allPairs.filter(both);
+            const now = new Map([...everywhere].filter(([id]) => inView(id)));
+            if (radius < MIN_RADIUS_PX) {
                 // Framed so far out that a node is a pixel and an edge a faint tint: nothing can be
                 // told apart. Not counted, so a run must still show enough frames that can be read.
                 return undefined;
             }
 
-            first ??= now;
+            first ??= everywhere;
             seen.push(now);
             // All three read the picture and the node centers now, in this frame, before they await.
             const curves = kind === "curved" ? curveEndsOff(picture, pairs, now) : [];
-            const undrawn = kind === "curved" ? Promise.resolve([]) : undrawnEdges(element, pairs, picture);
+            // Every edge is read, so every node counts as drawn over an edge, and only those in view are kept.
+            const undrawn =
+                kind === "curved"
+                    ? Promise.resolve([])
+                    : undrawnEdges(element, allPairs, picture).then((found) => found.filter(both));
             const stray =
                 kind === "curved"
                     ? Promise.resolve([])
-                    : strayInk(element, ids, [...pairs, ...allowed], picture, hiddenAt(element, ids, allowed));
-            const tips = kind === "curved" ? Promise.resolve([]) : arrowTipsOff(element, arrows, picture);
+                    : strayInk(element, all, [...allPairs, ...allowed], picture, hiddenAt(element, all, allowed));
+            const tips =
+                kind === "curved"
+                    ? Promise.resolve([])
+                    : arrowTipsOff(element, allArrows, picture).then((found) => found.filter(both));
             const labels =
                 kind === "labeled"
                     ? strayLabels(
                           picture,
-                          pairs.flatMap(([a, b]) => {
-                              const p = now.get(a);
-                              const q = now.get(b);
+                          allPairs.flatMap(([a, b]) => {
+                              const p = everywhere.get(a);
+                              const q = everywhere.get(b);
                               return p === undefined || q === undefined
                                   ? []
                                   : [{ x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 }];
@@ -455,6 +497,7 @@ async function checkWhileMoving(
     await start();
     const scene = element.graph.getScene();
     let stepped = during === undefined;
+    let checkedAtStep = 0;
     const drawOn = afterStart !== "stop";
     let still = 0;
     const done = (): boolean =>
@@ -465,6 +508,7 @@ async function checkWhileMoving(
         still = record.checked === before ? still + 1 : 0;
         if (!stepped && record.checked >= MOVING_FRAMES / 3) {
             stepped = true;
+            checkedAtStep = record.checked;
             await during?.();
         }
     }
@@ -479,6 +523,7 @@ async function checkWhileMoving(
     const centers = missed === null ? undefined : frames.centers(Number(missed[1]));
     return {
         moving: record.checked,
+        afterStep: record.checked - checkedAtStep,
         misses,
         travelled: frames.travelled(),
         picture: record.firstMiss(),
@@ -744,6 +789,27 @@ const AND_THEN: readonly AndThen[] = [
         },
     },
     {
+        name: "a real wheel zoom",
+        step: async (element) => {
+            await wheel(element, { x: SIZE / 2, y: SIZE / 2 }, -150);
+        },
+    },
+    {
+        // From the corner, which no node reaches: in 3D the drag turns the camera, in 2D it pans.
+        name: "a real camera orbit drag",
+        step: async (element) => {
+            await drag(element, { x: 4, y: 4 }, { x: 74, y: 44 }, 8);
+        },
+    },
+    {
+        name: "a resize of the element",
+        step: async (element) => {
+            element.style.width = "343px";
+            element.style.height = "301px";
+            await Promise.resolve();
+        },
+    },
+    {
         name: "a screenshot",
         step: async (element) => {
             const shot = await element.captureScreenshot();
@@ -766,7 +832,61 @@ describe.each(["objects", "batched"] as const)("and then, part way through ngrap
                 shown: () => (taken && after !== undefined ? after(element) : everything("arrow")),
             });
             assert.isTrue(taken, "the step was taken while the nodes moved");
+            assert.isAtLeast(run.afterStep, 5, "frames were checked during and after the step");
             assertFollowed(run);
         });
     });
 });
+
+describe.each(["objects", "batched"] as const)(
+    "removed part way through ngraph and inserted again on the %s path",
+    (path) => {
+        it("draws every edge between its nodes on every frame, and hovers the node under the real pointer", async () => {
+            const element = await mounted(path, "2d", "arrow");
+            assertLazy(element);
+            await element.setLayout("ngraph", { seed: 7 });
+            await drawnFrames(element.graph.getScene(), 5);
+            assert.isTrue(element.isRunning(), "removed while the layout runs");
+            const first = element.graph.engine;
+
+            // Removed past the current task: the graph shuts down and frees its engine.
+            element.remove();
+            await vi.waitFor(() => {
+                assert.isTrue(first.isDisposed, "the first engine was released");
+            });
+            document.body.appendChild(element);
+            await vi.waitFor(() => {
+                assert.isTrue(element.graph.initialized, "the new graph finished initialising");
+            });
+            assert.notStrictEqual(element.graph.engine, first, "a new engine draws it");
+            assert.strictEqual(element.renderPath, path, "the render path came back");
+            assert.strictEqual(element.session.data.snapshot().nodeCount, IDS.length, "the nodes came back");
+            assert.isTrue(element.isRunning(), "the layout runs again");
+            assertLazy(element);
+            // Style layers added through the session are not declared by the page, so they do not
+            // come back with the new graph: add the inks again to read the frames.
+            await addInk(element, "arrow");
+            assertFollowed(await checkWhileMoving(element, "arrow", () => Promise.resolve()));
+
+            while (element.isRunning()) {
+                await drawnFrames(element.graph.getScene(), 1);
+            }
+
+            await assertAtRest(element, "arrow");
+            const missed: string[] = [];
+            for (const id of ["p0a", "p6b", "p11a", "t1c"]) {
+                const point = nodePoint(element, id);
+                await hover(element, point);
+                await operationQueueOf(element.graph).waitForCompletion();
+                await element.waitForStableFrame();
+                const hovered = String(element.session.selection.hovered ?? "none");
+                const at = element.elementAt(point);
+                if (hovered !== id || at?.id !== id) {
+                    missed.push(`${id}: hovered ${hovered}, elementAt ${String(at?.id ?? "none")}`);
+                }
+            }
+
+            assert.deepEqual(missed, [], "the real pointer on a node hovers it after the element came back");
+        });
+    },
+);

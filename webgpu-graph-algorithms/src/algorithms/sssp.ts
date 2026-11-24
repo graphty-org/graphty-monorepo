@@ -245,6 +245,28 @@ export function normaliseCutoff(algorithm: string, cutoff: number | undefined): 
 }
 
 /**
+ * What a shortest-path run reads before any device work: its weight vector (none under `weighted: false`, which
+ * counts hops and so takes the breadth-first route) and its cutoff; a run already aborted is refused.
+ * @internal
+ * @param algorithm - the algorithm's name (the message prefix)
+ * @param s - the snapshot
+ * @param options - the caller's options
+ * @returns the weight vector, or null, and the cap
+ */
+export function runInputs(
+    algorithm: string,
+    s: GraphSnapshot,
+    options: (SsspOptions & GpuRunOptions) | undefined,
+): { vector: WeightVector | null; cutoff: number } {
+    const vector = options?.weighted === false ? null : resolveWeights(algorithm, s, options?.weights);
+    const cutoff = normaliseCutoff(algorithm, options?.cutoff);
+    if (options?.signal?.aborted) {
+        throw aborted(algorithm);
+    }
+    return { vector, cutoff };
+}
+
+/**
  * The weight vector of the run: the override, validated and narrowed, else the snapshot's column, else
  * null; scanned once on the host for the routing flags and the sum.
  * @internal
@@ -636,7 +658,7 @@ function assertNoOrphans(orphans: number): void {
  * @param ctx - the context whose device runs the kernels
  * @param s - the snapshot (uploaded through ctx.residency, or found there)
  * @param source - the source node index
- * @param options - `cutoff` and `weights`, plus dest / signal / onProgress
+ * @param options - `cutoff`, `weights` and `weighted` (false counts hops), plus dest / signal / onProgress
  * @param tuning - the knobs
  * @returns the distances, the predecessor arcs and the reached count
  */
@@ -653,11 +675,7 @@ export async function ssspWithTuning(
     assertSource(ALGORITHM, source, n);
     const roundsPerSubmit = checkTuning(tuning);
     const dest = checkDest(ALGORITHM, options?.dest, n);
-    const vector = resolveWeights(ALGORITHM, s, options?.weights);
-    const cutoff = normaliseCutoff(ALGORITHM, options?.cutoff);
-    if (options?.signal?.aborted) {
-        throw aborted(ALGORITHM);
-    }
+    const { vector, cutoff } = runInputs(ALGORITHM, s, options);
     if (vector === null || vector.allOne) {
         return unitWeightRoute(ctx, s, source, cutoff, dest, options);
     }
@@ -835,7 +853,7 @@ export async function ssspWithTuning(
  * @param ctx - the context whose device runs the kernels
  * @param s - the snapshot (uploaded through ctx.residency, or found there)
  * @param source - the source node index (E_INVALID_ARGUMENT outside `[0, n)`)
- * @param options - `cutoff` and `weights`, plus dest (a Float32Array of length n for `dist`) / signal / onProgress
+ * @param options - `cutoff`, `weights` and `weighted` (false counts hops), plus dest (a Float32Array of length n for `dist`) / signal / onProgress
  * @returns the distances, the predecessor arcs and the reached count
  */
 export function sssp(

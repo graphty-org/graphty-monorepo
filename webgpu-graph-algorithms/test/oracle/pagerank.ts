@@ -1,5 +1,5 @@
 /**
- * The f64 reference of PageRank with NetworkX's semantics over the snapshot indices (spec 8.2, 9.7): x0 = 1/n,
+ * The f64 reference of PageRank (NetworkX's recurrence) over the snapshot indices (spec 8.2, 9.7): x0 = 1/n,
  * per iteration the out-weight sum per node (the out-degree when unweighted), the dangling mass over the nodes
  * whose sum is not positive, x'[v] = (1 - alpha) pv + alpha (sum over the in-arcs of w x[u] / outWeightSum[u] +
  * dangling pv), err = sum |x' - x|, converged when err < tolerance. `iterations` is the 1-based index of the first

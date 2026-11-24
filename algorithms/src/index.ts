@@ -18,13 +18,6 @@ export { groupsById, type Partition, pathIds, scoresById } from "./indexed/by-id
 
 // How far two groupings of the same elements agree (adjusted Rand index, adjusted mutual information).
 export { type PartitionAgreement, partitionAgreement } from "./indexed/partition-agreement.js";
-
-/**
- * The algorithms under their 2.x namespace, types included (`indexed.PageRankResult`).
- * @deprecated Every algorithm is a top-level export since 3.0.0: `indexed.pageRank` is `pageRank`. Removed in 4.0.0.
- */
-export * as indexed from "./indexed/index.js";
-
 // The seeded generator every seeded algorithm draws from, for a caller that wants the same sequence.
 export { mulberry32 } from "./utils/math-utilities.js";
 

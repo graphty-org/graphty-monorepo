@@ -1,5 +1,7 @@
 import { type AdjacencyView, type GraphSnapshot, makeMask, maskSet, type NodeMask } from "@graphty/graph-format";
 
+import { refuseWeights } from "./weights.js";
+
 /** Result of the index-based bipartiteness test. @public */
 export interface BipartiteResult {
     /** Whether the nodes split into two sides with no arc inside a side. */
@@ -39,6 +41,7 @@ const UNSEEN = 2;
  * @public
  */
 export function isBipartite(s: GraphSnapshot, options: BipartiteOptions = {}): BipartiteResult {
+    refuseWeights("isBipartite", options);
     const { nodeCount } = s;
     const views: AdjacencyView[] = s.directed && options.arcs !== "out" ? [s, s.reverse()] : [s];
     const side = new Uint8Array(nodeCount).fill(UNSEEN);

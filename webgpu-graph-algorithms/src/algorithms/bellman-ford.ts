@@ -61,12 +61,10 @@ import {
     bitsOf,
     checkDest,
     countReached,
-    normaliseCutoff,
     predBufferWords,
     predecessorPass,
-    resolveWeights,
+    runInputs,
     unitWeightRoute,
-    type WeightVector,
 } from "./sssp.js";
 
 const ALGORITHM = "bellmanFord";
@@ -251,11 +249,7 @@ export async function bellmanFordWithTuning(
     assertSource(ALGORITHM, source, n);
     const { maxRetries, roundsPerBatch } = checkTuning(tuning);
     const dest = checkDest(ALGORITHM, options?.dest, n);
-    const vector: WeightVector | null = resolveWeights(ALGORITHM, s, options?.weights);
-    const cutoff = normaliseCutoff(ALGORITHM, options?.cutoff);
-    if (options?.signal?.aborted) {
-        throw aborted(ALGORITHM);
-    }
+    const { vector, cutoff } = runInputs(ALGORITHM, s, options);
     if (vector === null || vector.allOne) {
         const unit = await unitWeightRoute(ctx, s, source, cutoff, dest, options);
         return { result: { ...unit, hasNegativeCycle: false }, rounds: 0, retryExhaustedRounds: 0 };
@@ -420,7 +414,7 @@ export async function bellmanFordWithTuning(
  * @param ctx - the context whose device runs the kernels
  * @param s - the snapshot (uploaded through ctx.residency, or found there)
  * @param source - the source node index (E_INVALID_ARGUMENT outside `[0, n)`)
- * @param options - `cutoff` and `weights`, plus dest (a Float32Array of length n for `dist`) / signal / onProgress
+ * @param options - `cutoff`, `weights` and `weighted` (false counts hops), plus dest (a Float32Array of length n for `dist`) / signal / onProgress
  * @returns the distances, the predecessor arcs, the reached count and the negative-cycle flag
  */
 export async function bellmanFord(

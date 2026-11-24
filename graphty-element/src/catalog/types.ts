@@ -1441,6 +1441,14 @@ export type Binding =
            */
           format?: BindingNumberFormat;
           /**
+           * Read the words this binding paints on a channel that carries text (a label, a tooltip,
+           * a caption) as label markup (`<bold>`, `<italic>`, `<color='...'>` and the rest) instead
+           * of drawing them as written. Absent or false, a bound value is drawn character for
+           * character, so data can never restyle its own label. Ignored on every other channel.
+           * @since 3.40.0
+           */
+          markup?: boolean;
+          /**
            * What a value `map` has no entry for paints. Absent, it goes on through the scale as
            * before, so with `scale: "passthrough"` an unmapped "green" is painted green. `"skip"`
            * leaves an element whose value the map does not hold exactly as the layers beneath

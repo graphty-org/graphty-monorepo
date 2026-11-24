@@ -9,9 +9,10 @@ import {
 
 import { checkWeights } from "../errors.js";
 import { IndexedMinHeap } from "./structures/min-heap.js";
+import type { WeightedOptions } from "./weights.js";
 
 /** Options of {@link countShortestPaths}. @public */
-export interface CountShortestPathsOptions {
+export interface CountShortestPathsOptions extends WeightedOptions {
     /** Per-arc weight override, arcCount long; the view's own weights (or 1 each) when absent. */
     readonly weights?: NumericVector | undefined;
     /**
@@ -41,7 +42,7 @@ export function countShortestPaths(
 ): Float64Array {
     const source = resolveNode(g, sourceNode);
     const { nodeCount, rowPtr, colIdx } = g;
-    const weights = options.weights ?? g.weights;
+    const weights = options.weighted === false ? null : (options.weights ?? g.weights);
     const tolerance = options.tolerance ?? 1e-6;
     const tight = (u: number, a: number): boolean => {
         const v = colIdx[a];
@@ -121,7 +122,7 @@ function cheapestArrivals(
 }
 
 /** Options of {@link timeOrderedPaths}. @public */
-export interface TimeOrderedPathsOptions {
+export interface TimeOrderedPathsOptions extends WeightedOptions {
     /**
      * The time of every arc, arcCount long. A route takes its arcs in non-decreasing time; an arc
      * whose time is NaN or infinite is never taken.
@@ -166,7 +167,7 @@ export function timeOrderedPaths(
     const source = resolveNode(g, sourceNode);
     const { nodeCount, rowPtr, colIdx, arcToEdge } = g;
     const { times } = options;
-    const weights = options.weights ?? g.weights;
+    const weights = options.weighted === false ? null : (options.weights ?? g.weights);
     checkWeights("timeOrderedPaths", weights, colIdx.length);
     const arcCount = colIdx.length;
     const weightOf = (a: number): number => (weights === null ? 1 : weights[a]);

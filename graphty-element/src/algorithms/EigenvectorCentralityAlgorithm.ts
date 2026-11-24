@@ -144,7 +144,10 @@ export class EigenvectorCentralityAlgorithm extends MetricAlgorithm<EigenvectorC
                 maxIterations,
                 tolerance,
             },
-            run((dispatch, s) => dispatch.eigenvectorCentrality(s, { normalized, maxIterations, tolerance, mode })),
+            run((dispatch, s) =>
+                // Edge weights are not read (the caveat says so); @graphty/algorithms reads them by default.
+                dispatch.eigenvectorCentrality(s, { normalized, maxIterations, tolerance, mode, weighted: false }),
+            ),
         );
         context.signal.throwIfAborted();
         const nodes = await readScores(context, nodeIds, ids, scores);

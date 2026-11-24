@@ -1,5 +1,6 @@
 /**
- * @file `element.labelOf(id)`: a node's label as drawn -- the words after binding and markup, and
+ * @file `element.labelOf(id)`: a node's label as drawn -- the words after binding (a bound value as
+ * written, a literal label after its markup), and
  * whether the label is on screen -- in 2D and in 3D.
  *
  * The words are checked against what the label renderer itself paints (its parsed runs) as well
@@ -67,24 +68,40 @@ async function mount(mode: "2d" | "3d", nodes: Record<string, unknown>[], declut
 
 for (const mode of ["2d", "3d"] as const) {
     describe(`labelOf in ${mode}`, () => {
-        it("returns the words drawn, after binding and markup, and that the label is drawn", async () => {
+        it("returns the words drawn: a bound value as written, a literal label after its markup", async () => {
             const element = await mount(
                 mode,
                 [
                     { id: "v", name: "<bold>Jean</bold> Valjean", position: { x: 0, y: 0, z: 0 } },
                     { id: "m", name: "Monsieur\nMadeleine", position: { x: 40, y: 0, z: 0 } },
+                    { id: "lit", position: { x: 0, y: 40, z: 0 } },
                     { id: "plain", position: { x: -40, y: 0, z: 0 } },
                 ],
                 false,
             );
+            await element.session.styles.add({
+                name: "literal",
+                target: "node",
+                selector: { match: "ids", nodes: ["lit"] },
+                set: { "node.label": "<bold>Jean</bold> Valjean" },
+            });
+            await element.waitForStableFrame();
 
-            assert.deepEqual(element.labelOf("v"), { text: "Jean Valjean", drawn: true });
+            // A value bound from the data is drawn as written: its markup is not read.
+            assert.deepEqual(element.labelOf("v"), { text: "<bold>Jean</bold> Valjean", drawn: true });
             assert.deepEqual(element.labelOf("m"), { text: "Monsieur\nMadeleine", drawn: true });
+            // A literal label written in a layer reads its markup.
+            assert.deepEqual(element.labelOf("lit"), { text: "Jean Valjean", drawn: true });
 
             // The same words the renderer paints, run by run.
-            const runs = element.getNode("v")?.label?.textRuns ?? [];
+            const boundRuns = element.getNode("v")?.label?.textRuns ?? [];
             assert.deepEqual(
-                runs[0].map((run) => [run.text, run.style.weight]),
+                boundRuns[0].map((run) => [run.text, run.style.weight]),
+                [["<bold>Jean</bold> Valjean", "normal"]],
+            );
+            const literalRuns = element.getNode("lit")?.label?.textRuns ?? [];
+            assert.deepEqual(
+                literalRuns[0].map((run) => [run.text, run.style.weight]),
                 [
                     ["Jean", "bold"],
                     [" Valjean", "normal"],

@@ -185,6 +185,11 @@ const arfControls: Meta["argTypes"] = {
         name: "layoutConfig.maxIter",
     },
     arfSeed: { control: { type: "number" }, table: { category: "Arf Layout" }, name: "layoutConfig.seed" },
+    arfScalingFactor: {
+        control: { type: "range", min: 1, max: 1000, step: 1 },
+        table: { category: "Arf Layout" },
+        name: "layoutConfig.scalingFactor",
+    },
 };
 
 const bfsControls: Meta["argTypes"] = {
@@ -619,10 +624,18 @@ export const Arf: Story = {
         arfScaling: 1,
         arfMaxIter: 1000,
         arfSeed: 12,
+        // ARF rescales to radius 1 (layout 3.0); 61 scene units per layout unit keeps this
+        // graph at the size it drew before, measured against the pre-3.0 baseline.
+        arfScalingFactor: 61,
     },
     parameters: {
         controls: {
-            include: ["layoutConfig.scaling", "layoutConfig.maxIter", "layoutConfig.seed"],
+            include: [
+                "layoutConfig.scaling",
+                "layoutConfig.maxIter",
+                "layoutConfig.seed",
+                "layoutConfig.scalingFactor",
+            ],
         },
     },
     play: async ({ canvasElement }) => {

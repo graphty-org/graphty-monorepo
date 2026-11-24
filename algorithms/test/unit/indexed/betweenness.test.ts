@@ -65,6 +65,29 @@ describe("indexed.betweennessCentrality", () => {
         expect(r.converged).toBe(true);
     });
 
+    it("counts each shortest path once across an edge of weight 0", () => {
+        // A path 0-1-2-3-4 whose middle edge weighs 0: every pair still has one shortest path, the same one the
+        // unweighted path has, so node and edge scores are the path's. Settling 1 and 2 at the same distance must
+        // not let each add its paths to the other's count.
+        for (const directed of [false, true]) {
+            const zero = new GraphBuilder({ directed });
+            const ones = new GraphBuilder({ directed });
+            const weights = [1, 0, 1, 1];
+            for (let i = 0; i < 4; i++) {
+                zero.addEdge(i, i + 1, weights[i]);
+                ones.addEdge(i, i + 1);
+                if (directed) {
+                    zero.addEdge(i + 1, i, weights[i]);
+                    ones.addEdge(i + 1, i);
+                }
+            }
+            const s = zero.freeze();
+            const plain = ones.freeze();
+            expect([...betweennessCentrality(s).scores]).toEqual([...betweennessCentrality(plain).scores]);
+            expect([...edgeBetweennessCentrality(s).scores]).toEqual([...edgeBetweennessCentrality(plain).scores]);
+        }
+    });
+
     it("splits a pair's credit between equal shortest paths", () => {
         // a four-cycle: a and c are joined through b and through d, so each carries half
         const b = new GraphBuilder({ directed: false });
@@ -164,7 +187,12 @@ describe("indexed.betweennessCentrality", () => {
         it(`equals the legacy betweennessCentrality on ${name}`, () => {
             const s = checksummedSnapshot(graph);
             for (const options of OPTION_SETS) {
-                expectNodesMatch(s, betweennessCentrality(s, options).scores, legacyResult() as Record<string, number>);
+                // the legacy function counted hops
+                expectNodesMatch(
+                    s,
+                    betweennessCentrality(s, { ...options, weighted: false }).scores,
+                    legacyResult() as Record<string, number>,
+                );
             }
             s.validate({ checksum: true });
         });
@@ -209,7 +237,7 @@ describe("indexed.edgeBetweennessCentrality", () => {
             for (const options of OPTION_SETS) {
                 expectEdgesMatch(
                     s,
-                    edgeBetweennessCentrality(s, options).scores,
+                    edgeBetweennessCentrality(s, { ...options, weighted: false }).scores,
                     legacyResult() as Map<string, number>,
                 );
             }

@@ -55,11 +55,11 @@ describe("arf scale and center", () => {
         directed: false,
     });
 
-    it("keeps its unscaled output when neither is given", () => {
+    it("puts the farthest node 1 from the origin when neither is given, as every one-shot layout does", () => {
         const plain = arf(s, { seed: 3, maxIter: 50 });
-        const again = arf(s, { seed: 3, maxIter: 50 });
-        assert.deepStrictEqual(plain.positions, again.positions);
-        assert.notEqual(Math.round(farthest(plain, [0, 0]) * 1000), 1000);
+        assert.ok(Math.abs(farthest(plain, [0, 0]) - 1) < 1e-5);
+        const explicit = arf(s, { seed: 3, maxIter: 50, scale: 1, center: [0, 0] });
+        assert.deepStrictEqual(plain.positions, explicit.positions);
     });
 
     it("puts the farthest node scale from center when either is given", () => {

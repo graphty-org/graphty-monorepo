@@ -475,8 +475,8 @@ vec4 nearTrim(vec4 c, vec4 toward) {
 `;
 
 /**
- * The vertex shader. `WORLD_WIDTH` takes `width` in world units (2D lines, and patterned lines in
- * either mode); without it `width` is the 3D solid line's screen width, drawn as it always was.
+ * The vertex shader. `WORLD_WIDTH` takes `width` in world units (every edge line graphty-element draws, 2D and 3D);
+ * without it `width` is a screen width that tapers with distance.
  */
 export const EDGE_JOIN_VERTEX_SHADER = `
 precision highp float;

@@ -9,7 +9,7 @@ import { GraphtyError } from "../errors/GraphtyError";
 import { type EdgePaint, isPlainPaint } from "../managers/StylePainter";
 import type { RowTable } from "../render/RowTable";
 import { DirtyRuns } from "./DirtyRuns";
-import { EdgeMesh } from "./EdgeMesh";
+import { EdgeMesh, lineWidthInWorldUnits } from "./EdgeMesh";
 import { batchUploadFrames } from "./FrameRoster";
 import type { MeshCache } from "./MeshCache";
 import type { LeanLines, PulledLineBatch } from "./PulledLineBatch";
@@ -385,8 +385,8 @@ export class EdgeRowLines {
             route: "straight",
             lean: this.host.lean(),
         });
-        // as `Edge.pullLine` gives its piece the look: in 2D a world width
-        const drawnWidth = EdgeMesh.drawsFlat(scene) ? width / 40 : width * 20;
+        // as `Edge.pullLine` gives its piece the look: a width in world units
+        const drawnWidth = lineWidthInWorldUnits(width);
         let piece: number;
         try {
             piece = batch.acquire(drawnWidth, style.line?.drawOrder);

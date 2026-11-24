@@ -62,6 +62,7 @@ export default defineConfig({
                     items: [
                         { text: "Graph Data Structure", link: "/guide/graph" },
                         { text: "Migrating to 3.0", link: "/guide/migrating-to-3" },
+                        { text: "Migrating to 4.0", link: "/guide/migrating-to-4" },
                         { text: "Traversal Algorithms", link: "/guide/traversal" },
                         { text: "Shortest Path", link: "/guide/shortest-path" },
                         { text: "Centrality", link: "/guide/centrality" },

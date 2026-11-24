@@ -12,6 +12,7 @@ import {
 import { checkWeights, PathWalkError } from "../errors.js";
 import { arcSourceIn } from "./structures/arc-source.js";
 import { IndexedMinHeap } from "./structures/min-heap.js";
+import type { WeightedOptions } from "./weights.js";
 
 /**
  * Single-source shortest paths from one source. `dist` is a `NumericVector`: a `Float64Array` from the CPU run, a
@@ -37,7 +38,7 @@ export interface SsspResult {
 }
 
 /** Options of the index-based SSSP. @public */
-export interface SsspOptions {
+export interface SsspOptions extends WeightedOptions {
     /** Stop relaxing beyond this distance. */
     readonly cutoff?: number | undefined;
     /** Per-arc weight override, arcCount long; f64 weights here are used exactly. */
@@ -135,7 +136,7 @@ export function walkPredEdges(g: AdjacencyView, predArc: U32, source: number, ta
 export function dijkstra(g: AdjacencyView, sourceNode: NodeRef, options: SsspOptions = {}): SsspResult {
     const source = resolveNode(g, sourceNode);
     const { nodeCount, rowPtr, colIdx } = g;
-    const weights: NumericVector | null = options.weights ?? g.weights;
+    const weights: NumericVector | null = options.weighted === false ? null : (options.weights ?? g.weights);
     // A negative arc re-queues a popped node, so a negative cycle (or undirected edge) never ends.
     checkWeights(
         "dijkstra",

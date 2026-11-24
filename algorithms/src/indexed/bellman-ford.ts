@@ -34,7 +34,7 @@ export interface BellmanFordResult extends SsspResult {
 export function bellmanFord(g: AdjacencyView, sourceNode: NodeRef, options: SsspOptions = {}): BellmanFordResult {
     const source = resolveNode(g, sourceNode);
     const { nodeCount, rowPtr, colIdx } = g;
-    const weights: NumericVector | null = options.weights ?? g.weights;
+    const weights: NumericVector | null = options.weighted === false ? null : (options.weights ?? g.weights);
     const cutoff = options.cutoff ?? Infinity;
     const dist = new Float64Array(nodeCount).fill(Infinity);
     const predArc = new Uint32Array(nodeCount).fill(INVALID_INDEX);

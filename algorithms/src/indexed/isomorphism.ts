@@ -1,5 +1,7 @@
 import { type AdjacencyView, type GraphSnapshot, INVALID_INDEX, type U32 } from "@graphty/graph-format";
 
+import { refuseWeights } from "./weights.js";
+
 /** Options of {@link isGraphIsomorphic} and {@link findAllIsomorphisms}. @public */
 export interface IsomorphismOptions {
     /** Whether node `i1` of `s1` may map to node `i2` of `s2`. */
@@ -456,6 +458,7 @@ export function isGraphIsomorphic(
     s2: GraphSnapshot,
     options: IsomorphismOptions = {},
 ): IsomorphismResult {
+    refuseWeights("isGraphIsomorphic", options);
     // collected in an array, not a local the callback reassigns, so the check below reads the real state
     const found: U32[] = [];
     search(s1, s2, options, (m) => {
@@ -477,6 +480,7 @@ export function isGraphIsomorphic(
  * @public
  */
 export function findAllIsomorphisms(s1: GraphSnapshot, s2: GraphSnapshot, options: IsomorphismOptions = {}): U32[] {
+    refuseWeights("findAllIsomorphisms", options);
     const all: U32[] = [];
     const { maxResults = Infinity } = options;
     if (options.maxResults !== undefined && !(Number.isInteger(maxResults) && maxResults >= 1)) {

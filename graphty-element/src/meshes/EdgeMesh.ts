@@ -42,6 +42,15 @@ import { LEAN_TEMPLATE, type LeanLines, PulledLineBatch, type PulledRowTextures 
 import type { WaveShape } from "./shapeOutlines";
 import { Simple2DLineRenderer } from "./Simple2DLineRenderer";
 
+/**
+ * A style's `line.width` in world units. The one conversion every line renderer is handed its
+ * width through, so the same width draws the same thickness whatever draws the line.
+ * @param width - The style's `line.width`.
+ * @returns The line's thickness in world units.
+ */
+export function lineWidthInWorldUnits(width: number): number {
+    return width / EDGE_CONSTANTS.LINE_WIDTH_PER_WORLD_UNIT;
+}
 /** The line types a dash array (`line.dashArray`) draws in place of their own elements. */
 const DASH_ARRAY_TYPES: ReadonlySet<string> = new Set(["dash", "dot", "dash-dot"]);
 
@@ -298,7 +307,7 @@ export class EdgeMesh {
             new Vector3(0, 0, 0.5), // Placeholder end (Edge.update() will set real positions)
             scene,
             {
-                width: options.width / 40, // Convert back from scaled width - need /40 to match solid line thickness
+                width: lineWidthInWorldUnits(options.width),
                 color: options.color,
                 opacity: this.opacityOf(style),
                 is2DMode: this.is2DMode(scene), // Pass 2D mode detection flag
@@ -321,7 +330,7 @@ export class EdgeMesh {
         }
 
         // world units per unit of line width, as createPatternedLine converts the width
-        const perWidth = 1 / 40;
+        const perWidth = lineWidthInWorldUnits(1);
         const period = style.line?.wavePeriod || 4 * amplitude;
         return period > 0 ? { amplitude: amplitude * perWidth, period: period * perWidth } : undefined;
     }
@@ -507,7 +516,7 @@ export class EdgeMesh {
         const dashArray = this.dashArrayOf(style);
         if (Object.hasOwn(JOINED_PATTERN_KINDS, lineType) || dashArray !== null) {
             const is2D = this.is2DMode(scene);
-            const width = options.width / 40;
+            const width = lineWidthInWorldUnits(options.width);
             return cache.getBatch(
                 `${key}-joined${is2D ? "-2d" : ""}`,
                 made(() =>
@@ -548,7 +557,7 @@ export class EdgeMesh {
                 `${key}-2d`,
                 made(() =>
                     Simple2DLineRenderer.createBatchMesh(
-                        options.width / 40, // Convert back from scaled width to match 3D line thickness
+                        lineWidthInWorldUnits(options.width),
                         options.color,
                         this.opacityOf(style),
                         scene,
@@ -730,10 +739,11 @@ export class EdgeMesh {
     ): Mesh {
         return CustomLineRenderer.createJoinedLineMesh(
             {
-                width: options.width / 40,
+                width: lineWidthInWorldUnits(options.width),
                 color: options.color,
                 opacity: this.opacityOf(style),
                 worldWidth: true,
+                flat: true,
                 minScreenWidth: style.line?.minScreenWidth,
                 opaque: this.drawsOpaque(style),
                 pulled: true,
@@ -1072,13 +1082,15 @@ export class EdgeMesh {
         widened = false,
         pulled: boolean | "curve" | "lean" | "smooth" = false,
     ): Mesh {
-        // A joined line: a straight edge is one piece with square ends, as it always was; a
-        // curve's or a bent edge's pieces meet at their corners (design/edges/sharp-corners.md).
+        // A joined line: a straight edge is one piece with square ends; a curve's or a bent edge's
+        // pieces meet at their corners (design/edges/sharp-corners.md). Its width is in world units,
+        // as every edge renderer's is.
         return CustomLineRenderer.createJoinedLineMesh(
             {
-                width: options.width * 20, // Scale factor to match GreasedLine sizing
+                width: lineWidthInWorldUnits(options.width),
                 color: options.color,
                 opacity: this.opacityOf(style),
+                worldWidth: true,
                 widened,
                 minScreenWidth: style.line?.minScreenWidth,
                 fade: widened ? this.fadeOf(style) : undefined,
@@ -1118,16 +1130,10 @@ export class EdgeMesh {
                 points: this.UNIT_VECTOR_POINTS,
             },
             {
-                // IN SCENE UNITS, WHICH IS NOT THE UNIT THE STYLE'S WIDTH IS IN. A greased line
-                // takes its width in world space, and the element's `edge.width` is a screen-space
-                // pixel width -- `CustomLineRenderer` multiplies it by 20 and expands the line by
-                // that many pixels in the vertex shader. Handing the pixel number straight over
-                // drew the element's own width of 8 as a ribbon eight scene units thick, which on
-                // a graph ten units across is a band taller than the graph. `/ 40` is the
-                // conversion the other two world-space renderers already use for exactly this --
-                // see `Simple2DLineRenderer` and `PatternedLineRenderer`, both of which call it
-                // "convert back from scaled width to match 3D line thickness".
-                width: options.width / 40,
+                // A greased line takes its width in world units, as every other line renderer
+                // does. Handing it the style's number unconverted drew the element's own width of
+                // 8 as a ribbon eight units thick, a band taller than a graph ten units across.
+                width: lineWidthInWorldUnits(options.width),
                 colorMode: GreasedLineMeshColorMode.COLOR_MODE_MULTIPLY,
                 // Babylon otherwise binds one colors texture shared by every engine on the page
                 // and disposed with whichever engine goes first. WebGL tolerates the stale

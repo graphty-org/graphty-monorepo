@@ -97,6 +97,7 @@ export type Binding = {
         value: string | number;
     };
     format?: BindingNumberFormat;
+    markup?: boolean;
     unmapped?: "skip";
     stops?: BindingStop[];
     hidden?: (string | number | boolean)[];
@@ -185,7 +186,8 @@ export const defaultRichTextLabelStyle: RichTextStyleType;
 
 // @public
 export const EDGE_CONSTANTS: {
-    readonly DEFAULT_LINE_WIDTH: 8;
+    readonly DEFAULT_LINE_WIDTH: 4.5;
+    readonly LINE_WIDTH_PER_WORLD_UNIT: 40;
     readonly DEFAULT_LINE_COLOR: "#FFFFFF";
     readonly DEFAULT_ARROW_WIDTH: 1.25;
     readonly DEFAULT_ARROW_LENGTH: 0.5;

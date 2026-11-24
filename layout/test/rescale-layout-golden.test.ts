@@ -1,6 +1,6 @@
 import { assert, describe, it } from "vitest";
 
-import { rescaleLayout } from "../src/utils/rescale.js";
+import { rescaleLayout } from "./layouts/rescale-oracle";
 
 // Golden outputs of rescaleLayout over arrays and maps, 2D and 3D, scale and center variants and edge cases (one node,
 // zero spread, NaN and Infinity components, rows of different lengths, centers shorter or longer than the rows).

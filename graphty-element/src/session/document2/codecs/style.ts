@@ -139,6 +139,7 @@ const BINDING_MEMBERS = new Set([
     "overflow",
     "missing",
     "format",
+    "markup",
     "unmapped",
     "stops",
     "hidden",

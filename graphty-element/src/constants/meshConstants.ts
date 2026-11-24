@@ -66,7 +66,14 @@ export enum PolyhedronType {
 
 /** Defaults and proportions graphty-element draws edges, arrowheads and line patterns with. */
 export const EDGE_CONSTANTS = {
-    DEFAULT_LINE_WIDTH: 8,
+    DEFAULT_LINE_WIDTH: 4.5,
+    /**
+     * How many `line.width` steps make one world unit. Every edge renderer converts the style's
+     * width to world units by dividing by this, so a solid, a patterned, a curved, an animated
+     * and a 2D line of the same width are the same thickness, and all of them grow and shrink
+     * with zoom as a node does.
+     */
+    LINE_WIDTH_PER_WORLD_UNIT: 40,
     DEFAULT_LINE_COLOR: "#FFFFFF",
     /** An arrowhead's width when its style sets none, in world units. */
     DEFAULT_ARROW_WIDTH: 1.25,

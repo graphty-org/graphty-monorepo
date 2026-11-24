@@ -373,6 +373,7 @@ export type Binding = {
         value: string | number;
     };
     format?: BindingNumberFormat;
+    markup?: boolean;
     unmapped?: "skip";
     stops?: BindingStop[];
     hidden?: (string | number | boolean)[];

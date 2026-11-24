@@ -34,7 +34,7 @@ import type { EdgeEffectBatch, ShadedEdgeBatch } from "./meshes/EdgeEffectBatch"
 import { gradientColorList, gradientPieceColors } from "./meshes/edgeGradient";
 import { EDGE_STATE_BITS } from "./meshes/edgeJoinShader";
 import type { EdgeLineBatch, EdgeLineMeta } from "./meshes/EdgeLineBatch";
-import { EdgeMesh } from "./meshes/EdgeMesh";
+import { EdgeMesh, lineWidthInWorldUnits } from "./meshes/EdgeMesh";
 import {
     arcThroughBend,
     bendPoints,
@@ -2947,7 +2947,7 @@ export class Edge {
         }
 
         const is2D = EdgeMesh.drawsFlat(this.context.getScene());
-        const line = Edge.effectLineOf(style, width, is2D);
+        const line = Edge.effectLineOf(style, width);
         const kept = new Set<string>();
         for (const [key, { id, params: values }] of wanted) {
             const name = `edge-effect|${id}|${String(width)}|${is2D ? "2d" : "3d"}`;
@@ -2974,22 +2974,20 @@ export class Edge {
     }
 
     /**
-     * The line an edge effect's batch is drawn along: the edge's width in the units of the view,
-     * its painted color (dark gray when none is painted) and its opacity.
+     * The line an edge effect's batch is drawn along: the edge's width in world units, its painted
+     * color (dark gray when none is painted) and its opacity.
      * @param style - The resolved style.
      * @param width - The line's width as painted.
-     * @param is2D - Whether the scene draws flat.
      * @returns The line facts the batch is keyed and drawn by.
      */
     private static effectLineOf(
         style: EdgeStyleConfig,
         width: number,
-        is2D: boolean,
     ): { width: number; worldWidth: boolean; color: string; opacity: number } {
         const painted = style.line?.color;
         return {
-            width: is2D ? width / 40 : width * 20,
-            worldWidth: is2D,
+            width: lineWidthInWorldUnits(width),
+            worldWidth: true,
             color: typeof painted === "string" ? painted : "#a9a9a9",
             opacity: style.line?.opacity ?? 1,
         };
@@ -3402,17 +3400,14 @@ export class Edge {
     ): { color: Color3; opacity: number; width: number } {
         const opacity = EdgeMesh.opacityOf(style);
         const color = Color3.FromHexString(options.color);
-        // an animated line's width and color as its greased line takes them (`EdgeMesh.createAnimatedLine`);
-        // in 2D a world width, as `Simple2DLineRenderer.createBatchMesh` is handed it
+        // an animated line's color as its greased line takes it (`EdgeMesh.createAnimatedLine`); the width in
+        // world units, as every edge renderer takes it
+        const width = lineWidthInWorldUnits(options.width);
         if (style.line?.animationSpeed) {
-            return { color: movingTexel(color), opacity, width: options.width / 40 };
+            return { color: movingTexel(color), opacity, width };
         }
 
-        return {
-            color,
-            opacity,
-            width: EdgeMesh.drawsFlat(this.context.getScene()) ? options.width / 40 : options.width * 20,
-        };
+        return { color, opacity, width };
     }
 
     /**
@@ -3735,8 +3730,8 @@ export class Edge {
                 cache,
                 `edge-surface|${surface}|${meshKey}|${is2D ? "2d" : "3d"}`,
                 {
-                    width: is2D ? options.width / 40 : options.width * 20,
-                    worldWidth: is2D,
+                    width: lineWidthInWorldUnits(options.width),
+                    worldWidth: true,
                     color: options.color,
                     opacity,
                     fade: EdgeMesh.fadeOf(style),

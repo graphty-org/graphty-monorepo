@@ -262,6 +262,7 @@ import {
 } from "./meshes/NodeThumbnail";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { type Antialias, type LeanLines, pulledEdgesDefault } from "./meshes/PulledLineBatch";
+import { holdSceneSession } from "./models/assetPicture";
 import { loadChunk, loadModel, ModelLoadFailure } from "./models/loadModel";
 import { type ModelTemplate, optionsOf } from "./models/ModelCache";
 import { TextureCache } from "./models/TextureCache";
@@ -1393,6 +1394,7 @@ export class Graph implements GraphContext {
         // Get references from RenderManager for backward compatibility
         this.engine = this.renderManager.engine;
         this.scene = this.renderManager.scene;
+        holdSceneSession(this.scene, () => this.session);
         this.camera = this.renderManager.camera;
         this.#hookCamera();
 
@@ -2764,6 +2766,7 @@ export class Graph implements GraphContext {
         });
         this.engine = this.renderManager.engine;
         this.scene = this.renderManager.scene;
+        holdSceneSession(this.scene, () => this.session);
         this.camera = this.renderManager.camera;
         this.#hookCamera();
         this.camera.setViewInsets(this.#viewInsets);

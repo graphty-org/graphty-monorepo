@@ -2,7 +2,8 @@
  * @file The address a node's placed picture (`node.image`) is loaded from when the layer names an image asset of
  * `session.assets` (`asset:...`) rather than a URL: an object URL of the asset's bytes, made once per asset. The
  * placed picture loads its address itself (NodeDecorationMesh.buildImage), and the browser cannot fetch an asset id,
- * so without this an asset that draws as `node.texture` drew nothing as `node.image` (E_IMAGE_LOAD).
+ * so without this an asset that draws as `node.texture` drew nothing as `node.image` (E_IMAGE_LOAD). A label's
+ * picture (`image`) and an image arrow cap load their address the same way, through the session their scene draws.
  */
 
 import type { AssetId } from "../session/assets/AssetsApi";
@@ -84,4 +85,27 @@ export function pictureAddress(session: unknown, src: string, onReady: () => voi
     };
     assets.ready(src).then(settle, settle);
     return null;
+}
+
+/** The session each scene draws, for pictures loaded where only the scene is known (a label, an arrow cap). */
+const sceneSessions = new WeakMap<object, () => unknown>();
+
+/**
+ * Names the session a scene draws, so a picture in it may name an image asset.
+ * @param scene - The scene.
+ * @param session - Gives the element's session.
+ */
+export function holdSceneSession(scene: object, session: () => unknown): void {
+    sceneSessions.set(scene, session);
+}
+
+/**
+ * `pictureAddress` for a picture drawn in a scene: its session's asset, or the URL itself.
+ * @param scene - The scene the picture is drawn in.
+ * @param src - What the style names: a URL or an image asset's id.
+ * @param onReady - Called once when an asset on its way is ready.
+ * @returns The address to load, or null while an asset is on its way.
+ */
+export function scenePictureAddress(scene: object, src: string, onReady: () => void): string | null {
+    return pictureAddress(sceneSessions.get(scene)?.(), src, onReady);
 }

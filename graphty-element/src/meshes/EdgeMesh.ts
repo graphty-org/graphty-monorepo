@@ -19,6 +19,7 @@ import type { Scene } from "@babylonjs/core/scene.js";
 import type { EdgeStyleConfig } from "../config";
 import { EDGE_CONSTANTS } from "../constants/meshConstants";
 import { animatesEveryFrame } from "../managers/everyFrameAnimations";
+import { scenePictureAddress } from "../models/assetPicture";
 import type { GraphSceneMetadata } from "../types/sceneMetadata";
 import type { ArrowCap } from "./ArrowCapBatch";
 import { parseArrowStack } from "./arrowStack";
@@ -1009,15 +1010,18 @@ export class EdgeMesh {
         material.alpha = opacity;
         // Babylon.js reads a `data:` URL itself only in base64; another (an SVG written out as text)
         // it loads as an image only when handed the URL as the picture's buffer
+        // An image asset of the session (`asset:...`) loads from its bytes, accepted before a panel writes it.
+        // ponytail: an asset still on its way at first draw loads as its id and fails; redraw on ready if that matters.
+        const address = scenePictureAddress(scene, src, () => undefined) ?? src;
         const texture = new Texture(
-            src,
+            address,
             scene,
             false,
             true,
             Texture.TRILINEAR_SAMPLINGMODE,
             null,
             null,
-            src.startsWith("data:") && !src.includes(";base64,") ? src : null,
+            address.startsWith("data:") && !address.includes(";base64,") ? address : null,
         );
         texture.hasAlpha = true;
         texture.wrapU = Texture.CLAMP_ADDRESSMODE;

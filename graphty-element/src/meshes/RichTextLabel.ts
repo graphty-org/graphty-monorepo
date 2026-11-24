@@ -16,6 +16,7 @@ import { BadgeStyleManager } from "../BadgeStyleManager";
 import { type RichTextStyleType } from "../config";
 import { DEFAULT_LABEL_GRADIENT_COLORS } from "../config/RichTextStyle";
 import { GraphtyLogger, type Logger } from "../logging";
+import { scenePictureAddress } from "../models/assetPicture";
 import { toColorValue } from "../session/styles/channels";
 import type { GraphSceneMetadata } from "../types/sceneMetadata";
 import { readLabelTable } from "./channelTexts";
@@ -1335,11 +1336,14 @@ export class RichTextLabel {
         if (src === undefined || src === "") {
             return null;
         }
-        return drawablePicture(this.scene, src, () => {
+        const redraw = (): void => {
             if (this.mesh !== null && !this.mesh.isDisposed()) {
                 this._drawContent();
             }
-        });
+        };
+        // An image asset of the session (`asset:...`) loads from its bytes; a URL loads itself.
+        const address = scenePictureAddress(this.scene, src, redraw);
+        return address === null ? null : drawablePicture(this.scene, address, redraw);
     }
 
     /**

@@ -14,7 +14,7 @@ import { afterEach, assert, beforeAll, beforeEach, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { withoutFeatures } from "../../test/features";
-import { render, screen, waitFor, within } from "../../test/test-utils";
+import { act, render, screen, waitFor, within } from "../../test/test-utils";
 import { setRenderCounter } from "../renderCounter";
 import { createWorkspaceStore } from "../state/store";
 import { Workspace } from "../Workspace";
@@ -108,9 +108,16 @@ async function animate(
     fade: string,
     channel: "edge.opacity" | "edge.animationSpeed",
 ): Promise<Counts> {
-    // The first update is a new step, which Undo names; the rest change only the value.
-    await session.styles.update(fade, { set: { [channel]: 0.95 } });
-    await element.waitForSettled();
+    // The first update is a new step, which Undo names; the rest change only the value. A new step
+    // draws the open sections twice: once on the step, before the repaint has counted what the
+    // layer paints, and once more on the repainted counts. That second draw is a React commit
+    // scheduled after the update settles, and on a busy machine it landed after the two quiet
+    // frames below, counted as one of the five updates' (#9613). Inside act() both draws are
+    // committed before it returns.
+    await act(async () => {
+        await session.styles.update(fade, { set: { [channel]: 0.95 } });
+        await element.waitForSettled();
+    });
     // Counting starts once everything before it has been drawn: two frames in a row render nothing.
     await waitFor(async () => {
         const was = { ...counts };

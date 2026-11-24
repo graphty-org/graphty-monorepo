@@ -232,20 +232,23 @@ export function ImagePicker(props: Readonly<ImagePickerProps>): React.JSX.Elemen
         shown = picked?.name ?? valueName ?? value;
     }
     const heading = title ?? label;
+    const field = (
+        // eslint-disable-next-line jsx-a11y/prefer-tag-over-role -- a select-only combobox whose popup is a dialog (APG); a text box may not carry the aria-expanded Popout.Trigger adds, and no native element opens a dialog
+        <PanelField
+            role="combobox"
+            kind="select"
+            width="fill"
+            label={`${label}, ${shown}`}
+            value={shown}
+            glyph={<Thumb src={picked?.src} />}
+            disabled={disabled}
+            disabledReason={disabledReason}
+        />
+    );
     return (
         <div className="cm-image-picker">
             <Popout>
-                <Popout.Trigger>
-                    <PanelField
-                        kind="select"
-                        width="fill"
-                        label={`${label}, ${shown}`}
-                        value={shown}
-                        glyph={<Thumb src={picked?.src} />}
-                        disabled={disabled}
-                        disabledReason={disabledReason}
-                    />
-                </Popout.Trigger>
+                <Popout.Trigger>{field}</Popout.Trigger>
                 <Popout.Panel
                     width={PANEL_GRID.POPOVER_WIDTH}
                     header={{ variant: "title", title: heading }}

@@ -10,6 +10,7 @@ import { commands, userEvent } from "vitest/browser";
 
 import { PopoutManager } from "../../../src";
 import { ImagePicker, type ImagePickerItem, type ImagePickerProps } from "../../../src/components/inputs/ImagePicker";
+import { axeFindings } from "../../a11y/axe";
 import { renderThemed, resetHarness } from "../../harness/measure";
 
 afterEach(resetHarness);
@@ -55,7 +56,7 @@ function Harness(props: Partial<ImagePickerProps>): React.JSX.Element {
  * @returns the field's input
  */
 function field(): HTMLInputElement {
-    return screen.getByRole("textbox", { name: /^Picture,/ });
+    return screen.getByRole("combobox", { name: /^Picture,/ });
 }
 
 /**
@@ -68,14 +69,17 @@ async function open(): Promise<HTMLElement> {
 }
 
 describe("ImagePicker", () => {
-    it("shows the picked image's thumbnail and name, and None with nothing picked", async () => {
-        const { rerender } = await renderThemed(<Harness value="a" />);
+    it("shows the picked image's thumbnail and name", async () => {
+        await renderThemed(<Harness value="a" />);
         assert.strictEqual(field().value, "alpha.png");
         assert.strictEqual(field().getAttribute("aria-haspopup"), "dialog");
         const img = document.querySelector<HTMLImageElement>(".cm-image-picker img");
         assert.isNotNull(img);
         assert.strictEqual(img?.getAttribute("src"), DOT);
-        rerender(<Harness key="none" />);
+    });
+
+    it("shows None with nothing picked", async () => {
+        await renderThemed(<Harness />);
         assert.strictEqual(field().value, "None");
         assert.isNull(document.querySelector(".cm-image-picker img"));
     });
@@ -159,7 +163,7 @@ describe("ImagePicker", () => {
         await open();
         await commands.dropFiles(".cm-image-picker-body .cm-file-drop-target", [PNG]);
         await expect.poll(() => onFiles.mock.calls.length).toBe(1);
-        await commands.chooseFiles("button[aria-label='Choose picture']", [PNG]);
+        await commands.chooseFiles(".cm-image-picker-body .cm-file-drop-target button", [PNG]);
         await expect.poll(() => onFiles.mock.calls.length).toBe(2);
         const names = onFiles.mock.calls.map(([files]) => (files as File[]).map((f) => f.name));
         assert.deepEqual(names, [["photo.png"], ["photo.png"]]);
@@ -186,5 +190,14 @@ describe("ImagePicker", () => {
         await renderThemed(<Harness />);
         await open();
         assert.isNull(document.querySelector(".cm-image-picker-body .cm-file-source, .cm-image-picker-body input"));
+    });
+
+    it("has no axe findings closed or open, under the AA token set", async () => {
+        await renderThemed(<Harness value="a" onFiles={() => undefined} onUrl={() => undefined} />, {
+            highContrast: true,
+        });
+        assert.deepEqual(await axeFindings("high"), []);
+        await open();
+        assert.deepEqual(await axeFindings("high"), []);
     });
 });

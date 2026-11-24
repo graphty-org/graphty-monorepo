@@ -21,7 +21,17 @@
  * - on every line, the minus is the right-most button;
  * - the link or settings button sits on its control's line, right after the control;
  * - the link and settings buttons are hidden at rest, shown on hover;
- * - no input is empty: no blank number or text field, no segment line with nothing picked;
+ * - no input is empty: no blank number or text field, no segment line with nothing picked, and a default shows in the
+ *   normal text, never in a placeholder's italics;
+ * - a 3 x 3 grid under a line's other control counts as a row of its own;
+ * - no value is edited twice in one pop-over (a list and a line of the whole list), or shown as raw data;
+ * - no drop-down has fewer than six options (fewer are grouped buttons), and grouped buttons carry a name above them
+ *   unless they are a pop-over's tab strip;
+ * - no "..." group is one line tall, but for those `GROWING_GROUPS` names, each checked to grow in another state;
+ * - a "..." menu opens fully visible: inside the window, unscrolled;
+ * - beyond each thing as "+" adds it, the states `STATES` names are walked (a shader or a model as the Shape, two
+ *   strands, a wavy border); and a strip's tab picked from the keyboard keeps focus, Linear from Solid is one undo
+ *   step, and a basic shape's choice reads as a model's tabs do;
  * - names go above inputs, never beside them: every visible name on a line is compact-mantine's own (a field's
  *   built-in label above it, a FieldRow caption, a ControlGroup legend), never text the app draws, and none sits
  *   to the left of an input on its line (owner, 2026-11-24). Checked in rows, pop-overs, group pop-overs, the link
@@ -81,8 +91,21 @@ const KNOWN_STRIPS: readonly string[] = [];
 /** Pop-overs one of whose tabs is more than 6 lines tall. */
 const KNOWN_TAB_TALL: readonly string[] = [];
 
-/** "..." menus of more than 16 entries, or with a heading over more than 6. */
-const KNOWN_MENU_LONG: readonly string[] = [];
+/**
+ * "..." menus of more than 16 entries, with a heading over more than 6, or not fully visible. A text's 16-entry menu
+ * scrolls: compact-mantine's header menu (`Popout.Panel` `more`) opens above or below its button only, where 16
+ * entries under 4 headings do not fit; opening it beside the pop-over is a compact-mantine change, waiting on the
+ * owner.
+ */
+const KNOWN_MENU_LONG: readonly string[] = [
+    "edge.endCaption",
+    "edge.label",
+    "edge.tooltip",
+    "edge.xlabel",
+    "node.label",
+    "node.tooltip",
+    "node.xlabel",
+];
 
 /** Group pop-overs more than 6 lines tall. */
 const KNOWN_GROUP_TALL: readonly string[] = [];
@@ -118,6 +141,70 @@ const KNOWN_EMPTY: readonly string[] = [];
 /** Rows, pop-overs, link dialogs and Graph settings with a name the app draws, or a name beside its input. */
 const KNOWN_NAMES_NOT_BUILT_IN: readonly string[] = [];
 
+/** Pop-overs editing one value twice (a list and a line of the whole list), or showing a value as raw data. */
+const KNOWN_EDITED_TWICE: readonly string[] = [];
+
+/**
+ * Pop-overs with a drop-down of fewer than six options. A text's Look (5 looks, whose words do not fit grouped buttons
+ * on a 200 px line, and Font (an open list a file can add to); an arrow's End (4 ends, "Middle to target" too long);
+ * a node's Shading and an edge's Force curves, sidebar rows (design "Sidebar rows with ... a drop-down"). Each waits
+ * on the owner's call.
+ */
+const KNOWN_FEW_OPTIONS: readonly string[] = [
+    "edge.arrow",
+    "edge.bundling",
+    "edge.endCaption",
+    "edge.label",
+    "edge.tooltip",
+    "edge.xlabel",
+    "node.finish",
+    "node.label",
+    "node.tooltip",
+    "node.xlabel",
+];
+
+/** "..." menus with a group of one line, which joins the main pop-over instead. */
+const KNOWN_ONE_LINE_GROUP: readonly string[] = [];
+
+/**
+ * Groups one line tall as a thing starts, which grow in another state, so stay groups (owner, 2026-11-24: a group of
+ * one line in every state joins the main pop-over): `<walk key> > <group>`, and what makes it grow. A test below
+ * checks each grows.
+ */
+const GROWING_GROUPS: Readonly<Record<string, Readonly<Partial<Record<Channel, ChannelValue>>>>> = {
+    // Its width once a border color is set.
+    "node.chart > Border": { "node.chartBorderColor": "#111111" },
+    // Its opacity once a background color is set.
+    "node.chart > Background": { "node.chartBackgroundColor": "#eeeeee" },
+    // Width, pixel size and auto size once the picture is drawn at a size of its own.
+    "node.image > Picture size": { "node.imageFit": "none" },
+    // Its break and ellipsis lines once the words wrap.
+    "node.label > Wrap": { [TEXT_THINGS.node.label.style]: { wrapWidth: 80 } },
+    // Its spacing lines once the words wrap.
+    "node.label > Wrap spacing": { [TEXT_THINGS.node.label.style]: { wrapWidth: 80 } },
+};
+
+/** The text things (labels, tooltips, captions) share the label's groups, so grow as the node label's do. */
+const TEXT_WALKS = new Set([
+    "node.label",
+    "node.tooltip",
+    "node.xlabel",
+    "edge.label",
+    "edge.tooltip",
+    "edge.xlabel",
+    "edge.endCaption",
+]);
+
+/**
+ * Whether a group one line tall grows in another state (GROWING_GROUPS).
+ * @param key - the walk's key.
+ * @param group - the group.
+ * @returns whether it does.
+ */
+function grows(key: string, group: string): boolean {
+    return `${key} > ${group}` in GROWING_GROUPS || (TEXT_WALKS.has(key) && `node.label > ${group}` in GROWING_GROUPS);
+}
+
 /** The stylesheet rule hiding the link and settings buttons is missing or not limited to hover devices and no focus. */
 const KNOWN_HOVER_RULE_MISSING = false;
 
@@ -149,12 +236,46 @@ function written(side: Side, thing: ThingSpec): Readonly<Partial<Record<Channel,
     return undefined;
 }
 
+/**
+ * States walked beyond each thing's start (`<side>.<thing>:<state>`), each written through the session before its row
+ * is opened: the shapes in a shader's place and as a model, two strands, a wavy border.
+ */
+const STATES: readonly {
+    readonly side: Side;
+    readonly thing: string;
+    readonly state: string;
+    readonly set: Readonly<Partial<Record<Channel, ChannelValue>>>;
+}[] = [
+    { side: "node", thing: "shape", state: "sticker", set: { "node.shaders": [{ shader: "icon-sticker" }] } },
+    { side: "node", thing: "shape", state: "model", set: { "node.model": "asset:sample/person" } },
+    {
+        side: "node",
+        thing: "border",
+        state: "wavy",
+        set: { "node.borderColor": "#111111", "node.borderWidth": 0.1, "node.borderStyle": "sinewave" },
+    },
+    { side: "edge", thing: "line", state: "strands", set: { "edge.strandColors": "#6366F1 #000000" } },
+];
+
 const WALKED = (["node", "edge"] as const).flatMap((side) =>
     SECTIONS[side].flatMap((section) =>
         section.groups
             .flat()
             .filter((thing) => thing.shader !== true)
-            .map((thing) => ({ side, part: section.id ?? section.part, thing, key: `${side}.${thing.id}` })),
+            .flatMap((thing) => {
+                const part = section.id ?? section.part;
+                const states = STATES.filter((each) => each.side === side && each.thing === thing.id);
+                return [
+                    { side, part, thing, key: `${side}.${thing.id}`, set: undefined },
+                    ...states.map((each) => ({
+                        side,
+                        part,
+                        thing,
+                        key: `${side}.${thing.id}:${each.state}`,
+                        set: each.set,
+                    })),
+                ];
+            }),
     ),
 );
 
@@ -206,9 +327,8 @@ function own(line: HTMLElement, selector: string): HTMLElement[] {
  * @returns the count.
  */
 function linesTall(root: HTMLElement): number {
-    const boxes = linesIn(root)
-        .map((line) => line.getBoundingClientRect())
-        .sort((a, b) => a.top - b.top);
+    const lines = linesIn(root);
+    const boxes = lines.map((line) => line.getBoundingClientRect()).sort((a, b) => a.top - b.top);
     let bottom = Number.NEGATIVE_INFINITY;
     let count = 0;
     for (const box of boxes) {
@@ -217,7 +337,24 @@ function linesTall(root: HTMLElement): number {
         }
         bottom = Math.max(bottom, box.bottom);
     }
-    return count;
+    return count + lines.reduce((sum, line) => sum + gridsUnder(line), 0);
+}
+
+/**
+ * A line's 3 x 3 grids (a label's Location cells) drawn under its other controls: each a row of its own, as the
+ * design counts components (design "Input rules", "Height").
+ * @param line - the line.
+ * @returns how many.
+ */
+function gridsUnder(line: HTMLElement): number {
+    const grids = [...line.querySelectorAll<HTMLElement>('[data-testid="alignment-matrix"]')].filter(laidOut);
+    const others = [...line.querySelectorAll<HTMLElement>(CONTROLS)].filter(
+        (each) => laidOut(each) && each.closest('[data-testid="alignment-matrix"]') === null,
+    );
+    return grids.filter((grid) => {
+        const { top } = grid.getBoundingClientRect();
+        return others.some((each) => each.getBoundingClientRect().bottom <= top + 1);
+    }).length;
 }
 
 /**
@@ -325,8 +462,102 @@ function emptyInputs(lines: readonly HTMLElement[]): string[] {
         const radios = [...line.querySelectorAll<HTMLInputElement>('input[type="radio"]')];
         const groups = new Set(radios.map((radio) => radio.name));
         const unpicked = [...groups].some((name) => !radios.some((radio) => radio.name === name && radio.checked));
-        return blank || unpicked ? [nameOf(line)] : [];
+        // A default shows as a value, in the normal text: never a placeholder's italics (design "Input rules").
+        const italic = [...line.querySelectorAll<HTMLElement>(`${IN_CONTROL}, [data-unset]`)].some(
+            (each) => laidOut(each) && getComputedStyle(each).fontStyle === "italic",
+        );
+        const wrong = [...(blank || unpicked ? ["empty"] : []), ...(italic ? ["a default in italics"] : [])];
+        return wrong.length === 0 ? [] : [`${nameOf(line)}: ${wrong.join(", ")}`];
     });
+}
+
+/**
+ * A value edited twice in one surface (a list's items and a line of the whole list beside them), or shown as raw data
+ * (a list's JSON in a text field): the list is its one editor (owner, 2026-11-24).
+ * @param lines - the surface's lines.
+ * @returns what is wrong.
+ */
+function editedTwice(lines: readonly HTMLElement[]): string[] {
+    const addresses = new Set(lines.map((line) => line.dataset.line ?? "").filter((each) => each !== ""));
+    // A list's item lines are `<channel>:<n>` (and `<channel>:<n>:<part>`): the line `<channel>` beside them edits
+    // the whole list again.
+    const twice = [...addresses].filter((address) =>
+        [...addresses].some(
+            (other) => other.startsWith(`${address}:`) && /^\d+(:|$)/.test(other.slice(address.length + 1)),
+        ),
+    );
+    const raw = lines.filter((line) =>
+        [...line.querySelectorAll<HTMLInputElement>("input, textarea")].some((field) =>
+            /^\s*(\[\s*[[{"]|\{\s*")/.test(field.value),
+        ),
+    );
+    return [...twice.map((each) => `${each} and its list`), ...raw.map((line) => `${nameOf(line)} shows raw data`)];
+}
+
+/**
+ * Closes every open pop-out from its close button, the last opened first.
+ */
+async function closeAll(): Promise<void> {
+    for (const panel of [...document.querySelectorAll<HTMLElement>("[data-popout-id]")].reverse()) {
+        // The header's right-most button: its close.
+        const close = [...panel.querySelectorAll<HTMLElement>('[data-testid="popout-header"] button')].at(-1);
+        if (panel.isConnected && close !== undefined) {
+            await userEvent.click(close);
+        }
+    }
+    await waitFor(() => {
+        assert.isNull(document.querySelector("[data-popout-id]"), "every pop-out closed");
+    });
+}
+
+/**
+ * Drop-downs of fewer than six options, opened as a reader does to count them: fewer than six exclusive options are
+ * grouped buttons (owner's input rules). A Kind or Look drop-down too.
+ * @param root - the surface.
+ * @param reopen - opens it again, when Escape closed it.
+ * @returns their names, with their options.
+ */
+async function fewOptions(root: HTMLElement, reopen: () => Promise<HTMLElement>): Promise<string[]> {
+    const found: string[] = [];
+    // Mantine's Select, which a drop-down of words is (PanelField kind="select"); a pictured list is a button.
+    const selectsIn = (surface: HTMLElement): HTMLInputElement[] =>
+        [...surface.querySelectorAll<HTMLInputElement>('input.mantine-Select-input[aria-haspopup="listbox"]')].filter(
+            (each) => laidOut(each) && !each.disabled && each.readOnly,
+        );
+    const count = selectsIn(root).length;
+    for (let at = 0; at < count; at++) {
+        // Each from a fresh pop-over, nothing else open over it: every pop-out closed from its close button, then it
+        // opens again.
+        await closeAll();
+        const surface = await reopen();
+        const select = selectsIn(surface)[at];
+        if (select === undefined) {
+            break;
+        }
+        await userEvent.click(select);
+        const list = await waitFor(() => {
+            const id = select.getAttribute("aria-controls");
+            const opened = id === null ? null : document.getElementById(id);
+            assert.isNotNull(opened, `${select.getAttribute("aria-label") ?? ""}'s list`);
+            return opened;
+        });
+        const options = [...list.querySelectorAll<HTMLElement>('[role="option"]')].map((each) =>
+            each.textContent.trim(),
+        );
+        if (options.length < 6) {
+            found.push(`${select.getAttribute("aria-label") ?? ""} (${options.join(" / ")})`);
+        }
+        // Escape closes the list, and the pop-over with it: it is opened again for the next drop-down. (The list
+        // covers its field, and Tab leaves it open.)
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isTrue(!select.isConnected || select.getAttribute("aria-expanded") !== "true", "its list closed");
+        });
+    }
+    // Left with nothing open, so whatever opens it next starts from closed (an earlier count may have drawn the pop-over
+    // anew, which a reader's settings button would close).
+    await closeAll();
+    return found;
 }
 
 /** compact-mantine's own name text: a field's built-in label above it, a FieldRow caption, a group legend. */
@@ -402,6 +633,19 @@ function namesNotBuiltIn(lines: readonly HTMLElement[]): string[] {
                 wrong.push(`"${words}" drawn by the app`);
             }
         }
+        // Grouped buttons carry their name above them; only a pop-over's tab strip, its defining choice, has none.
+        const groups = [...line.querySelectorAll<HTMLElement>('[role="radiogroup"]')].filter(
+            (each) =>
+                laidOut(each) &&
+                each.closest('[data-strip], [data-testid="alignment-matrix"]') === null &&
+                each.querySelector('[data-testid="alignment-matrix"]') === null,
+        );
+        const named = [...line.querySelectorAll<HTMLElement>(BUILT_IN_NAMES)].some(
+            (each) => readable(each) && each.textContent.trim() !== "",
+        );
+        if (groups.length > 0 && !named) {
+            wrong.push("grouped buttons with no name above");
+        }
         return wrong.length === 0 ? [] : [`${nameOf(line)}: ${wrong.join("; ")}`];
     });
 }
@@ -454,6 +698,12 @@ interface Found {
     twoOpen?: string[];
     /** Lines with a name the app draws, or a name beside its input. */
     names: string[];
+    /** A value edited twice, or shown as raw data. */
+    twice?: string[];
+    /** Drop-downs of fewer than six options. */
+    few?: string[];
+    /** Groups of one line. */
+    oneLine?: string[];
     minus: string[];
     slot: string[];
     rest: string[];
@@ -480,7 +730,7 @@ async function addThing(
     const { side, part, thing } = walk;
     const section = sectionOf(tab, `${side}-${part}`);
     const rowOf = (): HTMLElement | null => section.querySelector<HTMLElement>(`[data-thing="${thing.id}"]`);
-    const values = written(side, thing);
+    const values = walk.set ?? written(side, thing);
     if (values !== undefined) {
         await session.styles.update(layer, { set: { ...session.styles.get(layer)?.set, ...values } });
         await session.styles.settled();
@@ -542,6 +792,10 @@ async function menuOf(pop: HTMLElement): Promise<MenuEntry[]> {
     await userEvent.click(button);
     const menu = await screen.findByRole("menu");
     const entries: MenuEntry[] = [];
+    const clipped = menuClipped(menu);
+    if (clipped !== undefined) {
+        entries.push({ name: "", heading: clipped, marked: true });
+    }
     let heading = "";
     for (const each of menu.querySelectorAll<HTMLElement>('.mantine-Menu-label, [role="menuitem"]')) {
         if (each.getAttribute("role") === "menuitem") {
@@ -558,16 +812,38 @@ async function menuOf(pop: HTMLElement): Promise<MenuEntry[]> {
 }
 
 /**
+ * How an open menu is not fully visible: outside the window, or scrolling its entries (owner, 2026-11-24: the "..."
+ * menu opens whole).
+ * @param menu - the menu.
+ * @returns what is wrong, or undefined.
+ */
+function menuClipped(menu: HTMLElement): string | undefined {
+    const box = menu.getBoundingClientRect();
+    const outside = box.top < -0.5 || box.bottom > window.innerHeight + 0.5;
+    const scrolls = [menu, ...menu.querySelectorAll<HTMLElement>("*")].some(
+        (each) => each.scrollHeight > each.clientHeight + 1 && /auto|scroll/.test(getComputedStyle(each).overflowY),
+    );
+    if (!outside && !scrolls) {
+        return undefined;
+    }
+    return `menu not fully visible (${[outside ? "outside the window" : "", scrolls ? "scrolls" : ""].filter(Boolean).join(", ")})`;
+}
+
+/**
  * What a menu breaks: more than 16 entries, or a heading over more than 6 (owner, 2026-11-24).
  * @param entries - the menu's entries.
  * @returns what is wrong.
  */
-function menuLong(entries: readonly MenuEntry[]): string[] {
+function menuLong(all: readonly MenuEntry[]): string[] {
     const headings = new Map<string, number>();
+    // A clipped menu is the entry with no name, its heading saying how (menuOf).
+    const clipped = all.filter((entry) => entry.name === "").map((entry) => entry.heading);
+    const entries = all.filter((entry) => entry.name !== "");
     for (const entry of entries) {
         headings.set(entry.heading, (headings.get(entry.heading) ?? 0) + 1);
     }
     return [
+        ...clipped,
         ...(entries.length > 16 ? [`${String(entries.length)} entries`] : []),
         ...[...headings]
             .filter(([, count]) => count > 6)
@@ -881,13 +1157,21 @@ function moreNotIcon(pop: HTMLElement): string[] {
  * Opens every group of a pop-over's "..." menu beside it, as a reader does, each in turn, the one before still open,
  * and checks each: one group pop-over open at a time, its mark in the menu when set, at most 6 lines tall, beside its
  * pop-over and not over it, its lines' names, minus, link slot, hover and values, its tabs, and what it opens.
+ * @param key - the walk's key.
  * @param pop - the pop-over's content.
  * @param reopen - opens the pop-over again, when Escape closed it with what it opened.
  * @param found - where findings go.
  */
-async function walkGroups(pop: HTMLElement, reopen: () => Promise<HTMLElement>, found: Found): Promise<void> {
-    const entries = await menuOf(pop);
-    found.menu = menuLong(entries);
+async function walkGroups(
+    key: string,
+    pop: HTMLElement,
+    reopen: () => Promise<HTMLElement>,
+    found: Found,
+): Promise<void> {
+    const all = await menuOf(pop);
+    found.menu = menuLong(all);
+    const entries = all.filter((entry) => entry.name !== "");
+    found.oneLine = [];
     found.groupTall = [];
     found.unmarked = [];
     found.twoOpen = [];
@@ -903,6 +1187,11 @@ async function walkGroups(pop: HTMLElement, reopen: () => Promise<HTMLElement>, 
         const tall = linesTall(panel);
         if (tall > 6) {
             found.groupTall.push(`${entry.name}: ${String(tall)}`);
+        }
+        // A list grows with its "+"; a group GROWING_GROUPS names grows in another state.
+        const list = panel.querySelector('button[aria-label^="Add "]') !== null;
+        if (tall === 1 && !list && !grows(key, entry.name)) {
+            found.oneLine.push(entry.name);
         }
         if (group.querySelector("[data-set]") !== null && !entry.marked) {
             found.unmarked.push(entry.name);
@@ -923,6 +1212,7 @@ async function walkGroups(pop: HTMLElement, reopen: () => Promise<HTMLElement>, 
         found.slot.push(...at(slotNotAfterControl(lines)));
         found.rest.push(...at(shownAtRest(lines)));
         found.empty.push(...at(emptyInputs(lines)));
+        found.twice = [...(found.twice ?? []), ...at(editedTwice(lines))];
         const reopenGroup = async (): Promise<HTMLElement> => {
             surface = await reopen();
             const again = await openGroup(surface, entry.name);
@@ -933,6 +1223,12 @@ async function walkGroups(pop: HTMLElement, reopen: () => Promise<HTMLElement>, 
         const tabs = await walkTabs(live.closest<HTMLElement>("[data-popout-id]") ?? live);
         found.strips = [...(found.strips ?? []), ...at(tabs.strips)];
         found.tabTall = [...(found.tabTall ?? []), ...at(tabs.tall)];
+        // Last: counting a drop-down's options closes the pop-overs (Escape), so each opens again.
+        const now = document.querySelector<HTMLElement>(`[data-group-pop="${entry.name}"]`) ?? (await reopenGroup());
+        found.few = [
+            ...(found.few ?? []),
+            ...at(await fewOptions(now.closest<HTMLElement>("[data-popout-id]") ?? now, reopenGroup)),
+        ];
     }
 }
 
@@ -966,15 +1262,18 @@ describe("Style panel v2's input rules (owner, 2026-11-23)", () => {
             await userEvent.keyboard("{Escape}");
 
             // Found by label: a settings button hidden until hover has no accessible name.
+            // The row as drawn now: a pop-over closing may draw it anew.
+            const rowNow = (): HTMLElement =>
+                row.isConnected ? row : (tab.querySelector<HTMLElement>(`[data-thing="${walk.thing.id}"]`) ?? row);
             const settingsButtons = (): HTMLElement[] =>
-                [...row.querySelectorAll<HTMLElement>("button[aria-label]")].filter((each) =>
+                [...rowNow().querySelectorAll<HTMLElement>("button[aria-label]")].filter((each) =>
                     / settings( has configured values)?$/.test(each.getAttribute("aria-label") ?? ""),
                 );
             const openSettings = async (): Promise<HTMLElement> => {
                 const button = settingsButtons()[0];
                 assert.isDefined(button, `${walk.key} has a settings button`);
                 // Shown on hover of its line, as a reader meets it.
-                await userEvent.hover(button.closest<HTMLElement>(".ws-row, .ws-member") ?? row);
+                await userEvent.hover(button.closest<HTMLElement>(".ws-row, .ws-member") ?? rowNow());
                 await userEvent.click(button);
                 return openedBy(button);
             };
@@ -1004,6 +1303,8 @@ describe("Style panel v2's input rules (owner, 2026-11-23)", () => {
                 covers: [],
                 names: namesNotBuiltIn(lines),
                 plus: pop === null ? [] : plusReveals(pop),
+                // In the pop-over: the row's own line is the list's main value, its pop-over the list.
+                twice: pop === null ? [] : editedTwice(linesIn(pop)),
             };
             // Hovering a line shows its buttons.
             const shownNow = (button: HTMLElement): boolean => {
@@ -1024,10 +1325,15 @@ describe("Style panel v2's input rules (owner, 2026-11-23)", () => {
                 }
             }
             found.fourth = pop === null ? [] : await deepLevels(pop, openSettings, found);
+            if (pop === null) {
+                found.few = await fewOptions(row, () => Promise.resolve(row));
+            }
             if (pop !== null) {
                 // Its groups, each beside it from the "...", then its tabs, which write the layer, last.
-                await walkGroups(pop.isConnected ? pop : await openSettings(), openSettings, found);
-                const live = pop.isConnected ? pop : await openSettings();
+                await walkGroups(walk.key, pop.isConnected ? pop : await openSettings(), openSettings, found);
+                const open = pop.isConnected ? pop : await openSettings();
+                found.few = [...(found.few ?? []), ...(await fewOptions(open, openSettings))];
+                const live = open.isConnected ? open : await openSettings();
                 const tabs = await walkTabs(live);
                 found.strips = [...(found.strips ?? []), ...tabs.strips];
                 found.tabTall = [...(found.tabTall ?? []), ...tabs.tall];
@@ -1339,6 +1645,21 @@ describe("Style panel v2's input rules (owner, 2026-11-23)", () => {
                 by((found) => found.names),
                 KNOWN_NAMES_NOT_BUILT_IN,
             ),
+            compare(
+                "A value edited twice, or shown as raw data",
+                by((found) => found.twice),
+                KNOWN_EDITED_TWICE,
+            ),
+            compare(
+                "Drop-downs of fewer than six options",
+                by((found) => found.few),
+                KNOWN_FEW_OPTIONS,
+            ),
+            compare(
+                "Groups of one line",
+                by((found) => found.oneLine),
+                KNOWN_ONE_LINE_GROUP,
+            ),
         ].filter((each) => each.fixed.length > 0 || each.added.length > 0);
         assert.deepEqual(results, []);
     });
@@ -1378,5 +1699,143 @@ describe("Style panel v2's group pop-over on an iPad held upright (owner, 2026-1
             assert.isNotNull(own);
             assert.isUndefined(coveredBy(panel, own), name);
         }
+    });
+});
+
+/**
+ * A row's settings pop-over, opened from its settings button as a reader does: hovered, then clicked.
+ * @param row - the row.
+ * @returns the pop-over's content.
+ */
+async function openRowSettings(row: HTMLElement): Promise<HTMLElement> {
+    const button = [...row.querySelectorAll<HTMLElement>("button[aria-label]")].find((each) =>
+        / settings( has configured values)?$/.test(each.getAttribute("aria-label") ?? ""),
+    );
+    assert.isDefined(button, "the row's settings button");
+    await userEvent.hover(button.closest<HTMLElement>(".ws-row, .ws-member") ?? row);
+    await userEvent.click(button);
+    return openedBy(button);
+}
+
+/**
+ * A tab of the open pop-over's tab strip, by its words.
+ * @param name - its words.
+ * @returns its radio, if it is drawn.
+ */
+function stripTab(name: string): HTMLInputElement | null {
+    const label = [...document.querySelectorAll<HTMLLabelElement>("[data-thing-popover] [data-strip] label")].find(
+        (each) => laidOut(each) && each.textContent.trim() === name,
+    );
+    return label === undefined ? null : (document.getElementById(label.htmlFor) as HTMLInputElement | null);
+}
+
+/**
+ * The words of a one-of's choices in a box: its segments' labels.
+ * @param box - the line or strip.
+ * @returns the words, in order.
+ */
+function choicesIn(box: Element): string[] {
+    return [...box.querySelectorAll<HTMLLabelElement>('[role="radiogroup"] label')].map((each) =>
+        each.textContent.trim(),
+    );
+}
+
+/**
+ * A walked thing added to a fresh graph's layer, its row returned.
+ * @param key - the walk's key.
+ * @returns the session, the layer and the row.
+ */
+async function rowOf(key: string): Promise<{ session: GraphSession; layer: string; row: HTMLElement }> {
+    const walk = WALKED.find((each) => each.key === key);
+    assert.isDefined(walk, key);
+    const { session, nodes, edges } = await openGraph();
+    const layer = walk.side === "node" ? nodes : edges;
+    const tab = await openStyle(walk.side === "node" ? "Key people" : "Links");
+    await showKind(walk.side);
+    const row = await addThing(session, layer, tab, walk);
+    await userEvent.keyboard("{Escape}");
+    return { session, layer, row };
+}
+
+describe("Style panel v2's tab strips, as a reader uses them (owner, 2026-11-24)", () => {
+    withFeatures(["file-styles", "style-panel-v2"]);
+
+    for (const [at, grows] of Object.entries(GROWING_GROUPS)) {
+        it(`${at}: one line as it starts, it grows past one line in another state, so it stays a group`, async () => {
+            const [key = "", group = ""] = at.split(" > ");
+            const { session, layer, row } = await rowOf(key);
+            await session.styles.update(layer, { set: { ...session.styles.get(layer)?.set, ...grows } });
+            await session.styles.settled();
+            const live = row.isConnected
+                ? row
+                : document.querySelector<HTMLElement>(`[data-thing="${key.split(".")[1] ?? ""}"]`);
+            assert.isNotNull(live, "the row");
+            const pop = await openRowSettings(live);
+            const opened = await openGroup(pop, group);
+            const panel = opened.closest<HTMLElement>("[data-popout-id]") ?? opened;
+            assert.isAbove(linesTall(panel), 1, `${group} grows`);
+        });
+    }
+
+    for (const [key, from, to] of [
+        ["node.label", "Text", "Glyph"],
+        ["edge.outline", "Under line", "Over line"],
+    ] as const) {
+        it(`${key}: an arrow key picking ${to} keeps focus on its tab, and the arrows go on working`, async () => {
+            const { row } = await rowOf(key);
+            await openRowSettings(row);
+            const first = stripTab(from);
+            assert.isNotNull(first, `the ${from} tab`);
+            assert.isTrue(first.checked, `${from} is picked`);
+            first.focus();
+            await userEvent.keyboard("{ArrowRight}");
+            await waitFor(() => {
+                const next = stripTab(to);
+                assert.isTrue(next?.checked, `${to} is picked`);
+                assert.strictEqual(document.activeElement, next, `focus is on the ${to} tab`);
+            });
+            await userEvent.keyboard("{ArrowLeft}");
+            await waitFor(() => {
+                const back = stripTab(from);
+                assert.isTrue(back?.checked, `${from} is picked again`);
+                assert.strictEqual(document.activeElement, back, `focus is on the ${from} tab`);
+            });
+        });
+    }
+
+    it("node.fill: Linear from Solid is one undo step", async () => {
+        const { session, layer, row } = await rowOf("node.fill");
+        await openRowSettings(row);
+        const linear = stripTab("Linear");
+        assert.isNotNull(linear, "the Linear tab");
+        const steps = session.history.position;
+        const label = document.querySelector<HTMLElement>(`label[for="${linear.id}"]`);
+        assert.isNotNull(label);
+        await userEvent.click(label);
+        await waitFor(() => {
+            assert.strictEqual(session.styles.get(layer)?.set?.["node.gradientKind"], "linear", "a linear gradient");
+        });
+        await session.styles.settled();
+        assert.strictEqual(session.history.position, steps + 1, "one step");
+    });
+
+    it("node.shape: its choice reads the same under a basic shape's row as in a model's pop-over", async () => {
+        const { session, layer, row } = await rowOf("node.shape");
+        const line = row.querySelector('[data-member-menu="node.shape"]');
+        assert.isNotNull(line, "the basic shape's choice under its row");
+        const under = choicesIn(line);
+        assert.isAbove(under.length, 1, "grouped buttons");
+        await session.styles.update(layer, {
+            set: { ...session.styles.get(layer)?.set, "node.model": "asset:sample/person" },
+        });
+        await session.styles.settled();
+        const pop = await waitFor(() => {
+            const settings = row.isConnected ? row : document.querySelector<HTMLElement>('[data-thing="shape"]');
+            assert.isNotNull(settings);
+            return settings;
+        }).then(openRowSettings);
+        const strip = pop.querySelector('[data-member-menu="node.shape"][data-strip]');
+        assert.isNotNull(strip, "the model's tab strip");
+        assert.deepEqual(choicesIn(strip), under);
     });
 });

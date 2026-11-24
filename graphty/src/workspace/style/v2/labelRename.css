@@ -9,3 +9,12 @@
 .sp2-label-head > .cm-rename {
     margin-bottom: 4px;
 }
+
+/* A label the reader named at length keeps the Text "+" menu its width: its name ends in an ellipsis there, whole in
+ * its tooltip and its accessible name. */
+.mantine-Menu-item[data-named] .mantine-Menu-itemLabel {
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}

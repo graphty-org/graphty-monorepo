@@ -85,6 +85,21 @@ async function showsName(tab: HTMLElement, id: string, name: string): Promise<vo
     });
 }
 
+/**
+ * Opens the Text "+" menu.
+ * @param tab - the Style tab.
+ * @returns its items and dividers, and their names ("-" for a divider).
+ */
+async function openTextPlus(tab: HTMLElement): Promise<{ rows: HTMLElement[]; names: (string | null)[] }> {
+    await userEvent.click(within(sectionOf(tab, "node-text")).getByRole("button", { name: /^Add to node text/ }));
+    const menu = await screen.findByRole("menu");
+    const rows = [...menu.querySelectorAll<HTMLElement>('[role="menuitem"], .mantine-Menu-divider')];
+    const names = rows.map((each) =>
+        each.getAttribute("role") === "menuitem" ? (each.getAttribute("aria-label") ?? each.textContent) : "-",
+    );
+    return { rows, names };
+}
+
 describe("renaming a further label", () => {
     withFeatures(["file-styles", "style-panel-v2"]);
 
@@ -109,6 +124,7 @@ describe("renaming a further label", () => {
         assert.equal(entry(session, id, "l2")?.text, "two", "its words are kept");
 
         await userEvent.click(screen.getByRole("button", { name: /^Undo( |$)/ }));
+        await screen.findByText("Undid renaming node label");
         await waitFor(() => {
             assert.isUndefined(entry(session, id, "l2")?.name);
         });
@@ -185,6 +201,78 @@ describe("renaming a further label", () => {
     });
 });
 
+describe("renaming the main label", () => {
+    withFeatures(["file-styles", "style-panel-v2"]);
+
+    it("by a double-click: its name is the entry with its id, its words and look kept, listed first in +", async () => {
+        const { session, id } = await openProject();
+        await session.styles.update(id, {
+            set: {
+                "node.color": "#E8590C",
+                "node.label": "Hello",
+                "node.labelStyle": { look: "card" },
+                "node.labels": [{ id: "l2", text: "two", style: { look: "default" } }],
+            },
+        });
+        await session.styles.settled();
+        const tab = await openStyle("Key people");
+        const main = await waitFor(() => {
+            const found = sectionOf(tab, "node-text").querySelector<HTMLElement>(
+                '[data-thing="label"]:not([data-label-entry]) [data-testid="control-group-label"]',
+            );
+            assert.equal(found?.textContent, "Card");
+            return found;
+        });
+        assert.isNotNull(main);
+        await userEvent.dblClick(main);
+        await screen.findByRole("textbox", { name: "Node card name" });
+        // Another label's name is refused, case aside; its own in another case is a rename.
+        await userEvent.keyboard("{Control>}a{/Control}label 2{Enter}");
+        await session.styles.settled();
+        assert.isUndefined(entry(session, id, "label"), "nothing is written");
+        await userEvent.dblClick(main);
+        await screen.findByRole("textbox", { name: "Node card name" });
+        await userEvent.keyboard("{Control>}a{/Control}Title{Enter}");
+        await waitFor(() => {
+            assert.equal(entry(session, id, "label")?.name, "Title");
+        });
+        assert.equal(written(session, id, "node.label"), "Hello", "its words are kept");
+        assert.deepEqual(written(session, id, "node.labelStyle"), { look: "card" }, "its look is kept");
+        assert.equal(entry(session, id, "l2")?.text, "two", "the further label is kept");
+        const renamed = sectionOf(tab, "node-text").querySelector<HTMLElement>(
+            '[data-thing="label"]:not([data-label-entry]) [data-testid="control-group-label"]',
+        );
+        assert.equal(renamed?.textContent, "Title");
+        assert.isNotNull(renamed);
+        await userEvent.dblClick(renamed);
+        await screen.findByRole("textbox", { name: "Node Title name" });
+        await userEvent.keyboard("{Control>}a{/Control}TITLE{Enter}");
+        await waitFor(() => {
+            assert.equal(entry(session, id, "label")?.name, "TITLE", "a change of case alone is a rename");
+        });
+
+        const { rows, names } = await openTextPlus(tab);
+        assert.deepEqual(names.slice(0, 3), ["Edit TITLE", "Edit Label 2", "-"], "the main label is listed first");
+        assert.isNotNull(rows[0]?.querySelector("svg.lucide-pencil"), "with a pencil");
+        await userEvent.click(screen.getByRole("menuitem", { name: "Edit TITLE" }));
+        await waitFor(() => {
+            assert.isNotNull(document.querySelector("[data-thing-popover]"), "its pop-over opens");
+        });
+        assert.equal(entryList(session, id).length, 2, "picking it adds no label");
+    });
+});
+
+/**
+ * The label list Key people writes.
+ * @param session - the session.
+ * @param layer - the layer.
+ * @returns its entries.
+ */
+function entryList(session: GraphSession, layer: string): readonly LabelEntry[] {
+    const value = written(session, layer, "node.labels");
+    return Array.isArray(value) ? (value as readonly LabelEntry[]) : [];
+}
+
 describe('the Text "+" menu', () => {
     withFeatures(["file-styles", "style-panel-v2"]);
 
@@ -208,12 +296,7 @@ describe('the Text "+" menu', () => {
         });
         await session.styles.settled();
         const tab = await openStyle("Hubs");
-        await userEvent.click(within(sectionOf(tab, "node-text")).getByRole("button", { name: /^Add to node text/ }));
-        const menu = await screen.findByRole("menu");
-        const rows = [...menu.querySelectorAll<HTMLElement>('[role="menuitem"], .mantine-Menu-divider')];
-        const names = rows.map((each) =>
-            each.getAttribute("role") === "menuitem" ? (each.getAttribute("aria-label") ?? each.textContent) : "-",
-        );
+        const { rows, names } = await openTextPlus(tab);
         assert.deepEqual(names.slice(0, 4), ["Edit Price", "Edit Label 3", "-", "Label"], "existing first, apart");
         for (const each of rows.slice(0, 2)) {
             assert.isNotNull(each.querySelector("svg.lucide-pencil"), `${each.textContent ?? ""} has a pencil`);

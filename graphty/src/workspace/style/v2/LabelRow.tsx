@@ -9,7 +9,7 @@
 import "./labelRename.css";
 
 import { ContextMenu, InlineRename } from "@graphty/compact-mantine";
-import { type Channel, type ChannelDescriptor } from "@graphty/graphty-element/catalog";
+import { type Channel, type ChannelDescriptor, MAIN_LABEL_ID } from "@graphty/graphty-element/catalog";
 import type { LabelStyle } from "@graphty/graphty-element/schema";
 import React, { useState } from "react";
 
@@ -359,15 +359,17 @@ export function LabelRow({
             onRemove={onRemove}
         />
     );
-    // A further label is renamed in place (its entry's name): a double-click on its name, F2 on the row, or the
-    // row's menu (a right-click, a touch held, Shift+F10). An empty name, its own or another label's writes nothing.
+    // A label is renamed in place (its entry's name; the main label's is the entry with its id): a double-click on
+    // its name, F2 on the row, or the row's menu (a right-click, a touch held, Shift+F10). An empty name, its own or
+    // another label's writes nothing. A tooltip or an external label keeps its thing's name.
+    const named = entry ?? (kind.list === undefined ? undefined : MAIN_LABEL_ID);
     const rename = (typed: string): void => {
         setRenaming(false);
         const next = typed.trim();
-        if (entry === undefined || !nameFree(ctx, entry, next)) {
+        if (named === undefined || !nameFree(ctx, named, next)) {
             return;
         }
-        writeEntry(ctx, entry, { name: next }).catch((error: unknown) => {
+        writeEntry(ctx, named, { name: next }).catch((error: unknown) => {
             store.set({ notice: { message: failureWords(title, "renamed", error), error: true } });
         });
     };
@@ -375,7 +377,7 @@ export function LabelRow({
         setRenaming(true);
     };
     const head =
-        entry === undefined ? (
+        named === undefined ? (
             frame
         ) : (
             <ContextMenu

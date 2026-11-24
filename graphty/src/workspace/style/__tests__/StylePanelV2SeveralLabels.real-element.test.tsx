@@ -227,8 +227,9 @@ describe("several labels per node", () => {
         await userEvent.click(
             within(sectionOf(hubTab, "node-text")).getByRole("button", { name: /^Add to node text/ }),
         );
-        // Named by number; what it draws, as its row reads it, is the item's tooltip, never words in the bar.
-        const offered = await screen.findByRole("menuitem", { name: "Label 2" });
+        // Named by number, after a pencil, as picking it edits a label already drawn; what it draws, as its row
+        // reads it, is the item's tooltip, never words in the bar.
+        const offered = await screen.findByRole("menuitem", { name: "Edit Label 2" });
         assert.equal(offered.textContent, "Label 2", "no words at the item's end");
         assert.include(offered.getAttribute("title"), "Node id", "its tooltip says what the label draws");
         await userEvent.click(offered);

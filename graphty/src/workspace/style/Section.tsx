@@ -836,6 +836,7 @@ function menuItem(option: AddOption, onAdd: (key: string) => void): React.JSX.El
             aria-label={each.name}
             disabled={each.disabled}
             data-dimmed={each.dimmed === undefined ? undefined : ""}
+            data-named={each.name === undefined ? undefined : ""}
             title={each.dimmed ?? each.hint}
             onClick={() => {
                 onAdd(each.key);

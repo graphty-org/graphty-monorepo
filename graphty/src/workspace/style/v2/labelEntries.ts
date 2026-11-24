@@ -150,21 +150,37 @@ export function entryName(ctx: RowContext, id: string, n: number): string {
 }
 
 /**
- * Whether a further label may take a name: not empty, not its name now, and no other label's (case aside).
+ * The name the reader gave the main label (the entry with its id, `MAIN_LABEL_ID`, which graphty-element never
+ * draws from but keeps and saves), or undefined while it goes by its look's name.
  * @param ctx - the row.
- * @param id - its id.
+ * @returns the name, or undefined.
+ */
+export function mainName(ctx: RowContext): string | undefined {
+    return entryOf(ctx, MAIN_LABEL_ID)?.name;
+}
+
+/**
+ * Whether a label may take a name: not empty, not its name now, and no other label's (case aside). The main
+ * label's names, "Label" and its look's ("Card"), stay its own, as its row goes by them.
+ * @param ctx - the row.
+ * @param id - its id, `MAIN_LABEL_ID` for the main label.
  * @param name - the name typed, trimmed.
  * @returns true when the name may be written.
  */
 export function nameFree(ctx: RowContext, id: string, name: string): boolean {
     const ids = [...new Set([...drawnBeneath(ctx).keys(), ...entryIds(ctx)])];
-    const main = LABEL_LOOKS.find((each) => each.id === lookOf(ctx, TEXT_THINGS[ctx.side].label.style))?.plainName;
-    const taken = [
-        "Label",
-        ...(main === undefined ? [] : [main]),
-        ...ids.map((each) => entryName(ctx, each, entryNumber(ctx, ids, each))),
-    ].map((each) => each.toLowerCase());
-    return name !== "" && !taken.includes(name.toLowerCase());
+    const look = LABEL_LOOKS.find((each) => each.id === lookOf(ctx, TEXT_THINGS[ctx.side].label.style))?.plainName;
+    const given = mainName(ctx);
+    const main = ["Label", ...(look === undefined ? [] : [look]), ...(given === undefined ? [] : [given])];
+    const names = (each: string): readonly string[] =>
+        each === MAIN_LABEL_ID ? main : [entryName(ctx, each, entryNumber(ctx, ids, each))];
+    const now = id === MAIN_LABEL_ID ? (given ?? look ?? "Label") : names(id)[0];
+    // Its own name is not taken, so a change of case alone ("price" to "Price") is a rename.
+    const taken = [MAIN_LABEL_ID, ...ids]
+        .filter((each) => each !== id)
+        .flatMap((each) => names(each))
+        .map((each) => each.toLowerCase());
+    return name !== "" && name !== now && !taken.includes(name.toLowerCase());
 }
 
 /**
@@ -258,7 +274,9 @@ export async function writeEntry(ctx: RowContext, id: string, change: EntryChang
         ? list.map((entry) => (entry.id === id ? next : entry))
         : [...list, next];
     const address = labelFieldAddress(ctx.side, id, "text");
-    await ctx.session.transaction(`changing ${ctx.side} label`, async (tx) => {
+    // Undo and Redo say what the step did: "Undid renaming node label".
+    const doing = change.name === undefined ? "changing" : "renaming";
+    await ctx.session.transaction(`${doing} ${ctx.side} label`, async (tx) => {
         const layer = await writeLine(tx, ctx.row, ctx.side, listChannel(ctx.side), { value: entries }, ctx.fresh);
         if (change.binding === undefined && change.text === undefined) {
             return;

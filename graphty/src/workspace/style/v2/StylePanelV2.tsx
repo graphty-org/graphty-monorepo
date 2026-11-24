@@ -11,6 +11,7 @@ import {
     type Channel,
     type ChannelDescriptor,
     type LabelLookId,
+    MAIN_LABEL_ID,
     writeChannelList,
 } from "@graphty/graphty-element/catalog";
 import { Divider } from "@mantine/core";
@@ -50,6 +51,7 @@ import { TEXT_THINGS } from "./labelRubric";
 import { labelWords } from "./labelWords";
 import { drawnItems, firstColors, ITEM_LISTS, LISTS } from "./lists";
 import { PlusList, PlusListKind } from "./PlusList";
+import { rowNames } from "./rowNames";
 import { lineFor, V2_LABELS } from "./rubric";
 import { RubricLine } from "./RubricLine";
 import { ShaderUseRow } from "./ShaderUseRow";
@@ -442,6 +444,37 @@ function sizeStarts(ctx: RowContext, thing: ThingSpec, main: Channel): Record<st
 }
 
 /**
+ * Whether a row is the main label's, drawn as words (a Glyph is not a label to edit by name).
+ * @param ctx - the row.
+ * @param row - the section's row.
+ * @returns true for the main label's row.
+ */
+function isMainLabel(ctx: RowContext, row: ThingRowOf): boolean {
+    return row.thing.id === "label" && row.entry === undefined && row.kind?.head === TEXT_THINGS[ctx.side].label.words;
+}
+
+/**
+ * The Text "+" item that edits a label already drawn: a pencil before its name, as it edits a label rather than
+ * adding one, and what it draws (the words its row shows, "name, below") in its tooltip: no words in the bar (E106).
+ * @param ctx - the row.
+ * @param id - the label's id, `MAIN_LABEL_ID` for the main label.
+ * @param name - its row's name.
+ * @returns the item.
+ */
+function editOption(ctx: RowContext, id: string, name: string): AddOption {
+    const words = labelWords(ctx, id);
+    return {
+        key: `${ENTRY_WAIT}${id}`,
+        label: name,
+        icon: <GLYPHS.rename size={14} aria-hidden />,
+        name: `Edit ${name}`,
+        hint: words === "" ? `Edit ${name}` : `Edit ${name}: ${words}`,
+        // Restyling a label already drawn adds none, so the cap never holds it back.
+        disabled: ctx.many === undefined ? undefined : true,
+    };
+}
+
+/**
  * One section: see the file header.
  * @param props - Component props
  * @param props.ctx - the row and kind
@@ -479,6 +512,7 @@ function ThingSection({
     // The thing "+" just added whose pop-over or picker opens at once (a list, an image).
     const [opening, setOpening] = useState<string | undefined>(undefined);
     const { things, shown } = thingsOf(ctx, part, section, waiting);
+    const rows = shown.flatMap(({ thing, channels }) => rowsOf(ctx, thing, channels, waiting));
     const shownIds = [
         ...entryIds(ctx),
         ...waiting.filter((key) => key.startsWith(ENTRY_WAIT)).map((key) => key.slice(ENTRY_WAIT.length)),
@@ -543,20 +577,13 @@ function ThingSection({
                   ]),
               ]
                   .sort((a, b) => entryNumber(ctx, shownIds, a) - entryNumber(ctx, shownIds, b))
-                  .map((id) => {
-                      const name = entryName(ctx, id, entryNumber(ctx, shownIds, id));
-                      // What it draws, the words its row shows ("name, below"), in its tooltip: no words in the bar (E106).
-                      const words = labelWords(ctx, id);
-                      return {
-                          key: `${ENTRY_WAIT}${id}`,
-                          label: name,
-                          icon: <GLYPHS.rename size={14} aria-hidden />,
-                          name: `Edit ${name}`,
-                          hint: words === "" ? `Edit ${name}` : `Edit ${name}: ${words}`,
-                          // Restyling a label already drawn adds none, so the cap never holds it back.
-                          disabled: ctx.many === undefined ? undefined : true,
-                      };
-                  });
+                  .map((id) => editOption(ctx, id, entryName(ctx, id, entryNumber(ctx, shownIds, id))));
+    // The main label is one of them, by its row's name ("Card"), while its row is drawn.
+    const mainRow = label === undefined ? undefined : rows.find((row) => isMainLabel(ctx, row));
+    if (mainRow !== undefined) {
+        const { name } = rowNames(ctx, mainRow.thing, mainRow.kind, undefined);
+        existing.unshift(editOption(ctx, MAIN_LABEL_ID, name));
+    }
     plus.unshift(existing);
     const options = plus.flat().filter((option) => option.disabled !== true);
     // A Label already drawn adds a further label (labelEntries.ts), waiting for its source as the first does.
@@ -588,6 +615,19 @@ function ThingSection({
         writeIn(ctx, style, { value: { look } }).catch(fail);
         return true;
     };
+    // A label already drawn: its pop-over opens (the main label's on its row), and one a layer beneath draws gets
+    // a row here, waiting for the first thing the reader changes on it.
+    const editDrawn = (key: string): void => {
+        const drawnId = key.slice(ENTRY_WAIT.length);
+        if (drawnId === MAIN_LABEL_ID) {
+            setOpening("label");
+            return;
+        }
+        if (!entryIds(ctx).includes(drawnId)) {
+            setWaiting((now) => (now.includes(key) ? now : [...now, key]));
+        }
+        setOpening(key);
+    };
     const add = (id: string): void => {
         setMenu(false);
         if (id === "shader") {
@@ -595,12 +635,7 @@ function ThingSection({
             return;
         }
         if (id.startsWith(ENTRY_WAIT)) {
-            // A label already drawn: its pop-over opens, and one a layer beneath draws gets a row here, waiting for
-            // the first thing the reader changes on it.
-            if (!entryIds(ctx).includes(id.slice(ENTRY_WAIT.length))) {
-                setWaiting((now) => (now.includes(id) ? now : [...now, id]));
-            }
-            setOpening(id);
+            editDrawn(id);
             return;
         }
         const [thingId, look] = id.split(LOOK_SEP) as [string, LabelLookId | undefined];
@@ -688,7 +723,7 @@ function ThingSection({
                     )
                 }
             >
-                {byKind(shown.flatMap(({ thing, channels }) => rowsOf(ctx, thing, channels, waiting))).map((run) => {
+                {byKind(rows).map((run) => {
                     const drawn = run.rows.map((row) => {
                         const { thing, channels, kind, entry } = row;
                         const key = waitKeyOf(row);

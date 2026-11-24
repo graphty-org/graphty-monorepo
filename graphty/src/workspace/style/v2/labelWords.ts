@@ -3,6 +3,7 @@
  * of one row read the same source, where each sits ("name, below"; ledger E265).
  */
 
+import { MAIN_LABEL_ID } from "@graphty/graphty-element/catalog";
 import type { LabelStyle } from "@graphty/graphty-element/schema";
 
 import { cardSummary } from "../cardLines";
@@ -70,15 +71,16 @@ export function sharedWhere(ctx: RowContext, kind: TextThing, entry: string | un
 }
 
 /**
- * What a further label draws, in the words its row shows: its source, and its place when another label of the
- * row reads the same source ("name, below").
+ * What a label draws, in the words its row shows: its source, and its place when another label of the row reads
+ * the same source ("name, below").
  * @param ctx - the row.
- * @param entry - the further label's id.
+ * @param entry - the further label's id, or `MAIN_LABEL_ID` for the main label.
  * @returns the words, or "" when it has none yet.
  */
 export function labelWords(ctx: RowContext, entry: string): string {
     const kind = TEXT_THINGS[ctx.side].label;
-    const source = sourceText(ctx, entryWords(ctx, entry) ?? lineIn(ctx, kind.words));
-    const also = sharedWhere(ctx, kind, entry);
+    const id = entry === MAIN_LABEL_ID ? undefined : entry;
+    const source = sourceText(ctx, (id === undefined ? undefined : entryWords(ctx, id)) ?? lineIn(ctx, kind.words));
+    const also = sharedWhere(ctx, kind, id);
     return also === "" || source === "" ? source : `${source}, ${also}`;
 }

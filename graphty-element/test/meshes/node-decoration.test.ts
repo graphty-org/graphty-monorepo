@@ -315,6 +315,21 @@ describe("a chart", () => {
         assert.deepEqual(pieces[1].rgb, [0x2c / 255, 0xa0 / 255, 0x2c / 255]);
     });
 
+    test("draws one box per five values, side by side, each in its own color", () => {
+        const one = chartPieces({ ...bars, kind: "box", values: "1 2 3 4 5", colors: "#d62728" }, 60, 60);
+        const two = chartPieces(
+            { ...bars, kind: "box", values: "1 2 3 4 5 5 6 7 8 9", colors: "#d62728 #2ca02c" },
+            60,
+            60,
+        );
+        assert.strictEqual(two.length, 2 * one.length);
+        const green = [0x2c / 255, 0xa0 / 255, 0x2c / 255];
+        const filled = two.filter((piece) => piece.line !== true);
+        assert.lengthOf(filled, 2);
+        assert.deepEqual(filled[1].rgb, green);
+        assert.isAtMost(boxOf(filled[0].outline).x1, boxOf(filled[1].outline).x0);
+    });
+
     test("draws its plot in a box of its own width, height and place when it has one", () => {
         // Cytoscape's bar chart with its range and domain axes at label size 10 (xgmml-specimen-images-charts-p7,
         // bar-axis-label-font-size-10): the axes take 16.7 at the left and 15.6 at the bottom of the 52.1 plot, so

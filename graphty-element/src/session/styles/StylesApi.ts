@@ -1060,8 +1060,9 @@ export interface StylesApi {
      * @param channel - The data channel.
      * @param node - The node.
      * @returns The facts.
-     * @throws A `GraphtyError`: `E_UNKNOWN_LAYER` for no such layer, `E_BAD_COMMAND` when the layer holds no spec on
-     *     that channel or the session holds no such node.
+     * @throws A `GraphtyError`: `E_UNKNOWN_LAYER` for no such layer, `E_BAD_COMMAND` when the session holds no such
+     *     node. A layer that has not painted a spec on that channel (hidden, disabled, or holding none) answers
+     *     `undrawn: data.notPainted` with no entries.
      * @example
      * ```ts
      * const facts = session.styles.dataFacts("animals", "node.pieData", "n1");
@@ -1077,8 +1078,8 @@ export interface StylesApi {
      * @param channel - The data channel.
      * @param find - Which node to find.
      * @param after - For "next": the node to start after; omitted, from the first.
-     * @returns The node, or null.
-     * @throws As {@link StylesApi.dataFacts} does.
+     * @returns The node, or null (also when the layer has not painted a spec on that channel).
+     * @throws `E_UNKNOWN_LAYER` for no such layer.
      * @since 3.68.0
      */
     dataSample(
@@ -2971,10 +2972,10 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * The prepared data spec one layer paints on a data channel.
      * @param layerId - The layer.
      * @param channel - The data channel.
-     * @returns The preparation.
-     * @throws `E_UNKNOWN_LAYER` or `E_BAD_COMMAND`.
+     * @returns The preparation, or null when the layer has not painted one (hidden, disabled, or no such spec).
+     * @throws `E_UNKNOWN_LAYER`.
      */
-    const dataPrepared = (layerId: LayerId, channel: DataChannel): PreparedData => {
+    const dataPrepared = (layerId: LayerId, channel: DataChannel): PreparedData | null => {
         if (!byId().has(layerId)) {
             throw unknownLayer(
                 layerId,
@@ -2982,12 +2983,49 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             );
         }
 
-        const found = encodingOf(layerId).find((binding) => binding.data?.channel === channel)?.data?.prepared;
-        if (found === undefined) {
-            throw badCommand(`The layer "${layerId}" holds no ${channel} spec it has painted.`, { layerId, channel });
-        }
+        return encodingOf(layerId).find((binding) => binding.data?.channel === channel)?.data?.prepared ?? null;
+    };
 
-        return found;
+    /**
+     * What one node draws from a prepared spec, with the layers above it read: the one answer `dataFacts` and
+     * `dataSample` share, so a node a layer above paints over is undrawn in both.
+     * @param prepared - The preparation.
+     * @param layerId - Its layer.
+     * @param channel - The data channel.
+     * @param node - The node.
+     * @param index - Its dense index.
+     * @returns The facts.
+     */
+    const dataFactsAt = (
+        prepared: PreparedData,
+        layerId: LayerId,
+        channel: DataChannel,
+        node: NodeId,
+        index: number,
+    ): DataFacts => {
+        const explained = explainStyle({ node }, explainSources);
+        const result = prepared.resolve(index, (each) => (explained.merged as Record<string, unknown>)[each]);
+        const label = explained.merged["node.label"];
+        const order = listLayers().map((each) => each.id);
+        const above = explained.channels.find(
+            (each) =>
+                result.fills[each.channel] !== undefined &&
+                each.layerId !== layerId &&
+                order.indexOf(each.layerId) > order.indexOf(layerId),
+        );
+        return Object.freeze({
+            node,
+            name: typeof label === "string" && label !== "" ? label : String(node),
+            entries: result.entries,
+            undrawn:
+                above === undefined
+                    ? result.undrawn
+                    : {
+                          code: "data.paintedOver" as const,
+                          params: { channel, layerId: above.layerId, filled: above.channel },
+                      },
+            categories: prepared.categories(),
+        });
     };
 
     /**
@@ -5583,29 +5621,18 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 throw badCommand(`There is no node with the id "${String(node)}" in this session.`, { node });
             }
 
-            const explained = explainStyle({ node }, explainSources);
-            const result = prepared.resolve(index, (each) => (explained.merged as Record<string, unknown>)[each]);
-            const label = explained.merged["node.label"];
-            const order = listLayers().map((each) => each.id);
-            const above = explained.channels.find(
-                (each) =>
-                    result.fills[each.channel] !== undefined &&
-                    each.layerId !== layerId &&
-                    order.indexOf(each.layerId) > order.indexOf(layerId),
-            );
-            return Object.freeze({
-                node,
-                name: typeof label === "string" && label !== "" ? label : String(node),
-                entries: result.entries,
-                undrawn:
-                    above === undefined
-                        ? result.undrawn
-                        : {
-                              code: "data.paintedOver" as const,
-                              params: { channel, layerId: above.layerId, filled: above.channel },
-                          },
-                categories: prepared.categories(),
-            });
+            if (prepared === null) {
+                const label = explainStyle({ node }, explainSources).merged["node.label"];
+                return Object.freeze({
+                    node,
+                    name: typeof label === "string" && label !== "" ? label : String(node),
+                    entries: [],
+                    undrawn: { code: "data.notPainted" as const, params: { channel, layerId } },
+                    categories: [],
+                });
+            }
+
+            return dataFactsAt(prepared, layerId, channel, node, index);
         },
 
         dataSample(
@@ -5615,6 +5642,10 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             after?: NodeId,
         ): NodeId | null {
             const prepared = dataPrepared(layerId, channel);
+            if (prepared === null) {
+                return null;
+            }
+
             const entry = painting(current()).find((each) => each.layer.id === layerId);
             const test = entry?.selector.test ?? null;
             const count = nodeCountOf();
@@ -5624,7 +5655,13 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                     continue;
                 }
 
-                const result = prepared.resolve(index, () => undefined);
+                const node = sources.elements.nodeIdOf?.(index);
+                if (node === undefined) {
+                    continue;
+                }
+
+                // ponytail: one explain per node walked; a per-layer "painted over" index if samples get slow.
+                const result = dataFactsAt(prepared, layerId, channel, node, index);
                 const wanted: Record<typeof find, boolean> = {
                     first: result.undrawn === null,
                     next: result.undrawn === null,
@@ -5632,7 +5669,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                     missing: result.entries.some((each) => each.value === null),
                 };
                 if (wanted[find]) {
-                    return sources.elements.nodeIdOf?.(index) ?? null;
+                    return node;
                 }
             }
 

@@ -706,7 +706,10 @@ export function chartPieces(chart: NodeStyleConfig["chart"], width: number, heig
         c === null ? [] : linePieces(points, lineWidth, c).map((p) => ({ ...p, line: true }));
     const margin = chart.margin ?? 0;
     const gap = Math.max(0, Math.min(1, chart.gap ?? 0));
-    const slots = kind === "bar" || kind === "line" || kind === "cells" ? placed.length : 1;
+    // a box chart's values are five-number summaries, one box per five values (one box when fewer)
+    const boxes = Math.max(1, Math.floor(values.length / 5));
+    const perValue = kind === "bar" || kind === "line" || kind === "cells";
+    const slots = perValue ? placed.length : boxes;
     const band = Math.max(0, 1 - 2 * margin - gap) / slots;
     const step = band + (slots > 1 ? gap / (slots - 1) : 0);
     const slot = (i: number): [number, number] => [margin + i * step, margin + i * step + band];
@@ -739,23 +742,25 @@ export function chartPieces(chart: NodeStyleConfig["chart"], width: number, heig
                         p === null || points[i] === null ? [] : stroke([points[i], p] as Point2[], color(0)),
                     );
             }
-            case "box": {
-                const [low, q1, median, q3, high] = [0, 1, 2, 3, 4].map((j) => values[Math.min(j, values.length - 1)]);
-                const [c0, c1] = slot(0);
-                const mid = (c0 + c1) / 2;
-                const fill = color(0);
-                return [
-                    ...stroke([at(mid, along(high)), at(mid, along(q3))], fill),
-                    ...stroke([at(c0, along(high)), at(c1, along(high))], fill),
-                    ...stroke([at(mid, along(low)), at(mid, along(q1))], fill),
-                    ...stroke([at(c0, along(low)), at(c1, along(low))], fill),
-                    ...filled(rect(c0, c1, along(q1), along(q3)), fill),
-                    ...stroke(
-                        [at(c0, along(median)), at(c1, along(median))],
-                        colors.length > 1 ? color(1) : paint("#000000"),
-                    ),
-                ];
-            }
+            case "box":
+                return Array.from({ length: boxes }, (_, b) => b).flatMap((b) => {
+                    const five = values.slice(b * 5, b * 5 + 5);
+                    const [low, q1, median, q3, high] = [0, 1, 2, 3, 4].map((j) => five[Math.min(j, five.length - 1)]);
+                    const [c0, c1] = slot(b);
+                    const mid = (c0 + c1) / 2;
+                    const fill = color(b);
+                    return [
+                        ...stroke([at(mid, along(high)), at(mid, along(q3))], fill),
+                        ...stroke([at(c0, along(high)), at(c1, along(high))], fill),
+                        ...stroke([at(mid, along(low)), at(mid, along(q1))], fill),
+                        ...stroke([at(c0, along(low)), at(c1, along(low))], fill),
+                        ...filled(rect(c0, c1, along(q1), along(q3)), fill),
+                        ...stroke(
+                            [at(c0, along(median)), at(c1, along(median))],
+                            colors.length > boxes ? color(boxes + b) : paint("#000000"),
+                        ),
+                    ];
+                });
             default:
                 return [];
         }

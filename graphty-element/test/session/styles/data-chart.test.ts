@@ -131,7 +131,7 @@ describe("a chart from data", () => {
         );
     });
 
-    it("reads a missing value as zero, or as a gray bar the height of the scale", async () => {
+    it("reads a missing value as zero, or as a short gray bar from the low end", async () => {
         const zero = await chartOf([{ id: "n", a: 4 }], {
             entries: [{ field: "data.a" }, { field: "data.b", missing: "zero" }],
         });
@@ -140,7 +140,8 @@ describe("a chart from data", () => {
         const gray = await chartOf([{ id: "n", a: 4 }], {
             entries: [{ field: "data.a" }, { field: "data.b", missing: "gray" }],
         });
-        assert.strictEqual(drawn(gray.session, "n").values, "4 4");
+        // A tenth of the scale (0 to 4): a mark, never read as the top value.
+        assert.strictEqual(drawn(gray.session, "n").values, "4 0.4");
         assert.strictEqual(drawn(gray.session, "n").colors[1], "#BDBDBD");
     });
 });

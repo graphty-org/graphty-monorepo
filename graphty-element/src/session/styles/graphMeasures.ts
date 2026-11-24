@@ -247,11 +247,13 @@ function gather(held: Tally, value: unknown): void {
         held.seen.set(word, (held.seen.get(word) ?? 0) + 1);
     }
 
-    if (typeof value === "number" && Number.isFinite(value)) {
-        held.sum += value;
+    // Text that is a number counts as one, as a field entry reads it (a CSV's "5").
+    const number = typeof value === "string" && value.trim() !== "" ? Number(value) : value;
+    if (typeof number === "number" && Number.isFinite(number)) {
+        held.sum += number;
         held.numbers++;
-        held.min = Math.min(held.min, value);
-        held.max = Math.max(held.max, value);
+        held.min = Math.min(held.min, number);
+        held.max = Math.max(held.max, number);
     }
 }
 

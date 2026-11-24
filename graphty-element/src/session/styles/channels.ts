@@ -1316,8 +1316,8 @@ const NODE_CHART_CAVEAT =
     "A chart over the node's face, drawn when `node.chartValues` (numbers separated by spaces) and " +
     "`node.chartColors` (CSS colors separated by spaces, item i in color i, the last for the rest) are set: " +
     '`node.chartKind` "bar" (bars side by side), "stacked-bar" (the values piled into one bar), "line", "box" ' +
-    "(the values are the low whisker, the quartiles and median, the high whisker; its median in the second " +
-    'color, else black) or "cells" (a row of colored cells). The plot is a box `node.chartSize` times the ' +
+    "(each five values are one box: the low whisker, the quartiles and median, the high whisker; box b in color b, " +
+    'its median in color boxes + b, else black) or "cells" (a row of colored cells). The plot is a box `node.chartSize` times the ' +
     "node's (`node.chartWidth` and `node.chartHeight` give its width and height apart, shares of the node's), " +
     "centered on the node or moved by `node.chartOffsetX` / `-Y` (in the units of `node.size`, y down); the values run from `node.chartMin` to `node.chartMax` bottom to top (left to right with " +
     "`node.chartHorizontal`), the categories along the other side after `node.chartMargin` at each end and " +

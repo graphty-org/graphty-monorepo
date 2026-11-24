@@ -1618,7 +1618,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
                             : { ...structure, edgeValue: (edge, path) => stores.edge.elements.value(edge, path) };
                     },
                 },
-                layer.set?.["node.chartKind"],
+                layer.set ?? {},
             );
             for (const binding of dataBindings(data, spec)) {
                 channels.push({

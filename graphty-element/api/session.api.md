@@ -1028,10 +1028,10 @@ export interface DataSourceInput {
 }
 
 // @public
-export type DataSpecReason = "data-and-fixed" | "entry-source" | "entry-kind" | "measure-of" | "hops" | "keep" | "most" | "clip" | "window" | "palette" | "colors" | "shape" | "where";
+export type DataSpecReason = "data-and-fixed" | "entry-source" | "entry-kind" | "measure-of" | "hops" | "keep" | "most" | "clip" | "window" | "palette" | "colors" | "shape" | "where" | "option";
 
 // @public
-export type DataUndrawnCode = "data.noEntries" | "data.noValues" | "data.notNumbers" | "data.zeroTotal" | "data.nothingOver" | "data.patternEmpty" | "data.paintedOver";
+export type DataUndrawnCode = "data.noEntries" | "data.noValues" | "data.notNumbers" | "data.zeroTotal" | "data.nothingOver" | "data.patternEmpty" | "data.paintedOver" | "data.notPainted";
 
 // @public
 export const DEFAULT_BACKGROUND_IMAGE_SIZE = 4096;

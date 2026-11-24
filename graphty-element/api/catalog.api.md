@@ -578,6 +578,7 @@ export type CatalogKind = (typeof CATALOG_KINDS)[number];
 export type CategoryOverrides = Readonly<Record<string, {
     readonly color?: string;
     readonly label?: string;
+    readonly opacity?: number;
 }>>;
 
 // @public
@@ -820,6 +821,7 @@ export interface DataEntryCommon {
     readonly missing?: "skip" | "gray" | "zero" | "gap" | "drop" | {
         readonly text: string;
     };
+    readonly opacity?: number;
     readonly style?: ShapeTextLook;
 }
 
@@ -882,10 +884,10 @@ export { DATASET_DESCRIPTORS }
 export { DatasetMeta }
 
 // @public
-export type DataSpecReason = "data-and-fixed" | "entry-source" | "entry-kind" | "measure-of" | "hops" | "keep" | "most" | "clip" | "window" | "palette" | "colors" | "shape" | "where";
+export type DataSpecReason = "data-and-fixed" | "entry-source" | "entry-kind" | "measure-of" | "hops" | "keep" | "most" | "clip" | "window" | "palette" | "colors" | "shape" | "where" | "option";
 
 // @public
-export type DataUndrawnCode = "data.noEntries" | "data.noValues" | "data.notNumbers" | "data.zeroTotal" | "data.nothingOver" | "data.patternEmpty" | "data.paintedOver";
+export type DataUndrawnCode = "data.noEntries" | "data.noValues" | "data.notNumbers" | "data.zeroTotal" | "data.nothingOver" | "data.patternEmpty" | "data.paintedOver" | "data.notPainted";
 
 export { DEFAULT_DATASET_BASE_URL }
 

@@ -51,13 +51,13 @@ export function isDataChannel(channel: string): channel is DataChannel {
 /** The fixed channels a data channel fills, which may not sit on its layer (decision 4). */
 export const FIXED_OF: Readonly<Record<DataChannel, readonly Channel[]>> = {
     "node.pieData": ["node.pieColors", "node.pieSizes", "node.pieOpacities"],
-    "node.chartData": ["node.chartValues", "node.chartColors"],
+    "node.chartData": ["node.chartValues", "node.chartColors", "node.chartMin", "node.chartMax"],
     "node.recordData": ["node.shapeTexts", "node.labelTable"],
 };
 
 /** The channels a data channel writes. */
 export const FILLS_OF: Readonly<Record<DataChannel, readonly Channel[]>> = {
-    "node.pieData": ["node.pieColors", "node.pieSizes", "node.pieOpacities", "node.shapeTexts"],
+    "node.pieData": ["node.pieColors", "node.pieSizes", "node.pieOpacities", "node.shapeTexts", "node.pieHole"],
     "node.chartData": ["node.chartValues", "node.chartColors", "node.chartMin", "node.chartMax"],
     "node.recordData": ["node.labelTable", "node.shapeTexts"],
 };
@@ -82,6 +82,10 @@ const ZEBRA_FILL = "#F2F2F2";
 const GRAY_SHARE = 0.01;
 /** How far out a slice's text sits, as a share of the disc's radius. */
 const SLICE_TEXT_AT = 0.65;
+/** How tall a gray missing bar stands, as a share of the scale: a mark, never read as a value near the top. */
+const GRAY_BAR = 0.1;
+/** The hole a pie's `empty: "ring"` cuts, as a share of the radius, unless the node's own hole is larger. */
+const RING_HOLE = 0.8;
 
 // ---------------------------------------------------------------------------------------------
 // Checking a spec
@@ -167,7 +171,203 @@ function checkEntry(channel: DataChannel, entry: unknown, at: string): DataSpecP
         return { reason: "colors", message: "An entry's color is a color.", path: `${at}.color` };
     }
 
+    const option = checkEntryOptions(record, at);
+    if (option !== null) {
+        return option;
+    }
+
     return source === "graph" ? checkMeasure(record.graph as Record<string, unknown>, `${at}.graph`) : null;
+}
+
+/** The words each option of an entry or a spec may take. */
+const ENTRY_WORDS: Readonly<Record<string, readonly string[]>> = {
+    each: ["count", "equal", "items", "sum", "mean", "min", "max"],
+};
+const SPEC_WORDS: Readonly<Record<string, readonly string[]>> = {
+    order: ["listed", "largest", "name"],
+    labels: ["none", "value", "percent"],
+    empty: ["none", "ring", "slice"],
+    layout: ["table", "points"],
+    rows: ["plain", "lines", "zebra"],
+};
+const SCALE_WORDS: Readonly<Record<string, readonly string[]>> = {
+    share: ["layer", "graph", "node"],
+    normalize: ["raw", "share", "rank"],
+};
+const MISSING_WORDS: readonly unknown[] = ["skip", "gray", "zero", "gap", "drop"];
+
+/** One option check: whether it holds, where, and what it asks. */
+type OptionCheck = readonly [ok: boolean, path: string, message: string];
+
+/**
+ * The first option check that fails, as an `option` refusal.
+ * @param checks - The checks.
+ * @returns The problem, or null.
+ */
+function firstFailed(checks: readonly OptionCheck[]): DataSpecProblem | null {
+    const failed = checks.find(([ok]) => !ok);
+    return failed === undefined ? null : { reason: "option", path: failed[1], message: failed[2] };
+}
+
+/**
+ * Checks that each listed option, when given, is one of its words.
+ * @param record - The object holding the options.
+ * @param words - Each option's words.
+ * @param at - Where the object sits.
+ * @returns The checks.
+ */
+function wordChecks(
+    record: Readonly<Record<string, unknown>> | undefined,
+    words: Readonly<Record<string, readonly string[]>>,
+    at: string,
+): OptionCheck[] {
+    return Object.entries(words).map(([key, list]): OptionCheck => [
+        record?.[key] === undefined || list.includes(record[key] as string),
+        `${at}.${key}`,
+        `${key} is one of ${list.join(", ")}.`,
+    ]);
+}
+
+/**
+ * Whether a value is a plain object.
+ * @param value - The value.
+ * @returns True when it is.
+ */
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Whether a value is absent or a plain object.
+ * @param value - The value.
+ * @returns True when it is.
+ */
+function isObjectOrAbsent(value: unknown): boolean {
+    return value === undefined || isPlainObject(value);
+}
+
+/**
+ * Whether a value is absent or a number from 0 to 1.
+ * @param value - The value.
+ * @returns True when it is.
+ */
+function isShareOrAbsent(value: unknown): boolean {
+    return value === undefined || (typeof value === "number" && value >= 0 && value <= 1);
+}
+
+/**
+ * Whether a value is absent or a finite number.
+ * @param value - The value.
+ * @returns True when it is.
+ */
+function isNumberOrAbsent(value: unknown): boolean {
+    return value === undefined || (typeof value === "number" && Number.isFinite(value));
+}
+
+/**
+ * Whether a value is absent or text.
+ * @param value - The value.
+ * @returns True when it is.
+ */
+function isTextOrAbsent(value: unknown): boolean {
+    return value === undefined || typeof value === "string";
+}
+
+/**
+ * Check an entry's options beside its source: label, format, style, each, missing, at, opacity.
+ * @param record - The entry.
+ * @param at - Where it sits.
+ * @returns The problem, or null.
+ */
+function checkEntryOptions(record: Record<string, unknown>, at: string): DataSpecProblem | null {
+    const { missing, at: place } = record;
+    return firstFailed([
+        [isTextOrAbsent(record.label), `${at}.label`, "An entry's label is text."],
+        [isObjectOrAbsent(record.format), `${at}.format`, "An entry's format is an object."],
+        [isObjectOrAbsent(record.style), `${at}.style`, "An entry's style is an object."],
+        ...wordChecks(record, ENTRY_WORDS, at),
+        [
+            missing === undefined ||
+                MISSING_WORDS.includes(missing) ||
+                (isPlainObject(missing) && typeof missing.text === "string"),
+            `${at}.missing`,
+            `An entry's missing is one of ${MISSING_WORDS.join(", ")} or { text }.`,
+        ],
+        [
+            place === undefined ||
+                (Array.isArray(place) &&
+                    place.length === 2 &&
+                    place.every((each) => typeof each === "number" && Number.isFinite(each))),
+            `${at}.at`,
+            "An entry's at is [x, y].",
+        ],
+        [isShareOrAbsent(record.opacity), `${at}.opacity`, "An entry's opacity is from 0 to 1."],
+    ]);
+}
+
+/**
+ * Whether a gauge's `whole` is sound: "total", or { max } with max a number above 0 and an optional track color.
+ * @param whole - The value.
+ * @returns True when it is.
+ */
+function isWhole(whole: unknown): boolean {
+    if (whole === undefined || whole === "total") {
+        return true;
+    }
+
+    return (
+        isPlainObject(whole) &&
+        typeof whole.max === "number" &&
+        whole.max > 0 &&
+        (whole.track === undefined || isColor(whole.track))
+    );
+}
+
+/**
+ * Whether a category override is { color?, label?, opacity? } (its color is checked with the other colors).
+ * @param each - The override.
+ * @returns True when it is.
+ */
+function isOverride(each: unknown): boolean {
+    return isPlainObject(each) && isTextOrAbsent(each.label) && isShareOrAbsent(each.opacity);
+}
+
+/**
+ * Check a spec's own options: the words each takes, a gauge's max, a chart's scale and series, a record's header.
+ * @param spec - The spec.
+ * @param at - Where it sits.
+ * @returns The problem, or null.
+ */
+function checkSpecOptions(spec: Record<string, unknown>, at: string): DataSpecProblem | null {
+    const scale = isPlainObject(spec.scale) ? spec.scale : undefined;
+    const { series, categories } = spec;
+    return firstFailed([
+        ...wordChecks(spec, SPEC_WORDS, at),
+        [isWhole(spec.whole), `${at}.whole`, 'whole is "total" or { max, track? } with max above 0.'],
+        [
+            series === undefined ||
+                series === "entry" ||
+                (isPlainObject(series) && typeof series.separator === "string"),
+            `${at}.series`,
+            'series is "entry" or { separator }.',
+        ],
+        [isObjectOrAbsent(spec.scale), `${at}.scale`, "scale is an object."],
+        ...(["min", "max", "center"] as const).map((key): OptionCheck => [
+            isNumberOrAbsent(scale?.[key]),
+            `${at}.scale.${key}`,
+            `scale.${key} is a number.`,
+        ]),
+        ...wordChecks(scale, SCALE_WORDS, `${at}.scale`),
+        [isTextOrAbsent(spec.header), `${at}.header`, "header is a path."],
+        [isTextOrAbsent(spec.more), `${at}.more`, "more is text."],
+        [isObjectOrAbsent(spec.other), `${at}.other`, "other is an object."],
+        [
+            categories === undefined ||
+                (isPlainObject(categories) && Object.values(categories).every((each) => isOverride(each))),
+            `${at}.categories`,
+            "categories maps each key to { color?, label?, opacity? }.",
+        ],
+    ]);
 }
 
 /**
@@ -289,7 +489,7 @@ export function checkDataSpec(
         }
     }
 
-    return checkListOptions(spec, at, knownPalette);
+    return checkSpecOptions(spec, at) ?? checkListOptions(spec, at, knownPalette);
 }
 
 /**
@@ -387,16 +587,18 @@ function measurePaths(graph: GraphMeasure): Path[] {
 }
 
 /**
- * A Graph value with an edge column renamed where it reads edges.
+ * A Graph value with a column renamed where it reads that column's kind: an edge column where it reads edges, a node
+ * column where it reads nodes (the far node, the neighbor, the member).
  * @param graph - The Graph value.
  * @param from - The old column path.
  * @param to - The new one.
+ * @param side - The kind the renamed column belongs to.
  * @returns The Graph value, the same object when nothing changed.
  */
-function renamedMeasure(graph: GraphMeasure, from: Path, to: Path): GraphMeasure {
+function renamedMeasure(graph: GraphMeasure, from: Path, to: Path, side: "edge" | "node" = "edge"): GraphMeasure {
     const fallback = graph.over === "edges" ? "edge" : "node";
     const moved = <W extends { readonly path: Path; readonly on?: "edge" | "node" }>(read: W): W =>
-        read.path === from && (read.on ?? fallback) === "edge" ? { ...read, path: to } : read;
+        read.path === from && (read.on ?? fallback) === side ? { ...read, path: to } : read;
     const { of, groupBy, where } = graph;
     const next = {
         ...graph,
@@ -405,7 +607,7 @@ function renamedMeasure(graph: GraphMeasure, from: Path, to: Path): GraphMeasure
         ...(where !== undefined &&
         "attribute" in where &&
         where.attribute === from &&
-        (graph.whereOn ?? fallback) === "edge"
+        (graph.whereOn ?? fallback) === side
             ? { where: { ...where, attribute: to } }
             : {}),
     };
@@ -433,6 +635,47 @@ export function renameDataSpecKeys<T extends object>(set: T, from: Path, to: Pat
         );
         out ??= { ...(set as Record<string, unknown>) };
         out[channel] = { ...spec, categories };
+    }
+
+    return (out ?? set) as T;
+}
+
+/**
+ * A layer's `set` with a node column renamed in its data specs: each field, the header, and each Graph value's paths
+ * where it reads nodes (never where it reads edges: an edge column of the same name is another column).
+ * @param set - A node layer's `set`.
+ * @param from - The old column path.
+ * @param to - The new one.
+ * @returns The set, or the same object when nothing changed.
+ */
+export function renameDataSpecNodePaths<T extends object>(set: T, from: Path, to: Path): T {
+    let out: Record<string, unknown> | null = null;
+    for (const channel of DATA_CHANNELS) {
+        const spec = (set as Record<string, unknown>)[channel] as
+            { entries?: readonly DataEntry[]; header?: unknown } | undefined;
+        if (spec === undefined || typeof spec !== "object") {
+            continue;
+        }
+
+        let changed = spec.header === from;
+        const entries = (spec.entries ?? []).map((entry): DataEntry => {
+            if ("field" in entry && entry.field === from) {
+                changed = true;
+                return { ...entry, field: to };
+            }
+
+            if (!("graph" in entry)) {
+                return entry;
+            }
+
+            const graph = renamedMeasure(entry.graph, from, to, "node");
+            changed ||= graph !== entry.graph;
+            return graph === entry.graph ? entry : { ...entry, graph };
+        });
+        if (changed) {
+            out ??= { ...(set as Record<string, unknown>) };
+            out[channel] = { ...spec, entries, ...(spec.header === from ? { header: to } : {}) };
+        }
     }
 
     return (out ?? set) as T;
@@ -592,7 +835,16 @@ function numberOf(value: unknown): number {
  * @returns True for absent, null, "" and an empty list.
  */
 function isMissing(value: unknown): boolean {
-    return value === undefined || value === null || value === "" || (Array.isArray(value) && value.length === 0);
+    if (value === undefined || value === null || value === "") {
+        return true;
+    }
+
+    if (Array.isArray(value)) {
+        return value.length === 0;
+    }
+
+    // A group object with no group (a grouped Graph value whose walk met no group value).
+    return typeof value === "object" && !(value instanceof Date) && Object.keys(value).length === 0;
 }
 
 /**
@@ -673,14 +925,14 @@ function round6(value: number): string {
  * @param channel - The data channel.
  * @param spec - The spec, already checked.
  * @param source - What it is resolved against.
- * @param ownKind - The chart kind the spec's own layer sets, if any.
+ * @param own - The rest of the spec's own layer's `set` (its chart kind, its pie's rotation and radius).
  * @returns The prepared spec.
  */
 export function prepareData(
     channel: DataChannel,
     spec: PieData | ChartData | RecordData,
     source: DataSource,
-    ownKind?: unknown,
+    own: Readonly<Record<string, unknown>> = {},
 ): PreparedData {
     const isPie = channel === "node.pieData";
     const isChart = channel === "node.chartData";
@@ -722,15 +974,12 @@ export function prepareData(
         return false;
     }
 
-    // What a relative date is measured against: the newest instant the entry reads anywhere.
-    const newest = entries.map((entry) => newestOf(entry, source));
-
     // Each Graph value once per node per preparation: the colors, a chart's extent and the repaint all read it.
     const structure = entries.some((entry) => "graph" in entry) ? (source.graph?.() ?? null) : null;
     const measurer = structure === null ? null : createMeasurer(structure, source);
     const measured = entries.map(() => new Map<number, unknown>());
-    /** An ungrouped Graph value's key and its name, which the categories read. */
-    const graphNames = new Map<string, string>();
+    /** An ungrouped Graph value's or a fixed value's key and its name, which the categories read. */
+    const partNames = new Map<string, string>();
     const graphValue = (measure: GraphMeasure, at: number, index: number): unknown => {
         const held = measured[at];
         if (!held.has(index)) {
@@ -739,6 +988,22 @@ export function prepareData(
 
         return held.get(index);
     };
+
+    // What a relative date is measured against: the newest instant the entry reads anywhere (a field's, each
+    // pattern column's, or a Graph value's on every node), never now, so a saved file draws the same text tomorrow.
+    const newest = entries.map((entry, at) =>
+        newestOf(entry, count, (index) => {
+            if ("field" in entry) {
+                return [source.value(index, entry.field)];
+            }
+
+            if ("pattern" in entry) {
+                return matched[at].map((path) => source.value(index, path));
+            }
+
+            return "graph" in entry ? [graphValue(entry.graph, at, index)] : [];
+        }),
+    );
 
     const nameOf = (path: Path): string => source.plainName(path) ?? columnName(path);
     const missingOf = (entry: DataEntry): NonNullable<DataEntry["missing"]> =>
@@ -764,9 +1029,12 @@ export function prepareData(
         }
 
         if ("value" in entry) {
-            const key = entry.label ?? `value.${String(at)}`;
+            // Keyed by place, so two fixed values never share a color, and a label never takes a category's.
+            const key = `value.${String(at)}`;
+            const name = entry.label ?? write(entry.value);
+            partNames.set(key, name);
             return {
-                parts: [{ key, name: entry.label ?? write(entry.value), value: entry.value, entry: at, spread: false }],
+                parts: [{ key, name, value: entry.value, entry: at, spread: false }],
                 rows: [],
                 fact: { value: entry.value, text: write(entry.value) },
                 missing: false,
@@ -777,7 +1045,7 @@ export function prepareData(
             const { graph } = entry;
             const value = graphValue(graph, at, index);
             const name = entry.label ?? (graph.of === undefined ? graph.over : nameOf(graph.of.path));
-            graphNames.set(`graph.${String(at)}`, name);
+            partNames.set(`graph.${String(at)}`, name);
             const read = readField(entry, at, value, write, `graph.${String(at)}`, name, graph.of?.path);
             return value === null ? { ...read, emptyWalk: true } : read;
         }
@@ -848,7 +1116,7 @@ export function prepareData(
         }
 
         if (isRecord) {
-            const number = typeof value === "number";
+            const number = typeof value === "number" || (typeof value === "string" && Number.isFinite(numberOf(value)));
             return {
                 parts: [],
                 rows: [{ name, text: write(value), number, entry }],
@@ -893,27 +1161,25 @@ export function prepareData(
             entry: at,
             spread,
         });
+        const missing = missingOf(entry);
+        /**
+         * A missing item or group: what the entry's missing choice gives in its place.
+         * @param key - Its key.
+         * @returns The parts.
+         */
+        const absentPart = (key: string): Part[] => {
+            if (missing === "zero") {
+                return [make(key, 0)];
+            }
+
+            if (missing === "gap" && isChart) {
+                return [make(key, Number.NaN)];
+            }
+
+            return missing === "gray" ? [{ ...make(key, 0), value: null, role: "missing" }] : [];
+        };
         if (Array.isArray(value)) {
-            const items = value as unknown[];
-            if (items.every((item) => typeof item === "number")) {
-                const each = entry.each ?? "items";
-                if (each === "sum" || each === "mean" || each === "min" || each === "max") {
-                    return [make(field, statOf(items, each), false)];
-                }
-
-                return items.map((n, place) => make(String(place + 1), n));
-            }
-
-            const counts = new Map<string, number>();
-            for (const item of items) {
-                if (!isMissing(item)) {
-                    const key = String(item);
-                    counts.set(key, (counts.get(key) ?? 0) + 1);
-                }
-            }
-
-            const equal = entry.each === "equal";
-            return [...counts].sort(([a], [b]) => naturalCompare(a, b)).map(([key, n]) => make(key, equal ? 1 : n));
+            return spreadList(entry, value as unknown[], { field, make, absentPart });
         }
 
         if (typeof value === "object" && value !== null && !(value instanceof Date)) {
@@ -923,24 +1189,9 @@ export function prepareData(
             }
 
             // A group with no value (an empty period of a sum) follows the entry's missing choice.
-            const missing = missingOf(entry);
             return [...pairs]
                 .sort(([a], [b]) => naturalCompare(a, b))
-                .flatMap(([key, n]): Part[] => {
-                    if (typeof n === "number") {
-                        return [make(key, n)];
-                    }
-
-                    if (missing === "zero") {
-                        return [make(key, 0)];
-                    }
-
-                    if (missing === "gap" && isChart) {
-                        return [make(key, Number.NaN)];
-                    }
-
-                    return missing === "gray" ? [{ ...make(key, 0), value: null, role: "missing" }] : [];
-                });
+                .flatMap(([key, n]): Part[] => (typeof n === "number" ? [make(key, n)] : absentPart(key)));
         }
 
         return null;
@@ -1018,11 +1269,16 @@ export function prepareData(
 
     // Every key over the whole graph, in natural order: one category is one color on every node.
     const rawOf = (index: number): EntryRead[] => entries.map((entry, at) => readEntry(entry, at, index));
-    const { seen, covered, anyMissing } = isRecord
-        ? { seen: new Set<string>(), covered: new Set<string>(), anyMissing: false }
+    const { seen, covered, anyMissing, fixedAt } = isRecord
+        ? { seen: new Set<string>(), covered: new Set<string>(), anyMissing: false, fixedAt: new Map<string, number>() }
         : keysOver(count, source, (index) => rawOf(index).flatMap((read) => read.parts), colorKey);
 
-    const keys = [...seen].sort(naturalCompare);
+    // The spread categories take the palette first, in natural name order; then each non-spreading entry's key, in
+    // entry order. So adding, removing or moving a plain entry never recolors a category.
+    const keys = [
+        ...[...seen].filter((key) => !fixedAt.has(key)).sort(naturalCompare),
+        ...[...fixedAt].sort(([a, i], [b, j]) => i - j || naturalCompare(a, b)).map(([key]) => key),
+    ];
     const palette = list.colors ?? source.palette(list.palette ?? DEFAULT_CATEGORICAL_PALETTE)?.colors ?? [OTHER_GRAY];
     const extra = keys.length > palette.length ? sequentialSamples(keys.length - palette.length) : [];
     const slot = new Map(keys.map((key, at) => [key, at < palette.length ? palette[at] : extra[at - palette.length]]));
@@ -1123,10 +1379,15 @@ export function prepareData(
      * @param drawn - The parts drawn.
      * @returns The facts.
      */
-    const factsOf = (reads: readonly EntryRead[], drawn: readonly Part[]): DataEntryFact[] =>
-        reads.map((read, at) => {
+    const factsOf = (reads: readonly EntryRead[], drawn: readonly Part[]): DataEntryFact[] => {
+        // Other is listed under the first entry that gave a part to it, spreading or not.
+        const kept = new Set(drawn);
+        const otherAt = drawn.some((part) => part.role === "other")
+            ? reads.findIndex((read) => read.parts.some((part) => part.role === undefined && !kept.has(part)))
+            : -1;
+        return reads.map((read, at) => {
             const mine = drawn.filter((part) => part.entry === at && part.spread);
-            if (mine.length === 0 && read.fact.parts === undefined) {
+            if (mine.length === 0 && read.fact.parts === undefined && at !== otherAt) {
                 return read.fact;
             }
 
@@ -1141,11 +1402,12 @@ export function prepareData(
             }));
             const other = drawn.find((part) => part.role === "other");
             const others: DataPartFact[] =
-                other !== undefined && at === reads.findIndex((each, i) => drawn.some((p) => p.entry === i && p.spread))
+                other !== undefined && at === otherAt
                     ? [{ key: "", name: other.name, text: write(other.value), color: otherColor, role: "other" }]
                     : [];
             return { ...read.fact, parts: [...parts, ...others] };
         });
+    };
 
     // A chart's values per node, normalized, for the shared extent.
     const chartValues = (drawn: readonly Part[]): number[] => {
@@ -1235,7 +1497,11 @@ export function prepareData(
                 colorOf,
                 emptyColor,
                 undrawn: () => undrawnOf(reads),
-                beneath,
+                beneath: (each) => own[each] ?? beneath(each),
+                opacityOf: (part) =>
+                    list.categories?.[colorKey(part)]?.opacity ??
+                    (part.spread || part.entry < 0 ? undefined : entries[part.entry]?.opacity) ??
+                    1,
                 write: (part) =>
                     part.value === null
                         ? ""
@@ -1247,17 +1513,39 @@ export function prepareData(
             return { entries: entriesOut, undrawn: undrawnOf(reads), fills: {} };
         }
 
-        const kind = ownKind ?? beneath("node.chartKind");
+        // ponytail: the kind is the spec's own layer's or the layers' beneath; a kind set by a layer above is not
+        // seen while this layer paints, so a box from data needs its kind on this layer or under it.
+        const kind = own["node.chartKind"] ?? beneath("node.chartKind");
         let values = chartValues(drawn);
         let colors = drawn.map((part) => colorOf(part));
         const [lo, hi] = scaleOn(values);
-        // A gray bar stands the whole height of the scale: a mark that there is no value, never a value.
-        values = values.map((value, at) => (drawn[at].role === "missing" ? hi : value));
         if (kind === "box") {
-            const sorted = values.filter((value) => Number.isFinite(value)).sort((a, b) => a - b);
-            values = [0, 25, 50, 75, 100].map((p) => percentile(sorted, p));
-            colors = [colors[0], colorOf({ ...drawn[0], key: "" })];
-        } else if (kind === "cells") {
+            // One box per series (by the series separator; else one over every value), from values alone: a missing
+            // value is never in a box.
+            const groups = new Map<string, number[]>();
+            const fills = new Map<string, string>();
+            drawn.forEach((part, at) => {
+                if (part.role === "missing" || !Number.isFinite(values[at])) {
+                    return;
+                }
+
+                const key = sep === null || sep === "" ? "" : seriesKey(part);
+                groups.set(key, [...(groups.get(key) ?? []), values[at]]);
+                if (!fills.has(key)) {
+                    fills.set(key, colors[at]);
+                }
+            });
+            values = [...groups.values()].flatMap((group) => {
+                const sorted = [...group].sort((a, b) => a - b);
+                return [0, 25, 50, 75, 100].map((p) => percentile(sorted, p));
+            });
+            colors = [...fills.values(), ...[...fills.keys()].map(() => OTHER_GRAY)];
+        } else {
+            // A gray bar is a short mark from the low end: there is no value, and it never reads as one near the top.
+            values = values.map((value, at) => (drawn[at].role === "missing" ? lo + GRAY_BAR * (hi - lo) : value));
+        }
+
+        if (kind === "cells") {
             const ramp = list.colors ?? source.palette(list.palette ?? "viridis")?.colors ?? palette;
             const center = scale?.center ?? (lo < 0 && hi > 0 ? 0 : lo);
             colors = values.map((value, at) => {
@@ -1295,7 +1583,7 @@ export function prepareData(
             .filter((key) => covered.has(key))
             .map((key) => ({
                 key,
-                name: overrides[key]?.label ?? graphNames.get(key) ?? (sep === null ? nameOf(key) : key),
+                name: overrides[key]?.label ?? partNames.get(key) ?? (sep === null ? nameOf(key) : key),
                 color: overrides[key]?.color ?? slot.get(key) ?? OTHER_GRAY,
                 pinned: overrides[key]?.color !== undefined,
             }));
@@ -1340,23 +1628,72 @@ export function prepareData(
 /**
  * The newest instant an entry reads anywhere, which a relative date is measured against.
  * @param entry - The entry.
- * @param source - What it is resolved against.
+ * @param count - How many nodes.
+ * @param valuesOf - The values the entry reads on one node.
  * @returns Milliseconds; now when the entry writes no relative date or reads no instant.
  */
-function newestOf(entry: DataEntry, source: DataSource): number {
-    if (entry.format?.date?.style !== "relative" || !("field" in entry)) {
+function newestOf(entry: DataEntry, count: number, valuesOf: (index: number) => readonly unknown[]): number {
+    if (entry.format?.date?.style !== "relative") {
         return Date.now();
     }
 
     let most = Number.NEGATIVE_INFINITY;
-    for (let index = 0; index < source.count(); index++) {
-        const ms = instantOf(source.value(index, entry.field));
-        if (Number.isFinite(ms) && ms > most) {
-            most = ms;
-        }
+    for (let index = 0; index < count; index++) {
+        const instants = valuesOf(index)
+            .flatMap((value) => (Array.isArray(value) ? (value as unknown[]) : [value]))
+            .map((each) => instantOf(each))
+            .filter((ms) => Number.isFinite(ms));
+        most = Math.max(most, ...instants);
     }
 
     return Number.isFinite(most) ? most : Date.now();
+}
+
+/** What spreading a list reads from its entry's resolution. */
+interface ListMakers {
+    /** The key of a part the whole list gives (a statistic). */
+    readonly field: string;
+    readonly make: (key: string, n: number, spread?: boolean) => Part;
+    readonly absentPart: (key: string) => Part[];
+}
+
+/**
+ * A list spread into parts: numbers (with gaps) by place or as one statistic, words counted per distinct word.
+ * @param entry - The entry.
+ * @param items - The list.
+ * @param makers - How parts are made.
+ * @returns The parts, or null when it holds no number or word.
+ */
+function spreadList(entry: DataEntry, items: readonly unknown[], makers: ListMakers): Part[] | null {
+    const { field, make, absentPart } = makers;
+    const present = items.filter((item) => !isMissing(item));
+    // A list of numbers, with gaps: spread by place (or a statistic), a missing item by the missing choice.
+    if (present.length > 0 && present.every((item) => typeof item === "number")) {
+        const each = entry.each ?? "items";
+        if (each === "sum" || each === "mean" || each === "min" || each === "max") {
+            return [make(field, statOf(present, each), false)];
+        }
+
+        return items.flatMap((n, place) =>
+            typeof n === "number" ? [make(String(place + 1), n)] : absentPart(String(place + 1)),
+        );
+    }
+
+    // Words: one part per distinct word. An item that is no word (an object, a list) is not a category.
+    const counts = new Map<string, number>();
+    for (const item of present) {
+        if (typeof item === "string" || typeof item === "number" || typeof item === "boolean") {
+            const key = String(item);
+            counts.set(key, (counts.get(key) ?? 0) + 1);
+        }
+    }
+
+    if (counts.size === 0) {
+        return null;
+    }
+
+    const equal = entry.each === "equal";
+    return [...counts].sort(([a], [b]) => naturalCompare(a, b)).map(([key, n]) => make(key, equal ? 1 : n));
 }
 
 /**
@@ -1372,25 +1709,39 @@ function keysOver(
     source: DataSource,
     partsOf: (index: number) => readonly Part[],
     keyOf: (part: Part) => string,
-): { seen: Set<string>; covered: Set<string>; anyMissing: boolean } {
+): { seen: Set<string>; covered: Set<string>; anyMissing: boolean; fixedAt: Map<string, number> } {
     const seen = new Set<string>();
     const covered = new Set<string>();
+    const spread = new Set<string>();
+    const fixedAt = new Map<string, number>();
     let anyMissing = false;
     for (let index = 0; index < count; index++) {
         const covers = source.covers(index);
         for (const part of partsOf(index)) {
             if (part.role === "missing") {
                 anyMissing ||= covers;
-            } else {
-                seen.add(keyOf(part));
-                if (covers) {
-                    covered.add(keyOf(part));
-                }
+                continue;
+            }
+
+            const key = keyOf(part);
+            seen.add(key);
+            if (covers) {
+                covered.add(key);
+            }
+
+            if (part.spread) {
+                spread.add(key);
+            } else if (!fixedAt.has(key) || (fixedAt.get(key) ?? 0) > part.entry) {
+                fixedAt.set(key, part.entry);
             }
         }
     }
 
-    return { seen, covered, anyMissing };
+    for (const key of spread) {
+        fixedAt.delete(key);
+    }
+
+    return { seen, covered, anyMissing, fixedAt };
 }
 
 /**
@@ -1421,6 +1772,7 @@ interface PieHelpers {
     readonly emptyColor: string;
     readonly undrawn: () => CodedFact<DataUndrawnCode>;
     readonly beneath: (channel: Channel) => unknown;
+    readonly opacityOf: (part: Part) => number;
     readonly write: (part: Part) => string;
 }
 
@@ -1444,16 +1796,12 @@ function resolvePie(
     const total = normal.reduce((sum, part) => sum + positive(part), 0);
     const grays = drawn.filter((part) => part.role === "missing");
     const max = typeof spec.whole === "object" ? spec.whole.max : null;
-    const denominator = max ?? total;
+    // A gauge over its max is full, never past the turn.
+    const denominator = max === null ? total : Math.max(max, total);
     if (normal.length === 0 || denominator <= 0) {
         const undrawn: CodedFact<DataUndrawnCode> =
             normal.length > 0 ? { code: "data.zeroTotal", params: { channel: "node.pieData" } } : helpers.undrawn();
-        const empty = spec.empty ?? "none";
-        const fills =
-            empty === "none" && grays.length === 0
-                ? {}
-                : { "node.pieColors": helpers.emptyColor, "node.pieSizes": "1", "node.pieOpacities": "1" };
-        return { entries, undrawn, fills };
+        return { entries, undrawn, fills: emptyFills(spec, helpers) };
     }
 
     const room = 1 - GRAY_SHARE * grays.length;
@@ -1478,13 +1826,43 @@ function resolvePie(
     const fills: Record<string, string> = {
         "node.pieColors": colors.join(" "),
         "node.pieSizes": sizes.map((share) => round6(share)).join(" "),
-        "node.pieOpacities": sizes.map((_, at) => (colors[at] === "transparent" ? "0" : "1")).join(" "),
+        "node.pieOpacities": sizes
+            .map((_, at) => {
+                if (colors[at] === "transparent") {
+                    return "0";
+                }
+
+                return at < slices.length ? round6(helpers.opacityOf(slices[at].part)) : "1";
+            })
+            .join(" "),
     };
     if ((spec.labels ?? "none") !== "none") {
         fills["node.shapeTexts"] = sliceTexts(spec, slices, helpers);
     }
 
     return { entries, undrawn: null, fills };
+}
+
+/**
+ * What a pie with no value draws, by its empty choice: nothing (also when an entry's missing choice is gray: a gray
+ * sliver needs a value beside it), a ring (the disc with a hole cut) or the whole disc in the missing gray.
+ * @param spec - The spec.
+ * @param helpers - What the preparation knows.
+ * @returns The fills.
+ */
+function emptyFills(spec: PieData, helpers: PieHelpers): Record<string, string | number> {
+    const empty = spec.empty ?? "none";
+    if (empty === "none") {
+        return {};
+    }
+
+    const disc = { "node.pieColors": helpers.emptyColor, "node.pieSizes": "1", "node.pieOpacities": "1" };
+    if (empty === "slice") {
+        return disc;
+    }
+
+    const hole = Number(helpers.beneath("node.pieHole") ?? 0);
+    return { ...disc, "node.pieHole": Math.max(RING_HOLE, Number.isFinite(hole) ? hole : 0) };
 }
 
 /**
@@ -1510,9 +1888,12 @@ function sliceTexts(
         }
     }
 
-    // ponytail: slice middles assume the disc's default rotation and radius; read node.pieRotation and
-    // node.pieRadius beneath if texts must follow a turned or shrunk pie.
-    let turned = 0;
+    // Slice middles follow the disc's rotation and radius, as the layer and the layers beneath set them.
+    // ponytail: node.pieOffsetX / -Y and pieFitBox are not followed; read them here if texts must track a moved disc.
+    const rotation = Number(helpers.beneath("node.pieRotation") ?? 0);
+    const radius = Number(helpers.beneath("node.pieRadius") ?? 1);
+    const reach = SLICE_TEXT_AT * (Number.isFinite(radius) ? radius : 1);
+    let turned = Number.isFinite(rotation) ? rotation / 360 : 0;
     const texts = slices.flatMap(({ part, share }) => {
         const middle = (turned + share / 2) * 2 * Math.PI;
         turned += share;
@@ -1521,13 +1902,7 @@ function sliceTexts(
         }
 
         const words = spec.labels === "percent" ? `${String(Math.round(share * 100))}%` : helpers.write(part);
-        return [
-            [
-                round(SLICE_TEXT_AT * Math.sin(middle)),
-                round(SLICE_TEXT_AT * Math.cos(middle)),
-                escapeLabelMarkup(words),
-            ],
-        ];
+        return [[round(reach * Math.sin(middle)), round(reach * Math.cos(middle)), escapeLabelMarkup(words)]];
     });
     return JSON.stringify([...held, ...texts]);
 }
@@ -1627,6 +2002,10 @@ export function dataBindings(data: PreparedData, spec: unknown): PreparedBinding
     const fills = FILLS_OF[channel].filter((fill) => {
         if (channel === "node.recordData") {
             return points === (fill === "node.shapeTexts");
+        }
+
+        if (fill === "node.pieHole") {
+            return (spec as PieData).empty === "ring";
         }
 
         return fill !== "node.shapeTexts" || ((spec as PieData).labels ?? "none") !== "none";

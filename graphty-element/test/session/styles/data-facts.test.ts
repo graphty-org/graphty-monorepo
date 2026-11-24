@@ -73,8 +73,8 @@ describe("data facts", () => {
         assert.strictEqual(facts.entries[1].text, "$1,235");
         assert.deepStrictEqual(
             facts.categories.map((each) => each.key),
-            ["cat", "data.amount", "dog", "horse"],
-            "every key over the layer's nodes, in natural name order",
+            ["cat", "dog", "horse", "data.amount"],
+            "the spread categories in natural name order, then each plain entry's key in entry order",
         );
         assert.strictEqual(facts.entries[0].parts?.[0].color, facts.categories[0].color);
     });

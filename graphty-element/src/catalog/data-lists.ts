@@ -82,6 +82,8 @@ export interface DataEntryCommon {
     readonly format?: DataFormat;
     /** A slice's or a bar's color (a non-spreading entry), a record value's text color. Absent: the palette's color for its key. */
     readonly color?: string;
+    /** A pie slice's opacity, 0 to 1 (a non-spreading entry). Absent: 1. */
+    readonly opacity?: number;
     /**
      * A missing value: `"skip"` leaves it out (a pie's default), `"gray"` draws a thin gray slice or a gray bar, `"zero"`
      * reads it as 0, `"gap"` leaves a chart's place empty (a chart's default), `"drop"` leaves a record's row out (a
@@ -117,7 +119,9 @@ export type DataEntry =
  * A category's own color or name, by its key as the data spells it.
  * @since 3.68.0
  */
-export type CategoryOverrides = Readonly<Record<string, { readonly color?: string; readonly label?: string }>>;
+export type CategoryOverrides = Readonly<
+    Record<string, { readonly color?: string; readonly label?: string; readonly opacity?: number }>
+>;
 
 /**
  * What a pie's and a chart's spec share.
@@ -214,6 +218,7 @@ export type DataChannel = "node.pieData" | "node.chartData" | "node.recordData";
  * | `data.nothingOver` | `over` |
  * | `data.patternEmpty` | `pattern`, `except` |
  * | `data.paintedOver` | `layerId`, `filled`: a layer above writes a channel this one fills |
+ * | `data.notPainted` | `layerId`: the layer paints no spec on this channel now (hidden, disabled, or none) |
  *
  * OPEN UNION: codes may be added in a minor release.
  * @since 3.68.0
@@ -225,12 +230,15 @@ export type DataUndrawnCode =
     | "data.zeroTotal"
     | "data.nothingOver"
     | "data.patternEmpty"
-    | "data.paintedOver";
+    | "data.paintedOver"
+    | "data.notPainted";
 
 /**
  * Why `styles.add` or `styles.update` refuses a data spec: the refusal's `details.reason` (and `LayerProblem.reason`).
  * `shape` is a spec that is not `{ entries: [...] }` or holds more than 256 entries; `where` is a Graph value's `where`
- * that is not one `range` or `categories` leaf (since 3.68.0); the rest are listed in the guide.
+ * that is not one `range` or `categories` leaf (since 3.68.0); `option` is a spec option or entry field of the wrong
+ * type or outside its listed values (`whole.max` not a number above 0, an unknown `order`, a `label` that is not
+ * text, ...); the rest are listed in the guide.
  * @since 3.68.0
  */
 export type DataSpecReason =
@@ -246,7 +254,8 @@ export type DataSpecReason =
     | "palette"
     | "colors"
     | "shape"
-    | "where";
+    | "where"
+    | "option";
 
 /**
  * Why a value does not fit a data channel: `data.needsNumbers` (`path`, `valueKind`) for text, yes-no or a time offered

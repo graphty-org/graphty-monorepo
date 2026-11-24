@@ -305,7 +305,12 @@ import type {
     SourceSettings,
 } from "./sources/types";
 import { computeFingerprint, computeStatistics } from "./statistics";
-import { renameDataSpecEdgePaths, renameDataSpecKeys } from "./styles/dataLists";
+import {
+    isDataChannel,
+    renameDataSpecEdgePaths,
+    renameDataSpecKeys,
+    renameDataSpecNodePaths,
+} from "./styles/dataLists";
 import { asksFileStyles } from "./styles/fileStyles/apply";
 import type { CompiledLayer } from "./styles/Layer";
 import { expressionPaths } from "./styles/predicate";
@@ -9463,8 +9468,21 @@ function pushEdgeRenameInNodeLayer(steps: SessionCommand[], layer: CompiledLayer
  * @returns The part, the same object when nothing changed.
  */
 function renamedIn<T extends object>(part: "selector" | "set" | "encode", before: T, from: string, name: string): T {
-    const renamed = renameColumnIn(before, from, name);
-    return part === "set" ? renameDataSpecKeys(renamed, `data.${from}`, `data.${name}`) : renamed;
+    if (part !== "set") {
+        return renameColumnIn(before, from, name);
+    }
+
+    // A data spec is renamed by its own rules (a Graph value's edge-side paths are another kind's columns); the
+    // rest of the set by the generic path rewrite.
+    const set = before as Record<string, unknown>;
+    const rest = Object.fromEntries(Object.entries(set).filter(([key]) => !isDataChannel(key)));
+    const renamedRest = renameColumnIn(rest, from, name);
+    const specs = renameDataSpecKeys(
+        renameDataSpecNodePaths(set, `data.${from}`, `data.${name}`),
+        `data.${from}`,
+        `data.${name}`,
+    );
+    return renamedRest === rest && specs === set ? before : ({ ...specs, ...renamedRest } as T);
 }
 
 /**

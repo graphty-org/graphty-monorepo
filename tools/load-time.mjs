@@ -11,9 +11,10 @@
  * `{ date, machine, sha?, results: [{ group, name, medianMs, minMs, samplesMs }] }`, the shape
  * tools/results/post-benchmarks.mjs reads, so the health dashboard keeps the series (source `graphty-load`).
  *
- *   node tools/load-time.mjs --pair-app <dist> --pair-element <bundle> [--rounds 4]
+ *   node tools/load-time.mjs --pair-app <dist> --pair-element <bundle> [--rounds 4] [--reference-commit <sha>]
  *       the paired judge (CI's Performance Benchmarks job): time a reference build (the job passes what nightly
- *       serves) and the candidate on the same machine, alternating, and fail on a row the candidate is slower in
+ *       serves, and its commit) and the candidate (HEAD) on the same machine, alternating, and fail on a row the
+ *       candidate is slower in
  *   node tools/load-time.mjs            print the out files against benchmarks/results/load-time.json, for trends
  *   node tools/load-time.mjs --record   and then append them to it as a session
  *
@@ -36,6 +37,16 @@
  *     minimum already absorb;
  *   - the candidate's pooled rows are written to benchmarks/out/load-time-<part>.json, which the dashboard posts.
  *
+ * Accepting a slowdown (the owner only; never to quiet a red row nobody has explained): a change that makes loading
+ * slower on purpose would fail every full run until nightly, the reference, holds it, and nightly moves only on a
+ * green run. The owner records it in benchmarks/load-time-accepted.json, an owner-only file:
+ *   [{ "row": "app/graph settled", "commit": "<sha of the change or its merge>", "ratio": 1.3,
+ *      "reason": "why the cost is worth it" }]
+ * A REGRESSION on that row is then "accepted" (and printed with the reason) while the candidate contains the commit
+ * and the reference does not, and the candidate is within THRESHOLD (and FLOOR_MS) of the reference x ratio: a
+ * further slowdown on top of the accepted one still fails. Once nightly holds the commit the entry stops applying by
+ * itself, and can be deleted. Needs the git history of both commits (the job fetches it when the file lists any).
+ *
  * The history (benchmarks/results/load-time.json) is printed after the paired verdict, against the best median and
  * best minimum every session of the same CPU model recorded, for trends only: it never fails a run.
  */
@@ -49,6 +60,8 @@ import { fileURLToPath } from "node:url";
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 export const OUT_DIR = join(REPO, "benchmarks/out");
 export const RESULTS_FILE = join(REPO, "benchmarks/results/load-time.json");
+/** The owner's accepted slowdowns (see the header); an owner-only file. */
+export const ACCEPTED_FILE = join(REPO, "benchmarks/load-time-accepted.json");
 
 /**
  * The factor a median and a minimum must both exceed. Measured on the i9-14900KF under the load of other sessions'
@@ -138,12 +151,50 @@ export function pinned(sessions, on) {
 }
 
 /**
+ * The owner's accepted slowdowns that apply to this pair: those whose commit the candidate contains and the reference
+ * does not yet (once nightly holds the commit, the reference carries the cost and the entry no longer applies).
+ * @param entries - benchmarks/load-time-accepted.json: `[{ row, commit, ratio, reason }]`
+ * @param has - has.candidate(commit) and has.reference(commit): whether that build contains the commit
+ * @returns the applying entries, by row (the largest ratio when a row has several)
+ */
+export function acceptedRows(entries, has) {
+    const rows = new Map();
+    for (const e of entries) {
+        const badRatio = !Number.isFinite(e.ratio) || e.ratio < 1;
+        if (typeof e.row !== "string" || !/^[0-9a-f]{7,40}$/.test(e.commit ?? "") || badRatio || !e.reason)
+            throw new Error(
+                `${ACCEPTED_FILE}: an entry needs row, commit (a sha), ratio (>= 1) and reason: ${JSON.stringify(e)}`,
+            );
+        if (has.candidate(e.commit) && !has.reference(e.commit) && (rows.get(e.row)?.ratio ?? 0) < e.ratio)
+            rows.set(e.row, e);
+    }
+    return rows;
+}
+
+/**
+ * rowStatus, with an accepted slowdown: a REGRESSION that is not one against the baseline x the accepted ratio is
+ * "accepted".
+ * @param r - the current row
+ * @param base - the baseline row
+ * @param accepted - the row's applying acceptance, if any
+ * @returns the status
+ */
+function acceptedStatus(r, base, accepted) {
+    const status = rowStatus(r, base);
+    if (status !== "REGRESSION" || !accepted) return status;
+    const scaled = { medianMs: base.medianMs * accepted.ratio, minMs: base.minMs * accepted.ratio };
+    return rowStatus(r, scaled) === "REGRESSION" ? status : "accepted";
+}
+
+/**
  * Judge sessions against the baseline file's sessions.
  * @param current - the out files' sessions
  * @param baseline - the results file's sessions
+ * @param accepted - accepted slowdowns by row (acceptedRows): a REGRESSION within THRESHOLD of the baseline scaled by
+ *   its ratio is "accepted"
  * @returns a table and the count of regressions
  */
-export function judge(current, baseline) {
+export function judge(current, baseline, accepted = new Map()) {
     const lines = [];
     let regressions = 0;
     for (const s of current) {
@@ -152,7 +203,8 @@ export function judge(current, baseline) {
         lines.push(`${s.machine}: ${known}`);
         for (const r of s.results) {
             const b = base.get(`${r.group}/${r.name}`);
-            const status = rowStatus(r, b);
+            const a = accepted.get(`${r.group}/${r.name}`);
+            const status = acceptedStatus(r, b, a);
             if (status === "REGRESSION") regressions++;
             const ratio = (now, then) => (then ? `x${(now / then).toFixed(2)}` : "");
             lines.push(
@@ -165,6 +217,10 @@ export function judge(current, baseline) {
                     ratio(r.minMs, b?.minMs).padStart(7),
                 ].join(" "),
             );
+            if (status === "accepted")
+                lines.push(
+                    `            accepted by the owner up to x${a.ratio} since ${a.commit.slice(0, 10)}: ${a.reason}`,
+                );
         }
     }
     return { lines, regressions };
@@ -236,6 +292,19 @@ function measurePairs(pair, rounds) {
 
 const HEADER = `status      row${" ".repeat(38)}median  baseline  median    min`;
 
+/**
+ * Whether a commit is in a build's history (git merge-base --is-ancestor). Throws when git cannot tell (a shallow
+ * clone without the commit), so an acceptance is never skipped in silence.
+ * @param commit - the accepted commit
+ * @param rev - the build's commit
+ * @returns true when rev contains commit
+ */
+function contains(commit, rev) {
+    const r = spawnSync("git", ["merge-base", "--is-ancestor", commit, rev], { cwd: REPO, encoding: "utf8" });
+    if (r.status === 0 || r.status === 1) return r.status === 0;
+    throw new Error(`git cannot tell whether ${rev} contains ${commit} (fetch the history): ${r.stderr.trim()}`);
+}
+
 function main(argv) {
     const option = (name) => (argv.includes(name) ? argv[argv.indexOf(name) + 1] : undefined);
     const pair = Object.fromEntries(
@@ -244,6 +313,13 @@ function main(argv) {
     let regressions = 0;
     if (Object.keys(pair).length) {
         const rounds = Number(option("--rounds") ?? 4);
+        // read before measuring, so a malformed entry or a missing history fails in seconds, not after the rounds
+        const reference = option("--reference-commit");
+        const entries = existsSync(ACCEPTED_FILE) ? JSON.parse(readFileSync(ACCEPTED_FILE, "utf8")) : [];
+        const accepted = acceptedRows(entries, {
+            candidate: (c) => contains(c, "HEAD"),
+            reference: (c) => (reference ? contains(c, reference) : false),
+        });
         const sides = measurePairs(pair, rounds);
         const session = (side, part) => ({ machine: machine(), results: pool(sides[side][part]) });
         const parts = Object.keys(pair);
@@ -251,6 +327,7 @@ function main(argv) {
         const verdict = judge(
             parts.map((p) => session("candidate", p)),
             parts.map((p) => session("base", p)),
+            accepted,
         );
         console.log(
             `\npaired: the candidate against the reference build, ${rounds} ABBA rounds (baseline = reference)`,
@@ -280,7 +357,8 @@ function main(argv) {
     if (regressions) {
         console.error(
             `\n${regressions} load-time regression(s): median and minimum both above x${THRESHOLD} and ${FLOOR_MS} ms over ` +
-                "the reference build timed on the same machine. Find the change that slowed them and fix it.",
+                "the reference build timed on the same machine. Find the change that slowed them and fix it; a cost the " +
+                "owner accepts goes in benchmarks/load-time-accepted.json (tools/load-time.mjs says how).",
         );
         return 1;
     }

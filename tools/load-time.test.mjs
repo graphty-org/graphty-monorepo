@@ -4,7 +4,17 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { FLOOR_MS, judge, pinned, pool, roundOrder, rowStatus, summarize, THRESHOLD } from "./load-time.mjs";
+import {
+    acceptedRows,
+    FLOOR_MS,
+    judge,
+    pinned,
+    pool,
+    roundOrder,
+    rowStatus,
+    summarize,
+    THRESHOLD,
+} from "./load-time.mjs";
 
 const row = (medianMs, minMs) => ({ group: "app", name: "graph settled", medianMs, minMs });
 const session = (machine, medianMs, minMs) => ({ machine, results: [row(medianMs, minMs)] });
@@ -74,5 +84,24 @@ describe("load-time", () => {
         assert.equal(judge(sides(1.38, 526, 526)[0], history).regressions, 1, "what the history judge said");
         assert.equal(judge(...sides(1.38, 526, 526 * 1.5)).regressions, 1, "a slower candidate on it: fails");
         assert.equal(judge(...sides(0.8, 526, 526 * 1.5)).regressions, 1, "and on a fast runner too");
+    });
+
+    // The owner's acceptance path (benchmarks/load-time-accepted.json): a slowdown he accepted passes while the
+    // candidate holds its commit and nightly does not; more than he accepted still fails.
+    it("accepts the owner's recorded slowdown, up to its ratio, only while the reference lacks the commit", () => {
+        const entry = { row: "app/graph settled", commit: "abc1234", ratio: 1.5, reason: "a bigger hero graph" };
+        const has = (candidate, reference) => ({ candidate: () => candidate, reference: () => reference });
+        const reference = [session("a", 1000, 900)];
+        assert.equal(acceptedRows([entry], has(true, false)).get("app/graph settled"), entry);
+        assert.equal(acceptedRows([entry], has(false, false)).size, 0, "the candidate lacks the commit");
+        assert.equal(acceptedRows([entry], has(true, true)).size, 0, "nightly carries the cost now");
+        const accepted = acceptedRows([entry], has(true, false));
+        const within = judge([session("a", 1500, 1350)], reference, accepted);
+        assert.equal(within.regressions, 0);
+        assert.match(within.lines[1], /^accepted /);
+        assert.match(within.lines[2], /up to x1\.5 since abc1234: a bigger hero graph/);
+        assert.equal(judge([session("a", 1500 * 1.25, 1350 * 1.25)], reference, accepted).regressions, 1, "beyond it");
+        assert.equal(judge([session("a", 1500, 1350)], reference).regressions, 1, "without the entry");
+        assert.throws(() => acceptedRows([{ ...entry, reason: "" }], has(true, false)), /needs row, commit/);
     });
 });

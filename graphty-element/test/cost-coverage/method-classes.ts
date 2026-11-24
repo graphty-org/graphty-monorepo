@@ -354,6 +354,7 @@ export const MUTATING: readonly string[] = [
     "StylesApi.setValueEntry",
     "StylesApi.setValueHidden",
     "StylesApi.showBranches",
+    "StylesApi.showDraft",
     "StylesApi.update",
     // A model's own settings, saved with the project as one undoable step.
     "AssetsApi.setDefaults",
@@ -1126,6 +1127,7 @@ export const READ_ONLY: readonly string[] = [
     "NotesApi.counts",
     "NotesApi.get",
     "NotesApi.list",
+    "NotesApi.savedTarget",
     "NotesApi.status",
     "NotesApi.tags",
     "NotesApi.toDocument",
@@ -1308,6 +1310,7 @@ export const READ_ONLY: readonly string[] = [
     "SourceDraft.use",
     "SessionDataApi.types",
     "SessionDataApi.valueCounts",
+    "SessionDataApi.kinds",
     "SessionDataApi.overRepresented",
     "SessionDataApi.groupTable",
     "SessionDataApi.lastImport",

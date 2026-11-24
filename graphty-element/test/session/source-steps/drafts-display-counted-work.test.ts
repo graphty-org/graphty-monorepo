@@ -1,7 +1,7 @@
 /**
  * @file What drawing a source draft costs: `display(true)`, `show("after")` and an act while After is
  * drawn each write the draft's graph into the live one and repaint it, reading `graphty.draft` once
- * per element. The work stays in step with the graph, so a graph four times larger costs at most
+ * per element; `styles.showDraft` draws the join preview over it and its `end()` takes it off. The work stays in step with the graph, so a graph four times larger costs at most
  * about four times as much.
  */
 
@@ -100,6 +100,25 @@ describe("source-steps drafts: counted work of drawing a draft", () => {
                 return visits;
             },
             { sizes: [200, 800], counter: "elements visited redrawing After after an act" },
+        );
+    });
+
+    it("showDraft draws the join preview, and its end takes it off, in step with the graph", async () => {
+        await assertScalesLinearly(
+            async (size) => {
+                const { session, d } = await drafted(size);
+                await d.display(true);
+                await session.styles.settled();
+                const visits = await visitsDuring(async () => {
+                    const view = session.styles.showDraft({ merged: "#7048E8", new: "#E8590C" });
+                    await session.styles.settled();
+                    view.end();
+                    await session.styles.settled();
+                });
+                session.dispose();
+                return visits;
+            },
+            { sizes: [200, 800], counter: "elements visited drawing and ending the join preview" },
         );
     });
 });

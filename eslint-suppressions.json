@@ -268,20 +268,7 @@
       "count": 2
     }
   },
-  "tools/test-history.mjs": {
-    "unicorn/prefer-set-has": {
-      "count": 1
-    }
-  },
-  "tools/test-ledger-import.mjs": {
-    "unicorn/no-array-callback-reference": {
-      "count": 1
-    }
-  },
   "tools/test-ledger.mjs": {
-    "no-unmodified-loop-condition": {
-      "count": 1
-    },
     "unicorn/no-array-callback-reference": {
       "count": 1
     }

@@ -13,6 +13,7 @@ import { formatNumber } from "../inspector/words";
 import { OptionsForm } from "../options/OptionsForm";
 import { SettingsPopout } from "../options/SettingsPopout";
 import { splitOptions } from "../options/splitOptions";
+import { useSessionEvents, VISIBILITY_EVENTS } from "../sessionEvents";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import {
     type DataChoices,
@@ -489,7 +490,12 @@ export function DataOutput({
             .map((entry) => ({ value: entry.id, label: entry.plainName }));
 
     const { kinds, columns, chosen, written } = columnsWritten(session, table, choices);
-    const scopes = useAsyncValue(() => (session === null ? null : scopeOptions(session)), session === null ? 0 : 1);
+    // Read again as the data changes: a dialog reopened by a reload opens before its data is in.
+    const dataVersion = useSessionEvents(session, VISIBILITY_EVENTS, true);
+    const scopes = useAsyncValue(
+        () => (session === null ? null : scopeOptions(session)),
+        session === null ? -1 : dataVersion,
+    );
     const scope = scopes?.find((option) => option.value === choices.scope);
     const all = scopes?.[0]?.rows;
     const options = row === undefined ? {} : dataExportOptions(row, choices, written);

@@ -97,6 +97,18 @@ describe("parity", () => {
         writeFileSync(join(dir, "results.json"), JSON.stringify({ ...BASE, version: 2 }));
         await expect(readResults(dir)).rejects.toThrow(/version must be 1/);
     });
+
+    it("reads a results.json named by its own path as well as by its directory", async () => {
+        const file = join(tempDir("parity-"), "first.json");
+        writeFileSync(file, JSON.stringify(BASE));
+        expect(await readResults(file)).toEqual(BASE);
+    });
+
+    it("names a story only the second side has", () => {
+        const first = results([]);
+        const second = results([{ id: "a--one", status: "unchanged", capture: hash("1") }]);
+        expect(parity(first, second).differences.map((d) => d.problem)).toEqual(["only in the second"]);
+    });
 });
 
 /**

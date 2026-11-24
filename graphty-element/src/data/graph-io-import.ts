@@ -29,6 +29,7 @@ import { isStyleSlotColumn } from "@graphty/graph-io/styles";
 
 import type { AdHocData } from "../config/common.js";
 import { GraphtyError } from "../errors/index.js";
+import { declareKinds, kindColumnsOf } from "./declaredKinds.js";
 import type { DataLoadingError, ErrorAggregator } from "./ErrorAggregator.js";
 import { filePositionsOf } from "./filePositions.js";
 
@@ -897,6 +898,7 @@ export function copyColumns(table: AttributeTable, row: number, record: Record<s
  */
 function rememberReader(reader: object, imported: SourceGraph, mapping: RecordMapping): void {
     rememberMetaExtra(reader, imported.snapshot);
+    declareKinds(reader, kindColumnsOf(imported.snapshot, mapping.path ?? copiedPath));
     const { importer } = imported;
     if (importer !== undefined) {
         rememberImport(reader, () => readerImportOf({ ...imported, importer }, mapping.path ?? copiedPath));

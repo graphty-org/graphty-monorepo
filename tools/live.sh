@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #
-# Put a branch or commit into the running copy of a tool on this machine (githerd, the visual-review
-# server, the pre-push gate, ...): merge it into the tool's live worktree, and restart the tool's
-# servherd servers. The pull request is the record; this is how the change takes effect today
-# instead of after the merge queue (CLAUDE.md, "Where a change takes effect").
+# Put a branch or commit into the running copy of a tool on this machine (the visual-review server,
+# worktree-new.sh, the workspace files, ...): merge it into the tool's live worktree, and restart the
+# tool's servherd servers. The pull request is the record; this is how the change takes effect today
+# instead of after the merge (CLAUDE.md, "Where a change takes effect").
 #
 # Usage: tools/live.sh <tool> <branch-or-commit>
 #        tools/live.sh --list

@@ -9,7 +9,13 @@
  * marked in the layer's `userData` so the row keeps finding it.
  */
 
-import { type ChannelDescriptor, channelDescriptor, type ShaderUse } from "@graphty/graphty-element/catalog";
+import {
+    type ChannelDescriptor,
+    channelDescriptor,
+    DATA_FIXED_CHANNELS,
+    type DataChannel,
+    type ShaderUse,
+} from "@graphty/graphty-element/catalog";
 import type { Binding, Channel, ChannelValue, CombineMode, LayerId } from "@graphty/graphty-element/schema";
 import {
     type ColumnRef,
@@ -1018,9 +1024,17 @@ export function needsFor(
     }
     const head = descriptor.modifies === undefined ? undefined : channelDescriptor(descriptor.modifies);
     const needs = descriptor.needs ?? head?.needs ?? [];
+    // A data spec the row sets fills its fixed lists (a chart's colors): those need no value of their own, and
+    // graphty-element refuses one beside the spec.
+    const filled = new Set(
+        (Object.keys(DATA_FIXED_CHANNELS) as DataChannel[])
+            .filter((data) => lineIn(ctx, data) !== undefined)
+            .flatMap((data) => DATA_FIXED_CHANNELS[data]),
+    );
     return Object.fromEntries(
         needs
             .filter((need) => need.channel !== channel && lineIn(ctx, need.channel) === undefined)
+            .filter((need) => !filled.has(need.channel))
             .filter((need) => {
                 const partner = channelDescriptor(need.channel);
                 const beneath = ctx.beneath(need.channel).value;

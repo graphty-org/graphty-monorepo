@@ -114,6 +114,13 @@ export interface OptionName {
  * checks that its ids are the element's values and that each line fits where it sits.
  */
 export const OPTION_NAMES: Partial<Readonly<Record<Channel, Readonly<Record<string, OptionName>>>>> = {
+    "node.chartKind": {
+        bar: { name: "Bar", glyph: "chartBar" },
+        "stacked-bar": { name: "Stacked", glyph: "chartStackedBar" },
+        line: { name: "Line", glyph: "chartLine" },
+        box: { name: "Box", glyph: "chartBox" },
+        cells: { name: "Cells", glyph: "chartCells" },
+    },
     "node.borderPosition": {
         inside: { name: "Inside", glyph: "borderInside" },
         center: { name: "Center", glyph: "borderCenter" },
@@ -474,8 +481,9 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
         ],
     },
     chart: {
-        // A drop-down though under six options: five icons (140 px) do not fit beside the row's name (96 px).
-        row: { channel: "node.chartKind", name: "Chart", rule: "R10" },
+        // Five kinds as grouped icon buttons (140 px): the row holds the data picker, so the Kind is the pop-over's
+        // first line in both modes (tmp/entries-first/spec.md 2.3), where a full-width line has room.
+        row: { channel: "node.chartKind", name: "Kind", rule: "R8" },
         rowOwns: ["node.chartValues", "node.chartColors"],
         main: [{ channel: "node.chartLineWidth", name: "Line width" }],
         groups: [

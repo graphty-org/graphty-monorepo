@@ -127,9 +127,10 @@ function curveBatch(element: Graphty): AbstractMesh {
  * @returns Each table's size.
  */
 function curveTables(element: Graphty): { width: number; height: number }[] {
-    const rowPosition = element.graph.getRowTable()?.positionTexture;
+    const rows = element.graph.getRowTable();
+    const rowTables: (BaseTexture | undefined)[] = [rows?.positionTexture, rows?.extentTexture];
     return (curveBatch(element).material?.getActiveTextures() ?? [])
-        .filter((texture: BaseTexture) => texture !== rowPosition)
+        .filter((texture: BaseTexture) => !rowTables.includes(texture))
         .map((texture) => texture.getSize());
 }
 

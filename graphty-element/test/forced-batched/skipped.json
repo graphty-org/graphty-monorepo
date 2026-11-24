@@ -17,5 +17,6 @@
     {
         "file": "test/browser/time-ghost.test.ts",
         "reason": "Reads mesh.visibility, which a hidden proxy answers with 0 until stage 11"
-    }
+    },
+    { "file": "test/browser/view-switch-draws-every-node.test.ts", "reason": "Sets each case's render path by hand" }
 ]

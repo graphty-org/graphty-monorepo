@@ -106,6 +106,9 @@ export const reloadSweep = {
         const seen = new Set();
         const differences = [];
         for (const control of await controls(u.page)) await sweep(u.page, control, 2, seen, differences);
+        console.log(
+            `reload-sweep: reloaded after ${String(seen.size)} controls, ${String(differences.length)} changed the screen`,
+        );
         if (differences.length > 0)
             throw new Error(
                 `${differences.length} control(s) left a screen the reload changed:\n${differences.join("\n")}`,

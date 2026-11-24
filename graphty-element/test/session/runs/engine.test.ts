@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { assert, describe, it } from "vitest";
+import { afterEach, assert, describe, it, vi } from "vitest";
 
 import { ConnectedComponentsAlgorithm } from "../../../src/algorithms/ConnectedComponentsAlgorithm";
 import { createGraphSession } from "../../../src/session";
@@ -37,6 +37,26 @@ describe("the engine a run and a layout record", () => {
     it("lists the element and the layout for a layout, at the versions the packages state", () => {
         assert.sameMembers(Object.keys(LAYOUT_ENGINE.packages), ["@graphty/graphty-element", "@graphty/layout"]);
         assert.strictEqual(LAYOUT_ENGINE.packages["@graphty/layout"], versionOf("layout"));
+    });
+
+    it("records the element at the version its package.json states", () => {
+        assert.strictEqual(RUN_ENGINE.packages["@graphty/graphty-element"], versionOf("graphty-element"));
+        assert.strictEqual(LAYOUT_ENGINE.packages["@graphty/graphty-element"], versionOf("graphty-element"));
+    });
+
+    describe("from source built without the version written in", () => {
+        afterEach(() => {
+            vi.unstubAllGlobals();
+            vi.resetModules();
+        });
+
+        it("records the element as 0.0.0 rather than leaving the version out", async () => {
+            vi.stubGlobal("__GRAPHTY_ELEMENT_VERSION__", undefined);
+            vi.resetModules();
+            const fresh = await import("../../../src/session/runs/engine");
+            assert.strictEqual(fresh.ELEMENT_VERSION, "0.0.0");
+            assert.strictEqual(fresh.RUN_ENGINE.packages["@graphty/graphty-element"], "0.0.0");
+        });
     });
 
     it("adds the attached accelerator's package, and nothing for none", () => {

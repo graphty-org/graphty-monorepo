@@ -886,7 +886,7 @@
    so the toggles end well before the link slot (a finger's 32 px target reaches 4 px past each), and a row's Kind drop-down in the
    sidebar, so its kind ("Basic shape") is never cut. */
 [data-style-panel-v2]
-    .ws-row:is([data-rule="R12"], [data-rule="R9"], [data-wide], :has(> .ws-field .ws-value-listbox))
+    .ws-row:is([data-rule="R12"], [data-rule="R9"], [data-rule="R16"], [data-wide], :has(> .ws-field .ws-value-listbox))
     > .ws-field[data-named],
 [data-style-panel-v2] .ws-member > .ws-field[data-named],
 [data-thing-popover]
@@ -898,7 +898,7 @@
 }
 
 [data-style-panel-v2]
-    .ws-row:is([data-rule="R12"], [data-rule="R9"], [data-wide], :has(> .ws-field .ws-value-listbox))
+    .ws-row:is([data-rule="R12"], [data-rule="R9"], [data-rule="R16"], [data-wide], :has(> .ws-field .ws-value-listbox))
     > .ws-field[data-named]
     > .ws-field-label,
 [data-style-panel-v2] .ws-member > .ws-field[data-named] > .ws-field-label,
@@ -911,7 +911,7 @@
 }
 
 [data-style-panel-v2]
-    .ws-row:is([data-rule="R12"], [data-rule="R9"], [data-wide], :has(> .ws-field .ws-value-listbox))
+    .ws-row:is([data-rule="R12"], [data-rule="R9"], [data-rule="R16"], [data-wide], :has(> .ws-field .ws-value-listbox))
     > .ws-field[data-named]
     > .ws-field-control,
 [data-style-panel-v2] .ws-member > .ws-field[data-named] > .ws-field-control,

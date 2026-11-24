@@ -1099,10 +1099,8 @@ export class LayoutManager implements Manager {
         }
 
         try {
-            // A device lost or recovered changes where the layout is computed, not the graph: a layout at
-            // rest stays at rest (issue #9929).
-            engine.replaceSimulation(true);
-            this.running = !engine.isSettled && !this.restoring();
+            engine.replaceSimulation();
+            this.running = !this.restoring();
         } catch (error) {
             this.running = false;
             this.reportSimulationFailure(error);

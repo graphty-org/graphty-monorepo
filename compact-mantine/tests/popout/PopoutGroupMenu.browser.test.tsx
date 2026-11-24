@@ -18,19 +18,28 @@ import { compactTheme } from "../../src/theme";
 const GROUPS = ["Wrap", "Badge"] as const;
 
 /**
+ * The set Wrap row's accessible name: its name, then the hidden ", set" (the browser's name
+ * computation may put a space before the comma, as the hidden text is its own box).
+ */
+const SET_WRAP = /^Wrap\s*, set$/;
+
+/**
  * A "Label" pop-out opened below its button at `left`, whose "..." lists Wrap (set) and Badge;
  * each opens its own pop-over beside the Label pop-out.
  * @param props - Component props
  * @param props.left - How far from the window's left edge the button sits
  * @param props.groupWidth - The group pop-overs' width
  * @param props.direct - Give "..." a click that opens Wrap directly instead of a menu
+ * @param props.rows - How many fields a group pop-over holds: a few fit beside the Label pop-out,
+ *     level with its top; many run past the window and scroll
  * @returns The button with its pop-outs
  */
 function Thing({
     left,
     groupWidth = 280,
     direct = false,
-}: Readonly<{ left: number; groupWidth?: number; direct?: boolean }>): React.JSX.Element {
+    rows = 6,
+}: Readonly<{ left: number; groupWidth?: number; direct?: boolean; rows?: number }>): React.JSX.Element {
     const [group, setGroup] = useState<string | null>(null);
     return (
         <div style={{ position: "fixed", top: 40, left }}>
@@ -88,7 +97,7 @@ function Thing({
                                 header={{ variant: "title", title: name }}
                             >
                                 <Popout.Content>
-                                    {Array.from({ length: 30 }, (_, i) => (
+                                    {Array.from({ length: rows }, (_, i) => (
                                         <input
                                             key={i}
                                             aria-label={`${name} ${String(i + 1)}`}
@@ -206,7 +215,7 @@ describe("a pop-out's group menu and the group pop-overs beside it (browser)", (
         await tip;
 
         await userEvent.click(more);
-        const wrap = await screen.findByRole("menuitem", { name: "Wrap, set" });
+        const wrap = await screen.findByRole("menuitem", { name: SET_WRAP });
         const badge = screen.getByRole("menuitem", { name: "Badge" });
         assert.equal(wrap.getAttribute("aria-haspopup"), "dialog");
         assert.isNotNull(wrap.querySelector(".cm-menu-row-set"));
@@ -222,7 +231,7 @@ describe("a pop-out's group menu and the group pop-overs beside it (browser)", (
         renderThing({ left: 600 });
         const panel = await openLabel();
         await userEvent.click(within(panel).getByRole("button", { name: "More label settings" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Wrap, set" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: SET_WRAP }));
         const wrap = await placed("Wrap");
         const parentRect = panel.getBoundingClientRect();
         const wrapRect = wrap.getBoundingClientRect();
@@ -253,7 +262,7 @@ describe("a pop-out's group menu and the group pop-overs beside it (browser)", (
 
     it("on a 768 x 1024 tablet held upright, opens below when neither side has room, no taller than the room", async () => {
         await page.viewport(768, 1024);
-        renderThing({ left: 200, groupWidth: 400 });
+        renderThing({ left: 200, groupWidth: 400, rows: 30 });
         const panel = await openLabel();
         await userEvent.click(within(panel).getByRole("button", { name: "More label settings" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Badge" }));

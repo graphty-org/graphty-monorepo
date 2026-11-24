@@ -83,6 +83,7 @@ describe("what the assistant reaches", () => {
             "op:annotations.patch",
             "op:batch",
             "op:data.steps-set",
+            "op:font.set",
             "op:layout.transport",
             "op:note.merge",
             "op:style.template",

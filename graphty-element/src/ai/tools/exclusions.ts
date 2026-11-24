@@ -171,6 +171,7 @@ const SESSION_NAMESPACES = [
     "selection",
     "visibility",
     "styles",
+    "fonts",
     "views",
     "tours",
     "graphs",
@@ -194,7 +195,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { op: "note.merge", reason: "whole-document", kind: BY_DESIGN },
     // An uploaded font is a file the reader hands the page; the assistant has none to give.
     { op: "font.set", reason: "needs-host", kind: BY_DESIGN },
-    { root: "FontsApi", members: ["add", "remove"], reason: "needs-host", kind: BY_DESIGN },
+    { root: "FontsApi", members: ["add", "list", "remove"], reason: "needs-host", kind: BY_DESIGN },
     { op: "layout.transport", reason: "in-flight", kind: BY_DESIGN },
     // Where a saved view sits in the list is how a panel arranges them; nothing a reader asks for.
     { op: "view.move", reason: "panel-state", kind: BY_DESIGN },

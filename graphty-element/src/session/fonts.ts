@@ -159,7 +159,7 @@ function faceOf(family: string, sha256: string, bytes: () => Uint8Array | null):
         face =
             Face === undefined || data === null
                 ? Promise.resolve(null)
-                : new Face(JSON.stringify(family), data).load().then((loaded) => loaded);
+                : new Face(family, data).load().then((loaded) => loaded);
         face.catch(() => undefined);
         faces.set(key, face);
     }

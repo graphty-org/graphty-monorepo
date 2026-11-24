@@ -436,7 +436,7 @@ describe("a file's styles drawn by the load", () => {
         session.dispose();
     });
 
-    it("hides what the file hides through the visibility filter, and takes the file's background", async () => {
+    it("draws what the file hides hidden, keeps it in the graph, and takes the file's background", async () => {
         const doc = JSON.stringify({
             elements: [
                 ...["a", "b", "c"].map((id) => ({ data: { id } })),
@@ -446,8 +446,11 @@ describe("a file's styles drawn by the load", () => {
         });
         const session = createGraphSession();
         await session.data.import({ type: "json", config: { data: doc } }, { styles: "file" });
-        assert.isTrue(session.visibility.isVisible("a"));
-        assert.isFalse(session.visibility.isVisible("b"));
+        // A look, not a filter: `b` stays in the graph (issue #9949) and is drawn hidden.
+        assert.isTrue(session.visibility.isVisible("b"));
+        assert.strictEqual(session.data.nodes().length, 3);
+        assert.notStrictEqual(drawn(session, { node: "a" }, "node.visible"), false);
+        assert.strictEqual(drawn(session, { node: "b" }, "node.visible"), false);
 
         await session.undo();
         await session.data.import(

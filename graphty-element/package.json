@@ -131,6 +131,7 @@
         "test:mesh:watch": "vitest --project=mesh",
         "test:mesh:coverage": "vitest run --project=mesh --coverage",
         "test:interactions": "vitest run --project=interactions",
+        "test:interactions-webkit": "vitest run --project=interactions-webkit -t \"^(pointing at (nodes|edges) in |on the (objects|batched) path in [23]d .*ngraph|through a layout transition on the (objects|batched) path in [23]d '?glide'? into )\"",
         "test:interactions:unit": "vitest run --project=interactions test/interactions/unit/",
         "test:interactions:browser": "vitest run --project=interactions test/interactions/integration/",
         "test:interactions:xr": "vitest run --project=interactions test/interactions/xr/",

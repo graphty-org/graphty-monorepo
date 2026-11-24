@@ -398,6 +398,65 @@ const PICTURE_TYPES: Readonly<Record<string, string>> = {
  */
 const refusedPictures = new WeakMap<object, string[] | null>();
 
+/** A Chrome DevTools `Input.dispatchMouseEvent`, as test/helpers/real-input.ts builds it. */
+interface MouseEventParams {
+    type: "mouseMoved" | "mousePressed" | "mouseReleased";
+    x: number;
+    y: number;
+    button: "none" | "left" | "middle" | "right";
+    clickCount: number;
+    modifiers: number;
+}
+
+/** The DevTools modifier bits and the keys Playwright presses for them. */
+const MODIFIER_KEYS: readonly (readonly [bit: number, key: string])[] = [
+    [1, "Alt"],
+    [2, "Control"],
+    [4, "Meta"],
+    [8, "Shift"],
+];
+
+/** Per page: the modifier keys the mouse command holds down, and the queue its events run in. */
+const mouseState = new WeakMap<object, { held: Set<string>; queue: Promise<void> }>();
+
+/**
+ * The mouse in a browser with no DevTools protocol (WebKit, the iPad path): test/helpers/real-input.ts sends each
+ * `Input.dispatchMouseEvent` here, and Playwright's own mouse and keyboard make it, so the browser's input pipeline
+ * (hit testing, pointer events, the canvas's listeners) runs as it does for a person. Events run one after another in
+ * the order they arrive, as the protocol delivers them, so a press and release sent together stay a click.
+ * @param ctx - the browser command context
+ * @param event - the event, in the top page's CSS pixels
+ * @returns once the event is made
+ */
+const dispatchMouseEvent: BrowserCommand<[event: MouseEventParams]> = (ctx, event) => {
+    const { page } = ctx;
+    const state = mouseState.get(page) ?? { held: new Set<string>(), queue: Promise.resolve() };
+    mouseState.set(page, state);
+    const run = async (): Promise<void> => {
+        const want = new Set(MODIFIER_KEYS.filter(([bit]) => (event.modifiers & bit) !== 0).map(([, key]) => key));
+        for (const key of [...state.held].filter((k) => !want.has(k))) {
+            await page.keyboard.up(key);
+            state.held.delete(key);
+        }
+
+        for (const key of [...want].filter((k) => !state.held.has(k))) {
+            await page.keyboard.down(key);
+            state.held.add(key);
+        }
+
+        await page.mouse.move(event.x, event.y);
+        const button = event.button === "none" ? "left" : event.button;
+        if (event.type === "mousePressed") {
+            await page.mouse.down({ button, clickCount: event.clickCount });
+        } else if (event.type === "mouseReleased") {
+            await page.mouse.up({ button, clickCount: event.clickCount });
+        }
+    };
+    const done = state.queue.then(run);
+    state.queue = done.catch(() => undefined);
+    return done;
+};
+
 /**
  * Emulate the reader's reduced-motion preference, or clear it (test/browser/reduced-motion.test.ts). In the `browser`
  * project's `commands`.
@@ -1360,6 +1419,45 @@ const config = defineConfig({
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
                         provider: playwright(),
+                        instances: [{ browser: "webkit" }],
+                    },
+                },
+            },
+            {
+                // Hover, click and edges in motion in WebKit's WebGL2 (the iPad path), on both render paths: batched
+                // picking reads a pixel back from an ID render target, and WebKit's readPixels formats, integer
+                // targets and antialias resolve differ from Chromium's. A subset of two Chromium files, by test name
+                // (package.json test:interactions-webkit): pick-parity's nodes and edges at rest with selection, and
+                // edges-follow's ngraph and glide cases.
+                // The mouse comes from Playwright (dispatchMouseEvent), as WebKit has no DevTools protocol. Full run
+                // only (tools/ci-test-matrix.mjs, graphty-element-interactions-webkit); v8 coverage cannot instrument
+                // WebKit, so it runs without. How to run: test/interactions/README.md.
+                define: { ...define },
+                plugins: [rawModelWorkers()],
+                resolve: {
+                    alias: {
+                        "@mlc-ai/web-llm": path.resolve(dirname, "test/helpers/webllm-mock.ts"),
+                        ...OWN_ENTRY_POINTS,
+                    },
+                },
+                cacheDir: SHARD_CACHE_DIR,
+                optimizeDeps: { include: PREBUNDLED, force: true },
+                test: {
+                    name: "interactions-webkit",
+                    setupFiles: [MAP_TILES_SETUP, "./test/setup.ts"],
+                    include: [
+                        "test/interactions/pick-parity.test.ts",
+                        "test/browser/edges-follow-running-layout.test.ts",
+                    ],
+                    fileParallelism: false,
+                    browser: {
+                        enabled: true,
+                        commands: { ...mapTileCommands, dispatchMouseEvent },
+                        headless: true,
+                        screenshotDirectory: FAILURE_SCREENSHOT_DIR,
+                        // A runner page wide enough that the test frame is not scaled down: WebKit's mouse lands on
+                        // whole pixels of this page, so each is then one pixel of the frame (real-input.ts reachable).
+                        provider: playwright({ contextOptions: { viewport: { width: 1600, height: 1200 } } }),
                         instances: [{ browser: "webkit" }],
                     },
                 },

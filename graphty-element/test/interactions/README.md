@@ -87,6 +87,22 @@ check that commit out in a detached worktree, build it, copy this test and
 `test/helpers/drawn-invariants.ts` there with `PATHS` set to `["objects"]`, run the file and keep
 each `[pick-parity]` line whose path is `objects` (key to value).
 
+### The same in WebKit (`interactions-webkit` project)
+
+Batched picking reads a pixel back from an ID render target, and WebKit's WebGL2 (what an iPad
+draws with) differs from Chromium's in read-back formats and antialias resolve. The
+`interactions-webkit` project runs part of two files in WebKit on both render paths: this file's
+nodes and edges at rest with their selection cases, and
+`test/browser/edges-follow-running-layout.test.ts`'s ngraph and glide cases (edges and arrowheads
+follow their nodes on every drawn frame). WebKit has no DevTools protocol, so
+`test/helpers/real-input.ts` makes the mouse with Playwright there (the `dispatchMouseEvent` command
+in `vitest.config.ts`). It runs in the 6-hour full run only (shard
+`graphty-element-interactions-webkit`); by hand:
+
+```bash
+npm run test:interactions-webkit
+```
+
 ## Running Tests
 
 ### All Interaction Tests

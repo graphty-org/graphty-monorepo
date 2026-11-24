@@ -814,8 +814,14 @@ export function styleTool(catalog: CatalogView): ToolDefinition {
                     before = layers[index + 1]?.id ?? null;
                 }
 
+                // Below itself is where the layer already is (the bottom it holds, or right above
+                // the layer it already sits on): nothing to move, which the stack would refuse.
+                if (before === target.id) {
+                    return ok(undefined, { layer: target.id, moved: false });
+                }
+
                 await coded(() => tx.styles.move(target.id, before));
-                return ok(undefined, { layer: target.id });
+                return ok(undefined, { layer: target.id, moved: true });
             },
         },
         {

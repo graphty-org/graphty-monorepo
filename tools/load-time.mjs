@@ -11,24 +11,37 @@
  * `{ date, machine, sha?, results: [{ group, name, medianMs, minMs, samplesMs }] }`, the shape
  * tools/results/post-benchmarks.mjs reads, so the health dashboard keeps the series (source `graphty-load`).
  *
- *   node tools/load-time.mjs            judge the out files against benchmarks/results/load-time.json
- *   node tools/load-time.mjs --record   and then append them to it as a baseline session
+ *   node tools/load-time.mjs --pair-app <dist> --pair-element <bundle> [--rounds 4]
+ *       the paired judge (CI's Performance Benchmarks job): time a reference build (the job passes what nightly
+ *       serves) and the candidate on the same machine, alternating, and fail on a row the candidate is slower in
+ *   node tools/load-time.mjs            print the out files against benchmarks/results/load-time.json, for trends
+ *   node tools/load-time.mjs --record   and then append them to it as a session
  *
- * The rules are webgpu-graph-algorithms/scripts/bench-compare.js's, with this file's own constants:
- *   - a row is compared only with sessions of the same machine (the CPU model, as the dashboard keys it): GitHub's
- *     hosted runners land on CPU models about 2x apart, so a baseline from another CPU means nothing;
- *   - the baseline is the best median and the best minimum EVERY session of that machine has recorded for the row, so
- *     an appended slow session can never lower the bar it is judged by;
- *   - a REGRESSION needs the median AND the minimum above THRESHOLD x the baseline's, and both to have risen by at
- *     least FLOOR_MS: interference only ever slows a sample, so a minimum that held means the cost held;
- *   - no out file: nothing to compare, exit 0; no baseline for this machine: every row "new", exit 0.
+ * Why paired (issue #9876): GitHub's hosted runners that report the same CPU model differ in speed by up to about
+ * x1.38 between sessions (the results file's 2026-11-17 and 2026-11-18 sessions on the Xeon Platinum 8573C), more
+ * than THRESHOLD, so a baseline recorded on another day cannot tell a slower runner from slower code: a full run went
+ * red on three rows that no merge had changed (#9855). Timing both builds in the same job, alternately, removes the
+ * runner from the comparison, as webgpu-graph-algorithms/scripts/bench-ab.js does for the GPU.
  *
- * THRESHOLD and FLOOR_MS are derived in their comments below from the recorded sessions.
- * Re-pinning is by hand, as in bench-compare.js: delete the superseded sessions from the results file in a reviewed
- * commit that names the change that made the new cost correct. Never to quiet a red row.
+ * The paired run (--pair-app and --pair-element each pair one benchmark; give one or both):
+ *   - R rounds (--rounds, default 4); each round runs every paired benchmark once per build, the reference first in
+ *     even rounds and the candidate first in odd ones (ABBA), so a drift that is linear in time cancels;
+ *   - both builds run under the candidate's benchmark files (the reference build only supplies the page through
+ *     LOAD_TIME_APP_DIST or LOAD_TIME_ELEMENT_BUNDLE), so both are timed by the same instrument;
+ *   - each side's samples of every round are pooled into one row (median and minimum of all of them);
+ *   - a REGRESSION needs the candidate's median AND minimum above THRESHOLD x the reference's, and both to have risen
+ *     by at least FLOOR_MS: interference only ever slows a sample, so a minimum that held means the cost held. These
+ *     are the rules of webgpu-graph-algorithms/scripts/bench-compare.js; bench-ab.js's interval over per-round
+ *     minima is not used, because a round here is one benchmark run and its noise is what the pooled median and
+ *     minimum already absorb;
+ *   - the candidate's pooled rows are written to benchmarks/out/load-time-<part>.json, which the dashboard posts.
+ *
+ * The history (benchmarks/results/load-time.json) is printed after the paired verdict, against the best median and
+ * best minimum every session of the same CPU model recorded, for trends only: it never fails a run.
  */
 
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { cpus } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -157,7 +170,95 @@ export function judge(current, baseline) {
     return { lines, regressions };
 }
 
+/**
+ * Pool one side's rounds into one row per benchmark: every round's samples, summarized together.
+ * @param sessions - that side's sessions, one per round
+ * @returns the pooled rows, in first-seen order
+ */
+export function pool(sessions) {
+    const rows = new Map();
+    for (const s of sessions)
+        for (const r of s.results) {
+            const key = `${r.group}/${r.name}`;
+            const row = rows.get(key) ?? { group: r.group, name: r.name, samplesMs: [] };
+            row.samplesMs.push(...r.samplesMs);
+            rows.set(key, row);
+        }
+    return [...rows.values()].map((r) => summarize(r.group, r.name, r.samplesMs));
+}
+
+/**
+ * Which build runs first in a round: the reference in even rounds, the candidate in odd ones (ABBA).
+ * @param round - the round, from 0
+ * @returns the two sides in running order
+ */
+export const roundOrder = (round) => (round % 2 === 0 ? ["base", "candidate"] : ["candidate", "base"]);
+
+/** The paired benchmarks: where each runs, its command, and the variable that points it at the reference build. */
+const PARTS = {
+    element: {
+        cwd: join(REPO, "graphty-element"),
+        args: ["exec", "vitest", "run", "--project=bench", "test/load/load-time.bench.test.ts"],
+        variable: "LOAD_TIME_ELEMENT_BUNDLE",
+    },
+    app: {
+        cwd: join(REPO, "graphty"),
+        args: ["exec", "vitest", "run", "--project=bench"],
+        variable: "LOAD_TIME_APP_DIST",
+    },
+};
+
+/**
+ * Run the paired benchmarks in ABBA rounds.
+ * @param pair - the reference build per part (`app`: a built app directory, `element`: a script-tag bundle)
+ * @param rounds - how many rounds
+ * @returns per side, the sessions of every round, by part
+ */
+function measurePairs(pair, rounds) {
+    const out = { base: {}, candidate: {} };
+    for (let round = 0; round < rounds; round++)
+        for (const [part, reference] of Object.entries(pair))
+            for (const side of roundOrder(round)) {
+                const { cwd, args, variable } = PARTS[part];
+                const env = { ...process.env };
+                delete env[variable];
+                if (side === "base") env[variable] = resolve(reference);
+                const file = join(OUT_DIR, `load-time-${part}.json`);
+                rmSync(file, { force: true });
+                console.log(`round ${round + 1}/${rounds}: ${part}, ${side}`);
+                const run = spawnSync("pnpm", args, { cwd, env, stdio: ["ignore", "ignore", "inherit"] });
+                if (run.status !== 0 || !existsSync(file))
+                    throw new Error(`${part} benchmark of the ${side} build failed (exit ${run.status ?? run.signal})`);
+                out[side][part] = [...(out[side][part] ?? []), JSON.parse(readFileSync(file, "utf8"))];
+            }
+    return out;
+}
+
+const HEADER = `status      row${" ".repeat(38)}median  baseline  median    min`;
+
 function main(argv) {
+    const option = (name) => (argv.includes(name) ? argv[argv.indexOf(name) + 1] : undefined);
+    const pair = Object.fromEntries(
+        Object.entries({ app: option("--pair-app"), element: option("--pair-element") }).filter(([, v]) => v),
+    );
+    let regressions = 0;
+    if (Object.keys(pair).length) {
+        const rounds = Number(option("--rounds") ?? 4);
+        const sides = measurePairs(pair, rounds);
+        const session = (side, part) => ({ machine: machine(), results: pool(sides[side][part]) });
+        const parts = Object.keys(pair);
+        for (const part of parts) writeLoadTimes(part, session("candidate", part).results);
+        const verdict = judge(
+            parts.map((p) => session("candidate", p)),
+            parts.map((p) => session("base", p)),
+        );
+        console.log(
+            `\npaired: the candidate against the reference build, ${rounds} ABBA rounds (baseline = reference)`,
+        );
+        console.log(HEADER);
+        for (const l of verdict.lines) console.log(l);
+        regressions = verdict.regressions;
+    }
     const files = existsSync(OUT_DIR)
         ? readdirSync(OUT_DIR)
               .filter((f) => /^load-time-.+\.json$/.test(f))
@@ -165,25 +266,32 @@ function main(argv) {
         : [];
     if (!files.length) {
         console.log("nothing to compare: no benchmarks/out/load-time-*.json (the load-time benchmarks wrote nothing)");
-        return 0;
+        return regressions ? 1 : 0;
     }
     const current = files.map((f) => JSON.parse(readFileSync(f, "utf8")));
-    const baseline = existsSync(RESULTS_FILE) ? JSON.parse(readFileSync(RESULTS_FILE, "utf8")) : [];
-    const { lines, regressions } = judge(current, baseline);
-    console.log(`status      row${" ".repeat(38)}median  baseline  median    min`);
-    for (const l of lines) console.log(l);
+    const history = existsSync(RESULTS_FILE) ? JSON.parse(readFileSync(RESULTS_FILE, "utf8")) : [];
+    console.log("\nagainst the history of this CPU model, for trends only (never fails: runners of one model differ)");
+    console.log(HEADER);
+    for (const l of judge(current, history).lines) console.log(l);
     if (argv.includes("--record")) {
-        writeFileSync(RESULTS_FILE, `${JSON.stringify([...baseline, ...current], null, 1)}\n`);
+        writeFileSync(RESULTS_FILE, `${JSON.stringify([...history, ...current], null, 1)}\n`);
         console.log(`recorded ${current.length} session(s) in ${RESULTS_FILE}`);
     }
     if (regressions) {
         console.error(
-            `\n${regressions} load-time regression(s): median and minimum both above x${THRESHOLD} and ${FLOOR_MS} ms over the baseline. ` +
-                "Fix the slowdown, or have the owner accept it (tools/load-time.mjs says how to re-pin).",
+            `\n${regressions} load-time regression(s): median and minimum both above x${THRESHOLD} and ${FLOOR_MS} ms over ` +
+                "the reference build timed on the same machine. Find the change that slowed them and fix it.",
         );
         return 1;
     }
     return 0;
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) process.exit(main(process.argv.slice(2)));
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+    try {
+        process.exitCode = main(process.argv.slice(2));
+    } catch (error) {
+        console.error(error instanceof Error ? error.message : String(error));
+        process.exitCode = 1;
+    }
+}

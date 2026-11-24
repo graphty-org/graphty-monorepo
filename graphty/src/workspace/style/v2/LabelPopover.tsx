@@ -102,7 +102,8 @@ export function LabelPopover({
     );
     const set = (line: LabelLineSpec): boolean => labelLineFields(line).some((field) => fieldSet(label, field));
     // A line another field rules out appears once it applies (design "Input rules", "Tabs").
-    const shown = (line: LabelLineSpec): boolean => !labelRuledOut(ctx, kind.style, style, line.field) || set(line);
+    const shown = (line: LabelLineSpec): boolean =>
+        !labelRuledOut(ctx, kind.style, style, line.field, labelLineFields(line)) || set(line);
     const onUnset = (group: LabelGroup): void => {
         const drop = group.name === POSITION && kind.distance !== undefined ? [kind.distance] : [];
         write(Object.fromEntries(labelGroupFields(group).map((field) => [field, undefined])), drop);

@@ -36,7 +36,8 @@ const CASES: readonly Case[] = [
     {
         name: "Long-line fade end",
         view: "2D",
-        set: {},
+        // The fade draws only while blending is on, so its lines appear then (design "Input rules", "Tabs").
+        set: { "edge.blending": true },
         settings: "Edge line settings",
         group: "Blend and fade",
         advanced: true,

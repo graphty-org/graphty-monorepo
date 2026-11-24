@@ -129,7 +129,12 @@ export function ThingPopover({
     // A line another setting of the row rules out appears once it applies (design "Input rules", "Tabs").
     const own = [...rubricChannels(rubric), ...(head === undefined ? [] : [head.channel])];
     const shown = (line: LineSpec): boolean =>
-        !ruledOut(ctx, line.channel, own) || lineChannels(line).some((channel) => setOn(ctx, channel));
+        !ruledOut(
+            ctx,
+            line.channel,
+            // A condition on the line's own other value (a pair's second number) never hides it.
+            own.filter((channel) => !lineChannels(line).includes(channel)),
+        ) || lineChannels(line).some((channel) => setOn(ctx, channel));
     const groups = rubric.groups ?? [];
     const onUnset = (group: SubGroup): void => {
         unsetIn(

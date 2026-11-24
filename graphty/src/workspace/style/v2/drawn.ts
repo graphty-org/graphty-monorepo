@@ -200,6 +200,7 @@ export function ruledOut(ctx: RowContext, channel: Channel, own: readonly Channe
  * @param styleChannel - the text kind's label style channel.
  * @param style - the layer's own label style.
  * @param field - the field.
+ * @param same - the other fields of the same line (a pair's second number), which never rule it out.
  * @returns true when another field rules it out.
  */
 export function labelRuledOut(
@@ -207,6 +208,7 @@ export function labelRuledOut(
     styleChannel: Channel,
     style: Readonly<LabelStyle>,
     field: keyof LabelStyle,
+    same: readonly (keyof LabelStyle)[] = [],
 ): boolean {
     const read = labelReader(ctx, styleChannel, style);
     const found = labelFieldDrawn(field, read, viewOf(ctx.session));
@@ -216,7 +218,9 @@ export function labelRuledOut(
     // A partner the line writes itself from the reader's one click (graphty-element's `needs`: a look's switch) does
     // not rule it out.
     const { field: partner } = found.unmet;
-    return labelFieldDescriptor(field)?.needs?.some((need) => need.field === partner) !== true;
+    return (
+        !same.includes(partner) && labelFieldDescriptor(field)?.needs?.some((need) => need.field === partner) !== true
+    );
 }
 
 /**

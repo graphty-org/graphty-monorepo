@@ -23,27 +23,37 @@ export interface WalkPath {
 }
 
 /**
- * A value computed over a node's edges, neighbors or members.
- *
- * Experimental: accepted and saved, not yet drawn; an entry holding one draws as a missing value.
+ * A value computed over a node's edges, neighbors or members: a count, sum, mean, min, max or most common value,
+ * optionally split into one value per group (a value's category, the edge's direction, or a time period), which
+ * spreads the entry into one part per group. A walk that keeps nothing is a missing value.
  * @since 3.68.0
  */
 export interface GraphMeasure {
-    /** What is walked. */
+    /**
+     * What is walked: `"edges"` each edge at the node (a self-loop once); `"neighbors"` the nodes within `hops`,
+     * each once, never the node itself; `"members"` the nodes a group node holds (their `parent` is it), or the
+     * members a collapsed group keeps.
+     */
     readonly over: "edges" | "neighbors" | "members";
-    /** Edges and neighbors. Default `"both"`. */
+    /** Edges and neighbors. Default `"both"`. Read as `"both"` on an undirected graph. */
     readonly direction?: "in" | "out" | "both";
     /** Neighbors: 1, 2 or 3. Default 1. */
     readonly hops?: 1 | 2 | 3;
-    /** Only the edges (or nodes) this rule keeps. */
+    /** Only the edges (or nodes) this rule keeps: one `range` or `categories` leaf. */
     readonly where?: RuleTree;
-    /** Where `where` is read. */
+    /** Where `where` is read. Default `"edge"` over edges, `"node"` otherwise. */
     readonly whereOn?: "edge" | "node";
-    /** What is computed. */
+    /** What is computed. `"mode"` is the most common value (ties go to the first in natural name order). */
     readonly measure: "count" | "sum" | "mean" | "min" | "max" | "mode";
     /** What sum, mean, min, max and mode read; absent for count. */
     readonly of?: WalkPath;
-    /** Spread into one value per group. */
+    /**
+     * Spread into one value per group: by the value at a path (each list item its own group), by direction
+     * (`"in"` and `"out"`, edges on a directed graph; `"both"` on an undirected one), or by time period. Time groups
+     * are keyed `YYYY`, `YYYY-Qn`, `YYYY-MM`, `YYYY-Www` (ISO week), `YYYY-MM-DD` or `YYYY-MM-DDTHH`, in UTC, so name
+     * order is time order; every period from the graph's first to its newest date (or inside the window) is
+     * present, holding 0 for a count and missing for every other measure.
+     */
     readonly groupBy?:
         | ({ readonly by: "value" } & WalkPath)
         | { readonly by: "direction" }
@@ -219,7 +229,8 @@ export type DataUndrawnCode =
 
 /**
  * Why `styles.add` or `styles.update` refuses a data spec: the refusal's `details.reason` (and `LayerProblem.reason`).
- * `shape` is a spec that is not `{ entries: [...] }` or holds more than 256 entries; the rest are listed in the guide.
+ * `shape` is a spec that is not `{ entries: [...] }` or holds more than 256 entries; `where` is a Graph value's `where`
+ * that is not one `range` or `categories` leaf (since 3.68.0); the rest are listed in the guide.
  * @since 3.68.0
  */
 export type DataSpecReason =
@@ -234,7 +245,8 @@ export type DataSpecReason =
     | "window"
     | "palette"
     | "colors"
-    | "shape";
+    | "shape"
+    | "where";
 
 /**
  * Why a value does not fit a data channel: `data.needsNumbers` (`path`, `valueKind`) for text, yes-no or a time offered

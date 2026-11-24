@@ -77,7 +77,7 @@ import {
     parseShaderParamAddress,
     placeOfUse,
 } from "./channels";
-import { dataBindings, isDataChannel, prepareData } from "./dataLists";
+import { dataBindings, type DataGraph, isDataChannel, prepareData } from "./dataLists";
 import { overflowHalf, prepareBinding, type PreparedBinding } from "./encoding";
 import { createStyleInterner, meshChannelsFor, type StyleInterner } from "./intern";
 import type {
@@ -218,6 +218,12 @@ export interface RepaintSources {
      * @returns The name, or undefined.
      */
     readonly plainName?: (path: Path, target: SelectorTarget) => string | undefined;
+    /**
+     * The structure a data spec's Graph values walk (edges, neighbors, members), read once per preparation; the
+     * pass adds the edge values. Absent, every Graph value is missing.
+     * @returns The structure, or null.
+     */
+    readonly dataGraph?: () => Omit<DataGraph, "edgeValue"> | null;
 }
 
 /**
@@ -1605,6 +1611,12 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
                     columns: () => sources.columns?.(layer.target) ?? [],
                     plainName: (path) => sources.plainName?.(path, layer.target),
                     palette: (id) => resolvePalette(scales.carried, id),
+                    graph: () => {
+                        const structure = sources.dataGraph?.() ?? null;
+                        return structure === null
+                            ? null
+                            : { ...structure, edgeValue: (edge, path) => stores.edge.elements.value(edge, path) };
+                    },
                 },
                 layer.set?.["node.chartKind"],
             );

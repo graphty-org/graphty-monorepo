@@ -17,6 +17,7 @@ import {
     type DataSpecReason,
     type DataUndrawnCode,
     formatValue,
+    type GraphMeasure,
     instantOf,
     naturalCompare,
     type PieData,
@@ -25,12 +26,14 @@ import {
 import type { Channel, PaletteDescriptor, Path } from "../../catalog/types";
 
 export type { DataSpecReason } from "../../catalog/data-lists";
+export type { DataGraph } from "./graphMeasures";
 import { escapeLabelMarkup } from "../../utils/labelMarkup";
 import { interpolatePalette } from "../../utils/styleHelpers/color/interpolation";
 import type { CodedFact } from "../shared";
 import { toColorValue } from "./channels";
 import { DEFAULT_CATEGORICAL_PALETTE } from "./defaultPalettes";
 import type { EncodedValue, PreparedBinding } from "./encoding";
+import { createMeasurer, type DataGraph } from "./graphMeasures";
 import { sequentialSamples } from "./palettes";
 
 /** The three data channels. */
@@ -174,7 +177,15 @@ function checkEntry(channel: DataChannel, entry: unknown, at: string): DataSpecP
  * @returns The problem, or null.
  */
 function checkMeasure(graph: Record<string, unknown>, at: string): DataSpecProblem | null {
-    if (graph.measure !== "count" && graph.of === undefined) {
+    if (!OVERS.includes(graph.over as never) || !MEASURES.includes(graph.measure as never)) {
+        return {
+            reason: "entry-source",
+            message: `A Graph value is over ${OVERS.join(", ")} and measures ${MEASURES.join(", ")}.`,
+            path: at,
+        };
+    }
+
+    if (graph.measure !== "count" && typeof (graph.of as { path?: unknown } | undefined)?.path !== "string") {
         return { reason: "measure-of", message: "A measure other than count reads `of`.", path: `${at}.of` };
     }
 
@@ -182,13 +193,49 @@ function checkMeasure(graph: Record<string, unknown>, at: string): DataSpecProbl
         return { reason: "hops", message: "Hops are 1, 2 or 3.", path: `${at}.hops` };
     }
 
-    const window = (graph.groupBy as { window?: { last?: unknown } } | undefined)?.window;
+    const groupBy = graph.groupBy as
+        { by?: unknown; period?: unknown; path?: unknown; window?: { last?: unknown } } | undefined;
+    if (
+        groupBy !== undefined &&
+        !(
+            groupBy.by === "direction" ||
+            (groupBy.by === "value" && typeof groupBy.path === "string") ||
+            (groupBy.by === "time" && typeof groupBy.path === "string" && PERIODS.includes(groupBy.period as never))
+        )
+    ) {
+        return {
+            reason: "entry-source",
+            message: "A Graph value groups by a value's path, by direction, or by a time path and a period.",
+            path: `${at}.groupBy`,
+        };
+    }
+
+    const window = groupBy?.window;
     if (window !== undefined && !isCount(window.last)) {
         return { reason: "window", message: "A window's last is a whole number from 1.", path: `${at}.groupBy.window` };
     }
 
+    const where = graph.where as { kind?: unknown; attribute?: unknown } | undefined;
+    if (
+        where !== undefined &&
+        !((where.kind === "range" || where.kind === "categories") && typeof where.attribute === "string")
+    ) {
+        return {
+            reason: "where",
+            message: "A Graph value's where is one range or categories leaf.",
+            path: `${at}.where`,
+        };
+    }
+
     return null;
 }
+
+/** What a Graph value walks. */
+const OVERS = ["edges", "neighbors", "members"] as const;
+/** What a Graph value computes. */
+const MEASURES = ["count", "sum", "mean", "min", "max", "mode"] as const;
+/** The periods a time group is cut into. */
+const PERIODS = ["hour", "day", "week", "month", "quarter", "year"] as const;
 
 /**
  * Check a data spec against its channel and the rest of its layer's `set`.
@@ -314,14 +361,7 @@ export function dataSpecPaths(value: unknown): Path[] {
         if ("field" in entry) {
             paths.push(entry.field);
         } else if ("graph" in entry) {
-            const { of, groupBy } = entry.graph;
-            if (of !== undefined) {
-                paths.push(of.path);
-            }
-
-            if (groupBy !== undefined && "path" in groupBy) {
-                paths.push(groupBy.path);
-            }
+            paths.push(...measurePaths(entry.graph));
         }
     }
 
@@ -330,6 +370,46 @@ export function dataSpecPaths(value: unknown): Path[] {
     }
 
     return [...new Set(paths)];
+}
+
+/**
+ * Every path a Graph value reads: its `of`, its group's and its `where` leaf's.
+ * @param graph - The Graph value.
+ * @returns The paths.
+ */
+function measurePaths(graph: GraphMeasure): Path[] {
+    const { of, groupBy, where } = graph;
+    return [
+        ...(of === undefined ? [] : [of.path]),
+        ...(groupBy !== undefined && "path" in groupBy ? [groupBy.path] : []),
+        ...(where !== undefined && "attribute" in where ? [where.attribute] : []),
+    ];
+}
+
+/**
+ * A Graph value with an edge column renamed where it reads edges.
+ * @param graph - The Graph value.
+ * @param from - The old column path.
+ * @param to - The new one.
+ * @returns The Graph value, the same object when nothing changed.
+ */
+function renamedMeasure(graph: GraphMeasure, from: Path, to: Path): GraphMeasure {
+    const fallback = graph.over === "edges" ? "edge" : "node";
+    const moved = <W extends { readonly path: Path; readonly on?: "edge" | "node" }>(read: W): W =>
+        read.path === from && (read.on ?? fallback) === "edge" ? { ...read, path: to } : read;
+    const { of, groupBy, where } = graph;
+    const next = {
+        ...graph,
+        ...(of === undefined ? {} : { of: moved(of) }),
+        ...(groupBy !== undefined && "path" in groupBy ? { groupBy: moved(groupBy) } : {}),
+        ...(where !== undefined &&
+        "attribute" in where &&
+        where.attribute === from &&
+        (graph.whereOn ?? fallback) === "edge"
+            ? { where: { ...where, attribute: to } }
+            : {}),
+    };
+    return next.of === of && next.groupBy === groupBy && next.where === where ? graph : next;
 }
 
 /**
@@ -353,6 +433,37 @@ export function renameDataSpecKeys<T extends object>(set: T, from: Path, to: Pat
         );
         out ??= { ...(set as Record<string, unknown>) };
         out[channel] = { ...spec, categories };
+    }
+
+    return (out ?? set) as T;
+}
+
+/**
+ * A spec's Graph values with an edge column renamed where they read edges (`of`, `groupBy`, `where` on the edge):
+ * an edge rename reaches a node layer only here.
+ * @param set - A node layer's `set`.
+ * @param from - The old column path.
+ * @param to - The new one.
+ * @returns The set, or the same object when nothing changed.
+ */
+export function renameDataSpecEdgePaths<T extends object>(set: T, from: Path, to: Path): T {
+    let out: Record<string, unknown> | null = null;
+    for (const channel of DATA_CHANNELS) {
+        const spec = (set as Record<string, unknown>)[channel] as { entries?: readonly DataEntry[] } | undefined;
+        let changed = false;
+        const entries = (spec?.entries ?? []).map((entry) => {
+            if (!("graph" in entry)) {
+                return entry;
+            }
+
+            const graph = renamedMeasure(entry.graph, from, to);
+            changed ||= graph !== entry.graph;
+            return graph === entry.graph ? entry : { ...entry, graph };
+        });
+        if (changed) {
+            out ??= { ...(set as Record<string, unknown>) };
+            out[channel] = { ...spec, entries };
+        }
     }
 
     return (out ?? set) as T;
@@ -389,6 +500,8 @@ export interface DataSource {
      * @param id - The id.
      */
     palette(id: string): PaletteDescriptor | undefined;
+    /** The structure a Graph value walks, read once per preparation. Absent or null, every Graph value is missing. */
+    graph?(): DataGraph | null;
 }
 
 /** One part of a node's list before it is drawn. */
@@ -428,6 +541,8 @@ interface EntryRead {
     readonly notNumber?: { readonly path: Path; readonly valueKind: string };
     /** A pattern that matched no column. */
     readonly emptyPattern?: boolean;
+    /** A Graph value whose walk kept nothing. */
+    readonly emptyWalk?: boolean;
 }
 
 /** What one node draws from a spec. */
@@ -610,6 +725,21 @@ export function prepareData(
     // What a relative date is measured against: the newest instant the entry reads anywhere.
     const newest = entries.map((entry) => newestOf(entry, source));
 
+    // Each Graph value once per node per preparation: the colors, a chart's extent and the repaint all read it.
+    const structure = entries.some((entry) => "graph" in entry) ? (source.graph?.() ?? null) : null;
+    const measurer = structure === null ? null : createMeasurer(structure, source);
+    const measured = entries.map(() => new Map<number, unknown>());
+    /** An ungrouped Graph value's key and its name, which the categories read. */
+    const graphNames = new Map<string, string>();
+    const graphValue = (measure: GraphMeasure, at: number, index: number): unknown => {
+        const held = measured[at];
+        if (!held.has(index)) {
+            held.set(index, measurer === null ? null : measurer.measure(measure, index));
+        }
+
+        return held.get(index);
+    };
+
     const nameOf = (path: Path): string => source.plainName(path) ?? columnName(path);
     const missingOf = (entry: DataEntry): NonNullable<DataEntry["missing"]> =>
         entry.missing ?? DEFAULT_MISSING[channel];
@@ -644,16 +774,26 @@ export function prepareData(
         }
 
         if ("graph" in entry) {
-            // ponytail: Graph values are accepted and saved but not computed yet; each reads as missing until the
-            // neighbor walk (with its per-hop frontier cache) lands.
-            return missingRead(entry, at, "", nameOf(""));
+            const { graph } = entry;
+            const value = graphValue(graph, at, index);
+            const name = entry.label ?? (graph.of === undefined ? graph.over : nameOf(graph.of.path));
+            graphNames.set(`graph.${String(at)}`, name);
+            const read = readField(entry, at, value, write, `graph.${String(at)}`, name, graph.of?.path);
+            return value === null ? { ...read, emptyWalk: true } : read;
         }
 
         if ("pattern" in entry) {
             return readPattern(entry, at, index, matched[at], write);
         }
 
-        return readField(entry, at, source.value(index, entry.field), write);
+        return readField(
+            entry,
+            at,
+            source.value(index, entry.field),
+            write,
+            entry.field,
+            entry.label ?? nameOf(entry.field),
+        );
     };
 
     /**
@@ -684,21 +824,25 @@ export function prepareData(
     };
 
     /**
-     * One field's value on one node.
+     * One value on one node: a field's, a pattern column's or a Graph value's.
      * @param entry - The entry.
      * @param at - Its place.
      * @param value - The node's value.
      * @param write - The entry's formatter.
+     * @param field - The part's key.
+     * @param name - The part's name.
+     * @param path - The path a `data.notNumbers` names; absent, the key.
      * @returns The read.
      */
     const readField = (
-        entry: DataEntry & { readonly field: Path },
+        entry: DataEntry,
         at: number,
         value: unknown,
         write: (value: unknown) => string,
+        field: string,
+        name: string,
+        path: Path = field,
     ): EntryRead => {
-        const { field } = entry;
-        const name = entry.label ?? nameOf(field);
         if (isMissing(value)) {
             return missingRead(entry, at, field, name);
         }
@@ -723,10 +867,10 @@ export function prepareData(
             };
         }
 
-        const parts = spreadParts(entry, at, value);
+        const parts = spreadParts(entry, at, value, field, name);
         if (parts === null) {
             const read = missingRead(entry, at, field, name);
-            return { ...read, notNumber: { path: field, valueKind: kindOf(value) } };
+            return { ...read, notNumber: { path, valueKind: kindOf(value) } };
         }
 
         return { parts, rows: [], fact: { value, text: write(value) }, missing: false };
@@ -737,12 +881,14 @@ export function prepareData(
      * @param entry - The entry.
      * @param at - Its place.
      * @param value - The value.
+     * @param field - The key of a part the whole list gives (a statistic).
+     * @param name - That part's name.
      * @returns The parts, in natural key order (list items in their place order).
      */
-    const spreadParts = (entry: DataEntry & { readonly field: Path }, at: number, value: unknown): Part[] | null => {
+    const spreadParts = (entry: DataEntry, at: number, value: unknown, field: string, name: string): Part[] | null => {
         const make = (key: string, n: number, spread = true): Part => ({
             key,
-            name: spread ? (list.categories?.[key]?.label ?? key) : (entry.label ?? nameOf(entry.field)),
+            name: spread ? (list.categories?.[key]?.label ?? key) : name,
             value: n,
             entry: at,
             spread,
@@ -752,7 +898,7 @@ export function prepareData(
             if (items.every((item) => typeof item === "number")) {
                 const each = entry.each ?? "items";
                 if (each === "sum" || each === "mean" || each === "min" || each === "max") {
-                    return [make(entry.field, statOf(items, each), false)];
+                    return [make(field, statOf(items, each), false)];
                 }
 
                 return items.map((n, place) => make(String(place + 1), n));
@@ -771,10 +917,30 @@ export function prepareData(
         }
 
         if (typeof value === "object" && value !== null && !(value instanceof Date)) {
-            const pairs = Object.entries(value as Record<string, unknown>).filter(([, n]) => typeof n === "number");
-            return pairs.length === 0
-                ? null
-                : [...pairs].sort(([a], [b]) => naturalCompare(a, b)).map(([key, n]) => make(key, n as number));
+            const pairs = Object.entries(value as Record<string, unknown>);
+            if (!pairs.some(([, n]) => typeof n === "number")) {
+                return null;
+            }
+
+            // A group with no value (an empty period of a sum) follows the entry's missing choice.
+            const missing = missingOf(entry);
+            return [...pairs]
+                .sort(([a], [b]) => naturalCompare(a, b))
+                .flatMap(([key, n]): Part[] => {
+                    if (typeof n === "number") {
+                        return [make(key, n)];
+                    }
+
+                    if (missing === "zero") {
+                        return [make(key, 0)];
+                    }
+
+                    if (missing === "gap" && isChart) {
+                        return [make(key, Number.NaN)];
+                    }
+
+                    return missing === "gray" ? [{ ...make(key, 0), value: null, role: "missing" }] : [];
+                });
         }
 
         return null;
@@ -807,7 +973,7 @@ export function prepareData(
         let present = 0;
         for (const path of columns) {
             const value = source.value(index, path);
-            const one = readField({ ...entry, field: path, label: undefined }, at, value, write);
+            const one = readField({ ...entry, label: undefined }, at, value, write, path, nameOf(path));
             parts.push(...one.parts.map((part) => ({ ...part, spread: true, column: true })));
             rows.push(...one.rows);
             values.push(isMissing(value) ? null : value);
@@ -943,7 +1109,8 @@ export function prepareData(
         }
 
         const graph = entries.find((entry) => "graph" in entry);
-        if (graph !== undefined && "graph" in graph && entries.every((entry) => "graph" in entry)) {
+        // Every entry a Graph value whose walk kept nothing.
+        if (graph !== undefined && "graph" in graph && reads.every((read) => read.emptyWalk === true)) {
             return { code: "data.nothingOver", params: { channel, over: graph.graph.over } };
         }
 
@@ -1128,7 +1295,7 @@ export function prepareData(
             .filter((key) => covered.has(key))
             .map((key) => ({
                 key,
-                name: overrides[key]?.label ?? (sep === null ? nameOf(key) : key),
+                name: overrides[key]?.label ?? graphNames.get(key) ?? (sep === null ? nameOf(key) : key),
                 color: overrides[key]?.color ?? slot.get(key) ?? OTHER_GRAY,
                 pinned: overrides[key]?.color !== undefined,
             }));

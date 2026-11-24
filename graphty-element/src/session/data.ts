@@ -305,7 +305,7 @@ import type {
     SourceSettings,
 } from "./sources/types";
 import { computeFingerprint, computeStatistics } from "./statistics";
-import { renameDataSpecKeys } from "./styles/dataLists";
+import { renameDataSpecEdgePaths, renameDataSpecKeys } from "./styles/dataLists";
 import { asksFileStyles } from "./styles/fileStyles/apply";
 import type { CompiledLayer } from "./styles/Layer";
 import { expressionPaths } from "./styles/predicate";
@@ -9411,7 +9411,12 @@ function renamedRows(
 function pushLayerRenames(steps: SessionCommand[], styles: readonly CompiledLayer[], rename: ColumnRename): void {
     const { kind, from, name } = rename;
     for (const { layer } of styles) {
-        if (layer.locked || layer.target !== kind) {
+        if (layer.locked) {
+            continue;
+        }
+
+        if (layer.target !== kind) {
+            pushEdgeRenameInNodeLayer(steps, layer, rename);
             continue;
         }
 
@@ -9428,6 +9433,24 @@ function pushLayerRenames(steps: SessionCommand[], styles: readonly CompiledLaye
         if (Object.keys(patch).length > 0) {
             steps.push({ op: "style.patch", action: "update", id: layer.id, patch });
         }
+    }
+}
+
+/**
+ * Add the step renaming an edge column a node layer's Graph values read, when any does.
+ * @param steps - The steps, added to.
+ * @param layer - A layer painting the other kind.
+ * @param rename - The rename.
+ */
+function pushEdgeRenameInNodeLayer(steps: SessionCommand[], layer: CompiledLayer["layer"], rename: ColumnRename): void {
+    const { kind, from, name } = rename;
+    if (kind !== "edge" || layer.set === undefined) {
+        return;
+    }
+
+    const set = renameDataSpecEdgePaths(layer.set, `data.${from}`, `data.${name}`);
+    if (set !== layer.set) {
+        steps.push({ op: "style.patch", action: "update", id: layer.id, patch: { set } });
     }
 }
 

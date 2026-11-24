@@ -882,7 +882,7 @@ export { DATASET_DESCRIPTORS }
 export { DatasetMeta }
 
 // @public
-export type DataSpecReason = "data-and-fixed" | "entry-source" | "entry-kind" | "measure-of" | "hops" | "keep" | "most" | "clip" | "window" | "palette" | "colors" | "shape";
+export type DataSpecReason = "data-and-fixed" | "entry-source" | "entry-kind" | "measure-of" | "hops" | "keep" | "most" | "clip" | "window" | "palette" | "colors" | "shape" | "where";
 
 // @public
 export type DataUndrawnCode = "data.noEntries" | "data.noValues" | "data.notNumbers" | "data.zeroTotal" | "data.nothingOver" | "data.patternEmpty" | "data.paintedOver";

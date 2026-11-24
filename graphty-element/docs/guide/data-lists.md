@@ -42,6 +42,7 @@ An entry names exactly one source:
 | `{ field: "data.amount" }`           | the node's value: one part, or one per item when the value is a list                                        |
 | `{ pattern: "expr_" }`               | every number column whose name starts with `expr_` (any case), in natural order (`expr_2` before `expr_10`) |
 | `{ pattern: "expr_", except: true }` | every other number column                                                                                   |
+| `{ graph: { over, measure, ... } }`  | a value computed over the node's edges, neighbors or members (see "Graph values" below)                     |
 | `{ value: 3 }`                       | a fixed number (pie and chart)                                                                              |
 | `{ text: "Cluster" }`                | fixed words (record)                                                                                        |
 
@@ -76,6 +77,79 @@ Every entry may carry:
 - `label`: its name, shown by `dataFacts` and in a record's name cell. Absent, the column's own name.
 - `format`: how its value is written (see "Formats" below).
 - `color`: the color of its slice or bar, or of a record value's text.
+
+## Graph values
+
+A `graph` entry computes a value over what surrounds each node. Nothing is written to the data:
+the value is worked out while the layer paints, once per node.
+
+```ts
+// One slice per community among each node's neighbors.
+set: {
+    "node.pieData": {
+        entries: [
+            {
+                graph: {
+                    over: "neighbors",
+                    measure: "count",
+                    groupBy: { by: "value", path: "data.community" },
+                },
+            },
+        ],
+    },
+}
+```
+
+| Field       | Meaning                                                                                                                             |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `over`      | `"edges"` (each edge at the node, a self-loop once), `"neighbors"` (each node within `hops`, once, never itself) or `"members"`     |
+| `direction` | `"in"`, `"out"` or `"both"` (the default); an undirected graph is always read as `"both"`                                           |
+| `hops`      | neighbors only: 1 (the default), 2 or 3                                                                                             |
+| `measure`   | `"count"`, `"sum"`, `"mean"`, `"min"`, `"max"`, or `"mode"` (the most common value; ties go to the first in natural name order)     |
+| `of`        | what sum, mean, min, max and mode read: `{ path, on? }`; `on` is `"edge"` (the edge walked) or `"node"` (the node at the other end) |
+| `where`     | one `range` or `categories` leaf: only what it keeps counts; `whereOn` says whether it reads the edge or the far node               |
+| `groupBy`   | one value per group: `{ by: "value", path }`, `{ by: "direction" }` (edges: `"in"` and `"out"`) or `{ by: "time", path, period }`   |
+
+Over edges, `of`, `where` and `groupBy` read the edge unless they say `on: "node"` (`whereOn: "node"`);
+over neighbors and members they read the node. A node whose walk keeps nothing has a missing value.
+
+Money out by channel, as one slice per channel:
+
+```ts
+{ graph: { over: "edges", direction: "out", measure: "sum", of: { path: "data.amount" },
+           groupBy: { by: "value", path: "data.channel" } } }
+```
+
+### Members of a group
+
+`over: "members"` walks the nodes whose `parent` is this node (a compound node), or, for a node a
+`session.groups.collapse` made, the members it holds. Up and down regulation among a cluster's genes:
+
+```ts
+{ graph: { over: "members", measure: "count", groupBy: { by: "value", path: "data.regulation" } } }
+```
+
+### Time periods
+
+`groupBy: { by: "time", path: "data.when", period: "month" }` gives one value per month, keyed
+`2026-03`. The periods are `"hour"` (`2026-03-05T14`), `"day"` (`2026-03-05`), `"week"` (ISO week,
+`2026-W10`), `"month"`, `"quarter"` (`2026-Q1`) and `"year"` (`2026`), all in UTC, so name order is
+time order. Every period from the graph's first date to its newest is present: an empty one holds 0
+for a count and is missing for every other measure (its entry's `missing` says what it draws).
+
+`window: { last: 12, from: "newest" }` keeps the last 12 periods, ending with the newest date in the
+data (`from: "now"` ends with today). A monthly chart of the last year:
+
+```ts
+set: {
+    "node.chartKind": "bar",
+    "node.chartData": {
+        order: "name",
+        entries: [{ graph: { over: "edges", direction: "out", measure: "sum", of: { path: "data.amount" },
+            groupBy: { by: "time", path: "data.when", period: "month", window: { last: 12, from: "newest" } } } }],
+    },
+}
+```
 
 ## Order, top N and Other
 
@@ -205,7 +279,7 @@ color order, and `undrawn`, why the node draws nothing, as a code:
 | `data.noValues`     | `paths`: every path the entries read                            |
 | `data.notNumbers`   | `path`, `valueKind`: a pie's or chart's value is not a number   |
 | `data.zeroTotal`    | -                                                               |
-| `data.nothingOver`  | `over`                                                          |
+| `data.nothingOver`  | `over`: every entry is a Graph value whose walk kept nothing    |
 | `data.patternEmpty` | `pattern`, `except`                                             |
 | `data.paintedOver`  | `layerId`, `filled`: a layer above writes a list this one fills |
 
@@ -226,21 +300,20 @@ that writes `node.pieColors` wins it; an item address above (`node.pieColors.1`)
 
 `styles.add` and `styles.update` refuse a bad spec with `E_BAD_COMMAND` and `details.reason`:
 
-| `details.reason` | Refused                                                                       |
-| ---------------- | ----------------------------------------------------------------------------- |
-| `data-and-fixed` | a data channel and the fixed lists it fills on one layer (`details.channels`) |
-| `entry-source`   | an entry with no source, or two                                               |
-| `entry-kind`     | a `text` entry on a pie or chart, or a `value` entry on a record              |
-| `keep`, `most`   | not a whole number from 1                                                     |
-| `clip`           | not 0 <= lo < hi <= 100                                                       |
-| `palette`        | a palette that is not known                                                   |
-| `colors`         | a color that does not parse                                                   |
-| `shape`          | not `{ entries: [...] }`, or more than 256 entries                            |
+| `details.reason` | Refused                                                                                       |
+| ---------------- | --------------------------------------------------------------------------------------------- |
+| `data-and-fixed` | a data channel and the fixed lists it fills on one layer (`details.channels`)                 |
+| `entry-source`   | an entry with no source, or two; a Graph value with an unknown `over`, `measure` or `groupBy` |
+| `entry-kind`     | a `text` entry on a pie or chart, or a `value` entry on a record                              |
+| `measure-of`     | a Graph value measuring anything but count with no `of`                                       |
+| `hops`           | hops other than 1, 2 or 3                                                                     |
+| `window`         | a window whose `last` is not a whole number from 1                                            |
+| `where`          | a `where` that is not one `range` or `categories` leaf                                        |
+| `keep`, `most`   | not a whole number from 1                                                                     |
+| `clip`           | not 0 <= lo < hi <= 100                                                                       |
+| `palette`        | a palette that is not known                                                                   |
+| `colors`         | a color that does not parse                                                                   |
+| `shape`          | not `{ entries: [...] }`, or more than 256 entries                                            |
 
 A spec is one value, so changing it is one `styles.update` and one undo step. A palette a spec names
 travels in the saved file, and a column rename follows every path in the spec.
-
-## Not drawn yet
-
-`{ graph: ... }` entries (a count, sum, mean, min, max or most common value over a node's edges,
-neighbors or members) are accepted and saved, but draw as missing values until a later release.

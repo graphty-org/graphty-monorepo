@@ -90,7 +90,7 @@ import {
     registerSessionRuns,
 } from "./dispatchers";
 import { FILES_API, type FilesApi } from "./files/kindOf";
-import { createGroupsApi, type GroupsApi } from "./groups";
+import { createGroupsApi, type GroupsApi, RESTORE } from "./groups";
 import { createJournal, type JournalApi } from "./journal";
 import { type LayoutRecommendation, recommendLayout } from "./layout";
 import { LayoutRunner } from "./layoutRunner";
@@ -216,6 +216,7 @@ import {
 } from "./styles";
 import { placementLayers } from "./styles/autoApply";
 import { atStylePath, channelsFor } from "./styles/channels";
+import { DATA_CHANNELS, type DataGraph } from "./styles/dataLists";
 import { createHoverSource } from "./styles/hover";
 import { readsWholeColumn } from "./styles/labelTemplate";
 import type { CompiledLayer } from "./styles/Layer";
@@ -4863,6 +4864,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             // What a data spec's pattern entries match, and the names its parts go by.
             columns: (target) => answerablePaths(data, runs, target),
             plainName: (path, target) => fieldWordsOf(data, runs)(path, target)?.plainName,
+            // What a data spec's Graph values walk.
+            dataGraph: () =>
+                dataGraphOf(snapshot(), dispatcher.state.graph.values.get(GROUPS_VALUE), nodeIndexOf(snapshot), (row) =>
+                    records.nodeAttributes(row, snapshot().ids.idOf(row)),
+                ),
             // With the base look in the Everything row, what no shown layer paints is not drawn.
             hideUnpainted: () => dispatcher.state.config.get("editableBase") === true,
             ...(internals.now === undefined ? {} : { now: internals.now }),
@@ -6017,10 +6023,63 @@ function paintsFromRowAndColumn(entry: CompiledLayer): boolean {
             match === "expression" ||
             (selector.match === "state" && (selector.state === "outsideWindow" || selector.state === "selected"))) &&
         !entry.reads.some((path) => edgeEndPathOf(path) !== undefined || path === MEMBERS_PATH) &&
+        // A data spec colors each category over the whole graph, shares a chart's scale and walks Graph values.
+        !DATA_CHANNELS.some((channel) => entry.layer.set?.[channel] !== undefined) &&
         !Object.values(entry.layer.encode ?? {}).some(
             (binding) => binding !== undefined && "template" in binding && readsWholeColumn(binding.template),
         )
     );
+}
+
+/**
+ * The structure a data spec's Graph values walk: each edge at a node by direction, the nodes a group holds, and the
+ * member records a collapsed group keeps.
+ * @param graph - The snapshot.
+ * @param groups - The graph's groups value.
+ * @param rowOf - A node id's row.
+ * @param recordOf - A node row's record.
+ * @returns The structure.
+ */
+function dataGraphOf(
+    graph: GraphSnapshot,
+    groups: unknown,
+    rowOf: (id: NodeId) => number | undefined,
+    recordOf: (row: number) => Readonly<Record<string, unknown>> | undefined,
+): Omit<DataGraph, "edgeValue"> {
+    const members = new Map<number, number[]>();
+    for (const group of containersOf(groups)) {
+        const row = rowOf(group.group);
+        if (row !== undefined) {
+            members.set(
+                row,
+                group.members.flatMap((id) => rowOf(id) ?? []),
+            );
+        }
+    }
+
+    return {
+        directed: graph.directed,
+        edgeCount: graph.edgeCount,
+        adjacent: (node, direction, visit) => {
+            if (!graph.directed) {
+                eachAdjacentArc(graph, node, "all", (other, edge) => {
+                    visit(other, edge, "out");
+                });
+                return;
+            }
+
+            for (const way of ["out", "in"] as const) {
+                if (direction === "both" || direction === way) {
+                    eachAdjacentArc(graph, node, way, (other, edge) => {
+                        visit(other, edge, way);
+                    });
+                }
+            }
+        },
+        members: (node) => members.get(node) ?? [],
+        held: (node) =>
+            (recordOf(node)?.[RESTORE] as { nodes?: Readonly<Record<string, unknown>>[] } | undefined)?.nodes ?? [],
+    };
 }
 
 /**
@@ -6106,7 +6165,13 @@ function rowsMoved(
  * @returns True when it does.
  */
 function readsAnyField(entry: CompiledLayer, changed: { readonly node: string[]; readonly edge: string[] }): boolean {
-    const fields = changed[entry.layer.target];
+    // A node layer's Graph values read edge values too.
+    const walks = DATA_CHANNELS.some((channel) =>
+        (entry.layer.set?.[channel] as { entries?: readonly object[] } | undefined)?.entries?.some(
+            (each) => "graph" in each,
+        ),
+    );
+    const fields = walks ? [...changed.node, ...changed.edge] : changed[entry.layer.target];
     if (fields.length === 0) {
         return false;
     }

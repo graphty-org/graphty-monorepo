@@ -5,6 +5,7 @@ import type { WebXRDefaultExperience } from "@babylonjs/core/XR/webXRDefaultExpe
 
 import { GraphtyError } from "../errors/GraphtyError";
 import { GraphtyLogger, type Logger } from "../logging";
+import { guardXRFrame } from "./guardXRFrame";
 import { laserOnRows } from "./laserOnRows";
 
 const logger: Logger = GraphtyLogger.getLogger(["graphty", "xr", "session"]);
@@ -47,6 +48,8 @@ interface XRSessionConfig {
     nearInteraction?: boolean;
     /** Called once when a session the manager started ends, however it ended. */
     onSessionEnded?: (ended: { mode: "immersive-vr" | "immersive-ar"; cause: XRSessionEndCause }) => void;
+    /** Told of a step of a session's frame that threw (`E_XR_FRAME_FAILED`); the session keeps drawing. */
+    onFrameError?: (error: GraphtyError) => void;
 }
 
 /**
@@ -324,9 +327,33 @@ export class XRSessionManager {
         await baseExperience.enterXRAsync(mode, requested, undefined, { optionalFeatures });
         logger.debug("Reference space", { requested, granted: this.referenceSpaceType });
         const stopLaserOnRows = laserOnRows(this.scene, helper);
+        const viewMode = mode === "immersive-vr" ? "vr" : "ar";
+        const reported = new Set<string>();
+        const stopGuard = guardXRFrame(this.scene, sessionManager.onXRFrameObservable, (error) => {
+            const message = error instanceof Error ? error.message : String(error);
+            // Once per session for each message: an observer that throws every frame would
+            // otherwise report 90 times a second.
+            if (reported.has(message)) {
+                return;
+            }
+
+            reported.add(message);
+            logger.warn("A step of the XR frame threw; the session keeps drawing", { mode, error });
+            this._config.onFrameError?.(
+                new GraphtyError({
+                    code: "E_XR_FRAME_FAILED",
+                    message: `A step of the ${viewMode.toUpperCase()} frame failed: ${message}`,
+                    source: "view",
+                    recoverable: true,
+                    details: { mode: viewMode },
+                    cause: error,
+                }),
+            );
+        });
 
         sessionManager.onXRSessionEnded.addOnce(() => {
             stopLaserOnRows();
+            stopGuard();
             const cause: XRSessionEndCause = this.exiting ? "exit" : "device";
             this.activeMode = null;
             this.referenceSpaceType = null;

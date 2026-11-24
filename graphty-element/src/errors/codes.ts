@@ -570,6 +570,13 @@ export type GraphtyErrorCode =
      */
     | "E_XR_SESSION_FAILED"
     /**
+     * Something run for one frame of an immersive session threw: Babylon.js's own XR input, or
+     * code observing the frame. The session keeps drawing; the step that threw is skipped for that
+     * frame. `details.mode` is `"vr"` or `"ar"` and `cause` carries what was thrown. Reported once
+     * per session for each distinct message, as `graph-error` (context `"xr"`), never thrown.
+     */
+    | "E_XR_FRAME_FAILED"
+    /**
      * A feature the caller asked for needs an optional peer package that is not installed.
      * `details.package` names the package to install and `details.feature` the feature that
      * needs it (for the in-browser AI provider, `"webllm"`; for acceleration, `"webgpu"`). The
@@ -1377,6 +1384,7 @@ const CODE_TABLE = {
     E_NO_WEBGL: "E_NO_WEBGL",
     E_SHADER_REFUSED: "E_SHADER_REFUSED",
     E_XR_SESSION_FAILED: "E_XR_SESSION_FAILED",
+    E_XR_FRAME_FAILED: "E_XR_FRAME_FAILED",
     E_MISSING_PACKAGE: "E_MISSING_PACKAGE",
     E_UNSUPPORTED: "E_UNSUPPORTED",
     E_READONLY: "E_READONLY",

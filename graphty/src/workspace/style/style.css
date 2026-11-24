@@ -486,6 +486,12 @@
     outline-offset: -1px;
 }
 
+/* The Advanced view's longer names ("Letter outline opacity") get a wider column: the pop-out widens to 312 while
+   it shows. */
+[data-thing-popover][data-advanced] {
+    --ws-label: 128px;
+}
+
 /* A shader's settings pop-out: the panel's property rows, with a label column of its own (the
    pop-out is outside the tab that sizes the tab's column). A number's name scrubs its value. */
 .ws-shader-params {

@@ -123,6 +123,7 @@ export function PopPanel(props: Readonly<PanelProps>): React.JSX.Element | null 
     const open = pop?.open === true;
     const setOpen = pop?.setOpen;
     const id = pop?.id ?? "";
+    const { width } = props;
     const view = useRef<HTMLDivElement>(null);
     useEffect(() => {
         if (!open || push === undefined || drop === undefined || setOpen === undefined) {
@@ -131,6 +132,7 @@ export function PopPanel(props: Readonly<PanelProps>): React.JSX.Element | null 
         push({
             id,
             title,
+            width,
             back: () => {
                 setOpen(false);
             },
@@ -138,7 +140,7 @@ export function PopPanel(props: Readonly<PanelProps>): React.JSX.Element | null 
         return () => {
             drop(id);
         };
-    }, [open, push, drop, setOpen, id, title]);
+    }, [open, push, drop, setOpen, id, title, width]);
     const shown = host?.top === id;
     useEffect(() => {
         if (shown) {
@@ -176,6 +178,7 @@ export function PopPanel(props: Readonly<PanelProps>): React.JSX.Element | null 
         return (
             <Popout.Panel
                 {...props}
+                width={own.width ?? props.width}
                 header={props.header?.variant === "title" ? { ...props.header, title: own.title } : props.header}
                 actions={own.actions ?? props.actions}
             >
@@ -243,7 +246,8 @@ export function AdvancedDrill({
                     </Button>
                 </PopTrigger>
                 <PopPanel
-                    width={264}
+                    // Wider than a pop-over: its rarer settings have longer names ("Letter outline opacity").
+                    width={312}
                     placement="left"
                     alignment="start"
                     header={{ variant: "title", title }}

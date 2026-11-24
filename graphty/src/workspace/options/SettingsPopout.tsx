@@ -83,7 +83,7 @@ export function SettingsPopout({
                 </Tooltip>
             </Popout.Trigger>
             <Popout.Panel
-                width={width}
+                width={drill ? (host.width ?? width) : width}
                 placement={placement}
                 alignment="start"
                 boundaryTop={boundaryTop}

@@ -11,6 +11,8 @@ import { GLYPHS } from "../glyphs";
 interface DrillEntry {
     readonly id: string;
     readonly title: string;
+    /** The pop-out's width while it shows: a view with longer names asks for more (the Advanced view's 312). */
+    readonly width?: number;
     readonly back: () => void;
 }
 
@@ -30,10 +32,11 @@ export const DrillHostContext = createContext<DrillHostValue | null>(null);
 /**
  * A pop-over's drill-in: its content, hidden while a view is drilled into it, and the place drilled views draw.
  * @param title - the pop-over's own title.
- * @returns the header's title and actions, and the body to draw in the panel.
+ * @returns the header's title, actions and width (undefined: its own), and the body to draw in the panel.
  */
 export function useDrillHost(title: string): {
     title: string;
+    width: number | undefined;
     actions: { id: string; icon: React.ReactNode; label: string; onClick: () => void }[] | undefined;
     body: (children: React.ReactNode) => React.JSX.Element;
 } {
@@ -50,6 +53,7 @@ export function useDrillHost(title: string): {
     const under = stack.at(-2)?.title ?? title;
     return {
         title: top?.title ?? title,
+        width: top?.width,
         actions:
             top === undefined
                 ? undefined

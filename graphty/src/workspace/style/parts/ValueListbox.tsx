@@ -11,7 +11,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { Box, Button } from "@mantine/core";
 import React, { useState } from "react";
 
-import { Pop } from "../../options/Drill";
+import { Pop, PopPanel, PopTrigger } from "../../options/Drill";
 import { channelWord, countName } from "../words";
 
 /** A choice listed after the property's own, as a value field takes it. */
@@ -206,7 +206,7 @@ export function ValueListbox({
                 setOpened(open);
             }}
         >
-            <Pop.Trigger>
+            <PopTrigger>
                 <Button
                     variant="default"
                     size="compact-xs"
@@ -222,8 +222,8 @@ export function ValueListbox({
                 >
                     {mixed ? "Mixed" : (current?.plainName ?? "")}
                 </Button>
-            </Pop.Trigger>
-            <Pop.Panel
+            </PopTrigger>
+            <PopPanel
                 width={240}
                 placement="left"
                 alignment="start"
@@ -264,7 +264,7 @@ export function ValueListbox({
                         setOpened(false);
                     }}
                 />
-            </Pop.Panel>
+            </PopPanel>
         </Pop>
     );
 }

@@ -15,9 +15,9 @@ import { ActionIcon, Box, Button, Group, Menu, Stack, Text, Tooltip } from "@man
 import React, { useState } from "react";
 
 import { stylePanelV2On } from "../features";
-import { AdvancedDrill } from "../options/Drill";
 import { GLYPHS } from "../glyphs";
 import { count as countOf } from "../inspector/words";
+import { AdvancedDrill } from "../options/Drill";
 import { formatNumber } from "../settings/numberFormat";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { wholeNumbers } from "./cards";
@@ -220,30 +220,7 @@ export function BindingPopover(props: Readonly<BindingPopoverProps>): React.JSX.
     const { binding, patch } = parts;
     const numberParts = isNumber && !detail;
     const v2 = stylePanelV2On(session);
-    const noValue =
-        detail || !parts.noValue ? null : (
-            <NoValue
-                session={session}
-                descriptor={descriptor}
-                missing={binding.missing ?? "skip"}
-                patch={patch}
-                segments={v2}
-            />
-        );
-    // v2: what happens past the palette is a rare choice, so it leaves the groups for the Advanced view.
-    const overflow =
-        v2 && parts.categorical && !detail && overflowLine(session, descriptor, parts) ? (
-            <OverflowField session={session} descriptor={descriptor} parts={parts} />
-        ) : null;
-    const rampRare = v2 && !detail ? parts.rampAdvanced : null;
-    const rare = (
-        <>
-            {rampRare}
-            {noValue}
-            {overflow}
-        </>
-    );
-    const hasRare = rampRare !== null || noValue !== null || overflow !== null;
+    const rare = <RareChoices session={session} descriptor={descriptor} parts={parts} detail={detail} v2={v2} />;
 
     return (
         <Stack gap={8} role="group" aria-label={`${name} binding`}>
@@ -276,23 +253,77 @@ export function BindingPopover(props: Readonly<BindingPopoverProps>): React.JSX.
             ) : null}
             {v2 ? null : rare}
             {numberParts && !v2 ? <CombineField name={name} binding={binding} patch={patch} /> : null}
-            {/* v2: the rarer choices (Scale, Clamp outliers, No value, More values than colors) drill in from an
-                Advanced line, so the dialog keeps its source, operation, range and palette (owner, 2026-11-23). */}
-            {v2 && hasRare ? (
-                <AdvancedDrill
-                    name={`${name} by data advanced settings`}
-                    title={`${name} by data advanced`}
-                    changed={
-                        binding.scale !== undefined ||
-                        binding.clamp !== undefined ||
-                        binding.missing !== undefined ||
-                        binding.overflow !== undefined
-                    }
-                >
-                    <Stack gap={8}>{rare}</Stack>
-                </AdvancedDrill>
-            ) : null}
+            {v2 ? rare : null}
         </Stack>
+    );
+}
+
+/**
+ * The binding's rarer choices: No value, and in v2 the ramp's Scale and Clamp outliers and More values than colors
+ * too, which drill in from an "Advanced" line, so the dialog keeps its source, operation, range and palette
+ * (owner, 2026-11-23).
+ * @param props - Component props
+ * @param props.session - the element's session
+ * @param props.descriptor - the bound property
+ * @param props.parts - what the source puts in the popover
+ * @param props.detail - whether a group's detail has taken the popover over
+ * @param props.v2 - Style panel v2
+ * @returns The choices, or their Advanced line
+ */
+function RareChoices({
+    session,
+    descriptor,
+    parts,
+    detail,
+    v2,
+}: Readonly<{
+    session: GraphSession;
+    descriptor: ChannelDescriptor;
+    parts: Parts;
+    detail: boolean;
+    v2: boolean;
+}>): React.JSX.Element | null {
+    const { binding, patch } = parts;
+    const noValue =
+        detail || !parts.noValue ? null : (
+            <NoValue
+                session={session}
+                descriptor={descriptor}
+                missing={binding.missing ?? "skip"}
+                patch={patch}
+                segments={v2}
+            />
+        );
+    if (!v2) {
+        return noValue;
+    }
+    // What happens past the palette is a rare choice, so it leaves the groups for the Advanced view.
+    const overflow =
+        parts.categorical && !detail && overflowLine(session, descriptor, parts) ? (
+            <OverflowField session={session} descriptor={descriptor} parts={parts} />
+        ) : null;
+    const rampRare = detail ? null : parts.rampAdvanced;
+    if (rampRare === null && noValue === null && overflow === null) {
+        return null;
+    }
+    const name = channelWord(descriptor.channel);
+    return (
+        <AdvancedDrill
+            name={`${name} by data advanced settings`}
+            title={`${name} by data advanced`}
+            changed={
+                binding.scale !== undefined ||
+                binding.clamp !== undefined ||
+                binding.missing !== undefined ||
+                binding.overflow !== undefined
+            }
+        >
+            <Stack gap={8}>
+                {rampRare}
+                {noValue}
+                {overflow}
+            </Stack>
+        </AdvancedDrill>
     );
 }
 

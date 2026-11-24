@@ -1,11 +1,4 @@
-import {
-    ComboInput,
-    CompactColorInput,
-    Popout,
-    PopoutButton,
-    SegmentedControl,
-    VariablePill,
-} from "@graphty/compact-mantine";
+import { ComboInput, CompactColorInput, PopoutButton, SegmentedControl, VariablePill } from "@graphty/compact-mantine";
 import { type ChannelDescriptor, channelsFor } from "@graphty/graphty-element/catalog";
 import type { Channel, ChannelValue, LayerId } from "@graphty/graphty-element/schema";
 import type { GraphSession, HistoryStepId, Layer, LayerGroup, LegendBlock } from "@graphty/graphty-element/session";
@@ -15,8 +8,8 @@ import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "reac
 import { factSentence, paintWords, swatchName } from "../canvas/legendWords";
 import { focusIsLost } from "../frame/focus";
 import { GLYPHS } from "../glyphs";
-import { Pop } from "../options/Drill";
 import { count } from "../inspector/words";
+import { Pop, PopContent, PopPanel, PopTrigger } from "../options/Drill";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { BindingPopover } from "./BindingPopover";
 import { BulkBinding, type LayerSequence } from "./BulkBinding";
@@ -1753,7 +1746,7 @@ function VaryButton({
     const layers = ctx.many?.inOrder?.(channel).length ?? 0;
     return (
         <Pop opened={open} onOpenChange={openList}>
-            <Pop.Trigger>
+            <PopTrigger>
                 {/* The Tooltip passes the trigger's click and ref to the button, but not its ARIA,
                     so the button states its own. */}
                 <Tooltip label={label}>
@@ -1765,8 +1758,8 @@ function VaryButton({
                         aria-expanded={open}
                     />
                 </Tooltip>
-            </Pop.Trigger>
-            <Pop.Panel
+            </PopTrigger>
+            <PopPanel
                 width={POPOUT_WIDTH}
                 placement="left"
                 alignment="start"
@@ -1811,7 +1804,7 @@ function VaryButton({
                         openList(false);
                     }}
                 />
-            </Pop.Panel>
+            </PopPanel>
         </Pop>
     );
 }
@@ -1897,7 +1890,7 @@ export function BoundValue({
     }
     const { binding, layer, write, bind } = source;
     const sourceWords = view.name;
-    // The pill opens the popover itself (no Pop.Trigger), so it takes focus back itself: on
+    // The pill opens the popover itself (no PopTrigger), so it takes focus back itself: on
     // Escape or Done, while focus is still in the popover or has fallen to the page, never after a
     // click elsewhere took it.
     const openChange = (next: boolean): void => {
@@ -1942,7 +1935,7 @@ export function BoundValue({
             </>
         );
     return (
-        // No Pop.Trigger: its click would also fire for the pill's detach button inside it, so
+        // No PopTrigger: its click would also fire for the pill's detach button inside it, so
         // the pill opens the panel itself and the panel docks to it.
         <Pop opened={open} onOpenChange={openChange}>
             <div ref={pill} className="ws-varied">
@@ -1951,7 +1944,7 @@ export function BoundValue({
                         setOpen(true);
                     })}
             </div>
-            <Pop.Panel
+            <PopPanel
                 width={POPOUT_WIDTH}
                 placement="left"
                 alignment="start"
@@ -1959,7 +1952,7 @@ export function BoundValue({
                 header={{ variant: "title", title: bindingTitle(channel, sourceWords) }}
                 closeLabel={`Close ${bindingTitle(channel, sourceWords)}`}
             >
-                <Pop.Content>
+                <PopContent>
                     <BindingPopover
                         descriptor={descriptor}
                         layerId={layer.id}
@@ -1975,8 +1968,8 @@ export function BoundValue({
                         }}
                         onSource={bind}
                     />
-                </Pop.Content>
-            </Pop.Panel>
+                </PopContent>
+            </PopPanel>
         </Pop>
     );
 }

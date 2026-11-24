@@ -3,7 +3,7 @@ import { Tooltip } from "@mantine/core";
 import React, { createContext, useContext } from "react";
 
 import { GLYPHS } from "../glyphs";
-import { useDrillHost } from "./Drill";
+import { useDrillHost } from "./useDrillHost";
 
 /** Whether this part of the tree is already inside a settings popover. */
 const InSettings = createContext(false);

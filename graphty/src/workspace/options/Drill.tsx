@@ -4,7 +4,7 @@
  * pop-out of its own. So the panel's pop-over is the first pop-out level, whatever drills into it stays at that
  * level, and a picker it opens (a color, a drop-down's list) is the second and last.
  *
- * `Pop` is written exactly as compact-mantine's `Popout` is (`Pop.Trigger`, `Pop.Panel`, `Pop.Content`): inside a
+ * `Pop` is written as compact-mantine's `Popout` is (`PopTrigger`, `PopPanel`, `PopContent` for its parts): inside a
  * pop-over that hosts drill-in (`useDrillHost`: a v2 row's settings, or a `Pop` drawn as a pop-out) it drills,
  * anywhere else it is that `Popout`, which hosts drill-in in turn (a link dialog opened from a panel line drills its
  * Advanced view into itself).
@@ -16,68 +16,7 @@ import React, { createContext, useCallback, useContext, useEffect, useId, useMem
 import { createPortal } from "react-dom";
 
 import { GLYPHS } from "../glyphs";
-
-/** A view drilled into the pop-over: its title, and what going back does. */
-interface DrillEntry {
-    readonly id: string;
-    readonly title: string;
-    readonly back: () => void;
-}
-
-/** What a pop-over hosting drill-in offers the views drilled into it. */
-interface DrillHostValue {
-    /** Where drilled views are drawn: after the pop-over's own content, inside its panel. */
-    readonly target: HTMLElement | null;
-    /** The view on top, the one shown, by id. */
-    readonly top: string | undefined;
-    readonly push: (entry: DrillEntry) => void;
-    readonly drop: (id: string) => void;
-}
-
-const HostContext = createContext<DrillHostValue | null>(null);
-
-/**
- * A pop-over's drill-in: its content, hidden while a view is drilled into it, and the place drilled views draw.
- * @param title - the pop-over's own title.
- * @returns the header's title and actions, and the body to draw in the panel.
- */
-export function useDrillHost(title: string): {
-    title: string;
-    actions: { id: string; icon: React.ReactNode; label: string; onClick: () => void }[] | undefined;
-    body: (children: React.ReactNode) => React.JSX.Element;
-} {
-    const [stack, setStack] = useState<readonly DrillEntry[]>([]);
-    const [target, setTarget] = useState<HTMLElement | null>(null);
-    const push = useCallback((entry: DrillEntry) => {
-        setStack((now) => [...now.filter((each) => each.id !== entry.id), entry]);
-    }, []);
-    const drop = useCallback((id: string) => {
-        setStack((now) => now.filter((each) => each.id !== id));
-    }, []);
-    const top = stack.at(-1);
-    const value = useMemo(() => ({ target, top: top?.id, push, drop }), [target, top?.id, push, drop]);
-    const under = stack.at(-2)?.title ?? title;
-    return {
-        title: top?.title ?? title,
-        actions:
-            top === undefined
-                ? undefined
-                : [
-                      {
-                          id: "back",
-                          icon: <GLYPHS.back size={14} aria-hidden />,
-                          label: `Back to ${under}`,
-                          onClick: top.back,
-                      },
-                  ],
-        body: (children) => (
-            <HostContext.Provider value={value}>
-                <div hidden={top !== undefined}>{children}</div>
-                <div ref={setTarget} data-drill-target="" />
-            </HostContext.Provider>
-        ),
-    };
-}
+import { DrillHostContext as HostContext, useDrillHost } from "./useDrillHost";
 
 /** One `Pop`'s state, for its trigger and panel. */
 interface PopValue {
@@ -97,7 +36,7 @@ const PopContext = createContext<PopValue | null>(null);
  * @param props.children - its trigger and panel
  * @returns The pop-out
  */
-function PopRoot({
+export function Pop({
     opened,
     onOpenChange,
     children,
@@ -141,7 +80,7 @@ type TriggerChild = React.ReactElement<{
  * @param props.children - one element, a button (or a Tooltip around one)
  * @returns The trigger
  */
-function PopTrigger({ children }: Readonly<{ children: React.ReactElement }>): React.JSX.Element {
+export function PopTrigger({ children }: Readonly<{ children: React.ReactElement }>): React.JSX.Element {
     const pop = useContext(PopContext);
     if (pop === null) {
         return <Popout.Trigger>{children}</Popout.Trigger>;
@@ -153,7 +92,7 @@ function PopTrigger({ children }: Readonly<{ children: React.ReactElement }>): R
                 event.stopPropagation();
                 pop.setOpen(!pop.open);
             },
-            ref: pop.trigger as React.Ref<HTMLElement>,
+            ref: pop.trigger,
             "aria-expanded": pop.open,
             "aria-controls": pop.id,
             "aria-haspopup": "dialog",
@@ -175,10 +114,10 @@ type PanelProps = React.ComponentProps<typeof Popout.Panel>;
  * @param props - Popout.Panel's props
  * @returns The panel or the view
  */
-function PopPanel(props: PanelProps): React.JSX.Element | null {
+export function PopPanel(props: Readonly<PanelProps>): React.JSX.Element | null {
     const pop = useContext(PopContext);
     const host = useContext(HostContext);
-    const title = props.header?.variant === "title" ? String(props.header.title) : "";
+    const title = props.header?.variant === "title" ? props.header.title : "";
     const own = useDrillHost(title);
     const { push, drop } = host ?? {};
     const open = pop?.open === true;
@@ -189,7 +128,13 @@ function PopPanel(props: PanelProps): React.JSX.Element | null {
         if (!open || push === undefined || drop === undefined || setOpen === undefined) {
             return undefined;
         }
-        push({ id, title, back: () => setOpen(false) });
+        push({
+            id,
+            title,
+            back: () => {
+                setOpen(false);
+            },
+        });
         return () => {
             drop(id);
         };
@@ -200,6 +145,24 @@ function PopPanel(props: PanelProps): React.JSX.Element | null {
             view.current?.querySelector<HTMLElement>("button, input, [tabindex='0']")?.focus();
         }
     }, [shown]);
+    useEffect(() => {
+        const node = view.current;
+        if (node === null || setOpen === undefined) {
+            return undefined;
+        }
+        // Escape goes back one view, not out of the pop-over.
+        const back = (event: KeyboardEvent): void => {
+            if (event.key === "Escape" && !event.defaultPrevented) {
+                event.preventDefault();
+                event.stopPropagation();
+                setOpen(false);
+            }
+        };
+        node.addEventListener("keydown", back);
+        return () => {
+            node.removeEventListener("keydown", back);
+        };
+    }, [open, shown, setOpen]);
     useEffect(() => {
         const trigger = pop?.trigger.current;
         return () => {
@@ -224,21 +187,13 @@ function PopPanel(props: PanelProps): React.JSX.Element | null {
         return null;
     }
     return createPortal(
-        <div
+        <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- an ARIA group naming the drilled view; a fieldset would draw its own border and legend
             ref={view}
             id={id}
             role="group"
             aria-label={title}
             data-drill-view=""
             hidden={!shown}
-            onKeyDown={(event) => {
-                if (event.key === "Escape" && !event.defaultPrevented) {
-                    // Escape goes back one view, not out of the pop-over.
-                    event.preventDefault();
-                    event.stopPropagation();
-                    pop.setOpen(false);
-                }
-            }}
         >
             {props.children}
         </div>,
@@ -252,7 +207,7 @@ function PopPanel(props: PanelProps): React.JSX.Element | null {
  * @param props.children - the body
  * @returns The body
  */
-function PopContent({ children }: Readonly<{ children: React.ReactNode }>): React.JSX.Element {
+export function PopContent({ children }: Readonly<{ children: React.ReactNode }>): React.JSX.Element {
     return useContext(PopContext) === null ? <Popout.Content>{children}</Popout.Content> : <>{children}</>;
 }
 
@@ -274,7 +229,7 @@ export function AdvancedDrill({
     return (
         <div className="ws-row" data-line="advanced">
             <Pop>
-                <Pop.Trigger>
+                <PopTrigger>
                     <Button
                         variant="subtle"
                         size="xs"
@@ -286,24 +241,17 @@ export function AdvancedDrill({
                     >
                         Advanced
                     </Button>
-                </Pop.Trigger>
-                <Pop.Panel
+                </PopTrigger>
+                <PopPanel
                     width={264}
                     placement="left"
                     alignment="start"
                     header={{ variant: "title", title }}
                     closeLabel={`Close ${title}`}
                 >
-                    <Pop.Content>{children}</Pop.Content>
-                </Pop.Panel>
+                    <PopContent>{children}</PopContent>
+                </PopPanel>
             </Pop>
         </div>
     );
 }
-
-/** Drill-in or Popout, written as Popout is: see the file header. */
-export const Pop = Object.assign(PopRoot, {
-    Trigger: PopTrigger,
-    Panel: PopPanel,
-    Content: PopContent,
-});

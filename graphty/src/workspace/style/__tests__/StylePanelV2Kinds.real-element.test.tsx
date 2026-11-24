@@ -237,7 +237,7 @@ describe("Style panel v2's collapsed kinds", () => {
             const rows = rowsOf(section, "endCaption");
             assert.lengthOf(rows, 2, "the second '+' adds a Source row");
             const source = within(rows[1]).getByRole("button", { name: /^Edge source source/ });
-            assert.equal(source.textContent.trim(), "", "waiting for its words");
+            assert.equal(source.textContent.trim(), "No words", "waiting for its words, never empty");
             assert.isUndefined(written(session, edges, "edge.arrowTailText"), "nothing written yet");
         });
     });

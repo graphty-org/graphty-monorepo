@@ -1,7 +1,7 @@
 import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
 import { Graph } from "../../../src/Graph.js";
-import type { CameraWaypoint } from "../../../src/video/VideoCapture.js";
+import type { CameraWaypoint, ViewWaypoint } from "../../../src/video/VideoCapture.js";
 import { cleanupTestGraph, configureGraph, createTestGraph, setBehavior } from "../../helpers/testSetup.js";
 import { restoreMockMediaRecorder, setupMockMediaRecorder } from "./mock-media-recorder.js";
 
@@ -55,9 +55,13 @@ describe("Video Capture - 2D Orthographic Camera", () => {
         assert.ok(result.blob.type.startsWith("video/webm"));
         assert.equal(result.metadata.fps, 30);
         assert.equal(result.metadata.format, "webm"); // Format detected from blob type
-        assert.ok(result.metadata.framesCaptured >= 0);
-        assert.ok(result.metadata.width > 0);
-        assert.ok(result.metadata.height > 0);
+        // 1 s at 30 fps: every frame expected is either captured or dropped, and a 2D graph drawn
+        // every frame while it records draws some of them.
+        const { framesCaptured, framesDropped } = result.metadata;
+        assert.ok(framesCaptured > 0, `frames captured: ${String(framesCaptured)}`);
+        assert.equal(framesCaptured + framesDropped, 30);
+        assert.equal(result.metadata.width, graph.canvas.width);
+        assert.equal(result.metadata.height, graph.canvas.height);
     });
 
     test("2D video capture respects custom dimensions", async () => {
@@ -76,13 +80,9 @@ describe("Video Capture - 2D Orthographic Camera", () => {
     test("2D video capture fires animation-progress events", async () => {
         const progressEvents: number[] = [];
 
-        // Use eventManager to listen for events
-        const { eventManager } = graph as {
-            eventManager: { addListener: (event: string, handler: (data: unknown) => void) => void };
-        };
-        eventManager.addListener("animation-progress", (data) => {
-            const progressData = data as { progress: number };
-            progressEvents.push(progressData.progress);
+        graph.on("animation-progress", (event) => {
+            assert.isNumber(event.progress);
+            progressEvents.push(event.progress);
         });
 
         await graph.captureAnimation({
@@ -121,11 +121,10 @@ describe("Video Capture - 2D Animated Camera", () => {
     });
 
     test("can capture video with 2D animated camera using waypoints", async () => {
-        // For 2D cameras, z position is used as zoom proxy
-        // Higher z = more zoomed out, lower z = more zoomed in
-        const cameraPath: CameraWaypoint[] = [
-            { position: { x: 0, y: 0, z: 10 }, target: { x: 0, y: 0, z: 0 } },
-            { position: { x: 5, y: 5, z: 15 }, target: { x: 0, y: 0, z: 0 }, duration: 500 },
+        // A 2D path's stops are views: a zoom and a pan, as setCameraState takes them
+        const cameraPath: ViewWaypoint[] = [
+            { view: { zoom: 1, pan: { x: 0, y: 0 } } },
+            { view: { zoom: 0.67, pan: { x: 5, y: 5 } }, duration: 500 },
         ];
 
         const result = await graph.captureAnimation({
@@ -143,11 +142,11 @@ describe("Video Capture - 2D Animated Camera", () => {
 
     test("2D animated video supports multiple waypoints", async () => {
         // Create a path that pans and zooms
-        const cameraPath: CameraWaypoint[] = [
-            { position: { x: 0, y: 0, z: 10 }, target: { x: 0, y: 0, z: 0 } }, // Start centered
-            { position: { x: 5, y: 0, z: 10 }, target: { x: 0, y: 0, z: 0 }, duration: 250 }, // Pan right
-            { position: { x: 5, y: 5, z: 5 }, target: { x: 0, y: 0, z: 0 }, duration: 250 }, // Pan up + zoom in
-            { position: { x: 0, y: 0, z: 10 }, target: { x: 0, y: 0, z: 0 }, duration: 250 }, // Return to start
+        const cameraPath: ViewWaypoint[] = [
+            { view: { zoom: 1, pan: { x: 0, y: 0 } } }, // Start centered
+            { view: { zoom: 1, pan: { x: 5, y: 0 } }, duration: 250 }, // Pan right
+            { view: { zoom: 2, pan: { x: 5, y: 5 } }, duration: 250 }, // Pan up + zoom in
+            { view: { zoom: 1, pan: { x: 0, y: 0 } }, duration: 250 }, // Return to start
         ];
 
         const result = await graph.captureAnimation({
@@ -162,9 +161,9 @@ describe("Video Capture - 2D Animated Camera", () => {
     });
 
     test("2D animated video supports easing options", async () => {
-        const cameraPath: CameraWaypoint[] = [
-            { position: { x: 0, y: 0, z: 10 }, target: { x: 0, y: 0, z: 0 } },
-            { position: { x: 10, y: 10, z: 20 }, target: { x: 0, y: 0, z: 0 }, duration: 500 },
+        const cameraPath: ViewWaypoint[] = [
+            { view: { zoom: 1, pan: { x: 0, y: 0 } } },
+            { view: { zoom: 0.5, pan: { x: 10, y: 10 } }, duration: 500 },
         ];
 
         // Test all easing options with 2D camera
@@ -184,18 +183,14 @@ describe("Video Capture - 2D Animated Camera", () => {
     test("2D animated video fires animation-progress events", async () => {
         const progressEvents: number[] = [];
 
-        // Use eventManager to listen for events
-        const { eventManager } = graph as {
-            eventManager: { addListener: (event: string, handler: (data: unknown) => void) => void };
-        };
-        eventManager.addListener("animation-progress", (data) => {
-            const progressData = data as { progress: number };
-            progressEvents.push(progressData.progress);
+        graph.on("animation-progress", (event) => {
+            assert.isNumber(event.progress);
+            progressEvents.push(event.progress);
         });
 
-        const cameraPath: CameraWaypoint[] = [
-            { position: { x: 0, y: 0, z: 10 }, target: { x: 0, y: 0, z: 0 } },
-            { position: { x: 5, y: 5, z: 15 }, target: { x: 0, y: 0, z: 0 }, duration: 500 },
+        const cameraPath: ViewWaypoint[] = [
+            { view: { zoom: 1, pan: { x: 0, y: 0 } } },
+            { view: { zoom: 0.67, pan: { x: 5, y: 5 } }, duration: 500 },
         ];
 
         await graph.captureAnimation({
@@ -210,34 +205,48 @@ describe("Video Capture - 2D Animated Camera", () => {
         assert.ok(progressEvents[progressEvents.length - 1] >= 90);
     });
 
-    test("2D animated video throws error with insufficient waypoints", async () => {
-        const cameraPath: CameraWaypoint[] = [{ position: { x: 0, y: 0, z: 10 }, target: { x: 0, y: 0, z: 0 } }];
-
+    test("2D animated video reaches the last stop's zoom and pan, then puts the camera back", async () => {
+        const cameraPath: ViewWaypoint[] = [
+            { view: { zoom: 1, pan: { x: 0, y: 0 } } },
+            { view: { zoom: 2, pan: { x: 5, y: 5 } }, duration: 200, hold: 100 },
+        ];
+        const before = graph.getCameraState();
+        let reached = false;
+        const observer = graph.scene.onAfterRenderObservable.add(() => {
+            const { zoom, pan } = graph.getCameraState();
+            const near = (a: number | undefined, b: number): boolean => a !== undefined && Math.abs(a - b) < 0.01;
+            reached ||= near(zoom, 2) && near(pan?.x, 5) && near(pan?.y, 5);
+        });
         try {
-            await graph.captureAnimation({
-                duration: 500,
-                fps: 30,
-                cameraMode: "animated",
-                cameraPath,
-            });
-            assert.fail("Should have thrown error");
-        } catch (error) {
-            assert.ok((error as Error).message.includes("2 waypoints"));
+            await graph.captureAnimation({ fps: 30, cameraPath });
+        } finally {
+            graph.scene.onAfterRenderObservable.remove(observer);
         }
+
+        assert.isTrue(reached, "a frame stood at the last stop");
+        const { zoom, pan } = graph.getCameraState();
+        assert.closeTo(zoom ?? Number.NaN, before.zoom ?? Number.NaN, 0.01);
+        assert.closeTo(pan?.x ?? Number.NaN, before.pan?.x ?? Number.NaN, 0.01);
+        assert.closeTo(pan?.y ?? Number.NaN, before.pan?.y ?? Number.NaN, 0.01);
     });
 
-    test("2D animated video throws error without camera path", async () => {
-        try {
-            await graph.captureAnimation({
-                duration: 500,
-                fps: 30,
-                cameraMode: "animated",
-                // No cameraPath provided
-            });
-            assert.fail("Should have thrown error");
-        } catch (error) {
-            assert.ok((error as Error).message.includes("waypoints"));
-        }
+    test("2D animated video refuses a 3D waypoint with E_UNSUPPORTED", async () => {
+        const cameraPath: CameraWaypoint[] = [{ position: { x: 0, y: 0, z: 10 }, target: { x: 0, y: 0, z: 0 } }];
+
+        const error = await graph.captureAnimation({ duration: 500, fps: 30, cameraMode: "animated", cameraPath }).then(
+            () => undefined,
+            (caught: unknown) => caught as { code?: unknown },
+        );
+        assert.equal(error?.code, "E_UNSUPPORTED");
+    });
+
+    test("2D animated video without a tour is refused as a missing option", async () => {
+        const error = await graph.captureAnimation({ duration: 500, fps: 30, cameraMode: "animated" }).then(
+            () => undefined,
+            (caught: unknown) => caught as { code?: unknown; details?: unknown },
+        );
+        assert.equal(error?.code, "E_BAD_COMMAND");
+        assert.deepEqual(error?.details, { reason: "missing-option", option: "tour" });
     });
 });
 
@@ -292,19 +301,19 @@ describe("Video Capture - 2D Camera Preservation", () => {
         assert.ok(graph.isAnimationCapturing(), "Should be capturing before cancel");
 
         // Cancel and check return value
-        const wasCancelled = graph.cancelAnimationCapture();
-        assert.ok(wasCancelled, "cancelAnimationCapture should return true when cancelling active capture");
+        const wasCanceled = graph.cancelAnimationCapture();
+        assert.ok(wasCanceled, "cancelAnimationCapture should return true when canceling active capture");
 
         // Should no longer be capturing
         assert.equal(graph.isAnimationCapturing(), false, "Should not be capturing after cancel");
 
-        // Should throw or reject with AnimationCancelledError
+        // Should throw or reject with AnimationCanceledError
         try {
             await capturePromise;
             assert.fail("Should have thrown cancellation error");
         } catch (error) {
             assert.ok(error instanceof Error);
-            assert.equal(error.name, "AnimationCancelledError", "Error should be AnimationCancelledError");
+            assert.equal(error.name, "AnimationCanceledError", "Error should be AnimationCanceledError");
             assert.ok(error.message.includes("cancel"), "Error message should mention cancellation");
         }
     });

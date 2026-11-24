@@ -3,13 +3,16 @@
  * "Initial positions", 7.14 `pos`, 7.19 topology change): a seed gives the same start on the CPU and the GPU
  * because both write the same f32 values in index order. Design 9.3 gives this copy to @graphty/layout; the GPU
  * package (@graphty/webgpu-graph-algorithms, src/layouts/seed.ts) keeps its own copy for its whole life (D27: it
- * cannot import @graphty/layout), cross-tested against this one at W1b. The Lcg is the package's own
- * RandomNumberGenerator (src/utils/random.ts) bit for bit; test/simulation/seed.test.ts is the W1 cross-test.
+ * cannot import @graphty/layout), cross-tested against this one at W1b. The Lcg is the package's only random number
+ * generator: every layout that draws random numbers (random, spectral, the force layouts, kamadaKawai's 3D start)
+ * draws from it, so one seed rule holds everywhere.
  */
 
 import type { F32, F64, GraphSnapshot } from "@graphty/graph-format";
 
-/** The CPU port's LCG constants (layout/src/utils/random.ts): m = 2^35 - 31, a = 185852, c = 1. */
+import { refusal } from "../indexed/common.js";
+
+/** The LCG constants of the networkx port: m = 2^35 - 31, a = 185852, c = 1. */
 export const LCG_M = 34359738337;
 /** The multiplier a of the port's LCG. */
 export const LCG_A = 185852;
@@ -17,9 +20,9 @@ export const LCG_A = 185852;
 export const LCG_C = 1;
 
 /**
- * The port's RandomNumberGenerator, bit for bit: `seed || Math.floor(Math.random() * 1000000)` (seed 0 / null =
- * unseeded, the quirk preserved), state = seed % m, next = (a * state + c) % m, value = state / m. The product
- * a * state stays below 2^53 (a < 2^18, state < 2^35), so every step is exact in f64, as it is in the port.
+ * The package's linear congruential generator: state = seed % m, next = (a * state + c) % m, value = state / m. The
+ * product a * state stays below 2^53 (a < 2^18, state < 2^35), so every step is exact in f64. A seed is null
+ * (unseeded: a random integer seed below 1e6) or an integer >= 0; 0 is an ordinary seed.
  */
 export class Lcg {
     /** The seed actually used (a random one when unseeded). */
@@ -28,11 +31,18 @@ export class Lcg {
     private state: number;
 
     /**
-     * Creates the generator; a seed of 0, -0, NaN or null means unseeded (the port's `seed || random` quirk).
-     * @param seed - the seed, or null for a random seed
+     * Creates the generator.
+     * @param seed - an integer >= 0, or null for a random seed
+     * @throws RangeError with code `E_BAD_OPTION` and `params` `{ option: "seed", value }` for any other seed
      */
     constructor(seed: number | null) {
-        this.seed = seed === null || seed === 0 || Number.isNaN(seed) ? Math.floor(Math.random() * 1000000) : seed;
+        if (seed !== null && !(Number.isInteger(seed) && seed >= 0)) {
+            throw refusal(new RangeError(`seed must be null or an integer >= 0, got ${String(seed)}`), "E_BAD_OPTION", {
+                option: "seed",
+                value: seed,
+            });
+        }
+        this.seed = seed ?? Math.floor(Math.random() * 1000000);
         this.state = this.seed % LCG_M;
     }
 
@@ -226,7 +236,8 @@ function seedRow(positions: F32 | F64, i: number, dim: number, draw: SeedDraw): 
  * @param s - the snapshot (nodeCount rows)
  * @param positions - the owner's stride-3 scene-unit array, length 3 * nodeCount, modified in place; an F64 array
  *     keeps the drawn values in float64, as the legacy layouts did
- * @param seed - the LCG seed (0 / null = unseeded, the port's quirk)
+ * @param seed - the LCG seed, an integer >= 0, or null for a random one; any other seed is refused (E_BAD_OPTION)
+ *     even when no row needs seeding
  * @param dim - 2 or 3
  * @param scale - the scene scale (> 0)
  * @param center - the scene center, or null for the origin
@@ -244,6 +255,7 @@ export function seedPositions(
     const n = s.nodeCount;
     checkSeedArguments(n, positions, dim, scale);
     const c = resolveCenter(center);
+    const rng = new Lcg(seed);
 
     // classify the rows and collect the per-axis box of the finite components (scene units)
     const lo = [Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY];
@@ -261,7 +273,7 @@ export function seedPositions(
         fitDrawBox(lo, hi, c, scale, dim, boxLo, boxHi);
     }
 
-    const draw: SeedDraw = { rng: new Lcg(seed), boxLo, boxHi, scale, c };
+    const draw: SeedDraw = { rng, boxLo, boxHi, scale, c };
     for (let i = 0; i < n; i++) {
         if (!rowFinite(positions, i, dim)) {
             seedRow(positions, i, dim, draw);

@@ -91,15 +91,25 @@ describe("the finding guide's example", () => {
         );
 
         session.selection.clear();
+        // Every selection change from here on. The pattern's Enter below is pressed after the plain
+        // text's, so once its change has landed, a change the plain text's Enter made would be in
+        // this list too -- a wait on that later change, not on the event loop, settles the negative.
+        const changes: number[] = [];
+        const stopListening = session.on("selection:changed", () => {
+            changes.push(session.selection.nodes.length);
+        });
         await userEvent.fill(box, "Javert");
         await userEvent.keyboard("{Enter}");
-        await new Promise((resolve) => setTimeout(resolve, 0));
-        assert.lengthOf(session.selection.nodes, 0, "Enter on plain text commits nothing");
         await userEvent.fill(box, "regex:^Jav");
         await userEvent.keyboard("{Enter}");
         await vi.waitFor(() => {
             assert.isAbove(session.selection.nodes.length, 0, "Enter on a pattern selects what it matches");
         });
+        await vi.waitFor(() => {
+            assert.isNotEmpty(changes, "the pattern's selection change is heard");
+        });
+        assert.deepEqual(changes, [session.selection.nodes.length], "Enter on plain text commits nothing");
+        stopListening();
         session.dispose();
     });
 

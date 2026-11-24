@@ -23,8 +23,8 @@ import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-// The full-screen selection workspace is the `selection-workspace` experiment.
-withFeatures(["selection-workspace"]);
+// Every experiment stays off here.
+withFeatures([]);
 
 /**
  * Les Miserables in the workspace.
@@ -73,7 +73,7 @@ async function openLayer(): Promise<{ session: GraphSession; layer: Layer }> {
  * @returns the workspace.
  */
 async function openWorkspace(): Promise<HTMLElement> {
-    await userEvent.click(await screen.findByRole("button", { name: /^Edit Which nodes/ }));
+    await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
     return waitFor(() => {
         const found = document.querySelector<HTMLElement>(".sel-ws");
         assert.isNotNull(found, "the workspace is open");
@@ -184,9 +184,11 @@ describe("the workspace's cards, as the approved prototype", () => {
         await pick(within(cards()[0]).getByRole("button", { name: "Value" }), "Leiden");
         await userEvent.click(await within(cards()[0]).findByRole("button", { name: /^Settings for Leiden/u }));
         const panel = await screen.findByRole("dialog", { name: "Leiden" });
-        for (const name of [/^Resolution/u, /^Seed/u, /^Max iterations/u, /^Tolerance/u]) {
+        for (const name of [/^Resolution/u, /^Max iterations/u, /^Tolerance/u]) {
             assert.isNotNull(within(panel).getByRole("spinbutton", { name }));
         }
+        // Leiden is unseeded by default, so its seed is an empty box (a text box until it holds a number).
+        assert.strictEqual(within(panel).getByRole<HTMLInputElement>("textbox", { name: /^Seed/u }).value, "");
         assert.lengthOf(
             within(panel)
                 .getAllByRole("button")
@@ -286,7 +288,7 @@ describe("the workspace's cards, as the approved prototype", () => {
         );
     });
 
-    it("renames a filter in the workspace's title bar, one undo step, and keeps it", async () => {
+    it("renames a filter in the workspace's title bar, and Done writes it with its name as one undo step", async () => {
         const { session } = await openApp();
         await userEvent.click(await screen.findByRole("button", { name: /^Data/u }));
         await userEvent.click(await screen.findByRole("button", { name: /Add filter/u }));
@@ -296,16 +298,18 @@ describe("the workspace's cards, as the approved prototype", () => {
             return found;
         });
         await pick(within(cards()[0]).getByRole("button", { name: "Value" }), "Degree");
-        await waitFor(() => {
-            assert.lengthOf(session.visibility.conditions, 1);
-        });
         const before = session.history.steps.length;
         await userEvent.click(within(modal).getByRole("button", { name: /, rename$/u }));
         await userEvent.keyboard("{Control>}a{/Control}Busy people{Enter}");
         await waitFor(() => {
+            assert.match(modal.querySelector(".sel-ws-title")?.textContent ?? "", /Busy people/u);
+        });
+        // A draft of graphty-element's working graph until Done (design/working-graph/design.md, section 3).
+        assert.lengthOf(session.visibility.conditions, 0, "nothing is written while the filter is edited");
+        await userEvent.click(within(modal).getByRole("button", { name: /^Done/u }));
+        await waitFor(() => {
             assert.strictEqual(session.visibility.conditions[0]?.name, "Busy people");
         });
         assert.strictEqual(session.history.steps.length, before + 1, "one undo step");
-        assert.match(modal.querySelector(".sel-ws-title")?.textContent ?? "", /Busy people/u);
     });
 });

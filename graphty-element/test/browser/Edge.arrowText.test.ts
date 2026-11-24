@@ -1,307 +1,237 @@
-import { NullEngine, Scene, Vector3 } from "@babylonjs/core";
-import { afterEach, assert, beforeEach, describe, test } from "vitest";
+/**
+ * @file Where the words at each end of an arrow are drawn, read off a real edge on a real graph.
+ *
+ * Each test asks for the captions through a style layer, the way any consumer does, and then reads
+ * the captions the edge actually built: the words each draws and where its plane sits against the
+ * arrow cap it belongs to. The placement is read after the graph is laid out again, so it is the
+ * position the edge puts each caption at on every frame it moves, not only the one it was built
+ * with. Whether the captions reach the pixels, and in the look a layer asks for, is
+ * `an-arrow-caption-draws.test.ts`.
+ */
 
-import type { EdgeStyleConfig } from "../../src/config";
-import { RichTextLabel } from "../../src/meshes/RichTextLabel";
+import { Vector3 } from "@babylonjs/core";
+import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-describe("Arrow Text Labels", () => {
-    let scene: Scene;
+import type { LabelStyle } from "../../src/catalog/types";
+import type { Edge } from "../../src/Edge";
+import { Graph, operationQueueOf } from "../../src/Graph";
+import type { RichTextLabel } from "../../src/meshes/RichTextLabel";
+import type { GraphSession } from "../../src/session";
 
-    beforeEach(() => {
-        const engine = new NullEngine();
-        scene = new Scene(engine);
+/** Two nodes and the edge between them: the smallest graph with two ends to caption. */
+const NODES = [{ id: "alpha" }, { id: "omega" }];
+
+/** The one edge both captions are measured on. */
+const EDGES = [{ src: "alpha", dst: "omega" }];
+
+/** The words at the head of the arrow. */
+const HEAD = "HEAD";
+
+/** The words at its tail. */
+const TAIL = "TAIL";
+
+/** How close two world positions must be to count as the same place, in world units. */
+const SAME_PLACE = 1e-3;
+
+/** A distance a caption is asked to stand off from its cap, in world units. */
+const OFFSET = 1.5;
+
+/** How far a caption stands off its cap when its style does not say: the element's documented default. */
+const DEFAULT_OFFSET = 0.3;
+
+describe("the words at the ends of an arrow", () => {
+    let container: HTMLElement;
+    let graph: Graph;
+    let session: GraphSession;
+    let scale: number;
+    /** The layer the test asked for, so a later step can change its placement. */
+    let layerId: string | undefined;
+
+    beforeEach(async () => {
+        container = document.createElement("div");
+        container.style.width = "640px";
+        container.style.height = "480px";
+        document.body.appendChild(container);
+        graph = new Graph(container);
+        await graph.init();
+        session = graph.getSession();
+        layerId = undefined;
+        scale = 2;
+
+        await graph.addNodes(NODES);
+        await graph.addEdges(EDGES);
+        // Circular rather than physics, so the nodes do not drift between the readings.
+        await graph.setLayout("circular", { scale });
+        await operationQueueOf(graph).waitForCompletion();
     });
 
     afterEach(() => {
-        scene.getEngine().dispose();
+        graph.dispose();
+        container.remove();
     });
 
-    describe("Arrow Head Text Configuration", () => {
-        test("arrow head text can be configured in EdgeStyleConfig", () => {
-            const style: EdgeStyleConfig = {
-                arrowHead: {
-                    type: "normal",
-                    text: {
-                        text: "→",
-                        fontSize: 12,
-                        textColor: "#FFFFFF",
-                    },
-                    color: "darkgrey",
-                    size: 1,
-                    opacity: 1,
-                },
-                line: { color: "darkgrey" },
-            };
+    /**
+     * The one edge the element holds.
+     * @returns The edge.
+     */
+    function edgeObject(): Edge {
+        const [edge] = Array.from(graph.getDataManager().edges.values());
 
-            // Access via local variables to satisfy linter
-            const { arrowHead } = style;
-            assert.exists(arrowHead);
-            const { text } = arrowHead;
-            assert.exists(text);
-            assert.equal(text.text, "→");
-            assert.equal(text.fontSize, 12);
-        });
+        assert.isDefined(edge, "the graph holds the one edge");
 
-        test("arrow head text can be created as RichTextLabel", () => {
-            const label = new RichTextLabel(scene, {
-                text: "→",
-                fontSize: 12,
-                textColor: "#FFFFFF",
-            });
+        return edge;
+    }
 
-            assert.exists(label);
-            assert.exists(label.labelMesh);
-            label.dispose();
-        });
+    /**
+     * Where one node is drawn, in world space.
+     * @param id - The node id.
+     * @returns The position.
+     */
+    function nodeAt(id: string): Vector3 {
+        const node = graph.getNodes().find((candidate) => String(candidate.id) === id);
+
+        assert.isDefined(node, `the graph holds a node called ${id}`);
+
+        return node.mesh.getAbsolutePosition();
+    }
+
+    /**
+     * The words a caption draws.
+     * @param caption - The caption.
+     * @returns Its text, one line per line.
+     */
+    function wordsOf(caption: RichTextLabel): string {
+        return caption.textRuns.map((line) => line.map((run) => run.text).join("")).join("\n");
+    }
+
+    /**
+     * Where a caption's plane sits, in world space.
+     * @param caption - The caption, or null when the edge built none.
+     * @returns The position.
+     */
+    function placeOf(caption: RichTextLabel | null): Vector3 {
+        assert.isNotNull(caption, "the edge is drawing a caption at this end");
+        assert.isNotNull(caption.labelMesh, "and the caption has a plane in the scene");
+
+        return caption.labelMesh.getAbsolutePosition();
+    }
+
+    /**
+     * Ask for both captions through a layer (or change the one already asked for), lay the graph
+     * out again so the edge places them as it does on every frame it moves, and return the edge.
+     * @param headStyle - The head caption's placement; the tail caption keeps its defaults.
+     * @returns The edge, placed.
+     */
+    async function captioned(headStyle: LabelStyle): Promise<Edge> {
+        const set = {
+            "edge.arrowHead": "normal",
+            "edge.arrowHeadText": HEAD,
+            "edge.arrowHeadTextStyle": headStyle,
+            "edge.arrowTail": "normal",
+            "edge.arrowTailText": TAIL,
+        };
+
+        if (layerId === undefined) {
+            ({ id: layerId } = await session.styles.add({
+                name: "captions at both ends",
+                target: "edge",
+                selector: { match: "everything" },
+                set,
+            }));
+        } else {
+            await session.styles.update(layerId, { set });
+        }
+
+        await operationQueueOf(graph).waitForCompletion();
+        // A new scale moves both nodes, so the edge has to place its captions again.
+        scale += 1;
+        await graph.setLayout("circular", { scale });
+        await operationQueueOf(graph).waitForCompletion();
+        await graph.waitForStableFrame();
+
+        return edgeObject();
+    }
+
+    /**
+     * Where the head caption sits against the head's arrow cap.
+     * @param headStyle - The head caption's placement.
+     * @returns The caption's position minus the cap's.
+     */
+    async function headFromCap(headStyle: LabelStyle): Promise<Vector3> {
+        const edge = await captioned(headStyle);
+
+        assert.isNotNull(edge.arrowCap, "the edge draws an arrow cap at its head");
+
+        return placeOf(edge.arrowHeadText).subtract(edge.arrowCap.position);
+    }
+
+    it("draws no captions until a layer asks for them", () => {
+        const edge = edgeObject();
+
+        assert.isNull(edge.arrowHeadText);
+        assert.isNull(edge.arrowTailText);
     });
 
-    describe("Arrow Tail Text Configuration", () => {
-        test("arrow tail text can be configured in EdgeStyleConfig", () => {
-            const style: EdgeStyleConfig = {
-                arrowTail: {
-                    type: "normal",
-                    text: {
-                        text: "←",
-                        fontSize: 12,
-                        textColor: "#FFFFFF",
-                    },
-                    color: "darkgrey",
-                    size: 1,
-                    opacity: 1,
-                },
-                line: { color: "darkgrey" },
-            };
+    it("draws each end's own words, at its own end", async () => {
+        const edge = await captioned({});
 
-            // Access via local variables to satisfy linter
-            const { arrowTail } = style;
-            assert.exists(arrowTail);
-            const { text } = arrowTail;
-            assert.exists(text);
-            assert.equal(text.text, "←");
-            assert.equal(text.fontSize, 12);
-        });
+        assert.isNotNull(edge.arrowHeadText, "the head carries a caption");
+        assert.isNotNull(edge.arrowTailText, "the tail carries a caption");
+        assert.strictEqual(wordsOf(edge.arrowHeadText), HEAD);
+        assert.strictEqual(wordsOf(edge.arrowTailText), TAIL);
 
-        test("arrow tail text can be created as RichTextLabel", () => {
-            const label = new RichTextLabel(scene, {
-                text: "←",
-                fontSize: 12,
-                textColor: "#FFFFFF",
-            });
+        const head = placeOf(edge.arrowHeadText);
+        const tail = placeOf(edge.arrowTailText);
+        const alpha = nodeAt("alpha");
+        const omega = nodeAt("omega");
 
-            assert.exists(label);
-            assert.exists(label.labelMesh);
-            label.dispose();
-        });
+        assert.isBelow(
+            Vector3.Distance(head, omega),
+            Vector3.Distance(head, alpha),
+            "the head's words are by the target",
+        );
+        assert.isBelow(
+            Vector3.Distance(tail, alpha),
+            Vector3.Distance(tail, omega),
+            "the tail's words are by the source",
+        );
     });
 
-    describe("Arrow Text Positioning", () => {
-        test("arrow text label can be attached to a position", () => {
-            const label = new RichTextLabel(scene, {
-                text: "Label",
-                fontSize: 12,
-                textColor: "#FFFFFF",
-            });
+    it("hangs above its cap, a little clear of it, when its style names no placement", async () => {
+        const unnamed = await headFromCap({});
+        const touching = await headFromCap({ location: "top", attachOffset: 0 });
 
-            const position = new Vector3(5, 0, 0);
-            label.attachTo(position, "top", 0.5);
-
-            assert.exists(label.labelMesh);
-            label.dispose();
-        });
-
-        test("arrow text label supports different attach positions", () => {
-            const positions: ("top" | "bottom" | "left" | "right" | "center")[] = [
-                "top",
-                "bottom",
-                "left",
-                "right",
-                "center",
-            ];
-
-            for (const pos of positions) {
-                const label = new RichTextLabel(scene, {
-                    text: "Test",
-                    fontSize: 12,
-                });
-
-                const targetPos = new Vector3(0, 0, 0);
-                label.attachTo(targetPos, pos, 0.5);
-
-                assert.exists(label.labelMesh);
-                label.dispose();
-            }
-        });
+        assert.closeTo(unnamed.x, 0, SAME_PLACE, "centered across the cap");
+        assert.isAbove(unnamed.y, SAME_PLACE, `above the cap: ${unnamed.toString()}`);
+        assert.closeTo(unnamed.y - touching.y, DEFAULT_OFFSET, SAME_PLACE, "and clear of it by the default offset");
     });
 
-    describe("Arrow Text Styling", () => {
-        test("arrow text supports custom font size", () => {
-            const fontSizes = [8, 12, 16, 24];
+    it("hangs above, below, left and right of its cap where its location says", async () => {
+        const top = await headFromCap({ location: "top" });
+        const bottom = await headFromCap({ location: "bottom" });
+        const left = await headFromCap({ location: "left" });
+        const right = await headFromCap({ location: "right" });
 
-            for (const fontSize of fontSizes) {
-                const label = new RichTextLabel(scene, {
-                    text: "Test",
-                    fontSize,
-                });
-
-                assert.exists(label.labelMesh);
-                label.dispose();
-            }
-        });
-
-        test("arrow text supports custom color", () => {
-            const label = new RichTextLabel(scene, {
-                text: "Colored text",
-                fontSize: 12,
-                textColor: "#FF0000",
-            });
-
-            assert.exists(label.labelMesh);
-            label.dispose();
-        });
-
-        test("arrow text supports background color", () => {
-            const label = new RichTextLabel(scene, {
-                text: "With background",
-                fontSize: 12,
-                textColor: "#FFFFFF",
-                backgroundColor: "#333333",
-            });
-
-            assert.exists(label.labelMesh);
-            label.dispose();
-        });
+        assert.isAbove(top.y, SAME_PLACE, `top is above the cap: ${top.toString()}`);
+        assert.isBelow(bottom.y, -SAME_PLACE, `bottom is below the cap: ${bottom.toString()}`);
+        assert.isBelow(left.x, -SAME_PLACE, `left is left of the cap: ${left.toString()}`);
+        assert.isAbove(right.x, SAME_PLACE, `right is right of the cap: ${right.toString()}`);
     });
 
-    describe("Bidirectional Arrow Text", () => {
-        test("both head and tail text can be configured simultaneously", () => {
-            const style: EdgeStyleConfig = {
-                arrowHead: {
-                    type: "normal",
-                    text: {
-                        text: "Head",
-                        fontSize: 12,
-                        textColor: "#FFFFFF",
-                    },
-                    color: "darkgrey",
-                    size: 1,
-                    opacity: 1,
-                },
-                arrowTail: {
-                    type: "normal",
-                    text: {
-                        text: "Tail",
-                        fontSize: 12,
-                        textColor: "#FFFFFF",
-                    },
-                    color: "darkgrey",
-                    size: 1,
-                    opacity: 1,
-                },
-                line: { color: "darkgrey" },
-            };
+    it("moves out by its attachOffset, in world units, from where its location puts it", async () => {
+        const touching = await headFromCap({ location: "top", attachOffset: 0 });
+        const clear = await headFromCap({ location: "top", attachOffset: OFFSET });
+        const besideTouching = await headFromCap({ location: "right", attachOffset: 0 });
+        const besideClear = await headFromCap({ location: "right", attachOffset: OFFSET });
 
-            // Access via local variables to satisfy linter
-            const { arrowHead, arrowTail } = style;
-            assert.exists(arrowHead);
-            assert.exists(arrowTail);
-            const { text: headText } = arrowHead;
-            const { text: tailText } = arrowTail;
-            assert.exists(headText);
-            assert.exists(tailText);
-            assert.equal(headText.text, "Head");
-            assert.equal(tailText.text, "Tail");
-        });
-
-        test("head and tail labels are independent", () => {
-            const headLabel = new RichTextLabel(scene, {
-                text: "Head",
-                fontSize: 12,
-                textColor: "#FF0000",
-            });
-
-            const tailLabel = new RichTextLabel(scene, {
-                text: "Tail",
-                fontSize: 12,
-                textColor: "#00FF00",
-            });
-
-            assert.exists(headLabel.labelMesh);
-            assert.exists(tailLabel.labelMesh);
-            assert.notEqual(headLabel.labelId, tailLabel.labelId);
-
-            headLabel.dispose();
-            tailLabel.dispose();
-        });
-    });
-
-    describe("Arrow Text with JMESPath", () => {
-        test("arrow text supports textPath configuration", () => {
-            const style: EdgeStyleConfig = {
-                arrowHead: {
-                    type: "normal",
-                    text: {
-                        textPath: "weight",
-                        fontSize: 12,
-                    },
-                    color: "darkgrey",
-                    size: 1,
-                    opacity: 1,
-                },
-                line: { color: "darkgrey" },
-            };
-
-            // Access via local variables to satisfy linter
-            const { arrowHead } = style;
-            assert.exists(arrowHead);
-            const { text } = arrowHead;
-            assert.exists(text);
-            assert.equal(text.textPath, "weight");
-        });
-    });
-
-    describe("Arrow Text Cleanup", () => {
-        test("arrow text labels can be disposed", () => {
-            const label = new RichTextLabel(scene, {
-                text: "Disposable",
-                fontSize: 12,
-            });
-
-            const mesh = label.labelMesh;
-            assert.exists(mesh);
-
-            label.dispose();
-
-            assert.isTrue(mesh.isDisposed());
-        });
-
-        test("multiple labels can be disposed independently", () => {
-            const headLabel = new RichTextLabel(scene, {
-                text: "Head",
-                fontSize: 12,
-            });
-
-            const tailLabel = new RichTextLabel(scene, {
-                text: "Tail",
-                fontSize: 12,
-            });
-
-            const headMesh = headLabel.labelMesh;
-            const tailMesh = tailLabel.labelMesh;
-            assert.exists(headMesh);
-            assert.exists(tailMesh);
-
-            headLabel.dispose();
-
-            // Head should be disposed
-            assert.isTrue(headMesh.isDisposed());
-
-            // Tail should still exist
-            assert.isFalse(tailMesh.isDisposed());
-
-            tailLabel.dispose();
-
-            // Both should now be disposed
-            assert.isTrue(tailMesh.isDisposed());
-        });
+        assert.closeTo(clear.y - touching.y, OFFSET, SAME_PLACE, "the offset lifts a caption on top");
+        assert.closeTo(clear.x, touching.x, SAME_PLACE, "and does not move it across");
+        assert.closeTo(
+            besideClear.x - besideTouching.x,
+            OFFSET,
+            SAME_PLACE,
+            "the offset pushes a caption on the right",
+        );
+        assert.closeTo(besideClear.y, besideTouching.y, SAME_PLACE, "and does not move it up or down");
     });
 });

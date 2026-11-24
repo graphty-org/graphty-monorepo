@@ -8,8 +8,8 @@ GitHub's own `schedule:` trigger creates this repository's scheduled runs hours 
 so `release.yml` has no cron of its own. The Worker signs in as a GitHub App, so there is no
 personal access token to expire or rotate.
 
-When the Worker cannot start a train, it opens an issue titled **"Release scheduler could not start
-a release train"** with the slot time, the HTTP status and GitHub's response. If that issue is
+When the Worker cannot start a train, it opens a `priority:high` issue titled **"Release scheduler
+could not start a release train"** with the slot time, the HTTP status and GitHub's response. If that issue is
 already open, it comments on it instead of opening another.
 
 Once a day, at 03:17 UTC, it checks that the repository holds exactly one write deploy key, the
@@ -20,9 +20,7 @@ the release key missing, or cannot read the keys, it opens a `priority:critical`
 **"graphty-monorepo's write deploy keys are not exactly the release key"** listing each write key's
 id, title and creation date, or comments on that issue when it is already open.
 
-The Worker also exports `isOnMaster(sha, token)`, which says whether a commit is on master's history
-(`GET /compare/master...<sha>`), and `installationToken(env)`, for other Workers signed in as the
-same App.
+The Worker also exports `installationToken(env)`, for other Workers signed in as the same App.
 
 ## Set it up
 
@@ -35,8 +33,7 @@ You need owner access to the `graphty-org` organization and a free Cloudflare ac
    repository's.
 3. Under **Webhook**, clear **Active**. The App needs no webhook.
 4. Under **Repository permissions**, set **Actions: Read and write**, **Issues: Read and write**,
-   **Contents: Read-only** (the ancestry check) and **Administration: Read-only** (the deploy key
-   check).
+   and **Administration: Read-only** (the deploy key check).
    Leave everything else at **No access**.
 5. Under **Where can this GitHub App be installed?**, choose **Only on this account**, then
    **Create GitHub App**.
@@ -120,7 +117,9 @@ Delete `.dev.vars` afterwards. A successful fire logs `release train dispatched`
   push to master without a pull request. Remove every write key but the release key under the
   repository's **Settings > Deploy keys** (or restore the release key), then close the issue. An
   issue saying the keys could not be read means the App lacks **Administration: Read-only**.
-- **When the logs show an error and there is no issue,** the Worker could not get a token from
-  GitHub, so it could not file one either: check the App ID, the installation ID and the key.
+- **When the logs show an error and there is no issue,** either the Worker could not get a token
+  from GitHub (check the App ID, the installation ID and the key), or GitHub's issue search failed
+  (the log says `issue search returned HTTP ...`); the Worker then files nothing rather than risk a
+  duplicate, and the next slot tries again.
 - **Stop it:** remove the cron trigger (**Settings > Triggers**, or delete the `crons` line from
   `wrangler.toml` and deploy again), or uninstall the GitHub App from the organization.

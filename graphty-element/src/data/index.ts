@@ -1,5 +1,5 @@
 import type { GraphSnapshot } from "@graphty/graph-format";
-import { cx2Importer, cxImporter, cysImporter, oboImporter, xgmmlImporter } from "@graphty/graph-io";
+import { cx2Importer, cxImporter, cysImporter, oboImporter, xgmmlImporter, xlsxImporter } from "@graphty/graph-io";
 
 import { formatDescriptor } from "../catalog/formats";
 import type { FormatDescriptor } from "../catalog/types";
@@ -61,7 +61,7 @@ function xgmmlTime(snapshot: GraphSnapshot): TimeField | null {
     return nodes || edges ? { ...(nodes ? { nodes: source } : {}), ...(edges ? { edges: source } : {}) } : null;
 }
 
-// Read by graph-io with no reader of their own: each is the importer and its catalogue entry.
+// Read by graph-io with no reader of their own: each is the importer and its catalog entry.
 DataSource.register(
     DataSource.fromImporter(xgmmlImporter, builtIn("xgmml"), { statedBy: xgmmlDirection, time: xgmmlTime }),
 );
@@ -82,6 +82,8 @@ DataSource.register(
         statedBy: () => "OBO relations, which point from a term to its parent",
     }),
 );
+// A workbook sheet is a table, which states no direction. Its parser loads on first use.
+DataSource.register(DataSource.fromImporter(xlsxImporter, builtIn("xlsx")));
 
 export type { DataLoadingError, ErrorSummary } from "./ErrorAggregator";
 export { ErrorAggregator } from "./ErrorAggregator";

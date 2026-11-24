@@ -1,5 +1,9 @@
 # Semantic Release Strategy for Graphty Monorepo
 
+> **Superseded.** This is research from before the release tool was chosen. Releases use Nx Release (`nx release`,
+> configured in `nx.json`); neither Changesets nor semantic-release is used. How releases work today:
+> `.github/workflows/README.md`.
+
 ## Executive Summary
 
 After comprehensive research into semantic release strategies for monorepos, including Auto and Beachball which were initially overlooked, I recommend **Changesets** as the primary release management tool for Graphty. This recommendation stands even after evaluating these additional options, as Changesets offers the best balance of features, community support, and monorepo-specific design. Auto and Beachball are strong alternatives worth considering based on specific workflow preferences.

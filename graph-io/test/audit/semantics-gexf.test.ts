@@ -1,8 +1,7 @@
 /**
  * Semantic audit of the GEXF importer against the corpus files themselves (facts derived here by
  * regex over the raw text, never through the importer) and against the quirks graphty-element's
- * GEXFDataSource and research note 07 section 2.1 describe. Tests that pin a defect are named
- * "DEFECT:" and fail until the importer is fixed.
+ * GEXFDataSource and research note 07 section 2.1 describe.
  */
 
 import { type GraphSnapshot } from "@graphty/graph-format";
@@ -439,10 +438,10 @@ describe("GEXF quirks from GEXFDataSource and research note 07", () => {
         expect(snapshot.edges.byRole("end")?.value(0)).toBe(3);
     });
 
-    it("DEFECT: GEXF 1.2 startopen / endopen carry the bound's time (XSD time-type), not a boolean", async () => {
+    it("GEXF 1.2 startopen / endopen carry the bound's time (XSD time-type), not a boolean", async () => {
         // gexf.net/1.2draft/dynamics.xsd: <xs:attribute name="startopen" type="time-type"/>; the
-        // primer writes open bounds as startopen="2009-03-01" in place of start. The importer only
-        // recognises startopen="true", so a real 1.2 file loses the bound AND the open bit silently.
+        // primer writes open bounds as startopen="2009-03-01" in place of start. Both the bound and
+        // the open bit are kept.
         const doc = `<gexf ${NS12}><graph defaultedgetype="directed" mode="dynamic" timeformat="integer"><nodes><node id="a" start="1" endopen="5"/><node id="b" startopen="2" end="3"/></nodes></graph></gexf>`;
         const { snapshot, report } = await parse(doc);
         const start = snapshot.nodes.byRole("start");

@@ -18,6 +18,7 @@ import { everyFrameAnimationsOn } from "../../../src/managers/everyFrameAnimatio
 import { NodeShaderDrawing } from "../../../src/meshes/NodeShaderDrawing";
 import type { Node } from "../../../src/Node";
 import { defineShader } from "../../../src/simple/defineShader";
+import { pixelAt } from "../../helpers/canvas-pixels";
 import { drawnFrames } from "../../helpers/drawn-frames";
 import { click, type Point } from "../../helpers/real-input";
 
@@ -190,22 +191,6 @@ function batchHolds(element: Graphty, count: number): boolean {
  */
 function meshPathCount(element: Graphty): number {
     return NodeShaderDrawing.peek(element.graph.getScene())?.stats().meshPath ?? 0;
-}
-
-/**
- * Read one pixel of the canvas at a point in CSS pixels, after the next frame.
- * @param element - The element.
- * @param point - The point.
- * @returns r, g, b, a.
- */
-async function pixelAt(element: Graphty, point: Point): Promise<[number, number, number, number]> {
-    const { engine } = element.graph;
-    await drawnFrames(element.graph.getScene(), 2);
-    const scale = engine.getRenderWidth() / WIDTH;
-    const x = Math.round(point.x * scale);
-    const y = Math.round(engine.getRenderHeight() - point.y * scale);
-    const read = (await engine.readPixels(x, y, 1, 1)) as unknown as Uint8Array;
-    return [read[0], read[1], read[2], read[3]];
 }
 
 /**

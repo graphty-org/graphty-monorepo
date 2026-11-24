@@ -119,8 +119,8 @@ export class VoiceSession {
     private listening = false;
     /** Counts presses, so a press that ended before it started does nothing. */
     private press = 0;
-    /** Presses up to this number were cancelled: what they hear is never sent. */
-    private cancelledThrough = 0;
+    /** Presses up to this number were canceled: what they hear is never sent. */
+    private canceledThrough = 0;
     /** The press listening now. */
     private input: SpeechInput | undefined;
     /** Every press not yet ended: listening, or still being transcribed. */
@@ -233,7 +233,7 @@ export class VoiceSession {
         this.pressTimer = undefined;
     }
 
-    /** Stop speaking an answer: it ends with `AI_CANCELLED`. A live answer is interrupted. */
+    /** Stop speaking an answer: it ends with `AI_CANCELED`. A live answer is interrupted. */
     stopSpeech(): void {
         this.liveNow?.interrupt();
         for (const speaker of this.speakers.values()) {
@@ -270,13 +270,13 @@ export class VoiceSession {
     }
 
     /**
-     * End a held talk without sending it: the press ends with `AI_CANCELLED`, the microphone
+     * End a held talk without sending it: the press ends with `AI_CANCELED`, the microphone
      * closes, and so does a live connection. Leaving XR does this.
      */
     cancel(): void {
         // A press still choosing its path ends there, and an earlier one still being transcribed
         // sends nothing.
-        this.cancelledThrough = ++this.press;
+        this.canceledThrough = ++this.press;
         this.listening = false;
         this.clearPressTimer();
         this.endPointing();
@@ -291,7 +291,7 @@ export class VoiceSession {
     }
 
     /**
-     * End the live conversation: the connection closes (a held press ends with `AI_CANCELLED`),
+     * End the live conversation: the connection closes (a held press ends with `AI_CANCELED`),
      * and the next live press opens another with the conversation as saved.
      */
     endLiveConversation(): void {
@@ -420,7 +420,7 @@ export class VoiceSession {
             live.hold();
         } else {
             // Released before the connection opened: nothing was sent.
-            this.endLive("AI_CANCELLED", {});
+            this.endLive("AI_CANCELED", {});
         }
     }
 
@@ -438,7 +438,7 @@ export class VoiceSession {
         this.listening = false;
         this.clearPressTimer();
         this.endPointing();
-        const failed = code !== "AI_COMPLETED" && code !== "AI_CANCELLED";
+        const failed = code !== "AI_COMPLETED" && code !== "AI_CANCELED";
         this.host.emit("ai-voice-end", { reason: failed ? "error" : "user", code, params });
         void this.checkSupport();
     }
@@ -624,10 +624,10 @@ export class VoiceSession {
             this.endPointing();
         }
 
-        // A press cancelled while it was still being transcribed sends nothing.
-        const cancelled = press <= this.cancelledThrough;
-        const code = cancelled && end.code === "AI_COMPLETED" ? "AI_CANCELLED" : end.code;
-        const failed = code !== "AI_COMPLETED" && code !== "AI_CANCELLED";
+        // A press canceled while it was still being transcribed sends nothing.
+        const canceled = press <= this.canceledThrough;
+        const code = canceled && end.code === "AI_COMPLETED" ? "AI_CANCELED" : end.code;
+        const failed = code !== "AI_COMPLETED" && code !== "AI_CANCELED";
         this.host.emit("ai-voice-end", { reason: failed ? "error" : "user", code, params: end.params });
         // The press may have asked for the microphone or learned whether recognition works.
         void this.checkSupport();

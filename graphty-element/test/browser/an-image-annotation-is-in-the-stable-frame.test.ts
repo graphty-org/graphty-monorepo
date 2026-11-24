@@ -79,10 +79,11 @@ async function bluePicture(): Promise<string> {
 /**
  * Two nodes with a picture behind them, in Cytoscape's coordinates.
  * @param url - The picture.
+ * @param x - Where the picture's left side is.
  * @returns The file.
  */
-function xgmml(url: string): string {
-    const picture = `type=${TYPE}ImageAnnotation|uuid=pic|canvas=background|zoom=1|x=50|y=50|width=300|height=100|URL=${url}|opacity=1.0|edgeThickness=0`;
+function xgmml(url: string, x = 50): string {
+    const picture = `type=${TYPE}ImageAnnotation|uuid=pic|canvas=background|zoom=1|x=${String(x)}|y=50|width=300|height=100|URL=${url}|opacity=1.0|edgeThickness=0`;
     return `<?xml version="1.0" encoding="UTF-8"?>
 <graph id="1" label="pictured" directed="1" xmlns:cy="http://www.cytoscape.org" xmlns="http://www.cs.rpi.edu/XGMML">
   <att name="__Annotations" type="list"><att type="string" value="${picture}"/></att>
@@ -126,7 +127,7 @@ test("a picture that arrives after everything else is in the stable frame, drawn
     // Let the picture load only once the rest of the picture is final.
     const { graph } = element;
     // the element's own account of what it still waits for, which the public wait reports only on a timeout
-    const { updateManager } = graph as unknown as { updateManager: { whyFrameIsNotStable(): string } };
+    const updateManager = graph.getUpdateManager();
     graph.scene.onAfterRenderObservable.add(() => {
         const waitingForPicture = updateManager.whyFrameIsNotStable().includes("picture");
         if (held.length > 0 && (graph.isFrameStable || waitingForPicture)) {
@@ -145,4 +146,24 @@ test("a picture that arrives after everything else is in the stable frame, drawn
     await element.waitForStableFrame();
 
     assert.isAbove(await bluePixels(element), 1000, "the picture is in the frame called stable");
+});
+
+test("a fit frames a picture annotation beside the nodes, as Cytoscape desktop fits its annotations", async () => {
+    const element = document.createElement("graphty-element");
+    element.style.cssText = "display:block;width:800px;height:600px";
+    element.viewMode = "2d";
+    document.body.appendChild(element);
+    mounted = element;
+    await element.updateComplete;
+
+    // the picture lies 1,000 units left of the nodes, which a fit of the nodes alone leaves off the canvas
+    await element.session.data.import(
+        { type: "xgmml", config: { data: xgmml(await bluePicture(), -1000) } },
+        { styles: "file", layout: "recommended" },
+    );
+    await element.waitForSettled();
+    await element.session.styles.settled();
+    await element.waitForStableFrame();
+
+    assert.isAbove(await bluePixels(element), 1000, "the picture is in view");
 });

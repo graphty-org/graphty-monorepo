@@ -1,3 +1,4 @@
+import type { CameraState } from "../../src/camera/types.js";
 import type { Graph } from "../../src/Graph.js";
 
 /**
@@ -49,4 +50,30 @@ export async function animationFramesOf(
     }
 
     return { frames, ms: frames * ANIMATION_FRAME_MS };
+}
+
+/**
+ * Run an action on the scene's animation clock (see {@link animationFramesOf}) and read what the
+ * camera reports, through `getCameraState()`, once `frame` frames have been animated.
+ * @param graph - The graph whose camera to read.
+ * @param frame - The animation frame to read the camera at.
+ * @param action - The work that moves the camera, usually an animated camera call.
+ * @returns The camera state at that frame, and the camera state once the action resolved.
+ */
+export async function cameraStateAtFrame(
+    graph: Graph,
+    frame: number,
+    action: () => Promise<unknown>,
+): Promise<{ readonly atFrame: CameraState; readonly end: CameraState }> {
+    let atFrame: CameraState | undefined;
+    await animationFramesOf(graph, action, (count) => {
+        if (count === frame) {
+            atFrame = graph.getCameraState();
+        }
+    });
+    if (atFrame === undefined) {
+        throw new Error(`the action finished before animation frame ${frame}`);
+    }
+
+    return { atFrame, end: graph.getCameraState() };
 }

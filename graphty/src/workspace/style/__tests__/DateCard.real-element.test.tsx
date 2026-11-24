@@ -10,7 +10,7 @@
 import "@graphty/graphty-element";
 
 import type { GraphSession, RuleTree } from "@graphty/graphty-element/session";
-import { assert, beforeAll, beforeEach, describe, it } from "vitest";
+import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
@@ -21,7 +21,7 @@ import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-// The outline-and-pane selection editor: the `selection-workspace` experiment stays off here.
+// Every experiment stays off here.
 withFeatures([]);
 
 /**
@@ -38,7 +38,9 @@ async function startCondition(scope?: HTMLElement): Promise<void> {
         return;
     }
     if (document.querySelector(".sel-ws") === null) {
-        await userEvent.click(within(where).getAllByRole("button", { name: /^Edit / })[0] ?? document.body);
+        await userEvent.click(
+            within(where).getAllByRole("button", { name: /^(Edit |Style (Nodes|Edges)\.\.\.)/ })[0] ?? document.body,
+        );
     }
     const control = await waitFor(() => {
         const ws = document.querySelector<HTMLElement>(".sel-ws");
@@ -62,7 +64,7 @@ const BEFORE_2005: RuleTree = { kind: "range", attribute: "data.installed", max:
  * The workspace on a place, with the small graph whose nodes carry `installed`, typed as dates and
  * set as the time.
  * @param place - where it opens.
- * @param timed - whether `installed` is set as the time; it needs the timeline experiment.
+ * @param timed - whether `installed` is set as the time.
  * @returns the session.
  */
 async function openWithDates(place: "data" | "graph", timed = true): Promise<GraphSession> {
@@ -117,16 +119,12 @@ describe("the date condition card", () => {
         await page.viewport(1366, 768);
     });
 
-    beforeEach(async () => {
-        await siteFeatures(["timeline"]);
-    });
-
-    it("with the timeline off: a typed date writes the filter", async () => {
-        await siteFeatures([]);
+    it("with no time field: a typed date writes the filter", async () => {
         const session = await openWithDates("data", false);
         await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
+        await userEvent.click(await screen.findByRole("button", { name: "Value" }));
         await userEvent.click(await screen.findByRole("option", { name: /^installed(,|$)/ }));
-        // The new card's step is edited in the selection workspace (selection spec 3.0).
+        // The new card's step is edited in the selection workspace (selection spec 3.0), written on Done.
         const card = await waitFor(() => {
             const found = document.querySelector<HTMLElement>(".sel-ws");
             assert.isNotNull(found);
@@ -137,6 +135,7 @@ describe("the date condition card", () => {
         });
         await userEvent.click(box);
         await userEvent.keyboard("Jan 1, 2005{Enter}");
+        await userEvent.click(within(card ?? document.body).getByRole("button", { name: "Done" }));
         await waitFor(() => {
             assert.deepEqual(
                 session.visibility.conditions.map((each) => stepOf(each.rule)),
@@ -148,6 +147,7 @@ describe("the date condition card", () => {
     it("in Filters: installed is listed as a date, and Before 2005 keeps the three put in before", async () => {
         const session = await openWithDates("data");
         await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
+        await userEvent.click(await screen.findByRole("button", { name: "Value" }));
         const option = await screen.findByRole("option", { name: /^installed(,|$)/ });
         assert.isNotNull(option.querySelector("svg.lucide-calendar"), "listed with the calendar glyph");
         await userEvent.click(option);
@@ -159,6 +159,7 @@ describe("the date condition card", () => {
         });
         await typeBefore2005(card);
         await userEvent.keyboard("{Enter}");
+        await userEvent.click(within(card ?? document.body).getByRole("button", { name: "Done" }));
         // A card says what stays: All nodes, then Keep the range.
         await waitFor(() => {
             assert.deepEqual(
@@ -201,10 +202,7 @@ describe("the date condition card", () => {
         assert.strictEqual(session.styles.counts(layer.id).matched, 3);
     });
 
-    it.each([
-        ["the inline editor", ["timeline"]],
-        ["the selection workspace", ["timeline", "selection-workspace"]],
-    ])(
+    it.each([["the selection workspace", []]])(
         "in %s: says how many have no date as a chip, and a typed non-date as a short field message",
         async (_where, features) => {
             await siteFeatures(features);

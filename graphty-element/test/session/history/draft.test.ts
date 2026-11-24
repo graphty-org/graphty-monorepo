@@ -87,7 +87,7 @@ describe("a draft", () => {
         const store = createProjectStore(createProjectState());
         const draft = store.open();
         draft.layout = Object.freeze({ id: "ngraph", engine: "ngraph", options: {}, dimension: "3d" as const });
-        draft.views.set("home", Object.freeze({ position: { x: 0, y: 0, z: 1 } }));
+        draft.views.set("home", Object.freeze({ camera: { position: { x: 0, y: 0, z: 1 } } }));
         draft.rollback();
 
         assert.isNull(store.state.layout);

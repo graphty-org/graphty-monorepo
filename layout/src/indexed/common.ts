@@ -6,11 +6,14 @@ import type { LayoutResult } from "../positions.js";
 export interface CommonLayoutOptions {
     /** Components per row, 2 or 3; default 2. */
     readonly dim?: 2 | 3 | undefined;
-    /** Size of the layout around its centre; default 1. What it measures is documented per layout. */
+    /** Size of the layout around its center, a finite number > 0; default 1. What it measures is documented per layout. */
     readonly scale?: number | undefined;
-    /** The centre (for `random`, the lowest corner of its cell, as in the legacy layout); missing components are 0. Default the origin. */
+    /** The center (for `random`, the lowest corner of its cell, as in the legacy layout); missing components are 0, and every given one must be finite. Default the origin. */
     readonly center?: ArrayLike<number> | undefined;
-    /** Seed of a layout that draws random numbers; a random seed when absent or null. */
+    /**
+     * Seed of a layout that draws random numbers: an integer >= 0 (0 is an ordinary seed), the same seed giving the
+     * same layout; absent or null, a random seed. Any other value is refused with `E_BAD_OPTION`.
+     */
     readonly seed?: number | null | undefined;
 }
 
@@ -55,6 +58,29 @@ export function refusal<E extends Error>(
     return Object.assign(error, { code, params });
 }
 
+/**
+ * Refuse a `scale` that is not a finite number > 0 and a `center` with a non-finite component, with code
+ * `E_BAD_OPTION`.
+ * @param scale - the scale option (undefined: the default)
+ * @param center - the center option (undefined: the origin)
+ */
+export function checkScaleCenter(scale: number | undefined, center: ArrayLike<number> | undefined): void {
+    if (scale !== undefined && !(Number.isFinite(scale) && scale > 0)) {
+        throw refusal(new RangeError(`scale must be a finite number > 0, got ${String(scale)}`), "E_BAD_OPTION", {
+            option: "scale",
+            value: scale,
+        });
+    }
+    for (let k = 0; center !== undefined && k < center.length; k++) {
+        if (!Number.isFinite(center[k])) {
+            throw refusal(new RangeError(`center[${k}] must be finite, got ${String(center[k])}`), "E_BAD_OPTION", {
+                option: "center",
+                value: center[k],
+            });
+        }
+    }
+}
+
 /** The resolved common options: `center` has exactly `dim` components. */
 interface Resolved {
     readonly n: number;
@@ -67,7 +93,7 @@ interface Resolved {
  * Validate and default the common options.
  * @param s - the snapshot the layout runs over
  * @param options - the caller's options
- * @returns the node count, dim, scale and a `dim`-component centre
+ * @returns the node count, dim, scale and a `dim`-component center
  */
 export function resolve(s: GraphSnapshot, options: CommonLayoutOptions): Resolved {
     // a number, not the option type: a JavaScript caller may pass any value
@@ -78,6 +104,7 @@ export function resolve(s: GraphSnapshot, options: CommonLayoutOptions): Resolve
             value: dim,
         });
     }
+    checkScaleCenter(options.scale, options.center);
     const center = Array.from({ length: dim }, (_, k) => options.center?.[k] ?? 0);
     return { n: s.nodeCount, dim, scale: options.scale ?? 1, center };
 }
@@ -94,11 +121,11 @@ export function result(rows: F64, dim: 2 | 3, n: number): LayoutResult {
 }
 
 /**
- * Widen 2D rows to `dim` rows whose third component is the centre's z (NaN for an unplaced, NaN row); 2D rows come
+ * Widen 2D rows to `dim` rows whose third component is the center's z (NaN for an unplaced, NaN row); 2D rows come
  * back unchanged.
  * @param rows - `2 * n` values
  * @param dim - the output components per row
- * @param center - the centre; its third component is the z of every row
+ * @param center - the center; its third component is the z of every row
  * @returns `dim * n` values
  */
 export function planar(rows: F64, dim: 2 | 3, center: readonly number[]): F64 {

@@ -4,7 +4,7 @@
 and after closing and reopening from Recent projects both notes are listed again in the Notes place:
 "Check the 1434 return from exile" with the chip "Medici", and "Marriages only; business ties are a
 separate list" with the chip "Graph". This is the answer key's success state B. The one detour (a
-note form that opened "About PageRank") was cancelled before anything was saved, so no note ever
+note form that opened "About PageRank") was canceled before anything was saved, so no note ever
 sat on a wrong target; the answer key grades SD only for a note saved on the wrong target and fixed,
 or reminders found only after searching.
 
@@ -35,7 +35,7 @@ local copy as well is no detour.
   reached at step 16 (`16.png`). The success path is about 14 actions; steps 17 to 19 (trying the
   "1 note" link, saving a local copy) were checks after the task was done.
 - **Wrong turns: 1.** Step 4 (`04.png`): with the PageRank run open in the inspector, the Notes
-  "+" opened a form "About PageRank". He cancelled, opened Graph, chose Everything, and came back to
+  "+" opened a form "About PageRank". He canceled, opened Graph, chose Everything, and came back to
   "About Graph" (`05.png`, `06.png`). Three extra actions.
 - **False "done": none.** Every claim in the debrief matches the screen: both notes, right chips,
   present after reopening (`16.png`), "1 note" under Medici (`15.png`), the save ("Saved Florentine

@@ -2,22 +2,16 @@
  * `time.series`: every window of a step at once, without touching what is on screen, and
  * `waitForRender`, which keeps a stepped play from outrunning the renderer.
  */
-import { afterEach, assert, beforeAll, describe, it, vi } from "vitest";
+import { afterEach, assert, describe, it, vi } from "vitest";
 
 import { isGraphtyError } from "../../../src/errors";
-import { setDefaultFeatures } from "../../../src/features/resolve";
 import type { TimeSeriesRow } from "../../../src/session/time/series";
 import type { TimeStepEvent } from "../../../src/session/time/TimeApi";
 import { slideCounters } from "../../../src/session/visibility/slide";
+import { windowEdges, windowNodes } from "../../helpers/time-window";
 import { type Harness, makeSession } from "../helpers";
 
-// The timeline is an experiment: this file's sessions switch it on.
-beforeAll(() => {
-    setDefaultFeatures(["timeline"]);
-});
-
 afterEach(() => {
-    setDefaultFeatures(["timeline"]);
     vi.useRealTimers();
 });
 
@@ -369,8 +363,8 @@ describe("time.series", () => {
                     for (const row of rows) {
                         await session.time.window({ from: row.from, to: row.to, step: 70, missing, mode });
                         const now = {
-                            nodes: [...session.visibility.nodeMask()],
-                            edges: [...session.visibility.edgeMask()],
+                            nodes: [...windowNodes(session.visibility)],
+                            edges: [...windowEdges(session.visibility)],
                         };
                         assert.deepEqual(row.visible, {
                             nodes: now.nodes.filter((shown) => shown === 1).length,
@@ -437,8 +431,8 @@ describe("time.series", () => {
         const { session } = harness;
         await session.time.setField({ edges: { start: "w" } });
         await session.time.window({ from: 100, to: 200, step: 100 });
-        const nodes = [...session.visibility.nodeMask()];
-        const edges = [...session.visibility.edgeMask()];
+        const nodes = [...windowNodes(session.visibility)];
+        const edges = [...windowEdges(session.visibility)];
         const { position } = session.history;
         const { window } = session.visibility;
         let moved = 0;
@@ -450,8 +444,8 @@ describe("time.series", () => {
         stopStep();
         stopChange();
         assert.strictEqual(moved, 0);
-        assert.deepEqual([...session.visibility.nodeMask()], nodes);
-        assert.deepEqual([...session.visibility.edgeMask()], edges);
+        assert.deepEqual([...windowNodes(session.visibility)], nodes);
+        assert.deepEqual([...windowEdges(session.visibility)], edges);
         assert.strictEqual(session.history.position, position);
         assert.strictEqual(session.visibility.window, window);
     });
@@ -528,19 +522,6 @@ describe("time.series", () => {
                 ]);
             }
         }
-    });
-
-    it("throws E_FEATURE_OFF with the experiment off", () => {
-        setDefaultFeatures([]);
-        const { session } = makeSession();
-        let refused: unknown = null;
-        try {
-            void session.time.series();
-        } catch (error) {
-            refused = error;
-        }
-
-        assert.isTrue(isGraphtyError(refused) && refused.code === "E_FEATURE_OFF");
     });
 });
 
@@ -643,20 +624,5 @@ describe("a stepped play with waitForRender", () => {
         await vi.advanceTimersByTimeAsync(1000);
         assert.strictEqual(steps.length, 2);
         time.pause();
-    });
-
-    it("asks for no frame with the experiment off", () => {
-        const frames = heldFrames();
-        setDefaultFeatures([]);
-        const { session } = makeSession({ internals: { renderedFrame: frames.renderedFrame } });
-        let refused: unknown = null;
-        try {
-            session.time.play({ motion: "steps", waitForRender: true });
-        } catch (error) {
-            refused = error;
-        }
-
-        assert.isTrue(isGraphtyError(refused) && refused.code === "E_FEATURE_OFF");
-        assert.strictEqual(frames.asked(), 0);
     });
 });

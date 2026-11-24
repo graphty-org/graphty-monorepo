@@ -84,8 +84,10 @@ holds no node matches nothing. A filter condition cannot follow the pointer: `"s
 `frozenFrom`.
 
 A step can also read what the reader is doing, with the rule leaf `{ kind: "state", state }`:
-`"selected"`, `"hovered"`, `"pinned"` or `"ghosted"` (outside the time window, so a selection on it
-reads `within: "graph"`). It is a calculated value like any other, so it takes Add, Keep and Except
+`"selected"`, `"hovered"`, `"pinned"`, `"outsideWindow"` (outside the time window; experimental, with
+the timeline) or `"ghosted"` (what the filter condition a reader is editing would remove, drawn faint
+while a branches view holds that condition: `styles.showBranches` with `hold`). Neither of the last
+two is visible, so a selection on one reads `within: "graph"`. It is a calculated value like any other, so it takes Add, Keep and Except
 beside other conditions, and a layer on it repaints as the state moves, with no undo step:
 
 ```ts
@@ -155,7 +157,7 @@ Every scope in a reading (`input`, `members`, `result`) is one
 
 `scope.asUnion(rule, { side, within })` turns a flat rule (a leaf, an `all` of leaves and `not`s,
 an `any` of leaves) into one union. `scope.checkStep(step, { side, within, host })` says what a
-host would refuse, so a picker can grey a value with the element's reason.
+host would refuse, so a picker can gray a value with the element's reason.
 `scope.histogram(path, { within })` distributes any value (a column, a run field, degree) over a
 step's input.
 

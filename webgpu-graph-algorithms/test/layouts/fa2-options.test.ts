@@ -1,7 +1,7 @@
 /**
  * P3-T2 option tests for createForceAtlas2 (contract 5.5 row fa2-options.test.ts; spec 7.5, 7.8, 7.14, 7.17):
  * the four P3 registry entries, the option resolvers' defaults and every E_INVALID_ARGUMENT range, nodeSize ->
- * E_UNSUPPORTED, the repulsion tier rule at load(), dissuadeHubs ignored, the setParams rejections, a law change
+ * E_UNSUPPORTED, the repulsion tier rule at load(), dissuadeHubs compiling its own K2, the setParams rejections, a law change
  * recompiling and resetting the controller while a numeric tweak keeps it, the arcCount 0 path (fill instead of
  * K2, hand-computed two-node numbers), scale / center through the real toScene (spec 7.18, z = center.z in 2D),
  * the weights axis of contract 3.10, the stats shape with the radius pair against the f64 oracle, and every
@@ -10,7 +10,7 @@
  * Every GPU test acquires a FRESH context (spec 11.2) and releases its snapshots; a wrong result is never a skip.
  */
 
-import { type F32, type GraphSnapshot } from "@graphty/graph-format";
+import { type F32, type GraphSnapshot, makeMask, maskSet } from "@graphty/graph-format";
 
 import { EXACT_MAX_NODES, MAX_ITERATIONS_PER_STEP, TRACE_RECORD_BYTES } from "../../src/constants.js";
 import { type GpuContext } from "../../src/context.js";
@@ -152,6 +152,7 @@ const DEFAULT_RESOLVED = {
     nodeSize: null,
     weight: null,
     dissuadeHubs: false,
+    fixed: null,
     dim: 2,
     scale: 1,
     center: [0, 0, 0],
@@ -220,7 +221,13 @@ const P3_ENTRIES: Record<(typeof P3_IDS)[number], EntryTable> = {
             [1, 1, "force", "storage", "array<f32>"],
             [2, 0, "P", "uniform", "Fa2Params"],
         ],
-        overrides: ["LINLOG:bool=false", "DISTRIBUTED:bool=false", "TIER:u32=0", "LAW:u32=0"],
+        overrides: [
+            "LINLOG:bool=false",
+            "DISTRIBUTED:bool=false",
+            "TIER:u32=0",
+            "LAW:u32=0",
+            "DISSUADE_HUBS:bool=false",
+        ],
         uniforms: ["Fa2Params"],
         needs: ["subgroups"],
         storage: 6,
@@ -330,6 +337,7 @@ describe("resolveForceAtlas2Options (contract 3.13; spec 7.14)", () => {
             nodeSize: null,
             weight: "w",
             dissuadeHubs: true,
+            fixed: null,
             dim: 3,
             scale: 100,
             center: [1, 2, 0],
@@ -371,6 +379,8 @@ describe("resolveForceAtlas2Options (contract 3.13; spec 7.14)", () => {
             [{ center: [1, 2, 3, 4] }, "center"],
             [{ center: [1, Number.NaN] }, "center"],
             [{ seed: Number.POSITIVE_INFINITY }, "seed"],
+            [{ seed: -1 }, "seed"],
+            [{ seed: 1.5 }, "seed"],
             [{ linlog: 1 }, "linlog"],
             [{ strongGravity: "yes" }, "strongGravity"],
         ];
@@ -529,16 +539,25 @@ describe("ForceAtlas2Model (no device; contract 3.13)", () => {
         expect(paper.overrides(resolveForceAtlas2Options(undefined))).toEqual({
             LINLOG: false,
             DISTRIBUTED: false,
+            DISSUADE_HUBS: false,
             TIER: 0,
             SWING_MODE: 0,
             STRONG_GRAVITY: false,
             GRAVITY_CENTER: 0,
         });
         expect(
-            paper.overrides(resolveForceAtlas2Options({ linlog: true, distributedAction: true, strongGravity: true })),
+            paper.overrides(
+                resolveForceAtlas2Options({
+                    linlog: true,
+                    distributedAction: true,
+                    strongGravity: true,
+                    dissuadeHubs: true,
+                }),
+            ),
         ).toEqual({
             LINLOG: true,
             DISTRIBUTED: true,
+            DISSUADE_HUBS: true,
             TIER: 0,
             SWING_MODE: 0,
             STRONG_GRAVITY: true,
@@ -547,6 +566,7 @@ describe("ForceAtlas2Model (no device; contract 3.13)", () => {
         expect(networkx.overrides(resolveForceAtlas2Options(undefined))).toEqual({
             LINLOG: false,
             DISTRIBUTED: false,
+            DISSUADE_HUBS: false,
             TIER: 0,
             SWING_MODE: 1,
             STRONG_GRAVITY: false,
@@ -577,7 +597,7 @@ describe("ForceAtlas2Model (no device; contract 3.13)", () => {
         ]);
         expect(specs.map((s) => s.overrides)).toEqual([
             {},
-            { LINLOG: true, DISTRIBUTED: false, TIER: 0, USE_PERM: false, HAS_WEIGHTS: true },
+            { LINLOG: true, DISTRIBUTED: false, DISSUADE_HUBS: false, TIER: 0, USE_PERM: false, HAS_WEIGHTS: true },
             { SWING_MODE: 1, STRONG_GRAVITY: true, GRAVITY_CENTER: 1 },
             { SWING_MODE: 1 },
             { SWING_MODE: 1 },
@@ -588,6 +608,7 @@ describe("ForceAtlas2Model (no device; contract 3.13)", () => {
         expect(bare[1].overrides).toEqual({
             LINLOG: false,
             DISTRIBUTED: false,
+            DISSUADE_HUBS: false,
             TIER: 0,
             USE_PERM: false,
             HAS_WEIGHTS: false,
@@ -773,6 +794,33 @@ describe("ForceAtlas2Model (no device; contract 3.13)", () => {
             state: "created",
         });
     });
+
+    it("inputs(): fixed takes a mask, a bool column by name or the role-fixed column, as Fruchterman-Reingold does", () => {
+        const s = snapshotOf(KARATE_EDGES);
+        const mask = makeMask(s.nodeCount);
+        maskSet(mask, 4, true);
+        const columned = s.withColumns({
+            pinned: { data: mask, decl: { dtype: "bool", role: "fixed" } },
+            score: new Float32Array(s.nodeCount),
+        });
+        const model = new ForceAtlas2Model(resolveLayoutTuning(undefined), resolveForceAtlas2Options(undefined));
+        const inputs = (g: GraphSnapshot, fixed: ForceAtlas2Options["fixed"]) =>
+            model.inputs(g, resolveForceAtlas2Options({ fixed })).fixed;
+        expectCode(() => inputs(columned, "score"), "E_INVALID_ARGUMENT", { argument: "fixed" });
+        expectCode(() => inputs(s, "absent"), "E_INVALID_ARGUMENT", { argument: "fixed" });
+        expectCode(() => inputs(s, makeMask(3)), "E_INVALID_ARGUMENT", { argument: "fixed" });
+        for (const words of [inputs(columned, "pinned"), inputs(columned, null), inputs(s, mask)]) {
+            expect(Array.from(words ?? [])).toEqual(Array.from(mask));
+        }
+        expect(inputs(s, null)).toBeNull();
+        expectCode(
+            () => resolveForceAtlas2Options({ fixed: 7 } as unknown as ForceAtlas2Options),
+            "E_INVALID_ARGUMENT",
+            {
+                argument: "fixed",
+            },
+        );
+    });
 });
 
 // ============================================================ creation and the tier rule
@@ -869,16 +917,18 @@ describe("createForceAtlas2: creation errors and the repulsion tier rule (spec 7
 // ============================================================ live option changes
 
 describe("createForceAtlas2: dissuadeHubs and setParams (spec 7.13, 7.14, 7.17)", () => {
-    it("accepts and ignores dissuadeHubs: no extra pipeline and bitwise identical positions", async (t) => {
+    it("dissuadeHubs false is the default bit for bit; true compiles its own K2 and moves the nodes", async (t) => {
         requireGpu(t);
         const ctx = await acquire();
         const s = snapshotOf(KARATE_EDGES);
         const start = seeded(s, 7);
         const plain = await oneIteration(ctx, s, start, {});
         const pipelines = ctx.pipelines.size;
-        const hubs = await oneIteration(ctx, s, start, { dissuadeHubs: true });
+        expectBitwiseEqual(plain, await oneIteration(ctx, s, start, { dissuadeHubs: false }), "dissuadeHubs false");
         expect(ctx.pipelines.size).toBe(pipelines);
-        expectBitwiseEqual(plain, hubs, "dissuadeHubs is ignored");
+        const hubs = await oneIteration(ctx, s, start, { dissuadeHubs: true });
+        expect(ctx.pipelines.size).toBe(pipelines + 1);
+        expect(Array.from(hubs).some((v, i) => v !== plain[i])).toBe(true);
         ctx.release(s);
     });
 

@@ -1,4 +1,6 @@
-import type { Engine, Scene, WebGPUEngine } from "@babylonjs/core";
+import type { Engine } from "@babylonjs/core/Engines/engine.js";
+import type { WebGPUEngine } from "@babylonjs/core/Engines/webgpuEngine.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { EventManager } from "./EventManager";
 import type { OperationCategory } from "./OperationQueueManager";
@@ -35,9 +37,13 @@ export interface QueueableManager extends Manager {
  * Context provided to all managers for shared resources
  */
 export interface ManagerContext {
+    /** The Babylon.js scene the graph is drawn in. */
     scene: Scene;
+    /** The Babylon.js engine drawing the scene. */
     engine: Engine | WebGPUEngine;
+    /** The canvas the engine draws on. */
     canvas: HTMLCanvasElement;
+    /** The event manager every manager sends its events through. */
     eventManager: EventManager;
 }
 

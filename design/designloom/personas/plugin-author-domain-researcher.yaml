@@ -30,7 +30,7 @@ goals:
     - A complete example he can copy and change in three places
     - An error message that names the line of his file or his code that is wrong and what was expected
     - Read a tab-separated lab file with custom column names into the element
-    - Compute one score per node and see it as colour
+    - Compute one score per node and see it as color
 frustrations:
     - Examples that are fragments and assume a project, a bundler or imports he does not have
     - Errors that come from deep inside the element rather than naming his plugin and his input

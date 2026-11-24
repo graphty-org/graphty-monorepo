@@ -86,6 +86,10 @@
             "label": "Billing (Cost Explorer, Cloudflare, Sentry)",
             "yellowAfterMs": 129600000
         },
+        "aws-usage": {
+            "label": "AWS usage (CloudWatch)",
+            "yellowAfterMs": 10800000
+        },
         "benchmarks": {
             "label": "Benchmark results (CI's benchmark jobs)",
             "yellowAfterMs": 172800000,
@@ -104,7 +108,7 @@
             "notSetUp": "channel not built yet, #3418"
         },
         "cloudflare-token": {
-            "label": "Cloudflare read-only token",
+            "label": "Cloudflare usage (read-only token)",
             "notSetUp": "read-only Cloudflare token not created (owner decision, design section 16)"
         },
         "sentry-token": {
@@ -115,6 +119,11 @@
             "label": "Rolling screenshot captures (results store)",
             "yellowAfterMs": 3600000,
             "notSetUp": "the results store's URL and token are not in SSM yet (owner step, design/visual-testing/early-capture.md)"
+        },
+        "grouping-ledger": {
+            "label": "Issue-grouping ledger (local, daily)",
+            "yellowAfterMs": 172800000,
+            "notSetUp": "no daily reading posted yet: issue-round appends tools/issue-groups.mjs metrics to tmp/issue-round/grouping-metrics.jsonl and the local collector posts it"
         }
     },
     "runnerLimits": {
@@ -317,6 +326,87 @@
             "minN": 20,
             "slowWindow": "7d",
             "sources": ["collector"]
+        },
+        {
+            "id": "pr.issues_per_merge",
+            "category": "pull_requests",
+            "label": "Issues closed per merged PR",
+            "window": "slow",
+            "measure": {
+                "type": "last",
+                "metric": "issues.per_merged_pr"
+            },
+            "ok": [">=", 1.3],
+            "fail": ["<", 0.88],
+            "slowWindow": "7d",
+            "sources": ["grouping-ledger"]
+        },
+        {
+            "id": "pr.multi_issue_share",
+            "category": "pull_requests",
+            "label": "Merged PRs closing 2+ issues",
+            "window": "slow",
+            "measure": {
+                "type": "last",
+                "metric": "issues.multi_issue_share"
+            },
+            "ok": [">=", 0.15],
+            "fail": ["<", 0.023],
+            "slowWindow": "7d",
+            "sources": ["grouping-ledger"]
+        },
+        {
+            "id": "pr.runner_minutes_per_issue",
+            "category": "pull_requests",
+            "label": "Runner-minutes per issue closed",
+            "window": "slow",
+            "measure": {
+                "type": "rate_per_last",
+                "metric": "ci.runner_minutes",
+                "per": "issues.per_merged_pr"
+            },
+            "ok": ["<=", 800],
+            "minN": 10,
+            "slowWindow": "7d",
+            "sources": ["collector", "grouping-ledger"]
+        },
+        {
+            "id": "pr.group_released_share",
+            "category": "pull_requests",
+            "label": "Grouped issues released as not part",
+            "window": "slow",
+            "measure": {
+                "type": "last",
+                "metric": "issues.group_released_share"
+            },
+            "ok": ["<=", 0.1],
+            "fail": [">", 0.15],
+            "slowWindow": "7d",
+            "sources": ["grouping-ledger"]
+        },
+        {
+            "id": "pr.groups_ready",
+            "category": "pull_requests",
+            "label": "Finished branches not opened",
+            "window": "slow",
+            "measure": {
+                "type": "last",
+                "metric": "issues.groups_ready"
+            },
+            "slowWindow": "7d",
+            "sources": ["grouping-ledger"]
+        },
+        {
+            "id": "pr.groups_combinable",
+            "category": "pull_requests",
+            "label": "Finished branches that can open together",
+            "window": "slow",
+            "measure": {
+                "type": "last",
+                "metric": "issues.groups_combinable"
+            },
+            "slowWindow": "7d",
+            "sources": ["grouping-ledger"]
         },
         {
             "id": "pr.automerge_green_stuck",
@@ -525,6 +615,20 @@
             "sources": ["ci-results"]
         },
         {
+            "id": "ci.full_group_deadline",
+            "category": "ci",
+            "label": "Test group near its deadline",
+            "window": "slow",
+            "measure": {
+                "type": "group_deadline",
+                "metric": "ci.full_group_member_time"
+            },
+            "ok": ["<=", 0.8],
+            "fail": [">", 0.9],
+            "slowWindow": "7d",
+            "sources": ["ci-results"]
+        },
+        {
             "id": "ci.runner_minutes_per_merge",
             "category": "ci",
             "label": "Runner-minutes per merge",
@@ -723,7 +827,14 @@
                 "metric": "flaky.net_change"
             },
             "ok": ["<=", 0],
-            "also": [{ "metric": "flaky.net_added" }, { "metric": "flaky.net_resolved" }],
+            "also": [
+                {
+                    "metric": "flaky.net_added"
+                },
+                {
+                    "metric": "flaky.net_resolved"
+                }
+            ],
             "fail": [">", 3],
             "slowWindow": "7d",
             "sources": ["ci-results"]
@@ -1103,14 +1214,243 @@
             "id": "cost.cloudflare_usage",
             "category": "costs",
             "label": "Cloudflare usage",
-            "window": "now",
+            "window": "slow",
             "measure": {
                 "type": "last",
                 "metric": "cost.cloudflare_usage_share"
             },
             "ok": ["<", 0.5],
-            "fail": [">", 0.9],
-            "sources": ["cloudflare-token", "billing"]
+            "fail": [">", 0.8],
+            "sources": ["cloudflare-token"],
+            "slowWindow": "7d"
+        },
+        {
+            "id": "cost.cloudflare",
+            "category": "costs",
+            "label": "Cloudflare",
+            "window": "now",
+            "measure": {
+                "type": "month",
+                "metric": "cost.usd",
+                "dim": "cloudflare",
+                "projected": true,
+                "redOnSpent": true
+            },
+            "ok": ["<=", 5],
+            "fail": [">", 5],
+            "sources": ["billing"],
+            "alert": {
+                "afterMs": 21600000,
+                "priority": 0,
+                "floorMs": 604800000,
+                "fromDay": 8,
+                "daytime": true,
+                "repeatMs": 604800000,
+                "title": "Cloudflare {value} forecast for {mon}, over its {limit} plan",
+                "text": "Cloudflare (the results service, nx cache and release scheduler Workers): {mtd} so far, {value} forecast by {end}; the plan is {limit}. Its usage rows on Costs show what grew.",
+                "action": "Pick one: accept the overrun, or have the agents find and cut the usage that grew.",
+                "then": "Tell any Claude session your choice; it applies it."
+            }
+        },
+        {
+            "id": "cost.usage_cf_requests",
+            "category": "costs",
+            "label": "Cloudflare Worker requests",
+            "window": "slow",
+            "slowWindow": "7d",
+            "measure": {
+                "type": "last",
+                "metric": "usage.cf_requests_share"
+            },
+            "ok": ["<", 0.5],
+            "fail": [">", 0.8],
+            "also": [
+                {
+                    "metric": "usage.cf_requests_growth",
+                    "fail": [">", 2]
+                }
+            ],
+            "sources": ["cloudflare-token"]
+        },
+        {
+            "id": "cost.usage_cf_d1_rows_read",
+            "category": "costs",
+            "label": "Cloudflare D1 rows read",
+            "window": "slow",
+            "slowWindow": "7d",
+            "measure": {
+                "type": "last",
+                "metric": "usage.cf_d1_rows_read_share"
+            },
+            "ok": ["<", 0.5],
+            "fail": [">", 0.8],
+            "also": [
+                {
+                    "metric": "usage.cf_d1_rows_read_growth",
+                    "fail": [">", 2]
+                }
+            ],
+            "sources": ["cloudflare-token"]
+        },
+        {
+            "id": "cost.usage_cf_d1_rows_written",
+            "category": "costs",
+            "label": "Cloudflare D1 rows written",
+            "window": "slow",
+            "slowWindow": "7d",
+            "measure": {
+                "type": "last",
+                "metric": "usage.cf_d1_rows_written_share"
+            },
+            "ok": ["<", 0.5],
+            "fail": [">", 0.8],
+            "also": [
+                {
+                    "metric": "usage.cf_d1_rows_written_growth",
+                    "fail": [">", 2]
+                }
+            ],
+            "sources": ["cloudflare-token"]
+        },
+        {
+            "id": "cost.usage_cf_r2_class_a",
+            "category": "costs",
+            "label": "Cloudflare R2 Class A operations",
+            "window": "slow",
+            "slowWindow": "7d",
+            "measure": {
+                "type": "last",
+                "metric": "usage.cf_r2_class_a_share"
+            },
+            "ok": ["<", 0.5],
+            "fail": [">", 0.8],
+            "also": [
+                {
+                    "metric": "usage.cf_r2_class_a_growth",
+                    "fail": [">", 2]
+                }
+            ],
+            "sources": ["cloudflare-token"]
+        },
+        {
+            "id": "cost.usage_cf_r2_class_b",
+            "category": "costs",
+            "label": "Cloudflare R2 Class B operations",
+            "window": "slow",
+            "slowWindow": "7d",
+            "measure": {
+                "type": "last",
+                "metric": "usage.cf_r2_class_b_share"
+            },
+            "ok": ["<", 0.5],
+            "fail": [">", 0.8],
+            "also": [
+                {
+                    "metric": "usage.cf_r2_class_b_growth",
+                    "fail": [">", 2]
+                }
+            ],
+            "sources": ["cloudflare-token"]
+        },
+        {
+            "id": "cost.usage_cf_r2_storage_bytes",
+            "category": "costs",
+            "label": "Cloudflare R2 storage",
+            "window": "slow",
+            "slowWindow": "7d",
+            "measure": {
+                "type": "last",
+                "metric": "usage.cf_r2_storage_bytes_share"
+            },
+            "ok": ["<", 0.5],
+            "fail": [">", 0.8],
+            "also": [
+                {
+                    "metric": "usage.cf_r2_storage_bytes_growth",
+                    "fail": [">", 2]
+                }
+            ],
+            "sources": ["cloudflare-token"]
+        },
+        {
+            "id": "cost.usage_aws_dynamo_write_units",
+            "category": "costs",
+            "label": "DynamoDB write units",
+            "window": "slow",
+            "slowWindow": "7d",
+            "measure": {
+                "type": "last",
+                "metric": "usage.aws_dynamo_write_units_share"
+            },
+            "ok": ["<", 0.5],
+            "fail": [">", 0.8],
+            "also": [
+                {
+                    "metric": "usage.aws_dynamo_write_units_growth",
+                    "fail": [">", 2]
+                }
+            ],
+            "sources": ["aws-usage"]
+        },
+        {
+            "id": "cost.usage_aws_dynamo_read_units",
+            "category": "costs",
+            "label": "DynamoDB read units",
+            "window": "slow",
+            "slowWindow": "7d",
+            "measure": {
+                "type": "last",
+                "metric": "usage.aws_dynamo_read_units_share"
+            },
+            "ok": ["<", 0.5],
+            "fail": [">", 0.8],
+            "also": [
+                {
+                    "metric": "usage.aws_dynamo_read_units_growth",
+                    "fail": [">", 2]
+                }
+            ],
+            "sources": ["aws-usage"]
+        },
+        {
+            "id": "cost.usage_aws_lambda_invocations",
+            "category": "costs",
+            "label": "Lambda invocations",
+            "window": "slow",
+            "slowWindow": "7d",
+            "measure": {
+                "type": "last",
+                "metric": "usage.aws_lambda_invocations_share"
+            },
+            "ok": ["<", 0.5],
+            "fail": [">", 0.8],
+            "also": [
+                {
+                    "metric": "usage.aws_lambda_invocations_growth",
+                    "fail": [">", 2]
+                }
+            ],
+            "sources": ["aws-usage"]
+        },
+        {
+            "id": "cost.usage_aws_api_requests",
+            "category": "costs",
+            "label": "API Gateway requests",
+            "window": "slow",
+            "slowWindow": "7d",
+            "measure": {
+                "type": "last",
+                "metric": "usage.aws_api_requests_share"
+            },
+            "ok": ["<", 0.5],
+            "fail": [">", 0.8],
+            "also": [
+                {
+                    "metric": "usage.aws_api_requests_growth",
+                    "fail": [">", 2]
+                }
+            ],
+            "sources": ["aws-usage"]
         },
         {
             "id": "cost.sentry_usage",
@@ -1234,6 +1574,20 @@
             "ok": ["<", 0.5],
             "fail": [">", 0.9],
             "sources": []
+        },
+        {
+            "id": "data.read_budget",
+            "category": "data_sources",
+            "label": "Daily read budget",
+            "window": "now",
+            "measure": {
+                "type": "engine",
+                "name": "read_budget"
+            },
+            "ok": ["<", 0.5],
+            "fail": [">", 0.9],
+            "sources": []
         }
-    ]
+    ],
+    "dailyReadLimit": 500000
 }

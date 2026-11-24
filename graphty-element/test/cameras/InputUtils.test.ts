@@ -1,5 +1,4 @@
-import { assert } from "chai";
-import { describe, test } from "vitest";
+import { assert, describe, test } from "vitest";
 
 import { applyDeadzone } from "../../src/cameras/InputUtils";
 

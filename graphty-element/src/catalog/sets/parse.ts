@@ -27,6 +27,7 @@
  */
 
 import { GraphtyError } from "../../errors/GraphtyError";
+import { noteFieldOf } from "../../session/notes/paths";
 import type { EdgeMember, EdgeReading, Scope, SetDefinition } from "../types";
 import { canonicalSetDefinition, DEFINITION_FIELDS, EDGE_MEMBER_FIELDS, runIdOfRef } from "./canonical";
 
@@ -318,7 +319,17 @@ function isValuePath(path: unknown): boolean {
  * @param walker - The pass.
  */
 function checkThreshold(value: Loose, walker: Walker): void {
-    walker.fields(value, "threshold", ["kind", "path", "top", "above", "ties", "percentile", "from", "missing"]);
+    walker.fields(value, "threshold", [
+        "kind",
+        "path",
+        "top",
+        "above",
+        "ties",
+        "percentile",
+        "from",
+        "missing",
+        "within",
+    ]);
     checkRoot(value.path);
 
     if (!isValuePath(value.path)) {
@@ -357,6 +368,10 @@ function checkThreshold(value: Loose, walker: Walker): void {
     if (value.ties !== undefined && value.ties !== "fewer" && value.ties !== "all") {
         throw bad('A "threshold" leaf\'s ties is "fewer" or "all".', { ties: value.ties });
     }
+
+    if (value.within !== undefined && value.within !== "graph" && value.within !== "visible") {
+        throw bad('A "threshold" leaf\'s within is "graph" or "visible".', { within: value.within });
+    }
 }
 
 /**
@@ -369,14 +384,24 @@ const FIELD_ROOTS = new Set(["data", "results"]);
 const STRUCTURE_PATHS: ReadonlySet<string> = new Set(["graphty.degree", "graphty.inDegree", "graphty.outDegree"]);
 
 /**
+ * Whether a `graphty.` path names a value graphty-element provides today: a degree or a note
+ * value. Each already has its meaning, so a rule may read it (#6630).
+ * @param path - The candidate path.
+ * @returns True for a known element path.
+ */
+function isElementPath(path: string): boolean {
+    return STRUCTURE_PATHS.has(path) || noteFieldOf(path) !== undefined;
+}
+
+/**
  * Refuse a field path whose root is reserved: `graph.<measure>` and every other root but `data`
- * and `results` may be given a meaning later, and a stored path must not change meaning when it
- * is (design/sets 15.3, item 36).
+ * and `results`, and every `graphty.` path but the values the element provides, may be given a
+ * meaning later, and a stored path must not change meaning when it is (design/sets 15.3, item 36).
  * @param path - The candidate path.
  * @throws `E_BAD_COMMAND` with `details.reason: "reserved-root"`.
  */
 function checkRoot(path: unknown): void {
-    if (typeof path !== "string" || path === "" || STRUCTURE_PATHS.has(path)) {
+    if (typeof path !== "string" || path === "" || isElementPath(path)) {
         return;
     }
 
@@ -628,7 +653,7 @@ function checkMeasure(value: Loose, walker: Walker): void {
 }
 
 /** The fields a union branch and a union step define. */
-const BRANCH_FIELDS = ["id", "name", "color", "on", "start", "steps"];
+const BRANCH_FIELDS = ["id", "name", "autoName", "color", "on", "start", "steps"];
 const STEP_FIELDS = ["id", "op", "on", "rule", "computedOn", "links", "ends", "frozenFrom", "mode"];
 
 /** The leaf kinds that speak only nodes, or hold a selection: a step's `links` refuses them. */
@@ -726,6 +751,9 @@ function checkUnion(value: Loose, walker: Walker): void {
         walker.fields(branch, "unionBranch", BRANCH_FIELDS);
         unique(branch.id, "branch");
         checkFlagAndText(branch, ["name", "color"]);
+        if (branch.autoName !== undefined && typeof branch.autoName !== "boolean") {
+            throw bad("A union branch's autoName is true or false.", { autoName: branch.autoName });
+        }
 
         if (branch.start !== "all" && branch.start !== "none") {
             throw bad('A union branch\'s start is "all" or "none".', { start: branch.start });
@@ -736,24 +764,34 @@ function checkUnion(value: Loose, walker: Walker): void {
         }
 
         for (const step of branch.steps as readonly unknown[]) {
-            if (!isObject(step)) {
-                throw bad("A union step is an object with an op and a rule.", { step });
-            }
-
-            walker.fields(step, "unionStep", STEP_FIELDS);
-            unique(step.id, "step");
-            checkFlagAndText(step, ["mode"]);
-            checkStepEnums(step);
-            walker.inStep++;
-            try {
-                checkTree(step.rule, walker);
-                if (step.links !== undefined) {
-                    checkLinks(step.links, walker);
-                }
-            } finally {
-                walker.inStep--;
-            }
+            checkStep(step, walker, unique);
         }
+    }
+}
+
+/**
+ * Check one step of a union branch: its fields, its id, its enums, its rule and its links.
+ * @param step - The step.
+ * @param walker - The pass.
+ * @param unique - Marks an id used in the leaf, refusing a repeat.
+ */
+function checkStep(step: unknown, walker: Walker, unique: (id: unknown, what: string) => void): void {
+    if (!isObject(step)) {
+        throw bad("A union step is an object with an op and a rule.", { step });
+    }
+
+    walker.fields(step, "unionStep", STEP_FIELDS);
+    unique(step.id, "step");
+    checkFlagAndText(step, ["mode"]);
+    checkStepEnums(step);
+    walker.inStep++;
+    try {
+        checkTree(step.rule, walker);
+        if (step.links !== undefined) {
+            checkLinks(step.links, walker);
+        }
+    } finally {
+        walker.inStep--;
     }
 }
 
@@ -801,7 +839,7 @@ function checkStepEnums(step: Loose): void {
 }
 
 /** The states a `state` leaf reads. */
-const ELEMENT_STATES: ReadonlySet<string> = new Set(["selected", "hovered", "ghosted", "pinned"]);
+const ELEMENT_STATES: ReadonlySet<string> = new Set(["selected", "hovered", "ghosted", "outsideWindow", "pinned"]);
 
 /**
  * Check one rule tree node, all the way down.
@@ -1368,6 +1406,10 @@ export function assertRuleTree(value: unknown): void {
  * {@link parseSetDefinition} gives it for an inline definition.
  */
 export function parseScope(value: unknown): Scope {
+    if (isObject(value) && value.types !== undefined) {
+        return typesScope(value);
+    }
+
     checkScope(value, new Walker("door"));
 
     return isObject(value) && value.define !== undefined
@@ -1376,21 +1418,56 @@ export function parseScope(value: unknown): Scope {
 }
 
 /**
+ * A `{ types }` scope (source-steps, design section 3.9) in its canonical form: the nodes whose
+ * one type is listed and the edges between them, a `{ where }` on the readable path
+ * `graphty.type`.
+ * @param value - The scope as given.
+ * @returns The `{ where }` scope.
+ * @throws A `GraphtyError` with `E_BAD_SCOPE` for anything but one non-empty list of type names.
+ */
+function typesScope(value: Record<string, unknown>): Scope {
+    const { types } = value;
+    if (
+        Object.keys(value).length !== 1 ||
+        !Array.isArray(types) ||
+        types.length === 0 ||
+        !types.every((t) => typeof t === "string" && t !== "")
+    ) {
+        throw bad("A { types } scope names one or more types.", { scope: value });
+    }
+
+    const backslash = String.raw`\\`;
+    const quote = String.raw`\'`;
+    const quoted = (t: string): string => `'${t.replaceAll("\\", backslash).replaceAll("'", quote)}'`;
+    return Object.freeze({ where: types.map((t: string) => `graphty.type == ${quoted(t)}`).join(" || ") });
+}
+
+/**
  * A write door's value with every edge reference inside an inline definition passed through
  * `stable` (a session edge id becomes its stable member; an object member is handed over as
- * given, for the door to canonicalise), at any depth: a scope's `{ define }`, a fixed or path definition's edges, a
+ * given, for the door to canonicalize), at any depth: a scope's `{ define }`, a fixed or path definition's edges, a
  * rule's tree, the `member` leaves of a rule tree and a `{ match: "member" }` selector. Everything
  * else is returned as given for the validator to judge, and a value `stable` changes nothing in is
  * returned unchanged (the same object).
  * @param value - A scope, a set definition, a rule tree or a selector, as given.
  * @param stable - The stable member of a session edge id or an object member; throws for an edge
  * the graph lacks.
+ * @param types - What a `{ types }` scope in any scope position becomes (it is canonicalized or
+ * refused there); left as given when omitted.
  * @returns The value, stable.
  */
-export function stabiliseEdgeRefs<T>(value: T, stable: (ref: string) => unknown): T {
+export function stabiliseEdgeRefs<T>(
+    value: T,
+    stable: (ref: string) => unknown,
+    types?: (scope: Record<string, unknown>) => unknown,
+): T {
     const walk = (node: unknown): unknown => {
         if (!isObject(node)) {
             return node;
+        }
+
+        if (types !== undefined && node.types !== undefined && node.match === undefined && node.kind === undefined) {
+            return types(node);
         }
 
         const swap = (field: string, next: unknown): unknown =>

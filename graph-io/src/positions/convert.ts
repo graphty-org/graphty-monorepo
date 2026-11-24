@@ -4,7 +4,9 @@
  * modules import from here, so they never pull in the reader.
  */
 
-import type { PositionColumnExtra } from "./types.js";
+import type { Column, GraphSnapshot } from "@graphty/graph-format";
+
+import type { FilePositions, PositionColumnExtra } from "./types.js";
 
 /**
  * A y that grows downward as one that grows upward, and back: a negation that never yields -0.
@@ -52,6 +54,73 @@ export function toNeutral(
 }
 
 /**
+ * A role-`position` column's rows in the neutral convention (center, y up), read through the
+ * spelling its `meta.extra` declares: what a writer that converts the neutral form to its own
+ * spelling (the Cytoscape family) starts from, so a column read from a y-down or top-left file
+ * (Pajek, yEd) is not written mirrored. A column that declares no spelling is already neutral and
+ * comes back as stored. Rows without a value are NaN.
+ * @param snapshot - the graph, for the width and height columns a top-left anchor names
+ * @param column - the position column
+ * @returns x, y, z per node
+ */
+export function neutralPositions(snapshot: GraphSnapshot, column: Column): Float64Array {
+    const extra = column.meta.extra as PositionColumnExtra;
+    const out = new Float64Array(3 * column.length).fill(Number.NaN);
+    for (let row = 0; row < column.length; row++) {
+        if (column.isSet(row)) {
+            const v = column.value(row) as ArrayLike<number>;
+            out.set([v[0], v[1], v.length > 2 ? v[2] : 0], 3 * row);
+        }
+    }
+    const width = extra.width === undefined ? null : snapshot.nodes.get(extra.width);
+    const height = extra.height === undefined ? null : snapshot.nodes.get(extra.height);
+    // as extractPositions() reads it: a 3D file whose z never differs (Pajek on a 2D drawing) is flat
+    const realZ = extra.sourceDims === 3 ? !constantZ(out) : hasZ(out);
+    const p: [number, number, number] = [0, 0, 0];
+    for (let i = 0; i < out.length; i += 3) {
+        const row = i / 3;
+        const size: [number, number] | null =
+            width?.isSet(row) === true && height?.isSet(row) === true
+                ? [Number(width.value(row)), Number(height.value(row))]
+                : null;
+        p[0] = out[i];
+        p[1] = out[i + 1];
+        p[2] = out[i + 2];
+        toNeutral(p, extra, size, realZ);
+        out.set(p, i);
+    }
+    return out;
+}
+
+/**
+ * A role-`position` column's rows spelled as a writer writes them, so a writer never writes a
+ * coordinate the wrong way up whatever file the column came from. Null when the column is already
+ * spelled that way (the same y axis, anchor and z origin): the writer then writes the stored
+ * values, so a file loaded and saved in its own format keeps its numbers exactly. Otherwise the
+ * rows are read into the neutral form (`neutralPositions`) and written in `target`'s spelling.
+ * A column that declares no spelling is neutral (center, y up).
+ * @param snapshot - the graph, for the width and height columns a top-left anchor names
+ * @param column - the position column, or null without one
+ * @param target - the spelling the writer writes
+ * @returns x, y, z per node in `target`'s spelling (NaN for an unset row), or null to write the column as stored
+ */
+export function respelledPositions(
+    snapshot: GraphSnapshot,
+    column: Column | null,
+    target: PositionColumnExtra,
+): Float64Array | null {
+    if (column === null) {
+        return null;
+    }
+    const extra = column.meta.extra as PositionColumnExtra;
+    const same =
+        (extra.yAxis ?? "up") === (target.yAxis ?? "up") &&
+        extra.anchor === target.anchor &&
+        (extra.zOrigin ?? 0) === (target.zOrigin ?? 0);
+    return same ? null : toFilePositions(neutralPositions(snapshot, column), target);
+}
+
+/**
  * Neutral coordinates (center, y up, as `extractPositions()` returns them) back into a column
  * spelled as `extra` declares, for a writer: the y flip, Pajek's z origin and yEd's top-left corner
  * are undone. Rows that are NaN stay NaN.
@@ -71,23 +140,62 @@ export function toFilePositions(
     const out = new Float64Array(coords.length);
     const down = extra.yAxis === "down";
     const stretch = yStretch(extra);
+    // 2D or 3D is decided once for the whole drawing, so a node on the z = 0 plane of a 3D drawing
+    // gets the z origin like every other node
+    const realZ = extra.sourceDims === 3 || hasZ(coords);
     for (let i = 0; i < coords.length; i += 3) {
-        let y = coords[i + 1] / stretch;
+        // toNeutral's steps undone in reverse: the flip, the anchor shift, then the stretch
+        let x = coords[i];
+        let y = coords[i + 1];
         let z = coords[i + 2];
         if (down) {
             y = flipY(y);
             z = flipY(z);
         }
-        out[i] = coords[i];
-        out[i + 1] = y;
-        out[i + 2] = z === 0 && extra.sourceDims !== 3 ? 0 : z + (extra.zOrigin ?? 0);
-        const row = i / 3;
         if (extra.anchor === "top-left" && sizes !== undefined) {
-            out[i] -= sizes.width[row] / 2;
-            out[i + 1] -= down ? sizes.height[row] / 2 : -sizes.height[row] / 2;
+            const row = i / 3;
+            x -= sizes.width[row] / 2;
+            y -= down ? sizes.height[row] / 2 : -sizes.height[row] / 2;
         }
+        out[i] = x;
+        out[i + 1] = y / stretch;
+        out[i + 2] = realZ || Number.isNaN(z) ? z + (extra.zOrigin ?? 0) : 0;
     }
     return out;
+}
+
+/**
+ * Whether any placed row has a z other than 0.
+ * @param coords - x, y, z per node; NaN rows are unplaced
+ * @returns true for a 3D drawing
+ */
+function hasZ(coords: Float64Array): boolean {
+    for (let i = 2; i < coords.length; i += 3) {
+        if (coords[i] !== 0 && !Number.isNaN(coords[i])) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Whether every placed row has the same z (Pajek writes z = 0.5 on 2D drawings).
+ * @param values - the raw coordinates
+ * @returns true when z never differs
+ */
+export function constantZ(values: Float64Array): boolean {
+    let z = Number.NaN;
+    for (let i = 0; i < values.length; i += 3) {
+        if (Number.isNaN(values[i])) {
+            continue;
+        }
+        if (Number.isNaN(z)) {
+            z = values[i + 2];
+        } else if (values[i + 2] !== z) {
+            return false;
+        }
+    }
+    return true;
 }
 
 /**
@@ -106,29 +214,45 @@ export function median(values: number[]): number | null {
 }
 
 /**
- * How each built-in writer that writes the position column as it stands spells a coordinate:
- * GML (y down, as yEd draws it) and Pajek (y down, z centered on 0.5). Every other built-in writer
- * either converts the neutral form itself (JSON, XGMML, CX, CX2, Cytoscape sessions, yEd graphics
- * in a styled GraphML) or writes a y-up format (GEXF, DOT).
- */
-const WRITTEN_SPELLING: Readonly<Partial<Record<string, PositionColumnExtra>>> = {
-    gml: { yAxis: "down" },
-    pajek: { yAxis: "down", zOrigin: 0.5 },
-};
-
-/**
- * Neutral coordinates (center, y up) as a built-in format's writer expects its position column, so
- * a graph whose positions are in the neutral form is written the way up its program draws it.
+ * Neutral coordinates (center, y up) as a built-in format's writer expects its position column.
+ * Every built-in writer now reads the column through the spelling its `meta.extra` declares
+ * (`respelledPositions`), and a column that declares none is neutral, so the coordinates are
+ * returned unchanged for every format; it is kept so callers written for the old writers still work.
  * @example
  * ```ts
- * const column = writtenPositions("gml", coords); // y flipped for GML
+ * const column = writtenPositions("gml", coords); // the same array
  * ```
- * @param format - the format being written
+ * @param _format - the format being written
  * @param coords - x, y, z per node; NaN for a node with no position
- * @returns the coordinates to write (the same array when the format needs no conversion)
+ * @returns the same array
  * @category Positions
  */
-export function writtenPositions(format: string, coords: Float64Array): Float64Array {
-    const spelling = WRITTEN_SPELLING[format];
-    return spelling === undefined ? coords : toFilePositions(coords, spelling);
+export function writtenPositions(_format: string, coords: Float64Array): Float64Array {
+    return coords;
+}
+
+/**
+ * Write each placed node's position onto its record as `position: { x, y, z }`, in the neutral form. A record whose
+ * node the file did not place keeps what it holds, and unusable positions write nothing.
+ * @param records - the node records
+ * @param positions - the file's positions (`extractPositions()`), or null
+ * @param rowOf - a record's node row in the snapshot the positions were read from, or -1 for none
+ * @category Positions
+ */
+export function placeRecords(
+    records: readonly Record<string, unknown>[],
+    positions: FilePositions | null,
+    rowOf: (record: Record<string, unknown>, index: number) => number,
+): void {
+    if (positions?.usable !== true) {
+        return;
+    }
+    const { coords } = positions;
+    for (const [index, record] of records.entries()) {
+        const row = rowOf(record, index);
+        const x = row < 0 ? Number.NaN : coords[3 * row];
+        if (!Number.isNaN(x)) {
+            record.position = { x, y: coords[3 * row + 1], z: coords[3 * row + 2] };
+        }
+    }
 }

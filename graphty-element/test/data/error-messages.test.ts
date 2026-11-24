@@ -27,10 +27,11 @@ describe("Standardized error messages", () => {
                 }
             } catch (error) {
                 errorThrown = true;
-                assert.match(
-                    (error as Error).message,
-                    /DataSource requires data, file, or url/,
-                    `Expected standardized error message for ${source.constructor.name}`,
+                assert.propertyVal(
+                    error,
+                    "code",
+                    "E_OPTION_RANGE",
+                    `Expected the missing-input code for ${source.constructor.name}`,
                 );
             }
             assert.strictEqual(errorThrown, true, `Expected error to be thrown for ${source.constructor.name}`);
@@ -47,7 +48,7 @@ describe("Standardized error messages", () => {
             }
         } catch (error) {
             errorThrown = true;
-            assert.match((error as Error).message, /DataSource requires data, file, or url/);
+            assert.propertyVal(error, "code", "E_OPTION_RANGE");
         }
         assert.strictEqual(errorThrown, true, "Expected error to be thrown");
     });
@@ -60,7 +61,7 @@ describe("Standardized error messages", () => {
         vi.useRealTimers();
     });
 
-    test("network error includes retry count", async () => {
+    test("network failure throws E_FETCH_FAILED after three attempts", async () => {
         const fetchMock = vi.fn().mockRejectedValue(new TypeError("fetch failed"));
         vi.stubGlobal("fetch", fetchMock);
         vi.useFakeTimers();
@@ -79,7 +80,7 @@ describe("Standardized error messages", () => {
         const error = await failure;
 
         assert.isDefined(error, "Expected error to be thrown");
-        assert.match(error.message, /Failed to fetch .* after 3 attempts/);
+        assert.propertyVal(error, "code", "E_FETCH_FAILED");
         assert.strictEqual(fetchMock.mock.calls.length, 3, "Expected three fetch attempts");
     });
 });

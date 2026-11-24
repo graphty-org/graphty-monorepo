@@ -238,7 +238,7 @@ describe("CompactColorInput", () => {
             expect(onColorChange.mock.calls[0][1].type).toBe("click");
         });
 
-        // Contract 1.5: focus and blur are forwarded, never swallowed for
+        // Focus and blur are forwarded, never swallowed for
         // internal state, even though blur is what commits the value.
         it("forwards focus and blur from both boxes", async () => {
             const user = userEvent.setup();
@@ -626,7 +626,7 @@ describe("CompactColorInput", () => {
         // The picker's swatches are found by their label, not with getByRole. A role query
         // works out the role and the accessible name of every element in the open picker, which
         // cost about 50 ms per lookup (more under coverage), and this group's tests passed the 5 s
-        // timeout in a loaded pre-push gate (issue #1503). Each swatch is a button labelled with
+        // timeout in a loaded pre-push gate (issue #1503). Each swatch is a button labeled with
         // its hexa value, so the label alone finds it.
 
         /**

@@ -35,10 +35,11 @@ import { fileURLToPath } from "node:url";
 import console from "node:console";
 import process from "node:process";
 
+import { mainCheckout } from "./main-checkout.mjs";
+
 const here = dirname(fileURLToPath(import.meta.url));
 const oracles = resolve(here, "..");
 const repo = resolve(here, "../../../../..");
-const mainCheckout = resolve(repo, "../..");
 const prefix = process.env.PAJEK_PREFIX ?? join(mainCheckout, "tmp/pajek/prefix");
 const pj = join(prefix, "drive_c/pj");
 const corpus = "graph-io/test/corpus/styles";

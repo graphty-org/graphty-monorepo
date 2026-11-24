@@ -147,8 +147,11 @@ describe("FA2 force-sum invariant: gravity 0, one iteration, |sum F| <= tol x su
         });
     }
 
-    it("prints the worst ratio of the fixture set", () => {
-        const worst = mergeReports(reports);
-        console.warn(`[fa2-force-sum] worst ${worst.worst.toExponential(3)} at ${worst.worstLabel}`);
+    // a summary, not a test: every case above asserts its own ratio, and nothing is printed when none ran
+    afterAll(() => {
+        if (reports.length > 0) {
+            const worst = mergeReports(reports);
+            console.warn(`[fa2-force-sum] worst ${worst.worst.toExponential(3)} at ${worst.worstLabel}`);
+        }
     });
 });

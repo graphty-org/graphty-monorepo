@@ -6,7 +6,13 @@
  * annotation sits just behind the graph; a foreground one is drawn on top of it.
  */
 
-import { Color3, DynamicTexture, type Mesh, MeshBuilder, type Scene, StandardMaterial, Vector3 } from "@babylonjs/core";
+import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
+import { DynamicTexture } from "@babylonjs/core/Materials/Textures/dynamicTexture.js";
+import { Color3 } from "@babylonjs/core/Maths/math.color.js";
+import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 import type {
     AnnotationBeside,
     AnnotationPoint,
@@ -16,7 +22,7 @@ import type {
     TextAnnotation,
 } from "@graphty/graph-io/styles";
 
-import { type DrawnAnnotation, drawnAnnotationsOf } from "../session/styles/fileStyles/annotations";
+import { type DrawnAnnotation, drawnAnnotationsOf } from "../session/annotations";
 import { PREMULTIPLIED_ALPHA_MODE, uploadPremultiplied } from "./LabelBatch";
 import { fontFamilies, noteLabelFont } from "./labelFonts";
 
@@ -172,6 +178,17 @@ export class AnnotationMeshes {
         }
 
         return null;
+    }
+
+    /**
+     * The meshes the annotations placed in the file's own coordinates are drawn on now, which a fit frames with the
+     * graph. A text placed beside the drawing (a Graphviz graph label) is left out: it follows the nodes' extent,
+     * which the fit is still settling.
+     * @returns The meshes.
+     */
+    get placedMeshes(): Mesh[] {
+        const besides = new Set(this.besides.map((b) => b.mesh));
+        return this.meshes.filter((m) => !besides.has(m));
     }
 
     /**

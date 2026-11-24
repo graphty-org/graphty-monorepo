@@ -3,11 +3,14 @@
  *
  * - takes off the known failures every element that passes now (one that is not measurable any more stays listed);
  * - with `--prune`, also takes off a known failure that is not measurable because its element is gone from both
- *   drawings (no property judges or fails it any more); one whose element is still drawn, or still fails, stays;
+ *   drawings (no property judges or fails it any more), or because its property is judged only on the drawing as a
+ *   whole now (an own-layout sample's `edge.curve`); one whose element is still drawn and judged one by one, or still
+ *   fails, stays;
  * - raises every recorded pass rate (the informational floors) to what the run measured, never lowering one;
  * - with `--add "<reason>"`, adds every element failing that the known failures do not list, and records the reason,
  *   the date and how many came from the drawing or from the comparator (`--keys` and `--properties` limit what is
- *   added to those keys and properties). Nothing is added without a reason;
+ *   added to those keys and properties). Nothing is added without a reason, and the reason names the issue tracking
+ *   it (`#1234`);
  * - for the oracle scorecard, takes off an accepted drop (`drops` in the floors file) whose rate is back at its floor,
  *   and with `--add "<reason>"` accepts every rate below its floor at the rate measured, with the reason. The floor
  *   itself stays: it is the best the property has measured.
@@ -18,9 +21,16 @@
  * `test/fidelity/fidelity.test.ts`) into `test/fidelity/baseline-scores.json`.
  *
  *     npm run fidelity:ratchet
- *     npm run fidelity:ratchet -- --add "why these elements fail now" [--keys <key>,<key>] [--properties <p>,<p>]
+ *     npm run fidelity:ratchet -- --add "why these elements fail now (#1234)" [--keys <key>,<key>] [--properties <p>,<p>]
  *         [--suite oracle|drawn]
- *     npm run fidelity:ratchet -- --prune
+ *     npm run fidelity:ratchet -- --prune [--keys <key>,<key>]
+ *     npm run fidelity:ratchet -- --recite "why, naming the issue tracking them now (#1234)" --keys <key>,<key>
+ *         --ids <id>,<id> [--id <id>]... [--properties <p>,<p>] [--suite oracle|drawn]
+ *
+ * `--keys` limits `--prune` to those keys too. `--recite` reads no run: it moves listed known failures (the named ids
+ * under the named keys) off the reasons that added them onto one new reason, so they cite the issue tracking them now
+ * (an accepted difference with its own issue). `--id` names one id each time it is given, for an id with commas in it
+ * (a stray's, `polyline@1560,578,1564,581`), which `--ids` would split.
  */
 import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
@@ -30,12 +40,14 @@ import {
     FLOOR_SECTIONS,
     type Floors,
     type FloorSection,
+    floorsFileText,
     type KeyGate,
     type KnownRecords,
     knownText,
     raiseFloors,
     ratchetDrops,
     ratchetKnown,
+    reciteKnown,
 } from "../test/fidelity/oracle/floors";
 
 const { values } = parseArgs({
@@ -43,16 +55,21 @@ const { values } = parseArgs({
         add: { type: "string" },
         keys: { type: "string" },
         properties: { type: "string" },
+        ids: { type: "string" },
+        id: { type: "string", multiple: true },
         prune: { type: "boolean" },
+        recite: { type: "string" },
         suite: { type: "string" },
     },
 });
 
 const today = new Date().toISOString().slice(0, 10);
+const keys = values.keys?.split(",");
+const prune = values.prune === true && (keys ?? true);
 const add =
     values.add === undefined
         ? undefined
-        : { reason: values.add, date: today, keys: values.keys?.split(","), properties: values.properties?.split(",") };
+        : { reason: values.add, date: today, keys, properties: values.properties?.split(",") };
 
 /** A run's verdicts, as the tests write them. */
 interface GateFile {
@@ -101,7 +118,38 @@ function report(name: string, out: { removed: number; added: number; unlisted: n
 
 const suite = values.suite ?? "all";
 
-if (suite === "all" || suite === "oracle") {
+if (values.recite !== undefined) {
+    const ids = [...(values.ids?.split(",") ?? []), ...(values.id ?? [])];
+    if (keys === undefined || ids.length === 0) {
+        throw new Error("--recite needs --keys and --ids (or --id)");
+    }
+    const recite = {
+        reason: values.recite,
+        date: today,
+        keys,
+        ids,
+        properties: values.properties?.split(","),
+    };
+    const files = [
+        ...(suite === "drawn" ? [] : ["test/fidelity/oracle-known-failures.json"]),
+        ...(suite === "oracle" ? [] : ["test/fidelity/baseline-scores.json"]),
+    ];
+    let moved = 0;
+    for (const path of files) {
+        const file = JSON.parse(readFileSync(path, "utf8")) as KnownRecords & { floors?: Floors };
+        const out = reciteKnown({ about: file.about, known: file.known, reasons: file.reasons }, recite);
+        if (out.moved > 0) {
+            writeFileSync(path, knownText(out.records, file.floors));
+        }
+        console.log(`${path}: ${String(out.moved)} known failures re-cited`);
+        moved += out.moved;
+    }
+    if (moved === 0) {
+        throw new Error("--recite: none of the named elements is listed");
+    }
+}
+
+if (values.recite === undefined && (suite === "all" || suite === "oracle")) {
     const gate = readGate("tmp/oracle-report/gate.json");
     if (gate !== null) {
         const knownPath = "test/fidelity/oracle-known-failures.json";
@@ -116,7 +164,7 @@ if (suite === "all" || suite === "oracle") {
             FloorSection,
             Floors
         >;
-        const out = ratchetKnown({ ...known, reasons: known.reasons ?? [] }, gate.keys, add, values.prune);
+        const out = ratchetKnown({ ...known, reasons: known.reasons ?? [] }, gate.keys, add, prune);
         const drops = ratchetDrops(floors.drops ?? {}, gate.keys, add);
         let raised = 0;
         const sectionOf = new Map(gate.keys.map((g) => [g.key, g.section]));
@@ -131,26 +179,19 @@ if (suite === "all" || suite === "oracle") {
         }
         const kept = (section: FloorSection): Floors =>
             Object.fromEntries(
-                Object.keys(sections[section])
-                    .filter((k) => (sectionOf.get(k) ?? section) === section)
-                    .sort((a, b) => a.localeCompare(b))
-                    .map((k) => [k, sections[section][k]]),
+                Object.entries(sections[section]).filter(([k]) => (sectionOf.get(k) ?? section) === section),
             );
         writeFileSync(knownPath, knownText(out.records));
         writeFileSync(
             floorsPath,
-            `${JSON.stringify(
-                {
-                    about: floors.about,
-                    floors: kept("floors"),
-                    standInFloors: kept("standInFloors"),
-                    specificationFloors: kept("specificationFloors"),
-                    lowered: floors.lowered,
-                    drops: drops.drops,
-                },
-                null,
-                4,
-            )}\n`,
+            floorsFileText({
+                about: floors.about,
+                floors: kept("floors"),
+                standInFloors: kept("standInFloors"),
+                specificationFloors: kept("specificationFloors"),
+                lowered: floors.lowered,
+                drops: drops.drops,
+            }),
         );
         report(knownPath, out, raised);
         console.log(
@@ -165,7 +206,7 @@ if (suite === "all" || suite === "oracle") {
     }
 }
 
-if (suite === "all" || suite === "drawn") {
+if (values.recite === undefined && (suite === "all" || suite === "drawn")) {
     const gate = readGate("test/fidelity/out/gate.json");
     if (gate !== null) {
         const path = "test/fidelity/baseline-scores.json";
@@ -174,7 +215,7 @@ if (suite === "all" || suite === "drawn") {
             { about: file.about, known: file.known, reasons: file.reasons },
             gate.keys,
             add,
-            values.prune,
+            prune,
         );
         let raised = 0;
         for (const g of gate.keys) {

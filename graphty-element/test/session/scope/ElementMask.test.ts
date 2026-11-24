@@ -316,7 +316,8 @@ describe("ElementMask, as bytes for a worker", () => {
                 (mask) => mask.fill(),
                 (mask) => mask.invert(),
                 (mask) => {
-                    mask.load(new Uint8Array([1, 0, 1, 0]));
+                    // Over other rows: the same rows are logged (see below).
+                    mask.load(new Uint8Array([1, 0, 1, 0, 1]));
                 },
                 (mask) => {
                     mask.remap(new Uint32Array([0, 1, 2, 3]), 4);
@@ -339,6 +340,15 @@ describe("ElementMask, as bytes for a worker", () => {
                 assert.deepEqual(mask.changedSince(after), [2], String(write));
                 assert.isNull(mask.changedSince(before), String(write));
             }
+        });
+
+        it("follows a load over the same rows by the rows it changed", () => {
+            // An undo of a value edit loads the masks it kept: read as a rewrite, so the renderer follows only those rows.
+            const mask = fillWith(maskOf(["a", "b", "c", "d"]), ["a"]);
+            const before = mask.version;
+            mask.load(new Uint8Array([0, 1, 0, 1]));
+            assert.deepEqual([...(mask.changedSince(before) ?? [])].sort(), [0, 1, 3]);
+            assert.isAbove(mask.version, before, "and moves the version");
         });
 
         it("lets go of the oldest moves past the cap, and of a move over it", () => {

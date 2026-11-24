@@ -77,6 +77,12 @@ function overTriggerOffset(state: ListState): { mainAxis: number; alignmentAxis:
         return { mainAxis: LISTBOX_BELOW_GAP, alignmentAxis: 0 };
     }
     const { anchor, reference } = boxes;
+    // A field's own list scrolls its role="listbox", which the dropdown frames (cm-listbox-frame);
+    // a list built on Combobox directly scrolls the dropdown.
+    const scroller =
+        (floating.classList.contains("cm-listbox-frame")
+            ? floating.querySelector<HTMLElement>('[role="listbox"]')
+            : null) ?? floating;
     // floating-ui mirrors the alignment offset of a -start placement under rtl.
     const align = (edge: number): number =>
         rtl ? reference.right - anchor.right - edge : anchor.left - edge - reference.left;
@@ -86,7 +92,7 @@ function overTriggerOffset(state: ListState): { mainAxis: number; alignmentAxis:
     }
     // Where the list's content would start, unscrolled, for the selected option to sit on the field.
     const contentTop =
-        anchor.top - (selected.getBoundingClientRect().top - floating.getBoundingClientRect().top + floating.scrollTop);
+        anchor.top - (selected.getBoundingClientRect().top - floating.getBoundingClientRect().top + scroller.scrollTop);
     // The list is the part of that content inside the visual viewport less half the cap's margin
     // each side. A field outside that band cannot have its option both on it and inside it, and a
     // list that fits the band whole is never cut (cut, a short list on a field at the window's
@@ -104,11 +110,11 @@ function overTriggerOffset(state: ListState): { mainAxis: number; alignmentAxis:
     const inside =
         anchor.top >= viewportTop &&
         anchor.bottom <= viewportBottom &&
-        floating.scrollHeight > viewportBottom - viewportTop;
+        scroller.scrollHeight > viewportBottom - viewportTop;
     const top = inside ? Math.max(contentTop, viewportTop) : contentTop;
-    const bottom = Math.min(contentTop + floating.scrollHeight, viewportBottom);
+    const bottom = Math.min(contentTop + scroller.scrollHeight, viewportBottom);
     floating.style.maxHeight = inside ? capped(`${String(bottom - top)}px`) : "";
-    floating.scrollTop = top - contentTop;
+    scroller.scrollTop = top - contentTop;
     return { mainAxis: top - reference.bottom, alignmentAxis: align(LISTBOX_EDGE) };
 }
 
@@ -555,10 +561,9 @@ export function ensureListboxKeyboard(): void {
                 return;
             }
             // The walk may scroll a row into view; the list was placed around its scroll position.
-            const scroller = list.closest<HTMLElement>(".cm-listbox") ?? list;
-            const top = scroller.scrollTop;
+            const top = list.scrollTop;
             walkHighlight(input, list, checked);
-            scroller.scrollTop = top;
+            list.scrollTop = top;
         }, 0);
     };
     // Mantine's store marks the keyboard's highlight aria-selected and strips it from the option it

@@ -112,7 +112,6 @@ export class Globe extends MapSurface {
     set sun(sun: LatLon | null) {
         this.currentSun = sun;
         this.invalidateGeometry();
-        this.changed();
     }
 
     /**

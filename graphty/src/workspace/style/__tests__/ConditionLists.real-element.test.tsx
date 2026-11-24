@@ -16,11 +16,16 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
+import { withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { selectWithTwin } from "../../../test/twin-layer";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { FIND_ATTRIBUTE } from "../words";
+
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 /**
  * The workspace with the real element, and a graph in it.
@@ -128,6 +133,37 @@ describe("the Add a condition list", () => {
         await waitFor(() => {
             assert.isNull(screen.queryByRole("listbox"), "the list closed");
             const card = within(region).getByRole("group", { name: /^name(,|$)/ });
+            assert.isTrue(card.contains(document.activeElement), "focus is in the new card");
+        });
+    });
+
+    it("ArrowDown and ArrowUp move the active option, and Enter adds the one they lit", async () => {
+        const session = await open();
+        const { region } = await openPicker(session);
+        const search = await openList(region);
+        const list = await screen.findByRole("listbox", { name: "Attributes" });
+        const options = (): HTMLElement[] =>
+            within(list)
+                .getAllByRole("option")
+                .filter((option) => option.dataset.comboboxDisabled === undefined);
+        await userEvent.keyboard("{ArrowDown}");
+        await waitFor(() => {
+            assert.strictEqual(search.getAttribute("aria-activedescendant"), options()[0]?.id);
+        });
+        await userEvent.keyboard("{ArrowDown}");
+        await waitFor(() => {
+            assert.strictEqual(search.getAttribute("aria-activedescendant"), options()[1]?.id);
+        });
+        await userEvent.keyboard("{ArrowUp}");
+        await waitFor(() => {
+            assert.strictEqual(search.getAttribute("aria-activedescendant"), options()[0]?.id);
+        });
+        const name = options()[0]?.getAttribute("aria-label") ?? "";
+        assert.notStrictEqual(name, "");
+        await userEvent.keyboard("{Enter}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("listbox"), "the list closed");
+            const card = within(region).getByRole("group", { name: new RegExp(`^${name}(,|$)`) });
             assert.isTrue(card.contains(document.activeElement), "focus is in the new card");
         });
     });
@@ -300,4 +336,23 @@ describe("the cards", () => {
         const card = await within(region).findByRole("group", { name: /^name(,|$)/ });
         assert.strictEqual(card.getAttribute("aria-label"), "name", "an unfinished card says no count");
     });
+
+    for (const how of ["Enter", "a click"] as const) {
+        it(`a column only edges carry, chosen with ${how}, goes to the Edge tab with its card`, async () => {
+            const session = await open();
+            const { region } = await openPicker(session);
+            await openList(region);
+            await userEvent.keyboard("shared_ch");
+            const offer = await screen.findByRole("button", { name: "Add shared_chapters on the Edge tab" });
+            await (how === "Enter" ? userEvent.keyboard("{Enter}") : userEvent.click(offer));
+            const tabs = screen.getByRole("tablist", { name: "Style for" });
+            await waitFor(() => {
+                const edge = within(tabs).getByRole("tab", { name: "Edge" });
+                assert.strictEqual(edge.getAttribute("aria-selected"), "true", "the Edge tab is shown");
+                const edges = screen.getByRole("group", { name: "Which edges" });
+                const card = within(edges).getByRole("group", { name: /^shared_chapters(,|$)/ });
+                assert.isTrue(card.contains(document.activeElement), "focus is in the new card");
+            });
+        });
+    }
 });

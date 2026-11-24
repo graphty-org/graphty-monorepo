@@ -16,9 +16,6 @@ import { ASSISTANT_TOOLS } from "../../src/catalog/assistant";
 import type { Graph } from "../../src/Graph";
 import { assistantSession } from "../helpers/assistant";
 
-// The key store's encryption needs a browser global this project has not got; no test here encrypts.
-vi.mock("encrypt-storage", () => ({ EncryptStorage: vi.fn() }));
-
 /** The commands the assistant registered on master, in the order it offers them. */
 const HAND_WRITTEN = [
     "queryGraph",

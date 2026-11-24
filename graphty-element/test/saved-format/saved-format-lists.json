@@ -1,26 +1,12 @@
 {
-    "selfContained": ["shaders"],
+    "selfContained": ["shaders", "palettes", "labelLooks", "default-settings", "defaultPalettes"],
     "exceptions": [
-        {
-            "kind": "palette",
-            "paths": ["graphty-style.layers[].encode.node.color.palette"],
-            "catalogs": ["palettes"],
-            "issue": 6500,
-            "finding": "A binding names a built-in palette by bare id; only registered palettes are carried, so removing a built-in palette changes the colors of every file that named it."
-        },
         {
             "kind": "scale",
             "paths": [],
             "catalogs": ["scales"],
             "issue": 6501,
             "finding": "A binding names its scale (Binding.scale) by id, plugin scales included; the reading build must still have that scale."
-        },
-        {
-            "kind": "label-look",
-            "paths": [],
-            "catalogs": ["labelLooks"],
-            "issue": 6502,
-            "finding": "A label style names its look (LabelStyle.look: card, pill, ...) by id; removing a look changes old files' labels."
         },
         {
             "kind": "node-shape",
@@ -34,7 +20,7 @@
             "paths": [],
             "catalogs": ["edgeArrows", "edgeLines"],
             "issue": 6504,
-            "finding": "Arrowheads, edge.style and edge.outlineStyle name built-in arrowheads and line patterns by id."
+            "finding": "Arrowheads, edge.style and edge.outlineStyle name built-in arrowheads and line patterns by id. Kept on purpose: the owner decided on 2026-11-13 that code-backed built-ins are named in save files, not carried, and the reading build draws them (design/owner-standing-rules.md, rule 6)."
         },
         {
             "kind": "overflow-lists",
@@ -48,14 +34,14 @@
             "paths": [],
             "catalogs": [],
             "issue": 6506,
-            "finding": "Border styles, chart kinds, stripe directions, route, support model, image fit and repeat, model fit, center and up axis are closed lists saved by name, with no catalog table; the scan does not list their ids yet."
+            "finding": "Border styles, chart kinds, stripe directions, route, support model, image fit and repeat, model fit, center and up axis are closed lists saved by name, with no catalog table; the scan does not list their ids yet. Kept on purpose: the owner decided on 2026-11-13 that closed choices are code-backed built-ins, named in save files, not carried, and the reading build draws them (design/owner-standing-rules.md, rule 6)."
         },
         {
             "kind": "transition",
             "paths": [],
             "catalogs": ["transitions"],
             "issue": 6507,
-            "finding": "layoutTransition in the configuration names a transition preset by id (glide)."
+            "finding": "layoutTransition in the configuration names a transition preset by id (glide). Kept on purpose: the owner decided on 2026-11-13 that code-backed built-ins are named in save files, not carried, and the reading build draws them (design/owner-standing-rules.md, rule 6)."
         },
         {
             "kind": "sample-model",
@@ -69,49 +55,35 @@
             "paths": [],
             "catalogs": ["generators", "datasets"],
             "issue": 6509,
-            "finding": "A project's data source names a generator or dataset by name, resolved against the current generator catalog."
+            "finding": "A project's data source names a generator (with its params) or a dataset by name, resolved against the current generator catalog. The graph's records are carried in the graphty-data member, so opening the file never runs the generator or downloads the dataset; the name is the provenance of the load, and running it again is a reload the reader asks for. Kept on purpose: the owner decided on 2026-11-13 that a sample source is a behavior, named in save files and run again rather than saved as a result (design/owner-standing-rules.md, rule 6)."
         },
         {
             "kind": "row-template",
             "paths": [],
             "catalogs": ["rowTemplates"],
             "issue": 6510,
-            "finding": "The Starting, Ghost and Pinned rows carry template ids that code branches on."
+            "finding": "The Starting, Ghost and Pinned rows carry template ids that code branches on. Kept on purpose: the owner decided on 2026-11-13 that code-backed built-ins are named in save files, not carried, and the reading build draws them (design/owner-standing-rules.md, rule 6)."
         },
         {
             "kind": "algorithm",
             "paths": [],
             "catalogs": ["algorithms"],
             "issue": 6511,
-            "finding": "Saved runs, run-on-load entries and filter measure leaves name an algorithm by key and run it again on open."
+            "finding": "Saved runs, run-on-load entries and filter measure leaves name an algorithm by key and its options, and run it again on open. Kept on purpose: the owner decided on 2026-11-13 that behaviors are not saved as results, the file names them and the reading build runs them again on open (design/owner-standing-rules.md, rule 6)."
         },
         {
             "kind": "layout",
             "paths": ["graphty-session.layout.id"],
             "catalogs": ["layouts"],
             "issue": 6512,
-            "finding": "The layout is saved by id and engine and run again on open, plus the legacy layoutBehavior.type."
+            "finding": "The layout is saved by id, engine, options and dimension and run again on open, plus the legacy layoutBehavior.type. Kept on purpose: the owner decided on 2026-11-13 that behaviors are not saved as results; the file names them and the reading build runs them again on open (design/owner-standing-rules.md, rule 6)."
         },
         {
             "kind": "basemap",
             "paths": [],
             "catalogs": ["basemaps"],
             "issue": 6513,
-            "finding": "A map layout names its basemap by MapSourceId, and no map means the bundled world image."
-        },
-        {
-            "kind": "default-palette",
-            "paths": [],
-            "catalogs": [],
-            "issue": 6514,
-            "finding": "A binding naming no palette paints with the build's default (ylorbr, okabe-ito), which the file does not record."
-        },
-        {
-            "kind": "default-settings",
-            "paths": [],
-            "catalogs": [],
-            "issue": 6515,
-            "finding": "Settings equal to the default are omitted from the file and filled from the reader's defaults, so a changed default changes old files."
+            "finding": "Kept on purpose: the owner decided on 2026-11-13 that code-backed built-ins are named in save files, not carried, and the reading build draws them (design/owner-standing-rules.md, rule 6)."
         },
         {
             "kind": "style-tree-mode",
@@ -125,7 +97,7 @@
             "paths": [],
             "catalogs": [],
             "issue": 6517,
-            "finding": "Graphviz edge routes are not saved; they are computed again on open."
+            "finding": "Graphviz edge routes are not saved; the layout that lays them (edgeRoutes: graphviz) is saved and run again on open, which computes them again (with the optional package @hpcc-js/wasm-graphviz installed; without it the edges are drawn the element's way and W_ROUTES_NOT_LAID says so). Kept on purpose: the owner decided on 2026-11-13 that behaviors are not saved as results; the file names them and the reading build runs them again on open (design/owner-standing-rules.md, rule 6)."
         },
         {
             "kind": "gazetteer",
@@ -139,7 +111,7 @@
             "paths": [],
             "catalogs": [],
             "issue": 6519,
-            "finding": "Saved runs match data by an unversioned FNV-1a hash; a change to the hash orphans every saved run."
+            "finding": "Saved runs match data by an unversioned FNV-1a hash. Kept on purpose: the owner decided on 2026-11-13 that behaviors run again on open; a run whose hash does not match the open data (edited data, or a build whose hash changed) is computed again over it rather than restored, so a change to the hash costs a rerun and never loses a result (design/owner-standing-rules.md, rule 6)."
         },
         {
             "kind": "project-format-tag",

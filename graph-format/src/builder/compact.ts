@@ -24,6 +24,7 @@ import {
     columnOfValues,
     createColumn,
     isArrayLikeNumbers,
+    isColumnDetached,
     metaToDecl,
     representableNumber,
     resolveColumnMeta,
@@ -220,11 +221,64 @@ interface WideningStep {
 }
 
 /**
+ * Copy the rows `indexMap` selects from one typed array into another, a run of consecutive source
+ * rows at a time; a source row at or past `sourceRows` is not materialized and keeps the target's fill.
+ * @param target - the gathered column's array, at least `rows * components` long
+ * @param source - the source column's array
+ * @param indexMap - new row -> old row, or null for every row in order
+ * @param rows - the gathered row count
+ * @param sourceRows - the source column's materialized rows
+ * @param components - values per row
+ */
+function gatherRuns(
+    target: TypedArrayData,
+    source: TypedArrayData,
+    indexMap: U32 | null,
+    rows: number,
+    sourceRows: number,
+    components: number,
+): void {
+    let i = 0;
+    while (i < rows) {
+        const first = indexMap === null ? i : indexMap[i];
+        let end = i + 1;
+        while (end < rows && (indexMap === null ? end : indexMap[end]) === first + (end - i)) {
+            end++;
+        }
+        const last = Math.min(first + (end - i), sourceRows);
+        if (last > first) {
+            // One class on both sides (a gathered column keeps its dtype): a plain element copy.
+            (target as Float64Array).set(
+                (source as Float64Array).subarray(first * components, last * components),
+                i * components,
+            );
+        }
+        i = end;
+    }
+}
+
+/**
+ * `bit i of target = bit indexMap[i] of source` for every new row (every row in order when indexMap is null).
+ * @param target - the gathered bitmap's words, every bit clear on entry
+ * @param source - the source bitmap's words
+ * @param indexMap - new row -> old row, or null
+ * @param rows - the new row count
+ */
+function gatherBits(target: U32, source: U32, indexMap: U32 | null, rows: number): void {
+    for (let i = 0; i < rows; i++) {
+        const old = indexMap === null ? i : indexMap[i];
+        if (((source[old >>> 5] >>> (old & 31)) & 1) === 1) {
+            target[i >>> 5] |= 1 << (i & 31);
+        }
+    }
+}
+
+/**
  * One growable column of the builder (design section 6.2).
  *
  * A DECLARED column stores values in the storage of its dtype (a growable typed array for the numeric
  * dtypes and dict codes, a growable bitmap for bool, a JS array for string / list / json) plus an
- * optional validity bitmap and, for dict columns, the interning dictionary; rows are materialised
+ * optional validity bitmap and, for dict columns, the interning dictionary; rows are materialized
  * lazily up to `length` and unset rows physically hold the fill (design section 5.3). It never widens
  * and rejects values it cannot hold with E_COLUMN_TYPE at the write.
  *
@@ -238,7 +292,7 @@ export class StagingColumn {
     /** The resolved metadata; replaced when an inferred column widens. */
     meta: ColumnMeta;
 
-    /** Rows materialised so far. */
+    /** Rows materialized so far. */
     length = 0;
 
     /** Declared numeric data (rows * components) or dict codes. */
@@ -259,6 +313,12 @@ export class StagingColumn {
     private inferrer: DtypeInferrer | null;
 
     private readonly resizable: boolean | undefined;
+
+    /** Moved by every write, so a freeze knows its last frozen column is still this column's contents. */
+    private writes = 0;
+
+    /** The column the last freeze made, with the writes and rows it was made at; null before one. */
+    private frozen: { readonly writes: number; readonly rows: number; readonly column: Column } | null = null;
 
     /**
      * Create an empty column.
@@ -303,6 +363,7 @@ export class StagingColumn {
         if (rows <= this.length) {
             return;
         }
+        this.writes++;
         const { meta } = this;
         if (this.typed !== null) {
             this.typed.resize(rows * meta.components, this.fillNumber());
@@ -323,7 +384,7 @@ export class StagingColumn {
     /**
      * Whether a row holds a value.
      * @param row - the row
-     * @returns true when set (non-nullable columns: when materialised)
+     * @returns true when set (non-nullable columns: when materialized)
      */
     isSet(row: number): boolean {
         if (row >= this.length) {
@@ -337,11 +398,12 @@ export class StagingColumn {
      * except on a declared json column (JSON null imports as unset, design section 5.3). An inferred
      * column widens when the value is wider than its dtype; the widening is returned so the builder
      * can report it.
-     * @param row - the row; rows below it are materialised
+     * @param row - the row; rows below it are materialized
      * @param value - the value
      * @returns the widening that took place, or null
      */
     write(row: number, value: unknown): WideningStep | null {
+        this.writes++;
         this.ensureLength(row + 1);
         if (value === undefined || (value === null && (this.inferrer !== null || this.meta.dtype !== "json"))) {
             this.unset(row);
@@ -393,6 +455,7 @@ export class StagingColumn {
      * @param row - the row; E_COLUMN_TYPE on a non-nullable column
      */
     unset(row: number): void {
+        this.writes++;
         this.ensureLength(row + 1);
         if (this.validity === null) {
             throw this.unsetError(row);
@@ -417,7 +480,7 @@ export class StagingColumn {
     /**
      * The JS value of one cell as the frozen column would hold it: a number (or an array of
      * `components` numbers), a boolean, a string, a list or a json value; undefined for an unset or
-     * unmaterialised row. An inferred column's raw value is coerced to its current dtype.
+     * unmaterialized row. An inferred column's raw value is coerced to its current dtype.
      * @param row - the row
      * @returns the value
      */
@@ -470,6 +533,7 @@ export class StagingColumn {
      * @param next - the dtype to widen to
      */
     widenTo(next: InferredDtype): void {
+        this.writes++;
         const { meta } = this;
         const nextMeta = resolveColumnMeta(meta.name, meta.domain, {
             dtype: next,
@@ -517,6 +581,25 @@ export class StagingColumn {
         const out = new StagingColumn(this.meta, this.inferred, this.resizable, this.dictionary ?? undefined);
         out.ensureLength(rows);
         const remap = valueRemap !== null && this.meta.refersTo !== null ? valueRemap : null;
+        if (remap === null && this.validity === null && this.typed !== null && out.typed !== null) {
+            // Every row set and nothing rewritten: copy each run of consecutive source rows at once.
+            // A compaction keeps nearly every row, so a million-row column is a handful of copies.
+            gatherRuns(out.typed.array, this.typed.array, indexMap, rows, this.length, this.meta.components);
+            return out;
+        }
+        if (
+            remap === null &&
+            this.validity !== null &&
+            out.validity !== null &&
+            this.typed !== null &&
+            out.typed !== null
+        ) {
+            // Some rows unset, nothing rewritten: an unset row holds the fill, so the values copy in runs as
+            // above, and the validity bits follow the rows.
+            gatherRuns(out.typed.array, this.typed.array, indexMap, rows, this.length, this.meta.components);
+            gatherBits(out.validity.view(), this.validity.view(), indexMap, rows);
+            return out;
+        }
         for (let i = 0; i < rows; i++) {
             const old = indexMap === null ? i : indexMap[i];
             if (this.isSet(old) && this.gatherRow(out, i, old, remap) && out.validity !== null) {
@@ -621,6 +704,7 @@ export class StagingColumn {
      * @param i - the row being gathered; rows below it are already gathered
      */
     private unsetDangling(i: number): void {
+        this.writes++;
         if (this.validity !== null) {
             return;
         }
@@ -648,6 +732,31 @@ export class StagingColumn {
      */
     toColumn(rows: number): Column {
         this.ensureLength(rows);
+        // Nothing written since the last freeze: that freeze's column, shared rather than copied
+        // again (each is immutable and claimed by both tables, so a transfer copies it). A mutable
+        // column's contents can move after the freeze, so it is never shared.
+        const kept = this.frozen;
+        // A transfer of the snapshot that holds it detaches it; it is then built again.
+        if (
+            kept !== null &&
+            kept.writes === this.writes &&
+            kept.rows === rows &&
+            !this.meta.mutable &&
+            !isColumnDetached(kept.column)
+        ) {
+            return kept.column;
+        }
+        const column = this.freshColumn(rows);
+        this.frozen = { writes: this.writes, rows, column };
+        return column;
+    }
+
+    /**
+     * Build the frozen column of {@link StagingColumn.toColumn}.
+     * @param rows - the row count
+     * @returns the column
+     */
+    private freshColumn(rows: number): Column {
         const { meta } = this;
         const { dtype, components } = meta;
         if (this.inferrer !== null) {
@@ -894,8 +1003,8 @@ export class StagingColumn {
     }
 
     /**
-     * Store a value on a declared column: validate and normalise it (E_COLUMN_TYPE when the column
-     * cannot hold it), then write the normalised form.
+     * Store a value on a declared column: validate and normalize it (E_COLUMN_TYPE when the column
+     * cannot hold it), then write the normalized form.
      * @param row - the row
      * @param value - the value
      */
@@ -908,7 +1017,7 @@ export class StagingColumn {
      * or an array of `components` numbers, a boolean, a string, a copied list, or a JSON value.
      * @param row - the row (error details only)
      * @param value - the value
-     * @returns the normalised value
+     * @returns the normalized value
      */
     private coerce(row: number, value: unknown): unknown {
         const { meta } = this;
@@ -946,7 +1055,7 @@ export class StagingColumn {
     /**
      * Write a value `coerce` returned.
      * @param row - the row
-     * @param value - the normalised value
+     * @param value - the normalized value
      */
     private put(row: number, value: unknown): void {
         const { dtype, components } = this.meta;
@@ -1311,7 +1420,7 @@ export class Staging {
     }
 
     /**
-     * Materialise `ids` and `idToIndex` from the anonymous prefix (every node so far has id === index).
+     * Materialize `ids` and `idToIndex` from the anonymous prefix (every node so far has id === index).
      */
     materialiseIds(): void {
         if (this.ids !== null && this.idToIndex !== null) {
@@ -1919,11 +2028,19 @@ function applyMergedWeights(merged: Float64Array, stored: U32, weights: TypedArr
 /**
  * Fill a compacted staging's node ids and id-to-index map from the surviving nodes' old ids.
  * @param ids - the source node ids
+ * @param sourceMap - the source id-to-index map, shared when every node kept its index
  * @param origin - new node -> old node
  * @param out - the compacted staging
  */
-function gatherNodeIds(ids: readonly NodeId[], origin: U32, out: Staging): void {
+function gatherNodeIds(ids: readonly NodeId[], sourceMap: Map<NodeId, number> | null, origin: U32, out: Staging): void {
     const count = origin.length;
+    if (sourceMap !== null && count === ids.length && origin.every((old, i) => old === i)) {
+        // Every node kept its index (only edges were taken out): the same ids and map, as a freeze
+        // with nothing to compact keeps them -- not a map rebuilt over every node.
+        out.ids = ids as NodeId[];
+        out.idToIndex = sourceMap;
+        return;
+    }
     const gathered = new Array<NodeId>(count);
     const map = new Map<NodeId, number>();
     for (let i = 0; i < count; i++) {
@@ -1983,8 +2100,9 @@ function gatherWeightSet(source: Staging, mergedWeightSet: U32 | null, weightSet
 
 /**
  * Gather a new staging through a compaction plan (design section 6.3 step 1). The source is left
- * untouched; the result has no tombstones, fresh `ids` / `idToIndex` objects (or none when every node
- * is anonymous), rebuilt incidence lists, gathered columns with `refersTo` values rewritten, and
+ * untouched; the result has no tombstones, fresh `ids` / `idToIndex` objects when a node was taken out
+ * (the source's own when none was, which nothing then writes but an append; none when every node is
+ * anonymous), rebuilt incidence lists, gathered columns with `refersTo` values rewritten, and
  * extension tables with their `refersTo` values rewritten.
  * @param source - the staging to compact
  * @param plan - the remaps and merge overrides
@@ -1999,13 +2117,13 @@ export function compactStaging(source: Staging, plan: CompactionPlan): Staging {
         expectedEdges: edges.count,
     });
     // nodes: every new node is live with empty incidence lists (what pushNode(null) does, in bulk); ids
-    // and map are fresh objects; anonymous nodes stay anonymous (their ids are their new indices)
+    // and map are fresh objects unless every node kept its index; anonymous nodes stay anonymous (their ids are their new indices)
     out.nodeAlive.resize(nodes.count, true);
     out.firstOut.resize(nodes.count, INVALID_INDEX);
     out.firstIn.resize(nodes.count, INVALID_INDEX);
     out.liveNodeCount = nodes.count;
     if (source.ids !== null) {
-        gatherNodeIds(source.ids, nodes.origin, out);
+        gatherNodeIds(source.ids, source.idToIndex, nodes.origin, out);
     }
     // edges: gathered in new-index order through the backing views (one typed-array pass, design
     // section 6.3 step 1), weights and explicit-weight bits carried, lists rebuilt by pushing every

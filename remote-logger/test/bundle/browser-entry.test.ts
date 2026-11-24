@@ -170,4 +170,63 @@ describe("browser-entry auto-init", () => {
         expect(result).toBeDefined();
         expect(result!.client).toBeDefined();
     });
+
+    describe("loaded from a script tag", () => {
+        function loadFrom(src: string): void {
+            const script = document.createElement("script");
+            script.src = src;
+            Object.defineProperty(document, "currentScript", { value: script, configurable: true });
+        }
+
+        afterEach(() => {
+            Object.defineProperty(document, "currentScript", { value: null, configurable: true });
+        });
+
+        test("sends logs to the origin the script was loaded from", async () => {
+            const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 200 }));
+            loadFrom("http://logs.example:9123/remote-logger.js");
+
+            result = initRemoteLogger();
+            console.log("to script origin");
+            await result!.client.flush();
+
+            expect(fetchSpy).toHaveBeenCalledWith("http://logs.example:9123/log", expect.anything());
+            expect(result!.ui).toBeUndefined();
+            fetchSpy.mockRestore();
+        });
+
+        test("shows the capture UI for ?ui=true and removes it on destroy", () => {
+            loadFrom("http://logs.example:9123/remote-logger.js?ui=true");
+
+            result = initRemoteLogger();
+
+            expect(result!.ui).toBeDefined();
+            expect(document.getElementById("console-capture-btn")).not.toBeNull();
+            result!.destroy();
+            result = undefined;
+            expect(document.getElementById("console-capture-btn")).toBeNull();
+        });
+
+        test("an inline script (no src) shows no UI and falls back to the page origin", () => {
+            const script = document.createElement("script");
+            Object.defineProperty(document, "currentScript", { value: script, configurable: true });
+
+            result = initRemoteLogger();
+
+            expect(result).toBeDefined();
+            expect(result!.ui).toBeUndefined();
+        });
+    });
+
+    test("formats Errors by name and message, and unserializable values with String()", () => {
+        (window as unknown as Record<string, unknown>).__REMOTE_LOG_SERVER_URL__ = "http://test-server:9080";
+        result = initRemoteLogger();
+        const logSpy = vi.spyOn(result!.client, "log");
+        const circular: Record<string, unknown> = {};
+        circular.self = circular;
+
+        console.error(new RangeError("too far"), circular);
+
+        expect(logSpy).toHaveBeenCalledWith("ERROR", "RangeError: too far [object Object]");
+    });
 });

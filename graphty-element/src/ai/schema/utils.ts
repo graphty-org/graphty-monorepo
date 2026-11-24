@@ -7,10 +7,15 @@
  * Statistics result for numeric values.
  */
 export interface NumericStatistics {
+    /** The smallest value; 0 when there are no values. */
     min: number;
+    /** The largest value; 0 when there are no values. */
     max: number;
+    /** The mean; 0 when there are no values. */
     avg: number;
+    /** The middle value (the mean of the two middle values for an even count); 0 when there are none. */
     median: number;
+    /** How many values were counted. */
     count: number;
 }
 
@@ -25,9 +30,13 @@ export interface NumericStatistics {
  * one name and no way to tell which it had.
  */
 export interface AttributeHistogramBin {
+    /** The bar's span printed as text, for a language model to read back. */
     range: string;
+    /** How many values fall in the bar. */
     count: number;
+    /** Where the bar starts. */
     min: number;
+    /** Where the bar ends. */
     max: number;
 }
 
@@ -100,7 +109,7 @@ export function truncateObjectStrings<T>(obj: T, maxLength = 100): T {
     }
 
     if (Array.isArray(obj)) {
-        return obj.map((item) => truncateObjectStrings(item, maxLength)) as T;
+        return (obj as unknown[]).map((item) => truncateObjectStrings(item, maxLength)) as T;
     }
 
     if (typeof obj === "object") {

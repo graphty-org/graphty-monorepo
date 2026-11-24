@@ -300,6 +300,10 @@ export function installVisualStoryTest({ afterEach, beforeEach, commands }) {
         }
     });
 
+    // The confirming hook's job: none when no mode needs a second render, so the clock comes down
+    // with the shooting hook instead of staying the global Date past the test.
+    const confirmation = (job) => (job.modes.length > 0 ? job : null);
+
     // A failed story is recorded as failed, not shot; an excluded one has no modes. Either still
     // finishes here, not in the next story's test. True when the story is not shot.
     const unshot = async (context, plan, fail) => {
@@ -324,7 +328,7 @@ export function installVisualStoryTest({ afterEach, beforeEach, commands }) {
         }
         const mine = test;
         // Through JSON, as capture.mjs reads it, so no function crosses to Node.
-        const chromatic = JSON.parse(JSON.stringify(story.parameters?.chromatic ?? {})); // NOSONAR(S7784): structuredClone throws on the functions this drops
+        const chromatic = JSON.parse(JSON.stringify(story.parameters?.chromatic ?? {})); // eslint-disable-line unicorn/prefer-structured-clone -- structuredClone throws on the functions this drops
         const plan = await commands.visualPlan({ id: story.id, chromatic, test: testOf(context.task) });
         const fail = (modes, reason) =>
             commands.visualFail({ id: story.id, modes, reason, chromatic, console: lines.splice(0) });
@@ -356,7 +360,7 @@ export function installVisualStoryTest({ afterEach, beforeEach, commands }) {
                     throw e;
                 }
             }
-            confirm = { story, chromatic, plan, fail, mine, modes: again };
+            confirm = confirmation({ story, chromatic, plan, fail, mine, modes: again });
         } finally {
             if (!confirm) {
                 restoreDate();

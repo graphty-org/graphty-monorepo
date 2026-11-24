@@ -13,6 +13,7 @@
 
 import { itemAt } from "../../common/text.js";
 import { DIALOG_LINE_HEIGHT, dialogWidth } from "../../formats/gexf/dialog-metrics.js";
+import { hexChannels } from "../canon/color.js";
 import { num6 } from "../canon/number.js";
 import type { StyleColumn, StyleValue } from "../types.js";
 import { colorSchemeColors } from "./color-schemes.js";
@@ -249,7 +250,14 @@ function chartOnNode(
     const fitted = sizeSync || Number.isNaN(ownSize) || ownSize <= 0;
     const box = side === null ? null : { disc: CHART_ACROSS * (fitted ? side : ownSize), side };
     const plotted = plotChart(chart.kind, options, values, colors, box);
-    const names = domainNames(options, columns, own !== null, node.value);
+    // ponytail: a heat map's made-up names are unmeasured, so it keeps naming only by its columns or labels
+    const names = domainNames(
+        options,
+        columns,
+        own !== null,
+        node.value,
+        chart.kind === "HeatMapChart" ? 0 : values.length,
+    );
     const axes = box === null ? null : chartAxes(options, plotted, box.disc, node, (k) => names[k]);
     for (const [property, v] of Object.entries({ ...plotted, ...axes?.plot })) {
         node.put(property, v);
@@ -261,12 +269,13 @@ function chartOnNode(
 
 /**
  * The names a chart's categories carry on its domain axis, one per value: the node's list in
- * `cy_domainLabelsColumn`, else the data columns' names when there is one column per value; none for a list column's
- * values or the chart's own, whose names Cytoscape makes up itself.
+ * `cy_domainLabelsColumn`, else the data columns' names when there is one column per value; Cytoscape's own "#1",
+ * "#2", ... for a list column's values or the chart's own, and for the values past the labels list.
  * @param options - the chart's options
  * @param columns - its data columns
  * @param own - whether it draws its own values
  * @param value - reads the node's value of a column
+ * @param count - how many values it plots
  * @returns the names by value, an empty string where there is none
  */
 function domainNames(
@@ -274,14 +283,62 @@ function domainNames(
     columns: readonly string[],
     own: boolean,
     value: (column: string) => unknown,
+    count: number,
 ): string[] {
     const listed = typeof options.cy_domainLabelsColumn === "string" ? value(options.cy_domainLabelsColumn) : null;
     if (Array.isArray(listed)) {
-        return listed.map((v) => (typeof v === "string" || typeof v === "number" ? String(v) : ""));
+        const names = listed.map((v) => (typeof v === "string" || typeof v === "number" ? String(v) : ""));
+        // past the list, Cytoscape's own names (`createCategoryDataset`: "#" + (i + 1))
+        return count > names.length ? [...names, ...madeUpNames(count).slice(names.length)] : names;
     }
-    // ponytail: a list column's categories are named by Cytoscape (the line chart's fourth and fifth show as "..."),
-    // left unnamed until a sample shows what it calls them
-    return own || (columns.length === 1 && Array.isArray(value(columns[0]))) ? [] : [...columns];
+    return own || (columns.length === 1 && Array.isArray(value(columns[0]))) ? madeUpNames(count) : [...columns];
+}
+
+/**
+ * The names Cytoscape gives categories nothing names: "#1", "#2", ...
+ * @param count - how many categories
+ * @returns the names
+ */
+function madeUpNames(count: number): string[] {
+    return Array.from({ length: count }, (_, k) => `#${k + 1}`);
+}
+
+/**
+ * A category's name as JFreeChart fits it on its one line (`TextUtilities.createTextBlock` with
+ * `CategoryAxis.maximumCategoryLabelLines` 1): whole when it fits; else the words that fit (or, when the first word
+ * alone is too wide, as much of it as fits, at least one character), and when any of the name is left over, their
+ * last 3 characters replaced by "...", or "..." alone for 3 characters or fewer.
+ * @param text - the name
+ * @param room - the line's width
+ * @param width - a text's width
+ * @returns the name as drawn
+ */
+function fitName(text: string, room: number, width: (text: string) => number): string {
+    if (width(text) <= room) {
+        return text;
+    }
+    // ponytail: breaks only after spaces, where Java's line BreakIterator also breaks after hyphens and between
+    // ideographs; add them when a sample names a category with one
+    const words = text.match(/\S*\s*/g) ?? [text];
+    let end = 0;
+    for (const word of words) {
+        if (width(text.slice(0, end + word.length)) > room) {
+            break;
+        }
+        end += word.length;
+    }
+    if (end === 0) {
+        while (end < text.length && width(text.slice(0, end + 1)) <= room) {
+            end++;
+        }
+        end = Math.max(end, 1);
+    }
+    // nothing left over: no "..." (a one-character name is drawn whole however narrow its category)
+    if (end >= text.length) {
+        return text;
+    }
+    const line = text.slice(0, end);
+    return line.length > 3 ? `${line.slice(0, -3)}...` : "...";
 }
 
 /**
@@ -510,8 +567,7 @@ const RANGE_HEADROOM = 0.1;
  * @returns the color
  */
 function mix(a: string, b: string, t: number): string {
-    const rgb = (c: string): number[] => [1, 3, 5].map((k) => Number.parseInt(c.slice(k, k + 2), 16));
-    const [x, y] = [rgb(a), rgb(b)];
+    const [x, y] = [hexChannels(a), hexChannels(b)];
     if ([...x, ...y].some((v) => !Number.isFinite(v))) {
         return a;
     }
@@ -581,6 +637,13 @@ function plotSize(
     const inset = CHART_INSET + (kind === "HeatMapChart" ? HEAT_MAP_INSET : PLOT_INSET);
     return { chartSize: num6(Math.max(0, box.disc - inset) / box.side) };
 }
+
+/**
+ * The plot background Cytoscape fills under a heat map's cells when it draws an axis (`cy_showRangeAxis` or
+ * `cy_showDomainAxis`; without one the plot is unfilled): #e8eae8 at 128/255 (measured from Cytoscape 3.10.5's SVG
+ * export of images-charts-p5 and -p7, `fill-opacity="0.501960813999176"`).
+ */
+const HEAT_MAP_BACKGROUND = { chartBackgroundColor: "#e8eae8", chartBackgroundOpacity: num6(128 / 255) };
 
 /**
  * The outline Cytoscape draws round each bar and box.
@@ -722,7 +785,9 @@ function plotChart(
         case "HeatMapChart": {
             // one cell per value, top to bottom; laid left to right, the last value first
             const cells = horizontal ? [...finite].reverse() : finite;
-            Object.assign(out, {
+            // the plot is filled only when an axis is drawn round it
+            const axes = options.cy_showRangeAxis === true || options.cy_showDomainAxis === true;
+            Object.assign(out, axes ? HEAT_MAP_BACKGROUND : {}, {
                 chartKind: "cells",
                 chartValues: cells.join(" "),
                 chartColors: cells.map((v) => scaleColor(colors, v, range)).join(" "),
@@ -1062,10 +1127,15 @@ function categoryNames(
     const band = Math.max(0, 1 - 2 * margin - gap) / n;
     const step = band + (n > 1 ? gap / (n - 1) : 0);
     const r = (position.turn * Math.PI) / 180;
-    return names.flatMap((text, k): [number, number, string, number][] => {
-        if (text === "") {
+    // JFreeChart's room for a name: 0.95 of its category standing up, half the plot's height turned
+    // (`CategoryLabelPositions`, CategoryLabelWidthType CATEGORY and RANGE)
+    // ponytail: the plot's room is reserved for the uncut names, so a cut turned name leaves the plot a little short
+    const room = position.turn === 0 ? 0.95 * band * pw : 0.5 * (plot.y1 - plot.y0);
+    return names.flatMap((name, k): [number, number, string, number][] => {
+        if (name === "") {
             return [];
         }
+        const text = fitName(name, room, measure.width);
         // from the pinned point to the box's middle, turned with the box
         const [dx, dy] = [-position.pin[0] * measure.width(text), -position.pin[1] * measure.line];
         const x = plot.x0 + (margin + k * step + band / 2) * pw;

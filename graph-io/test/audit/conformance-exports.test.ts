@@ -40,6 +40,7 @@ import * as json from "../../src/formats/json/index.js";
 import * as neo4j from "../../src/formats/neo4j/index.js";
 import * as obo from "../../src/formats/obo/index.js";
 import * as pajek from "../../src/formats/pajek/index.js";
+import * as sif from "../../src/formats/sif/index.js";
 import * as xgmml from "../../src/formats/xgmml/index.js";
 import * as root from "../../src/index.js";
 import {
@@ -206,6 +207,8 @@ interface DesignImportReport {
     readonly durationMs: number;
     // added by the network sources design (section 8)
     readonly source?: SourceReportInfo | undefined;
+    // the options the importer worked out, to read a file the same way again
+    readonly resolved?: Readonly<Record<string, unknown>> | undefined;
 }
 
 describe("design 12.4: the io contract types are exported with the listed shapes", () => {
@@ -278,6 +281,7 @@ const FORMATS = [
     "obo",
     "cx",
     "cys",
+    "sif",
 ] as const;
 const SUBPATHS: Record<(typeof FORMATS)[number], Record<string, unknown>> = {
     gexf,
@@ -293,6 +297,7 @@ const SUBPATHS: Record<(typeof FORMATS)[number], Record<string, unknown>> = {
     obo,
     cx,
     cys,
+    sif,
 };
 
 describe("design 8.2 / 13.1: registry, sniff, children and the eight format surfaces", () => {
@@ -304,7 +309,7 @@ describe("design 8.2 / 13.1: registry, sniff, children and the eight format surf
         expect(typeof root.createRegistry).toBe("function");
         expect(typeof root.childrenCsr).toBe("function");
         expect(root.registry.formats()).toEqual([...root.GRAPH_FORMATS]);
-        expect(new Set(root.GRAPH_FORMATS)).toEqual(new Set(FORMATS));
+        expect(new Set(root.GRAPH_FORMATS)).toEqual(new Set([...FORMATS, "xlsx"]));
     });
 
     it("registers one importer and one exporter per format, each typed by the 12.4 contract", () => {
@@ -332,10 +337,12 @@ describe("design 8.2 / 13.1: registry, sniff, children and the eight format surf
             exports: Record<string, Record<string, string>>;
         };
         // the format subpaths, plus the format-independent styles module and ./positions (stored coordinates);
-        // the network source subpaths (./sources/<name>) are checked by build-output.test.ts
-        const formatExports = Object.entries(pkg.exports).filter(([key]) => !key.startsWith("./sources/"));
+        // the network source subpaths (./sources and ./sources/<name>) are checked by build-output.test.ts
+        const formatExports = Object.entries(pkg.exports).filter(
+            ([key]) => key !== "./sources" && !key.startsWith("./sources/"),
+        );
         expect(formatExports.map(([key]) => key).sort()).toEqual(
-            [".", ...FORMATS.map((f) => `./${f}`), "./styles", "./positions"].sort(),
+            [".", ...FORMATS.map((f) => `./${f}`), "./xlsx", "./styles", "./positions"].sort(),
         );
         for (const [key, entry] of formatExports) {
             const name = key === "." ? "graph-io" : key.slice(2);

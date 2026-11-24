@@ -51,7 +51,7 @@ const registeredFormats = DataSource.getRegisteredTypes();
 /**
  * Collect every place a value stops being plain JSON: a function, a class instance, a Map, a
  * Date, an undefined. Reported as paths rather than as one boolean, because "a descriptor is not
- * serialisable" is useless without the field that made it so.
+ * serializable" is useless without the field that made it so.
  */
 function nonJsonPaths(value: unknown, path: string, found: string[]): string[] {
     if (value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
@@ -342,14 +342,14 @@ describe("format catalogue", () => {
         );
     });
 
-    it("reports that every built-in format but the project file can be read, and all but OBO written", () => {
+    it("reports that every built-in format but the project file can be read, and all but OBO and workbooks written", () => {
         assert.deepEqual(
             FORMAT_DESCRIPTORS.filter((descriptor) => !descriptor.canImport).map((descriptor) => descriptor.id),
             ["graphty"],
         );
         assert.deepEqual(
             FORMAT_DESCRIPTORS.filter((descriptor) => !descriptor.canExport).map((descriptor) => descriptor.id),
-            ["obo"],
+            ["obo", "xlsx"],
         );
     });
 
@@ -386,7 +386,7 @@ describe("format catalogue", () => {
 
         assert.deepEqual(
             csv?.options.map((option) => option.name),
-            ["delimiter", "variant", "idColumn", "edgeSource", "edgeTarget"],
+            ["delimiter", "variant", "idColumn", "missing", "edgeSource", "edgeTarget"],
         );
         assert.strictEqual(variant?.type, "enum");
         assert.include(variant?.values?.map((choice) => choice.value) ?? [], "edge-list");

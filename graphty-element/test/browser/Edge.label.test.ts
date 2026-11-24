@@ -1,341 +1,173 @@
-import { NullEngine, Scene, Vector3 } from "@babylonjs/core";
-import { afterEach, assert, beforeEach, describe, test } from "vitest";
-
-import type { EdgeStyleConfig } from "../../src/config";
-import { RichTextLabel } from "../../src/meshes/RichTextLabel";
-
 /**
- * Regression tests for Edge label functionality.
+ * @file Where an edge's label is drawn, read off a real edge on a real graph.
  *
- * Bug history:
- * 1. attachOffset bug:
- *    - Edge labels had their attachOffset hardcoded to 0 in the update() method
- *    - The attachOffset was correctly read from config in createLabelOptions()
- *    - But the stored offset was not used when calling label.attachTo()
- *    - Fix: Added _labelOffset property to store the configured offset and use it in attachTo()
- *
- * 2. attachPosition bug (same pattern):
- *    - Edge labels had their attachPosition hardcoded to "center" in the update() method
- *    - The location was correctly read and transformed to attachPosition in createLabelOptions()
- *    - But the stored position was not used when calling label.attachTo()
- *    - Fix: Added _labelAttachPosition property to store the configured position and use it in attachTo()
+ * Each test asks for a label through a style layer, the way any consumer does, and then reads the
+ * label the edge actually built: the words it draws and where its plane sits against the middle of
+ * the line. The placement is read after the graph is laid out again, so it is the position the
+ * edge puts the label at on every frame it moves, not only the one it was built with.
  */
-describe("Edge Label Configuration", () => {
-    let scene: Scene;
 
-    beforeEach(() => {
-        const engine = new NullEngine();
-        scene = new Scene(engine);
+import { Vector3 } from "@babylonjs/core";
+import { afterEach, assert, beforeEach, describe, it } from "vitest";
+
+import type { LabelStyle } from "../../src/catalog/types";
+import type { Edge } from "../../src/Edge";
+import { Graph, operationQueueOf } from "../../src/Graph";
+import type { RichTextLabel } from "../../src/meshes/RichTextLabel";
+import type { GraphSession } from "../../src/session";
+
+/** Two nodes and the edge between them. */
+const NODES = [{ id: "alpha" }, { id: "omega" }];
+
+/** The one edge whose label is measured. */
+const EDGES = [{ src: "alpha", dst: "omega" }];
+
+/** The words the label is asked to draw. */
+const WORDS = "HELLO";
+
+/** How close two world positions must be to count as the same place, in world units. */
+const SAME_PLACE = 1e-3;
+
+/** A distance a label is asked to stand off from the line, in world units. */
+const OFFSET = 1.5;
+
+describe("an edge's label", () => {
+    let container: HTMLElement;
+    let graph: Graph;
+    let session: GraphSession;
+    let scale: number;
+
+    beforeEach(async () => {
+        container = document.createElement("div");
+        container.style.width = "640px";
+        container.style.height = "480px";
+        document.body.appendChild(container);
+        graph = new Graph(container);
+        await graph.init();
+        session = graph.getSession();
+        layerId = undefined;
+        scale = 2;
+
+        await graph.addNodes(NODES);
+        await graph.addEdges(EDGES);
+        // Circular rather than physics, so the nodes do not drift between the readings.
+        await graph.setLayout("circular", { scale });
+        await operationQueueOf(graph).waitForCompletion();
     });
 
     afterEach(() => {
-        scene.getEngine().dispose();
+        graph.dispose();
+        container.remove();
     });
 
-    describe("Edge Label attachOffset", () => {
-        test("edge label can be configured with attachOffset in EdgeStyleConfig", () => {
-            const style: EdgeStyleConfig = {
-                label: {
-                    enabled: true,
-                    text: "Test Label",
-                    fontSize: 32,
-                    textColor: "#000000",
-                    attachOffset: 1.5,
-                },
-                line: { color: "darkgrey" },
-            };
+    /**
+     * The one edge the element holds.
+     * @returns The edge.
+     */
+    function edgeObject(): Edge {
+        const [edge] = Array.from(graph.getDataManager().edges.values());
 
-            // Verify the config structure is correct
-            const { label } = style;
-            assert.exists(label);
-            assert.equal(label.attachOffset, 1.5);
-        });
+        assert.isDefined(edge, "the graph holds the one edge");
 
-        test("edge label attachOffset defaults to 0 when not specified", () => {
-            const style: EdgeStyleConfig = {
-                label: {
-                    enabled: true,
-                    text: "Test Label",
-                    fontSize: 32,
-                },
-                line: { color: "darkgrey" },
-            };
+        return edge;
+    }
 
-            const { label } = style;
-            assert.exists(label);
-            // attachOffset should be undefined (defaults handled by code)
-            assert.isUndefined(label.attachOffset);
-        });
+    /**
+     * Where one node is drawn, in world space.
+     * @param id - The node id.
+     * @returns The position.
+     */
+    function nodeAt(id: string): Vector3 {
+        const node = graph.getNodes().find((candidate) => String(candidate.id) === id);
 
-        test("RichTextLabel.attachTo applies offset correctly", () => {
-            const label = new RichTextLabel(scene, {
-                text: "Offset Test",
-                fontSize: 12,
-                textColor: "#FFFFFF",
-                attachOffset: 2.0,
-            });
+        assert.isDefined(node, `the graph holds a node called ${id}`);
 
-            const position = new Vector3(0, 0, 0);
-            const offset = 2.0;
+        return node.mesh.getAbsolutePosition();
+    }
 
-            // Attach with offset
-            label.attachTo(position, "top", offset);
+    /** The layer the test asked for, so a later step can change its placement. */
+    let layerId: string | undefined;
 
-            // The label mesh should exist and be positioned
-            assert.exists(label.labelMesh);
+    /**
+     * Ask for the label through a layer (or change the one already asked for), lay the graph out
+     * again so the edge places the label as it does on every frame it moves, and return where the
+     * label sits against the middle of the line.
+     * @param style - The label's placement.
+     * @returns The label and its plane's position minus the line's middle.
+     */
+    async function labelFrom(style: LabelStyle): Promise<{ label: RichTextLabel; from: Vector3 }> {
+        const set = { "edge.label": WORDS, "edge.labelStyle": style };
 
-            // The label position should be offset from the target position
-            // For "top" attachment, Y should be increased by the offset
-            const labelPos = label.labelMesh.position;
-            assert.isAbove(labelPos.y, position.y, "Label Y position should be offset above target");
+        if (layerId === undefined) {
+            ({ id: layerId } = await session.styles.add({
+                name: "edge words",
+                target: "edge",
+                selector: { match: "everything" },
+                set,
+            }));
+        } else {
+            await session.styles.update(layerId, { set });
+        }
 
-            label.dispose();
-        });
+        await operationQueueOf(graph).waitForCompletion();
+        // A new scale moves both nodes, so the edge has to place its label again.
+        scale += 1;
+        await graph.setLayout("circular", { scale });
+        await operationQueueOf(graph).waitForCompletion();
+        await graph.waitForStableFrame();
 
-        test("edge label attachOffset of 0 places label at edge midpoint", () => {
-            const label = new RichTextLabel(scene, {
-                text: "Zero Offset",
-                fontSize: 12,
-                textColor: "#FFFFFF",
-            });
+        const { label } = edgeObject();
 
-            const midpoint = new Vector3(5, 5, 0);
-            label.attachTo(midpoint, "center", 0);
+        assert.isNotNull(label, "a layer that writes words onto an edge builds it a label");
+        assert.isNotNull(label.labelMesh, "and the label has a plane in the scene");
 
-            assert.exists(label.labelMesh);
-            // With zero offset and center attachment, position should be at midpoint
-            // (actual position may vary based on label centering logic)
+        const middle = Vector3.Center(nodeAt("alpha"), nodeAt("omega"));
 
-            label.dispose();
-        });
+        return { label, from: label.labelMesh.getAbsolutePosition().subtract(middle) };
+    }
 
-        test("different attachOffset values produce different label positions", () => {
-            const label1 = new RichTextLabel(scene, {
-                text: "Small Offset",
-                fontSize: 12,
-            });
-
-            const label2 = new RichTextLabel(scene, {
-                text: "Large Offset",
-                fontSize: 12,
-            });
-
-            const targetPos = new Vector3(0, 0, 0);
-
-            label1.attachTo(targetPos, "top", 0.5);
-            label2.attachTo(targetPos, "top", 2.0);
-
-            assert.exists(label1.labelMesh);
-            assert.exists(label2.labelMesh);
-
-            // Label with larger offset should have higher Y position
-            const y1 = label1.labelMesh.position.y;
-            const y2 = label2.labelMesh.position.y;
-            assert.isAbove(y2, y1, "Larger offset should result in higher Y position");
-
-            label1.dispose();
-            label2.dispose();
-        });
+    it("draws no label until a layer asks for one", () => {
+        assert.isNull(edgeObject().label);
     });
 
-    describe("Edge Label attachPosition (location)", () => {
-        test("edge label can be configured with location in EdgeStyleConfig", () => {
-            const style: EdgeStyleConfig = {
-                label: {
-                    enabled: true,
-                    text: "Test Label",
-                    location: "top",
-                },
-                line: { color: "darkgrey" },
-            };
+    it("draws the words the layer wrote", async () => {
+        const { label } = await labelFrom({});
+        const drawn = label.textRuns.map((line) => line.map((run) => run.text).join("")).join("\n");
 
-            const { label } = style;
-            assert.exists(label);
-            assert.equal(label.location, "top");
-        });
-
-        test("edge label location defaults to center when not specified", () => {
-            const style: EdgeStyleConfig = {
-                label: {
-                    enabled: true,
-                    text: "Test Label",
-                },
-                line: { color: "darkgrey" },
-            };
-
-            const { label } = style;
-            assert.exists(label);
-            // location should be undefined (defaults handled by code as "center")
-            assert.isUndefined(label.location);
-        });
-
-        test("edge label supports various location values", () => {
-            const locations = ["top", "bottom", "left", "right", "center"] as const;
-
-            for (const location of locations) {
-                const style: EdgeStyleConfig = {
-                    label: {
-                        enabled: true,
-                        text: `Label at ${location}`,
-                        location,
-                    },
-                    line: { color: "darkgrey" },
-                };
-
-                assert.equal(style.label?.location, location);
-            }
-        });
-
-        test("RichTextLabel.attachTo applies position correctly", () => {
-            const positions = ["top", "bottom", "left", "right", "center"] as const;
-
-            for (const position of positions) {
-                const label = new RichTextLabel(scene, {
-                    text: `Position: ${position}`,
-                    fontSize: 12,
-                });
-
-                const targetPos = new Vector3(0, 0, 0);
-                label.attachTo(targetPos, position, 1.0);
-
-                assert.exists(label.labelMesh);
-                label.dispose();
-            }
-        });
-
-        test("different attach positions produce different label positions", () => {
-            const labelTop = new RichTextLabel(scene, {
-                text: "Top",
-                fontSize: 12,
-            });
-
-            const labelBottom = new RichTextLabel(scene, {
-                text: "Bottom",
-                fontSize: 12,
-            });
-
-            const targetPos = new Vector3(0, 0, 0);
-            const offset = 2.0;
-
-            labelTop.attachTo(targetPos, "top", offset);
-            labelBottom.attachTo(targetPos, "bottom", offset);
-
-            assert.exists(labelTop.labelMesh);
-            assert.exists(labelBottom.labelMesh);
-
-            // Top label should have higher Y than bottom label
-            const topY = labelTop.labelMesh.position.y;
-            const bottomY = labelBottom.labelMesh.position.y;
-            assert.isAbove(topY, bottomY, "Top position should result in higher Y than bottom position");
-
-            labelTop.dispose();
-            labelBottom.dispose();
-        });
+        assert.strictEqual(drawn, WORDS);
     });
 
-    describe("Edge Label vs Arrow Text Offset Consistency", () => {
-        test("edge labels support the same attachOffset values as arrow text", () => {
-            // Arrow text uses attachOffset for positioning above arrowheads
-            // Edge labels should support the same offset mechanism
-            const arrowTextStyle: EdgeStyleConfig = {
-                arrowHead: {
-                    type: "normal",
-                    text: {
-                        text: "Arrow Text",
-                        fontSize: 32,
-                        attachOffset: 1.0,
-                    },
-                    color: "darkgrey",
-                    size: 1,
-                    opacity: 1,
-                },
-                line: { color: "darkgrey" },
-            };
+    it("hangs above the middle of the line, touching it, when its style names no location", async () => {
+        const unnamed = (await labelFrom({})).from;
+        const top = (await labelFrom({ location: "top", attachOffset: 0 })).from;
 
-            const edgeLabelStyle: EdgeStyleConfig = {
-                label: {
-                    enabled: true,
-                    text: "Edge Label",
-                    fontSize: 32,
-                    attachOffset: 1.0,
-                },
-                line: { color: "darkgrey" },
-            };
-
-            // Both should accept the same offset value
-            assert.equal(
-                arrowTextStyle.arrowHead?.text?.attachOffset,
-                edgeLabelStyle.label?.attachOffset,
-                "Arrow text and edge label should support same offset value",
-            );
-        });
+        assert.isAbove(unnamed.y, SAME_PLACE, `the label is above the middle: ${unnamed.toString()}`);
+        assert.closeTo(Vector3.Distance(unnamed, top), 0, SAME_PLACE, "exactly where location top, offset 0 puts it");
     });
 
-    describe("Edge Label Styling", () => {
-        test("edge label supports custom fontSize", () => {
-            const style: EdgeStyleConfig = {
-                label: {
-                    enabled: true,
-                    text: "Custom Font",
-                    fontSize: 48,
-                },
-                line: { color: "darkgrey" },
-            };
+    it("hangs above, below, left and right of the middle where its location says", async () => {
+        const top = (await labelFrom({ location: "top" })).from;
+        const bottom = (await labelFrom({ location: "bottom" })).from;
+        const left = (await labelFrom({ location: "left" })).from;
+        const right = (await labelFrom({ location: "right" })).from;
 
-            assert.equal(style.label?.fontSize, 48);
-        });
-
-        test("edge label supports custom colors", () => {
-            const style: EdgeStyleConfig = {
-                label: {
-                    enabled: true,
-                    text: "Colored",
-                    textColor: "#FF0000",
-                    backgroundColor: "#00FF00",
-                },
-                line: { color: "darkgrey" },
-            };
-
-            assert.equal(style.label?.textColor, "#FF0000");
-            assert.equal(style.label?.backgroundColor, "#00FF00");
-        });
-
-        test("edge label can have transparent background", () => {
-            const style: EdgeStyleConfig = {
-                label: {
-                    enabled: true,
-                    text: "Transparent BG",
-                    backgroundColor: "transparent",
-                },
-                line: { color: "darkgrey" },
-            };
-
-            assert.equal(style.label?.backgroundColor, "transparent");
-        });
+        assert.isAbove(top.y, SAME_PLACE, `top is above the middle: ${top.toString()}`);
+        assert.isBelow(bottom.y, -SAME_PLACE, `bottom is below the middle: ${bottom.toString()}`);
+        assert.isBelow(left.x, -SAME_PLACE, `left is left of the middle: ${left.toString()}`);
+        assert.isAbove(right.x, SAME_PLACE, `right is right of the middle: ${right.toString()}`);
+        assert.closeTo(top.x, 0, SAME_PLACE, "top stays centered across the line");
+        assert.closeTo(left.y, 0, SAME_PLACE, "left stays centered up and down");
     });
 
-    describe("Edge Label Enabled Flag", () => {
-        test("edge label requires enabled: true to be created", () => {
-            // This tests the bug where labels weren't showing because enabled wasn't set
-            const styleWithEnabled: EdgeStyleConfig = {
-                label: {
-                    enabled: true,
-                    text: "Visible Label",
-                },
-                line: { color: "darkgrey" },
-            };
+    it("moves out by its attachOffset, in world units, from where its location puts it", async () => {
+        const touching = (await labelFrom({ location: "top", attachOffset: 0 })).from;
+        const clear = (await labelFrom({ location: "top", attachOffset: OFFSET })).from;
+        const besideTouching = (await labelFrom({ location: "right", attachOffset: 0 })).from;
+        const besideClear = (await labelFrom({ location: "right", attachOffset: OFFSET })).from;
 
-            const styleWithoutEnabled: EdgeStyleConfig = {
-                label: {
-                    text: "Invisible Label",
-                    // enabled is not set (defaults to false)
-                },
-                line: { color: "darkgrey" },
-            };
-
-            // Edge.ts checks style.label?.enabled before creating the label
-            assert.isTrue(styleWithEnabled.label?.enabled);
-            assert.isUndefined(styleWithoutEnabled.label?.enabled);
-        });
+        assert.closeTo(clear.y - touching.y, OFFSET, SAME_PLACE, "the offset lifts a label on top");
+        assert.closeTo(clear.x, touching.x, SAME_PLACE, "and does not move it across");
+        assert.closeTo(besideClear.x - besideTouching.x, OFFSET, SAME_PLACE, "the offset pushes a label on the right");
+        assert.closeTo(besideClear.y, besideTouching.y, SAME_PLACE, "and does not move it up or down");
     });
 });

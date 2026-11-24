@@ -4,8 +4,7 @@
  * @module ai/AiManager
  */
 
-import type { Scene } from "@babylonjs/core";
-import debounce from "lodash/debounce.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { XRInputHandler } from "../cameras/XRInputHandler";
 import {
@@ -22,7 +21,6 @@ import {
 } from "../catalog/ai";
 import type { NodeId } from "../catalog/types";
 import type { XRAiConfig } from "../config/XRConfig";
-import { GraphtyError } from "../errors";
 import type { AiApprovalRequest, AiQuestionRequest, NodeHoverEvent } from "../events";
 import type { Graph } from "../Graph";
 import { type AiAgentsSetting, AiConfigError, type AiToolOptions } from "./agents";
@@ -56,11 +54,8 @@ import type { AssistantGateLimits } from "./tools/types";
 import type * as VoicePrime from "./voice/prime";
 import type { ProviderLiveSpeech, ProviderSpeech, VoiceSession } from "./voice/VoiceSession";
 
-// Loaded before an AiManager is built: its key manager restores persisted keys as it is built.
-export { loadEncryptStorage } from "./keys";
-
-/** Default debounce delay for schema updates in milliseconds */
-const SCHEMA_UPDATE_DEBOUNCE_MS = 300;
+/** The graph events after which the schema is read again: the data it describes changed. */
+const SCHEMA_STALE_EVENTS = ["data-added", "data-cleared", "snapshot-replaced", "snapshot-dropped"] as const;
 
 /**
  * Configuration for enabling encrypted key persistence.
@@ -71,7 +66,6 @@ export interface KeyPersistenceConfig {
     /**
      * Encryption key for AES encryption (min 10 characters). Default: a built-in key, public in
      * this package's source, so keys saved with it are obscured, not encrypted.
-     * @experimental assistant
      */
     encryptionKey?: string;
     /** Storage backend (default: "localStorage") */
@@ -134,8 +128,7 @@ export interface AiVoiceOptions {
      * carries the text and the pointing, for the application to show and then send with
      * `aiCommand(transcript, { via: "voice", pointing })`. Default false: a press sends on release.
      * In an immersive (XR) session a press always sends on release, as the page is out of sight.
-     * Needs `mode: "turns"` and the `assistant` experiment.
-     * @experimental assistant
+     * Needs `mode: "turns"`.
      */
     review?: boolean;
     /** `"hold"` (the default): talk while `aiTalk(true)` holds. `"toggle"`: each `aiTalk(true)` starts or ends. */
@@ -312,7 +305,6 @@ export interface AiManagerConfig {
     /**
      * Text added to the system prompt, under `toolset: "generated"`: what the host wants the model
      * to do or never do.
-     * @experimental assistant
      */
     instructions?: string;
     /**
@@ -333,6 +325,11 @@ export interface AiManagerConfig {
      * approval). Absent, the assistant imports only URLs that appear in the reader's own message.
      */
     allowImportUrl?: (url: URL) => boolean;
+    /**
+     * Where the assistant's `load_dataset` downloads graph-samples' datasets from (the
+     * `baseUrl` of `session.data.loadDataset`). Absent, that action fails with `AI_ARG_OUT_OF_RANGE`.
+     */
+    datasetBaseUrl?: string;
     /** Optional custom provider instance (e.g., pre-initialized WebLlmProvider) */
     providerInstance?: LlmProvider;
     /** Key persistence configuration for encrypted storage */
@@ -452,8 +449,7 @@ export class AiManager {
     private readonly keysSeen = new Set<string>();
     private readonly statusManager: AiStatusManager;
     private schemaManager: SchemaManager | null = null;
-    private dataAddedListenerId: symbol | null = null;
-    private debouncedSchemaUpdate: ReturnType<typeof debounce> | null = null;
+    private schemaListenerIds: symbol[] = [];
     private disposed = false;
     private initialized = false;
     /** The assistant's `voice`, absent for none. */
@@ -469,6 +465,8 @@ export class AiManager {
     /** The priming, loaded with `voice` so the Enter VR / AR click can prime at once. */
     private voicePrime: typeof VoicePrime | undefined;
     private voicePrimeLoad: Promise<void> | undefined;
+    /** Settles once the key manager has loaded the stored keys. */
+    private keysLoad: Promise<void> | undefined;
     /** Unbinds the assistant from the immersive session it is bound to. */
     private xrUnbind: (() => void) | undefined;
     /** Counts binds and unbinds: a bind a later call superseded does nothing. */
@@ -511,7 +509,7 @@ export class AiManager {
         // A configuration that cannot run is rejected before anything is built.
         checkAiConfig(config);
         if (config.voice?.review === true) {
-            this.checkReview(graph, config.voice);
+            this.checkReview(config.voice);
         }
 
         this.graph = graph;
@@ -526,6 +524,14 @@ export class AiManager {
             this.apiKeyManager.setKey(config.provider, config.apiKey);
         }
         this.provider = config.providerInstance ?? this.configuredProvider(config);
+        // Stored keys load asynchronously (Web Crypto): a provider given no key takes the restored one.
+        this.keysLoad = this.apiKeyManager.ready().then(() => {
+            const restored = this.apiKeyManager.getKey(config.provider);
+            const fromStorage = !config.apiKey && config.providerInstance === undefined && restored !== undefined;
+            if (fromStorage && this.provider?.name === config.provider) {
+                this.provider.configure({ ...this.providerOptions, apiKey: restored });
+            }
+        });
 
         const toolset = config.toolset ?? "commands";
         if (toolset === "generated") {
@@ -570,12 +576,13 @@ export class AiManager {
             return;
         }
 
-        this.apiKeyManager.enablePersistence({
+        // Both are queued on the key manager; `ready()` waits for them.
+        void this.apiKeyManager.enablePersistence({
             ...(persistence.encryptionKey === undefined ? {} : { encryptionKey: persistence.encryptionKey }),
             storage: persistence.storage ?? "localStorage",
             prefix: persistence.prefix,
         });
-        this.apiKeyManager.retireOtherStorage();
+        void this.apiKeyManager.retireOtherStorage();
     }
 
     /**
@@ -642,6 +649,7 @@ export class AiManager {
             ...(toolset === "generated" ? { toolProfile } : {}),
             ...(config.gate === undefined ? {} : { gate: config.gate }),
             ...(config.allowImportUrl === undefined ? {} : { allowImportUrl: config.allowImportUrl }),
+            ...(config.datasetBaseUrl === undefined ? {} : { datasetBaseUrl: config.datasetBaseUrl }),
             ...(config.approvals === undefined ? {} : { approvals: config.approvals }),
             ...(config.questions === undefined ? {} : { questions: config.questions }),
             ...(config.agents === undefined ? {} : { agents: config.agents, apiKeys: this.helperKeys(config) }),
@@ -720,7 +728,7 @@ export class AiManager {
                 };
             },
         });
-        void this.voiceSessionNow?.checkSupport(); // NOSONAR(S3735): void marks a deliberate fire-and-forget for no-floating-promises; rule off in graphty-way.xml
+        void this.voiceSessionNow?.checkSupport(); // void marks a deliberate fire-and-forget for no-floating-promises
     }
 
     /** Leave the immersive session: unbind, close a held microphone without sending, stop speaking. */
@@ -769,21 +777,10 @@ export class AiManager {
 
     /**
      * Refuse a reviewed transcript that cannot be had.
-     * @param graph - The graph, whose session says which experiments are on.
      * @param voice - The assistant's `voice`.
-     * @throws A `GraphtyError` coded `E_FEATURE_OFF` while the `assistant` experiment is off; an
-     * `AiConfigError` for a live conversation, whose words reach the model as they are said.
+     * @throws An `AiConfigError` for a live conversation, whose words reach the model as they are said.
      */
-    private checkReview(graph: Graph, voice: AiVoiceOptions): void {
-        if (!graph.getSession().features.has("assistant")) {
-            throw new GraphtyError({
-                code: "E_FEATURE_OFF",
-                message: `Reviewing a transcript needs the "assistant" experiment.`,
-                source: "config",
-                details: { feature: "assistant", key: "voice.review" },
-            });
-        }
-
+    private checkReview(voice: AiVoiceOptions): void {
         if (voice.mode === "live") {
             throw new AiConfigError({ field: "voice.review", reason: "needs-turns" });
         }
@@ -947,23 +944,13 @@ export class AiManager {
         // Extract initial schema
         this.schemaManager.extract();
 
-        // Set up debounced schema update
-        this.debouncedSchemaUpdate = debounce(() => {
-            if (this.schemaManager) {
-                this.schemaManager.invalidateCache();
-            }
-        }, SCHEMA_UPDATE_DEBOUNCE_MS);
-
-        // Listen for data-added events to update schema
-        try {
-            const { eventManager } = this.graph;
-            this.dataAddedListenerId = eventManager.addListener("data-added", () => {
-                this.debouncedSchemaUpdate?.();
-            });
-        } catch {
-            // EventManager may not be available in all contexts (e.g., tests)
-            // Schema will still work, just won't auto-update
-        }
+        // Dropping the cache is cheap and the next prompt extracts again, so there is nothing to debounce.
+        const { eventManager } = this.graph;
+        this.schemaListenerIds = SCHEMA_STALE_EVENTS.map((type) =>
+            eventManager.addListener(type, () => {
+                this.schemaManager?.invalidateCache();
+            }),
+        );
     }
 
     /**
@@ -987,7 +974,7 @@ export class AiManager {
      * `ctx.tx` (`ctx.tx.styles.add`, `ctx.tx.layout.set`, `ctx.tx.run`): those changes are undone
      * with the rest of the message, and rolled back if a command throws. A change made through
      * `ctx.graph` is a step of its own and is not rolled back. A command stops when
-     * `ctx.abortSignal` fires, which happens when the message is cancelled or undone while it is
+     * `ctx.abortSignal` fires, which happens when the message is canceled or undone while it is
      * still going.
      * @param command - The command to register
      */
@@ -1114,10 +1101,10 @@ export class AiManager {
      * @param act - What to do with it.
      */
     private withVoice(act: (session: VoiceSession) => void): void {
-        void this.voiceSession?.then(act); // NOSONAR(S3735): void marks a deliberate fire-and-forget for no-floating-promises; rule off in graphty-way.xml
+        void this.voiceSession?.then(act); // void marks a deliberate fire-and-forget for no-floating-promises
     }
 
-    /** Stop speaking an answer (`ai-speech-end` `{ code: "AI_CANCELLED" }`); nothing speaks without `voice`. */
+    /** Stop speaking an answer (`ai-speech-end` `{ code: "AI_CANCELED" }`); nothing speaks without `voice`. */
     stopSpeech(): void {
         this.withVoice((session) => {
             session.stopSpeech();
@@ -1126,7 +1113,7 @@ export class AiManager {
 
     /**
      * End a live conversation (`voice.mode: "live"`): its connection closes, a held press ends with
-     * `AI_CANCELLED`, and the next press opens another. Does nothing when none is open.
+     * `AI_CANCELED`, and the next press opens another. Does nothing when none is open.
      */
     endLive(): void {
         this.withVoice((session) => {
@@ -1184,11 +1171,12 @@ export class AiManager {
     }
 
     /**
-     * Resolves once the saved conversation is open: at once without `history`.
+     * Resolves once the saved conversation is open and the stored keys are loaded: at once without
+     * `history` or `keyPersistence`.
      * @returns When ready.
      */
     async ready(): Promise<void> {
-        await Promise.all([this.controller?.ready(), this.voicePrimeLoad]);
+        await Promise.all([this.controller?.ready(), this.voicePrimeLoad, this.keysLoad]);
     }
 
     /**
@@ -1283,7 +1271,7 @@ export class AiManager {
         }
 
         // A key can make provider transcription or speech usable.
-        void this.voiceSessionNow?.checkSupport(); // NOSONAR(S3735): void marks a deliberate fire-and-forget for no-floating-promises; rule off in graphty-way.xml
+        void this.voiceSessionNow?.checkSupport(); // void marks a deliberate fire-and-forget for no-floating-promises
     }
 
     /**
@@ -1318,22 +1306,23 @@ export class AiManager {
     /**
      * Retry the last AI command that was executed.
      * Useful for retrying after transient errors.
-     * @returns Promise resolving to the execution result
-     * @throws Error if no previous command exists or AI is not initialized
+     * @returns Promise resolving to the execution result: `AI_DISPOSED` and `AI_NOT_ENABLED` as
+     *     from `execute()`, and `AI_NO_PREVIOUS_COMMAND` when no command has run yet
      */
     async retry(): Promise<ExecutionResult> {
-        if (this.disposed) {
-            throw new Error("AI Manager has been disposed.");
-        }
-
-        if (!this.controller) {
-            throw new Error("AI not enabled. Call enableAiControl() first.");
+        if (this.disposed || !this.controller) {
+            // The same coded result execute() gives in either state.
+            return this.execute("");
         }
 
         const lastInput = this.controller.getLastInput();
-
         if (!lastInput) {
-            throw new Error("No previous command to retry.");
+            return {
+                success: false,
+                message: "No previous command to retry.",
+                code: "AI_NO_PREVIOUS_COMMAND",
+                params: {},
+            };
         }
 
         return this.controller.execute(lastInput);
@@ -1404,22 +1393,11 @@ export class AiManager {
         this.talkAsked = false;
         this.voiceOptions = undefined;
 
-        // Cancel any pending debounced updates
-        if (this.debouncedSchemaUpdate) {
-            this.debouncedSchemaUpdate.cancel();
-            this.debouncedSchemaUpdate = null;
+        for (const id of this.schemaListenerIds) {
+            this.graph?.eventManager.removeListener(id);
         }
 
-        // Remove event listener
-        if (this.dataAddedListenerId && this.graph) {
-            try {
-                const { eventManager } = this.graph;
-                eventManager.removeListener(this.dataAddedListenerId);
-            } catch {
-                // EventManager may not be available
-            }
-            this.dataAddedListenerId = null;
-        }
+        this.schemaListenerIds = [];
 
         // Clean up schema manager
         this.schemaManager = null;

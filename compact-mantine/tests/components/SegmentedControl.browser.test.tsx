@@ -8,31 +8,10 @@ import { screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { SegmentedControl } from "../../src/components/SegmentedControl";
+import { contrast } from "../harness/contrast";
 import { renderThemed, resetHarness } from "../harness/measure";
 
 afterEach(resetHarness);
-
-/**
- * The WCAG contrast ratio of a (possibly translucent) text color over an opaque surface.
- * @param text - the computed text color
- * @param surface - the computed surface color
- * @returns the ratio
- */
-function contrast(text: string, surface: string): number {
-    const parts = (c: string): number[] => (c.match(/[\d.]+/g) ?? []).map(Number);
-    const [r, g, b, a = 1] = parts(text);
-    const bg = parts(surface);
-    const mixed = [r * a + bg[0] * (1 - a), g * a + bg[1] * (1 - a), b * a + bg[2] * (1 - a)];
-    const lum = (rgb: number[]): number => {
-        const [lr, lg, lb] = rgb.map((c) => {
-            const v = c / 255;
-            return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
-        });
-        return 0.2126 * lr + 0.7152 * lg + 0.0722 * lb;
-    };
-    const [hi, lo] = [lum(mixed), lum(bg)].sort((x, y) => y - x);
-    return (hi + 0.05) / (lo + 0.05);
-}
 
 const ENDS = [
     { value: "add", label: "Add" },

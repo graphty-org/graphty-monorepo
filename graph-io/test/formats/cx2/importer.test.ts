@@ -318,10 +318,10 @@ describe("cx2Importer: the descriptor and the stream (research-cx2.md 4.1)", () 
     });
 
     it("reads a byte order mark, UTF-16 and falls back from invalid UTF-8", async () => {
-        const doc = cx2([{ nodes: [{ id: 1, v: { name: "café" } }] }]);
+        const doc = cx2([{ nodes: [{ id: 1, v: { name: "caf\u00E9" } }] }]);
         const utf8 = new TextEncoder().encode(doc);
         const bom = new Uint8Array([0xef, 0xbb, 0xbf, ...utf8]);
-        expect(value((await load(bom)).snapshot, "name", 1)).toBe("café");
+        expect(value((await load(bom)).snapshot, "name", 1)).toBe("caf\u00E9");
         const utf16 = new Uint8Array(2 + doc.length * 2);
         utf16[0] = 0xff;
         utf16[1] = 0xfe;
@@ -329,7 +329,7 @@ describe("cx2Importer: the descriptor and the stream (research-cx2.md 4.1)", () 
             utf16[2 + 2 * i] = doc.charCodeAt(i) & 0xff;
             utf16[3 + 2 * i] = doc.charCodeAt(i) >> 8;
         }
-        expect(value((await load(utf16)).snapshot, "name", 1)).toBe("café");
+        expect(value((await load(utf16)).snapshot, "name", 1)).toBe("caf\u00E9");
         const latin1 = Uint8Array.from(doc, (c) => c.charCodeAt(0));
         const fallback = await load(latin1);
         expect(codes(fallback.report)).toContain(CX2_ISSUE.ENCODING_FALLBACK);

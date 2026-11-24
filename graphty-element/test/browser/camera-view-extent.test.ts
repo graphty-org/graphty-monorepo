@@ -1,7 +1,9 @@
 /**
  * @file The `extent` option of the camera views (issue #2668): `"drawn"` frames each node out to the
  * box it is drawn in, for `zoomToNodes`, `applyCameraView` and `resolveCameraPreset`, and for a third
- * party's view the same way as a built-in one. The default, `"centers"`, keeps measuring centres.
+ * party's view the same way as a built-in one. A subset and the whole graph are both measured by their
+ * drawn nodes by default (issue #6804), so neither Fit nor Fit selection cuts off a node at the rim;
+ * `"centers"` measures centers alone.
  */
 
 import "../../src/graphty-element";
@@ -110,15 +112,15 @@ function standOff(element: Graphty): number {
 }
 
 describe("camera views take an extent", () => {
-    it("hands a registered view the box of node centres by default, and the drawn boxes with extent drawn", async () => {
+    it("hands a registered view the drawn boxes by default, and the box of node centres with extent centers", async () => {
         const element = await mounted();
         const scope = { nodes: ["a", "b"] };
 
         seen.length = 0;
         await element.applyCameraView("acme-look", { scope, animate: false });
-        await element.applyCameraView("acme-look", { scope, animate: false, extent: "drawn" });
+        await element.applyCameraView("acme-look", { scope, animate: false, extent: "centers" });
 
-        const [centers, drawn] = seen;
+        const [drawn, centers] = seen;
         assert.isDefined(centers);
         assert.isDefined(drawn);
         assert.closeTo(centers.bounds.size.x, 200, 0.01, "centres: the box runs centre to centre");
@@ -126,35 +128,88 @@ describe("camera views take an extent", () => {
         assert.strictEqual(drawn.bounds.measured, 2);
     });
 
-    it("resolveCameraPreset and fitToGraph stand farther back with extent drawn", async () => {
+    it("resolveCameraPreset and fitToGraph stand farther back by default than with extent centers", async () => {
         const element = await mounted();
         const nodes = ["a", "b"];
 
-        const centers = element.resolveCameraPreset("acme-look", { nodes });
-        const drawn = element.resolveCameraPreset("acme-look", { nodes, extent: "drawn" });
+        const centers = element.resolveCameraPreset("acme-look", { nodes, extent: "centers" });
+        const drawn = element.resolveCameraPreset("acme-look", { nodes });
         assert.ok(centers.position && drawn.position);
         assert.isBelow(drawn.position.z, centers.position.z - 1, "the drawn box is bigger, so the view backs off");
 
-        await element.applyCameraView("fitToGraph", { scope: { nodes }, animate: false });
+        await element.applyCameraView("fitToGraph", { scope: { nodes }, animate: false, extent: "centers" });
         const fitCenters = standOff(element);
-        await element.applyCameraView("fitToGraph", { scope: { nodes }, animate: false, extent: "drawn" });
+        await element.applyCameraView("fitToGraph", { scope: { nodes }, animate: false });
         assert.isAbove(standOff(element), fitCenters, "fitToGraph backs off too");
     });
 
     // In 2D, where the drawn box is exactly what the screen shows. In 3D the view's own perspective
     // padding decides how much room is left round the box, which is fitToGraph's arithmetic, not this option's.
-    it("zoomToNodes on one big node frames it whole with extent drawn, and cuts it off by default", async () => {
+    it("zoomToNodes on one big node frames it whole by default, and cuts it off with extent centers", async () => {
         const element = await mounted("2d");
 
-        await element.zoomToNodes("a", { animate: false });
+        await element.zoomToNodes("a", { animate: false, extent: "centers" });
         await element.waitForStableFrame();
         assert.isFalse(
             wholeOnScreen(element, "a"),
-            "by default a node is framed by its centre, and a big one is cut off",
+            "centers: a node is framed by its centre, and a big one is cut off",
         );
 
-        await element.zoomToNodes("a", { animate: false, extent: "drawn" });
+        await element.zoomToNodes("a", { animate: false });
         await element.waitForStableFrame();
-        assert.isTrue(wholeOnScreen(element, "a"), "drawn: the node is whole on screen");
+        assert.isTrue(wholeOnScreen(element, "a"), "by default the node is whole on screen");
     });
+
+    it("frames the whole graph as the project's framing.extent says when the call names no extent", async () => {
+        const element = await mounted();
+
+        seen.length = 0;
+        await element.applyCameraView("acme-look", { animate: false });
+        await element.session.config.set({ framing: { extent: "centers" } });
+        await element.applyCameraView("acme-look", { animate: false });
+
+        const [drawn, centers] = seen;
+        assert.isDefined(drawn);
+        assert.isDefined(centers);
+        assert.isAtLeast(drawn.bounds.size.x, 200 + NODE_SIZE * 0.9, "no setting: the drawn nodes");
+        assert.closeTo(centers.bounds.size.x, 200, 0.01, "framing.extent centers: centre to centre");
+    });
+
+    it("leaves a hidden node out of the box, for the whole graph and for a subset", async () => {
+        const element = await mounted();
+        await element.session.styles.add({
+            name: "no far",
+            target: "node",
+            selector: { match: "ids", nodes: ["far"] },
+            set: { "node.visible": false },
+        });
+        await element.waitForStableFrame();
+
+        seen.length = 0;
+        await element.applyCameraView("acme-look", { animate: false, extent: "centers" });
+        await element.applyCameraView("acme-look", {
+            scope: { nodes: ["a", "b", "far"] },
+            animate: false,
+            extent: "centers",
+        });
+
+        for (const input of seen) {
+            assert.closeTo(input.bounds.size.y, 0, 0.01, "the hidden node far above does not stretch the box");
+            assert.strictEqual(input.bounds.measured, 2);
+        }
+
+        assert.lengthOf(seen, 2);
+    });
+
+    for (const mode of ["3d", "2d"] as const) {
+        it(`fitToGraph over the whole graph keeps every drawn node inside the view in ${mode}`, async () => {
+            const element = await mounted(mode);
+
+            await element.zoomToNodes("a", { animate: false });
+            await element.applyCameraView("fitToGraph", { animate: false });
+            await element.waitForStableFrame();
+            const cut = NODES.map((node) => node.id).filter((id) => !wholeOnScreen(element, id));
+            assert.deepEqual(cut, [], `after Fit in ${mode}, nodes ${cut.join(", ")} are cut off`);
+        });
+    }
 });

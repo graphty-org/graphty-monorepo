@@ -1,7 +1,7 @@
 /**
  * Pajek styles: each vertex's shape keyword and drawing parameters (`ic`, `bc`, `bw`, `x_fact`, `y_fact`, `lc`, `fos`)
  * and each line's `c`, `w` and `p`, read the way Pajek 6.02 draws them (parameters carried from line to line, `CARRIED`),
- * with Pajek's own defaults beneath (a #ffd9bc ellipse with a #660000 border, grey arcs with an arrow at the target,
+ * with Pajek's own defaults beneath (a #ffd9bc ellipse with a #660000 border, gray arcs with an arrow at the target,
  * teal edges). Colors are Pajek's: the dvips names and the ten Pajek adds, `GrayNN`, `RGBrrggbb`, `RGB(r,g,b)` and the
  * CMYK forms. Lengths are in PostScript points, the unit of Pajek's EPS and SVG export, where the drawing's [0,1] square
  * is [0,500] (`PAJEK_POINTS_PER_UNIT`): a vertex is Pajek's normal size 20 times its `x_fact` and `y_fact`,
@@ -20,18 +20,21 @@ import { canonColor, colorOpacity } from "../../styles/canon/color.js";
 import { DVIPS_COLORS } from "../../styles/canon/color-tables.js";
 import { canonEnum } from "../../styles/canon/enums.js";
 import { canonNumber } from "../../styles/canon/number.js";
+import { graphvizFontName, postscriptFont } from "../../styles/canon/postscript-font.js";
 import { type CanonSite, noteAt } from "../../styles/canon/site.js";
 import { canonText } from "../../styles/canon/text.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
+import { type ValueColumns, valueColumns } from "../../styles/columns.js";
 import { toolDefaults } from "../../styles/defaults.js";
 import { StyleApproximations } from "../../styles/io/approximations.js";
 import { styleBlockLosses, writeStyleBlock } from "../../styles/io/block.js";
 import { elementValues, takeFromBlock } from "../../styles/io/round-trip.js";
-import type { ExporterStyleInput } from "../../styles/io/writer.js";
+import { type ExporterStyleInput, replacedLabelNote } from "../../styles/io/writer.js";
 import { StyleNotes } from "../../styles/notes.js";
 import { plainCell } from "../../styles/plan/resolve.js";
 import type {
     ImporterStyles,
+    NodeStyleProperty,
     StyleColumn,
     StyleReadContext,
     StyleRule,
@@ -40,8 +43,6 @@ import type {
     StyleWriteCapabilities,
 } from "../../styles/types.js";
 import type { LossNote } from "../../types.js";
-import { graphvizFontName, postscriptFont } from "../dot/drawing.js";
-import { type ValueColumns, valueColumns } from "../graphml/styles-yed.js";
 import {
     drawLines,
     drawsLineLabels,
@@ -109,11 +110,13 @@ const PAJEK_VERTEX_SIZE = 20;
  * them as paths that reach beyond the vertex's own square, a man 2.5 times its size across and 6.49 times its size
  * tall, a woman (her skirt and arms wider) 3 times across and 6.48 tall (`pajek-specimen-node-shapes`, vertices 9 and
  * 10 at `x_fact 0.5`: the man's path spans x -12.51..12.51 and y -32.74..32.13, the woman's -15.02..15.02 and
- * -32.99..31.79, around a size of 10).
+ * -32.99..31.79, around a size of 10). The third number is how far the vertex's point lies below the middle of that
+ * box, per unit of its size: the head reaches further up than the feet down (0.0305 for the man, 0.06 for the woman),
+ * and Pajek places the label from the point, graphty from the middle of the box.
  */
-const PAJEK_FIGURES: ReadonlyMap<string, readonly [number, number]> = new Map([
-    ["other:man", [2.502, 6.487]],
-    ["other:woman", [3.003, 6.478]],
+const PAJEK_FIGURES: ReadonlyMap<string, readonly [number, number, number]> = new Map([
+    ["other:man", [2.502, 6.487, 0.0305]],
+    ["other:woman", [3.003, 6.478, 0.06]],
 ]);
 
 /**
@@ -324,21 +327,27 @@ function readVertex(get: Param, put: Put, at: At, place: Place | null = null): v
         put("label", canonText(label, at("label")));
     }
     const raw = get(SHAPE_COLUMN);
-    const shape = raw === null ? null : canonEnum("shape", raw, "dvips", at("shape"));
+    const shape = raw === null ? null : canonEnum("shape", drawnKeyword(raw), "dvips", at("shape"));
     if (raw !== null) {
         put("shape", shape);
     }
     readColor(get("ic"), "fill", "fillOpacity", put, at);
     readColor(get("bc"), "borderColor", null, put, at);
     readNumber(get("bw"), "borderWidth", put, at);
-    readSize(get, put, at, PAJEK_FIGURES.get(String(shape)));
+    const figure = PAJEK_FIGURES.get(String(shape));
+    readSize(get, put, at, figure);
     readOutline(get, put, shape);
     readColor(get("lc"), "labelColor", null, put, at);
     readNumber(get("fos"), "labelSize", put, at);
     readFont(get("font"), put, at);
     const empty = shape === "none";
     const turn = readLabelAngle(get("la"), put, at, place);
-    readLabelPosition(get, put, at, empty ? EMPTY_LABEL_SIZE : null, turn);
+    // a figure's point is below the middle of its box, by a share of its height (`PAJEK_FIGURES`)
+    const drop =
+        figure === undefined
+            ? 0
+            : figure[2] * PAJEK_VERTEX_SIZE * (numberOrNull(get("y_fact")) ?? PAJEK_FIGURE_UNSET_FACTOR);
+    readLabelPosition(get, put, at, empty ? EMPTY_LABEL_SIZE : null, turn, drop);
     if (empty) {
         // an `empty` vertex's label is drawn white at size 1 where the line does not say otherwise, in the place
         // `lr` and `lphi` give as any label's (`pajek-synth-vertices` `empty *`: `fos 18`, `lc Yellow`, `lr 12 lphi
@@ -354,6 +363,18 @@ function readVertex(get: Param, put: Put, at: At, place: Place | null = null): v
         put("width", 0);
         put("height", 0);
     }
+}
+
+/**
+ * The shape keyword Pajek 6.02's SVG export draws a vertex line's keyword as: a `cross` is drawn as an ellipse, and so
+ * is a keyword in any case but lower (`Box`, `Triangle`), which Pajek reads as no shape (`pajek-specimen-node-shapes`
+ * `shape-cross`, `shape-box-capitalized`, `shape-triangle-capitalized`). The `shape` column keeps the keyword as
+ * written, so a file writes back as it was read.
+ * @param raw - the keyword as written
+ * @returns the keyword Pajek draws
+ */
+function drawnKeyword(raw: unknown): unknown {
+    return raw === "cross" || (typeof raw === "string" && raw !== raw.toLowerCase()) ? "ellipse" : raw;
 }
 
 /**
@@ -398,7 +419,7 @@ const PAJEK_OUTLINES: ReadonlyMap<string, readonly (readonly [number, number])[]
 const PAJEK_DIAMOND_Q = 0.001;
 
 /** The shapes `phi` turns whole, about their center (`shapeRotation`), where it turns no corners. */
-const TURNED_WHOLE: ReadonlySet<string> = new Set(["ellipse", "other:cross", "other:man", "other:woman"]);
+const TURNED_WHOLE: ReadonlySet<string> = new Set(["ellipse", "other:man", "other:woman"]);
 
 /**
  * A vertex's outline where Pajek draws one no named shape is: a diamond is Pajek's six-cornered one, its top and bottom
@@ -512,7 +533,7 @@ function readLabelAngle(raw: unknown, put: Put, at: At, place: Place | null): nu
  * @param at - the sites
  * @param figure - a figure's width and height over its size, or undefined for another shape
  */
-function readSize(get: Param, put: Put, at: At, figure?: readonly [number, number]): void {
+function readSize(get: Param, put: Put, at: At, figure?: readonly [number, number, number]): void {
     for (const [key, property, k] of [
         ["x_fact", "width", 0],
         ["y_fact", "height", 1],
@@ -563,12 +584,14 @@ const NEAREST_SIDES: ReadonlyMap<string, string> = new Map([
  * (`pajek-specimen-labels` `lr-*`, `lphi-*`; every corpus label). A label turned by `la` turns about that point, so
  * its left middle, which graphty turns it about, turns with it (`pajek-synth-vertices` v39 `la 60 lr 12 lphi 270`:
  * `translate(140 262) rotate(-60)`). A vertex that sets none of `lr`, `lphi`, `fos` and `la` is left to the default
- * beneath, the same place at the default size, unless its label's default size is another.
+ * beneath, the same place at the default size, unless its label's default size is another or it is a man or a woman (`drop`).
  * @param get - the vertex's parameters
  * @param put - receives the values
  * @param at - the sites
  * @param ownSize - the label's size where `fos` is unset, when it is not Pajek's default (an `empty` vertex's), or null
  * @param turn - the label's rotation, degrees clockwise (`readLabelAngle`), or null
+ * @param drop - how far below the middle of the vertex's box its point lies (a man's or a woman's, `PAJEK_FIGURES`).
+ * ponytail: not turned with a figure's `phi`
  */
 function readLabelPosition(
     get: Param,
@@ -576,6 +599,7 @@ function readLabelPosition(
     at: At,
     ownSize: number | null = null,
     turn: number | null = null,
+    drop = 0,
 ): void {
     const [lr, lphi, fos] = [get("lr"), get("lphi"), get("fos")];
     const toMiddle = baselineToMiddle(get("font"));
@@ -585,6 +609,7 @@ function readLabelPosition(
         fos === null &&
         ownSize === null &&
         !turn &&
+        drop === 0 &&
         toMiddle === PAJEK_BASELINE_TO_MIDDLE
     ) {
         return;
@@ -598,7 +623,7 @@ function readLabelPosition(
     const [x, y] = labelOffset(radius, angle, size, turn ?? 0, toMiddle);
     put("labelPosition", "center");
     put("labelOffsetX", x);
-    put("labelOffsetY", y);
+    put("labelOffsetY", Number((y + drop).toFixed(9)) + 0);
     put("labelShiftX", radius === 0 ? 0 : 0.5);
 }
 
@@ -1100,9 +1125,9 @@ function hookPort(shape: unknown, hook: number): readonly [number, number] | nul
     if (!Number.isInteger(hook) || hook < 1) {
         return null;
     }
-    const keyword = typeof shape === "string" ? shape.toLowerCase() : "ellipse";
     // Pajek 6.02 draws a cross as an ellipse, with an ellipse's hooks (`h-cross-1-3`: hook 3 at 3 degrees)
-    if (keyword === "ellipse" || keyword === "cross") {
+    const keyword = typeof shape === "string" ? drawnKeyword(shape) : "ellipse";
+    if (keyword === "ellipse") {
         const a = (hook * Math.PI) / 180;
         return [Math.cos(a), Math.sin(a)];
     }
@@ -1139,11 +1164,14 @@ function numberOrNull(raw: unknown): number | null {
 /** How far ahead of the point `ap` names, toward the target, Pajek 6.02 draws a part-way arrowhead's tip, per `s`. */
 const PAJEK_AP_TIP_AHEAD = 5;
 
+/** An arrowhead's length per `s`, in px: 6 x `s` long and 5 x `s` wide (`readLine`). */
+const PAJEK_ARROW_LENGTH = 6;
+
 /** The least share a part-way arrowhead is placed at: above 0, which is graphty's arrowhead at the end. */
 const PAJEK_AP_LEAST = 1e-6;
 
 /** The vertex properties its outline is drawn from (`outlineReach`). */
-const OUTLINE_PROPERTIES: readonly string[] = ["width", "height", "shape", "shapePoints", "shapeRotation"];
+const OUTLINE_PROPERTIES: readonly NodeStyleProperty[] = ["width", "height", "shape", "shapePoints", "shapeRotation"];
 
 /** How far a line runs from each end's center before it leaves that vertex's outline, in drawn units. */
 type Ends = readonly [source: number, target: number];
@@ -1168,11 +1196,9 @@ function outlineReach(value: (property: string) => unknown, ux: number, uy: numb
         return 0;
     }
     const shape = value("shape");
-    const listed = typeof value("shapePoints") === "string" ? String(value("shapePoints")) : "";
+    // a polygon without three readable corners is drawn as the ellipse
     const corners =
-        shape === "polygon"
-            ? listed.split(" ").map((pair) => pair.split(",").map(Number) as unknown as readonly [number, number])
-            : PAJEK_OUTLINES.get(String(shape));
+        shape === "polygon" ? (polygonCorners(value("shapePoints")) ?? undefined) : PAJEK_OUTLINES.get(String(shape));
     if (corners === undefined) {
         const t = ((numberOrNull(value("shapeRotation")) ?? 0) * Math.PI) / 180;
         const [x, y] = [ux * Math.cos(t) + uy * Math.sin(t), -ux * Math.sin(t) + uy * Math.cos(t)];
@@ -1195,6 +1221,26 @@ function outlineReach(value: (property: string) => unknown, ux: number, uy: numb
         }
     });
     return reach;
+}
+
+/**
+ * The corners of a `shapePoints` value: `x,y` pairs separated by spaces.
+ * @param points - the value
+ * @returns the corners, or null unless it is text of at least three pairs of two finite numbers
+ */
+function polygonCorners(points: unknown): (readonly [number, number])[] | null {
+    if (typeof points !== "string") {
+        return null;
+    }
+    const corners: (readonly [number, number])[] = [];
+    for (const pair of points.trim().split(/\s+/)) {
+        const xy = pair.split(",").map((t) => (t.trim() === "" ? Number.NaN : Number(t)));
+        if (xy.length !== 2 || !xy.every(Number.isFinite)) {
+            return null;
+        }
+        corners.push([xy[0], xy[1]]);
+    }
+    return corners.length >= 3 ? corners : null;
 }
 
 /**
@@ -1230,13 +1276,16 @@ function lineEnds(
  * between the two outlines from the target's; so a placed line gets its tip's share of that line
  * (`pajek-graphstream-b` arc 73 2: the head about the middle of the line between the centers, translate(304.70
  * 384.38), its tip 2.15 past where the line leaves the target's box). An unplaced line keeps the fraction: its length
- * is graphty's layout's.
+ * is graphty's layout's. A tip inside the target, short of its outline, is drawn there: graphty's arrowhead overlaps the
+ * node by a negative `targetArrowGap`, a share of its 6 `s` length (`pajek-synth-lines` arcs 10 11 and 31 32, `ap 0.5`
+ * on 33 px lines at `s` 4: the tip 3.5 past the target's center).
  * @param raw - the parameter's value, or null
  * @param put - receives the value
  * @param at - the sites
  * @param run - the line from its source's center to its target's, in drawn units, or null when unplaced
  * @param size - the arrowhead's size `s`, or null for Pajek's 1
  * @param ends - where the line leaves each end's outline (`lineEnds`), or null to measure between the centers
+ * @returns true when the tip is drawn inside the target, by its gap
  */
 function readArrowPosition(
     raw: unknown,
@@ -1245,14 +1294,14 @@ function readArrowPosition(
     run: Run | null = null,
     size: unknown = null,
     ends: Ends | null = null,
-): void {
+): boolean {
     if (raw === null) {
-        return;
+        return false;
     }
     const ap = canonNumber(raw, at("arrowPosition"));
     // 0 is Pajek's own place for the arrow, at the line's end, which a line restates after one that moved it
     if (ap === null || ap === 0) {
-        return;
+        return false;
     }
     const length = run === null ? 0 : Math.hypot(run[0], run[1]);
     if (length === 0) {
@@ -1261,15 +1310,21 @@ function readArrowPosition(
         } else {
             put("arrowPosition", ap);
         }
-        return;
+        return false;
     }
-    const tip = (ap > 1 ? ap : ap * length) - PAJEK_AP_TIP_AHEAD * (numberOrNull(size) ?? 1);
-    // between the outlines, unless they overlap; a tip inside the target is drawn at its outline. ponytail: the
-    // outlines are the file's sizes, before the Draw window's Size of Vertices
+    const s = numberOrNull(size) ?? 1;
+    const tip = (ap > 1 ? ap : ap * length) - PAJEK_AP_TIP_AHEAD * s;
+    // between the outlines, unless they overlap. ponytail: the outlines are the file's sizes, before the Draw window's
+    // Size of Vertices
     const [rs, rt] = ends ?? [0, 0];
     const between = length - rs - rt;
+    if (between > 0 && tip < rt && s > 0) {
+        put("targetArrowGap", Number(((tip - rt) / (PAJEK_ARROW_LENGTH * s)).toPrecision(6)));
+        return true;
+    }
     const share = between > 0 ? (tip - rt) / between : tip / length;
     put("arrowPosition", Number(Math.min(1, Math.max(PAJEK_AP_LEAST, share)).toPrecision(6)));
+    return false;
 }
 
 /**
@@ -1397,7 +1452,7 @@ function styleColumns(table: GraphSnapshot["nodes"], keys: readonly string[]): s
 
 /**
  * The styles of a Pajek file, read the way Pajek draws them, with Pajek's own defaults beneath: a labeled #ffd9bc
- * ellipse with a #660000 border, teal edges, and grey arcs with an arrow at the target. A file graphty wrote gives back its `graphty.styles` block.
+ * ellipse with a #660000 border, teal edges, and gray arcs with an arrow at the target. A file graphty wrote gives back its `graphty.styles` block.
  * @param snapshot - the graph the import built
  * @param context - the work budget and the block text the import kept
  * @returns the styles
@@ -1436,15 +1491,14 @@ export function pajekStyles(snapshot: GraphSnapshot, context: StyleReadContext):
     // under Lines finished at Vertex Border Pajek measures `ap` on the line between the outlines, the line graphty
     // measures its own on (`pajek-specimen-arrows-p3`: `ap 10` puts the tip 5 from the target's outline at x 800,
     // `ap 0.5` the point at x 432, the middle of 400..464)
-    const readArrowAt = (i: number, line: Param, put: Put, at: At, run: ReturnType<typeof runOf>): void => {
+    const readArrowAt = (i: number, line: Param, put: Put, at: At, run: ReturnType<typeof runOf>): boolean => {
         const ends = endsOf(i);
         if (atBorder && run !== null && ends !== null) {
             const length = Math.hypot(run[0], run[1]);
             const k = Math.max(0, length - ends[0] - ends[1]) / length;
-            readArrowPosition(line("ap"), put, at, [run[0] * k, run[1] * k], line("s"));
-        } else {
-            readArrowPosition(line("ap"), put, at, run, line("s"), ends);
+            return readArrowPosition(line("ap"), put, at, [run[0] * k, run[1] * k], line("s"));
         }
+        return readArrowPosition(line("ap"), put, at, run, line("s"), ends);
     };
     const readEdge = (i: number, get: Param, put: Put, at: At): void => {
         // a loop on a placed node: an unplaced one is laid out by graphty, which draws its own loop, and a
@@ -1461,7 +1515,7 @@ export function pajekStyles(snapshot: GraphSnapshot, context: StyleReadContext):
         const own = !directed[i] && u > v ? fromOtherEnd(get) : get;
         const line = bow === undefined ? own : bowedParams(own, bow);
         readLine(line, put, at, directed[i], labels, run, loop);
-        readArrowAt(i, line, put, at, run);
+        const inside = readArrowAt(i, line, put, at, run);
         // an arc's arrowhead stops short of its target: at the port on its tip of a Bezier route, else by its gap (a
         // file graphty wrote keeps its gaps in its block)
         const ported =
@@ -1474,7 +1528,7 @@ export function pajekStyles(snapshot: GraphSnapshot, context: StyleReadContext):
                 targetSize(snapshot.edgeTarget(i)),
                 atBorder ? targetSize(snapshot.edgeSource(i)) : null,
             );
-        if (directed[i] && loop === null && !ported && block === null) {
+        if (directed[i] && loop === null && !ported && block === null && !inside) {
             readTipGap(get, put);
         }
         readLineValue(lineValue(i), get, put, directed[i]);
@@ -1506,11 +1560,12 @@ export function pajekStyles(snapshot: GraphSnapshot, context: StyleReadContext):
         drawVertices(draw, snapshot, node);
         drawLines(draw, snapshot, node, edge);
     }
+    unborderFlatEllipses(node, snapshot.nodeCount);
     layLoops(snapshot, loops, node, edge);
     if (block !== null) {
         exactFromBlock(snapshot, block, { node, edge }, labels, runOf, endsOf);
     }
-    // Pajek's defaults that are a rule: an arc has an arrow at its target and is drawn grey and thinner, an edge not
+    // Pajek's defaults that are a rule: an arc has an arrow at its target and is drawn gray and thinner, an edge not
     const rules: StyleRule[] = [];
     const columns = new Map<string, StyleColumn>();
     if (directed.some(Boolean)) {
@@ -1606,6 +1661,23 @@ function keptOf(kept: unknown): {
         };
     }
     return { block: null, draw: null, voided: new Set() };
+}
+
+/**
+ * Takes the border off every ellipse drawn with no width or no height, in place: Pajek 6.02's SVG export writes it as an
+ * ellipse of radius 0, which draws nothing, border and all (`pajek-specimen-node-sizes-opacity` `x-fact-0`: `x_fact 0
+ * y_fact 0`; `pajek-specimen-mappings-bypass` `vec-0`: a vector value of 0), where graphty would draw its border as a dot.
+ * @param node - the vertices' values, drawn
+ * @param n - the number of vertices
+ */
+function unborderFlatEllipses(node: ValueColumns, n: number): void {
+    for (let i = 0; i < n; i++) {
+        const shape = node.shape?.[i] ?? "ellipse";
+        if (shape === "ellipse" && (node.width?.[i] === 0 || node.height?.[i] === 0)) {
+            node.borderWidth ??= new Array<StyleValue | null>(n).fill(null);
+            node.borderWidth[i] = 0;
+        }
+    }
 }
 
 /**
@@ -1720,15 +1792,8 @@ function shapeKeyword(get: Get, approximate: Approximate): string {
  * @returns the diamond's `q`, or null
  */
 function diamondQ(get: Get): number | null {
-    const points = get("shapePoints");
-    const corners =
-        typeof points === "string"
-            ? points
-                  .trim()
-                  .split(/\s+/)
-                  .map((p) => p.split(",").map(Number))
-            : [];
-    if (corners.length !== 6) {
+    const corners = polygonCorners(get("shapePoints"));
+    if (corners?.length !== 6) {
         return null;
     }
     const q = corners[2][0];
@@ -1895,7 +1960,11 @@ function polarOf(get: Get): [number, number] | null {
         return null;
     }
     const size = get("labelSize");
-    const up = y + baselineToMiddle(get("labelFont")) * (typeof size === "number" ? size : PAJEK_LABEL_SIZE);
+    // a figure's point is below the middle of its box (`readVertex`)
+    const figure = PAJEK_FIGURES.get(String(get("shape")));
+    const height = get("height");
+    const drop = figure !== undefined && typeof height === "number" ? (figure[2] * height) / figure[1] : 0;
+    const up = y - drop + baselineToMiddle(get("labelFont")) * (typeof size === "number" ? size : PAJEK_LABEL_SIZE);
     const round = (v: number): number => Number(v.toFixed(6)) + 0;
     const lr = round(Math.hypot(x, up));
     return lr === 0 ? null : [lr, round(((((Math.atan2(-up, x) * 180) / Math.PI) % 360) + 360) % 360)];
@@ -1914,7 +1983,7 @@ function lineDefaults(directed: boolean): {
 }
 
 /**
- * A line's parameters from its values, leaving out the solid line Pajek draws by default (grey and 1 wide for an arc,
+ * A line's parameters from its values, leaving out the solid line Pajek draws by default (gray and 1 wide for an arc,
  * teal and 2 wide for an edge; `w` is half an edge's width). Arrows are Pajek's own: an arc has one at its target and
  * an edge none, so any other arrow is noted.
  * @param get - the line's values
@@ -1972,20 +2041,30 @@ function arrowParams(get: Get, out: Map<string, Written>, run: Run | null = null
         out.set("s", arrowSize);
     }
     const position = get("arrowPosition");
-    if (typeof position !== "number" || position <= 0) {
-        return;
-    }
-    // the point `ap` names is 5 s behind the tip graphty places between the outlines (`readArrowPosition`): a share
-    // up to 1, past it a distance from the target's center
     const length = run === null ? 0 : Math.hypot(run[0], run[1]);
-    if (length === 0) {
-        out.set("ap", position);
-        return;
-    }
-    const ahead = PAJEK_AP_TIP_AHEAD * (typeof arrowSize === "number" ? arrowSize : 1);
+    const s = typeof arrowSize === "number" ? arrowSize : 1;
     const [rs, rt] = ends ?? [0, 0];
     const between = length - rs - rt;
-    const point = (between > 0 ? rt + position * between : position * length) + ahead;
+    // a tip inside the target, by a negative gap a share of the arrowhead's length (`readArrowPosition`)
+    const gap = get("targetArrowGap");
+    const inside = typeof gap === "number" && gap < 0 && between > 0 ? rt + gap * PAJEK_ARROW_LENGTH * s : null;
+    let tip: number;
+    if (inside !== null) {
+        tip = inside;
+    } else {
+        if (typeof position !== "number" || position <= 0) {
+            return;
+        }
+        // the point `ap` names is 5 s behind the tip graphty places between the outlines (`readArrowPosition`): a
+        // share up to 1, past it a distance from the target's center
+        if (length === 0) {
+            out.set("ap", position);
+            return;
+        }
+        tip = between > 0 ? rt + position * between : position * length;
+    }
+    const ahead = PAJEK_AP_TIP_AHEAD * s;
+    const point = tip + ahead;
     out.set("ap", Number((point <= length ? point / length : point).toPrecision(6)));
 }
 
@@ -2164,7 +2243,7 @@ export function pajekStyledExport(
     // the lines as a reader without the `pajekDraw` option places them
     const runOf = lineRuns(snapshot, PAJEK_SQUARE);
     // graphty measures an arrowhead's place between the outlines it draws
-    const vertex = elementValues((t, p) => input.picture(t, p as never), "node", OUTLINE_PROPERTIES);
+    const vertex = elementValues((t, p) => input.picture(t, p), "node", OUTLINE_PROPERTIES);
     const endsOf = lineEnds(snapshot, runOf, (v, property) => vertex(v)(property));
     const directed = directedEdges(snapshot);
     for (const target of ["node", "edge"] as const) {
@@ -2172,7 +2251,12 @@ export function pajekStyledExport(
         const approximate: Approximate = (property, value) => {
             approximated.add(target, property, value);
         };
-        const get = elementValues((t, p) => input.picture(t, p as never), target, PAJEK_STYLE_CAPABILITIES[target]);
+        // a line's negative target gap is a part-way tip inside its target, written as its `ap` (`arrowParams`)
+        const written =
+            target === "edge"
+                ? [...PAJEK_STYLE_CAPABILITIES.edge, "targetArrowGap" as const]
+                : PAJEK_STYLE_CAPABILITIES.node;
+        const get = elementValues((t, p) => input.picture(t, p), target, written);
         const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
         const params = (i: number): Map<string, Written> =>
             target === "node"
@@ -2194,6 +2278,10 @@ export function pajekStyledExport(
         },
     );
     const notes = approximated.notes("Pajek");
+    const replaced = replacedLabelNote(snapshot, LABEL_COLUMN, input.picture("node", "label"), "the vertex label");
+    if (replaced !== null) {
+        notes.push(replaced);
+    }
     const block = writeStyleBlock(input.rules, { inlineColumns: true, snapshot });
     notes.push(...styleBlockLosses(block, input.rules.styles.rules.length, "size"));
     return { snapshot: out, comment: PAJEK_STYLE_COMMENT + block, notes };

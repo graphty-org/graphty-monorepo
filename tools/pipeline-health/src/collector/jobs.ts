@@ -13,6 +13,11 @@ import { AGGREGATORS } from "./snapshots.js";
 
 /** A job's newest runs this many, judged by the failure share. */
 export const LAST_RUNS = 10;
+/**
+ * Only runs this recent count toward the failure share: a job running a few times a week otherwise stayed chronic for
+ * two weeks after its fix, on failures from before it (Dependabot, #7369).
+ */
+export const SHARE_MS = 7 * DAY;
 /** Fewer runs than this are never judged by their failure share (one failed run is not 100%). */
 export const MIN_RUNS = 4;
 /** A job failing in every run for this long is chronic however few runs it had. */
@@ -77,8 +82,34 @@ function activeFor(runs: JobRun[]): number {
 }
 
 /**
- * The jobs failing chronically: failed in at least half of their newest LAST_RUNS runs (MIN_RUNS at least), or
- * failed in every run for STREAK_MS. Worst first. An aggregator (All Checks Pass) is not judged: it fails whenever any
+ * Whether a job is judged at all: it still runs, and is neither an aggregator nor a bisect.yml point job (chronicJobs).
+ * @param h - the job's history
+ * @param now - the current time, in ms
+ * @returns whether the job is judged
+ */
+function judged(h: JobHistory, now: number): boolean {
+    const newest = h.runs[0];
+    return (
+        newest !== undefined &&
+        now - newest.at <= activeFor(h.runs) &&
+        !AGGREGATORS.has(shortName(h.job)) &&
+        !(h.workflow === "bisect.yml" && shortName(h.job).startsWith("Point "))
+    );
+}
+
+/**
+ * When a job's current run of failures began.
+ * @param runs - the job's runs, newest first
+ * @returns the time of the oldest failure since its last pass, or undefined when its newest run passed
+ */
+function firstOfStreak(runs: JobRun[]): number | undefined {
+    const streak = runs.findIndex((r) => r.ok);
+    return (streak === -1 ? runs : runs.slice(0, streak)).at(-1)?.at;
+}
+
+/**
+ * The jobs failing chronically: failed in at least half of their newest LAST_RUNS runs of the last SHARE_MS (MIN_RUNS
+ * at least), or failed in every run for STREAK_MS. Worst first. An aggregator (All Checks Pass) is not judged: it fails whenever any
  * job it summarizes fails, so its share is the union of theirs and it was chronic while no job of its own was (#6068).
  * Nor is bisect.yml: its "Point <sha>" jobs run the failing tests at a chosen commit, so failing is their purpose (#6710).
  * @param histories - jobHistories
@@ -88,21 +119,15 @@ function activeFor(runs: JobRun[]): number {
 export function chronicJobs(histories: JobHistory[], now: number): ChronicJob[] {
     const out: ChronicJob[] = [];
     for (const h of histories) {
-        const newest = h.runs[0];
-        if (
-            !newest ||
-            now - newest.at > activeFor(h.runs) ||
-            AGGREGATORS.has(shortName(h.job)) ||
-            (h.workflow === "bisect.yml" && shortName(h.job).startsWith("Point "))
-        ) {
+        if (!judged(h, now)) {
             continue;
         }
-        const last = h.runs.slice(0, LAST_RUNS);
+        const recent = h.runs.filter((r) => now - r.at <= SHARE_MS).slice(0, LAST_RUNS);
+        // A weekly job judged by its streak alone may have no run this recent: show its newest runs instead.
+        const last = recent.length ? recent : h.runs.slice(0, LAST_RUNS);
         const failed = last.filter((r) => !r.ok).length;
-        const streak = h.runs.findIndex((r) => r.ok);
-        const streakRuns = streak === -1 ? h.runs : h.runs.slice(0, streak);
-        const failingSince = streakRuns.at(-1)?.at;
-        const byShare = last.length >= MIN_RUNS && failed * 2 >= last.length;
+        const failingSince = firstOfStreak(h.runs);
+        const byShare = recent.length >= MIN_RUNS && failed * 2 >= recent.length;
         const byStreak = failingSince !== undefined && now - failingSince >= STREAK_MS;
         if (!byShare && !byStreak) {
             continue;

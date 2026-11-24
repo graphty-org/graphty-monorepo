@@ -323,6 +323,13 @@ export interface GraphSink {
         attrs: Readonly<Record<string, unknown>>,
         weightKey?: string | null,
     ): number;
+    /**
+     * Tombstone a node by index and every live incident edge. Optional: an importer that must drop a node it added
+     * (GEXF 1.0's undeclared edge endpoints) does so only when the sink offers it. GraphBuilder does.
+     * @param index - the node index
+     * @returns the removed live incident edge indices
+     */
+    removeNodeByIndex?(index: number): U32;
 }
 
 /**
@@ -361,6 +368,11 @@ export interface GraphBuilderContract extends GraphSink {
      * @returns the first new index
      */
     addAnonymousNodes(count: number): number;
+    /**
+     * Give every anonymous node its current index as a lasting id, so a later removal and freeze
+     * keeps it instead of renumbering it; a no-op once the builder holds ids.
+     */
+    keepIds(): void;
     /**
      * Whether a live node has this id.
      * @param id - the node id

@@ -363,6 +363,12 @@ function verdictCause(f) {
     const what = f.what || "see the run";
     if (f.state === "red") return { cause: `red lane on ${sha}: ${what}` + (f.issue ? ` (#${f.issue})` : "") };
     if (f.state === "owner-item") return { cause: `owner item on ${sha}: ${what}` };
+    // the store did not answer the hold read (#5597): the verdict could not hold, replace or promote anything
+    if (f.hold === "unknown")
+        return {
+            cause: `the store did not say what is held: the ${f.state} verdict on ${sha} decided nothing`,
+            detail: "Its Verdict job failed on the read; release-rerun.yml re-runs that job once.",
+        };
     if (f.state === "green-images") return imagesCause(f, sha);
     if (f.promote === "true") return { cause: `the promotion of ${sha} failed before it landed` };
     return { cause: `${sha} is green-clean but did not promote: ${f.why || "see the run"}` };
@@ -657,7 +663,7 @@ async function lookAtDeploy(env) {
 // The deploy sends no event the job can wait on when it never starts (a disabled workflow, a refused runs read),
 // so the wait has its own limit, counted from the job's start (JOB_STARTED_MS, the site job's first step) and
 // 4 minutes under its 20-minute hang guard: it fails by name and the job's failure report runs, which a job
-// timeout (cancelled) would skip, however long the download and pack before it took.
+// timeout (canceled) would skip, however long the download and pack before it took.
 export const WAIT_LIMIT_MS = 16 * 60_000;
 
 /**
@@ -756,9 +762,17 @@ function channelJsonMain(env) {
 
 function releaseOf(tag) {
     try {
-        return JSON.parse(gh("api", `repos/${process.env.GITHUB_REPOSITORY}/releases/tags/${tag}`));
-    } catch {
-        return null; // 404: none (a draft is not listed here either)
+        return JSON.parse(
+            execFileSync("gh", ["api", `repos/${process.env.GITHUB_REPOSITORY}/releases/tags/${tag}`], {
+                encoding: "utf8",
+                stdio: ["ignore", "pipe", "pipe"],
+            }),
+        );
+    } catch (e) {
+        // Only a 404 means none (a draft is not listed here either); a 5xx or rate limit is not "create" (#7275).
+        if (/HTTP 404/.test(String(e.stderr))) return null;
+        process.stderr.write(String(e.stderr ?? ""));
+        throw e;
     }
 }
 

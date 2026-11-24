@@ -16,11 +16,14 @@ import {
     adamicAdarPrediction,
     adamicAdarScore,
     allPairsShortestPath,
+    allSimplePaths,
+    articulationPoints,
     astar,
     bellmanFord,
     betweennessCentrality,
     bidirectionalDijkstra,
     breadthFirstSearch,
+    bridges,
     closenessCentrality,
     commonNeighborsForPairs,
     commonNeighborsPrediction,
@@ -71,6 +74,7 @@ import {
     stronglyConnectedComponents,
     syncClustering,
     teraHAC,
+    timeOrderedPaths,
     topologicalSort,
     triangleCount,
     weaklyConnectedComponents,
@@ -131,12 +135,14 @@ export interface AlgorithmInput {
  * - "hierarchy": a dendrogram or a sequence of partitions.
  * - "traversal": a visit order with per-node `depth` and `parent`.
  * - "shortest-paths": per-node distances (`dist`) and predecessor arcs (`predArc`) from one source.
- * - "all-pairs": an `n * n` distance matrix. "path": one path between two nodes.
+ * - "all-pairs": an `n * n` distance matrix. "path": one path between two nodes. "paths": every simple path between
+ *   two nodes, up to the caps.
  * - "spanning-tree": the tree's edges. "cut": a node side and the edges crossing it. "flow": a flow per edge.
  * - "matching": a partner per node. "order": node indices in order, or null. "bipartition": a yes/no and the
  *   two sides. "isomorphism": a yes/no and a node mapping. "isomorphisms": every node mapping.
  * - "link-predictions": ranked node pairs with scores. "pair-scores": a score per given pair.
  *   "metrics": precision, recall, F1 and AUC.
+ * - "node-set": node indices, ascending (`nodes`). "edge-set": edge indices, ascending (`edges`).
  * - "boolean", "number": the value itself.
  */
 export type AlgorithmResultKind =
@@ -148,12 +154,15 @@ export type AlgorithmResultKind =
     | "shortest-paths"
     | "all-pairs"
     | "path"
+    | "paths"
     | "spanning-tree"
     | "cut"
     | "flow"
     | "matching"
     | "order"
     | "bipartition"
+    | "node-set"
+    | "edge-set"
     | "isomorphism"
     | "isomorphisms"
     | "link-predictions"
@@ -162,8 +171,14 @@ export type AlgorithmResultKind =
     | "boolean"
     | "number";
 
-/** The algorithm methods of `AlgorithmAccelerator` (an accelerator implements any subset of them). */
-export type AcceleratorMethod = Exclude<keyof AlgorithmAccelerator, "kind" | "release" | "dispose">;
+/**
+ * The algorithm methods of `AlgorithmAccelerator` (an accelerator implements any subset of them). `harmonicCloseness`
+ * is a capability flag, not a method, so it is not one.
+ */
+export type AcceleratorMethod = Exclude<
+    keyof AlgorithmAccelerator,
+    "kind" | "release" | "dispose" | "harmonicCloseness"
+>;
 
 /** The methods of the `accelerated(acc)` dispatcher. */
 export type DispatcherMethod = Exclude<keyof AcceleratedAlgorithms, "accelerator">;
@@ -255,6 +270,7 @@ export const ALGORITHMS = {
     },
 
     // Shortest paths
+    // Weights must be finite and non-negative (E_BAD_WEIGHT otherwise); bellmanFord takes negative ones.
     dijkstra: {
         name: "dijkstra",
         fn: dijkstra,
@@ -267,6 +283,19 @@ export const ALGORITHMS = {
         values: ["dist", "predArc"],
         dispatch: "sssp",
         accelerator: "sssp",
+    },
+    timeOrderedPaths: {
+        name: "timeOrderedPaths",
+        fn: timeOrderedPaths,
+        category: "shortest-path",
+        direction: "any",
+        weights: "always",
+        inputs: [NODE("source")],
+        requiredOptions: ["times"],
+        result: "shortest-paths",
+        values: ["dist"],
+        dispatch: null,
+        accelerator: null,
     },
     bellmanFord: {
         name: "bellmanFord",
@@ -303,6 +332,19 @@ export const ALGORITHMS = {
         inputs: [NODE("source"), NODE("target"), { name: "heuristic", kind: "heuristic" }],
         requiredOptions: [],
         result: "path",
+        values: [],
+        dispatch: null,
+        accelerator: null,
+    },
+    allSimplePaths: {
+        name: "allSimplePaths",
+        fn: allSimplePaths,
+        category: "shortest-path",
+        direction: "any",
+        weights: "never",
+        inputs: [NODE("source"), NODE("target")],
+        requiredOptions: [],
+        result: "paths",
         values: [],
         dispatch: null,
         accelerator: null,
@@ -531,6 +573,32 @@ export const ALGORITHMS = {
         values: ["coreness"],
         dispatch: "kCoreDecomposition",
         accelerator: "kCoreDecomposition",
+    },
+    articulationPoints: {
+        name: "articulationPoints",
+        fn: articulationPoints,
+        category: "components",
+        direction: "undirected",
+        weights: "never",
+        inputs: [],
+        requiredOptions: [],
+        result: "node-set",
+        values: [],
+        dispatch: null,
+        accelerator: null,
+    },
+    bridges: {
+        name: "bridges",
+        fn: bridges,
+        category: "components",
+        direction: "undirected",
+        weights: "never",
+        inputs: [],
+        requiredOptions: [],
+        result: "edge-set",
+        values: [],
+        dispatch: null,
+        accelerator: null,
     },
 
     // Structure

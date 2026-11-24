@@ -19,15 +19,15 @@ export interface BipartiteLayoutOptions extends CommonLayoutOptions {
 }
 
 /**
- * Two lines of nodes, `aspectRatio` apart before rescaling, each line's nodes evenly spaced from its start in the
- * order listed.
+ * Two lines of nodes, `aspectRatio` apart before rescaling, each line's nodes evenly spaced from its start to its end
+ * in the order listed, as NetworkX's `bipartite_layout` places them.
  * @param n - node count (rows)
  * @param left - node indices of the first line
  * @param right - node indices of the second line
  * @param aspectRatio - the width of the unscaled layout (its height is 1)
  * @param align - the line direction
- * @param scale - the distance of the farthest node from the centre
- * @param center - the centre, at least 2 components
+ * @param scale - the distance of the farthest node from the center
+ * @param center - the center, at least 2 components
  * @returns `2 * n` values, NaN for a node on neither line
  */
 function bipartiteRows(
@@ -43,7 +43,8 @@ function bipartiteRows(
     return layeredRows(
         n,
         [left, right],
-        (k, _count, j, size) => [k * width - width / 2, j / size - 1 / 2],
+        // NetworkX's np.linspace(0, 1, size): each line spans the full height; a lone node sits at its start
+        (k, _count, j, size) => [k * width - width / 2, (size > 1 ? j / (size - 1) : 0) - 1 / 2],
         align,
         scale,
         center,
@@ -92,9 +93,9 @@ function topOf(s: GraphSnapshot, topSet: NodeMask | NodeSet | string): (i: numbe
 
 /**
  * Nodes in two straight lines: with `vertical` alignment the `top` nodes form the left column and the rest the right,
- * each in node-index order. In 3D the layout lies in the plane of the centre's z.
+ * each in node-index order. In 3D the layout lies in the plane of the center's z.
  * @param s - the snapshot; only its node count and the named column are read
- * @param options - `scale` is the distance of the farthest node from the centre; `top` the first line
+ * @param options - `scale` is the distance of the farthest node from the center; `top` the first line
  * @returns the layout
  * @throws an Error with `code` `E_UNKNOWN_COLUMN` or `E_COLUMN_TYPE` when `top` names a node column the snapshot does
  * not hold or one that is not bool, and `E_BAD_OPTION` for a short `top` mask or an unknown `align`; `params` carry

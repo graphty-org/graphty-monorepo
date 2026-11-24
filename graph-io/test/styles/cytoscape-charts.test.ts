@@ -177,6 +177,12 @@ describe("Cytoscape charts", () => {
             chartColors: "#b7cce1 #8cafd2 #ccdae8",
             chartHorizontal: true,
         });
+        // no axis, no plot background
+        expect(heat.chartBackgroundColor).toBeUndefined();
+        expect(chart("HeatMapChart", '["a","b","c"]', ',"cy_showRangeAxis":true')).toMatchObject({
+            chartBackgroundColor: "#e8eae8",
+            chartBackgroundOpacity: 0.501961,
+        });
         expect(heat.chartSize).toBeCloseTo(51.1 / 60, 6);
         // laid left to right, the last value first
         expect(chart("HeatMapChart", '["a","b","c"]', ',"cy_orientation":"HORIZONTAL"')).toMatchObject({
@@ -188,6 +194,8 @@ describe("Cytoscape charts", () => {
     describe("a bar or line chart's axes, as Cytoscape 3.10.5 draws them with JFreeChart", () => {
         const BAR =
             'org.cytoscape.BarChart:{"cy_range":[0.0,10.0],"cy_colors":["#D62728","#2CA02C","#1F77B4"],"cy_dataColumns":["a","b","c"],"cy_type":"GROUPED"';
+        const LINE =
+            'org.cytoscape.LineChart:{"cy_range":[0.0,10.0],"cy_colors":["#1F77B4"],"cy_dataColumns":["series"]';
         const axes = (options: string, chart = BAR): Record<string, unknown> =>
             read({ NODE_CUSTOMGRAPHICS_1: `${chart}${options}}` });
         /** Each further text as [x, y, text, size, rotation] in the node's lengths, y down, from its 60 x 60 frame. */
@@ -261,16 +269,37 @@ describe("Cytoscape charts", () => {
             // at size 20 the range axis is ticked every 25: only 0 is drawn (bar-axis-label-font-size-20)
             const big = texts(axes(',"cy_showRangeAxis":true,"cy_showDomainAxis":true,"cy_axisLabelFontSize":20'));
             expect(big.filter(([, , w]) => /^\d+$/.test(w)).map(([, , w]) => w)).toEqual(["0"]);
-            // a line chart's categories past its names are left unnamed
+            // a line chart's categories past its names are Cytoscape's "#4" and "#5", too wide for a category at
+            // size 10, so JFreeChart writes "..." for each (images-charts-p7 line-domain-labels-column)
             const line = texts(
-                axes(
-                    ',"cy_showDomainAxis":true,"cy_axisLabelFontSize":10,"cy_domainLabelsColumn":"chartLabels"',
-                    'org.cytoscape.LineChart:{"cy_range":[0.0,10.0],"cy_colors":["#1F77B4"],"cy_dataColumns":["series"]',
-                ),
+                axes(',"cy_showDomainAxis":true,"cy_axisLabelFontSize":10,"cy_domainLabelsColumn":"chartLabels"', LINE),
             );
-            expect(line.map(([, , w]) => w)).toEqual(["X", "Y", "Z"]);
-            // the oracle's X at 21.36 chart units apart, from 42.72 left of the middle
+            expect(line.map(([, , w]) => w)).toEqual(["X", "Y", "Z", "...", "..."]);
+            // the oracle's X at 21.36 chart units apart, from 42.72 left of the middle; its "..." centered on the
+            // fourth and fifth ticks (origins 11.82 and 33.19, 19.07 wide)
             expect(line[0][0]).toBeCloseTo(-21.36, 1);
+            expect(line[3][0]).toBeCloseTo((11.82 + 19.07 / 2) / 2, 1);
+            expect(line[4][0]).toBeCloseTo((33.19 + 19.07 / 2) / 2, 1);
+        });
+
+        it("cuts a category's name to one line of 0.95 of its category as JFreeChart does", () => {
+            const named = (labels: string[], size: number): string[] => {
+                DATA.longLabels = labels;
+                const v = axes(
+                    `,"cy_showDomainAxis":true,"cy_axisLabelFontSize":${size},"cy_domainLabelsColumn":"longLabels"`,
+                    LINE,
+                );
+                delete DATA.longLabels;
+                return texts(v).map(([, , w]) => w);
+            };
+            // the last piece's final 3 characters, the space included, become "..."; a name that fits is kept
+            expect(named(["ab", "abcd efghijklmnop"], 2)).toEqual(["ab", "ab...", "#3", "#4", "#5"]);
+            // a first word too wide for the line is cut inside the word
+            expect(named(["abcdefghijklmnopqrstuvwxyz"], 2)[0]).toMatch(/^abcdef[a-z]*\.\.\.$/);
+            // one character wider than its category is drawn whole: nothing is left over to cut (images-charts-p7
+            // bar-axis-label-font-size-20 draws a, b and c at size 20)
+            const big = texts(axes(',"cy_showDomainAxis":true,"cy_axisLabelFontSize":20'));
+            expect(big.map(([, , w]) => w)).toEqual(["a", "b", "c"]);
         });
 
         it("takes a heat map's domain label, its columns' names turned down, off the top of its plot", () => {

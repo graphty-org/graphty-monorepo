@@ -193,7 +193,7 @@ describe("master state", () => {
     });
 });
 
-// Recorded 2026-10-27 20:47 UTC: master's ci.yml push runs, where two builds were cancelled while they waited
+// Recorded 2026-10-27 20:47 UTC: master's ci.yml push runs, where two builds were canceled while they waited
 // because a newer push replaced them (ci.yml's concurrency group, #3940). Their check suites have no check run.
 describe("replaced runs (recorded 2026-10-27)", () => {
     const master = (fixture("runs-master-replaced.json") as { workflow_runs: GhRun[] }).workflow_runs;
@@ -229,7 +229,7 @@ describe("replaced runs (recorded 2026-10-27)", () => {
     );
 
     it("does not call the train skipped when a newer release run replaced the cancelled one", () => {
-        // The newest attempts (a stuck run cancelled by hand at 19:46, a restart replaced at 18:00) were each
+        // The newest attempts (a stuck run canceled by hand at 19:46, a restart replaced at 18:00) were each
         // replaced by a newer dispatch; the newest real attempt tested its candidate.
         expect(trainSkipped(seen, releases)).toBe(false);
     });
@@ -267,7 +267,7 @@ describe("replaced runs (recorded 2026-10-27)", () => {
     it("does not count replaced release runs as failed", () => {
         const now = Date.parse("2026-10-27T13:30:00Z");
         const w = workflowState("release.yml", releases, now);
-        // All 11 runs completed in the last 24 h failed or were cancelled; the 6 cancelled runs a newer run replaced
+        // All 11 runs completed in the last 24 h failed or were canceled; the 6 canceled runs a newer run replaced
         // are not failures.
         const bad = releases.filter(
             (r) =>
@@ -341,6 +341,38 @@ describe("runner use: jobs our own workflow holds", () => {
     it("a later job started within 2 minutes of the queued one does not make it held", () => {
         const use = runnerUse([j("queued", at(10)), j("in_progress", at(9))], [], NOW);
         expect(use).toMatchObject({ queuedOver2: 1, heldByRun: 0 });
+    });
+});
+
+describe("runner use: stuck runs and jobs", () => {
+    // 2026-11-15: CodeQL run 43448526218 sat queued with no jobs for 2 days while new pull request runs got runners;
+    // it alone held ci.longest_queued at 3341 min and ci.not_assigned red (issue #8316)
+    const base = jobs("jobs-pr-40238975833.json")[0];
+    const at = (min: number) => new Date(NOW - min * MIN).toISOString();
+    const running = { ...base, status: "in_progress", labels: ["ubuntu-24.04"], created_at: at(5) };
+
+    it("a days-old queued run with no jobs while newer jobs run is stuck, not waiting for a runner", () => {
+        const run = { created_at: at(3341), status: "queued" } as GhRun;
+        const use = runnerUse([running], [run], NOW);
+        expect(use).toMatchObject({ stuck: 1, queuedOver2: 0, longestQueuedMs: 0 });
+        expect(runnerFlags(use, 300)).toEqual({ saturated: false, unassigned: false });
+    });
+
+    it("an old queued job while newer jobs run is left out of the longest wait", () => {
+        const old = { ...base, status: "queued", labels: ["ubuntu-24.04"], created_at: at(3000) };
+        const fresh = { ...old, created_at: at(3) };
+        const use = runnerUse([running, old, fresh], [], NOW);
+        expect(use).toMatchObject({ heldByRun: 1, queuedOver2: 1, longestQueuedMs: 3 * MIN });
+    });
+
+    it("with nothing running, an old queued run still reads as waiting (an Actions outage)", () => {
+        const run = { created_at: at(600), status: "queued" } as GhRun;
+        expect(runnerUse([], [run], NOW)).toMatchObject({ stuck: 0, queuedOver2: 1, longestQueuedMs: 600 * MIN });
+    });
+
+    it("waiting and pending jobs are not counted in the longest wait", () => {
+        const waiting = { ...base, status: "waiting", labels: ["ubuntu-24.04"], created_at: at(300) };
+        expect(runnerUse([waiting, { ...waiting, status: "pending" }], [], NOW).longestQueuedMs).toBe(0);
     });
 });
 
@@ -864,6 +896,14 @@ describe("auto-merge stocks", () => {
         expect(s.autoMergeGreenStuck).toBe(2);
         expect(s.autoMergeArmedLong).toBe(2);
     });
+
+    it("leaves a green pull request that conflicts with its base out of green-but-not-merging (#8800)", () => {
+        const conflicting = { ...pr(30, "SUCCESS"), number: 8575, mergeable: "CONFLICTING" };
+        const unknown = { ...pr(3, "SUCCESS"), number: 8576, mergeable: "UNKNOWN" };
+        const s = prStocks([conflicting, unknown], NOW);
+        expect(s.prs.greenStuck).toEqual([8576]);
+        expect(s.prs.armedLong).toEqual([8575]);
+    });
 });
 
 describe("stress run state", () => {
@@ -910,6 +950,13 @@ describe("ghost runs", () => {
         // A truncated open list proves nothing.
         expect(isGhostRun(ghost, open("some/other-branch"), false)).toBe(false);
         expect(isGhostRun({ ...ghost, event: "push" }, [], true)).toBe(false);
+    });
+
+    it("calls a queued run of any pull request event a ghost once its pull request merged (#7358)", () => {
+        for (const event of ["pull_request_target", "pull_request_review"]) {
+            expect(isGhostRun({ ...ghost, event }, open("some/other-branch"), true)).toBe(true);
+            expect(isGhostRun({ ...ghost, event }, open(ghost.head_branch!), true)).toBe(false);
+        }
     });
 });
 

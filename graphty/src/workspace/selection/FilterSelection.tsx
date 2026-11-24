@@ -8,14 +8,18 @@
  * which never filtered, is written turned off. A new card is written with its first step.
  */
 
-import type { FilterCondition, GraphSession, SourceKey, UnionLeaf } from "@graphty/graphty-element/session";
-import React, { useRef, useState } from "react";
+import type {
+    FilterCondition,
+    FilterDraft,
+    GraphSession,
+    SourceKey,
+    UnionLeaf,
+} from "@graphty/graphty-element/session";
+import React, { useEffect, useRef, useState } from "react";
 
 import { keepChange, writeCondition } from "../data-place/filterCards";
-import { selectionWorkspaceOn } from "../features";
 import type { WorkspaceStore } from "../state/store";
 import { SelectionEditor } from "./SelectionEditor";
-import { SelectionEditorInline } from "./SelectionEditorInline";
 import type { SelectionMenuItem } from "./SelectionMenu";
 import type { PickSection } from "./values";
 
@@ -40,7 +44,6 @@ import type { PickSection } from "./values";
  * @param props.onEmptyCancel - the value picker closed with nothing chosen on a card with no step
  * @param props.onDraft - takes a new card's selection while it has no step yet, so the host keeps it
  * @param props.onDone - the workspace closed, or Escape with no row selected
- * @param props.onTitleToggle - Space on the title row: switches the card's on box
  * @param props.titleOff - the card's on box is off
  * @param props.name - the name the reader gave the card, written with it
  * @param props.onRename - renames the card from the workspace's title bar
@@ -65,7 +68,6 @@ export function FilterSelection({
     onDraft,
     onEmptyCancel,
     onDone,
-    onTitleToggle,
     titleOff,
     name,
     onRename,
@@ -88,31 +90,114 @@ export function FilterSelection({
     onDraft?: (rule: UnionLeaf) => void;
     onEmptyCancel?: () => void;
     onDone: () => void;
-    onTitleToggle?: () => void;
     titleOff?: boolean;
     name?: string;
     onRename?: (name: string | undefined) => void;
 }>): React.JSX.Element {
+    // The card is edited as a draft: nothing that is shown changes and nothing is laid out again
+    // until the workspace closes, when the draft is written as one step (graphty-element's
+    // `visibility.draft`; design/working-graph/design.md, section 3). A new card is written only once
+    // it has a step. A draft graphty-element's autosave reopened after a reload is picked up, so
+    // the reader's unwritten edits are the ones shown, Done writes them and Cancel drops them.
+    // on reload: fresh: read: graphty-element's reopened draft, read when the card mounts or it reopens
+    const [adopted, setAdopted] = useState(() => session.visibility.draftOf(id));
+    const draft = useRef<FilterDraft | null>(adopted);
+    const adoptedRule = adopted?.condition.rule.kind === "union" ? adopted.condition.rule : null;
     // The rule as last edited, until the element holds it.
-    const [local, setLocal] = useState<UnionLeaf | null>(null);
-    const writes = useRef(0);
-    const write = (next: UnionLeaf): Promise<unknown> =>
-        effect === undefined
-            ? writeCondition(store, () =>
-                  session.visibility.addCondition({
-                      id,
-                      effect: "keep",
-                      rule: next,
-                      ...(name === undefined ? {} : { name }),
-                      ...(source === undefined ? {} : { source }),
-                  }),
-              )
-            : writeCondition(store, () => session.visibility.updateCondition(id, keepChange(next, effect)));
-    // The full-screen workspace is an experiment; off, the outline-and-pane editor is drawn.
-    const Editor = selectionWorkspaceOn(session) ? SelectionEditor : SelectionEditorInline;
+    // on reload: fresh: derived: a reopened draft's rule, read from graphty-element
+    const [local, setLocal] = useState<UnionLeaf | null>(adoptedRule);
+    const own = useRef(false);
+    // The card can open before autosave has opened its draft again (the place comes back first):
+    // the draft is picked up when it opens, unless the reader has started one of their own.
+    useEffect(
+        () =>
+            session.on("visibility:draft-changed", () => {
+                // Read again on each change: autosave opens the draft, then puts its edits back.
+                const found = own.current ? null : session.visibility.draftOf(id);
+                if (found !== null) {
+                    draft.current = found;
+                    setAdopted(found);
+                    setLocal(found.condition.rule.kind === "union" ? found.condition.rule : null);
+                }
+            }),
+        [session, id],
+    );
+    const toDraft = (next: UnionLeaf): void => {
+        if (draft.current?.open !== true) {
+            // A draft of its own is not a reopened one to pick up (the event below fires inside it).
+            own.current = true;
+            draft.current = session.visibility.draft(
+                effect === undefined
+                    ? {
+                          id,
+                          effect: "keep",
+                          rule: next,
+                          ...(name === undefined ? {} : { name }),
+                          ...(source === undefined ? {} : { source }),
+                      }
+                    : id,
+            );
+        }
+        draft.current.update(effect === undefined ? { rule: next } : keepChange(next, effect));
+    };
+    // Written when it differs from what the element holds (Cancel hands the old rule back first),
+    // otherwise let go; a new card with no step is never written.
+    const finish = (): void => {
+        const open = draft.current;
+        draft.current = null;
+        if (open?.open !== true) {
+            return;
+        }
+        const saved = session.visibility.conditions.find((each) => each.id === id);
+        // A new card's name, typed in the title bar while it was edited, goes with it.
+        if (saved === undefined && name !== undefined) {
+            open.update({ name });
+        }
+        const { rule: held } = open.condition;
+        const stepless = held.kind === "union" && held.branches.every((branch) => branch.steps.length === 0);
+        const unchanged = saved === undefined ? stepless : JSON.stringify(saved) === JSON.stringify(open.condition);
+        if (unchanged) {
+            open.cancel();
+            return;
+        }
+        void writeCondition(store, () => open.commit());
+    };
+    const finishRef = useRef(finish);
+    finishRef.current = finish;
+    // Leaving the card open (a switch of place, a side switch) closes it as Done; an element that
+    // has gone (the app closing, the page ending) takes nothing more. Decided a microtask later:
+    // an element removed with the app shuts down in the microtask its removal queued, so a page
+    // torn down with the card open writes nothing the reader did not finish, and the draft stays
+    // in the element's last autosave write for a reload to reopen (issue #9655). StrictMode's
+    // development-only rerun mounts the card again before that microtask: it is still open, so a
+    // draft adopted at mount is not written.
+    const mounted = useRef(false);
+    useEffect(() => {
+        mounted.current = true;
+        let gone = false;
+        const unwatch = session.on("session:disposed", () => {
+            gone = true;
+        });
+        return () => {
+            mounted.current = false;
+            queueMicrotask(() => {
+                unwatch();
+                if (mounted.current) {
+                    return;
+                }
+                if (gone) {
+                    draft.current?.cancel();
+                    draft.current = null;
+                }
+                finishRef.current();
+            });
+        };
+    }, [session]);
     return (
-        <Editor
+        <SelectionEditor
             session={session}
+            workspaceKey={`filter:${id}:${rule.side}`}
+            restoredFrom={adoptedRule === null ? undefined : rule}
             rule={local ?? rule}
             host="filter"
             ownerName="Filters"
@@ -121,29 +206,32 @@ export function FilterSelection({
             switchedSide={switchedSide}
             openPicker={openPicker}
             hostPicks={hostPicks}
-            hold={id}
             title={title}
             lead={lead}
             titleMenu={titleMenu}
             titleExtra={titleExtra}
-            onDone={onDone}
-            onEmptyCancel={onEmptyCancel}
-            onTitleToggle={onTitleToggle}
+            onDone={() => {
+                finish();
+                onDone();
+            }}
+            onEmptyCancel={
+                onEmptyCancel === undefined
+                    ? undefined
+                    : () => {
+                          draft.current?.cancel();
+                          draft.current = null;
+                          onEmptyCancel();
+                      }
+            }
             titleOff={titleOff}
             onRename={onRename}
             onChange={(next) => {
                 setLocal(next);
-                if (effect === undefined && next.branches.every((branch) => branch.steps.length === 0)) {
+                toDraft(next);
+                // The host keeps a new card's selection, so Done reads it as having a step.
+                if (effect === undefined) {
                     onDraft?.(next);
-                    return;
                 }
-                writes.current += 1;
-                const mine = writes.current;
-                void write(next).then(() => {
-                    if (writes.current === mine) {
-                        setLocal(null);
-                    }
-                });
             }}
         />
     );

@@ -2,7 +2,7 @@
  * @file The layout and the dimension as undoable steps, on a real `Graph`.
  *
  * Choosing a layout keeps the engine that was chosen and its options, so undo brings back d3, not
- * the catalogue's default engine for the same layout. Switching between 2D and 3D, and undoing
+ * the catalog's default engine for the same layout. Switching between 2D and 3D, and undoing
  * the switch, leaves every reading of the dimension agreeing with the `layout` slice: the graph
  * context, the engine, the scene's record and the merged configuration. A layout whose pre-steps
  * are still computing when it is undone or replaced publishes nothing, and the nodes go back to
@@ -15,10 +15,12 @@ import "../../src/graphty-element";
 
 import { afterEach, assert, describe, it, vi } from "vitest";
 
-import { Graph, operationQueueOf } from "../../src/Graph";
+import { isGraphtyError } from "../../src/errors";
+import { Graph, graphContextOf, operationQueueOf } from "../../src/Graph";
 import { SimulationLayoutEngine } from "../../src/layout/SimulationLayoutEngine";
 import { laneOf } from "../../src/session/GraphSession";
 import type { GraphSession } from "../../src/session/types";
+import type { GraphSceneMetadata } from "../../src/types/sceneMetadata";
 import { drawnFrames } from "../helpers/drawn-frames";
 import { nextFrame } from "../helpers/real-input";
 
@@ -65,7 +67,7 @@ async function loadedGraph(): Promise<Graph> {
  */
 async function atRest(graph: Graph): Promise<void> {
     await graph.waitForSettled();
-    for (let wait = 0; wait < 600 && graph.getLayoutManager().running; wait++) {
+    while (graph.getLayoutManager().running) {
         await nextFrame();
     }
 
@@ -89,11 +91,15 @@ function lane(session: GraphSession): number[] {
  */
 function agrees(graph: Graph, dimension: "2d" | "3d", what: string): void {
     const twoD = dimension === "2d";
-    const context = (graph as unknown as { graphContext: { is2D(): boolean } }).graphContext;
+    const context = graphContextOf(graph);
     assert.strictEqual(graph.getSession().layout.dimension, dimension, `${what}: the slice`);
     assert.strictEqual(context.is2D(), twoD, `${what}: GraphContext.is2D`);
     assert.strictEqual(graph.getLayoutManager().dimension, twoD ? 2 : 3, `${what}: the engine's dimension`);
-    assert.strictEqual(graph.getScene().metadata?.twoD, twoD, `${what}: scene.metadata.twoD`);
+    assert.strictEqual(
+        (graph.getScene().metadata as GraphSceneMetadata | null)?.twoD,
+        twoD,
+        `${what}: (scene.metadata as GraphSceneMetadata).twoD`,
+    );
 
     assert.strictEqual(graph.styles.config.graph.twoD, twoD, `${what}: Styles.config.graph.twoD`);
     assert.strictEqual(graph.styles.config.graph.viewMode, dimension, `${what}: Styles.config.graph.viewMode`);
@@ -221,7 +227,7 @@ describe("the layout as a step", () => {
         await undone;
 
         assert.strictEqual(await refused, "AbortError");
-        assert.strictEqual(gate.published(), 0, "nothing the cancelled layout computed was published");
+        assert.strictEqual(gate.published(), 0, "nothing the canceled layout computed was published");
         assert.strictEqual(session.layout.engine, "circular");
         assert.strictEqual(graph.getLayoutManager().layoutType, "circular");
         assert.deepEqual(lane(session), before, "the nodes are where they were before the layout");
@@ -277,8 +283,12 @@ describe("the layout as a step", () => {
         await graph.setViewMode("2d");
         const steps = session.history.steps.length;
 
-        // This browser has no WebXR, so entry fails.
-        await graph.setViewMode("vr");
+        // XR is off here, so entry fails, and says so.
+        const refused: unknown = await graph.setViewMode("vr").then(
+            () => undefined,
+            (error: unknown) => error,
+        );
+        assert.isTrue(isGraphtyError(refused) && refused.code === "E_UNSUPPORTED", "the entry did not reject, coded");
 
         assert.lengthOf(session.history.steps, steps, "no step for a switch the reader never got");
         assert.strictEqual(graph.getViewMode(), "2d");

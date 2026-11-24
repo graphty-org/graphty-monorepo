@@ -9,19 +9,14 @@
  * texture's GPU texture out of five lists by `indexOf`. A frame that draws or removes a label on
  * every node did that once per label, so N labels cost about N x N.
  */
-import {
-    type AbstractMesh,
-    type BaseTexture,
-    Constants,
-    type DynamicTexture,
-    type ImageProcessingConfiguration,
-    type InternalTexture,
-    type Material,
-    type Observer,
-    type Scene,
-    type StandardMaterial,
-    type UniformBuffer,
-} from "@babylonjs/core";
+import type { BaseTexture, ImageProcessingConfiguration, InternalTexture, Observer } from "@babylonjs/core";
+import { Constants } from "@babylonjs/core/Engines/constants.js";
+import type { Material } from "@babylonjs/core/Materials/material.js";
+import type { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
+import type { DynamicTexture } from "@babylonjs/core/Materials/Textures/dynamicTexture.js";
+import type { UniformBuffer } from "@babylonjs/core/Materials/uniformBuffer.js";
+import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 /** What one label owns in the scene: the three things its disposal hands back. */
 export interface LabelResources {
@@ -152,7 +147,7 @@ export function deferLabelRelease(resources: LabelResources): boolean {
 
 /**
  * Run some work that disposes many labels -- a repaint that takes a label off every node, or
- * rebuilds every labelled node -- and release everything those labels owned once it ends, in one
+ * rebuilds every labeled node -- and release everything those labels owned once it ends, in one
  * pass over each scene list instead of one search per label. Nothing outside the work sees a
  * disposed label: the work is synchronous and the release happens before this returns.
  * @param work - The work.

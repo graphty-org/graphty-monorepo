@@ -52,7 +52,7 @@ async function download(file: string, url: string, md5?: string): Promise<string
         writeFileSync(path, Buffer.from(await response.arrayBuffer()));
     }
     if (md5 !== undefined) {
-        const hash = createHash("md5"); // NOSONAR(S4790): checks a download against the MD5 its publisher lists
+        const hash = createHash("md5"); // eslint-disable-line sonarjs/hashing -- checks a download against the MD5 its publisher lists
         if (hash.update(readFileSync(path)).digest("hex") !== md5) {
             throw new Error(`${file}: MD5 differs from the published ${md5}`);
         }
@@ -72,7 +72,7 @@ function write(file: string, graph: Record<string, string>, nodes: object[], lin
     // Plain ASCII on disk: a name's accents are kept as JSON \u escapes.
     const json = JSON.stringify(doc).replaceAll(
         /[^\x20-\x7e]/g,
-        (c) => `\\u${(c.codePointAt(0) ?? 0).toString(16).padStart(4, "0")}`, // NOSONAR(S7780): String.raw cannot hold \u before a substitution
+        (c) => `\\u${(c.codePointAt(0) ?? 0).toString(16).padStart(4, "0")}`, // eslint-disable-line unicorn/prefer-string-raw -- String.raw cannot hold \u before a substitution
     );
     writeFileSync(resolve(OUT, file), `${json}\n`);
     console.log(`wrote ${file}: ${String(nodes.length)} nodes, ${String(links.length)} edges`);
@@ -276,10 +276,10 @@ async function marvelFilms(): Promise<void> {
             results: { bindings: Record<string, { value: string }>[] };
         }
     ).results.bindings.map((row) => ({
-        film: row.film.value.replace("http://www.wikidata.org/entity/", ""), // NOSONAR(S5332): Wikidata's entity IRI prefix, an identifier, never fetched
+        film: row.film.value.replace("http://www.wikidata.org/entity/", ""), // eslint-disable-line sonarjs/no-clear-text-protocols -- Wikidata's entity IRI prefix, an identifier, never fetched
         filmName: row.filmLabel.value,
         released: row.released.value.slice(0, 10),
-        actor: row.actor.value.replace("http://www.wikidata.org/entity/", ""), // NOSONAR(S5332): Wikidata's entity IRI prefix, an identifier, never fetched
+        actor: row.actor.value.replace("http://www.wikidata.org/entity/", ""), // eslint-disable-line sonarjs/no-clear-text-protocols -- Wikidata's entity IRI prefix, an identifier, never fetched
         actorName: row.actorLabel.value,
     }));
     const kept = rows.filter((row) => !RE_RELEASES.has(row.film));

@@ -9,6 +9,8 @@
  * - the provider's key: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` or `GOOGLE_API_KEY`
  * - `LLM_REGRESSION_MODEL`: overrides the provider's default model
  * - `LLM_REGRESSION_GEMINI_TIER`: standard (default) or flex, the Gemini service tier (test/helpers/llm-regression-gemini.ts)
+ * - `LLM_REGRESSION_REASONING_EFFORT`: Gemini's thinking level, minimal, low (default), medium or high, or
+ *   `default` for the model's own (high on Gemini 3)
  *
  * None has the `VITE_` prefix: Vite copies every `VITE_` variable of the environment onto
  * `import.meta.env`, so a key named that way is one reference away from a browser bundle (the
@@ -16,6 +18,7 @@
  */
 
 import type { VercelProviderType } from "../../src/ai/providers/VercelAiProvider";
+import { AI_REASONING_EFFORTS, type AiReasoningEffort } from "../../src/catalog/ai";
 
 const PROVIDERS: readonly VercelProviderType[] = ["openai", "anthropic", "google"];
 
@@ -111,4 +114,26 @@ export function getLlmRegressionGeminiTier(): "flex" | "standard" {
     }
 
     return tier;
+}
+
+/**
+ * How hard Gemini thinks in the tests: low, unless the variable says otherwise. Gemini 3 thinks at high by default,
+ * and every thinking token is billed as output: on 2026-11-14 thinking was 109k tokens, over a quarter of the
+ * lane's cost (#8228). The cases ask for one tool or a short plan, which low covers.
+ * @returns The level, or undefined for the model's own default
+ * @throws Error when LLM_REGRESSION_REASONING_EFFORT names another level
+ */
+export function getLlmRegressionReasoningEffort(): AiReasoningEffort | undefined {
+    const effort = readEnv("LLM_REGRESSION_REASONING_EFFORT") ?? "low";
+    if (effort === "default") {
+        return undefined;
+    }
+
+    if (!(AI_REASONING_EFFORTS as readonly string[]).includes(effort)) {
+        throw new Error(
+            `LLM_REGRESSION_REASONING_EFFORT must be default or one of ${AI_REASONING_EFFORTS.join(", ")}, not "${effort}"`,
+        );
+    }
+
+    return effort as AiReasoningEffort;
 }

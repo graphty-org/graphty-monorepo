@@ -2,7 +2,7 @@
  * @file A third party's algorithm, and whether the element treats it as a real one.
  *
  * WHAT WAS WRONG. `Algorithm.register` got a class registered and callable, and that was the end
- * of it. The run machinery resolves a key through the catalogue; the catalogue was a frozen table
+ * of it. The run machinery resolves a key through the catalog; the catalog was a frozen table
  * of the element's own twenty; so a key nothing in that table carried was refused. A plugin could
  * therefore compute something and nothing could ask for it -- no progress, no cancellation, no
  * cost estimate before the click, no ranking, no histogram, no summary, no plain-language
@@ -10,10 +10,10 @@
  * to provide was available to the built-ins and to nobody else. A plugin's only route was to
  * scribble on node records and hope a style layer read them.
  *
- * WHAT DECIDES IT NOW. A class that declares a `descriptor` is published to the catalogue when it
+ * WHAT DECIDES IT NOW. A class that declares a `descriptor` is published to the catalog when it
  * registers, so it resolves by key like any other algorithm. A class that declares none is
  * exactly as capable as it was before -- registered, callable through the 1.10 address, invisible
- * to the catalogue -- which is the trade its author made by not declaring one. Both are asserted
+ * to the catalog -- which is the trade its author made by not declaring one. Both are asserted
  * here, because "the plugin path still works" is half of what this change must not break.
  *
  * The assertions below are about CAPABILITY, not about arithmetic: what the plugin computes is
@@ -44,7 +44,7 @@ const EDGES = [
  *
  * The `shape` is the load-bearing field: field NAMES are fixed by the shape rather than by the
  * algorithm, which is what lets a consumer read `results.<runId>.value` on ANY node metric
- * without opening the catalogue first. Declaring "node-metric" is therefore a promise about the
+ * without opening the catalog first. Declaring "node-metric" is therefore a promise about the
  * names below, not a label.
  */
 const COUNTING_DESCRIPTOR: AlgorithmDescriptor = {
@@ -84,14 +84,17 @@ class NeighbourCount extends DeclaredAlgorithm {
      */
     override compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
         const counts = new Map<string, number>();
+        const { graph } = context.input("declared");
 
-        for (const node of this.graph.getNodes()) {
-            counts.set(String(node.id), 0);
+        for (let row = 0; row < graph.nodeCount; row++) {
+            counts.set(String(graph.ids.idOf(row)), 0);
         }
 
-        for (const edge of this.graph.getDataManager().edges.values()) {
-            counts.set(String(edge.srcId), (counts.get(String(edge.srcId)) ?? 0) + 1);
-            counts.set(String(edge.dstId), (counts.get(String(edge.dstId)) ?? 0) + 1);
+        for (let row = 0; row < graph.edgeCount; row++) {
+            for (const end of [graph.edgeSource(row), graph.edgeTarget(row)]) {
+                const id = String(graph.ids.idOf(end));
+                counts.set(id, (counts.get(id) ?? 0) + 1);
+            }
         }
 
         context.report({ completed: counts.size, total: counts.size });

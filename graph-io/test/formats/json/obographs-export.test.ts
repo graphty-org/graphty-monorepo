@@ -183,6 +183,36 @@ describe("the obographs dialect: files read from OBO", () => {
     });
 });
 
+describe("the obographs dialect: __proto__ keys", () => {
+    it("keeps __proto__ keys of the document, the graph, a node and a PROPERTY node through a round trip", async () => {
+        const doc = JSON.stringify({
+            graphs: [
+                {
+                    id: "http://example.org/g",
+                    nodes: [
+                        { id: "http://example.org/a", type: "CLASS", lbl: "a", ["__proto__"]: { n: 1 } },
+                        { id: "__proto__", type: "PROPERTY", lbl: "p" },
+                    ],
+                    edges: [],
+                    ["__proto__"]: { g: 2 },
+                },
+            ],
+            ["__proto__"]: { d: 3 },
+        });
+        const snapshot = await load(doc, "json");
+        const { text, back } = await roundTrip(snapshot);
+        const written = JSON.parse(text) as { graphs: Record<string, unknown>[] } & Record<string, unknown>;
+        expect(Object.getOwnPropertyDescriptor(written, "__proto__")?.value).toEqual({ d: 3 });
+        const graph = written.graphs[0];
+        expect(Object.getOwnPropertyDescriptor(graph, "__proto__")?.value).toEqual({ g: 2 });
+        const nodes = graph.nodes as Record<string, unknown>[];
+        const a = nodes.find((n) => n.id === "http://example.org/a");
+        expect(a !== undefined && Object.getOwnPropertyDescriptor(a, "__proto__")?.value).toEqual({ n: 1 });
+        expect(nodes.some((n) => n.id === "__proto__" && n.type === "PROPERTY")).toBe(true);
+        expect(back.nodeCount).toBe(snapshot.nodeCount);
+    });
+});
+
 describe("the obographs dialect: any graph", () => {
     const graph = (): GraphSnapshot =>
         build({

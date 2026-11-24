@@ -34,7 +34,7 @@ import type {
 import { OTHER_GROUP_COLOR } from "../../config/palettes/categorical";
 import { GraphtyError } from "../../errors";
 import { channelDescriptor } from "./channels";
-import type { EncodedValue, PreparedBinding } from "./encoding";
+import { defaultScaleFor, type EncodedValue, type PreparedBinding } from "./encoding";
 import type { Layer } from "./Layer";
 
 /**
@@ -55,7 +55,7 @@ export interface ValueGroup {
     readonly entries: Readonly<Partial<Record<Channel, string | number>>>;
     /**
      * True when the group is folded into the layer's Other group (`styles.setFoldBelow`, or a
-     * colour palette that ran out under `overflow: "other"`), so it paints what Other paints.
+     * color palette that ran out under `overflow: "other"`), so it paints what Other paints.
      * Folded groups come after the rest, largest first.
      * @since 3.27.0
      */
@@ -223,6 +223,7 @@ export function groupsOf(
  * @param layer - The layer, or undefined when the stack holds none with that id.
  * @param by - The category path every write is a value of.
  * @param writes - The writes, applied in order.
+ * @param readScale - The scale the last paint read each channel through; see {@link valueEntryPatch}.
  * @returns The patch.
  * @throws A `GraphtyError` with code `E_BAD_COMMAND` when a channel already varies by another
  *   path (`details.reason` `"bound-to-other-path"`) or an entry is not a text or a number.
@@ -231,6 +232,7 @@ export function valueEntriesPatch(
     layer: Layer | undefined,
     by: Path,
     writes: readonly ValueEntryWrite[],
+    readScale?: ScaleRead,
 ): Partial<LayerSpec> {
     if (layer === undefined) {
         return {};
@@ -252,7 +254,7 @@ export function valueEntriesPatch(
             current = boundTo(current, channel, by);
         }
 
-        current = { ...current, ...valueEntryPatch(current, channel, value, entry) };
+        current = { ...current, ...valueEntryPatch(current, channel, value, entry, readScale) };
     }
 
     return { encode: current.encode, ...(current.set === layer.set ? {} : { set: current.set }) };
@@ -291,6 +293,9 @@ function boundTo(layer: Layer, channel: Channel, by: Path): Layer {
     };
 }
 
+/** The scale the last paint read one channel of a layer through, or null/undefined when none. */
+export type ScaleRead = (channel: Channel) => string | null | undefined;
+
 /** A binding that reads a value. */
 type ValueBinding = Extract<Binding, { by: Path }>;
 
@@ -309,7 +314,7 @@ function bindingsBy(layer: Layer, by: Path): [Channel, ValueBinding][] {
 }
 
 /**
- * What one channel paints the groups folded into Other: the grey of the Other bucket for a color,
+ * What one channel paints the groups folded into Other: the gray of the Other bucket for a color,
  * else the one value the channel paints every group without an entry.
  * @param channel - The channel.
  * @param otherwise - The binding's `otherwise`, if it has one.
@@ -377,6 +382,9 @@ export function foldPatch(layer: Layer | undefined, by: Path, below: number | un
  * @param channel - The channel.
  * @param value - The value.
  * @param entry - What the value paints instead, or undefined to follow the palette again.
+ * @param readScale - The scale the last paint read a channel through, so a binding that named no
+ *   scale keeps the one its column chose (a text column reads as groups). Absent, or answering
+ *   nothing, the default for a binding without a column is named.
  * @returns The patch.
  * @throws `E_BAD_COMMAND` when the layer does not paint the channel from a value
  *   (`reason` `"not-bound"`), or the entry is not a text or a number (`"bad-entry"`).
@@ -386,6 +394,7 @@ export function valueEntryPatch(
     channel: Channel,
     value: string | number | boolean,
     entry: ChannelValue | undefined,
+    readScale?: ScaleRead,
 ): Partial<LayerSpec> {
     if (layer === undefined) {
         return {};
@@ -417,8 +426,15 @@ export function valueEntryPatch(
         map[key] = entry;
     }
 
+    // A binding that named no scale read through the default for a binding without a map; naming
+    // that scale keeps an entry from changing how every other value is read.
+    const descriptor = channelDescriptor(channel);
+    const scale =
+        rest.scale === undefined && previous === undefined && descriptor !== undefined
+            ? { scale: readScale?.(channel) ?? defaultScaleFor(descriptor.accepts, rest) }
+            : {};
     return {
-        encode: { ...layer.encode, [channel]: Object.keys(map).length === 0 ? rest : { ...rest, map } },
+        encode: { ...layer.encode, [channel]: Object.keys(map).length === 0 ? rest : { ...rest, ...scale, map } },
     };
 }
 

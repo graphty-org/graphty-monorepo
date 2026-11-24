@@ -1,7 +1,7 @@
 /**
  * Adversarial corruption fuzzer of the GSNP container and the in-memory wire form (design sections
  * 9.1, 9.2, 9.5 and 11.2). Golden snapshots covering every id-map kind and every dtype are
- * serialised with toBytes() and then mutated: single-bit flips of the header, random byte flips and
+ * serialized with toBytes() and then mutated: single-bit flips of the header, random byte flips and
  * overwrites in the manifest and in every region segment, truncation at every section boundary,
  * lies about lengths, offsets, alignment, counts, flags, versions, the arena and the id map, unknown
  * dtypes / id-map kinds / view names, column metadata lies, a swapped endianness probe, every chunk
@@ -9,14 +9,12 @@
  * in an in-memory manifest. Every outcome of fromBytes() / fromByteChunks() / fromWire() must be:
  *
  * - a snapshot that passes validate({ level: "full" }), whose views, ids and columns are readable
- *   and in range, and that re-serialises to a container decoding to an equal snapshot; or
+ *   and in range, and that re-serializes to a container decoding to an equal snapshot; or
  * - a GraphFormatError carrying one of the reader's documented codes (E_BAD_SERIALIZATION,
  *   E_UNSUPPORTED_VERSION, E_UNSUPPORTED, E_INVALID_SNAPSHOT).
  *
  * Anything else (a TypeError / RangeError, an undocumented code, a snapshot failing validation) is
- * an anomaly and fails the test that produced it. Anomalies already pinned by a dedicated failing
- * test in wire-probes.test.ts are recognised by signature (KNOWN_DEFECTS) so that one open defect
- * does not hide a new one.
+ * an anomaly and fails the test that produced it.
  */
 
 import { describe, expect, it } from "vitest";
@@ -46,7 +44,7 @@ function prng(seed: number): () => number {
 
 const LEVELS: readonly ValidationLevel[] = ["full", "structure", "none"];
 
-// ============================================================ known defects (pinned in wire-probes.test.ts)
+// ============================================================ anomalies
 
 /** What the oracle found wrong with one mutated input. */
 interface Anomaly {
@@ -54,33 +52,6 @@ interface Anomaly {
     readonly mutation: string;
     readonly problem: string;
 }
-
-interface KnownDefect {
-    /** The wire-probes.test.ts test that pins the defect. */
-    readonly pinnedBy: string;
-    readonly matches: (anomaly: Anomaly) => boolean;
-}
-
-/**
- * Anomaly signatures already pinned by a dedicated (deliberately failing) test, so that the fuzz
- * suites keep reporting NEW anomalies while these are open. Remove an entry once its pin passes.
- */
-const KNOWN_DEFECTS: readonly KnownDefect[] = [
-    {
-        pinnedBy: "validate() reports a violated unique column as E_INVALID_SNAPSHOT",
-        matches: (a) => /undocumented code E_DUPLICATE_(EDGE_)?ID:/.test(a.problem),
-    },
-    {
-        pinnedBy: "a bigint or null-prototype manifest value is refused with E_BAD_SERIALIZATION",
-        matches: (a) =>
-            a.problem.includes("Do not know how to serialize a BigInt") ||
-            a.problem.includes("Cannot convert object to primitive value"),
-    },
-    {
-        pinnedBy: "negative zero is not accepted as a count or identity offset",
-        matches: (a) => a.mutation.includes(":= -0") && a.problem.includes("does not re-serialise"),
-    },
-];
 
 function describeError(err: unknown): string {
     if (err instanceof Error) {
@@ -280,7 +251,7 @@ function run(fn: () => GraphSnapshot): Outcome {
 /**
  * Judge one outcome: a foreign error or an undocumented code is always an anomaly; a returned
  * snapshot must pass validation at the level requested, and at "full" it must also be exercisable
- * and re-serialise to an equal snapshot with the same content hash.
+ * and re-serialize to an equal snapshot with the same content hash.
  */
 function judge(outcome: Outcome, level: ValidationLevel, golden: string, mutation: string, into: Anomaly[]): void {
     if (outcome.kind === "foreign") {
@@ -323,13 +294,10 @@ function judge(outcome: Outcome, level: ValidationLevel, golden: string, mutatio
     }
 }
 
-/** Anomalies not covered by a known, separately pinned defect, grouped by message shape. */
+/** Every anomaly, grouped by message shape (empty when there is none). */
 function unexplained(anomalies: readonly Anomaly[]): string {
     const groups = new Map<string, number>();
     for (const a of anomalies) {
-        if (KNOWN_DEFECTS.some((known) => known.matches(a))) {
-            continue;
-        }
         const key = `[${a.golden}] ${a.mutation.replace(/[0-9]+/g, "#")}: ${a.problem.replace(/[0-9]+/g, "#")}`;
         groups.set(key, (groups.get(key) ?? 0) + 1);
     }

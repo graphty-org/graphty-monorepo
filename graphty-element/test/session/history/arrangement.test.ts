@@ -219,6 +219,30 @@ describe("the arrangement under undo and redo", () => {
         session.dispose();
     });
 
+    it("seals a frame the layout owes the lane, as a landing drawn from the card leaves one, at the next rest point", async () => {
+        const session = await fixtureSession();
+        const layout = fakeLayout(session);
+        const { state } = dispatcherOf(session);
+        const positions = laneOf(session);
+        layout.play();
+        layout.step();
+        layout.settle();
+        const before = state.arrangement;
+
+        // the frame is owed, not written: nothing reads a row before the rest point
+        const frame = new Float32Array([7, 7, 7, 8, 8, 8, 9, 9, 9]);
+        positions.owe(() => {
+            positions.view(3).set(frame);
+            positions.moved(3);
+        });
+        layout.settle();
+
+        const sealed = state.arrangement;
+        assert.notStrictEqual(sealed, before, "the rest point took a capture");
+        assert.deepEqual([...(sealed?.coords ?? [])], [...frame], "of the frame the layout owed");
+        session.dispose();
+    });
+
     it("drops a readback submitted before an undo when it lands after it", async () => {
         const session = await fixtureSession();
         const layout = fakeLayout(session);
@@ -494,7 +518,7 @@ describe("the arrangement under undo and redo", () => {
         assert.notDeepEqual(lane(session), before, "the layout moved the lane under the load");
 
         const outcome = await session.undo();
-        assert.strictEqual(outcome.kind, "cancelled");
+        assert.strictEqual(outcome.kind, "canceled");
         assert.deepEqual(lane(session), before, "every node where it was before the load");
         assert.strictEqual(session.history.steps[0].bytes, bytes, "the step below took no capture");
         assert.isFalse(layout.running, "the rollback left the layout at rest");
@@ -565,6 +589,50 @@ describe("the arrangement under undo and redo", () => {
         assert.deepEqual(lane(session), before, "where things were when the transaction began");
         await session.redo();
         assert.deepEqual(lane(session), settled, "where the load came to rest inside it");
+        session.dispose();
+    });
+    it("canceling a load transaction puts back where every node was, though a placement was recorded meanwhile", async () => {
+        const session = await fixtureSession();
+        const layout = fakeLayout(session);
+        layout.play();
+        layout.step();
+        layout.settle();
+        await styleEdit(session);
+        const before = lane(session);
+
+        let loaded = (): void => undefined;
+        const imported = new Promise<void>((resolve) => {
+            loaded = resolve;
+        });
+        let finish = (): void => undefined;
+        const held = new Promise<void>((resolve) => {
+            finish = resolve;
+        });
+        const document = JSON.stringify({ nodes: [{ id: "n1" }, { id: "x" }], edges: [] });
+        const transaction = session
+            .transaction("Loaded a project", async (tx) => {
+                await tx.execute({ op: "data.import", source: { type: "json", config: { data: document } } });
+                loaded();
+                await held;
+            })
+            .catch((error: unknown) => error);
+        await imported;
+        layout.play();
+        layout.step();
+        layout.settle();
+        await session.positions.set([{ id: "n1", x: 100, y: 100, z: 0 }]);
+        const [pending] = session.history.pending;
+        session.history.cancel(pending.id);
+        finish();
+        await transaction;
+        await session.styles.settled();
+
+        const after = lane(session);
+        for (const [id, at] of Object.entries(before)) {
+            if (id !== "n1") {
+                assert.strictEqual(after[id], at, `${id} is where it was before the load`);
+            }
+        }
         session.dispose();
     });
 });

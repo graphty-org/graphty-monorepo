@@ -1,4 +1,4 @@
-import { Color3 } from "@babylonjs/core";
+import { Color3 } from "@babylonjs/core/Maths/math.color.js";
 
 import { toColorValue } from "../session/styles/channels";
 

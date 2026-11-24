@@ -11,15 +11,7 @@ import { PANEL_GRID } from "../../../src/constants/panel";
 import { LabelsProvider } from "../../../src/i18n";
 import { FieldGlyph, UiGlyph } from "../../../src/icons";
 import treeCss from "../../../src/theme/css/tree.css";
-
-/**
- * Render inside the compact theme, the way the package is consumed.
- * @param ui - The element under test
- * @returns The testing-library render result
- */
-function renderRow(ui: React.ReactElement): ReturnType<typeof render> {
-    return render(<MantineProvider theme={compactTheme}>{ui}</MantineProvider>);
-}
+import { renderCompact as renderRow } from "../../harness/render";
 
 /**
  * Render inside the compact theme, as the only cell of a `role="row"`: the place a caption is a

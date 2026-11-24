@@ -1,6 +1,5 @@
 import { MeshBuilder, NullEngine, Scene, Vector3 } from "@babylonjs/core";
-import { assert } from "chai";
-import { afterEach, beforeEach, describe, test, vi } from "vitest";
+import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
 import {
     type FramingSpot,
@@ -363,6 +362,32 @@ describe("OrbitCameraController", () => {
             assert.approximately(controller.pivot.position.x, 5, 0.0001);
             assert.approximately(controller.pivot.position.y, 5, 0.0001);
             assert.approximately(controller.pivot.position.z, 5, 0.0001);
+        });
+
+        test("a canvas made shorter, with the fit still set by its height, leaves the camera where it was", () => {
+            // Deeper on the right, so the centered pivot sits off the box's center; taller than
+            // wide, so the height decides the distance either way.
+            const spots: FramingSpot[] = [
+                { pos: new Vector3(-3, 9, 0), half: 0.5 },
+                { pos: new Vector3(3.7, -9, 6), half: 0.5 },
+                { pos: new Vector3(1.3, 2, -4.2), half: 0.5 },
+            ];
+            const min = new Vector3(-3.5, -9.5, -4.7);
+            const max = new Vector3(4.2, 9.5, 6.5);
+            const height = vi.spyOn(engine, "getRenderHeight").mockReturnValue(600);
+            vi.spyOn(engine, "getRenderWidth").mockReturnValue(800);
+            controller.zoomToBoundingBox(min, max, spots);
+            const pivot = controller.pivot.position.clone();
+            const distance = controller.cameraDistance;
+            assert.notEqual(pivot.x, (min.x + max.x) / 2, "the drawing was centered off the box's center");
+
+            for (const shorter of [581, 523, 497]) {
+                height.mockReturnValue(shorter);
+                controller.zoomToBoundingBox(min, max, spots);
+
+                assert.strictEqual(controller.cameraDistance, distance);
+                assert.deepEqual(controller.pivot.position.asArray(), pivot.asArray(), `at ${String(shorter)} px`);
+            }
         });
 
         test("should adjust camera distance based on bounding box size", () => {

@@ -2,7 +2,7 @@
  * `ALGORITHMS` is only worth having if it is true and complete, so every claim in it is checked by running the
  * algorithm: the direction rule on a directed and an undirected graph, the weight rule on a weighted graph and its
  * unweighted twin, the inputs by calling `fn(graph, ...inputs, options)`, and the per-element result arrays by
- * their length. A new export that is not catalogued fails the completeness test.
+ * their length. A new export that is not cataloged fails the completeness test.
  */
 
 import { fromEdgeArrays, type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
@@ -50,7 +50,17 @@ function graph(directed: boolean, weighted: boolean): GraphSnapshot {
     });
 }
 
-const REQUIRED_OPTIONS: Readonly<Record<string, unknown>> = { k: 2, numClusters: 2 };
+// `times` is per arc: every arc at time 0 (an undirected snapshot has two arcs per edge, so 2 * edges covers both kinds).
+const REQUIRED_OPTIONS: Readonly<Record<string, unknown>> = {
+    k: 2,
+    numClusters: 2,
+    times: new Float64Array(2 * src.length),
+};
+
+/** Options an algorithm needs to answer on the weighted fixture: Katz diverges at its default alpha there. */
+const FIXTURE_OPTIONS: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {
+    katzCentrality: { alpha: 0.02 },
+};
 
 /** One argument of each input kind, valid on the fixture; `nth` counts the node inputs before this one. */
 const ARGUMENTS: Readonly<Record<AlgorithmInputKind, (nth: number, s: GraphSnapshot) => unknown>> = {
@@ -71,7 +81,7 @@ const ARGUMENTS: Readonly<Record<AlgorithmInputKind, (nth: number, s: GraphSnaps
 function run(entry: AlgorithmEntry, s: GraphSnapshot, extra: Record<string, unknown> = {}): unknown {
     let nodes = 0;
     const args = entry.inputs.map((input) => ARGUMENTS[input.kind](input.kind === "node" ? nodes++ : nodes, s));
-    const options: Record<string, unknown> = { seed: 1, randomSeed: 1, ...extra };
+    const options: Record<string, unknown> = { seed: 1, randomSeed: 1, ...FIXTURE_OPTIONS[entry.name], ...extra };
     for (const name of entry.requiredOptions) {
         options[name] = REQUIRED_OPTIONS[name];
     }
@@ -120,12 +130,15 @@ const NOT_ALGORITHMS = new Set([
     "accelerated",
     "walkPredArcs",
     "walkPredEdges",
+    "countShortestPaths",
     "bipartiteFlowNetwork",
     "arcSourceIn",
     "groupsById",
+    "partitionAgreement",
     "pathIds",
     "scoresById",
     "mulberry32",
+    "katzAlpha",
 ]);
 
 describe("ALGORITHMS", () => {
@@ -151,8 +164,7 @@ describe("ALGORITHMS", () => {
 
     it("names every accelerator method", () => {
         // A compile-time list: adding a method to AlgorithmAccelerator fails the type check until it is listed.
-        // harmonicCloseness is a capability flag on AlgorithmAccelerator, not a method, so no entry names it.
-        const all: Record<Exclude<AcceleratorMethod, "harmonicCloseness">, true> = {
+        const all: Record<AcceleratorMethod, true> = {
             pageRank: true,
             personalizedPageRank: true,
             hits: true,

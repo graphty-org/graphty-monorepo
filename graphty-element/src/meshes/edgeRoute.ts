@@ -55,6 +55,19 @@ export function parseBends(text: string | undefined): number[] | null {
 }
 
 /**
+ * Where an edge's label hangs on a route: the middle of its middle segment, or the joint between its two middle ones
+ * -- the same rule for a solid line and a patterned one, and the point an importer measures a label's offset from.
+ * @param flat - The route, flat x, y, z, at least one point.
+ * @returns The point, x, y, z.
+ */
+export function routeMiddle(flat: readonly number[]): [number, number, number] {
+    const m = flat.length / 3 - 1;
+    const a = 3 * Math.floor(m / 2);
+    const b = 3 * Math.ceil(m / 2);
+    return [0, 1, 2].map((k) => (flat[a + k] + flat[b + k]) / 2) as [number, number, number];
+}
+
+/**
  * Where the bends are, between two node centers: `along` of the way from the source center to the
  * target's, `across` of the same length to the left of that line in the x-y plane.
  * @param src - The source node's center.
@@ -736,16 +749,24 @@ export function loopTeardrop(center: Xyz, rank: number, count: number, reachAt: 
 /**
  * The part of a route from one node center to another that lies outside both nodes: the index of
  * the first point outside the source and of the last outside the target, which are one point when
- * a shallow arc is drawn with two pieces and only its middle clears the nodes.
+ * a shallow arc is drawn with two pieces and only its middle clears the nodes. On a sampled curve
+ * between nodes nearer than a piece is long, no point may clear both while the piece between two
+ * of them does (Gephi's arcs of a mutual pair between nearly touching nodes, gexf-sigma-ediaspora
+ * 112 and 141): with `curve`, the first index is then one past the last, and the route outside both
+ * is that piece's middle.
  * @param flat - The route, flat x, y, z.
  * @param outsideSrc - Whether a point is outside the source node.
  * @param outsideDst - Whether a point is outside the target node.
- * @returns The two indices, or null when no point is outside both.
+ * @param curve - Whether the route samples a curve, whose piece between two samples may clear both
+ *     nodes (a straight line through bends inside the nodes is drawn another way).
+ * @returns The two indices, or null when no point, and with `curve` no piece between two points
+ *     other than the centers, is outside both.
  */
 export function routeOutside(
     flat: readonly number[],
     outsideSrc: (x: number, y: number, z: number) => boolean,
     outsideDst: (x: number, y: number, z: number) => boolean,
+    curve = false,
 ): { first: number; last: number } | null {
     const n = flat.length / 3;
     let first = 0;
@@ -758,7 +779,20 @@ export function routeOutside(
         last--;
     }
 
-    return last >= first ? { first, last } : null;
+    if (last >= first) {
+        return { first, last };
+    }
+
+    // one piece from inside the source to inside the target, neither end a center, may clear both between them
+    if (curve && last === first - 1 && last > 0 && first < n - 1) {
+        const p = (i: number): Xyz => ({ x: flat[3 * i], y: flat[3 * i + 1], z: flat[3 * i + 2] });
+        const off = crossingOf(p(last), p(first), outsideSrc);
+        if (outsideDst(off.x, off.y, off.z)) {
+            return { first, last };
+        }
+    }
+
+    return null;
 }
 
 /**

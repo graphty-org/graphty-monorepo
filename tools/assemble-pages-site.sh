@@ -17,6 +17,7 @@
 #   algorithms/storybook-static         -> /storybook/algorithms/
 #   layout/storybook-static             -> /storybook/layout/
 #   cytoscape-extensions/storybook-static -> /storybook/cytoscape-extensions/  (the demo)
+#   babylonjs-models/storybook-static   -> /storybook/babylonjs-models/
 #   graph-io/fidelity-stories/storybook-static -> /storybook/graph-io-fidelity/  (style fidelity side by side)
 #   algorithms/gh-pages                 -> /algorithms/          landing page
 #   layout/gh-pages                     -> /layout/              examples
@@ -30,8 +31,9 @@
 # also reads it back to skip publishing a commit that is already live.
 #
 # A missing input is reported and skipped, as the deploy always did; the link check then fails on
-# every link into it.
-set -u
+# every link into it. Any other failure (a copy, the stamp, a page written here) stops the script with
+# a non-zero exit, so the deploy never publishes a partial site.
+set -eu
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUT="${1:?usage: tools/assemble-pages-site.sh <out-dir>}"
@@ -42,8 +44,10 @@ cd "$ROOT_DIR"
 copy() {
     local src="$1" dest="$OUT/$2"
     if [ -d "$src" ]; then
-        mkdir -p "$dest"
-        cp -r "$src"/. "$dest"/
+        mkdir -p "$dest" && cp -r "$src"/. "$dest"/ || {
+            echo "ERROR: copying $src -> /$2 failed" >&2
+            exit 1
+        }
         echo "Copied $src -> /$2"
     else
         echo "WARNING: $src not found, /$2 will be missing"
@@ -53,6 +57,11 @@ copy() {
 copy graphty/dist ""
 if [ -n "${GRAPHTY_BUILD:-}" ] && [ -f "$OUT/index.html" ]; then
     STAMP="$GRAPHTY_BUILD" perl -0pi -e 's/\s*<meta name="graphty-build"[^>]*>//g; s|</head>|    <meta name="graphty-build" content="$ENV{STAMP}" />\n    </head>|' "$OUT/index.html"
+    # the deploy reads this tag back to skip a commit that is already live, so a page without </head> fails here
+    grep -q '<meta name="graphty-build"' "$OUT/index.html" || {
+        echo "ERROR: stamping /index.html failed (no </head>?)" >&2
+        exit 1
+    }
     echo "Stamped /index.html: $GRAPHTY_BUILD"
 fi
 copy docs/.vitepress/dist docs
@@ -62,6 +71,7 @@ copy compact-mantine/storybook-static storybook/compact-mantine
 copy algorithms/storybook-static storybook/algorithms
 copy layout/storybook-static storybook/layout
 copy cytoscape-extensions/storybook-static storybook/cytoscape-extensions
+copy babylonjs-models/storybook-static storybook/babylonjs-models
 copy graph-io/fidelity-stories/storybook-static storybook/graph-io-fidelity
 copy algorithms/gh-pages algorithms
 copy layout/gh-pages layout
@@ -145,6 +155,10 @@ cat > "$OUT/storybook/index.html" << 'EOF'
     <li>
       <a href="/storybook/cytoscape-extensions/">cytoscape-extensions</a>
       <div class="desc">Every graphty layout and algorithm running in Cytoscape.js, on the CPU and the GPU</div>
+    </li>
+    <li>
+      <a href="/storybook/babylonjs-models/">babylonjs-models</a>
+      <div class="desc">3D models loaded into Babylon.js scenes, and their files checked</div>
     </li>
   </ul>
   <p><a href="/">&larr; Back to graphty.app</a></p>

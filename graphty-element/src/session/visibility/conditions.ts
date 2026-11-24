@@ -367,10 +367,8 @@ export function conditionsOfSteps(
 }
 
 /** One condition or step, as a history fact reads it. */
-type Entry = Pick<FilterCondition, "id" | "on" | "rule"> & {
-    readonly effect?: FilterEffect;
-    readonly source?: SourceKey;
-};
+type Entry = Pick<FilterCondition, "id" | "on" | "rule"> &
+    Partial<Pick<FilterCondition, "effect" | "source" | "name" | "within">>;
 
 /**
  * What one conditions or steps edit did, as a history fact: one added, edited, switched on or
@@ -455,8 +453,8 @@ function onlyIn(longer: readonly Entry[], shorter: readonly Entry[]): Entry | un
 }
 
 /**
- * The edit of exactly one entry in an unchanged order: switched on or off, or edited (its rule or
- * its effect).
+ * The edit of exactly one entry in an unchanged order: switched on or off, or edited (its rule,
+ * its effect, its name or what it selects within).
  * @param before - The list before.
  * @param after - The list after.
  * @returns The entry before, after, and what was done to it; undefined for anything else.
@@ -473,6 +471,8 @@ function oneChanged(
     const sameBody = (a: Entry, b: Entry): boolean =>
         a.effect === b.effect &&
         a.source === b.source &&
+        a.name === b.name &&
+        a.within === b.within &&
         (a.rule === b.rule || JSON.stringify(a.rule) === JSON.stringify(b.rule));
     const changed = after.filter((entry, index) => entry.on !== before[index].on || !sameBody(entry, before[index]));
     if (changed.length !== 1) {

@@ -7,6 +7,7 @@
 
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
+import type { EventCallbackType, EventOfType } from "../../../src/events";
 import type { Graph } from "../../../src/Graph";
 import { assertPlaced } from "../../helpers/placed-position";
 import { drag, pressFor } from "../../helpers/real-input";
@@ -110,7 +111,7 @@ describe("Node Selection - Click Interactions", () => {
         });
 
         it("selection-changed event fires on click selection", async () => {
-            const callback = vi.fn();
+            const callback = vi.fn<EventCallbackType>();
             graph.eventManager.addListener("selection-changed", callback);
 
             // Click on a node
@@ -118,7 +119,7 @@ describe("Node Selection - Click Interactions", () => {
 
             assert.isTrue(callback.mock.calls.length >= 1, "selection-changed event should fire");
 
-            const event = callback.mock.calls[0][0];
+            const event = callback.mock.calls[0][0] as EventOfType<"selection-changed">;
             assert.equal(event.type, "selection-changed");
             assert.isNull(event.previousNode);
             assert.isNotNull(event.currentNode);

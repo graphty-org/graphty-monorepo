@@ -1,5 +1,5 @@
 /**
- * @file `session.catalog` against the published catalogue type.
+ * @file `session.catalog` against the published catalog type.
  *
  * `CatalogApi` names methods nothing implements; they are deprecated and listed in
  * `DeprecatedCatalogMethod`. What a session hands out must be exactly the rest -- no method the
@@ -13,11 +13,12 @@ import type { CatalogApi, DeprecatedCatalogMethod } from "../../src/catalog/type
 import { createSessionCatalog } from "../../src/session/catalog";
 import type { GraphSession, SessionCatalogApi } from "../../src/session/types";
 
-/** The catalogue methods a session implements, written out rather than derived. */
+/** The catalog methods a session implements, written out rather than derived. */
 const IMPLEMENTED = [
     "algorithms",
     "cameras",
     "channels",
+    "channelValues",
     "datasets",
     "formats",
     "generators",
@@ -30,7 +31,9 @@ const IMPLEMENTED = [
     "scales",
     "screenshotPresets",
     "shaders",
+    "timeAttributes",
     "transitions",
+    "validate",
 ] as const satisfies readonly (keyof SessionCatalogApi)[];
 
 describe("session.catalog", () => {
@@ -38,6 +41,11 @@ describe("session.catalog", () => {
         expectTypeOf<GraphSession["catalog"]>().toEqualTypeOf<Omit<CatalogApi, DeprecatedCatalogMethod>>();
         expectTypeOf<keyof SessionCatalogApi>().toEqualTypeOf<Exclude<keyof CatalogApi, DeprecatedCatalogMethod>>();
         expectTypeOf<(typeof IMPLEMENTED)[number]>().toEqualTypeOf<keyof SessionCatalogApi>();
+    });
+
+    it("offers timeAttributes and validate exactly as the published catalogue type declares them", () => {
+        expectTypeOf<GraphSession["catalog"]["timeAttributes"]>().toEqualTypeOf<CatalogApi["timeAttributes"]>();
+        expectTypeOf<GraphSession["catalog"]["validate"]>().toEqualTypeOf<CatalogApi["validate"]>();
     });
 
     it("offers optionsFor exactly as the published catalogue type declares it", () => {

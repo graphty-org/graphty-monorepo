@@ -4,11 +4,11 @@
  * are registered on a page with a `<graphty-element>` holding a small real graph, run with
  * `element.run`, and judged by what a reader would see -- the values under `results.<as>.value`
  * or `results.<as>.group`, the layer the element derived from the run and which nodes and edges
- * it paints, the options form the catalogue offers, and the error a beginner reads first.
+ * it paints, the options form the catalog offers, and the error a beginner reads first.
  *
  * The last block holds a simple registration against one written by hand in the advanced tier:
  * a simple extension IS an advanced one once defined (design/extensions/simple-tier.md section 3),
- * so its catalogue entry, its options and its id look exactly like the advanced one's.
+ * so its catalog entry, its options and its id look exactly like the advanced one's.
  */
 
 import "../../../src/graphty-element";
@@ -220,9 +220,14 @@ describe("the first plugin: confidence-weighted degree and its edge companion", 
         assert.strictEqual(result.node("c")?.value, 2 + 3 + 4);
         assert.strictEqual(result.node("d")?.value, 4);
         assert.deepEqual(
-            run.caveats.notes,
-            ['acme-confidence-degree read: edge "score".'],
-            "every edge carries a score, so nothing was left out: the only note lists what the run read",
+            run.caveats.facts,
+            [
+                {
+                    code: "defined.inputs-read",
+                    params: { algorithm: "acme-confidence-degree", targets: ["edge"], paths: ["score"] },
+                },
+            ],
+            "every edge carries a score, so nothing was left out: the only fact lists what the run read",
         );
     });
 
@@ -348,19 +353,17 @@ describe("a whole-graph score", () => {
 });
 
 describe("a suggested name", () => {
-    it("names an unnamed run after the algorithm, and after the setting once it leaves its default", async () => {
+    it("gives an unnamed run an id after the algorithm, and after the setting once it leaves its default", async () => {
         await EXAMPLES.reach();
 
         const plain = element.run("acme-reach");
         const result = await plain;
         assert.strictEqual(plain.id, "acme_reach");
-        assert.strictEqual(plain.label, "Acme reach");
         assert.strictEqual(result.node("a")?.value, 3, "b and c in one step, d in two");
 
         const three = element.run("acme-reach", { hops: 3 });
         await three;
         assert.strictEqual(three.id, "acme_reach_3");
-        assert.strictEqual(three.label, "Reach in 3 hops");
         assert.strictEqual(
             element.run("acme-reach", { hops: 3 }).id,
             "acme_reach_3",

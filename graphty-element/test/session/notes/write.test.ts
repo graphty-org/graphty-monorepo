@@ -172,6 +172,17 @@ describe("notes.add", () => {
         ]);
     });
 
+    it("gives a target's saved form without writing a note: an edge by its ends, any other as given", () => {
+        const h = notesHarness();
+        const { session } = h;
+        assert.deepEqual(session.notes.savedTarget({ edge: edgeBetween(h, "a", "b") }), {
+            edge: { source: "a", target: "b", id: "graphty:e0" },
+        });
+        assert.deepEqual(session.notes.savedTarget({ node: "a" }), { node: "a" });
+        assert.isUndefined(session.notes.savedTarget({ edge: "999999" }));
+        assert.lengthOf(session.notes.list(), 0);
+    });
+
     it("accepts a node or an edge the graph does not hold", () => {
         const { session } = notesHarness();
         const id = session.notes.add({
@@ -338,7 +349,7 @@ describe("notes.add", () => {
             session.notes.add({ text: "x", targets: node, id: "note_x", author: "Me" } as unknown as NoteInput),
         );
         assert.deepEqual([minted.details.reason, minted.details.fields], ["element-field", ["id", "author"]]);
-        assert.deepEqual(addReason(session, { text: "x", targets: node, tags: ["a"] }), [
+        assert.deepEqual(addReason(session, { text: "x", targets: node, color: "red" }), [
             "E_BAD_COMMAND",
             "unknown-field",
         ]);

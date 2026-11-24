@@ -10,16 +10,27 @@ import { readConversation } from "../../src/ai/conversation/formats";
 import { MemoryStore } from "../../src/ai/conversation/MemoryStore";
 import type { AiConversationMessage } from "../../src/ai/conversation/snapshot";
 import type { TurnRequest } from "../../src/ai/engine/types";
-import { setDefaultFeatures } from "../../src/features/resolve";
 import { assistantSession, ScriptedAssistant, textTurn } from "../helpers/assistant";
 
 /**
- * What a turn sent, without the tools' schemas: the instructions, the messages and the tool names.
+ * What a turn sent, without the tools' schemas: the instructions, the messages and the tool names,
+ * with each message id (`provenance`, new per run) written as `<message>`.
  * @param request - The turn.
  * @returns The comparable part.
  */
 function sent(request: TurnRequest | undefined): unknown {
-    return request && { ...request, tools: request.tools.map((tool) => tool.name) };
+    return (
+        request && {
+            ...request,
+            messages: request.messages.map((message) => ({
+                ...message,
+                parts: message.parts.map((part) =>
+                    "provenance" in part && part.provenance !== undefined ? { ...part, provenance: "<message>" } : part,
+                ),
+            })),
+            tools: request.tools.map((tool) => tool.name),
+        }
+    );
 }
 
 /**
@@ -55,9 +66,7 @@ describe("AiController history", () => {
         assert.strictEqual(second?.messages.at(-1)?.parts[0]?.origin, "graph-data");
     });
 
-    it("leaves the default exactly as it was: one conversation per message, no history event", async () => {
-        // The default, even where every experiment is on by default (the "-features-on" projects).
-        setDefaultFeatures([]);
+    it("keeps one conversation per message and sends no history event by default", async () => {
         const assistant = new ScriptedAssistant(await assistantSession());
         const first = await assistant.say("add a node", [ADD_NODE]);
         const second = await assistant.say("now another");
@@ -72,8 +81,6 @@ describe("AiController history", () => {
     });
 
     it("gives a snapshot of what the reader and the model said, without graphty's own text", async () => {
-        // With the experiment off, a call carries no duration (the "-features-on" projects switch it on).
-        setDefaultFeatures([]);
         const assistant = new ScriptedAssistant(await assistantSession(), { history: "memory" });
         const { events } = await assistant.say("add a node", [ADD_NODE]);
 
@@ -88,9 +95,20 @@ describe("AiController history", () => {
             ],
         );
         const [, withCall] = snapshot?.messages ?? [];
-        assert.deepStrictEqual(withCall?.role === "assistant" ? withCall.calls : [], [
-            { command: "edit_data", arguments: ADD_NODE.args, code: "AI_COMPLETED", params: {} },
-        ]);
+        const calls = withCall?.role === "assistant" ? withCall.calls : [];
+        assert.isAtLeast(calls[0]?.durationMs ?? -1, 0);
+        assert.deepStrictEqual(
+            calls.map(({ durationMs: _ran, ...call }) => call),
+            [
+                {
+                    command: "edit_data",
+                    arguments: ADD_NODE.args,
+                    code: "AI_COMPLETED",
+                    params: {},
+                    effects: [{ code: "AI_EFFECT_DATA", params: { addedNodes: 1 } }],
+                },
+            ],
+        );
         const json = JSON.stringify(snapshot);
         const facts = assistant.engine.requests[0].messages[0].parts[0];
         assert.strictEqual(facts.origin, "graph-data");
@@ -207,6 +225,27 @@ describe("AiController history", () => {
             ["user", "assistant", "user"],
         );
         assert.include(JSON.stringify(sent?.messages[1]), result.code ?? "?");
+    });
+
+    it("emits ai-command-error once a failed spoken message is saved", async () => {
+        const assistant = new ScriptedAssistant(await assistantSession(), { history: "memory" });
+        assistant.engine.push(() => {
+            throw new Error("the provider is down");
+        });
+        const atError: (string | undefined)[][] = [];
+        const record = assistant.events.push.bind(assistant.events);
+        assistant.events.push = (...events) => {
+            if (events.some((event) => event.type === "ai-command-error")) {
+                const messages = assistant.controller.getConversation()?.messages ?? [];
+                atError.push(messages.map((message) => (message.role === "reader" ? message.via : message.role)));
+            }
+            return record(...events);
+        };
+
+        const result = await assistant.controller.execute("color the servers red", { via: "voice" });
+
+        assert.isFalse(result.success);
+        assert.deepStrictEqual(atError, [["voice", "assistant"]]);
     });
 
     it('records a spoken message as via "voice", and a typed one as "text"', async () => {
@@ -411,6 +450,36 @@ describe("AiController history", () => {
             (await reopened.controller.listConversations()).map((summary) => summary.id),
             [id],
         );
+    });
+
+    it("byProject: a project that opens while the store is still being read brings back its conversation", async () => {
+        const store = new MemoryStore();
+        const history = { store: "memory", byProject: true } as const;
+        const session = await assistantSession();
+        const first = new ScriptedAssistant(session, { history, store });
+        await first.say("hello");
+        const id = first.controller.getConversation()?.id;
+        const { text } = await session.project.save();
+        first.controller.dispose();
+
+        // A reload whose autosave restore opens the project before the store's first read answers.
+        let release = (): void => undefined;
+        const held = new Promise<void>((resolve) => {
+            release = resolve;
+        });
+        const slow = Object.assign(Object.create(store) as MemoryStore, {
+            list: async (key?: string) => {
+                await held;
+                return store.list(key);
+            },
+        });
+        const reloaded = new ScriptedAssistant(await assistantSession(), { history, store: slow });
+        await reloaded.session.project.open(text, { discard: true });
+        release();
+        await reloaded.controller.ready();
+        await vi.waitFor(() => {
+            assert.strictEqual(reloaded.controller.getConversation()?.id, id);
+        });
     });
 
     it("byProject: opening another project swaps out a conversation that has messages", async () => {

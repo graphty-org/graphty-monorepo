@@ -3,7 +3,7 @@
  * source, a batch of data changes, and the baseline a session starts from.
  *
  * An import is one step whether it replaces the graph or adds to it; undo takes back every row it
- * wrote and the report it left, and never reads the source again. A failed or cancelled import
+ * wrote and the report it left, and never reads the source again. A failed or canceled import
  * records nothing. Two imports under one coalesce key dispatched in one tick are one load. A batch
  * is one step and rolls back whole. And with the baseline window open, what was declared at
  * construction, and every setting made before the graph first changes, is where history starts.
@@ -192,13 +192,13 @@ describe("data.import", () => {
         const load = session.data.import({ type: "json", config: { data: DOCUMENT } });
         const outcome = await session.undo();
 
-        assert.strictEqual(outcome.kind, "cancelled");
+        assert.strictEqual(outcome.kind, "canceled");
         assert.isTrue(
             await load.then(
                 () => false,
                 () => true,
             ),
-            "the import settles as cancelled",
+            "the import settles as canceled",
         );
         assert.deepEqual(ids(session), ["n1", "n2", "n3"]);
         assert.lengthOf(session.history.steps, 0);
@@ -294,7 +294,7 @@ describe("data.import", () => {
         assert.strictEqual((await session.history.restoreTo(null)).kind, "nothing", "as undo does nothing");
         await load;
 
-        assert.deepEqual(ids(session), ["a", "b"], "the load was not cancelled");
+        assert.deepEqual(ids(session), ["a", "b"], "the load was not canceled");
         assert.lengthOf(session.history.steps, 0);
         session.dispose();
     });

@@ -10,41 +10,19 @@
  * invariant of design/work-protection/design.md section 8.
  */
 
-import { mkdirSync, readdirSync, readFileSync, rmSync, statSync, watch, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, statSync, watch, writeFileSync } from "node:fs";
 import path from "node:path";
 
-import { afterAll, afterEach, assert, beforeAll, describe, it, onTestFailed } from "vitest";
+import { assert, describe, it } from "vitest";
 
 import { type Chrome, launchChrome, type Tab } from "./cdp-harness";
 import { assertInvariant, browserProcesses, kill, profile } from "./engines";
-import { type Fixture, type LogEvent, type PageCheck, startFixture } from "./fixture";
+import { type LogEvent, type PageCheck, useLifecycleFixture } from "./fixture";
 
 /** 50,000 and 100,000 nodes run only on the release train. */
 const FULL = process.env.GRAPHTY_LIFECYCLE_FULL === "1";
 
-let fx: Fixture;
-const running: { chrome: Chrome; dir: string }[] = [];
-
-beforeAll(async () => {
-    fx = await startFixture();
-});
-
-afterAll(async () => {
-    await fx.close();
-});
-
-afterEach(async () => {
-    if (process.env.LIFECYCLE_DEBUG === "1") {
-        const t0 = (fx.log[0]?.at as number) ?? 0;
-        console.log(fx.log.map((e) => `${(e.at as number) - t0} ${JSON.stringify(e)}`).join("\n"));
-    }
-
-    for (const { chrome, dir } of running.splice(0)) {
-        await chrome.close().catch(() => undefined);
-        // Chrome's helpers may still be writing as the browser exits.
-        rmSync(dir, { recursive: true, force: true, maxRetries: 10 });
-    }
-});
+const { fx, track } = useLifecycleFixture();
 
 /**
  * Launch Chrome for Testing on a profile, closed after the test.
@@ -54,17 +32,14 @@ afterEach(async () => {
  */
 async function start(dir = profile("chrome"), args: string[] = []): Promise<Chrome> {
     const chrome = await launchChrome(dir, args);
-    running.push({ chrome, dir });
-    onTestFailed(() => {
-        console.log(`chrome ${chrome.mode}; last reports: ${JSON.stringify(fx.log.slice(-25))}`);
-    });
+    track(() => chrome.close(), dir, `chrome ${chrome.mode}; `);
     return chrome;
 }
 
 /**
  * Tab labels scoped to one test, so no test reads another's reports.
  * @param key - The test's autosave key.
- * @returns The labeller.
+ * @returns The labeler.
  */
 function labels(key: string): (name: string) => string {
     return (name) => `${key}.${name}`;
@@ -84,7 +59,7 @@ function report(
     mark = 0,
     predicate: (e: LogEvent) => boolean = () => true,
 ): Promise<LogEvent> {
-    return fx.waitFor((e) => e.seq >= mark && e.tab === tab && e.type === type && predicate(e));
+    return fx.report(tab, type, mark, predicate);
 }
 
 /**
@@ -127,7 +102,7 @@ const saved = (label: string, revision: number, mark = 0): Promise<LogEvent> =>
  * the edit was written because the page was hidden: its `saved` report comes after its `hidden`.
  * @param chrome - The browser.
  * @param key - The autosave key.
- * @param tab - The labeller.
+ * @param tab - The labeler.
  * @returns The hidden tab, the tab in front, and the hidden tab's entry.
  */
 async function editThenHide(
@@ -164,7 +139,7 @@ async function tabId(chrome: Chrome, label: string): Promise<number> {
 /**
  * After a discard: prove it happened, bring the tab back, and check what it restored.
  * @param chrome - The browser.
- * @param tab - The labeller.
+ * @param tab - The labeler.
  * @param entryA - The discarded tab's entry.
  */
 async function reactivateDiscarded(chrome: Chrome, tab: (name: string) => string, entryA: string): Promise<void> {
@@ -221,6 +196,26 @@ async function untilWritten(dir: string, needle: string): Promise<void> {
             resolve();
         }
     });
+}
+
+/** Chrome's Preferences key for how the last session ended. */
+const EXIT_TYPE = "exit_type";
+
+/**
+ * Record a killed browser's exit as clean, so its relaunch restores the last session. Chrome marks
+ * a running profile as crashed (`profile.exit_type` in Preferences, written about 10 s after launch)
+ * and, after a recorded crash, never restores on its own -- not under "Continue where you left
+ * off", not with `--restore-last-session` -- so that a session that crashes Chrome cannot crash it
+ * again: it offers the restore in a bubble the reader clicks, which headless Chrome never shows. A
+ * kill before that write restored the session and a later one opened a new tab, which the test
+ * then waited on for ever (issue #9484). This stands in for the reader's click.
+ * @param dir - The profile.
+ */
+function markExitClean(dir: string): void {
+    const file = path.join(dir, "Default", "Preferences");
+    const prefs = JSON.parse(readFileSync(file, "utf8")) as { profile?: Record<string, unknown> };
+    prefs.profile = { ...prefs.profile, [EXIT_TYPE]: "Normal" };
+    writeFileSync(file, JSON.stringify(prefs));
 }
 
 describe("Chrome for Testing, without Playwright's lifecycle flags", () => {
@@ -384,7 +379,7 @@ describe("Chrome for Testing, without Playwright's lifecycle flags", () => {
         const tab = labels(key);
         const dir = profile("chrome");
         // "Continue where you left off": the setting under which Chrome restores the tabs, and their
-        // sessionStorage, after a crash instead of offering to.
+        // sessionStorage, on the next launch (after a crash only once the reader agrees: markExitClean).
         mkdirSync(path.join(dir, "Default"), { recursive: true });
         writeFileSync(path.join(dir, "Default", "Preferences"), '{ "session": { "restore_on_startup": 1 } }');
         const chrome = await start(dir);
@@ -398,12 +393,15 @@ describe("Chrome for Testing, without Playwright's lifecycle flags", () => {
         await untilWritten(path.join(dir, "Default", "Session Storage"), fromA.entry as string);
         await untilWritten(path.join(dir, "Default", "Session Storage"), fromB.entry as string);
         await untilWritten(path.join(dir, "Default", "Sessions"), encodeURIComponent(tab("b")));
+        // And until Chrome has recorded the session as running, so every run is a crash as Chrome sees it.
+        await untilWritten(path.join(dir, "Default"), '"exit_type":"Crashed"');
 
         const mark = fx.log.length;
         // The whole browser, as the OS kills it: helpers orphaned by a root-only kill kept writing
         // to the profile after the test.
         kill(browserProcesses(dir));
         await chrome.exited;
+        markExitClean(dir);
         const again = await start(dir, ["--restore-last-session"]);
         const rb = await reattach(again, tab("b"), mark);
         // Chrome restores the tab in front at once and loads a background tab when it judges the
@@ -516,8 +514,14 @@ describe("Chrome for Testing, without Playwright's lifecycle flags", () => {
         const tab = labels(key);
         const chrome = await start();
         const a = await openFixture(chrome, { key, tab: tab("a") });
-        const revision = await next(a);
+        const first = await next(a);
+        await saved(tab("a"), first);
+        // The control: a change that is not data (a data edit waits for idle instead), made while the
+        // page is visible, is written by a debounce timer the counter sees.
+        await a.evaluate('fixture.el.session.config.set({ name: "visible" })');
+        const revision = first + 1;
         await saved(tab("a"), revision);
+        assert.isAbove(await a.evaluate<number>("__timers.fired"), 0, "the debounce timer fired while visible");
         const mark = fx.log.length;
         await openFixture(chrome, { key: `${key}-other`, tab: tab("b") });
         await report(tab("a"), "visibility", mark, (e) => e.state === "hidden");
@@ -530,6 +534,21 @@ describe("Chrome for Testing, without Playwright's lifecycle flags", () => {
             before,
             "no debounce or maximum-wait timer fired while hidden",
         );
+    });
+
+    it("fails a recording when its tab is hidden, with E_CAPTURE_FAILED { reason: hidden }", async () => {
+        const key = "record-hidden";
+        const tab = labels(key);
+        const chrome = await start();
+        const a = await openFixture(chrome, { key, tab: tab("a") });
+        await a.evaluate("fixture.record()");
+        const mark = fx.log.length;
+        // Another tab in front hides this one, as a reader switching tabs does.
+        await openFixture(chrome, { key: `${key}-other`, tab: tab("b") });
+        await report(tab("a"), "visibility", mark, (e) => e.state === "hidden");
+        const recorded = await report(tab("a"), "recorded");
+        assert.strictEqual(recorded.code, "E_CAPTURE_FAILED");
+        assert.strictEqual(recorded.reason, "hidden");
     });
 
     it.each([1000, ...(FULL ? [100_000] : [])])(

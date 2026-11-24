@@ -1,5 +1,5 @@
-import { DirectionProvider, MantineProvider } from "@mantine/core";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { MantineProvider } from "@mantine/core";
+import { render, screen, within } from "@testing-library/react";
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
@@ -7,33 +7,11 @@ import { userEvent } from "vitest/browser";
 import { AdvancedButton, compactTheme, HistogramRow, MetricRow, SparklineRow } from "../../../src";
 import { PANEL_INK } from "../../../src/constants/panel";
 import { LabelsProvider } from "../../../src/i18n";
+import { renderCompact as renderChart, renderRtl } from "../../harness/render";
 
 // LabelsProvider is imported from src/i18n rather than from src: the public
 // entry point does not re-export the i18n layer yet, and src/index.ts belongs to
 // the integration pass.
-
-/**
- * Render inside the compact theme, the way the package is consumed.
- * @param ui - The element under test
- * @returns The testing-library render result
- */
-function renderChart(ui: React.ReactElement): ReturnType<typeof render> {
-    return render(<MantineProvider theme={compactTheme}>{ui}</MantineProvider>);
-}
-
-/**
- * Render with the text direction reversed, so a drawing laid out along the
- * inline axis can be checked against the labels beside it.
- * @param ui - The element under test
- * @returns The testing-library render result
- */
-function renderRtl(ui: React.ReactElement): ReturnType<typeof render> {
-    return render(
-        <DirectionProvider initialDirection="rtl" detectDirection={false}>
-            <MantineProvider theme={compactTheme}>{ui}</MantineProvider>
-        </DirectionProvider>,
-    );
-}
 
 /**
  * Render with a locale and a replacement set of strings, the way a consumer
@@ -840,10 +818,13 @@ describe("MetricRow", () => {
 
             const row = screen.getByTestId("metric-row");
             await user.click(row);
-            // The row is not focusable without a handler, so the key is
-            // delivered straight to it: the guard, and not the missing tab stop,
-            // is what has to hold.
-            fireEvent.keyDown(row, { key: "Enter" });
+            // The row is not focusable without a handler, so the test gives it
+            // focus itself and presses a real Enter there: the guard, and not
+            // the missing tab stop, is what has to hold.
+            row.tabIndex = -1;
+            row.focus();
+            expect(row).toHaveFocus();
+            await user.keyboard("{Enter}");
 
             expect(row).toBeInTheDocument();
             expect(row).toHaveStyle({ cursor: "default" });

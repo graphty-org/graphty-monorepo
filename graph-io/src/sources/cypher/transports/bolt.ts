@@ -4,7 +4,9 @@
  * "needs-peer-dependency"`). It is the only path to a Neo4j older than 5.26, such as Hetionet's 3.5.
  *
  * - Direct connections only (`bolt:`, `bolt+s:`, `bolt+ssc:`): a routing scheme would send the
- *   credential to every host the routing table lists, so `neo4j:` schemes are refused.
+ *   credential to every host the routing table lists, so a `neo4j:`, `neo4j+s:` or `neo4j+ssc:`
+ *   endpoint (the form Aura and Neo4j's docs hand out) connects directly to the named host as the
+ *   matching `bolt` scheme, with the same TLS setting.
  * - `+ssc` accepts any certificate, so it is refused with a credential; plain `bolt:` is refused
  *   with one unless the host is this machine or `allowInsecure` is set.
  * - Statements run as auto-commit `session.run` in a READ session, never as managed transactions,
@@ -13,7 +15,7 @@
  */
 
 import { throwIfAborted } from "../../../common/input.js";
-import { isLoopback, transportOptions } from "../../context.js";
+import { isLoopback, localNetworkRefused, transportOptions } from "../../context.js";
 import { originOf, unwrapCredential } from "../../credentials.js";
 import { failOn } from "../../fail.js";
 import { type QueryResult } from "../flatten.js";
@@ -24,8 +26,15 @@ import { serverError, type Transport, type TransportInput } from "./transport.js
 /** The optional peer dependency. */
 const DRIVER_PACKAGE = "neo4j-driver";
 
-/** The URL schemes of a direct Bolt connection. */
-const DIRECT_SCHEMES = new Set(["bolt:", "bolt+s:", "bolt+ssc:"]);
+/** Each accepted URL scheme and the direct Bolt scheme it connects with (same TLS setting). */
+const DIRECT_SCHEMES: ReadonlyMap<string, string> = new Map([
+    ["bolt:", "bolt:"],
+    ["bolt+s:", "bolt+s:"],
+    ["bolt+ssc:", "bolt+ssc:"],
+    ["neo4j:", "bolt:"],
+    ["neo4j+s:", "bolt+s:"],
+    ["neo4j+ssc:", "bolt+ssc:"],
+]);
 
 /** The parts of a neo4j-driver session this transport uses. */
 interface DriverSession {
@@ -105,14 +114,18 @@ async function connection(input: TransportInput, neo4j: DriverModule): Promise<{
     const { report } = ctx;
     const bad = (reason: string, message: string): never =>
         failOn(report, "E_SOURCE_PARAM", message, { name: "endpoint", reason });
-    const url = ctx.endpoint ?? bad("missing", "the bolt transport needs an endpoint");
-    if (!DIRECT_SCHEMES.has(url.protocol)) {
-        bad(url.protocol.startsWith("neo4j") ? "routing" : "scheme", `${url.protocol} is not a direct Bolt scheme`);
+    const endpoint = ctx.endpoint ?? bad("missing", "the bolt transport needs an endpoint");
+    const scheme = DIRECT_SCHEMES.get(endpoint.protocol) ?? bad("scheme", `${endpoint.protocol} is not a Bolt scheme`);
+    if (endpoint.hostname === "") {
+        bad("type", "a Bolt endpoint names a host");
     }
+    const url = new URL(`${scheme}//${endpoint.host}`);
     refuseMixedContent(ctx, url);
     const { credential, allowInsecure } = transportOptions(ctx);
-    const origin = originOf(url);
-    const bound = credential !== undefined && (credential.origins.length === 0 || credential.origins.includes(origin));
+    const origins = [originOf(endpoint), originOf(url)];
+    const bound =
+        credential !== undefined &&
+        (credential.origins.length === 0 || origins.some((o) => credential.origins.includes(o)));
     if (!bound) {
         return { url, auth: undefined };
     }
@@ -137,6 +150,21 @@ async function connection(input: TransportInput, neo4j: DriverModule): Promise<{
 }
 
 /**
+ * The driver's settings. A plain `bolt:` endpoint is opened with encryption off, so a page on
+ * `https:` opens `ws://` to it (which browsers allow to this machine) instead of the driver's
+ * default there, `wss://`, which a server without Bolt TLS (Memgraph never has it) cannot answer.
+ * @param url - the endpoint
+ * @param userAgent - the user agent, if any
+ * @returns the settings
+ */
+function driverConfig(url: URL, userAgent: string | undefined): Readonly<Record<string, unknown>> {
+    return {
+        ...(url.protocol === "bolt:" ? { encrypted: "ENCRYPTION_OFF" } : {}),
+        ...(userAgent === undefined ? {} : { userAgent }),
+    };
+}
+
+/**
  * Make the transport: import the driver, check the endpoint and credential, open a READ session.
  * @param input - the context, params and mapper
  * @returns the transport
@@ -147,9 +175,9 @@ export async function boltTransport(input: TransportInput): Promise<Transport> {
     const neo4j = await loadDriver(input);
     const { url, auth } = await connection(input, neo4j);
     throwIfAborted(ctx.signal);
-    const origin = originOf(url);
+    const origin = originOf(ctx.endpoint ?? url);
     const { userAgent } = transportOptions(ctx);
-    const driver = neo4j.driver(`${url.protocol}//${url.host}`, auth, userAgent === undefined ? {} : { userAgent });
+    const driver = neo4j.driver(`${url.protocol}//${url.host}`, auth, driverConfig(url, userAgent));
     const session = driver.session({
         defaultAccessMode: neo4j.session.READ,
         ...(params.database === undefined ? {} : { database: params.database }),
@@ -168,7 +196,7 @@ export async function boltTransport(input: TransportInput): Promise<Transport> {
     };
     ctx.signal.addEventListener("abort", onAbort, { once: true });
 
-    const fail = (err: unknown): never => {
+    const fail = async (err: unknown): Promise<never> => {
         throwIfAborted(ctx.signal);
         const e = err as { code?: unknown; message?: unknown };
         const code = typeof e.code === "string" ? e.code : null;
@@ -176,7 +204,7 @@ export async function boltTransport(input: TransportInput): Promise<Transport> {
             return ctx.runtime === "browser"
                 ? failOn(ctx.report, "E_SOURCE_BLOCKED", `${origin} could not be reached over Bolt`, {
                       url: origin,
-                      cause: "unknown",
+                      cause: (await localNetworkRefused(url)) ? "local-network" : "unknown",
                   })
                 : failOn(ctx.report, "E_FETCH", `${origin} could not be reached over Bolt`, {
                       url: origin,
@@ -189,7 +217,7 @@ export async function boltTransport(input: TransportInput): Promise<Transport> {
                 code,
                 message: typeof e.message === "string" ? e.message : "",
                 status: null,
-                showable: code.startsWith("Neo.ClientError."),
+                showable: /^(?:Neo|Memgraph)\.ClientError\./.test(code),
             },
             origin,
             params.database,

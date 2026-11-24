@@ -4,61 +4,70 @@ import type { Decorator, Meta, StoryObj } from "@storybook/web-components-vite";
 
 import { VIEW_MODE_VALUES, type ViewMode } from "../src/config";
 import { Graphty } from "../src/graphty-element";
-import { assertGraphLoaded, assertLayoutPlaced, assertViewMode, drawn } from "./assertions";
-import { edgeData, eventWaitingDecorator, nodeData, setLayoutPreSteps } from "./helpers";
-
-// Track WebXR availability to avoid repeated checks
-let vrSupported: boolean | null = null;
-let arSupported: boolean | null = null;
+import {
+    assertGraphLoaded,
+    assertLayoutPlaced,
+    assertViewMode,
+    drawn,
+    holds,
+    pixelsOfColour,
+    renderedElement,
+} from "./assertions";
+import { edgeData, eventWaitingDecorator, nodeData, renderFn, setLayoutPreSteps, storySetup } from "./helpers";
 
 /**
- * Decorator that alerts when AR/VR mode is selected but WebXR isn't available
+ * What a reader sees when the chosen XR mode is not available, so the fallback to 3D is not silent.
+ */
+const XR_UNAVAILABLE: Record<"vr" | "ar", string> = {
+    vr: "VR mode unavailable: this browser or device has no WebXR VR, so the view stays in 3D. VR needs a WebXR browser, a connected headset and HTTPS.",
+    ar: "AR mode unavailable: this browser or device has no WebXR AR, so the view stays in 3D. AR needs a WebXR browser, an ARCore or ARKit device and HTTPS.",
+};
+
+/**
+ * Asks the story's own element whether the chosen XR mode is supported, and shows a banner over
+ * it when not. The element's methods are safe before it is ready, so nothing waits first; a probe
+ * that fails is shown and rethrown rather than read as "unsupported".
+ * @param graphEl - The story's element.
+ * @param mode - The XR mode the control chose.
+ * @param banner - The banner to fill and show.
+ */
+async function reportXrAvailability(graphEl: Graphty, mode: "vr" | "ar", banner: HTMLElement): Promise<void> {
+    try {
+        const supported = await (mode === "vr" ? graphEl.isVRSupported() : graphEl.isARSupported());
+        if (supported) {
+            return;
+        }
+
+        banner.textContent = XR_UNAVAILABLE[mode];
+    } catch (error) {
+        banner.textContent = `${mode.toUpperCase()} support check failed: ${String(error)}`;
+        throw error;
+    } finally {
+        banner.hidden = banner.textContent === "";
+    }
+}
+
+/**
+ * Decorator that says, in a banner over the graph, when AR or VR is chosen but WebXR cannot run it.
+ * Only those two modes get the banner's wrapper, so every other story renders as it always has.
  */
 const xrAvailabilityDecorator: Decorator = (story, context) => {
+    const rendered = story();
     const viewMode = context.args.viewMode as ViewMode;
+    if ((viewMode !== "vr" && viewMode !== "ar") || !(rendered instanceof Graphty)) {
+        return rendered;
+    }
 
-    // Check XR availability after a short delay to ensure component is ready
-    setTimeout(() => {
-        void (async () => {
-            const graphEl = document.querySelector("graphty-element");
-            if (!(graphEl instanceof Graphty)) {
-                return;
-            }
-
-            // Cache the WebXR support checks
-            if (vrSupported === null) {
-                try {
-                    vrSupported = await graphEl.isVRSupported();
-                } catch {
-                    vrSupported = false;
-                }
-            }
-
-            if (arSupported === null) {
-                try {
-                    arSupported = await graphEl.isARSupported();
-                } catch {
-                    arSupported = false;
-                }
-            }
-
-            // Alert if VR selected but not available
-            if (viewMode === "vr" && !vrSupported) {
-                alert(
-                    "VR Mode Unavailable\n\nWebXR VR is not supported on this device/browser. The view will fall back to 3D mode.\n\nTo use VR mode, you need:\n- A WebXR-compatible browser (Chrome, Edge, Firefox)\n- A VR headset connected\n- HTTPS connection",
-                );
-            }
-
-            // Alert if AR selected but not available
-            if (viewMode === "ar" && !arSupported) {
-                alert(
-                    "AR Mode Unavailable\n\nWebXR AR is not supported on this device/browser. The view will fall back to 3D mode.\n\nTo use AR mode, you need:\n- A WebXR-compatible browser\n- An AR-capable device (smartphone/tablet with ARCore/ARKit)\n- HTTPS connection",
-                );
-            }
-        })();
-    }, 500);
-
-    return story();
+    const banner = document.createElement("div");
+    banner.setAttribute("role", "status");
+    banner.hidden = true;
+    banner.style.cssText =
+        "position: absolute; top: 8px; left: 8px; right: 8px; padding: 8px 12px; background: #fff3cd; color: #664d03; border: 1px solid #ffecb5; border-radius: 4px; font: 13px sans-serif; z-index: 1;";
+    const wrapper = document.createElement("div");
+    wrapper.style.cssText = "position: relative; width: 100%; height: 100%;";
+    wrapper.append(rendered, banner);
+    void reportXrAvailability(rendered, viewMode, banner);
+    return wrapper;
 };
 
 const meta: Meta = {
@@ -130,5 +139,63 @@ export const SwitchViewModes: Story = {
         // The control is the story; its opening position is 3d, and the camera the element
         // actually draws through is how a reader can tell the control did anything.
         await assertViewMode(scene, "3d");
+    },
+};
+
+/** The color the edges of {@link SwitchTo2DAfterLoad} are drawn in, counted on the canvas after the switch. */
+const SWITCHED_EDGE_COLOR = "#e8590c";
+
+/**
+ * A graph drawn in 3D, then switched to 2D once it is drawn: the edges are drawn in 2D as they were in 3D.
+ *
+ * The edges are plain lines with no arrowheads, added once the graph is drawn: the kind the batched render path
+ * draws with no edge object of its own. A switch between 2D and 3D rebuilds every line batch, and those lines were once left out of the new
+ * one, so after the switch no edge was drawn at all. The render-parity test draws this story on both render
+ * paths and compares the pictures.
+ */
+export const SwitchTo2DAfterLoad: Story = {
+    name: "Switch to 2D After Load",
+    render: renderFn,
+    parameters: { controls: { include: [] } },
+    args: {
+        viewMode: "3d",
+        nodeData: [
+            { id: "a", position: { x: -6, y: -3, z: 0 } },
+            { id: "b", position: { x: 6, y: -3, z: 0 } },
+            { id: "c", position: { x: 0, y: 5, z: 0 } },
+        ],
+        edgeData: [],
+        layout: "fixed",
+        layoutConfig: {},
+        setup: storySetup({
+            edge: { "edge.arrowHead": "none", "edge.color": SWITCHED_EDGE_COLOR, "edge.width": 1 },
+        }),
+    } as never,
+    play: async ({ canvasElement }) => {
+        const scene = await drawn(canvasElement, "ViewMode SwitchTo2DAfterLoad");
+        await assertGraphLoaded(scene, { nodes: 3, edges: 0 });
+        const element = await renderedElement(canvasElement, "ViewMode SwitchTo2DAfterLoad: no graphty-element");
+        // Added once the element is drawn, as a page loads a file into a running graph: the batched render path
+        // draws such edges with no edge object of their own, and those are the lines the switch lost.
+        await element.session.data.addEdges([
+            { src: "a", dst: "b" },
+            { src: "b", dst: "c" },
+            { src: "c", dst: "a" },
+        ]);
+        await element.waitForStableFrame();
+        await holds(
+            element.session.status.counts.edges === 3,
+            `ViewMode SwitchTo2DAfterLoad: holds ${String(element.session.status.counts.edges)} edges, not 3`,
+        );
+
+        await element.setViewMode("2d");
+        await element.waitForStableFrame();
+        await assertViewMode(scene, "2d");
+
+        const edgePixels = await pixelsOfColour(scene, SWITCHED_EDGE_COLOR);
+        await holds(
+            edgePixels > 200,
+            `ViewMode SwitchTo2DAfterLoad: after the switch to 2D only ${String(edgePixels)} pixels are in the edges' color, so the edges are not drawn`,
+        );
     },
 };

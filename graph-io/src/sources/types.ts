@@ -18,32 +18,32 @@ import { type CommonImportOptions, type ImportInput, type ImportReport } from ".
  * @category Network sources
  */
 export type SourceKind =
-    "repository" | "database" | "sparql" | "rest" | "graphql" | "file-host" | "other" | (string & {}); // NOSONAR(S4335): open string union, keeps the known names autocompleting
+    "repository" | "database" | "sparql" | "rest" | "graphql" | "file-host" | "other" | (string & {}); // open string union, keeps the known names autocompleting
 
 /**
  * An optional capability a source has. Open union.
  * @category Network sources
  */
-export type SourceFeature = "expand" | "probe" | "list" | "page" | "validate" | (string & {}); // NOSONAR(S4335): open string union, keeps the known names autocompleting
+export type SourceFeature = "expand" | "probe" | "list" | "page" | "validate" | (string & {}); // open string union, keeps the known names autocompleting
 
 /**
  * Where code runs. Open union.
  * @category Network sources
  */
-export type SourceRuntime = "browser" | "node" | "worker" | "other" | (string & {}); // NOSONAR(S4335): open string union, keeps the known names autocompleting
+export type SourceRuntime = "browser" | "node" | "worker" | "other" | (string & {}); // open string union, keeps the known names autocompleting
 
 /**
  * The type of one source parameter, for a form. Open union.
  * @category Network sources
  */
 export type SourceParamType =
-    "string" | "text" | "query" | "integer" | "number" | "boolean" | "enum" | "url" | "node-id" | (string & {}); // NOSONAR(S4335): open string union, keeps the known names autocompleting
+    "string" | "text" | "query" | "integer" | "number" | "boolean" | "enum" | "url" | "node-id" | (string & {}); // open string union, keeps the known names autocompleting
 
 /**
  * The language of a `query` parameter. Open union.
  * @category Network sources
  */
-export type QueryLanguage = "cypher" | "opencypher" | "gremlin" | "sparql" | "graphql" | "jmespath" | (string & {}); // NOSONAR(S4335): open string union, keeps the known names autocompleting
+export type QueryLanguage = "cypher" | "opencypher" | "gremlin" | "sparql" | "graphql" | "jmespath" | (string & {}); // open string union, keeps the known names autocompleting
 
 /**
  * Why a source cannot run in a runtime. Open union.
@@ -56,17 +56,18 @@ export type SourceRuntimeReason =
     | "insecure-endpoint"
     | "needs-node"
     | "needs-peer-dependency"
-    | (string & {}); // NOSONAR(S4335): open string union, keeps the known names autocompleting
+    | (string & {}); // open string union, keeps the known names autocompleting
 
 /**
  * The kind of a credential. Open union.
  * @category Network sources
  */
-export type CredentialKind = "bearer" | "basic" | "api-key" | "aws-sigv4" | "custom" | (string & {}); // NOSONAR(S4335): open string union, keeps the known names autocompleting
+export type CredentialKind = "bearer" | "basic" | "api-key" | "aws-sigv4" | "custom" | (string & {}); // open string union, keeps the known names autocompleting
 
 /**
- * A credential made by one of the `credentials` factories. The secret is held where no code can
- * read it back: `JSON.stringify` and `util.inspect` show only `{ kind, origins }`. Experimental.
+ * A credential made by one of the `credentials` factories. The secret is hidden from enumeration,
+ * JSON and inspection: `JSON.stringify` and `util.inspect` show only `{ kind, origins }`. It is not
+ * unreachable: `storableCredential()` returns it so an app can persist it. Experimental.
  * @category Network sources
  */
 export interface Credential {
@@ -152,6 +153,20 @@ export interface SourceFile {
     readonly mimeType?: string | undefined;
     /** Graph facts the file itself does not hold, written after it is read, as `RecordBatch.meta`. */
     readonly meta?: Readonly<Record<string, unknown>> | undefined;
+    /**
+     * Importer options by format id ("csv"), applied only when the file is read as that format;
+     * the caller's own options win.
+     */
+    readonly formatOptions?: Readonly<Record<string, Readonly<Record<string, unknown>>>> | undefined;
+    /** Importer options for whichever format the file is read as; the caller's own options win. */
+    readonly importOptions?: Readonly<Record<string, unknown>> | undefined;
+    /**
+     * The params that read this file the same way again, given the options the importer worked out
+     * from it (the import report's `resolved`, such as the CSV `idColumn`), or undefined when the
+     * given params already do. What it returns is the load report's `source.params`.
+     */
+    readonly settle?:
+        ((resolved: Readonly<Record<string, unknown>>) => Readonly<Record<string, unknown>> | undefined) | undefined;
 }
 
 /**
@@ -171,7 +186,8 @@ export type SourceRequestInit = RequestInit & {
 };
 
 /**
- * The caps of a load. Every default is "no limit". Experimental.
+ * The caps of a load. Every default is "no limit", except what a compressed file inflates to
+ * (`maxBytes`). Experimental.
  * @category Network sources
  */
 export interface SourceLimitOptions {
@@ -183,7 +199,11 @@ export interface SourceLimitOptions {
     readonly maxNodes?: number | undefined;
     /** Stop once this many edges were written. Checked after each page, as `maxNodes` is. */
     readonly maxEdges?: number | undefined;
-    /** Stop once this many decoded response bytes were read. */
+    /**
+     * Stop once this many decoded response bytes were read. A .gz or .zip file a file source
+     * returns is also held to this many bytes once inflated, or to 2 GiB when it is unset; past it
+     * the load fails with E_SOURCE_LIMIT.
+     */
     readonly maxBytes?: number | undefined;
     /** Stop before sending more requests than this. */
     readonly maxRequests?: number | undefined;
@@ -446,6 +466,12 @@ export interface SourceDescriptor {
         | undefined;
     /** The endpoint used when the caller names none. @defaultValue null */
     readonly defaultEndpoint?: string | null | undefined;
+    /**
+     * The param whose value is the endpoint when the caller names none: a file source whose
+     * address is a param (the `url` source's `url`). `sourceEndpoint` reads it. Absent: the
+     * endpoint is the caller's, else `defaultEndpoint`.
+     */
+    readonly endpointParam?: string | undefined;
     /** Where it runs; a runtime marked unsupported is refused with E_SOURCE_RUNTIME before any request. */
     readonly runtimes?:
         | Readonly<
@@ -653,6 +679,12 @@ export interface SourceReportInfo {
     readonly validators?: SourceValidators | undefined;
     /** What the source holds for this load, when it counted: the nodes and edges it matches. */
     readonly total?: SourceTotal | undefined;
+    /**
+     * The params to save for this load, when they differ from the ones given: the given params with
+     * what the read worked out from the data filled in (the `url` source's CSV `idColumn`), so a
+     * saved load reads its data the same way again after a default changes.
+     */
+    readonly params?: Readonly<Record<string, unknown>> | undefined;
 }
 
 /**

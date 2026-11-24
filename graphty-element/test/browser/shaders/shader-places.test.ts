@@ -17,12 +17,12 @@ import { afterAll, afterEach, assert, beforeAll, describe, it } from "vitest";
 import type { Graphty } from "../../../index.js";
 import { clearRegisteredShadersForTesting } from "../../../src/catalog/shaderRegistry";
 import type { LayerSpec } from "../../../src/catalog/types";
-import { operationQueueOf } from "../../../src/Graph";
-import type { RenderManager } from "../../../src/managers/RenderManager";
+import { operationQueueOf, renderManagerOf } from "../../../src/Graph";
 import type { GroupOutlinePass } from "../../../src/meshes/GroupOutlinePass";
 import { NodeShaderDrawing } from "../../../src/meshes/NodeShaderDrawing";
 import { groupOutlinesOf } from "../../../src/session/styles/StylesApi";
 import { defineShader } from "../../../src/simple/defineShader";
+import { pixelsAt, rowAt } from "../../helpers/canvas-pixels";
 import { drawnFrames } from "../../helpers/drawn-frames";
 import { click, type Point, wheel } from "../../helpers/real-input";
 
@@ -173,52 +173,6 @@ async function until(element: Graphty, what: string, holds: () => boolean): Prom
 function slots(element: Graphty): number {
     const drawing = NodeShaderDrawing.peek(element.graph.getScene());
     return drawing === undefined ? 0 : [...drawing.stats().slots.values()].reduce((sum, n) => sum + n, 0);
-}
-
-/**
- * Read pixels of the canvas at points in CSS pixels, after the next frames.
- * @param element - The element.
- * @param points - The points.
- * @returns One pixel per point.
- */
-async function pixelsAt(element: Graphty, points: readonly Point[]): Promise<Pixel[]> {
-    const { engine } = element.graph;
-    await drawnFrames(element.graph.getScene(), 2);
-    const scale = engine.getRenderWidth() / WIDTH;
-    const out: Pixel[] = [];
-    for (const point of points) {
-        const x = Math.round(point.x * scale);
-        const y = Math.round(engine.getRenderHeight() - point.y * scale);
-        const read = (await engine.readPixels(x, y, 1, 1)) as unknown as Uint8Array;
-        out.push([read[0], read[1], read[2], read[3]]);
-    }
-
-    return out;
-}
-
-/**
- * Read one row of the canvas through a point, in CSS pixels, as one pixel per render pixel.
- * @param element - The element.
- * @param y - The row, CSS pixels from the top.
- * @returns The row's pixels and how many render pixels make a CSS pixel.
- */
-async function rowAt(element: Graphty, y: number): Promise<{ row: Pixel[]; scale: number }> {
-    const { engine } = element.graph;
-    await drawnFrames(element.graph.getScene(), 2);
-    const scale = engine.getRenderWidth() / WIDTH;
-    const width = engine.getRenderWidth();
-    const read = (await engine.readPixels(
-        0,
-        Math.round(engine.getRenderHeight() - y * scale),
-        width,
-        1,
-    )) as unknown as Uint8Array;
-    const row: Pixel[] = [];
-    for (let x = 0; x < width; x++) {
-        row.push([read[x * 4], read[x * 4 + 1], read[x * 4 + 2], read[x * 4 + 3]]);
-    }
-
-    return { row, scale };
 }
 
 /**
@@ -452,7 +406,7 @@ describe("a group use", () => {
      * @returns The pass, or null.
      */
     function passOf(element: Graphty): GroupOutlinePass | null {
-        return (element.graph as unknown as { renderManager: RenderManager }).renderManager.shaderPasses().outline;
+        return renderManagerOf(element.graph).shaderPasses().outline;
     }
 
     it("draws one outline around the nodes carrying it, and again around the rest after off", async () => {
@@ -492,5 +446,35 @@ describe("a group use", () => {
         }
 
         assert.strictEqual(picked("n0"), outlined, "the rest stay inside");
+    });
+
+    it("draws no outline while a branches view suspends its layer, and draws it again once the view ends", async () => {
+        // Issue #8922: the pass read the outlines again only on stack, data and selection events,
+        // so the outlines it last read under a view stayed after the view ended: none at all.
+        const element = await mounted([
+            { id: "n0", x: -2, y: 0 },
+            { id: "n1", x: 0, y: 0 },
+            { id: "n2", x: 2, y: 0 },
+        ]);
+        await layer(element, "Hull", { "node.shaders": [{ shader: "t/hull" }] });
+        const drawsOutline = (): boolean =>
+            passOf(element)
+                ?.drawn()
+                .some((each) => each.groups.length > 0) === true;
+        await until(element, "the outline is drawn", drawsOutline);
+
+        const view = element.session.styles.showBranches({
+            rule: {
+                kind: "union",
+                side: "nodes",
+                within: "visible",
+                branches: [{ id: "b1", color: "#d55e00", start: "all", steps: [] }],
+            },
+            rest: "faint",
+        });
+        await until(element, "the suspended layer draws no outline", () => !drawsOutline());
+
+        view.end();
+        await until(element, "the outline is drawn again", drawsOutline);
     });
 });

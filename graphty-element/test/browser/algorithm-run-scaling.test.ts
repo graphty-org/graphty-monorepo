@@ -100,7 +100,7 @@ function assertMeasuredAll(result: RunResult | undefined, size: number): void {
 /**
  * Assert the session holds a finished run of `algorithm` that measured every node.
  * @param graph - The graph.
- * @param algorithm - The catalogue key.
+ * @param algorithm - The catalog key.
  * @param size - The node count.
  */
 function assertRunPublished(graph: Graph, algorithm: string, size: number): void {
@@ -376,6 +376,39 @@ const CASES: readonly Case[] = [
                 check: () => {
                     assertRunPublished(element.graph, "degree", size);
                     assertRunPublished(element.graph, "components", size);
+                },
+            }),
+    },
+    {
+        methods: ["RunsApi.sweep"],
+        prepare: (element, size) =>
+            Promise.resolve({
+                call: async () => {
+                    const sweep = await element.graph
+                        .getSession()
+                        .runs.sweep("pagerank", "dampingFactor", [0.8, 0.9], { seed: 1 });
+                    assert.strictEqual(sweep.completed, 2, "both values finished");
+                },
+                check: () => {
+                    const { runs } = element.graph.getSession();
+                    assertMeasuredAll(runs.get("pagerank_dampingfactor_0_8")?.result, size);
+                    assertMeasuredAll(runs.get("pagerank_dampingfactor_0_9")?.result, size);
+                },
+            }),
+    },
+    {
+        methods: ["RunsApi.stability"],
+        prepare: (element, size) =>
+            Promise.resolve({
+                call: async () => {
+                    const stability = await element.graph.getSession().runs.stability("components", [1, 2]);
+                    assert.strictEqual(stability.completed, 2, "both seeds finished");
+                    assert.strictEqual(stability.agreement, 1, "a deterministic grouping agrees with itself");
+                },
+                check: () => {
+                    const { runs } = element.graph.getSession();
+                    assertMeasuredAll(runs.get("components_seed_1")?.result, size);
+                    assertMeasuredAll(runs.get("components_seed_2")?.result, size);
                 },
             }),
     },

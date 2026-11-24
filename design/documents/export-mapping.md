@@ -36,7 +36,7 @@ session.data.export(format: string, options?: {
 }>
 ```
 
-`format` is a format id of graphty-element's catalogue (`csv`, `graphml`, `gexf`, `gml`, `dot`,
+`format` is a format id of graphty-element's catalog (`csv`, `graphml`, `gexf`, `gml`, `dot`,
 `pajek`, `json`, `neo4j`). The call refuses before writing anything when result names collide
 ("Results as columns" rule 2). It works the same in a `createGraphSession()` session in Node, where
 the drawn appearance is the resolved style values and positions are written only when a layout
@@ -91,7 +91,7 @@ Each included run contributes one column per published field of its result, per 
    `rank` role, a component the `component` role, so formats that map roles place them. One column
    per role per table: the first run to claim a role takes it, and a later claimant is written as a
    plain column, reported with `W_GRAPHTY_ROLE_TAKEN`.
-6. **Graph-level fields** of a result (`min`, `max`, `mean`, the normalisation used) and each run's
+6. **Graph-level fields** of a result (`min`, `max`, `mean`, the normalization used) and each run's
    precision and exactness are written as graph-level attributes `<run>.<field>` where the format
    has them, and reported with `W_GRAPHTY_GRAPH_FIELDS` where it does not.
 7. **Which runs.** Every run the session holds, unless the caller names runs; a run left out is not
@@ -101,11 +101,11 @@ Each included run contributes one column per published field of its result, per 
 ## Drawn appearance
 
 A format that holds appearance holds it per element, not as rules: GEXF's `viz` module records a
-colour, a size and a shape on each node and has no way to say "colour by logFC on a diverging
+color, a size and a shape on each node and has no way to say "color by logFC on a diverging
 scale". So exporting to such a format writes the values: graphty-element resolves every enabled
 layer for every element and writes the result. The rules are lost, reported with
 `W_GRAPHTY_STYLE_RULES`, and travel intact only in a style member ("A graphty document beside an
-export"). The caller MAY leave layers out by id. Colours are written from the parsed RGBA, never as
+export"). The caller MAY leave layers out by id. Colors are written from the parsed RGBA, never as
 the authored string. When the imported data already holds visual-role columns, the drawn
 appearance takes the roles and the imported columns are written as plain columns, reported with
 `W_GRAPHTY_ROLE_TAKEN`.
@@ -114,7 +114,7 @@ appearance takes the roles and the imported columns are written as plain columns
 | Channel | graph-format role | Written as |
 | --- | --- | --- |
 | `node.color`, `edge.color` | `color` | the resolved RGBA; alpha where the format has it |
-| `node.opacity`, `edge.opacity` | folded into the colour's alpha | alpha times opacity |
+| `node.opacity`, `edge.opacity` | folded into the color's alpha | alpha times opacity |
 | `node.size` | `size` (node) | scene units |
 | `edge.width` | `thickness` (edge) | scene units |
 | `node.shape` | `shape` (node) | the shape table below; each translated shape reported with `W_GRAPHTY_SHAPE` |
@@ -157,13 +157,13 @@ exported and replayed binds and reads as it did.
 
 **Text is never markup.** Text from the data or a document -- labels, names, column values -- is
 written as a quoted string in every format, never as a DOT HTML-like label or a yFiles HTML label,
-which those tools render as HTML. Each value neutralised is counted and reported with
+which those tools render as HTML. Each value neutralized is counted and reported with
 `W_GRAPHTY_TEXT_QUOTED`.
 
 **CSV cells.** In every format whose output is CSV -- `csv` and the neo4j-admin files of `neo4j` --
 a cell that begins with `=`, `+`, `-`, `@`, a tab or a carriage return is written prefixed with a
 single quote, so a spreadsheet does not run it as a formula; the count is reported with
-`W_GRAPHTY_CSV_NEUTRALIZED`. Header cells are cells and are neutralised the same way. A caller whose
+`W_GRAPHTY_CSV_NEUTRALIZED`. Header cells are cells and are neutralized the same way. A caller whose
 consumer is not a spreadsheet MAY turn this off.
 
 ## Notes
@@ -180,7 +180,7 @@ true })` adds two node and edge columns on the elements notes name: `graphty.not
    notes about sets, items, results or the graph, which elements a multi-target note joins, and
    every field but the text go nowhere but a `.graphty.json` saved beside the export.
 3. **Text is text.** `graphty.notes.text` is written as a quoted string where a format could read it
-   as markup, and a CSV cell is neutralised as any other ("Per format", CSV cells).
+   as markup, and a CSV cell is neutralized as any other ("Per format", CSV cells).
 4. **No collision.** A loaded column whose name starts `graphty.` is never exported, so the two
    columns cannot collide with one. Read back, they are ordinary columns
    (`data.graphty.notes.count`); they do not become notes.

@@ -11,14 +11,11 @@ import { type AiManagerConfig, MockLlmProvider } from "@graphty/graphty-element/
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { loadSiteConfig, resetSiteConfig } from "../../../siteConfig";
 import { cleanup, render, screen, waitFor, within } from "../../../test/test-utils";
 import { writeAssistantChoice } from "../../assistant-door/provider";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** The experiment on, as a site.json that lists it. */
-const SITE = `data:application/json,${encodeURIComponent(JSON.stringify({ features: ["assistant"] }))}`;
 const COMPOSER = { name: "Message the assistant" };
 
 type Generate = MockLlmProvider["generate"];
@@ -125,8 +122,6 @@ const spoken = (): (string | null)[] =>
 
 describe("Show in table from a reply", () => {
     beforeEach(async () => {
-        resetSiteConfig();
-        await loadSiteConfig(SITE);
         await page.viewport(1440, 900);
         localStorage.clear();
         sessionStorage.clear();
@@ -140,7 +135,6 @@ describe("Show in table from a reply", () => {
     afterEach(() => {
         cleanup();
         vi.restoreAllMocks();
-        resetSiteConfig();
         writeAssistantChoice(null);
     });
 
@@ -198,7 +192,7 @@ describe("Show in table from a reply", () => {
         assert.strictEqual(document.activeElement, within(dock).getByRole("tab", { name: "Edges" }));
     });
 
-    it("lists the reply's rows whole under a filter, and the filter's view comes back after the x", async () => {
+    it("lists the reply's rows under a filter, and the filter's view comes back after the x", async () => {
         const { session } = await openOn();
         model.turns = counting("data.group == 'even'");
         // A filter the reader already has on: only n0 and n1 show.
@@ -212,9 +206,10 @@ describe("Show in table from a reply", () => {
         within(dock).getByRole("radiogroup", { name: "Records" });
 
         await showInTable("Which are even?");
-        await within(dock).findByText("3 of 6 nodes");
+        // The assistant reads the working graph the app reads: of the even nodes, the shown n0.
+        await within(dock).findByText("1 of 6 nodes");
         await waitFor(() => {
-            assert.sameMembers(listed(dock, "Nodes"), ["n0", "n2", "n4"]);
+            assert.sameMembers(listed(dock, "Nodes"), ["n0"]);
         });
         assert.isNull(within(dock).queryByRole("radiogroup", { name: "Records" }), "Shown / All waits for the x");
 

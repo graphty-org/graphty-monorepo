@@ -2,9 +2,11 @@ import { afterEach, assert, test, vi } from "vitest";
 
 import type { AuthoredLayoutDescriptor } from "../../../src/catalog/types";
 import type { Edge } from "../../../src/Edge";
+import { GraphtyError } from "../../../src/errors";
 import { type Graph, operationQueueOf } from "../../../src/Graph";
 import { type EdgePosition, LayoutEngine, type Position } from "../../../src/layout/LayoutEngine";
 import { layoutManagerInternals } from "../../../src/managers/LayoutManager";
+import type { PendingWorkProgress } from "../../../src/managers/OperationQueueManager";
 import type { Node } from "../../../src/Node";
 import { SCREENSHOT_CONSTANTS } from "../../../src/screenshot/constants";
 import { drawnFrames } from "../../helpers/drawn-frames";
@@ -28,7 +30,7 @@ async function captureWaitingForSettle(before: number): Promise<void> {
     });
 }
 
-// Mock layout engine for testing
+// A layout that never settles, for the cases that wait out the settle timeout
 class MockLayoutEngine extends LayoutEngine {
     static type = "mock";
     static maxDimensions = 3;
@@ -113,41 +115,29 @@ class MockLayoutEngine extends LayoutEngine {
 // Register mock layout engine
 LayoutEngine.register(MockLayoutEngine);
 
-test("waitForSettle waits for layout to settle", async () => {
+test("waitForSettle holds a capture until a real layout settles", async () => {
     graph = await createTestGraphWithData();
 
-    // Set up mock layout engine
+    // A seeded force layout starts moving and settles on its own, a frame at a time; nothing in
+    // the test announces the settle, so the element's own `graph-settled` has to release the capture.
+    await graph.setLayout("ngraph", { seed: 7 });
     const layoutManager = graph.getLayoutManager();
-    await layoutManagerInternals.setLayout(layoutManager, "mock");
+    assert.isTrue(layoutManager.running, "the layout is running when the capture is asked for");
+    assert.isFalse(layoutManager.isSettled, "the layout is still moving when the capture is asked for");
 
-    const layoutEngine = layoutManager.layoutEngine as MockLayoutEngine;
-    assert.ok(layoutEngine, "Layout engine should be set");
-    layoutEngine.setSettled(false);
-
-    let captured = false;
+    // Counted when the layout first settles: a capture still pending then is listening too.
+    let listenersWhenSettled = 0;
+    const off = graph.on("graph-settled", () => {
+        listenersWhenSettled ||= graph.listenerCount();
+    });
     const listenersBefore = graph.listenerCount();
-    const capturePromise = graph
-        .captureScreenshot({
-            timing: { waitForSettle: true },
-        })
-        .then(() => {
-            captured = true;
-        });
 
-    // Should not capture while it waits for the layout
-    await captureWaitingForSettle(listenersBefore);
-    assert.equal(captured, false, "Should not capture before settling");
+    const result = await graph.captureScreenshot({ timing: { waitForSettle: true } });
+    off();
 
-    // Settle layout
-    layoutEngine.setSettled(true);
-    // Access private eventManager for testing purposes
-    (
-        graph as unknown as { eventManager: { emitGraphEvent: (type: string, data: Record<string, unknown>) => void } }
-    ).eventManager.emitGraphEvent("graph-settled", { graph });
-
-    // Now should capture
-    await capturePromise;
-    assert.equal(captured, true, "Should capture after settling");
+    assert.isAbove(listenersWhenSettled, listenersBefore, "the capture was still waiting when the layout settled");
+    assert.isTrue(!layoutManager.running || layoutManager.isSettled, "the layout is at rest in the capture");
+    assert.ok(result.blob instanceof Blob, "the capture returns a picture");
 });
 
 test("waitForSettle times out if layout never settles", async () => {
@@ -176,8 +166,8 @@ test("waitForSettle times out if layout never settles", async () => {
     await vi.advanceTimersByTimeAsync(SCREENSHOT_CONSTANTS.LAYOUT_SETTLE_TIMEOUT_MS);
 
     const error = await outcome;
-    assert.ok(error instanceof Error, "Should throw an error");
-    assert.match(error.message, /settle|timeout/i, "Error message should mention settling or timeout");
+    assert.ok(error instanceof GraphtyError, "Should throw a GraphtyError");
+    assert.equal(error.code, "E_NOT_SETTLED");
 });
 
 test("timing.settleTimeoutMs sets how long waitForSettle waits", async () => {
@@ -251,6 +241,31 @@ test("waitForOperations waits for pending operations", async () => {
     assert.equal(captured, true, "Should capture after operations complete");
 });
 
+test("onProgress reports the operations a capture waits behind", async () => {
+    graph = await createTestGraphWithData();
+    let release = (): void => undefined;
+    const gate = new Promise<void>((resolve) => {
+        release = resolve;
+    });
+    void operationQueueOf(graph).queueOperationAsync("style-apply", async () => {
+        await gate;
+    });
+
+    const facts: PendingWorkProgress[] = [];
+    const capture = graph.captureScreenshot({
+        timing: { waitForOperations: true, waitForSettle: false },
+        onProgress: (fact) => facts.push(fact),
+    });
+    assert.strictEqual(facts[0]?.code, "PENDING_WORK");
+    assert.strictEqual(facts[0]?.params.operations, 2, "the gated operation and the capture's own turn");
+
+    release();
+    await capture;
+    const count = facts.length;
+    await operationQueueOf(graph).queueOperationAsync("style-apply", () => undefined);
+    assert.strictEqual(facts.length, count, "nothing is reported once the capture is taken");
+});
+
 test("can skip waiting with timing.waitForSettle: false", async () => {
     graph = await createTestGraphWithData();
 
@@ -301,4 +316,38 @@ test("can skip waiting for operations with timing.waitForOperations: false", asy
 
     release();
     await operation;
+});
+
+// Issue #9215: a picture still loading (a background, a node's image or 3D model) is drawn only
+// once it lands, so a capture waits for it as waitForStableFrame() does.
+test("waits for a picture still loading", async () => {
+    graph = await createTestGraphWithData();
+    const landed = graph.getUpdateManager().pending.begin("picture", "a test picture is still loading");
+
+    let captured = false;
+    const capture = graph.captureScreenshot().then(() => {
+        captured = true;
+    });
+
+    // Five drawn frames, any of which a capture that did not wait would have been taken from.
+    await drawnFrames(graph.getScene(), 5);
+    assert.isFalse(captured, "the capture waits while the picture loads");
+
+    landed();
+    await capture;
+    assert.isTrue(captured, "the capture is taken once the picture has landed");
+});
+
+test("captureNow stops waiting for a picture still loading", async () => {
+    graph = await createTestGraphWithData();
+    const landed = graph.getUpdateManager().pending.begin("picture", "a test picture is still loading");
+    const now = new AbortController();
+
+    const capture = graph.captureScreenshot({ timing: { captureNow: now.signal } });
+    await drawnFrames(graph.getScene(), 2);
+    now.abort();
+
+    const result = await capture;
+    assert.ok(result.blob instanceof Blob, "the capture is taken while the picture still loads");
+    landed();
 });

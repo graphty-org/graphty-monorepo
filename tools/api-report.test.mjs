@@ -174,11 +174,11 @@ export interface AlgorithmDescriptor {
         assert.deepEqual(check({ cost: '\n    readonly kind: "exact" | "sampled";' }), []);
     });
 
-    it("passes an allowlisted identifier or catalog name, and a catalog description", () => {
+    it("passes an allowlisted identifier or catalog name, and a catalog description id", () => {
         assert.deepEqual(
             check({
                 find: "\n    readonly nodeId: string;\n    readonly name: string;\n    readonly coalesceKey: string;",
-                descriptor: "\n    readonly description: string;",
+                descriptor: "\n    readonly descriptionId: string;",
             }),
             [],
         );
@@ -194,6 +194,21 @@ export interface AlgorithmDescriptor {
         assert.deepEqual(
             plainStringAdditions([report()], [head]).map((m) => m.split(" ")[0]),
             ["RunRecord.kind"],
+        );
+    });
+
+    it("passes a draft preview's id, a filter condition's id and a key value of the consumer's rows", () => {
+        const head = report()
+            .replace("get(id: string): RunRecord;", "get(id: string): RunRecord;\n    preview(): SourceDraftPreview;")
+            .replace(
+                "// @public\nexport type RunState",
+                "// @public\nexport interface SourceDraftPreview {\n    readonly draft: string;\n    readonly label: string;\n    readonly issues: readonly SourceDraftPreviewIssue[];\n}\n\n" +
+                    '// @public\nexport type SourceDraftPreviewIssue = { readonly code: "W_FILTER_HELD"; readonly params: { readonly filter: string } } | { readonly code: "W_VALUE_HUB"; readonly params: { readonly value: string } };\n\n' +
+                    "// @public\nexport type RunState",
+            );
+        assert.deepEqual(
+            plainStringAdditions([report()], [head]).map((m) => m.split(" ")[0]),
+            ["SourceDraftPreview.label"],
         );
     });
 

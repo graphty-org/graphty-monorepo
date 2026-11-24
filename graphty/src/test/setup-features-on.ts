@@ -8,6 +8,8 @@
 import { beforeAll, beforeEach } from "vitest";
 
 async function switchOn(): Promise<void> {
+    const { markFeaturesOn } = await import("./features");
+    markFeaturesOn();
     const { setDefaultFeatures } = await import("@graphty/graphty-element/extend");
     const { loadSiteConfig } = await import("../siteConfig");
     setDefaultFeatures(["all"]);

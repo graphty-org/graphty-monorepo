@@ -6,6 +6,7 @@
 // runner plugin, whose test globs then make every workspace's test/**/*.js an entry.
 import assert from "node:assert/strict";
 import { createVerify, generateKeyPairSync } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 import worker, {
@@ -13,7 +14,6 @@ import worker, {
     checkDeployKeys,
     DEPLOY_KEY_ISSUE_TITLE,
     ISSUE_TITLE,
-    isOnMaster,
     KEY_CHECK_CRON,
     PKCS1_MESSAGE,
     RELEASE_DEPLOY_KEY_ID,
@@ -30,14 +30,14 @@ const decode = (part) => JSON.parse(Buffer.from(part, "base64url").toString());
 
 // A fetch stub: answers the token exchange, the dispatch with `dispatchStatus`, the issue search
 // with `openIssues`, and records every request.
-// `keys` answers the deploy key list (`keysStatus` its HTTP status); `compare` the compare's status.
+// `keys` answers the deploy key list (`keysStatus` its HTTP status); `searchStatus` the search's status.
 function github({
     dispatchStatus = 204,
     tokenStatus = 201,
     openIssues = [],
     keys = [],
     keysStatus = 200,
-    compare = { status: 200, body: { status: "behind" } },
+    searchStatus = 200,
 } = {}) {
     const calls = [];
     const fetch = async (url, init = {}) => {
@@ -58,11 +58,10 @@ function github({
                 ? Response.json(keys)
                 : new Response("Resource not accessible", { status: keysStatus });
         }
-        if (pathname.includes("/compare/")) {
-            return Response.json(compare.body, { status: compare.status });
-        }
         if (pathname === "/search/issues") {
-            return Response.json({ items: openIssues });
+            return searchStatus === 200
+                ? Response.json({ items: openIssues })
+                : new Response("API rate limit exceeded", { status: searchStatus });
         }
         return Response.json({}, { status: 201 });
     };
@@ -113,8 +112,9 @@ describe("run", () => {
         assert.deepEqual(await run(env, { fetch, slot }), { dispatched: false, status: 422 });
         const created = calls.filter((c) => c.method === "POST" && c.pathname.endsWith("/issues"));
         assert.equal(created.length, 1);
-        const { title, body } = JSON.parse(created[0].body);
+        const { title, body, labels } = JSON.parse(created[0].body);
         assert.equal(title, ISSUE_TITLE);
+        assert.deepEqual(labels, ["bug", "priority:high", "effort:low"]);
         assert.match(body, /2026-10-07T06:00:00\.000Z/);
         assert.match(body, /HTTP 422/);
         assert.match(body, /Unexpected inputs provided/);
@@ -127,6 +127,14 @@ describe("run", () => {
         const posts = calls.filter((c) => c.method === "POST").map((c) => c.pathname);
         assert.ok(posts.includes("/repos/graphty-org/graphty-monorepo/issues/42/comments"));
         assert.ok(!posts.includes("/repos/graphty-org/graphty-monorepo/issues"));
+    });
+
+    it("files nothing when the issue search fails, so an outage never opens duplicates", async () => {
+        for (const searchStatus of [403, 503]) {
+            const { fetch, calls } = github({ dispatchStatus: 500, searchStatus });
+            assert.deepEqual(await run(env, { fetch, slot }), { dispatched: false, status: 500 });
+            assert.ok(!calls.some((c) => c.method === "POST" && /\/issues/.test(c.pathname)));
+        }
     });
 
     it("throws and files nothing when the token exchange fails", async () => {
@@ -190,34 +198,6 @@ describe("checkDeployKeys", () => {
     });
 });
 
-describe("isOnMaster", () => {
-    const sha = "a".repeat(40);
-    for (const [status, expected] of [
-        ["behind", true],
-        ["identical", true],
-        ["ahead", false],
-        ["diverged", false],
-    ]) {
-        it(`is ${expected} when compare master...sha says ${status}`, async () => {
-            const { fetch, calls } = github({ compare: { status: 200, body: { status } } });
-            assert.equal(await isOnMaster(sha, "inst-token", fetch), expected);
-            assert.equal(calls[0].pathname, `/repos/graphty-org/graphty-monorepo/compare/master...${sha}`);
-        });
-    }
-
-    it("is false for an unknown commit and for something that is not a sha, which it never sends", async () => {
-        const { fetch, calls } = github({ compare: { status: 404, body: {} } });
-        assert.equal(await isOnMaster(sha, "inst-token", fetch), false);
-        assert.equal(await isOnMaster("master/../x", "inst-token", fetch), false);
-        assert.equal(calls.length, 1);
-    });
-
-    it("throws on any other error, so a caller never takes an outage for an answer", async () => {
-        const { fetch } = github({ compare: { status: 500, body: {} } });
-        await assert.rejects(isOnMaster(sha, "inst-token", fetch), /HTTP 500/);
-    });
-});
-
 describe("scheduled", () => {
     it("runs the key check on its cron and dispatches on every other", async () => {
         const original = globalThis.fetch;
@@ -255,5 +235,19 @@ describe("scheduled", () => {
         const { readFile } = await import("node:fs/promises");
         const toml = await readFile(new URL("../wrangler.toml", import.meta.url), "utf8");
         assert.ok(toml.includes(`"${KEY_CHECK_CRON}"`));
+    });
+});
+
+// Its cap (tools/README.md, "Cloud routes"): the crons are its only invocations, so the cap is no URL and a fixed
+// number of crons. A fetch handler, a workers.dev URL or another cron needs a request cap like tools/nx-cache-worker's.
+describe("cap", () => {
+    it("has no fetch handler, no public URL and at most five runs a day", () => {
+        assert.equal(worker.fetch, undefined);
+        const toml = readFileSync(new URL("../wrangler.toml", import.meta.url), "utf8");
+        assert.match(toml, /^workers_dev = false$/m);
+        assert.match(toml, /^preview_urls = false$/m);
+        const crons = JSON.parse(/^crons = (\[.*\])$/m.exec(toml)[1]);
+        const runsPerDay = crons.reduce((sum, cron) => sum + cron.split(" ")[1].split(",").length, 0);
+        assert.equal(runsPerDay, 5);
     });
 });

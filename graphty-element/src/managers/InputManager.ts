@@ -1,6 +1,8 @@
 import type { Vector2 } from "@babylonjs/core/Maths/math.vector.js";
 import { Observable } from "@babylonjs/core/Misc/observable.js";
 
+import { fetchJson } from "../data/source-bytes";
+import { GraphtyError } from "../errors/GraphtyError";
 import type { GraphEventType, InputEnabledChangedEvent } from "../events";
 import { BabylonInputSystem } from "../input/babylon-input-system";
 import { MockDeviceInputSystem } from "../input/mock-device-input-system";
@@ -21,11 +23,6 @@ export interface RecordedInputEvent {
  * Configuration options for InputManager
  */
 export interface InputManagerConfig {
-    /**
-     * Whether to use mock input system for testing
-     */
-    useMockInput?: boolean;
-
     /**
      * Whether touch input is enabled
      */
@@ -65,14 +62,23 @@ export interface InputManagerConfig {
 export class InputManager implements Manager {
     // Observable events. They outlive the input system behind them, which playback swaps for a
     // mock one, so a subscriber (and the `input:*` bridge) keeps hearing input (issue #3002).
+    /** Fires when a pointer moves over the canvas. */
     public readonly onPointerMove = new Observable<PointerInfo>();
+    /** Fires when a pointer button is pressed on the canvas. */
     public readonly onPointerDown = new Observable<PointerInfo>();
+    /** Fires when a pointer button is released. */
     public readonly onPointerUp = new Observable<PointerInfo>();
+    /** Fires when the wheel turns over the canvas. */
     public readonly onWheel = new Observable<WheelInfo>();
+    /** Fires when touches begin, with the new touch points. */
     public readonly onTouchStart = new Observable<TouchPoint[]>();
+    /** Fires when touches move, with the moved touch points. */
     public readonly onTouchMove = new Observable<TouchPoint[]>();
+    /** Fires when touches end, with the ids of the touches that ended. */
     public readonly onTouchEnd = new Observable<number[]>();
+    /** Fires when a key is pressed. */
     public readonly onKeyDown = new Observable<KeyboardInfo>();
+    /** Fires when a key is released. */
     public readonly onKeyUp = new Observable<KeyboardInfo>();
 
     private inputSystem: BabylonInputSystem | MockDeviceInputSystem;
@@ -90,10 +96,8 @@ export class InputManager implements Manager {
         private context: ManagerContext,
         private readonly config: InputManagerConfig = {},
     ) {
-        // Create appropriate input system based on config
-        this.inputSystem = this.config.useMockInput
-            ? new MockDeviceInputSystem()
-            : new BabylonInputSystem(this.context.scene);
+        // Real input from the scene; playback swaps in a scripted system of its own.
+        this.inputSystem = new BabylonInputSystem(this.context.scene);
 
         this.forwardInput(this.inputSystem);
     }
@@ -158,6 +162,9 @@ export class InputManager implements Manager {
         } catch (error) {
             const err = error instanceof Error ? error : new Error(String(error));
             this.context.eventManager.emitGraphError(null, err, "init", { component: "InputManager" });
+            if (err instanceof GraphtyError) {
+                throw err;
+            }
             throw new Error(`Failed to initialize InputManager: ${err.message}`);
         }
     }
@@ -234,19 +241,6 @@ export class InputManager implements Manager {
      */
     getActiveTouches(): TouchPoint[] {
         return this.inputSystem.getActiveTouches();
-    }
-
-    /**
-     * Get the mock input system for testing
-     * @returns MockDeviceInputSystem instance
-     * @throws Error if not using mock input
-     */
-    getMockInputSystem(): MockDeviceInputSystem {
-        if (!(this.inputSystem instanceof MockDeviceInputSystem)) {
-            throw new Error("Not using mock input system");
-        }
-
-        return this.inputSystem;
     }
 
     /**
@@ -474,15 +468,21 @@ export class InputManager implements Manager {
     /**
      * Load playback file
      * @param filename - Path or URL to the playback file
+     * @throws A `GraphtyError`: `E_FETCH_FAILED` when the file cannot be fetched, `E_PARSE_FAILED`
+     *     when it is not JSON with an `events` array of `{ timestamp, type, data }`.
      */
     private async loadPlaybackFile(filename: string): Promise<void> {
-        try {
-            const response = await fetch(filename);
-            const data = await response.json();
-            this.recordedEvents = data.events ?? [];
-        } catch (error) {
-            console.warn(`Failed to load playback file: ${filename}`, error);
+        const data = await fetchJson(filename);
+        const events = (data as { events?: unknown } | null)?.events;
+        if (!Array.isArray(events) || !events.every(isRecordedInputEvent)) {
+            throw new GraphtyError({
+                code: "E_PARSE_FAILED",
+                message: `the playback file is not an input recording: ${filename}`,
+                source: "data",
+                details: { url: filename, format: "json", reason: "bad-events" },
+            });
         }
+        this.recordedEvents = events;
     }
 
     /**
@@ -545,4 +545,17 @@ export class InputManager implements Manager {
             });
         }
     }
+}
+
+/**
+ * Whether a value has the shape of a {@link RecordedInputEvent}.
+ * @param value - One entry of a playback file's `events`.
+ * @returns True for `{ timestamp: number, type: string, data: object }`.
+ */
+function isRecordedInputEvent(value: unknown): value is RecordedInputEvent {
+    if (typeof value !== "object" || value === null) {
+        return false;
+    }
+    const { timestamp, type, data } = value as Record<string, unknown>;
+    return typeof timestamp === "number" && typeof type === "string" && typeof data === "object" && data !== null;
 }

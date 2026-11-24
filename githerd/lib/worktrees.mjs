@@ -65,25 +65,42 @@ function missingDist(dir) {
  */
 
 /**
+ * Starts a kill timer with setTimeout and returns its cancel.
+ * @param {() => void} fire what the timer does
+ * @param {number} ms when
+ * @returns {() => void} cancels the timer
+ */
+function defaultStartTimer(fire, ms) {
+    const timer = setTimeout(fire, ms);
+    return () => clearTimeout(timer);
+}
+
+/**
  * Runs a command without a shell and never throws. The command leads a process group of its own,
  * and the timeout kills that whole group: a setup's `sh -c` or the pre-push gate leaves no child
  * behind holding a lock or a port.
  * @param {string} file the program
  * @param {string[]} args its arguments
  * @param {{cwd: string, timeoutMs?: number, env?: Record<string, string | undefined>,
- *   input?: string, onSpawn?: (pgid: number) => void}} options where to run it, the kill timeout,
- *   the environment (the daemon's by default), what to write to its standard input, and who is
- *   told the child's process group once it started (to kill it from outside)
+ *   input?: string, onSpawn?: (pgid: number) => void,
+ *   startTimer?: (fire: () => void, ms: number) => () => void}} options where to run it, the kill
+ *   timeout, the environment (the daemon's by default), what to write to its standard input, who is
+ *   told the child's process group once it started (to kill it from outside), and what starts the
+ *   kill timer and returns its cancel (setTimeout by default; a test fires it itself)
  * @returns {Promise<RunResult>} exit code and output; `timedOut` when the timeout killed it
  */
-export function run(file, args, { cwd, timeoutMs = GIT_TIMEOUT_MS, env = process.env, input, onSpawn }) {
+export function run(
+    file,
+    args,
+    { cwd, timeoutMs = GIT_TIMEOUT_MS, env = process.env, input, onSpawn, startTimer = defaultStartTimer },
+) {
     return new Promise((resolve) => {
         let timedOut = false;
         let stdout = "";
         let stderr = "";
         const child = spawn(file, args, { cwd, env, detached: true });
         if (child.pid) onSpawn?.(child.pid);
-        const timer = setTimeout(() => {
+        const cancelTimer = startTimer(() => {
             timedOut = true;
             try {
                 process.kill(-(/** @type {number} */ (child.pid)), "SIGKILL");
@@ -96,7 +113,7 @@ export function run(file, args, { cwd, timeoutMs = GIT_TIMEOUT_MS, env = process
         child.stdin.on("error", () => {});
         child.stdin.end(input);
         const done = (/** @type {number} */ code, /** @type {string} */ message = "") => {
-            clearTimeout(timer);
+            cancelTimer();
             resolve({ code, stdout, stderr: stderr || message, ...(timedOut ? { timedOut } : {}) });
         };
         child.on("error", (err) => done(1, err.message));

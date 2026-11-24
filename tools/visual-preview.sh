@@ -1,26 +1,10 @@
 #!/usr/bin/env bash
 #
-# Captures a pull request's screenshots on this machine, minutes after a push, so the owner can
-# review (and Finish) them before CI's capture lands. Design: design/visual-testing/local-previews.md.
+# Captures a pull request's screenshots on this machine, so the owner can review (and Finish) them
+# before CI's capture lands. Design: design/visual-testing/local-previews.md.
 #
 # Usage:
-#   ./tools/visual-preview.sh <pull request number> [--expect <commit>]
-#   ./tools/visual-preview.sh --head <commit>      (tools/prepush.sh, before a push)
-#   ./tools/visual-preview.sh --promote <commit>   (tools/push-queue.sh, once GitHub accepted the push)
-#   ./tools/visual-preview.sh --discard <commit>   (tools/prepush.sh or push-queue.sh, when it was refused)
-#
-# --head builds what CI WILL build once the commit is pushed: the commit merged into origin/master,
-# fetched first, made here (git merge-tree) instead of fetched from GitHub. The capture is staged in
-# local/.pending-<commit>, which the review page never reads; --promote moves it to the open pull
-# request of the current branch when it has one (tmp/pr-status/status.json, else one gh call), so the
-# review page offers it as soon as the push lands, and --discard deletes it. Staging keeps a refused
-# push from replacing the preview of the head already on GitHub. VISUAL_PREVIEW_BRANCH (tools/land.mjs,
-# whose check worktrees are detached) names the branch being pushed, whose pull request it captures for;
-# then --promote leaves a capture made for a pull request staged, the review page offers it as "pending
-# push" (decisions allowed, no Finish) while the gate runs, and land.mjs makes it the pull request's
-# preview once the push landed. Without a pull request it goes under
-# local/branch-<branch> and only checks that every story captures. A merge conflict with origin/master
-# skips the capture (CI cannot build that pull request either).
+#   ./tools/visual-preview.sh <pull request number>
 #
 # It builds what CI builds -- refs/pull/<n>/merge, the head merged into the base branch -- in the
 # reused worktree .worktrees/visual-preview, with the base branch's copy of the capture code (as
@@ -30,18 +14,13 @@
 # of the pull request's current head as "local preview, CI pending"; CI's own capture replaces it
 # project by project, and the gate still checks CI's capture against whatever was approved.
 #
-# --expect <commit> (tools/land.mjs, right after its push) waits until GitHub lists that commit as the
-# pull request's head: just after a push GitHub can still report the old head for a while, and a
-# preview of the old head is useless. It asks every VISUAL_PREVIEW_POLL seconds (default 15) for at
-# most VISUAL_PREVIEW_HEAD_WAIT seconds (default 600), then fails.
-#
 # Refuses a pull request from a fork: its code would run on this machine. One preview runs at a
-# time, in a queue in order of arrival with the cut's previews first (see "The queue" below), and a
-# preview whose capture another run already made (the same head and trees; see reuse()) copies it
-# instead of capturing again. Each capture goes through tools/with-browser.sh (the shared cap on browsers;
-# WITH_BROWSER names another wrapper, for tests). A wait for the lock is recorded in the wait log
-# with the preview that held it (tools/wait-log.mjs, <main checkout>/tmp/waits.jsonl), as the
-# browser cap records a wait for a browser slot.
+# time, in a queue in order of arrival (see "The queue" below), and a preview whose capture another
+# run already made (the same head and trees; see reuse()) copies it instead of capturing again. Each
+# capture goes through tools/with-browser.sh (the shared cap on browsers; WITH_BROWSER names another
+# wrapper, for tests). A wait for the lock is recorded in the wait log with the preview that held it
+# (tools/wait-log.mjs, <main checkout>/tmp/waits.jsonl), as the browser cap records a wait for a
+# browser slot.
 #
 # VISUAL_PREVIEW_TIMEOUT (default 45m; a whole number with s, m, h or d) bounds the work, not the
 # waits: it starts once this preview holds the lock, and each capture's share of it starts once that
@@ -64,8 +43,8 @@ case "${BASH_REMATCH[2]}" in
     d) LIMIT_S=$((BASH_REMATCH[1] * 86400)) ;;
     *) LIMIT_S=$((BASH_REMATCH[1])) ;;
 esac
-# Progress lines for whoever started this (the pre-push gate shows them): fd 3 stays this script's
-# own output even inside the steps whose output goes to the log.
+# Progress lines for whoever started this: fd 3 stays this script's own output even inside the steps
+# whose output goes to the log.
 exec 3>&1
 say() { echo "$(date +%T) visual-preview: $*" >&3; }
 
@@ -75,77 +54,18 @@ WORK="$(jq -r '.workDir // "tmp/visual-review"' "$HERE/visual-review.config.json
 ROOT="$MAIN/$WORK/local"
 WT="$MAIN/.worktrees/visual-preview"
 
-MODE="pr"
-case "${1:-}" in
-    --head | --promote | --discard) MODE="${1#--}" ;;
-esac
-if [[ "$MODE" != "pr" ]]; then
-    # Under tools/push-queue.sh the gate's --promote does nothing: the queue promotes after GitHub
-    # accepted the push, and discards the capture when the push was rejected. 2026-10-24: promoted before
-    # a push of golden-cut that was then rejected, a capture replaced the cut's owner-reviewed preview.
-    [[ "$MODE" == promote && "${PUSH_QUEUE_PROMOTES:-}" == 1 ]] && exit 0
-    HEAD="$(git -C "$HERE" rev-parse --verify "${2:-}^{commit}")" || die "usage: visual-preview.sh $1 <commit>"
-    # The branch of the checkout being pushed: PREPUSH_ROOT when the gate runs from its live copy.
-    BRANCH="${VISUAL_PREVIEW_BRANCH:-$(git -C "${PREPUSH_ROOT:-$HERE}" symbolic-ref --short -q HEAD || true)}"
-    PR=""
-    if [[ -n "$BRANCH" ]]; then
-        PR="$(jq -r --arg b "$BRANCH" '[.pullRequests[]? | select(.head == $b) | .number][0] // empty' \
-            "$MAIN/tmp/pr-status/status.json" 2>/dev/null || true)"
-        [[ -n "$PR" ]] || PR="$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty' 2>/dev/null || true)"
-    fi
-    KEY="${PR:-branch-${BRANCH//\//-}}"
-    [[ "$KEY" != "branch-" ]] || KEY="commit-${HEAD:0:10}"
-    STAGED="$ROOT/.pending-$HEAD"
-    case "$MODE" in
-        promote)
-            [[ -d "$STAGED" ]] || exit 0
-            # land.mjs moves it after its push (defaultPreview); until then it is pending push.
-            [[ -z "${VISUAL_PREVIEW_BRANCH:-}" || -z "$PR" ]] || exit 0
-            rm -rf "${ROOT:?}/$KEY.old"
-            [[ ! -e "$ROOT/$KEY" ]] || mv "$ROOT/$KEY" "$ROOT/$KEY.old"
-            mv "$STAGED" "$ROOT/$KEY"
-            rm -rf "${ROOT:?}/$KEY.old"
-            echo "visual-preview: ${HEAD:0:10} is now the preview $ROOT/$KEY"
-            exit 0
-            ;;
-        discard)
-            rm -rf "$STAGED"
-            exit 0
-            ;;
-    esac
-else
-    PR="${1:-}"
-    [[ "$PR" =~ ^[1-9][0-9]*$ ]] || die "usage: visual-preview.sh <pull request number> [--expect <commit>] | --head <commit>"
-    EXPECT=""
-    if [[ "${2:-}" == "--expect" ]]; then
-        [[ "${3:-}" =~ ^[0-9a-f]{40}$ ]] || die "--expect takes a full commit sha"
-        EXPECT="$3"
-    fi
-    KEY="$PR"
-fi
-OUT="${STAGED:-$ROOT/$KEY}"
+PR="${1:-}"
+[[ "$PR" =~ ^[1-9][0-9]*$ ]] || die "usage: visual-preview.sh <pull request number>"
+KEY="$PR"
+OUT="$ROOT/$KEY"
 mkdir -p "$OUT"
 LOG="$OUT/log.txt"
 
 # The pull request: same repository, open, and its head.
-if [[ "$MODE" == "pr" ]]; then
-    pull() {
-        read -r STATE HEAD_REPO BASE_REPO HEAD < <(gh api "repos/{owner}/{repo}/pulls/$PR" \
-            --jq '[.state, (.head.repo.full_name // "deleted"), .base.repo.full_name, .head.sha] | @tsv')
-    }
-    pull
-    if [[ -n "$EXPECT" && "$HEAD" != "$EXPECT" ]]; then
-        say "waiting for GitHub to list ${EXPECT:0:10} as the head of #$PR (it says ${HEAD:0:10})"
-        WAIT_END=$(($(date +%s) + ${VISUAL_PREVIEW_HEAD_WAIT:-600}))
-        while [[ "$HEAD" != "$EXPECT" ]]; do
-            (($(date +%s) < WAIT_END)) || die "GitHub still lists ${HEAD:0:10}, not ${EXPECT:0:10}, as the head of #$PR"
-            sleep "${VISUAL_PREVIEW_POLL:-15}"
-            pull
-        done
-    fi
-    [[ "$STATE" == "open" ]] || die "#$PR is $STATE, not open"
-    [[ "$HEAD_REPO" == "$BASE_REPO" ]] || die "#$PR comes from $HEAD_REPO, a fork: its code is never built here"
-fi
+read -r STATE HEAD_REPO BASE_REPO HEAD < <(gh api "repos/{owner}/{repo}/pulls/$PR" \
+    --jq '[.state, (.head.repo.full_name // "deleted"), .base.repo.full_name, .head.sha] | @tsv')
+[[ "$STATE" == "open" ]] || die "#$PR is $STATE, not open"
+[[ "$HEAD_REPO" == "$BASE_REPO" ]] || die "#$PR comes from $HEAD_REPO, a fork: its code is never built here"
 
 STARTED="$(date -u +%FT%TZ)"
 # Nothing is written to $OUT before this preview owns it (WRITING): until then it may hold the finished
@@ -157,7 +77,7 @@ status() { # <state> [projects...]
     local state="$1"; shift
     local tail=""
     [[ "$state" == "failed" ]] && tail="$(tail -n 20 "$LOG" 2>/dev/null || true)"
-    jq -n --arg state "$state" --arg step "$STEP" --argjson pr "${PR:-null}" --arg head "$HEAD" \
+    jq -n --arg state "$state" --arg step "$STEP" --argjson pr "$PR" --arg head "$HEAD" \
         --arg merge "${MERGE:-}" --arg started "$STARTED" --arg at "$(date -u +%FT%TZ)" --arg tail "$tail" \
         --arg reused "$REUSED" \
         --args '{state: $state, step: $step, pr: $pr, head: $head, merge: (if $merge == "" then null else $merge end),
@@ -182,7 +102,7 @@ bounded() { # <command...>
 }
 
 # git fetch into the main checkout, retried: the queue covers only previews, and any other fetch there
-# (a gate, an agent, the review server) that moves the same ref first makes this one exit 1 with
+# (an agent, the review server) that moves the same ref first makes this one exit 1 with
 # "cannot lock ref ...: is at <new> but expected <old>" (issue #1548). The winner has already written the
 # ref, so a retry succeeds. A fetch that still fails dies with git's own message.
 fetch_main() { # <refspec>...
@@ -195,38 +115,14 @@ fetch_main() { # <refspec>...
     die "cannot fetch $*: $err"
 }
 
-# Sets MERGE, the merge commit to capture, or exits 0 when the head conflicts with origin/master.
+# Sets MERGE, the merge commit GitHub built for the pull request's head.
 find_merge() {
-    if [[ "$MODE" == "head" ]]; then
-        # The merge commit CI will build: the current master's tree merged with the head, as GitHub
-        # makes refs/pull/<n>/merge (first parent the base, second the head). Fetched first: the last
-        # fetch may be days old, and a preview of an old master is not what CI captures.
-        STEP="fetching origin/master"
-        status running
-        fetch_main master
-        STEP="merging ${HEAD:0:10} into origin/master"
-        status running
-        # Exit 1 is a conflict; anything else (a missing ref, an unreadable object) is an error, never a pass.
-        local rc=0 tree
-        tree="$(git -C "$MAIN" merge-tree --write-tree origin/master "$HEAD" 2>> "$LOG")" || rc=$?
-        if [[ $rc -eq 1 ]]; then
-            STEP="nothing captured: ${HEAD:0:10} conflicts with origin/master (merge it first)"
-            WRITING=1
-            status done
-            echo "visual-preview: $STEP"
-            exit 0
-        fi
-        [[ $rc -eq 0 ]] || die "git merge-tree failed (exit $rc)"
-        MERGE="$(git -C "$MAIN" commit-tree "$tree" -p origin/master -p "$HEAD" -m "visual preview: ${HEAD:0:10} into origin/master" 2>> "$LOG")" \
-            || die "git commit-tree failed"
-    else
-        STEP="fetching refs/pull/$PR/merge"
-        status running
-        fetch_main "+refs/pull/$PR/merge:refs/visual-preview/$PR"
-        MERGE="$(git -C "$MAIN" rev-parse "refs/visual-preview/$PR")" || die "no refs/visual-preview/$PR after the fetch"
-        [[ "$(git -C "$MAIN" rev-parse "$MERGE^2")" == "$HEAD" ]] \
-            || die "refs/pull/$PR/merge is not built from the head $HEAD yet; try again in a minute"
-    fi
+    STEP="fetching refs/pull/$PR/merge"
+    status running
+    fetch_main "+refs/pull/$PR/merge:refs/visual-preview/$PR"
+    MERGE="$(git -C "$MAIN" rev-parse "refs/visual-preview/$PR")" || die "no refs/visual-preview/$PR after the fetch"
+    [[ "$(git -C "$MAIN" rev-parse "$MERGE^2")" == "$HEAD" ]] \
+        || die "refs/pull/$PR/merge is not built from the head $HEAD yet; try again in a minute"
 }
 
 # Two captures are the same capture when they are of the same head, merged into a base with the same
@@ -234,14 +130,15 @@ find_merge() {
 # Storybooks, visual-baselines/, the pinned fonts, the lockfile), and the base's tree the capture code
 # it runs (visual-review/capture and trusted come from the base) and what nx counts as affected.
 # reuse() looks for a finished capture (done, every project's results complete) that is the same as
-# this one and puts a copy (hard links) in place as this preview's, naming its own pull request (or
-# none), with status.json saying where it came from. Returns 1 when there is none.
+# this one and puts a copy (hard links) in place as this preview's, naming its own pull request,
+# with status.json saying where it came from. Returns 1 when there is none.
 reuse() {
     local tree base s d m p key tmp
     local -a projects
     tree="$(git -C "$MAIN" rev-parse "$MERGE^{tree}")"
     base="$(git -C "$MAIN" rev-parse "$MERGE^1^{tree}")"
-    for s in "$ROOT"/*/status.json "$ROOT"/.pending-*/status.json; do
+    # Its own capture first: another pull request's copy of the same capture is not a reason to copy again.
+    for s in "$OUT/status.json" "$ROOT"/*/status.json; do
         [[ -f "$s" ]] || continue
         d="${s%/status.json}"
         m="$(jq -r --arg h "$HEAD" 'select(.state == "done" and .step == "captured" and .head == $h) | .merge // empty' "$s" 2>/dev/null)" || continue
@@ -264,9 +161,8 @@ reuse() {
         # Hard links: every file changed below is replaced, never written in place.
         rm -f "$tmp/log.txt" "$tmp/status.json"
         for p in "${projects[@]}"; do
-            jq --argjson pr "${PR:-null}" --arg head "$HEAD" --arg host "$(hostname)" \
-                'if $pr == null then .pr = null | .headSha = null | del(.local.preview)
-                 else .pr = $pr | .headSha = $head | .local.preview //= {merge: .commit, host: $host, tool: .commit} end' \
+            jq --argjson pr "$PR" --arg head "$HEAD" --arg host "$(hostname)" \
+                '.pr = $pr | .headSha = $head | .local.preview //= {merge: .commit, host: $host, tool: .commit}' \
                 "$tmp/$p/results.json" > "$tmp/$p/results.json.new" || { rm -rf "$tmp"; continue 2; }
             mv "$tmp/$p/results.json.new" "$tmp/$p/results.json"
         done
@@ -291,18 +187,16 @@ WRITING=1
 STEP="waiting for the lock"
 status running
 
-# The queue: one preview works at a time, in order of arrival, the cut's first (VISUAL_PREVIEW_PRIORITY,
-# which land.mjs sets for the cut pull request's previews, or a push of golden-cut). Each waiter holds a
-# ticket <rank>-<arrival>-<pid> in $ROOT/.queue and works once its ticket is the first one whose process
-# is alive; a dead waiter's ticket is removed, so it never blocks the queue. While it waits, a run of the
-# same capture that finishes ahead of it is reused. The flock on .lock stays, for previews started by a
-# copy of this script from before the queue, which take only the lock.
+# The queue: one preview works at a time, in order of arrival. Each waiter holds a ticket
+# <rank>-<arrival>-<pid> in $ROOT/.queue (rank 1 while waiting, 0 once working) and works once its ticket
+# is the first one whose process is alive; a dead waiter's ticket is removed, so it never blocks the
+# queue. While it waits, a run of the same capture that finishes ahead of it is reused. The flock on
+# .lock stays, for previews started by a copy of this script from before the queue, which take only the
+# lock.
 QUEUE="$ROOT/.queue"
 mkdir -p "$QUEUE"
-RANK=1
-[[ -n "${VISUAL_PREVIEW_PRIORITY:-}" || "${BRANCH:-}" == "golden-cut" ]] && RANK=0
 ARRIVED="$(date +%s%N)"
-TICKET="$QUEUE/$RANK-$ARRIVED-$$"
+TICKET="$QUEUE/1-$ARRIVED-$$"
 echo "$KEY at ${HEAD:0:10}" > "$TICKET"
 trap 'rm -f "$TICKET"' EXIT
 first_in_line() {
@@ -323,7 +217,7 @@ while [[ "$(first_in_line)" != "${TICKET##*/}" ]]; do
     reuse && exit 0
     sleep "${VISUAL_PREVIEW_POLL:-15}"
 done
-# Working: rank 0 from now, keeping its arrival, so a cut preview that arrives later waits behind it.
+# Working: rank 0 from now, keeping its arrival.
 mv "$TICKET" "$QUEUE/0-$ARRIVED-$$" && TICKET="$QUEUE/0-$ARRIVED-$$"
 exec 9> "$ROOT/.lock"
 if ! flock -n 9; then
@@ -338,7 +232,7 @@ DEADLINE=$(($(date +%s) + LIMIT_S))
 say "working (limit $LIMIT, from now; the waits for browser slots are not counted)"
 echo "visual-preview: $KEY at ${HEAD:0:10} (log: $LOG)"
 
-# Again, now: master may have moved during the wait, and the same capture may have finished.
+# Again, now: the base may have moved during the wait, and the same capture may have finished.
 find_merge
 reuse && exit 0
 
@@ -382,14 +276,10 @@ if [[ ${#PROJECTS[@]} -eq 0 ]]; then
     exit 0
 fi
 
-# The cut's preview (VISUAL_PREVIEW_PRIORITY, set by tools/land.mjs, or the gate's capture of a push to
-# golden-cut: a cut or a cut fix) takes the next browser slot ahead of landing checks (tools/with-browser.sh).
-[[ -z "${VISUAL_PREVIEW_PRIORITY:-}" && "${BRANCH:-}" != golden-cut ]] || export BROWSER_SLOT_PRIORITY=high
 WRAP=()
 [[ -x "${WITH_BROWSER:-$HERE/tools/with-browser.sh}" ]] && WRAP=("${WITH_BROWSER:-$HERE/tools/with-browser.sh}")
-# Only a preview naming a pull request and its head is decidable on the review page.
-PREVIEW_ENV=()
-[[ -n "$PR" ]] && PREVIEW_ENV=(VISUAL_REVIEW_PREVIEW_PR="$PR" VISUAL_REVIEW_PREVIEW_HEAD="$HEAD")
+# A preview naming its pull request and head is decidable on the review page.
+PREVIEW_ENV=(VISUAL_REVIEW_PREVIEW_PR="$PR" VISUAL_REVIEW_PREVIEW_HEAD="$HEAD")
 # Each Storybook is built in turn (they share the worktree's nx builds); each capture then starts in
 # the background, so the captures run side by side, as many at once as the browser cap allows.
 CAPTURES=()
@@ -441,7 +331,7 @@ $BAD"; }
 done
 
 # The server shows only a preview of the current head; say so when the branch moved meanwhile.
-if [[ "$MODE" == "pr" ]] && NOW="$(gh api "repos/{owner}/{repo}/pulls/$PR" --jq .head.sha)" && [[ "$NOW" != "$HEAD" ]]; then
+if NOW="$(gh api "repos/{owner}/{repo}/pulls/$PR" --jq .head.sha)" && [[ "$NOW" != "$HEAD" ]]; then
     STEP="the branch moved to ${NOW:0:10} while this captured ${HEAD:0:10}"
     status stale "${PROJECTS[@]}"
     echo "visual-preview: #$PR moved on while capturing; run it again for ${NOW:0:10}"
@@ -449,4 +339,3 @@ if [[ "$MODE" == "pr" ]] && NOW="$(gh api "repos/{owner}/{repo}/pulls/$PR" --jq 
 fi
 status done "${PROJECTS[@]}"
 echo "visual-preview: $KEY done: ${PROJECTS[*]} in $OUT"
-[[ -n "$PR" ]] || echo "visual-preview: no open pull request for this branch yet, so the review page does not list this capture; run tools/visual-preview.sh <pr> after opening it"

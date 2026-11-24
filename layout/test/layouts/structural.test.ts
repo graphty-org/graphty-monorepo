@@ -1,4 +1,6 @@
 import assert from "node:assert";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 import { fromEdgeArrays, type GraphSnapshot } from "@graphty/graph-format";
 import {
@@ -110,7 +112,7 @@ describe("multipartite", () => {
             layout.multipartite(s, { subsets: layers, scale: 2, center: [1, -1] }),
             golden("multipartite vertical"),
         );
-        // the legacy layout rescaled around the centre before it swapped x and y, so it landed on the swapped centre
+        // the legacy layout rescaled around the center before it swapped x and y, so it landed on the swapped center
         matchesGolden(
             layout.multipartite(s, { subsets: layers, align: "horizontal", center: [1, -1] }),
             golden("multipartite horizontal"),
@@ -131,6 +133,37 @@ describe("multipartite", () => {
         // the layers are rows: equal y within a layer
         assert.equal(row(r, 0)[1], row(r, 2)[1]);
         assert.notEqual(row(r, 0)[1], row(r, 3)[1]);
+    });
+
+    it("aspectRatio spreads the layers until the drawing has that shape, either alignment", () => {
+        // 17 layers: one of 30 nodes, the rest of 2, so unit spacing would draw a band 16 wide and 29 high
+        const layers = Array.from({ length: 17 }, (_, k) => (k === 0 ? 30 : 2));
+        const starts = layers.map((_, k) => layers.slice(0, k).reduce((a, b) => a + b, 0));
+        const g = graph(layers.reduce((a, b) => a + b, 0));
+        const subsets = layers.map((size, k) => Array.from({ length: size }, (_, j) => starts[k] + j));
+        const extent = (r: LayoutResult, axis: number): number => {
+            const values = Array.from({ length: r.positions.length / r.dim }, (_, i) => row(r, i)[axis]);
+            return Math.max(...values) - Math.min(...values);
+        };
+        for (const align of ["vertical", "horizontal"] as const) {
+            const r = layout.multipartite(g, { subsets, align, aspectRatio: 16 / 9 });
+            const ratio = extent(r, 0) / extent(r, 1);
+            assert.ok(Math.abs(ratio - 16 / 9) < 1e-6, `${align}: ${String(ratio)}`);
+        }
+        // many short layers: the nodes spread instead, and the layers keep unit spacing before rescaling
+        const wide = layout.multipartite(graph(34), {
+            subsets: Array.from({ length: 17 }, (_, k) => [2 * k, 2 * k + 1]),
+            aspectRatio: 2,
+        });
+        const wideRatio = extent(wide, 0) / extent(wide, 1);
+        assert.ok(Math.abs(wideRatio - 2) < 1e-6, String(wideRatio));
+    });
+
+    it("aspectRatio must be a positive number", () => {
+        assert.throws(
+            () => layout.multipartite(s, { subsets: [[0], [1]], aspectRatio: 0 }),
+            (e: unknown) => (e as { code?: string }).code === "E_BAD_OPTION",
+        );
     });
 
     it("a u32 column puts equal values on one layer, in ascending value order", () => {
@@ -187,6 +220,30 @@ describe("multipartite", () => {
     });
 });
 
+/** NetworkX bipartite_layout positions on 7 nodes: test/fixtures/networkx/generate-bipartite.py. */
+const networkxBipartite = (
+    JSON.parse(readFileSync(resolve("test/fixtures/networkx/bipartite.json"), "utf8")) as {
+        cases: {
+            name: string;
+            top: number[];
+            align: "vertical" | "horizontal";
+            aspectRatio: number;
+            scale: number;
+            center: number[];
+            positions: number[][];
+        }[];
+    }
+).cases;
+
+/**
+ * NetworkX rows rescaled to this package's `scale`: networkx divides by the largest coordinate, layout by the
+ * distance of the farthest node, so the shapes agree and only the factor differs.
+ */
+const atLayoutScale = (rows: number[][], scale: number, center: number[]): number[][] => {
+    const far = Math.max(...rows.map((p) => Math.hypot(p[0] - center[0], p[1] - center[1])));
+    return rows.map((p) => p.map((v, k) => ((v - center[k]) * scale) / far + center[k]));
+};
+
 describe("bipartite", () => {
     const s = fromEdgeArrays({
         directed: false,
@@ -199,13 +256,17 @@ describe("bipartite", () => {
         },
     });
 
-    it("matches the legacy layout for a mask, vertical and horizontal", () => {
-        const mask = Uint32Array.of(0b0101001);
-        matchesGolden(layout.bipartite(s, { top: mask, scale: 2, center: [3, 4] }), golden("bipartite vertical"));
-        matchesGolden(
-            layout.bipartite(s, { top: mask, align: "horizontal", aspectRatio: 2, center: [3, 4] }),
-            golden("bipartite horizontal"),
-        );
+    it("matches NetworkX's bipartite_layout for a mask, vertical and horizontal, and a lone top node", () => {
+        for (const c of networkxBipartite) {
+            const r = layout.bipartite(s, {
+                top: Uint32Array.of(c.top.reduce((m, i) => m | (1 << i), 0)),
+                align: c.align,
+                aspectRatio: c.aspectRatio,
+                scale: c.scale,
+                center: c.center,
+            });
+            matchesGolden(r, atLayoutScale(c.positions, c.scale, c.center));
+        }
     });
 
     it("a bool column gives the same layout as the mask of its true rows", () => {
@@ -215,8 +276,10 @@ describe("bipartite", () => {
         );
     });
 
-    it("defaults to the even node indices, as the legacy layout does", () => {
-        matchesGolden(layout.bipartite(s), golden("bipartite default"));
+    it("defaults to the even node indices, as NetworkX's bipartite_layout given them", () => {
+        const c = networkxBipartite.find((k) => k.name === "default");
+        assert.ok(c !== undefined);
+        matchesGolden(layout.bipartite(s), atLayoutScale(c.positions, 1, [0, 0]));
     });
 
     it("rejects a column that is not bool and a mask too short for the graph", () => {
@@ -271,7 +334,7 @@ describe("bfs", () => {
     });
 
     it("centres a horizontal layout on the centre asked for", () => {
-        // 1.x bfsLayout centred a horizontal layout on the swapped centre [center[1], center[0]]
+        // 1.x bfsLayout centered a horizontal layout on the swapped center [center[1], center[0]]
         const r = layout.bfs(path(4), { align: "horizontal", center: [10, -5] });
         const mean = [0, 1].map((k) => [0, 1, 2, 3].reduce((sum, i) => sum + row(r, i)[k], 0) / 4);
         assert.ok(Math.abs(mean[0] - 10) < 1e-5 && Math.abs(mean[1] + 5) < 1e-5, mean.join(","));
@@ -557,7 +620,7 @@ describe("spectral", () => {
         for (const radius of radii) {
             assert.ok(Math.abs(radius - radii[0]) < 1e-4 * radii[0], radii.join(","));
         }
-        // neighbours on the cycle are neighbours on the circle: every step turns by the same angle
+        // neighbors on the cycle are neighbors on the circle: every step turns by the same angle
         const turn = (i: number): number => {
             const [ax, ay] = row(r, i);
             const [bx, by] = row(r, (i + 1) % n);
@@ -625,7 +688,7 @@ function matchesNetworkX(r: LayoutResult, expected: number[][], scale = 1, cente
     }
 }
 
-/** Per axis, the Rayleigh quotient x^T L x / x^T x of the layout's centred coordinates over the given edges. */
+/** Per axis, the Rayleigh quotient x^T L x / x^T x of the layout's centered coordinates over the given edges. */
 function rayleighQuotients(r: LayoutResult, src: ArrayLike<number>, dst: ArrayLike<number>): number[] {
     return Array.from({ length: r.dim }, (_, k) => {
         const x = (i: number): number => r.positions[r.dim * i + k];

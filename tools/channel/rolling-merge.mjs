@@ -14,7 +14,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { call, config } from "../results/client.mjs";
-import { parseEnvFile } from "../sonar/api.mjs";
+import { parseEnvFile } from "../results/env-file.mjs";
 
 export const ROLLING_BRANCH = /^visual\/approve-rolling-[0-9a-f]{12}$/;
 

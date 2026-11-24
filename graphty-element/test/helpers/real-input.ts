@@ -20,6 +20,24 @@ export interface Point {
     readonly y: number;
 }
 
+/**
+ * Where a node is drawn, as a point to send the pointer to.
+ * @param target - The graph or the element, whose `nodeScreenPosition` places the node.
+ * @param id - The node.
+ * @returns Its center in CSS pixels from the canvas's top-left corner.
+ */
+export function nodePoint(
+    target: { nodeScreenPosition(id: string | number): { x: number; y: number; visible: boolean } | undefined },
+    id: string | number,
+): Point {
+    const at = target.nodeScreenPosition(id);
+    if (at?.visible !== true) {
+        throw new Error(`node ${String(id)} is not drawn on screen`);
+    }
+
+    return { x: at.x, y: at.y };
+}
+
 /** A protocol command and its parameters; the session's own type is too narrow to name them. */
 type Send = (method: string, params?: Record<string, unknown>) => Promise<unknown>;
 
@@ -154,6 +172,23 @@ export async function click(
 }
 
 /**
+ * A left click whose hand shook: press at one point, move with the button held to another, and
+ * release there. All events are sent together, as `click` sends its press and release, so the
+ * press never reads as a long press however busy the page is; the protocol delivers them in order.
+ * @param element - The element the points are on.
+ * @param point - Where the press is.
+ * @param shaken - Where the release is.
+ */
+export async function shakyClick(element: Element, point: Point, shaken: Point): Promise<void> {
+    await mouseEvent("mouseMoved", element, point, 0);
+    await Promise.all([
+        mouseEvent("mousePressed", element, point, 1),
+        mouseEvent("mouseMoved", element, shaken, 1),
+        mouseEvent("mouseReleased", element, shaken, 0),
+    ]);
+}
+
+/**
  * Press and release the right button at one point, as a context-menu click does.
  * @param element - The element the point is on.
  * @param point - Where.
@@ -240,6 +275,7 @@ export async function release(element: Element, point: Point, modifiers?: Modifi
  * @param steps - How many moves between them.
  * @param held - Run at `to` with the button still down, before the release.
  * @param modifiers - Modifier keys held throughout.
+ * @param button - The button held.
  */
 export async function drag(
     element: Element,
@@ -248,9 +284,10 @@ export async function drag(
     steps = 8,
     held?: () => Promise<void>,
     modifiers?: Modifiers,
+    button: Button = "left",
 ): Promise<void> {
     await mouseEvent("mouseMoved", element, from, 0, modifiers);
-    await mouseEvent("mousePressed", element, from, 1, modifiers);
+    await mouseEvent("mousePressed", element, from, 1, modifiers, undefined, button);
     for (let i = 1; i <= steps; i++) {
         const t = i / steps;
         await mouseEvent(
@@ -259,13 +296,15 @@ export async function drag(
             { x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t },
             1,
             modifiers,
+            undefined,
+            button,
         );
         // One frame between moves, as a hand gives: the element reads the pointer once a frame.
         await nextFrame();
     }
 
     await held?.();
-    await mouseEvent("mouseReleased", element, to, 0, modifiers);
+    await mouseEvent("mouseReleased", element, to, 0, modifiers, undefined, button);
 }
 
 /**
@@ -274,10 +313,24 @@ export async function drag(
  * @param point - Where the pointer is.
  * @param deltaY - How far; positive scrolls down (away from the reader).
  * @param deltaX - How far sideways; positive scrolls right.
+ * @param modifiers - Modifier keys held; Ctrl is how a browser reports a trackpad pinch.
  */
-export async function wheel(element: Element, point: Point, deltaY: number, deltaX = 0): Promise<void> {
+export async function wheel(
+    element: Element,
+    point: Point,
+    deltaY: number,
+    deltaX = 0,
+    modifiers?: Modifiers,
+): Promise<void> {
     const at = toPage(element, point);
-    await send()("Input.dispatchMouseEvent", { type: "mouseWheel", x: at.x, y: at.y, deltaX, deltaY });
+    await send()("Input.dispatchMouseEvent", {
+        type: "mouseWheel",
+        x: at.x,
+        y: at.y,
+        deltaX,
+        deltaY,
+        modifiers: modifierBits(modifiers),
+    });
 }
 
 /**
@@ -315,6 +368,27 @@ export async function touchDrag(element: Element, from: Point, to: Point, steps 
  * @param steps - How many moves between.
  */
 export async function pinch(element: Element, center: Point, fromGap: number, toGap: number, steps = 8): Promise<void> {
+    const lift = await holdPinch(element, center, fromGap, toGap, steps);
+    await lift();
+}
+
+/**
+ * The fingers of a pinch, moved and left on the element, so other input can happen during it.
+ * @param element - The element the fingers are on.
+ * @param center - The midpoint between the fingers.
+ * @param fromGap - The distance between the fingers when they land.
+ * @param toGap - The distance they stop at.
+ * @param steps - How many moves between.
+ * @returns A function that lifts both fingers; passed true, the browser cancels the touches
+ *     instead, as it does when the system takes them over.
+ */
+export async function holdPinch(
+    element: Element,
+    center: Point,
+    fromGap: number,
+    toGap: number,
+    steps = 8,
+): Promise<(canceled?: boolean) => Promise<void>> {
     const fingers = (gap: number): Record<string, number>[] =>
         [-1, 1].map((side, id) => {
             const at = toPage(element, { x: center.x + (side * gap) / 2, y: center.y });
@@ -330,7 +404,9 @@ export async function pinch(element: Element, center: Point, fromGap: number, to
         await nextFrame();
     }
 
-    await send()("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    return async (canceled = false) => {
+        await send()("Input.dispatchTouchEvent", { type: canceled ? "touchCancel" : "touchEnd", touchPoints: [] });
+    };
 }
 
 /**
@@ -340,11 +416,21 @@ export async function pinch(element: Element, center: Point, fromGap: number, to
  * @param gap - The distance between the fingers, which stays the same.
  * @param degrees - How far the fingers turn, clockwise on screen.
  * @param steps - How many moves between.
+ * @param lead - The finger (0 or 1) that moves a moment before the other at each step, as one
+ *     finger of a hand leads; left out, both move in one touch event and the browser picks which
+ *     one's pointer move it sends first.
  */
-export async function twist(element: Element, center: Point, gap: number, degrees: number, steps = 8): Promise<void> {
-    const fingers = (turn: number): Record<string, number>[] =>
+export async function twist(
+    element: Element,
+    center: Point,
+    gap: number,
+    degrees: number,
+    steps = 8,
+    lead?: 0 | 1,
+): Promise<void> {
+    const fingers = (turn: number, other = turn): Record<string, number>[] =>
         [-1, 1].map((side, id) => {
-            const angle = (turn * Math.PI) / 180;
+            const angle = ((lead === undefined || id === lead ? turn : other) * Math.PI) / 180;
             const at = toPage(element, {
                 x: center.x + (side * gap * Math.cos(angle)) / 2,
                 y: center.y + (side * gap * Math.sin(angle)) / 2,
@@ -354,6 +440,12 @@ export async function twist(element: Element, center: Point, gap: number, degree
 
     await send()("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: fingers(0) });
     for (let i = 1; i <= steps; i++) {
+        if (lead !== undefined) {
+            await send()("Input.dispatchTouchEvent", {
+                type: "touchMove",
+                touchPoints: fingers((degrees * i) / steps, (degrees * (i - 1)) / steps),
+            });
+        }
         await send()("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: fingers((degrees * i) / steps) });
         await nextFrame();
     }

@@ -12,12 +12,18 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeAll, beforeEach, describe, it, vi } from "vitest";
 import { commands, page, userEvent } from "vitest/browser";
 
+import { withoutFeatures } from "../../../test/features";
 import { openBy } from "../../../test/open";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
-import { forgetUsageAnswer } from "../../privacy/usageData";
+import { assumeUsageDeclinedForTests, forgetUsageAnswer } from "../../privacy/usageData";
 import { clearRecent, rememberRecent } from "../../project/recent";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+import { HeroTurns } from "../heroTurns";
+
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 declare module "vitest/browser" {
     interface BrowserCommands {
@@ -39,7 +45,13 @@ async function startPage(): Promise<{
     unmount: () => void;
 }> {
     const store = createWorkspaceStore();
-    const { unmount } = render(<Workspace store={store} />);
+    // Held still, as Storybook holds it: a turning graph paused by its button stopped at whatever angle the
+    // clock had reached, so which nodes a pointer could reach changed from run to run.
+    const { unmount } = render(
+        <HeroTurns.Provider value={false}>
+            <Workspace store={store} />
+        </HeroTurns.Provider>,
+    );
     let element: Element | null = null;
     await waitFor(() => {
         element = document.querySelector<HTMLElementTagNameMap["graphty-element"]>("graphty-element[data-start-page]");
@@ -52,11 +64,6 @@ async function startPage(): Promise<{
     const hero = element as Element;
     // A still graph drawn on every animation frame made each click on the page take about a second.
     assert.isTrue(hero.renderOnDemand, "the start page's graph draws on demand");
-    // Stop the turning with the page's own button, so a node stays under the pointer.
-    const pause = screen.queryByRole("button", { name: "Pause the turning" });
-    if (pause !== null) {
-        await userEvent.click(pause);
-    }
     await hero.session.styles.settled();
     await hero.waitForStableFrame();
     return { store, element: hero, session: hero.session, unmount };
@@ -147,7 +154,7 @@ function highlighted(session: GraphSession, node: string): string | undefined {
 async function greenAround(element: Element, node: string): Promise<number> {
     const at = element.nodeScreenPosition(node);
     assert.isTrue(at?.visible, `${node} is on screen`);
-    const shot = await element.captureScreenshot({ destination: { blob: true }, format: "png" });
+    const shot = await element.captureScreenshot({ format: "png" });
     const bitmap = await createImageBitmap(shot.blob);
     const scale = bitmap.width / element.clientWidth;
     const reach = (at?.radius ?? 0) * 1.6 * scale;
@@ -190,6 +197,9 @@ afterEach(async () => {
 
 describe("the start page's graph", () => {
     it("fades what a pointed-at node is not linked to, and nothing once the pointer leaves", async () => {
+        // The usage data question sits over the graph's lower right corner, where the seeded layout
+        // draws Napoleon; a reader who has answered it has the whole graph to point at.
+        assumeUsageDeclinedForTests();
         const { element, session } = await startPage();
         const at = pointOn(element, "Napoleon");
 
@@ -408,6 +418,31 @@ describe("the start page's graph", () => {
         });
         const style = session.styles.explain({ node: "Brujon" }).merged["node.labelStyle"];
         assert.isTrue(style?.onTop, "the name is drawn on top");
+    });
+});
+
+describe("the start page's fact bar", () => {
+    it("counts as many layouts as the Layout list offers", async () => {
+        const { store } = await startPage();
+        const bar = screen.getByRole("complementary", { name: "graphty at a glance" });
+        const said = within(bar)
+            .getByText(/layouts$/)
+            .querySelector("b")?.textContent;
+        assert.isDefined(said, "the bar shows a layout count");
+
+        await commands.chooseNextFile(
+            "triangle.json",
+            "application/json",
+            JSON.stringify({ nodes: [{ id: "a" }, { id: "b" }, { id: "c" }], edges: [{ src: "a", dst: "b" }] }),
+        );
+        await openBy(store, () => userEvent.click(screen.getByRole("button", { name: /^Open a file/ })));
+        const tool = screen.getByRole("button", { name: "Layout" });
+        await waitFor(() => {
+            assert.isFalse(tool.hasAttribute("aria-disabled"));
+        });
+        await userEvent.click(tool);
+        const popover = await screen.findByRole("dialog", { name: "Layout" });
+        assert.equal(Number(said), within(popover).getAllByRole("option").length);
     });
 });
 

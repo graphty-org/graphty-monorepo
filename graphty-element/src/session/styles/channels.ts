@@ -1,7 +1,7 @@
 /**
  * @file The channels a style layer can paint, and the value each one accepts.
  *
- * A channel is one property of one drawn thing: the colour of a node, the width of an edge, the
+ * A channel is one property of one drawn thing: the color of a node, the width of an edge, the
  * pattern a line is drawn with. A layer writes channels and nothing else, which is what makes a
  * layer data rather than code.
  *
@@ -15,16 +15,14 @@
  * every entry below names the field of the parsed style it lands on. Several entries narrow that
  * claim, and every one of them says so in `caveat` rather than pretending:
  *
- * - `node.marker` draws nothing at all. `NodeStyle.texture.icon` is declared in the schema and
- *   no renderer reads it, and the badge vocabulary that does exist belongs to a label, not to a
- *   node. It is marked `renderable: false` and its value type is `never`, so writing it is a
- *   compile error rather than a silent no-op.
+ * - `node.marker` draws nothing at all: it is reserved for markers the element draws itself (a
+ *   note's marker), and `NodeStyle.texture.icon`, the field it names, has no renderer. A picture
+ *   or an icon on a node is `node.image` (a URL or data: URL over the node's face), `node.glyph`
+ *   (an icon-font character) or `node.texture` (a picture as the shape's surface). It is marked
+ *   `renderable: false` and its value type is `never`, so writing it is a compile error rather
+ *   than a silent no-op.
  * - `edge.curvature` is a switch, not an amount. The edge renderer offsets its control points by
  *   a fixed fraction of the edge length, so "curve this edge" is the only thing it can be told.
- * - `node.outline` is a colour and no width, for the same reason in the same shape: the stroke
- *   is drawn by a highlight LAYER whose blur size belongs to the layer, so every outline on
- *   screen is one width. This is the sentence the element's natural-language layer reads out
- *   when someone asks for an outline width, so it answers with a reason rather than a refusal.
  * - `edge.patternCount` counts the elements of a PATTERNED line. A solid line has none to count,
  *   and zigzag and sinewave ignore it because they always tile the whole edge.
  * - The four arrow caption channels draw words at ONE END of an edge, hanging from the cap
@@ -38,10 +36,8 @@
  * caveat says what the renderer can and cannot draw; a style field that IS declared and that no
  * channel reaches belongs in the reachability waiver list, `src/catalog/unreachable.ts`, where a
  * test can see it rather than only a reader. `node.glow` used to carry a note about the glow's
- * strength having no channel, and the strength has one now. The outline's width is the other
- * shape: `NodeStyle.effect.outline` declares no `width` at all any more, because a declared one
- * was accepted, validated and ignored -- so there is no field for the waiver list to name, and
- * the limit belongs here, beside the colour that IS drawn.
+ * strength having no channel, and the strength has one now; `node.outline` carried one saying
+ * every outline was drawn at one width, and `node.outlineWidth` sets it per layer now.
  *
  * The enumerated channels take their values from the element's own schemas -- the node shape
  * list, the line pattern list, the arrow list -- read out of the Zod enums rather than retyped.
@@ -50,7 +46,7 @@
  *
  * A COLOUR VALUE CARRIES ITS NUMBERS. {@link ColorValue} is an `Rgba` with the authored hex
  * string alongside it, because a repaint that parses a hex string once per element is paying for
- * a conversion the encoding already did. Authoring still accepts any colour the element
+ * a conversion the encoding already did. Authoring still accepts any color the element
  * understands: {@link toColorValue} is where a string becomes numbers, once.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.
@@ -80,6 +76,7 @@ import {
     NodeModelUpAxes,
     NodeShapes,
     NodeSizeModes,
+    NodeSizeSpaces,
     type NodeStyleConfig,
 } from "../../config/NodeStyle";
 import {
@@ -92,18 +89,18 @@ import {
 import { isAssetId } from "../assets/assetId";
 
 // ---------------------------------------------------------------------------------------------
-// Colour: one string parse, kept
+// Color: one string parse, kept
 // ---------------------------------------------------------------------------------------------
 
 /**
- * A colour on its way to the screen: the numbers a repaint reads, and the string a person wrote
+ * A color on its way to the screen: the numbers a repaint reads, and the string a person wrote
  * or an export writes.
  *
  * It is an `Rgba`, so it is a {@link Channel} value like any other, and the `hex` beside it is
  * never re-derived. Components are 0-255 and `a` is 0-1.
  */
 export interface ColorValue extends Rgba {
-    /** The same colour as `#rrggbb`, or `#rrggbbaa` when it is not fully opaque. */
+    /** The same color as `#rrggbb`, or `#rrggbbaa` when it is not fully opaque. */
     readonly hex: string;
 }
 
@@ -133,11 +130,11 @@ function hexDigits(value: number): string {
 }
 
 /**
- * Split a hex colour into its four components.
+ * Split a hex color into its four components.
  *
  * Three- and four-digit shorthand is doubled the way CSS doubles it, so `#f0c` is `#ff00cc`.
- * @param text - The hex colour, with or without the leading hash.
- * @returns The four components, alpha 0-1, or null when the text is not a hex colour.
+ * @param text - The hex color, with or without the leading hash.
+ * @returns The four components, alpha 0-1, or null when the text is not a hex color.
  */
 function parseHex(text: string): Rgba | null {
     if (!HEX_PATTERN.test(text)) {
@@ -162,18 +159,18 @@ function parseHex(text: string): Rgba | null {
 }
 
 /**
- * Whether a value a repaint resolved for a channel is one of the colours it carries.
+ * Whether a value a repaint resolved for a channel is one of the colors it carries.
  *
- * ONE GUARD, BECAUSE TWO DISAGREED. A colour reaches a renderer as a {@link ColorValue} object
- * rather than as a string, and every reader of a resolved style has to recognise one. Both the
- * style painter and the mesh-key interner had to; only the painter did, so a colour that keys a
+ * ONE GUARD, BECAUSE TWO DISAGREED. A color reaches a renderer as a {@link ColorValue} object
+ * rather than as a string, and every reader of a resolved style has to recognize one. Both the
+ * style painter and the mesh-key interner had to; only the painter did, so a color that keys a
  * source mesh was folded into that key as "nothing painted this" and two edges whose arrow caps
- * differed only in colour shared one cap. See `pushMeshValue` in `./repaint`.
+ * differed only in color shared one cap. See `pushMeshValue` in `./repaint`.
  * @param value - The value the repaint resolved, out of a column or a resolved style.
- * @returns The colour, or null when the value is not one.
+ * @returns The color, or null when the value is not one.
  */
 export function asColorValue(value: unknown): ColorValue | null {
-    if (typeof value !== "object" || value === null || !("hex" in value)) {
+    if (typeof value !== "object" || value === null || !("hex" in value) || typeof value.hex !== "string") {
         return null;
     }
 
@@ -181,20 +178,20 @@ export function asColorValue(value: unknown): ColorValue | null {
 }
 
 /**
- * Turn anything the element accepts as a colour into the form a repaint reads.
+ * Turn anything the element accepts as a color into the form a repaint reads.
  *
  * TOTAL, deliberately. It is called from the encoding path that runs once per element, which has
- * no try/catch of its own: a colour it cannot read answers null, and the caller leaves the
+ * no try/catch of its own: a color it cannot read answers null, and the caller leaves the
  * element unpainted. It never throws, so one unreadable value cannot cost every later element
  * its style.
  *
- * A hex colour is read here. Anything else -- a CSS name, `rgb(...)`, `hsl(...)` -- goes through
- * the element's one colour normaliser so that a channel accepts exactly what the rest of the
- * element's styles accept, and no second colour dialect appears.
- * @param value - A hex colour, any CSS colour the element understands, or components already
+ * A hex color is read here. Anything else -- a CSS name, `rgb(...)`, `hsl(...)` -- goes through
+ * the element's one color normalizer so that a channel accepts exactly what the rest of the
+ * element's styles accept, and no second color dialect appears.
+ * @param value - A hex color, any CSS color the element understands, or components already
  *   parsed. An `a` outside 0-1 is clamped, and components are rounded into 0-255.
- * @returns The colour with its numbers and its hex string, or null when the value is not a
- *   colour at all.
+ * @returns The color with its numbers and its hex string, or null when the value is not a
+ *   color at all.
  */
 export function toColorValue(value: string | Rgba | null | undefined): ColorValue | null {
     if (value === null || value === undefined) {
@@ -210,21 +207,15 @@ export function toColorValue(value: string | Rgba | null | undefined): ColorValu
         return fromComponents(direct);
     }
 
-    try {
-        const normalised = colorToHex(value);
+    const normalised = colorToHex(value);
 
-        return normalised === undefined ? null : toColorValue(normalised);
-    } catch {
-        // colorjs.io throws on a string it cannot parse. A colour nobody can read is a value
-        // this function answers for, not a frame it takes down.
-        return null;
-    }
+    return normalised === undefined ? null : toColorValue(normalised);
 }
 
 /**
  * Build the carried form from four components.
  * @param rgba - The components, in any state a caller might hand over.
- * @returns The colour, clamped, rounded and with its hex string worked out once.
+ * @returns The color, clamped, rounded and with its hex string worked out once.
  */
 function fromComponents(rgba: Rgba): ColorValue {
     const r = toByte(rgba.r);
@@ -249,7 +240,7 @@ export type NodeShapeValue = NonNullable<NonNullable<NodeStyleConfig["shape"]>["
 /**
  * A line pattern the edge renderer can draw.
  *
- * These are the nine the renderer ships. The catalogue's `EdgeLinePattern` is now this same type
+ * These are the nine the renderer ships. The catalog's `EdgeLinePattern` is now this same type
  * rather than a second list beside it: it used to name nine patterns of which seven had never had
  * a mesh, while omitting seven that did, so a consumer who wrote a value the published type
  * accepted got a layer the element refused.
@@ -265,11 +256,26 @@ type EdgeOutlineValue = NonNullable<NonNullable<NonNullable<EdgeStyleConfig["lin
 /** An arrow the edge renderer can draw at either end. */
 export type ArrowValue = NonNullable<NonNullable<EdgeStyleConfig["arrowHead"]>["type"]>;
 
-/** How heavy a label's letters are, as the `labelWeight` channels take it. */
-type LabelWeightValue = "normal" | "bold";
+/**
+ * How heavy a label's letters are, as the `labelWeight` channels take it: `normal` (CSS 400), `bold` (CSS 700) or
+ * another CSS numeric weight, `100` (thin) to `900` (black).
+ */
+type LabelWeightValue = "normal" | "bold" | "100" | "200" | "300" | "500" | "600" | "800" | "900";
 
 /** Where a label's runs of different sizes meet on a line (`labelRunAlign`). */
 type LabelRunAlignValue = "baseline" | "hanging" | "middle";
+
+/** What one line of a label is as tall as (`labelLineBox`). */
+type LabelLineBoxValue = "font" | "size" | "glyphs";
+
+/** Where the line round a label's panel is drawn against the panel's edge (`labelBorderAlign`). */
+type LabelBorderAlignValue = "outside" | "center";
+
+/** How the line round a label's panel is drawn (`labelBorderStyle`). */
+type LabelBorderStyleValue = "solid" | "double";
+
+/** The shape of the panel behind a label's words (`labelBackgroundShape`). */
+type LabelBackgroundShapeValue = "rectangle" | "circle";
 
 /**
  * What a label's shifts are fractions of (`labelShiftOf`), or what a label outside its node is placed against it by
@@ -285,6 +291,12 @@ type NodeSizeModeValue = NonNullable<NonNullable<NodeStyleConfig["shape"]>["size
 
 /** Every node size mode, in schema order. */
 const NODE_SIZE_MODE_VALUES: readonly NodeSizeModeValue[] = NodeSizeModes.options;
+
+/** How a node's drawn size follows the camera: with the scene, at the orbit pivot's depth, or held on screen. */
+type NodeSizeSpaceValue = NonNullable<NonNullable<NodeStyleConfig["shape"]>["sizeSpace"]>;
+
+/** Every node size space, in schema order. */
+const NODE_SIZE_SPACE_VALUES: readonly NodeSizeSpaceValue[] = NodeSizeSpaces.options;
 
 /**
  * How finely a round node shape is drawn (`node.meshDetail`): "full", "low", or a segment count.
@@ -316,6 +328,8 @@ type EdgeSupportScaleValue = NonNullable<NonNullable<EdgeStyleConfig["line"]>["s
 /** The force law an edge's support point settles under (`edge.supportModel`). */
 type EdgeSupportModelValue = NonNullable<NonNullable<EdgeStyleConfig["line"]>["supportModel"]>;
 
+/** Which end node's painted color an edge's line is drawn in (`edge.colorFrom`). */
+type EdgeColorFromValue = NonNullable<NonNullable<EdgeStyleConfig["line"]>["colorFrom"]>;
 /** A value of `edge.route`: the path a line takes between its nodes. */
 type EdgeRouteValue = NonNullable<NonNullable<EdgeStyleConfig["line"]>["route"]>;
 type EdgeGradientKindValue = NonNullable<NonNullable<NonNullable<EdgeStyleConfig["line"]>["gradient"]>["kind"]>;
@@ -361,6 +375,7 @@ export interface ChannelValues {
     "node.color": ColorValue;
     "node.size": number;
     "node.sizeMode": NodeSizeModeValue;
+    "node.sizeSpace": NodeSizeSpaceValue;
     "node.shape": NodeShapeValue;
     "node.label": string;
     "node.labelStyle": LabelStyle;
@@ -374,9 +389,12 @@ export interface ChannelValues {
     "node.labelLocation": LabelLocation;
     "node.labelWrapWidth": number;
     "node.labelWrapTrailingSpace": boolean;
+    "node.labelWrapSkipEndSpace": boolean;
     "node.labelWrapEllipsis": boolean;
     "node.labelWrapAnywhere": boolean;
     "node.labelWrapSpaceCount": number;
+    "node.labelMaxLines": number;
+    "node.labelMaxLinesEllipsis": boolean;
     "node.labelRunAlign": LabelRunAlignValue;
     "node.labelMinScreenSize": number;
     "node.labelOnTop": boolean;
@@ -395,6 +413,15 @@ export interface ChannelValues {
     "node.labelPadding": number;
     "node.labelCornerRadius": number;
     "node.labelLineHeight": number;
+    "node.labelLineBox": LabelLineBoxValue;
+    "node.labelBorderAlign": LabelBorderAlignValue;
+    "node.labelBorderStyle": LabelBorderStyleValue;
+    "node.labelBackgroundShape": LabelBackgroundShapeValue;
+    "node.labelImage": string;
+    "node.labelImageWidth": number;
+    "node.labelImageHeight": number;
+    "node.labelImageOffsetX": number;
+    "node.labelImageOffsetY": number;
     "node.labelOffsetX": number;
     "node.labelOffsetY": number;
     "node.labelShiftX": number;
@@ -406,6 +433,7 @@ export interface ChannelValues {
     "node.tooltipStyle": LabelStyle;
     "node.opacity": number;
     "node.outline": ColorValue;
+    "node.outlineWidth": number;
     "node.glow": ColorValue;
     "node.glowStrength": number;
     "node.halo": boolean;
@@ -476,6 +504,7 @@ export interface ChannelValues {
     "node.labelFitQuantum": number;
     "node.labelFitImage": number;
     "node.labelFitImagePadding": number;
+    "node.imageAspect": boolean;
     "node.gradientColor": ColorValue;
     "node.gradientDirection": number;
     "node.gradientColors": string;
@@ -535,10 +564,16 @@ export interface ChannelValues {
     "node.chartLineWidth": number;
     "node.chartBorderColor": ColorValue;
     "node.chartBorderWidth": number;
+    "node.chartBackgroundColor": ColorValue;
+    "node.chartBackgroundOpacity": number;
     "node.model": string;
     "node.modelSourceUp": NodeModelUpValue;
     "node.modelTurn": number;
-    "node.modelTint": boolean | "replace";
+    "node.modelTint": boolean | "replace" | "untextured";
+    "node.modelDoubleSided": boolean | "file";
+    "node.modelAnimation": string;
+    "node.modelAnimationSpeed": number;
+    "node.modelAnimationOffset": number;
     "node.modelFit": "contain" | "stretch";
     "node.modelCenter": "bounds" | "origin";
     "node.texture": string;
@@ -551,8 +586,10 @@ export interface ChannelValues {
     "node.groupMinHeightBiasTop": number;
     "node.groupIncludeLabels": boolean;
     "edge.color": ColorValue;
+    "edge.colorFrom": EdgeColorFromValue;
     "edge.width": number;
     "edge.minScreenWidth": number;
+    "edge.drawOrder": number;
     "edge.fadeStart": number;
     "edge.fadeEnd": number;
     "edge.fadeOpacity": number;
@@ -574,12 +611,15 @@ export interface ChannelValues {
     "edge.gradientColors": string;
     "edge.gradientStops": string;
     "edge.gradientKind": EdgeGradientKindValue;
+    "edge.strandColors": string;
+    "edge.strandSpacing": number;
     "edge.style": EdgeLineValue;
     "edge.patternCount": number;
     "edge.waveAmplitude": number;
     "edge.wavePeriod": number;
     "edge.dashLength": number;
     "edge.dashGap": number;
+    "edge.dashArray": string;
     "edge.curvature": boolean;
     "edge.bends": string;
     "edge.fanSpacing": number;
@@ -609,6 +649,7 @@ export interface ChannelValues {
     "edge.arrowHeadGap": number;
     "edge.arrowHeadStack": string;
     "edge.arrowHeadColor": ColorValue;
+    "edge.arrowHeadFillColor": ColorValue;
     "edge.arrowHeadOpacity": number;
     "edge.arrowHeadImage": string;
     "edge.arrowHeadText": string;
@@ -632,6 +673,7 @@ export interface ChannelValues {
     "edge.arrowTailGap": number;
     "edge.arrowTailStack": string;
     "edge.arrowTailColor": ColorValue;
+    "edge.arrowTailFillColor": ColorValue;
     "edge.arrowTailOpacity": number;
     "edge.arrowTailImage": string;
     "edge.arrowTailText": string;
@@ -653,6 +695,7 @@ export interface ChannelValues {
     "edge.arrowMiddleHeadOutlineWidth": number;
     "edge.arrowMiddleHeadPosition": number;
     "edge.arrowMiddleHeadColor": ColorValue;
+    "edge.arrowMiddleHeadFillColor": ColorValue;
     "edge.arrowMiddleHeadOpacity": number;
     "edge.arrowMiddleHeadImage": string;
     "edge.arrowMiddleTail": ArrowValue;
@@ -662,6 +705,7 @@ export interface ChannelValues {
     "edge.arrowMiddleTailOutlineWidth": number;
     "edge.arrowMiddleTailPosition": number;
     "edge.arrowMiddleTailColor": ColorValue;
+    "edge.arrowMiddleTailFillColor": ColorValue;
     "edge.arrowMiddleTailOpacity": number;
     "edge.arrowMiddleTailImage": string;
     "edge.animationSpeed": number;
@@ -684,14 +728,18 @@ export interface ChannelValues {
     "node.shaders": readonly ShaderUse[];
     "edge.shaders": readonly ShaderUse[];
     "edge.taper": number;
+    "edge.taperSource": number;
     "edge.lift": number;
     "edge.labelTextAlign": LabelTextAlign;
     "edge.labelLocation": LabelLocation;
     "edge.labelWrapWidth": number;
     "edge.labelWrapTrailingSpace": boolean;
+    "edge.labelWrapSkipEndSpace": boolean;
     "edge.labelWrapEllipsis": boolean;
     "edge.labelWrapAnywhere": boolean;
     "edge.labelWrapSpaceCount": number;
+    "edge.labelMaxLines": number;
+    "edge.labelMaxLinesEllipsis": boolean;
     "edge.labelRunAlign": LabelRunAlignValue;
     "edge.labelMinScreenSize": number;
     "edge.labelOnTop": boolean;
@@ -707,6 +755,15 @@ export interface ChannelValues {
     "edge.labelPadding": number;
     "edge.labelCornerRadius": number;
     "edge.labelLineHeight": number;
+    "edge.labelLineBox": LabelLineBoxValue;
+    "edge.labelBorderAlign": LabelBorderAlignValue;
+    "edge.labelBorderStyle": LabelBorderStyleValue;
+    "edge.labelBackgroundShape": LabelBackgroundShapeValue;
+    "edge.labelImage": string;
+    "edge.labelImageWidth": number;
+    "edge.labelImageHeight": number;
+    "edge.labelImageOffsetX": number;
+    "edge.labelImageOffsetY": number;
     "edge.labelOffsetX": number;
     "edge.labelOffsetY": number;
     "edge.labelShiftX": number;
@@ -719,6 +776,11 @@ export interface ChannelValues {
     "node.xlabelLocation": LabelLocation;
     "node.xlabelOffsetX": number;
     "node.xlabelOffsetY": number;
+    "node.xlabelTextAlign": LabelTextAlign;
+    "node.xlabelColor": ColorValue;
+    "node.xlabelFont": string;
+    "node.xlabelWeight": LabelWeightValue;
+    "node.xlabelItalic": boolean;
     "edge.labelTable": string;
     "edge.xlabel": string;
     "edge.xlabelStyle": LabelStyle;
@@ -728,7 +790,7 @@ export interface ChannelValues {
 }
 
 /**
- * The channels whose value is a colour, and which therefore accept a string when authored.
+ * The channels whose value is a color, and which therefore accept a string when authored.
  *
  * Written out rather than derived, because `never` -- which is what `node.marker` carries --
  * extends every type and would quietly join any union derived by a conditional. The list is tied
@@ -753,9 +815,11 @@ export type ColorChannel =
     | "node.overlayColor"
     | "node.glyphColor"
     | "node.chartBorderColor"
+    | "node.chartBackgroundColor"
     | "node.shapeLineHaloColor"
     | "node.labelOutline"
     | "node.labelBorder"
+    | "node.xlabelColor"
     | "edge.color"
     | "edge.bandColor"
     | "edge.arrowHeadColor"
@@ -768,6 +832,10 @@ export type ColorChannel =
     | "edge.arrowTailTextBackground"
     | "edge.arrowMiddleHeadColor"
     | "edge.arrowMiddleTailColor"
+    | "edge.arrowHeadFillColor"
+    | "edge.arrowTailFillColor"
+    | "edge.arrowMiddleHeadFillColor"
+    | "edge.arrowMiddleTailFillColor"
     | "edge.outlineColor"
     | "edge.underlayColor"
     | "edge.overlayColor"
@@ -780,7 +848,7 @@ export type PaintedValue<C extends Channel> = ChannelValues[C];
 /**
  * What an author may write for one channel.
  *
- * The only difference from {@link PaintedValue} is colour: a person writes "#ff9900" or "orange"
+ * The only difference from {@link PaintedValue} is color: a person writes "#ff9900" or "orange"
  * and the element parses it once, at the edit, rather than once per element per frame.
  */
 export type AuthoredValue<C extends Channel> = C extends ColorChannel ? string | Rgba : ChannelValues[C];
@@ -836,12 +904,12 @@ export interface ChannelDescriptor {
     /**
      * The value the element draws when no layer sets the channel: the element's own default
      * style where it states one, and otherwise what the renderer draws for an unset value. A
-     * colour is `#RRGGBB`. Absent when an unset channel draws nothing at all -- no label, no
+     * color is `#RRGGBB`. Absent when an unset channel draws nothing at all -- no label, no
      * tooltip -- or when the renderer decides per element, as the pattern count does. An effect
      * that is off until a layer switches it on (the outline, the glow) states what it is drawn
-     * with once on and its own value is unset: the renderer's built-in colour and strength.
-     * An arrow cap's colour is the one channel that leans on another: unset, a cap is drawn in its
-     * line's colour, so its default is the line's default and a layer that sets `edge.color`
+     * with once on and its own value is unset: the renderer's built-in color and strength.
+     * An arrow cap's color is the one channel that leans on another: unset, a cap is drawn in its
+     * line's color, so its default is the line's default and a layer that sets `edge.color`
      * moves it too.
      */
     readonly default?: string | number | boolean;
@@ -865,6 +933,12 @@ export interface ChannelDescriptor {
     /** The largest value the renderer draws, when `accepts` is "number" and it is bounded. */
     readonly max?: number;
     /**
+     * Whether it takes whole numbers only, when `accepts` is "number": a line count. An encoding rounds
+     * what it computes for such a channel.
+     * @since 3.40.0
+     */
+    readonly integer?: boolean;
+    /**
      * How many of this channel's numbers make one world unit, on a channel that is a length in the
      * scene rather than on screen: 48 for a label size, so a label of size 48 draws one line,
      * margins included, one world unit tall -- the diameter of a sphere node of size 1 -- and its
@@ -882,14 +956,6 @@ export interface ChannelDescriptor {
      */
     readonly caveat?: string;
     /**
-     * Why the channel cannot be set, as a sentence for a reader beside a disabled control.
-     * Present exactly when `renderable` is false; `caveat` is the longer note for an
-     * implementer. The same field name as `OptionDescriptor.unsupportedReason`.
-     * @deprecated Read {@link ChannelDescriptor.unsupported} and word it in the application.
-     * Removed at the next major release.
-     */
-    readonly unsupportedReason?: string;
-    /**
      * Why the channel cannot be set, as a code with no words. Present exactly when `renderable`
      * is false. `channel.not-drawn`: the element does not draw this channel yet. New codes may be
      * added in a minor release.
@@ -906,8 +972,8 @@ export interface ChannelDescriptor {
      */
     readonly off?: string | number;
     /**
-     * The channel whose value this one takes while no layer sets it: an arrowhead's colour is its
-     * edge's colour until a layer gives it one of its own. Absent on a channel that takes only its
+     * The channel whose value this one takes while no layer sets it: an arrowhead's color is its
+     * edge's color until a layer gives it one of its own. Absent on a channel that takes only its
      * own `default`.
      * @since 3.26.0
      */
@@ -927,8 +993,8 @@ export interface ChannelDescriptor {
     readonly caveatCode?: ChannelCaveatCode;
     /**
      * The channel whose drawn part this one adjusts, on a channel that is a sub-setting of
-     * another: a band's width and opacity modify `edge.bandColor`, an arrowhead's size, colour and
-     * opacity modify `edge.arrowHead`, a label's size, colour, background and style modify its
+     * another: a band's width and opacity modify `edge.bandColor`, an arrowhead's size, color and
+     * opacity modify `edge.arrowHead`, a label's size, color, background and style modify its
      * words (`node.label`). A style editor offers one item per drawn part -- the channels with no
      * `modifies` -- and the channels that modify it as that part's settings. Absent on a channel
      * that is a part of its own.
@@ -948,18 +1014,25 @@ export interface ChannelDescriptor {
      * @experimental file-styles
      */
     readonly feature?: "file-styles";
+    /**
+     * What a list channel's value holds, on a channel whose value is a list of items written
+     * separated by spaces: `"color"` for CSS colors (a gradient's, a pie's slices), `"number"` for
+     * numbers (a gradient's stops, a pie's sizes). Read and write its items with
+     * `readChannelList` and `writeChannelList` from the `./catalog` entry rather than splitting
+     * the text. Absent on every other channel.
+     * @since 3.40.0
+     */
+    readonly listOf?: "color" | "number";
 }
 
 /**
- * A caveat a channel carries, as a code.
- *
- * - `"outline.sharedWidth"`: every outline is drawn at one width, the graph's
- *   `layoutBehavior.node.outlineWidth`; a layer sets an outline's colour and not its width.
+ * A caveat a channel carries, as a code. No channel carries one now: `"outline.sharedWidth"`
+ * (every outline drawn at one width) was retired when `node.outlineWidth` gave each layer its own.
  *
  * More codes may be added in a minor release.
  * @since 3.26.0
  */
-export type ChannelCaveatCode = "outline.sharedWidth";
+export type ChannelCaveatCode = never; // eslint-disable-line sonarjs/redundant-type-aliases -- published; kept so imports still compile
 
 /**
  * The groups a style editor sorts channels into. A node's channels sit in shape, color, effects
@@ -967,12 +1040,12 @@ export type ChannelCaveatCode = "outline.sharedWidth";
  */
 export type ChannelGroup = "shape" | "color" | "effects" | "text" | "line" | "arrows";
 
-/** What an effect colour channel takes to draw nothing: see {@link ChannelDescriptor.off}. */
+/** What an effect color channel takes to draw nothing: see {@link ChannelDescriptor.off}. */
 export const EFFECT_OFF = "none";
 
 /**
- * The value a repaint carries for an effect written off: a colour whose hex is "none", known by
- * identity, so the painter writes nothing for it and no real colour (not even a transparent
+ * The value a repaint carries for an effect written off: a color whose hex is "none", known by
+ * identity, so the painter writes nothing for it and no real color (not even a transparent
  * black) is ever mistaken for it.
  */
 export const OFF_COLOR: ColorValue = Object.freeze({ r: 0, g: 0, b: 0, a: 0, hex: EFFECT_OFF });
@@ -982,7 +1055,7 @@ const BAND_CAVEAT =
     "A wider line drawn behind the edge's own, so the line keeps its paint down the middle and " +
     "the band shows on both sides as a casing.";
 
-/** The colour an outline is drawn in when a style switches one on without naming a colour. */
+/** The color an outline is drawn in when a style switches one on without naming a color. */
 export const DEFAULT_OUTLINE_COLOR = "#FFFF00";
 
 /**
@@ -1003,23 +1076,6 @@ const NODE_HALO_CAVEAT =
     "node. A selected node a layer gives a halo shows one halo: each value the layer sets wins, " +
     "and the selection style (`selectionStyle`) gives the rest. Each distinct color and opacity " +
     "is its own source mesh; the scale is per node.";
-
-/**
- * Why an outline is a colour and nothing else, written once and read in two places.
- *
- * It is `node.outline`'s caveat. A caveat is not shelf decoration: `Layer.ts` and `encoding.ts`
- * quote the caveat of a channel when they refuse a value for it, so this is the sentence a
- * consumer gets back in the refusal rather than one they have to go looking for. The element's
- * natural-language layer now quotes the same sentence when someone asks for an outline WIDTH
- * (`src/ai/commands/StyleCommands.ts`), because a request the element cannot carry out deserves
- * the same explanation however it arrived -- and two copies of it would be two answers to one
- * question the day either is edited.
- */
-export const NODE_OUTLINE_CAVEAT =
-    "An outline has a colour and no width. It is drawn as a ring around the node whose width is " +
-    "a fixed share of the node's own size, so every outline is drawn at that width whatever a " +
-    "style asks for -- which is why the node style declares no outline width to ask with. The " +
-    "outline's COLOUR is per style.";
 
 /**
  * What an arrow caption narrows, written once and read by all four caption channels.
@@ -1059,6 +1115,12 @@ const EDGE_GRADIENT_CAVEAT =
     'spaced), and `edge.gradientKind` "linear" from the source end to the target end, "radial" out from ' +
     'the line\'s middle to both ends, or "none". Fewer than two colors draw none. Drawn on solid lines.';
 
+const EDGE_STRANDS_CAVEAT =
+    "Draws the line as parallel strands side by side in place of its `edge.color`: `edge.strandColors` are CSS " +
+    "colors separated by spaces, the first strand on the right of the line's direction from source to target and " +
+    "the last on its left, each drawn over the one before, and `edge.strandSpacing` how far apart their middles " +
+    "are in line widths (1: strands that touch). Fewer than two colors draw the line as it is. Drawn on solid lines.";
+
 /** How an edge's gradient runs, or that it has none. */
 const EDGE_GRADIENT_KIND_VALUES: readonly EdgeGradientKindValue[] = ["linear", "radial", "none"];
 
@@ -1083,6 +1145,7 @@ const EDGE_SUPPORT_MODEL_VALUES: readonly EdgeSupportModelValue[] = ["barnesHut"
 const EDGE_SUPPORT_SCALE_VALUES: readonly EdgeSupportScaleValue[] = ["unit", "drawing"];
 const SUPPORT_CAVEAT = " Only an edge with an `edge.supportModel` has a support point; any other ignores it.";
 const EDGE_ROUTE_VALUES: readonly EdgeRouteValue[] = ["straight", "arc", "great-circle"];
+const EDGE_COLOR_FROM_VALUES: readonly EdgeColorFromValue[] = ["none", "source", "target"];
 
 const EDGE_OUTLINE_CAVEAT =
     "A band drawn under the edge's line along its whole length, `edge.outlineWidth` wider than the " +
@@ -1141,7 +1204,8 @@ const NODE_CHART_CAVEAT =
     "centered on the node or moved by `node.chartOffsetX` / `-Y` (in the units of `node.size`, y down); the values run from `node.chartMin` to `node.chartMax` bottom to top (left to right with " +
     "`node.chartHorizontal`), the categories along the other side after `node.chartMargin` at each end and " +
     "`node.chartGap` between them, both shares of that side. `node.chartLineWidth` is a line's and a " +
-    "whisker's width, `node.chartBorderWidth` and `node.chartBorderColor` a bar's and a box's outline.";
+    "whisker's width, `node.chartBorderWidth` and `node.chartBorderColor` a bar's and a box's outline, and " +
+    "`node.chartBackgroundColor` at `node.chartBackgroundOpacity` fills the plot box under the chart (unset, none).";
 
 const NODE_PIE_CAVEAT =
     "A pie chart over the node's face: `node.pieColors` are CSS colors separated by spaces, one slice " +
@@ -1204,22 +1268,22 @@ const NODE_TOOLTIP_CAVEAT =
     "Only a NODE has a tooltip; `edge.tooltip` was withdrawn in 2.0 because an edge cannot be hovered.";
 
 /**
- * The colour an edge's line is drawn in by default, which is also the colour of both arrow caps:
- * an unset cap colour follows the line it caps.
+ * The color an edge's line is drawn in by default, which is also the color of both arrow caps:
+ * an unset cap color follows the line it caps.
  */
 const EDGE_LINE_DEFAULT_COLOR =
     typeof defaultEdgeStyle.line?.color === "string" ? colorToHex(defaultEdgeStyle.line.color) : undefined;
 
 /** The eight channels of one arrow end: `edge.arrowHead`, `edge.arrowHeadSize` and so on. */
 type ArrowEndChannel<End extends "Head" | "Tail"> =
-    `edge.arrow${End}${"" | "Size" | "Width" | "Side" | "OutlineWidth" | "Position" | "Gap" | "Stack" | "Color" | "Opacity" | "Image" | "Text" | "TextStyle" | "TextSize" | "TextLetterSize" | "TextFont" | "TextColor" | "TextWeight" | "TextOpacity" | "TextDistance" | "TextRotation" | "TextOffsetX" | "TextOffsetY"}`;
+    `edge.arrow${End}${"" | "Size" | "Width" | "Side" | "OutlineWidth" | "Position" | "Gap" | "Stack" | "Color" | "FillColor" | "Opacity" | "Image" | "Text" | "TextStyle" | "TextSize" | "TextLetterSize" | "TextFont" | "TextColor" | "TextWeight" | "TextOpacity" | "TextDistance" | "TextRotation" | "TextOffsetX" | "TextOffsetY"}`;
 
 /**
  * The eight channels of one arrow end, in table order. The head's and the tail's differ only in
  * their names, their style paths and the tail's type default (an edge of a directed graph draws a head and no tail),
  * so they are written once here and a change to one end cannot miss the other.
  * @param end - Which end of the edge.
- * @returns The end's channels: type, size, position, colour, opacity, caption and caption style.
+ * @returns The end's channels: type, size, position, color, opacity, caption and caption style.
  */
 function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEndChannel<End>, ChannelDescriptor> {
     const id = (suffix: string): { channel: Channel; target: "edge" } => ({
@@ -1308,12 +1372,11 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
             group: "arrows",
             default: 0,
             accepts: "number",
-            min: 0,
             stylePath: `arrow${end}.gap`,
             renderable: true,
             caveat:
                 "How far from its node the cap is drawn, as a multiple of the cap's own length along its line; the " +
-                "line stops there too. 0 puts the cap against the node.",
+                "line stops there too. 0 puts the cap against the node; below 0 it overlaps the node.",
         },
         {
             ...id("Stack"),
@@ -1341,6 +1404,18 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
             follows: "edge.color",
             stylePath: `arrow${end}.color`,
             renderable: true,
+        },
+        {
+            ...id("FillColor"),
+            plainName: `Arrow ${end} Fill Color`,
+            shortName: `${end} fill color`,
+            group: "arrows",
+            accepts: "color",
+            stylePath: `arrow${end}.fillColor`,
+            renderable: true,
+            caveat:
+                "The color an open cap's inside is filled with, inside its outline, which keeps the cap's color. " +
+                "Unset, the inside is empty. Only open caps draw it.",
         },
         {
             ...id("Opacity"),
@@ -1392,6 +1467,7 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
             shortName: `${end} caption size`,
             group: "arrows",
             accepts: "number",
+            min: 1,
             stylePath: `arrow${end}.text.fontSize`,
             renderable: true,
             caveat: ARROW_CAPTION_CAVEAT,
@@ -1500,13 +1576,13 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
 
 /** The six channels of a cap drawn part-way along the line: `edge.arrowMiddleHead`, `edge.arrowMiddleHeadSize` and so on. */
 type ArrowMidChannel<End extends "MiddleHead" | "MiddleTail"> =
-    `edge.arrow${End}${"" | "Size" | "Width" | "Side" | "OutlineWidth" | "Position" | "Color" | "Opacity" | "Image"}`;
+    `edge.arrow${End}${"" | "Size" | "Width" | "Side" | "OutlineWidth" | "Position" | "Color" | "FillColor" | "Opacity" | "Image"}`;
 
 /**
  * The channels of a cap drawn part-way along the line, pointing toward the target (`MiddleHead`) or the source
  * (`MiddleTail`): the end cap's own, less its caption, with no cap and the middle of the line by default.
  * @param end - Which of the two.
- * @returns Its channels: type, size, width, position, colour and opacity.
+ * @returns Its channels: type, size, width, position, color and opacity.
  */
 function arrowMidChannels<End extends "MiddleHead" | "MiddleTail">(
     end: End,
@@ -1537,7 +1613,7 @@ function arrowMidChannels<End extends "MiddleHead" | "MiddleTail">(
 
 /** The label channels that write one field of a label style. */
 type LabelFieldChannel<Target extends "node" | "edge"> =
-    `${Target}.label${"Color" | "Size" | "LetterSize" | "Font" | "Weight" | "Italic" | "WrapWidth" | "WrapTrailingSpace" | "WrapEllipsis" | "WrapAnywhere" | "WrapSpaceCount" | "RunAlign" | "MinScreenSize" | "OnTop" | "Rotation" | "Background" | "Outline" | "OutlineWidth" | "Border" | "BorderWidth" | "Opacity" | "BackgroundOpacity" | "OutlineOpacity" | "BorderOpacity" | "Padding" | "CornerRadius" | "LineHeight" | "OffsetX" | "OffsetY" | "ShiftX" | "ShiftY" | "ShiftOf" | "GapOf" | "Box"}`;
+    `${Target}.label${"Color" | "Size" | "LetterSize" | "Font" | "Weight" | "Italic" | "WrapWidth" | "WrapTrailingSpace" | "WrapSkipEndSpace" | "WrapEllipsis" | "WrapAnywhere" | "WrapSpaceCount" | "MaxLines" | "MaxLinesEllipsis" | "RunAlign" | "MinScreenSize" | "OnTop" | "Rotation" | "Background" | "Outline" | "OutlineWidth" | "Border" | "BorderWidth" | "Opacity" | "BackgroundOpacity" | "OutlineOpacity" | "BorderOpacity" | "Padding" | "CornerRadius" | "LineHeight" | "LineBox" | "BorderAlign" | "BorderStyle" | "BackgroundShape" | "Image" | "ImageWidth" | "ImageHeight" | "ImageOffsetX" | "ImageOffsetY" | "OffsetX" | "OffsetY" | "ShiftX" | "ShiftY" | "ShiftOf" | "GapOf" | "Box"}`;
 
 /** The field of a label style each label field channel writes, by the channel's suffix. */
 const LABEL_FIELD_OF_SUFFIX = {
@@ -1549,9 +1625,12 @@ const LABEL_FIELD_OF_SUFFIX = {
     Italic: "italic",
     WrapWidth: "wrapWidth",
     WrapTrailingSpace: "wrapTrailingSpace",
+    WrapSkipEndSpace: "wrapSkipEndSpace",
     WrapEllipsis: "wrapEllipsis",
     WrapAnywhere: "wrapAnywhere",
     WrapSpaceCount: "wrapSpaceCount",
+    MaxLines: "maxLines",
+    MaxLinesEllipsis: "maxLinesEllipsis",
     RunAlign: "runAlign",
     MinScreenSize: "minScreenSize",
     OnTop: "onTop",
@@ -1568,6 +1647,15 @@ const LABEL_FIELD_OF_SUFFIX = {
     Padding: "boxPadding",
     CornerRadius: "cornerRadius",
     LineHeight: "lineHeight",
+    LineBox: "lineBox",
+    BorderAlign: "borderAlign",
+    BorderStyle: "borderStyle",
+    BackgroundShape: "backgroundShape",
+    Image: "image",
+    ImageWidth: "imageWidth",
+    ImageHeight: "imageHeight",
+    ImageOffsetX: "imageOffsetX",
+    ImageOffsetY: "imageOffsetY",
     OffsetX: "offsetX",
     OffsetY: "offsetY",
     ShiftX: "shiftX",
@@ -1721,14 +1809,14 @@ function labelFieldChannels<Target extends "node" | "edge">(
     });
     const rows = [
         row("Color", "Color", { accepts: "color" }),
-        // No minimum: a channel takes exactly the numbers its schema path (`label.fontSize`) takes.
-        row("Size", "Size", { accepts: "number" }),
+        row("Size", "Size", { accepts: "number", min: 1 }),
         row("LetterSize", "Letter Size", { accepts: "number", min: 0 }),
         row("Font", "Font", { accepts: "text" }),
         row("Weight", "Weight", { accepts: "enum", values: LABEL_WEIGHT_VALUES }),
         row("Italic", "Italic", { accepts: "boolean" }),
         row("WrapWidth", "Wrap Width", { accepts: "number", min: 0 }),
         row("WrapTrailingSpace", "Wrap Trailing Space", { accepts: "boolean" }),
+        row("WrapSkipEndSpace", "Wrap Skip End Space", { accepts: "boolean" }),
         row("WrapEllipsis", "Wrap Ellipsis", {
             accepts: "boolean",
             caveat: "A line wider than the wrap width is cut to fit, with an ellipsis after it, in place of wrapping.",
@@ -1743,6 +1831,18 @@ function labelFieldChannels<Target extends "node" | "edge">(
             caveat:
                 "How many blanks one blank between two words counts as against the wrap width; it is still " +
                 "drawn once. Unset, one.",
+        }),
+        row("MaxLines", "Max Lines", {
+            accepts: "number",
+            min: 1,
+            integer: true,
+            caveat: "The most lines drawn; the lines past it are cut. Unset, every line.",
+        }),
+        row("MaxLinesEllipsis", "Max Lines Ellipsis", {
+            accepts: "boolean",
+            caveat:
+                "Whether the last line Max Lines keeps runs on with the rest of its line, cut with an ellipsis; " +
+                "off, the lines past it are dropped as they are. Unset, on.",
         }),
         row("RunAlign", "Run Align", {
             accepts: "enum",
@@ -1826,6 +1926,63 @@ function labelFieldChannels<Target extends "node" | "edge">(
                 "How tall one line of the label is, as a multiple of its font's ascent plus descent: 1 is a line " +
                 "box exactly as tall as the font. Unset, 1.2.",
         }),
+        row("LineBox", "Line Box", {
+            accepts: "enum",
+            values: LABEL_LINE_BOX_VALUES,
+            caveat:
+                'What one line of the label is as tall as, before Line Height multiplies it: "font", its font\'s ' +
+                'ascent plus descent; "size", its font size, as CSS and Cytoscape.js measure a line, the letters ' +
+                'reaching past it; "glyphs", its letters\' own ink, as Cytoscape.js `text-metrics: glyph` does. ' +
+                'Unset, "font".',
+        }),
+        row("BorderAlign", "Border Align", {
+            accepts: "enum",
+            values: LABEL_BORDER_ALIGN_VALUES,
+            caveat:
+                'Where the line round the panel behind the label\'s words is drawn: "outside", all of it past the ' +
+                'panel\'s edge; "center", centered on that edge, half over the panel, as a canvas strokes a box ' +
+                '(a double border\'s outer line; its inner line lies inside the panel). Unset, "outside".',
+        }),
+        row("BorderStyle", "Border Style", {
+            accepts: "enum",
+            values: LABEL_BORDER_STYLE_VALUES,
+            caveat:
+                'How the line round the panel behind the label\'s words is drawn: "solid", one line; "double", the ' +
+                "line drawn again inside it, one line's width in, as Cytoscape.js draws a double text border. " +
+                'Unset, "solid".',
+        }),
+        row("BackgroundShape", "Background Shape", {
+            accepts: "enum",
+            values: LABEL_BACKGROUND_SHAPE_VALUES,
+            caveat:
+                'The shape of the panel behind the label\'s words and its border: "rectangle" (rounded by Corner ' +
+                'Radius), or "circle", a disc as wide as the panel is tall, or as tall as it is wide, whichever is ' +
+                'less, centered on it. Unset, "rectangle".',
+        }),
+        row("Image", "Image", {
+            accepts: "text",
+            caveat:
+                "The URL of a picture drawn in the label beside or behind its words (yEd's label icon), centered on " +
+                "the words' middle unless Image Offset X and Y move it. Unset, none.",
+        }),
+        row("ImageWidth", "Image Width", {
+            accepts: "number",
+            min: 0,
+            caveat: "How wide the label's picture is drawn, in the label's units (its font size's). Unset, its font size.",
+        }),
+        row("ImageHeight", "Image Height", {
+            accepts: "number",
+            min: 0,
+            caveat: "How tall the label's picture is drawn, in the label's units. Unset, its font size.",
+        }),
+        row("ImageOffsetX", "Image Offset X", {
+            accepts: "number",
+            caveat: "How far right of the words' middle the label's picture's middle is, in the label's units.",
+        }),
+        row("ImageOffsetY", "Image Offset Y", {
+            accepts: "number",
+            caveat: "How far below the words' middle the label's picture's middle is, in the label's units.",
+        }),
         row("OffsetX", "Offset X", {
             accepts: "number",
             caveat: "How far the label is moved to the right of where its location puts it, in the scene's units.",
@@ -1879,47 +2036,45 @@ function labelFieldChannels<Target extends "node" | "edge">(
 
 /** Where each label field lands in a parsed style's label block, in the renderer's spelling. */
 const LABEL_STYLE_PATH_OF_SUFFIX: Readonly<Record<keyof typeof LABEL_FIELD_OF_SUFFIX, string>> = {
+    ...LABEL_FIELD_OF_SUFFIX,
     Color: "textColor",
     Size: "fontSize",
-    LetterSize: "letterSize",
-    Font: "font",
     Weight: "fontWeight",
     Italic: "fontStyle",
-    WrapWidth: "wrapWidth",
-    WrapTrailingSpace: "wrapTrailingSpace",
-    WrapEllipsis: "wrapEllipsis",
-    WrapAnywhere: "wrapAnywhere",
-    WrapSpaceCount: "wrapSpaceCount",
-    RunAlign: "runAlign",
-    MinScreenSize: "minScreenSize",
-    OnTop: "onTop",
-    Rotation: "rotation",
     Background: "backgroundColor",
     Outline: "textOutlineColor",
     OutlineWidth: "textOutlineWidth",
-    Border: "borderColor",
-    BorderWidth: "borderWidth",
     Opacity: "textOpacity",
-    BackgroundOpacity: "backgroundOpacity",
     OutlineOpacity: "textOutlineOpacity",
-    BorderOpacity: "borderOpacity",
-    Padding: "boxPadding",
-    CornerRadius: "cornerRadius",
-    LineHeight: "lineHeight",
-    OffsetX: "offsetX",
-    OffsetY: "offsetY",
-    ShiftX: "shiftX",
-    ShiftY: "shiftY",
-    ShiftOf: "shiftOf",
-    GapOf: "gapOf",
-    Box: "box",
 };
 
 /** Every weight the `labelWeight` channels take. */
-const LABEL_WEIGHT_VALUES: readonly LabelWeightValue[] = ["normal", "bold"];
+const LABEL_WEIGHT_VALUES: readonly LabelWeightValue[] = [
+    "normal",
+    "bold",
+    "100",
+    "200",
+    "300",
+    "500",
+    "600",
+    "800",
+    "900",
+];
 
 /** Every place the `labelRunAlign` channels take. */
 const LABEL_RUN_ALIGN_VALUES: readonly LabelRunAlignValue[] = ["baseline", "hanging", "middle"];
+
+/** Every value the `labelLineBox` channels take. */
+const LABEL_LINE_BOX_VALUES: readonly LabelLineBoxValue[] = ["font", "size", "glyphs"];
+
+/** Every value the `labelBorderAlign` channels take. */
+const LABEL_BORDER_ALIGN_VALUES: readonly LabelBorderAlignValue[] = ["outside", "center"];
+
+/** Every value the `labelBorderStyle` channels take. */
+const LABEL_BORDER_STYLE_VALUES: readonly LabelBorderStyleValue[] = ["solid", "double"];
+
+/** Every value the `labelBackgroundShape` channels take. */
+const LABEL_BACKGROUND_SHAPE_VALUES: readonly LabelBackgroundShapeValue[] = ["rectangle", "circle"];
 
 /** Every value the `labelShiftOf` channels take. */
 const LABEL_SHIFT_OF_VALUES: readonly LabelShiftOfValue[] = ["box", "words"];
@@ -1949,6 +2104,37 @@ const NODE_LABEL_MIN_NODE_SCREEN_SIZE: ChannelDescriptor = {
         "never hides its label.",
 };
 
+/** The external label's own look channels, each one field of `node.xlabelStyle`. */
+const XLABEL_LOOK = /^node\.xlabel(Color|Font|Weight|Italic)$/;
+type XlabelLookSuffix = "Color" | "Font" | "Weight" | "Italic";
+
+/**
+ * One of the external label's own look channels: a field of its style, unset the label's.
+ * @param suffix - The field's suffix.
+ * @param accepts - What it takes.
+ * @param path - Where it lands in the parsed style's external label block.
+ * @param what - What it sets, for the caveat.
+ * @returns The descriptor.
+ */
+function xlabelLook(
+    suffix: XlabelLookSuffix,
+    accepts: ChannelDescriptor["accepts"],
+    path: string,
+    what: string,
+): ChannelDescriptor {
+    return {
+        channel: `node.xlabel${suffix}` as Channel,
+        target: "node",
+        plainName: `Node External Label ${suffix}`,
+        shortName: `External label ${suffix.toLowerCase()}`,
+        group: "text",
+        accepts,
+        stylePath: `xlabel.${path}`,
+        renderable: true,
+        caveat: `The external label's own ${what}, one field of its style (\`node.xlabelStyle\`). Unset, the label's.`,
+    };
+}
+
 /**
  * Where a label field channel writes: the label style channel it lands in and the field.
  * @param channel - Any channel.
@@ -1967,12 +2153,17 @@ export function labelFieldOf(channel: Channel): { readonly into: Channel; readon
         return { into: channel === "node.labelLocation" ? "node.labelStyle" : "edge.labelStyle", field: "location" };
     }
 
+    const own = XLABEL_LOOK.exec(channel);
+    if (own !== null) {
+        return { into: "node.xlabelStyle", field: LABEL_FIELD_OF_SUFFIX[own[1] as XlabelLookSuffix] };
+    }
+
     if (channel === "node.labelTextAlign" || channel === "edge.labelTextAlign") {
         return { into: channel === "node.labelTextAlign" ? "node.labelStyle" : "edge.labelStyle", field: "textAlign" };
     }
 
     const match =
-        /^(node|edge)\.label(Color|Size|LetterSize|Font|Weight|Italic|WrapWidth|WrapTrailingSpace|WrapEllipsis|WrapAnywhere|WrapSpaceCount|RunAlign|MinScreenSize|OnTop|Rotation|Background|Outline|OutlineWidth|Border|BorderWidth|Opacity|BackgroundOpacity|OutlineOpacity|BorderOpacity|Padding|CornerRadius|LineHeight|OffsetX|OffsetY|ShiftX|ShiftY|ShiftOf|GapOf|Box)$/.exec(
+        /^(node|edge)\.label(Color|Size|LetterSize|Font|Weight|Italic|WrapWidth|WrapTrailingSpace|WrapSkipEndSpace|WrapEllipsis|WrapAnywhere|WrapSpaceCount|MaxLines|MaxLinesEllipsis|RunAlign|MinScreenSize|OnTop|Rotation|Background|Outline|OutlineWidth|Border|BorderWidth|Opacity|BackgroundOpacity|OutlineOpacity|BorderOpacity|Padding|CornerRadius|LineHeight|LineBox|BorderAlign|BorderStyle|BackgroundShape|Image|ImageWidth|ImageHeight|ImageOffsetX|ImageOffsetY|OffsetX|OffsetY|ShiftX|ShiftY|ShiftOf|GapOf|Box)$/.exec(
             channel,
         );
 
@@ -2096,7 +2287,7 @@ const VISIBLE_CAVEAT =
 const LABEL_SIZE_PER_WORLD_UNIT = 48;
 
 /**
- * The three looks of one block of words that vary per element: size, text colour and background.
+ * The three looks of one block of words that vary per element: size, text color and background.
  *
  * The same three fields sit in the block's label style; these channels exist so a layer can bind
  * them to a value (label size by degree), which a label style -- one shared bag of fields -- cannot.
@@ -2128,8 +2319,7 @@ function textLookChannels<Base extends string>(
             shortName: `${shortName} size`,
             default: LABEL_SIZE_PER_WORLD_UNIT,
             accepts: "number",
-            // No min: the channel takes every number its style schema takes. A size under 1 draws
-            // no text (MIN_DRAWN_FONT_SIZE), and a layer that writes one is told W_TEXT_TOO_SMALL.
+            min: 1,
             perWorldUnit: LABEL_SIZE_PER_WORLD_UNIT,
             stylePath: `${block}.fontSize`,
         },
@@ -2370,6 +2560,18 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         stylePath: "shape.sizeMode",
         renderable: true,
     },
+    "node.sizeSpace": {
+        channel: "node.sizeSpace",
+        target: "node",
+        plainName: "Node Size Space",
+        shortName: "Size space",
+        group: "shape",
+        default: "scene",
+        accepts: "enum",
+        values: NODE_SIZE_SPACE_VALUES,
+        stylePath: "shape.sizeSpace",
+        renderable: true,
+    },
     "node.shape": {
         channel: "node.shape",
         target: "node",
@@ -2447,14 +2649,27 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         plainName: "Node Outline",
         shortName: "Outline",
         group: "effects",
-        // The colour an outline is drawn in when a style switches one on without naming one.
+        // The color an outline is drawn in when a style switches one on without naming one.
         default: DEFAULT_OUTLINE_COLOR,
         accepts: "color",
         stylePath: "effect.outline.color",
         off: EFFECT_OFF,
         renderable: true,
-        caveat: NODE_OUTLINE_CAVEAT,
-        caveatCode: "outline.sharedWidth",
+    },
+    "node.outlineWidth": {
+        channel: "node.outlineWidth",
+        target: "node",
+        plainName: "Node Outline Width",
+        shortName: "Outline width",
+        group: "effects",
+        // What an outline with no width is drawn at when the graph sets none
+        // (`layoutBehavior.node.outlineWidth`): the ring's own band. A width alone draws nothing.
+        default: 1,
+        accepts: "number",
+        min: 0,
+        max: 10,
+        stylePath: "effect.outline.width",
+        renderable: true,
     },
     "node.glow": {
         channel: "node.glow",
@@ -2601,14 +2816,14 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         plainName: "Node Marker",
         shortName: "Marker",
         group: "effects",
-        unsupportedReason: "The element draws no marker yet",
         unsupported: { code: "channel.not-drawn", params: {} },
         accepts: "nothing",
         stylePath: "texture.icon",
         renderable: false,
         caveat:
-            "The element draws no marker. texture.icon is in the node schema and no renderer " +
-            "reads it, and the badge vocabulary belongs to a label rather than to a node.",
+            "Reserved for markers the element draws itself; a layer cannot write it. A picture or an " +
+            "icon on a node is `node.image` (a URL or data: URL over the node's face), `node.glyph` " +
+            "(an icon-font character) or `node.texture` (a picture as the shape's surface).",
     },
     "node.width": extentChannel("width", "x"),
     "node.height": extentChannel("height", "y"),
@@ -2658,7 +2873,8 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         caveat:
             "Drawing order in a 2D view, from -1000 to 0. A node below 0 is drawn " +
             "behind every edge and every node with a higher z-index, so a group (compound) node " +
-            "drawn at -1 never hides its members. 3D views draw by real depth and ignore it.",
+            "drawn at -1 never hides its members. A 3D view moves a flat shape back the same way and " +
+            "draws a solid one by real depth.",
     },
     "node.drawOrder": {
         channel: "node.drawOrder",
@@ -3590,6 +3806,31 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         renderable: true,
         caveat: NODE_CHART_CAVEAT,
     },
+    "node.chartBackgroundColor": {
+        channel: "node.chartBackgroundColor",
+        target: "node",
+        plainName: "Node Chart Background Color",
+        shortName: "Chart background color",
+        group: "shape",
+        accepts: "color",
+        stylePath: "chart.backgroundColor",
+        renderable: true,
+        caveat: NODE_CHART_CAVEAT,
+    },
+    "node.chartBackgroundOpacity": {
+        channel: "node.chartBackgroundOpacity",
+        target: "node",
+        plainName: "Node Chart Background Opacity",
+        shortName: "Chart background opacity",
+        group: "shape",
+        default: 1,
+        accepts: "number",
+        min: 0,
+        max: 1,
+        stylePath: "chart.backgroundOpacity",
+        renderable: true,
+        caveat: NODE_CHART_CAVEAT,
+    },
     "node.groupPadding": {
         channel: "node.groupPadding",
         target: "node",
@@ -3854,13 +4095,16 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "The label laid out as a table of cells, as an HTML-like table is: JSON " +
             '`{ "rows": [{ "cells": [{ "lines": [{ "text": "a" }] }, { "lines": [{ "text": "b" }] }] }] }` is two ' +
             "cells side by side. The table may give `border`, `cellBorder`, `cellSpacing`, `cellPadding`, " +
-            "`width`, `height`, `fixedSize`, `align`, `valign`, `lineHeight` (a text line's height as a multiple " +
+            "`width`, `height`, `fixedSize`, `align`, `valign`, `radius` (how round its outline's and its " +
+            "background's corners are, at most a third of its shorter side), `lineHeight` (a text line's height as a multiple " +
             "of the label's size, or `\"font\"`: its font's ascent plus descent, each rounded up to whole " +
             "`textPixel`s when that is given) and `baseline` (how far a line's baseline sits below its top, as a " +
             "multiple of the label's size; unset, its words are centered in it); a row `rule` (a line above it); a cell `colspan`, `rowspan`, `width`, " +
             "`height`, `fixedSize`, `align` (`left`, `right`, `center`, `text`), `valign`, `balign`, `border`, " +
             "`padding`, `rule` (a line on its left), `hidden` (keeps its room, draws nothing) and a `table` of its own in place " +
-            "of `lines`; a line `align`. " +
+            "of `lines`; a line `align`. A table or a cell may give `fill` (its background color), and with it " +
+            "`fillGradient` (the color its background blends to) and `fillGradientAngle` (which way, in degrees " +
+            "clockwise from left to right, as a node's gradient fill runs). " +
             "Lengths are in the units of `node.size`, a line's `text` in label markup. Drawn in place of the " +
             "label's words, in the label's font: each cell's outline a line in the border's color " +
             "(`node.shapeLineWidth` wide, else the cell's border), each text line in its place. With " +
@@ -3989,6 +4233,23 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         caveat:
             "The room on each side of a picture a node holds (`node.labelFitImage`), in the units of its size. " +
             "Without `node.labelFitImage` it changes nothing.",
+    },
+    "node.imageAspect": {
+        channel: "node.imageAspect",
+        target: "node",
+        plainName: "Node Image Aspect",
+        shortName: "Image aspect",
+        group: "shape",
+        default: false,
+        accepts: "boolean",
+        stylePath: "shape.imageAspect",
+        renderable: true,
+        caveat:
+            "The node takes its picture's (`node.image`) proportions: its box grows the longer way until the " +
+            "picture, at its own proportions, covers the node's width and height, as vis-network sizes an image " +
+            "node to its picture. The node is fitted again once the picture is read; until then, and for a " +
+            "picture that cannot be read, it keeps its own box. A node that grows to hold its label " +
+            "(`node.labelFit`) is sized by that instead.",
     },
     "node.gradientColor": {
         channel: "node.gradientColor",
@@ -4143,13 +4404,75 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         group: "color",
         default: "false",
         accepts: "enum",
-        values: ["false", "true", "replace"],
+        values: ["false", "true", "untextured", "replace"],
         stylePath: "shape.modelTint",
         renderable: true,
         caveat:
             "A model keeps its own colors unless this is set: true multiplies the model's base " +
-            'color by `node.color`, and "replace" paints every material in `node.color`. Takes ' +
-            'true, false or "replace".',
+            'color by `node.color`, "untextured" paints the parts with no picture and no vertex ' +
+            'colors in `node.color` and leaves the rest, and "replace" paints every material in ' +
+            "`node.color`. A part the file gives no material (or one left at its defaults: white, with " +
+            "no picture, map or glow), no picture and no vertex colors takes " +
+            '`node.color` whatever this says. Takes true, false, "untextured" or "replace".',
+    },
+    "node.modelAnimation": {
+        channel: "node.modelAnimation",
+        target: "node",
+        plainName: "Node Model Animation",
+        shortName: "Model animation",
+        group: "shape",
+        accepts: "text",
+        stylePath: "shape.modelAnimation",
+        renderable: true,
+        caveat:
+            "The clip a model plays, by its name in the file (the asset's summary lists them as " +
+            '`animations`); unset or "" draws the model still, in its rest pose. A name the file does not ' +
+            "have draws the first frame of its first clip and reports `W_MODEL_ANIMATION_UNKNOWN`.",
+    },
+    "node.modelAnimationSpeed": {
+        channel: "node.modelAnimationSpeed",
+        target: "node",
+        plainName: "Node Model Animation Speed",
+        shortName: "Animation speed",
+        group: "shape",
+        default: 1,
+        accepts: "number",
+        min: 0,
+        max: 16,
+        stylePath: "shape.modelAnimationSpeed",
+        renderable: true,
+        caveat: "How fast `node.modelAnimation` plays: 1 is the file's speed; 0 holds the pose at `node.modelAnimationOffset`.",
+    },
+    "node.modelAnimationOffset": {
+        channel: "node.modelAnimationOffset",
+        target: "node",
+        plainName: "Node Model Animation Start",
+        shortName: "Animation start",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        min: 0,
+        stylePath: "shape.modelAnimationOffset",
+        renderable: true,
+        caveat:
+            "Seconds into the clip a node starts at, so nodes need not move in step; with " +
+            "`node.modelAnimationSpeed` 0, the pose the node holds.",
+    },
+    "node.modelDoubleSided": {
+        channel: "node.modelDoubleSided",
+        target: "node",
+        plainName: "Node Model Double Sided",
+        shortName: "Model double-sided",
+        group: "shape",
+        default: "file",
+        accepts: "enum",
+        values: ["file", "true", "false"],
+        stylePath: "shape.modelDoubleSided",
+        renderable: true,
+        caveat:
+            'Whether the back of each triangle is drawn: "file" keeps each material\'s own choice, true ' +
+            "draws both faces (an OBJ, STL or PLY whose inside shows through where faces are missing), " +
+            "false draws only the front.",
     },
     "node.modelFit": {
         channel: "node.modelFit",
@@ -4204,6 +4527,23 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         stylePath: "line.color",
         renderable: true,
     },
+    "edge.colorFrom": {
+        channel: "edge.colorFrom",
+        target: "edge",
+        plainName: "Edge Color From Node",
+        shortName: "Color from",
+        group: "line",
+        accepts: "enum",
+        values: EDGE_COLOR_FROM_VALUES,
+        default: "none",
+        stylePath: "line.colorFrom",
+        renderable: true,
+        caveat:
+            'Draws the line in the color the layers painted one of its nodes, in place of `edge.color`: "source" ' +
+            "its source node's, \"target\" its target node's. It follows the node: a later layer that recolors the " +
+            'node recolors the line. An end node no layer colored leaves the line its own `edge.color`. "none", ' +
+            "the default, draws the line in its own `edge.color`.",
+    },
     "edge.width": {
         channel: "edge.width",
         target: "edge",
@@ -4230,6 +4570,24 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "The fewest screen pixels wide the line is drawn, at any zoom: a line whose `edge.width` comes to " +
             "less on screen, a width of 0 included, is drawn this wide, as sigma.js draws every edge at least " +
             "its `minEdgeThickness`. Unset or 0, the line is drawn at its width alone.",
+    },
+    "edge.drawOrder": {
+        channel: "edge.drawOrder",
+        target: "edge",
+        plainName: "Edge Draw Order",
+        shortName: "Draw order",
+        group: "line",
+        accepts: "number",
+        min: 0,
+        max: 100,
+        stylePath: "line.drawOrder",
+        renderable: true,
+        caveat:
+            "Which of two crossing lines is drawn on top, from 0 to 100: the higher one. A line with none is " +
+            "drawn over every line with one, and lines with none keep the order they always had, so give one " +
+            "to every line that may cross (a file's Cytoscape.js z-index sets it on every edge). A line drawn " +
+            "as a row of shapes (dots, stars, boxes) keeps its own order, and no order moves a line in front of " +
+            "a node.",
     },
     "edge.opacity": {
         channel: "edge.opacity",
@@ -4309,7 +4667,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         plainName: "Edge Band Color",
         shortName: "Band",
         group: "line",
-        // The selection look's blue: a band is drawn only once a layer names a colour.
+        // The selection look's blue: a band is drawn only once a layer names a color.
         default: "#0077BB",
         accepts: "color",
         stylePath: "band.color",
@@ -4432,6 +4790,30 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         renderable: true,
         caveat: EDGE_GRADIENT_CAVEAT,
     },
+    "edge.strandColors": {
+        channel: "edge.strandColors",
+        target: "edge",
+        plainName: "Edge Strand Colors",
+        shortName: "Strand colors",
+        group: "line",
+        accepts: "text",
+        stylePath: "line.strands.colors",
+        renderable: true,
+        caveat: EDGE_STRANDS_CAVEAT,
+    },
+    "edge.strandSpacing": {
+        channel: "edge.strandSpacing",
+        target: "edge",
+        plainName: "Edge Strand Spacing",
+        shortName: "Strand spacing",
+        group: "line",
+        default: 1,
+        accepts: "number",
+        min: 0,
+        stylePath: "line.strands.spacing",
+        renderable: true,
+        caveat: EDGE_STRANDS_CAVEAT,
+    },
     "edge.style": {
         channel: "edge.style",
         target: "edge",
@@ -4514,6 +4896,20 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "The clear space between two dashes of a dashed edge or two dots of a dotted one, in the units of " +
             "`edge.width`, repeating from the edge's start, the last dash cut where the edge ends. Unset, the " +
             "first and last touch the edge's ends and the rest spread between them.",
+    },
+    "edge.dashArray": {
+        channel: "edge.dashArray",
+        target: "edge",
+        plainName: "Edge Dash Array",
+        shortName: "Dash array",
+        group: "line",
+        accepts: "text",
+        stylePath: "line.dashArray",
+        renderable: true,
+        caveat:
+            "A pattern of several dash lengths on a dashed, dotted or dash-dot edge: dashes and gaps alternating from " +
+            "the edge's start, in the units of `edge.width`, separated by spaces or commas (`8 1 2 1`). It replaces " +
+            "the edge's own elements, dash length and gap; unset, they hold.",
     },
     "edge.curvature": {
         channel: "edge.curvature",
@@ -4887,6 +5283,25 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "line drawn as separate elements (star, diamond, box, dash-dot, zigzag, sinewave) does " +
             "not taper.",
     },
+    "edge.taperSource": {
+        channel: "edge.taperSource",
+        target: "edge",
+        plainName: "Edge Source Taper",
+        shortName: "Source Taper",
+        group: "line",
+        default: 1,
+        accepts: "number",
+        min: 0,
+        max: 4,
+        stylePath: "line.taperSource",
+        renderable: true,
+        caveat:
+            "The width at the source as a multiple of the line's width: 1 leaves the source end at the " +
+            "line's width, 0 narrows the line to a point there. When it and the taper are both below 1, " +
+            "the line is its full width at the middle and narrows straight to each end; otherwise it runs " +
+            "straight from the source's width to the target's. A patterned line drawn as separate elements " +
+            "does not taper.",
+    },
     "edge.lift": {
         channel: "edge.lift",
         target: "edge",
@@ -4960,6 +5375,27 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         renderable: true,
         caveat: "How far the external label is moved down from where its location puts it, in scene units.",
     },
+    "node.xlabelTextAlign": {
+        channel: "node.xlabelTextAlign",
+        target: "node",
+        plainName: "Node External Label Text Align",
+        shortName: "External label text align",
+        group: "text",
+        accepts: "enum",
+        values: LABEL_TEXT_ALIGN_VALUES,
+        stylePath: "xlabel.textAlign",
+        renderable: true,
+        caveat:
+            "Lines up the lines of an external label of more than one line with one another: their left edges, " +
+            "their middles or their right edges. Unset, as the label's.",
+    },
+    "node.xlabelColor": xlabelLook("Color", "color", "textColor", "the color its words are drawn in"),
+    "node.xlabelFont": xlabelLook("Font", "text", "font", "the font family its words are drawn in"),
+    "node.xlabelWeight": {
+        ...xlabelLook("Weight", "enum", "fontWeight", "how heavy its words are drawn"),
+        values: LABEL_WEIGHT_VALUES,
+    },
+    "node.xlabelItalic": xlabelLook("Italic", "boolean", "fontStyle", "whether its words are drawn slanted"),
     "edge.labelTable": {
         channel: "edge.labelTable",
         target: "edge",
@@ -5061,8 +5497,8 @@ export function atStylePath(style: unknown, path: string): unknown {
  * What the element's own default style says for one channel, as a descriptor default.
  *
  * READ, NOT RESTATED, which is the same rule the element's base layers follow: the default node
- * colour lives in `defaultNodeStyle`, and a second copy of it here would go on describing the old
- * colour the day that one changes. Only a channel the default style says nothing about carries a
+ * color lives in `defaultNodeStyle`, and a second copy of it here would go on describing the old
+ * color the day that one changes. Only a channel the default style says nothing about carries a
  * `default` in the table above -- what the renderer draws when nothing is set.
  * @param descriptor - The declared descriptor.
  * @returns The default, or undefined when the default style says nothing for this channel.
@@ -5084,6 +5520,7 @@ function shippedDefault(descriptor: ChannelDescriptor): string | number | boolea
 /** Which drawn part each sub-setting channel adjusts: see {@link ChannelDescriptor.modifies}. */
 const MODIFIES: ReadonlyMap<string, Channel> = new Map<string, Channel>([
     ["node.glowStrength", "node.glow"],
+    ["node.outlineWidth", "node.outline"],
     ["node.haloScale", "node.haloColor"],
     ["node.haloOpacity", "node.haloColor"],
     ["edge.bandWidth", "edge.bandColor"],
@@ -5104,6 +5541,23 @@ const MODIFIES: ReadonlyMap<string, Channel> = new Map<string, Channel>([
     ...(["node.label", "node.tooltip", "edge.label"] as const).flatMap((base) =>
         ["Style", "Size", "Color", "Background"].map((suffix): [string, Channel] => [`${base}${suffix}`, base]),
     ),
+]);
+
+/** What each space-separated list channel holds: see {@link ChannelDescriptor.listOf}. */
+const LIST_OF: ReadonlyMap<string, "color" | "number"> = new Map<string, "color" | "number">([
+    ["node.gradientColors", "color"],
+    ["node.gradientStops", "number"],
+    ["node.pieColors", "color"],
+    ["node.pieSizes", "number"],
+    ["node.pieOpacities", "number"],
+    ["node.stripeColors", "color"],
+    ["node.stripeSizes", "number"],
+    ["node.stripeOpacities", "number"],
+    ["node.chartColors", "color"],
+    ["node.chartValues", "number"],
+    ["edge.gradientColors", "color"],
+    ["edge.gradientStops", "number"],
+    ["edge.strandColors", "color"],
 ]);
 
 /**
@@ -5134,6 +5588,7 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
         const value = shippedDefault(descriptor) ?? descriptor.default;
         const step = descriptor.step ?? stepOf(descriptor);
         const modifies = MODIFIES.get(descriptor.channel);
+        const listOf = LIST_OF.get(descriptor.channel);
 
         return [
             descriptor.channel,
@@ -5142,6 +5597,7 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
                 ...(value === undefined ? {} : { default: value }),
                 ...(step === undefined ? {} : { step }),
                 ...(modifies === undefined ? {} : { modifies }),
+                ...(listOf === undefined ? {} : { listOf }),
                 // @experimental file-styles
                 ...(FILE_STYLE_CHANNELS.has(descriptor.channel) ? { feature: "file-styles" as const } : {}),
             },
@@ -5152,7 +5608,67 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
 /** Every channel name, in table order. */
 export const CHANNELS: readonly Channel[] = Object.keys(CHANNEL_DESCRIPTORS) as Channel[];
 
-/** Every channel that carries a colour, which is the set {@link ColorChannel} names. */
+/** Where each label style field lands in the renderer's spelling, for the fields whose two spellings differ. */
+const LABEL_STYLE_PATH_OF_FIELD: ReadonlyMap<string, string> = new Map(
+    (Object.keys(LABEL_FIELD_OF_SUFFIX) as (keyof typeof LABEL_FIELD_OF_SUFFIX)[]).map((suffix) => [
+        LABEL_FIELD_OF_SUFFIX[suffix],
+        LABEL_STYLE_PATH_OF_SUFFIX[suffix],
+    ]),
+);
+
+/** Every channel by its target and style path, built on first use. */
+let channelAtPath: ReadonlyMap<string, Channel> | undefined;
+
+/**
+ * The field channels one written label style value stands for: `node.labelFont` for the `font`
+ * of a `node.labelStyle`, `edge.arrowHeadTextSize` for the `sizePx` of an
+ * `edge.arrowHeadTextStyle`. A field no channel writes on its own is left out.
+ * @param channel - A channel that takes a label style (`accepts: "labelStyle"`), or any other.
+ * @param value - The value written to it.
+ * @returns The field channels, in the order the value lists its fields; empty for any other channel.
+ */
+export function labelStyleFieldChannels(channel: Channel, value: unknown): readonly Channel[] {
+    const descriptor = CHANNEL_DESCRIPTORS[channel] as ChannelDescriptor | undefined;
+    if (descriptor?.accepts !== "labelStyle" || typeof value !== "object" || value === null) {
+        return [];
+    }
+
+    channelAtPath ??= new Map(
+        CHANNELS.map((each): [string, Channel] => {
+            const { target, stylePath } = CHANNEL_DESCRIPTORS[each];
+            return [`${target} ${stylePath}`, each];
+        }),
+    );
+    const found: Channel[] = [];
+    for (const [field, held] of Object.entries(value)) {
+        const path = LABEL_STYLE_PATH_OF_FIELD.get(field) ?? field;
+        const at =
+            held === undefined ? undefined : channelAtPath.get(`${descriptor.target} ${descriptor.stylePath}.${path}`);
+        if (at !== undefined && at !== channel) {
+            found.push(at);
+        }
+    }
+
+    return found;
+}
+
+/**
+ * The channels that paint a node's or an edge's own color and size: what coloring or sizing
+ * nodes or edges by a value sets, and what an algorithm's suggested style paints.
+ *
+ * ```ts
+ * import { PRIMARY_CHANNELS } from "@graphty/graphty-element/catalog";
+ *
+ * PRIMARY_CHANNELS.edge.size; // "edge.width"
+ * ```
+ * @since 3.40.0
+ */
+export const PRIMARY_CHANNELS = Object.freeze({
+    node: Object.freeze({ color: "node.color", size: "node.size" }),
+    edge: Object.freeze({ color: "edge.color", size: "edge.width" }),
+} as const) satisfies Readonly<Record<"node" | "edge", { readonly color: Channel; readonly size: Channel }>>;
+
+/** Every channel that carries a color, which is the set {@link ColorChannel} names. */
 export const COLOR_CHANNELS: readonly ColorChannel[] = CHANNELS.filter(
     (channel): channel is ColorChannel => CHANNEL_DESCRIPTORS[channel].accepts === "color",
 );
@@ -5463,7 +5979,8 @@ function patchUses(beneath: readonly ShaderUse[], patch: unknown): readonly Shad
     const latest = (beneath as ResolvedUses)[LATEST] ?? new Set<ShaderUse>();
     const kept = new Set<ShaderUse>();
     const out = [...beneath];
-    for (const [id, params] of Object.entries(patch)) {
+    const entries: [string, unknown][] = Object.entries(patch);
+    for (const [id, params] of entries) {
         if (typeof params !== "object" || params === null) {
             continue;
         }
@@ -5572,7 +6089,8 @@ export function prototypeFreeMap(value: object): Record<string, unknown> {
     }
 
     const copy = Object.create(null) as Record<string, unknown>;
-    for (const [key, entry] of Object.entries(value)) {
+    const entries: [string, unknown][] = Object.entries(value);
+    for (const [key, entry] of entries) {
         copy[key] = typeof entry === "object" && entry !== null ? prototypeFreeMap(entry) : entry;
     }
 

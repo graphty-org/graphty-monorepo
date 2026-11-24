@@ -1,7 +1,7 @@
 /**
  * @file The assistant's tools held to the promises a review found them breaking: a malformed call
  * is refused, never thrown; an approval lets through only what the reader saw; a batch hands the
- * host nothing unless it is kept; a reader's own edit and a cancel are honoured while a run
+ * host nothing unless it is kept; a reader's own edit and a cancel are honored while a run
  * computes; what a call names is read the way its schema says; and the catalog's own vocabulary
  * -- an engine's options, a node option's labels, a project setting's keys -- is what is checked.
  */
@@ -29,7 +29,7 @@ function deferred(): { promise: Promise<void>; settle: () => void } {
 }
 
 /**
- * A session whose runs wait to be released or cancelled, and say when each starts.
+ * A session whose runs wait to be released or canceled, and say when each starts.
  * @returns The session, a promise that settles when a run starts, a release, and whether a run's
  *     signal fired.
  */
@@ -47,13 +47,13 @@ async function gatedRunSession(): Promise<{
         runs: {
             execute: async (context: RunExecutionContext): Promise<RunOutcome> => {
                 start.settle();
-                const cancelled = new Promise<never>((_, reject) => {
+                const canceled = new Promise<never>((_, reject) => {
                     context.signal.addEventListener("abort", () => {
                         aborted = true;
                         reject(context.signal.reason as Error);
                     });
                 });
-                await Promise.race([release.promise, cancelled]);
+                await Promise.race([release.promise, canceled]);
                 const snapshot = holder.session!.data.snapshot();
                 return {
                     result: createRunResult({
@@ -343,14 +343,14 @@ describe("a running algorithm leaves the reader in charge", () => {
         assert.isDefined(session.data.node("zz"));
     });
 
-    it("cancels the run when the message is cancelled", async () => {
+    it("cancels the run when the message is canceled", async () => {
         const { session, started, aborted } = await gatedRunSession();
         const assistant = new ScriptedAssistant(session);
         const message = assistant.say("pagerank", [{ tool: "run_algorithm", args: { name: "pagerank" } }]);
         await started;
         assistant.controller.cancel();
         const { result } = await message;
-        assert.strictEqual(result.code, "AI_CANCELLED");
+        assert.strictEqual(result.code, "AI_CANCELED");
         assert.isTrue(aborted(), "the run's own signal fired");
     });
 });
@@ -387,6 +387,17 @@ describe("the catalog leads a model to a diverging encoding", () => {
             action: "encode",
             encode: { channel: "node.color", attribute: "<attribute>", palette: "red-blue", midpoint: 0 },
         });
+    });
+
+    it("names the setting that changes directedness in the statistics a model reads first", async () => {
+        const assistant = new ScriptedAssistant(await assistantSession());
+        await assistant.say("analyze it as undirected", [{ tool: "query", args: { action: "statistics" } }]);
+        const pointer = (assistant.lastResults()[0].data as { directednessSetting: { kind: string; name: string } })
+            .directednessSetting;
+        await assistant.say("describe it", [{ tool: "catalog", args: { action: "describe", ...pointer } }]);
+        const [described] = assistant.lastResults();
+        assert.strictEqual(described.code, "AI_OK");
+        assert.include(JSON.stringify(described.data), '"directed"');
     });
 
     it("finds the data setting, which holds direction, when a model searches for undirected or directed", async () => {

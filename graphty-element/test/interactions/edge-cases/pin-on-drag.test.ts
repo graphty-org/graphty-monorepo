@@ -1,187 +1,127 @@
 /**
- * pinOnDrag Behavior Tests
- *
- * Tests verify node pinning behavior during drag operations.
+ * @file `layoutBehavior.node.pinOnDrag`: a node dragged with the real mouse
+ * (test/helpers/real-input.ts) is pinned or not as the setting says, and a pin holds the node where
+ * it is while a force layout moves everything else. Read through the element's public API:
+ * `isPinned` and the session's positions.
  */
 
-import { assert } from "chai";
-import { afterEach, beforeEach, describe, test, vi } from "vitest";
+import { assert, describe, it } from "vitest";
 
-import { Graph, operationQueueOf } from "../../../src/Graph";
-import { dispatcherOf } from "../../../src/session/GraphSession";
-import { assertPlaced } from "../../helpers/placed-position";
-import { nextFrame } from "../../helpers/real-input";
-import { configureGraph } from "../../helpers/testSetup";
+import type { Graphty } from "../../../index.js";
+import { drag } from "../../helpers/real-input";
+import { applied, at, mounted } from "../helpers/mounted-element";
 
-const TEST_NODES = [{ id: "node1" }, { id: "node2" }, { id: "node3" }];
-const TEST_EDGES = [
-    { src: "node1", dst: "node2" },
-    { src: "node2", dst: "node3" },
-];
+interface Xyz {
+    x: number;
+    y: number;
+    z: number;
+}
 
 /**
- * Put a node somewhere through the session, the way a drop or a script places one, and pin it.
- *
- * NOT by writing the mesh. The mesh is drawn from the position array, and every frame a running
- * layout redraws every node from it -- so a node moved only on the mesh went back where the array
- * had it, pinned or not, whenever the layout was still running when a test began. It usually had
- * come to rest in the 200 ms the setup used to wait, so the tests passed on a fast machine and failed on
- * a loaded CI runner.
- * @param graph - The graph.
+ * Where a node is, in scene units, from the session's positions.
+ * @param element - The element.
  * @param id - The node.
- * @param at - Where to put it.
+ * @returns Its position.
  */
-async function placeAndPin(graph: Graph, id: string, at: { x: number; y: number; z: number }): Promise<void> {
-    await graph.getSession().positions.set([{ id, ...at }]);
-    graph.getNode(id)?.pin();
-    // The pin reaches the engine and the position array in the pass that derives it.
-    await dispatcherOf(graph.getSession()).lane.settled();
+function where(element: Graphty, id: string): Xyz {
+    const out = { x: 0, y: 0, z: 0 };
+    element.session.positions.read(element.session.snapshot().ids.requireIndex(id), out);
+    return out;
 }
 
 /**
- * Run the layout for some frames, whatever state the setup left it in: a pin has to hold while it
- * moves everything else, and a layout already at rest would test nothing.
- * @param graph - The graph.
- * @param frames - How many.
+ * How far apart two positions are.
+ * @param p - One.
+ * @param q - The other.
+ * @returns The distance.
  */
-function runLayout(graph: Graph, frames: number): void {
-    graph.getLayoutManager().running = true;
-    graph.getUpdateManager().stepFrames(frames);
+function apart(p: Xyz, q: Xyz): number {
+    return Math.hypot(p.x - q.x, p.y - q.y, p.z - q.z);
 }
 
-describe("pinOnDrag Behavior", () => {
-    let graph: Graph;
-    let container: HTMLDivElement;
+/**
+ * Drag node c across the canvas with the real mouse and let the element apply the drop.
+ * @param element - The element.
+ */
+async function dragC(element: Graphty): Promise<void> {
+    const from = at(element, "c");
+    await drag(element, from, { x: from.x + 50, y: from.y + 40 });
+    await applied(element);
+}
 
-    describe("pinOnDrag=true", () => {
-        beforeEach(async () => {
-            container = document.createElement("div");
-            container.style.width = "800px";
-            container.style.height = "600px";
-            document.body.appendChild(container);
+/**
+ * Switch to a force layout and let it come to rest: it moves every node not pinned.
+ * @param element - The element.
+ */
+async function runForceLayout(element: Graphty): Promise<void> {
+    const a = where(element, "a");
+    await element.graph.setLayout("ngraph", { dim: 3 });
+    await element.waitForStableFrame();
+    assert.isAbove(apart(where(element, "a"), a), 0.1, "the force layout moved node a");
+}
 
-            graph = new Graph(container);
-            await graph.init();
-            await configureGraph(graph, {
-                viewMode: "3d",
-                layout: "ngraph",
-                layoutOptions: { dim: 3 },
-                pinOnDrag: true,
-            });
-            await graph.addNodes(TEST_NODES);
-            await graph.addEdges(TEST_EDGES);
-            await operationQueueOf(graph).waitForCompletion();
-            // A drawn frame, not just an empty queue: only a frame's update pass moves a new mesh
-            // from the template's position to the node's layout position.
-            await graph.waitForStableFrame();
-        });
+/**
+ * A 3D element with fixed nodes and pinOnDrag set.
+ * @param pinOnDrag - The setting.
+ * @returns The element.
+ */
+async function withPinOnDrag(pinOnDrag: boolean): Promise<Graphty> {
+    const element = await mounted("3d");
+    element.layoutBehavior = { node: { pinOnDrag } };
+    return element;
+}
 
-        afterEach(() => {
-            vi.restoreAllMocks();
-            graph.dispose();
-            document.body.removeChild(container);
-        });
+describe("pinOnDrag on", () => {
+    it("pins a dragged node, and the layout leaves it where it was dropped", async () => {
+        const element = await withPinOnDrag(true);
+        const start = where(element, "c");
 
-        test("pinOnDrag=true pins node after drag", async () => {
-            const node1 = graph.getNode("node1");
-            assert.isDefined(node1, "Node 1 should exist");
-            assert.isNotNull(node1);
+        await dragC(element);
+        const dropped = where(element, "c");
+        assert.isAbove(apart(dropped, start), 0.1, "the drag moved node c");
+        assert.isTrue(element.isPinned("c"), "the dragged node is pinned");
 
-            assertPlaced(node1.mesh.position, "node1");
-            const newX = node1.mesh.position.x + 5;
-            const newY = node1.mesh.position.y + 3;
-            const newZ = node1.mesh.position.z + 1;
+        await runForceLayout(element);
 
-            await placeAndPin(graph, "node1", { x: newX, y: newY, z: newZ });
-            runLayout(graph, 10);
-
-            assert.closeTo(node1.mesh.position.x, newX, 0.5, "Pinned node X should stay");
-            assert.closeTo(node1.mesh.position.y, newY, 0.5, "Pinned node Y should stay");
-            assert.closeTo(node1.mesh.position.z, newZ, 0.5, "Pinned node Z should stay");
-        });
-
-        test("pinned node stays at position during layout", async () => {
-            const node1 = graph.getNode("node1");
-            assert.isDefined(node1, "Node 1 should exist");
-            assert.isNotNull(node1);
-
-            const pinnedPos = { x: 10, y: 10, z: 10 };
-            await placeAndPin(graph, "node1", pinnedPos);
-            runLayout(graph, 50);
-
-            assert.closeTo(node1.mesh.position.x, pinnedPos.x, 0.5, "X should remain stable");
-            assert.closeTo(node1.mesh.position.y, pinnedPos.y, 0.5, "Y should remain stable");
-            assert.closeTo(node1.mesh.position.z, pinnedPos.z, 0.5, "Z should remain stable");
-        });
+        assert.isBelow(apart(where(element, "c"), dropped), 1e-6, "node c stayed where it was dropped");
     });
 
-    describe("pinOnDrag=false", () => {
-        beforeEach(async () => {
-            container = document.createElement("div");
-            container.style.width = "800px";
-            container.style.height = "600px";
-            document.body.appendChild(container);
+    it("a node unpinned after the drag is moved by the layout again", async () => {
+        const element = await withPinOnDrag(true);
+        await dragC(element);
+        const dropped = where(element, "c");
 
-            graph = new Graph(container);
-            await graph.init();
-            await configureGraph(graph, {
-                viewMode: "3d",
-                layout: "ngraph",
-                layoutOptions: { dim: 3 },
-                pinOnDrag: false,
-            });
-            await graph.addNodes(TEST_NODES);
-            await graph.addEdges(TEST_EDGES);
-            await operationQueueOf(graph).waitForCompletion();
-            // A drawn frame, not just an empty queue: only a frame's update pass moves a new mesh
-            // from the template's position to the node's layout position.
-            await graph.waitForStableFrame();
-        });
+        await element.session.positions.unpin(["c"]);
+        assert.isFalse(element.isPinned("c"), "node c is released");
+        await runForceLayout(element);
 
-        afterEach(() => {
-            vi.restoreAllMocks();
-            graph.dispose();
-            document.body.removeChild(container);
-        });
+        assert.isAbove(apart(where(element, "c"), dropped), 0.1, "the layout moved node c");
+    });
+});
 
-        test("explicit pin() works even with pinOnDrag=false", async () => {
-            const node1 = graph.getNode("node1");
-            assert.isDefined(node1, "Node 1 should exist");
-            assert.isNotNull(node1);
+describe("pinOnDrag off", () => {
+    it("does not pin a dragged node, and the layout moves it", async () => {
+        const element = await withPinOnDrag(false);
+        const start = where(element, "c");
 
-            const pinnedPos = { x: 15, y: 15, z: 15 };
-            await placeAndPin(graph, "node1", pinnedPos);
-            runLayout(graph, 30);
+        await dragC(element);
+        const dropped = where(element, "c");
+        assert.isAbove(apart(dropped, start), 0.1, "the drag moved node c");
+        assert.isFalse(element.isPinned("c"), "the dragged node is not pinned");
 
-            assert.closeTo(node1.mesh.position.x, pinnedPos.x, 0.5, "X should stay in place");
-            assert.closeTo(node1.mesh.position.y, pinnedPos.y, 0.5, "Y should stay in place");
-            assert.closeTo(node1.mesh.position.z, pinnedPos.z, 0.5, "Z should stay in place");
-        });
+        await runForceLayout(element);
 
-        test("unpin() releases node to layout", async () => {
-            const node1 = graph.getNode("node1");
-            assert.isDefined(node1, "Node 1 should exist");
-            assert.isNotNull(node1);
+        assert.isAbove(apart(where(element, "c"), dropped), 0.1, "the layout moved node c");
+    });
 
-            const pinnedPos = { x: 25, y: 25, z: 25 };
-            node1.mesh.position.x = pinnedPos.x;
-            node1.mesh.position.y = pinnedPos.y;
-            node1.mesh.position.z = pinnedPos.z;
-            node1.pin();
+    it("a node pinned on purpose still stays where it was put", async () => {
+        const element = await withPinOnDrag(false);
+        const put = { x: 10, y: 10, z: 10 };
+        await element.session.positions.set([{ id: "c", ...put }]);
+        await element.session.positions.pin(["c"]);
 
-            node1.unpin();
+        await runForceLayout(element);
 
-            const graphInternal = graph as unknown as { layoutManager: { step: () => void } };
-            for (let i = 0; i < 30; i++) {
-                graphInternal.layoutManager.step();
-            }
-
-            await nextFrame();
-
-            assert.isDefined(node1.mesh.position, "Node should have valid position");
-            assert.isTrue(isFinite(node1.mesh.position.x), "X should be finite");
-            assert.isTrue(isFinite(node1.mesh.position.y), "Y should be finite");
-            assert.isTrue(isFinite(node1.mesh.position.z), "Z should be finite");
-        });
+        assert.isBelow(apart(where(element, "c"), put), 1e-6, "node c stayed where it was put");
     });
 });

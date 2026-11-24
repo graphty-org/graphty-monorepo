@@ -33,8 +33,9 @@ const css = `
 
 /* Figma's scroll chevron rows: 24 tall, the menu's fill, a 5 x 3 chevron (the register's
    chevronUp / chevronDown polyline drawn in a 10px box; white on a dark menu, the menu's dark ink
-   on a light one). src/components/overlays/overlayBehavior.ts sets data-cm-scroll-up / -down on a
-   clamped menu for each end it can still scroll towards, and scrolls it while one is hovered.
+   on a light one; a field's listbox is inverse when its dropdown is).
+   src/components/overlays/overlayBehavior.ts sets data-cm-scroll-up / -down on a clamped menu
+   for each end it can still scroll towards, and scrolls it while one is hovered.
    The rows are sticky pseudo elements laid over the first and last visible rows. */
 .cm-menu[data-cm-scroll-up]::before,
 .cm-menu[data-cm-scroll-down]::after {
@@ -57,10 +58,10 @@ const css = `
     margin-bottom: -8px;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpolyline points='4,6 8,10 12,6' fill='none' stroke='%23fff' stroke-width='1.6'/%3E%3C/svg%3E");
 }
-:where([data-mantine-color-scheme="light"]) .cm-menu:not(.cm-menu-inverse)[data-cm-scroll-up]::before {
+:where([data-mantine-color-scheme="light"]) .cm-menu:not(.cm-menu-inverse, .cm-menu-inverse .cm-menu)[data-cm-scroll-up]::before {
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpolyline points='4,10 8,6 12,10' fill='none' stroke='%23000' stroke-opacity='.9' stroke-width='1.6'/%3E%3C/svg%3E");
 }
-:where([data-mantine-color-scheme="light"]) .cm-menu:not(.cm-menu-inverse)[data-cm-scroll-down]::after {
+:where([data-mantine-color-scheme="light"]) .cm-menu:not(.cm-menu-inverse, .cm-menu-inverse .cm-menu)[data-cm-scroll-down]::after {
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpolyline points='4,6 8,10 12,6' fill='none' stroke='%23000' stroke-opacity='.9' stroke-width='1.6'/%3E%3C/svg%3E");
 }
 
@@ -492,6 +493,17 @@ const css = `
 /* Keyboard focus on the scroller: a 1px ring inside, and the thumb shows. */
 .cm-scroll-viewport:focus-visible { outline: 1px solid var(--cm-border-selected); outline-offset: -1px; }
 .cm-scroll-root:has(> .cm-scroll-viewport:focus-visible) > .cm-scroll-scrollbar[data-state="hidden"] { display: flex; }
+/* scrollCue (opt-in): the content fades out over 16px at an edge with more of it beyond. */
+.cm-scroll-root[data-scroll-cue] > .cm-scroll-viewport {
+    --cm-cue-top: 0px;
+    --cm-cue-bottom: 0px;
+    mask-image: linear-gradient(to bottom, transparent, #000 var(--cm-cue-top), #000 calc(100% - var(--cm-cue-bottom)), transparent);
+}
+.cm-scroll-root[data-cue-top] > .cm-scroll-viewport { --cm-cue-top: 16px; }
+.cm-scroll-root[data-cue-bottom] > .cm-scroll-viewport { --cm-cue-bottom: 16px; }
+/* The fade masks the viewport, ring and all, so with the cue the ring is drawn on the unmasked root. */
+.cm-scroll-root[data-scroll-cue] > .cm-scroll-viewport:focus-visible { outline: none; }
+.cm-scroll-root[data-scroll-cue]:has(> .cm-scroll-viewport:focus-visible) { outline: 1px solid var(--cm-border-selected); outline-offset: -1px; }
 
 /* ---------------------------------------------------------------- 8.8 feedback */
 

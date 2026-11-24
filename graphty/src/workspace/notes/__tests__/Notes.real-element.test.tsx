@@ -63,7 +63,13 @@ describe("Notes, on the real element", () => {
         await userEvent.keyboard("{Control>}s{/Control}");
         const dialog = await screen.findByRole("dialog", { name: /^Save .* as$/ });
         await userEvent.clear(within(dialog).getByRole("textbox", { name: "Name" }));
-        await userEvent.keyboard("With a note{Enter}");
+        await userEvent.keyboard("With a note");
+        // Enter submits only once Save is enabled: with save files version 2 on, it waits for
+        // graphty-element's verdict on the save, and an Enter before that is no submission.
+        await waitFor(() => {
+            assert.isFalse(within(dialog).getByRole<HTMLButtonElement>("button", { name: "Save" }).disabled);
+        });
+        await userEvent.keyboard("{Enter}");
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog"));
             assert.isFalse(session.project.dirty);
@@ -106,10 +112,13 @@ describe("Notes, on the real element", () => {
             .map((button) => button.getAttribute("aria-label"));
         assert.deepEqual(names, [
             "Graph, in note: three",
+            "Mark done: three",
             "Delete note: three",
             "Graph, in note: two",
+            "Mark done: two",
             "Delete note: two",
             "Graph, in note: one",
+            "Mark done: one",
             "Delete note: one",
         ]);
         items[0].focus();
@@ -166,5 +175,31 @@ describe("Notes, on the real element", () => {
         assert.isNotNull(editor);
         assert.isNotNull(within(editor).queryByText("Graph"), "the note is about the graph");
         assert.isNull(within(editor).queryByText("PageRank"), "not about the run left behind");
+    });
+
+    it("calls a node by its label with its id beside it, in the editor, the note's chip and the status line", async () => {
+        const store = createWorkspaceStore();
+        const { session } = await openSampleFromStart("College football", store);
+        // The sample's label column names node 71 "Ohio" (issue #7454: the editor said "About 71").
+        await waitFor(() => {
+            assert.isTrue(session.data.nodeName(71).labeled);
+        });
+        await session.selection.apply({ nodes: [71] });
+        (document.activeElement as HTMLElement | null)?.blur();
+
+        await userEvent.keyboard("n");
+        const field = await screen.findByRole("textbox", { name: "Note" });
+        const editor = field.closest<HTMLElement>(".nt-editor");
+        assert.isNotNull(editor);
+        assert.isNotNull(within(editor).queryByText("Ohio (71)"), "About Ohio (71)");
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement, field);
+        });
+        await userEvent.keyboard("Big Ten{Control>}{Enter}{/Control}");
+
+        const list = await screen.findByRole("list", { name: "Notes" });
+        const note = within(list).getByRole("listitem", { name: "Big Ten" });
+        within(note).getByRole("button", { name: "Ohio (71), in note: Big Ten" });
+        assert.equal(store.get().announcement, "Note added about Ohio (71)");
     });
 });

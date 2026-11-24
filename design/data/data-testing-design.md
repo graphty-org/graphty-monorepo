@@ -1,5 +1,9 @@
 # Data Format Parser Testing Strategy
 
+Status: historical record (2025). Importers and exporters now live in graph-io
+(`@graphty/graph-io`, 13 formats, one subpath per format); graphty-element reads files through it,
+for example `graphty-element/src/data/GraphMLDataSource.ts` imports `@graphty/graph-io/graphml`.
+
 **Version:** 3.0
 **Date:** 2025-12-11
 **Purpose:** Ensure complete and faithful parsing of all nodes and edges from graph data files

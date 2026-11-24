@@ -18,11 +18,6 @@
     min-width: 0;
 }
 
-.ws-field-covered {
-    padding-inline-start: var(--ws-label, 80px);
-    padding-bottom: 2px;
-}
-
 /* A field: one line of about 28px -- its name in the label column, the control, then the vary and
    Clear columns. Without a name (a field its row already names), the control starts the line. */
 .ws-field {
@@ -98,47 +93,6 @@
     opacity: 0.55;
 }
 
-/* A varied field's second line: category chits and "+N", a ramp's ends or a number's From / To,
-   then its notes ("Logarithmic scale"), under the value pill. */
-.ws-varied-line {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    padding: 2px 0 4px;
-}
-
-/* One row that never wraps: at most 6 chits, or 5 and "+N". */
-.ws-varied-chits {
-    display: flex;
-    flex-wrap: nowrap;
-    align-items: center;
-    gap: 2px;
-}
-
-/* 12 px, a 1 px inset ring at 3:1 on either theme, so a pale or a dark color keeps its edge. */
-.ws-varied-chit {
-    flex: none;
-    width: 12px;
-    height: 12px;
-    border-radius: 2px;
-    box-shadow: inset 0 0 0 1px var(--cm-swatch-ring);
-}
-
-/* A field with a line under it: its name and its columns line up with the pill, its first line. */
-.ws-field:has(.ws-varied-line) {
-    align-items: start;
-    padding-top: 2px;
-}
-
-.ws-field:has(.ws-varied-line) > .ws-field-label {
-    min-height: 24px;
-}
-
-.ws-varied-ends {
-    display: flex;
-    justify-content: space-between;
-}
-
 /* After a write to several layers: what it did, "Also set those N" and Undo, under the field. */
 .ws-bulk-receipt {
     display: flex;
@@ -148,22 +102,11 @@
     padding: 0 8px 4px var(--ws-label, 80px);
 }
 
-/* What a bulk edit says under its field (the breakdown, the receipt): 11 px in
-   the primary ink, so the small words keep 4.5:1 on either theme. */
-.ws-bulk-words.ws-bulk-words {
-    --text-fz: 11px;
-    --text-lh: 16px;
-    color: var(--cm-text);
-    font-size: 11px;
-    line-height: 16px;
-}
-
-/* The Node and Edge tabs, the other kind's line and the kind's switch, on the tab's gutter. */
+/* The Node and Edge tabs and the kind's switch, on the tab's gutter. */
 .ws-style-tabs > [role="tablist"] {
     padding: 8px 8px 4px var(--ws-gutter);
 }
 
-.ws-other-line,
 .ws-kind-switch {
     padding: 2px 8px 2px var(--ws-gutter);
 }
@@ -198,14 +141,7 @@
     color: var(--cm-icon-secondary, var(--mantine-color-dimmed));
 }
 
-.ws-which-chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-}
-
-/* A card's chip: its words and its own count, 11 px on the secondary fill; an unfinished card's
-   chip is dashed. */
+/* A chip in the selection step pane. */
 .ws-chip {
     padding: 0 6px;
     font-size: 11px;
@@ -214,19 +150,6 @@
     background: var(--cm-bg-secondary);
     border-radius: 4px;
     box-shadow: inset 0 0 0 1px var(--cm-border-translucent-strong);
-}
-
-.ws-chip[data-todo] {
-    background: transparent;
-    box-shadow: none;
-    outline: 1px dashed var(--cm-border-translucent-strong);
-    outline-offset: -1px;
-}
-
-/* "All 24 nodes": a line of the panel's reading, not a warning. */
-.ws-which-hint {
-    font-size: 11px;
-    line-height: 18px;
 }
 
 /* One condition card: its header (name, count, x), its Match select and its editor. */
@@ -382,6 +305,12 @@
     min-width: 0;
     padding: 4px;
     border-radius: var(--mantine-radius-sm);
+}
+
+/* A press always lands on the tile: its picture swaps its stand-in for the image when it is drawn,
+   and a swap under the pointer between press and release loses the click (#8609). */
+.ws-gallery-tile * {
+    pointer-events: none;
 }
 
 .ws-gallery-tile:hover:not([aria-disabled]) {
@@ -598,24 +527,21 @@
     box-shadow: inset 0 0 0 1px var(--cm-border);
 }
 
-/* The node-models experiment (issue #3396). */
+/* Node models (issue #3396). */
 
-/* Model settings' rows: a short name column, the field, and the minus, across the pop-over's width. */
+/* Model settings' rows: a short name column, the field, and the minus, across the pop-over's width.
+   The column fits the longest name ("Animation", "Wireframe") at 11px without cutting it. */
 .ws-model-settings .ws-field {
-    grid-template-columns: 48px minmax(0, 1fr) 24px;
+    grid-template-columns: 60px minmax(0, 1fr) 24px;
 }
 
-/* The Shape field's model chips (node-models design 13.4): a line under the field, in its column. */
-.ws-model-chips {
+/* The Shape field's model buttons (Parts, Use as picture): a line under the field, in its column. */
+.ws-model-actions {
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
     padding-inline-start: var(--ws-label, 80px);
     padding-bottom: 2px;
-}
-
-.ws-chip-button {
-    cursor: pointer;
 }
 
 /* The project's models or pictures in their pop-over: one per line. */
@@ -646,41 +572,233 @@
 
 /* The Load custom model dialog (node-models design 14.2). */
 
-/* Its file choosers and drop target: drawn as compact-mantine's file drop zone. */
-.ws-model-drop {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    padding: 8px;
-    border: 1px dashed var(--cm-border);
+/* Its body: the shared two-column dialog (.ws-dialog-columns) at every state. On the left the
+   loading: the file loader, its progress bar, the loaded file, lines about the load, a set's
+   Models, then Files, which takes the rest of the column's height and scrolls on its own. On the right, in a column as wide as the left, what was
+   loaded: the model (blank until one is), a set's arrows, Name with the Model settings gear, and
+   Details, which takes the rest of the column's height and scrolls on its own. The body grows with
+   a taller window, up to 640 px. The footer runs across both. The whole body takes a drop, and
+   shows it while files are held over it. */
+.ws-dialog-columns.ws-model-body {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+    row-gap: 12px;
+    height: min(640px, calc(100dvh - 184px));
     border-radius: var(--mantine-radius-sm);
 }
 
-.ws-model-drop[data-over] {
-    border-color: var(--mantine-primary-color-filled);
-    background: var(--mantine-primary-color-light);
+.ws-model-body[data-over] {
+    outline: 1px solid var(--cm-border-selected);
+    outline-offset: 4px;
 }
 
-/* The model drawn alone, 160 px square, on the panel's ground. */
+/* In a window too short for all of it, the column scrolls rather than cut anything off. */
+.ws-model-main {
+    min-height: 0;
+    overflow: hidden auto;
+}
+
+/* In a window too short for all of it, the column scrolls rather than cut anything off. Details
+   ends a pixel above the column's clip edge, so its bottom border is never shaved off at a
+   fractional zoom. The model's max-height reserves room for Name and a one-line Details heading:
+   anything that made that heading wrap (it once held chips) pushed Details' bottom out of view. */
+.ws-model-side {
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-bottom: 1px;
+    overflow: hidden auto;
+}
+
+.ws-model-footer {
+    grid-column: 1 / -1;
+    margin-top: 0;
+}
+
+@media (max-width: 720px) {
+    .ws-dialog-columns.ws-model-body {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: auto minmax(0, 1fr) auto;
+    }
+
+    .ws-model-side {
+        order: -1;
+        align-items: center;
+    }
+}
+
+/* The model drawn alone, on the panel's ground: square, as wide as its column, but never so tall
+   that Details under Name gets less than its 190 px (about five rows): with a set's arrows under
+   it, it gives up more height. It keeps 240 px however short the window: below about 660 px the
+   column scrolls rather than draw the model too small to see. */
 .ws-model-preview {
-    flex: 0 0 auto;
+    flex: 0 1 auto;
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 160px;
-    height: 160px;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    max-height: calc(100% - 248px);
+    min-height: 240px;
     border: 1px solid var(--cm-border);
     border-radius: var(--mantine-radius-sm);
     background: var(--cm-bg-secondary);
     color: var(--cm-text-secondary);
+    position: relative;
+    overflow: hidden;
 }
 
-/* Files and Advanced: a chevron and a word that open their rows, as the selection pane's Advanced. */
-.ws-disclosure {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    height: 24px;
+/* graphty-element's live preview fills the box; what stands in while it draws sits over it. */
+.ws-model-live {
+    position: absolute;
+    inset: 0;
+    cursor: grab;
+}
+
+.ws-model-live:active {
+    cursor: grabbing;
+}
+
+.ws-model-preview-over {
+    position: relative;
+    pointer-events: none;
+}
+
+/* Reset view, over the live preview in the box's top-right corner. */
+.ws-model-reset {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    z-index: 1;
+}
+
+/* One model of several: its name on the box, top-left, clear of Reset view. */
+.ws-model-label {
+    position: absolute;
+    top: 6px;
+    left: 8px;
+    right: 36px;
+    z-index: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--cm-text-primary);
+    pointer-events: none;
+}
+
+/* One model of a set that Add leaves out (Load this model unchecked): faded, its name struck through. */
+.ws-model-preview[data-skipped] .ws-model-live,
+.ws-model-preview[data-skipped] .ws-model-preview-over {
+    opacity: 0.35;
+}
+
+.ws-model-preview[data-skipped] .ws-model-label {
+    text-decoration: line-through;
+    color: var(--cm-text-secondary);
+}
+
+/* Under a set's preview: the arrows and their count, then Load this model. */
+.ws-model-steps {
+    width: 100%;
+}
+
+/* Name, under the preview (and the arrows of a set): a short label column, as the side column is
+   narrow, and the Model settings gear. */
+.ws-model-name .ws-field {
+    grid-template-columns: 48px minmax(0, 1fr) 24px;
+}
+
+/* Files, Models and Details: always shown, each a ScrollArea (with its scroll cue) that scrolls on
+   its own past its height. The frame is the root's; the viewport fills it and scrolls. */
+.ws-model-scroll {
+    max-height: 160px;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--cm-border);
+    border-radius: var(--mantine-radius-sm);
+}
+
+.ws-model-scroll > .cm-scroll-viewport {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: auto;
+    padding: 4px 6px;
+}
+
+/* Model settings' pop-over: its header stays and its settings scroll in a ScrollArea with the
+   scroll cue, so a reader sees the rows below the cut. Each box down to the viewport takes the
+   height left and no more. */
+.ws-model-settings-modal {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.ws-model-settings-body,
+.ws-model-settings-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.ws-model-settings-scroll > .cm-scroll-viewport {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: auto;
+}
+
+/* Details, under Name, as wide as the model: it takes the column's height left under Name (190 px
+   at least, about five rows) and scrolls past it, every row's whole value wrapped onto as many
+   lines as it needs. */
+.ws-model-details-box,
+.ws-model-files-box {
+    flex: 1 1 0;
+    min-height: 190px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+/* With a set's arrows under the model, Details gives up their height (about half a row) so the
+   column still fits a 720 px window with the model at 240 px, its bottom border a pixel or two
+   inside the column's end. */
+.ws-model-side:has(.ws-model-steps) .ws-model-details-box {
+    min-height: 174px;
+}
+
+/* Files, the loading column's last box, down to the footer: at least a few lines. */
+.ws-model-files-box {
+    min-height: 120px;
+}
+
+.ws-model-details-box .ws-model-scroll,
+.ws-model-files-box .ws-model-scroll {
+    flex: 1 1 0;
+    min-height: 48px;
+    max-height: none;
+}
+
+/* The model's pictures under its settings: a plain group, no frame of its own. */
+.ws-model-textures {
+    border: 0;
+    margin: 0;
+    padding: 0;
+    min-width: 0;
+}
+
+/* A picture's name too long for the pop-over ends in an ellipsis; the tooltip has all of it. */
+.ws-model-textures .mantine-Checkbox-body,
+.ws-model-textures .mantine-Checkbox-labelWrapper {
+    min-width: 0;
+}
+
+.ws-model-texture-name {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 /* A part's answers sit under its name, in the name's column. */
@@ -690,4 +808,43 @@
 
 .ws-model-files .ws-part-row > :first-child {
     margin-left: -18px;
+}
+
+/* The Style panel by part of the drawing (the file-styles experiment). */
+
+/* A setting's name wraps rather than cut, so settings that differ only at the end ("Shadow offset
+   X", "Shadow offset Y") can be told apart. */
+[data-style-parts] .ws-field-name,
+[data-item-settings] .ws-field-name {
+    overflow-wrap: anywhere;
+    white-space: normal;
+}
+
+/* Find a setting's results keep the sections' gutter (compact-mantine's section content, 16 and 8). */
+[data-find-results] {
+    padding-inline: 16px 8px;
+}
+
+/* A value picker's button keeps its picture clear of its border, as a field keeps its text. */
+.ws-value-listbox {
+    padding-inline: 6px;
+}
+
+/* A value picker's picture, at the size of the field's text. */
+.ws-value-glyph {
+    display: inline-flex;
+    flex: none;
+    width: 14px;
+    height: 14px;
+}
+
+.ws-value-glyph svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* A value picker with nothing set: the default in force, read as that. */
+.ws-value-listbox[data-unset] {
+    font-style: italic;
+    color: var(--cm-text-secondary);
 }

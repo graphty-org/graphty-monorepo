@@ -116,6 +116,11 @@ export interface SetService {
      */
     restore(command: SetRestoreCommand): ElementSet;
     /**
+     * @param id - A removed set.
+     * @returns The name it had when it was removed, or undefined when none was removed.
+     */
+    removedName(id: SetId): string | undefined;
+    /**
      * Keep a record's id in the issued-id register: called once the step that wrote it is recorded.
      * @param id - The id.
      */
@@ -260,8 +265,13 @@ const setRestore: UndoableDefinition<SetRestoreCommand> = {
     keys: (command) => [`sets/${command.id}`],
     undo: {
         kind: "undoable",
-        label: (command) => `Restored the set "${command.id}"`,
-        fact: (command) => ({ code: "set.restore", params: { set: command.id } }),
+        // The step is named before it runs, while the set is still removed: its name is the tombstone's.
+        label: (command, _state, services) =>
+            `Restored the set "${services.sets?.removedName(command.id) ?? command.id}"`,
+        fact: (command, _state, services) => ({
+            code: "set.restore",
+            params: { set: services.sets?.removedName(command.id) ?? command.id },
+        }),
     },
     execute: (command, ctx) => {
         put(ctx, serviceOf(ctx).restore(command));

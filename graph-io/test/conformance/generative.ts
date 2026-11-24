@@ -26,7 +26,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { GraphBuilder, type GraphSnapshot, type NodeId } from "@graphty/graph-format";
+import { GraphBuilder, GraphFormatError, type GraphSnapshot, type NodeId } from "@graphty/graph-format";
 import fc from "fast-check";
 
 import { collectBytes } from "../../src/common/writer.js";
@@ -444,6 +444,8 @@ function canonOfSnapshot(s: GraphSnapshot, relax: ReadonlySet<Relax>): Canon {
  * - duplicateEdges: identical edges read back as one
  * - lineEnds: a carriage return or form feed reads back as a line feed
  * - unsetAsEmpty: an unset text cell reads back as ""
+ * - attributesDropped: the node and edge attributes are not written (SIF)
+ * - weightsDropped: the weights are not written; every edge reads back with the implicit weight
  *
  * Every difference the property found in a correct export is announced by a check() note, so the
  * per-format "lossy" table IS this note table; a format-wide loss without a note would be a check()
@@ -465,7 +467,9 @@ export type Relax =
     | "edgeOrder"
     | "duplicateEdges"
     | "lineEnds"
-    | "unsetAsEmpty";
+    | "unsetAsEmpty"
+    | "attributesDropped"
+    | "weightsDropped";
 
 /**
  * The documented losses, one per check() note code (the codes are one per concept across the
@@ -501,6 +505,9 @@ export const NOTE_RELAX: Readonly<Record<string, readonly Relax[]>> = {
     W_OBO_LINE_END: ["lineEnds"],
     W_OBOGRAPHS_EDGE_COLUMN_AS_META: ["edgeMeta"],
     W_CYS_UNSET_AS_EMPTY_STRING: ["unsetAsEmpty"],
+    W_SIF_UNDIRECTED_AS_DIRECTED: ["direction"],
+    W_COLUMN_DROPPED: ["attributesDropped"],
+    W_WEIGHTS_DROPPED: ["weightsDropped"],
 };
 
 /** One exporter configuration under test. */
@@ -531,6 +538,7 @@ export const TARGETS: readonly Target[] = [
     { name: "obo", format: "obo", exportOptions: { sanitizeIds: "mangle" } },
     { name: "json obographs", format: "json", exportOptions: { dialect: "obographs" } },
     { name: "cys", format: "cys", exportOptions: { sanitizeIds: "mangle" } },
+    { name: "sif", format: "sif", exportOptions: { sanitizeIds: "mangle" } },
 ];
 
 /**
@@ -633,15 +641,17 @@ const attrsKey = (attrs: Record<string, GenValue>, relax: ReadonlySet<Relax>): s
  * @returns the node lines and the edge lines
  */
 function lines(c: Canon, directed: boolean, relax: ReadonlySet<Relax>): { nodes: string[]; edges: string[] } {
-    const nodes = c.nodes.map((n) => `${idKey(n.id, relax)} {${attrsKey(n.attrs, relax)}}`);
+    const attrs = (a: Readonly<Record<string, GenValue>>): string =>
+        relax.has("attributesDropped") ? "" : attrsKey(a, relax);
+    const nodes = c.nodes.map((n) => `${idKey(n.id, relax)} {${attrs(n.attrs)}}`);
     const edges = c.edges.map((e) => {
         let [s, t] = [idKey(e.s, relax), idKey(e.t, relax)];
         if (!directed && t < s) {
             [s, t] = [t, s];
         }
-        const weight = e.w === undefined ? "unset" : valueKey(e.w, relax);
+        const weight = e.w === undefined || relax.has("weightsDropped") ? "unset" : valueKey(e.w, relax);
         const w = weight === "unset" ? "implicit" : weight;
-        return `${s} ${directed ? "->" : "--"} ${t} w=${w} {${attrsKey(e.attrs, relax)}}`;
+        return `${s} ${directed ? "->" : "--"} ${t} w=${w} {${attrs(e.attrs)}}`;
     });
     if (relax.has("nodeOrder")) {
         nodes.sort();
@@ -701,6 +711,31 @@ const codeOf = (err: unknown): string => {
     return "";
 };
 
+/** The codes a refused save throws (refusedSave() in src/common/export.ts): a note code is not one. */
+const REFUSAL_ERROR_CODES: ReadonlySet<string> = new Set([
+    "E_INVALID_ID",
+    "E_DIRECTED",
+    "E_COLUMN_TYPE",
+    "E_UNSUPPORTED",
+]);
+
+/**
+ * Whether an export's throw is a refusal check() announced: check() returned an E_ note, and the
+ * throw is a GraphFormatError with a refusal code that names one of those notes in
+ * `details.code` when it names one at all. A TypeError, another error code, or a refusal of a note
+ * check() did not return is an exporter bug.
+ * @param err - what the export threw
+ * @param refusals - check()'s E_ note codes
+ * @returns true when the throw is an announced refusal
+ */
+export function isAnnouncedRefusal(err: unknown, refusals: readonly string[]): err is GraphFormatError {
+    if (refusals.length === 0 || !(err instanceof GraphFormatError) || !REFUSAL_ERROR_CODES.has(err.code)) {
+        return false;
+    }
+    const note = err.details.code;
+    return note === undefined || (typeof note === "string" && refusals.includes(note));
+}
+
 const describeError = (err: unknown): string =>
     (err instanceof Error ? `${err.name} ${codeOf(err)}: ${err.message}` : String(err)).slice(0, 300);
 
@@ -720,7 +755,8 @@ export async function roundTrip(target: Target, g: GenGraph): Promise<TripOutcom
     if (target.format === "csv") {
         notes.push(...exporter.check(snapshot, { ...target.exportOptions, table: "nodes" }).map((n) => n.code));
     }
-    const refusal = notes.find((code) => code.startsWith("E_"));
+    const refusals = notes.filter((code) => code.startsWith("E_"));
+    const refusal = refusals.at(0);
     let text: string;
     let bytes: Uint8Array;
     let importOptions: Record<string, unknown> = { format: target.format };
@@ -739,10 +775,11 @@ export async function roundTrip(target: Target, g: GenGraph): Promise<TripOutcom
             importOptions = { ...importOptions, nodes };
         }
     } catch (err) {
-        if (refusal !== undefined) {
-            return { kind: "refused", code: refusal };
+        if (isAnnouncedRefusal(err, refusals)) {
+            return { kind: "refused", code: refusal ?? err.code };
         }
-        return { kind: "different", problems: [`export threw without an E_ note: ${describeError(err)}`], text: null };
+        const why = refusal === undefined ? "without an E_ note" : `but check() announced ${refusals.join(", ")}`;
+        return { kind: "different", problems: [`export threw ${why}: ${describeError(err)}`], text: null };
     }
     if (refusal !== undefined) {
         return { kind: "different", problems: [`check() announced ${refusal} but export() wrote the file`], text };
@@ -774,38 +811,7 @@ interface KnownFailure {
 }
 
 /** The open bugs; each has its minimal case in fixtures/generative/cases.json. */
-export const KNOWN_FAILURES: readonly KnownFailure[] = [
-    {
-        target: "pajek",
-        cause: "an infinite edge weight is written as `Infinity`, which the Pajek importer reads as a parameter name without a value (E_PAJEK_LINE) and drops the edge; check() announces nothing",
-        matches: (g) => g.edges.some((e) => e.w !== undefined && !Number.isFinite(e.w)),
-    },
-    {
-        target: "csv",
-        cause: "a one-column node table (ids only) is written with a bare `|`, `;` or tab in an id, and the importer's delimiter sniff picks that character, splitting the rows (E_CSV_FIELD_COUNT)",
-        matches: (g) => g.nodeColumns.length === 0 && g.ids.some((id) => typeof id === "string" && /[|;\t]/.test(id)),
-    },
-    {
-        target: "gml",
-        cause: 'a text cell equal to NetworkX\'s list markers ("[]", "()", "_networkx_list_start") is written as that string and read back as a list; check() announces nothing',
-        matches: (g) => allTexts(g).some((t) => t === "[]" || t === "()" || t === "_networkx_list_start"),
-    },
-    {
-        target: "neo4j",
-        cause: "the importer sniffs the delimiter: a file whose first section has one column and whose quoted cells hold tabs is read tab-delimited, and the comma-delimited rows fail (text after a closing quote); neo4j-admin's delimiter is a comma unless told otherwise",
-        matches: (g) => allTexts(g).some((t) => t.includes("\t")),
-    },
-];
-
-/**
- * Every text of a generated graph: string ids and string cells.
- * @param g - the graph
- * @returns the texts
- */
-function allTexts(g: GenGraph): string[] {
-    const cells = [...g.nodeValues, ...g.edges.map((e) => e.values)].flat();
-    return [...g.ids, ...cells].filter((v): v is string => typeof v === "string");
-}
+export const KNOWN_FAILURES: readonly KnownFailure[] = [];
 
 /**
  * The known failure a generated graph hits on a target, if any.

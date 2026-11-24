@@ -1,7 +1,6 @@
 import type { GraphSnapshot } from "@graphty/graph-format";
 import {
     type CommonImportOptions,
-    type FileLayout,
     type GraphChoiceOptions,
     type GraphImporter,
     type GraphListing,
@@ -10,6 +9,7 @@ import {
     ImportReportBuilder,
     loadFromSource,
     readText,
+    type RequestedLayout,
 } from "@graphty/graph-io";
 import { extractStyles } from "@graphty/graph-io/styles";
 import { z } from "zod";
@@ -34,11 +34,11 @@ import {
     emptyLoad,
     importWhole,
     readerImport,
+    rememberMetaExtra,
     sourceGraph,
     toRecords,
-    withoutStyleSlots,
 } from "./graph-io-import.js";
-import { type SourceData, type SourceInput, toSourceInput } from "./source-bytes.js";
+import { keepFetched, readOrRefuse, type SourceData, type SourceInput, toSourceInput } from "./source-bytes.js";
 
 /** What every reader is configured with, whatever its format. */
 export interface BaseDataSourceConfig {
@@ -51,7 +51,15 @@ export interface BaseDataSourceConfig {
     file?: File;
     /** A URL to fetch, as bytes. */
     url?: string;
+    /**
+     * How many nodes the reader hands the graph at a time while it loads, so a large file draws
+     * as it arrives. Defaults to {@link DataSource.DEFAULT_CHUNK_SIZE}.
+     */
     chunkSize?: number;
+    /**
+     * How many invalid nodes and edges the reader skips before it stops reading the file.
+     * Defaults to 100.
+     */
     errorLimit?: number;
     /**
      * Which graph to read from a file that holds several, by its 0-based position. The first
@@ -70,9 +78,10 @@ export interface BaseDataSourceConfig {
     /**
      * `"recommended"` chooses a layout for what was loaded, once it is loaded: the `fixed` layout,
      * which draws each node where the file put it, when every node arrived with a position, and a
-     * computed one otherwise. `"keep"` (the default) leaves the layout as it is.
+     * computed one otherwise. `"placed"` chooses the `fixed` layout in the same case and otherwise
+     * leaves the layout as it is. `"keep"` (the default) leaves the layout as it is.
      */
-    layout?: "recommended" | "keep";
+    layout?: "recommended" | "placed" | "keep";
 }
 
 /**
@@ -81,13 +90,13 @@ export interface BaseDataSourceConfig {
  * All three are `unknown` because registration is handed a class it has no reason to trust. A
  * class that forgot its `static type` used to be filed under the string "undefined", which is a
  * name a consumer can neither type nor debug; a class with no `static descriptor` used to be
- * filed as a format no picker could offer and no dropped file could be recognised as. Both are
+ * filed as a format no picker could offer and no dropped file could be recognized as. Both are
  * now refused at the door, where the author can see them.
  */
 interface FormatStatics {
     /** The name the class registers under, and the name a host asks for the format by. */
     readonly type?: unknown;
-    /** What the catalogue publishes about the format. */
+    /** What the catalog publishes about the format. */
     readonly descriptor?: unknown;
     /** The optional content sniffer, asked after every built-in one. */
     readonly detect?: unknown;
@@ -147,10 +156,10 @@ function refuseRegistration(field: string, message: string): never {
 }
 
 /**
- * Check the description a reader class carries before the catalogue publishes it.
+ * Check the description a reader class carries before the catalog publishes it.
  *
  * Everything checked here is something a consumer would otherwise meet much later and much
- * further away: a format with no extensions is one no dropped file can be recognised as, and a
+ * further away: a format with no extensions is one no dropped file can be recognized as, and a
  * format claiming it can be written is a "Save as" menu entry that saves nothing, because there
  * is no writer seam to register into.
  * @param type - The name the class registers under.
@@ -257,8 +266,14 @@ function readGraphLister(type: string, value: unknown): GraphLister | undefined 
     return value as GraphLister;
 }
 
+/**
+ * One batch of a load: the nodes and edges a reader yields together. A custom reader yields these
+ * from {@link DataSource.sourceFetchData}.
+ */
 export interface DataSourceChunk {
+    /** The batch's nodes, one record each. */
     nodes: AdHocData[];
+    /** The batch's edges, one record each. An edge may name a node from an earlier or later batch. */
     edges: AdHocData[];
 }
 
@@ -282,24 +297,48 @@ export interface ImporterSourceOptions<Opts> {
      */
     readonly statedBy?: (snapshot: GraphSnapshot, report: ImportReport) => string | null;
     /**
-     * The time field the file declares, which a load with the timeline experiment on designates
+     * The time field the file declares, which a load designates
      * (a custom `DataSource` declares one with its protected `declareTime` method). Return null
      * when the file declares none. Left out, no file declares one.
      * @param snapshot - the imported graph
      * @param report - the importer's report
      * @returns the field, or null
-     * @experimental timeline
      * @beta
      */
     readonly time?: (snapshot: GraphSnapshot, report: ImportReport) => TimeField | null;
 }
 
 /**
- * The readers a load with the timeline experiment on reads through: a reader in it keeps the time
- * data only the timeline reads (GEXF's lists of instants), so a load with the experiment off keeps
- * its records exactly as they were.
+ * The cancel signal of the load a reader is read for, set by the session before it reads: reading
+ * a file or fetching a URL stops on it, and rejects with its reason. Kept beside the reader, not
+ * in its config, which is the load's recorded options.
  */
-export const TIMELINE_READERS = new WeakSet();
+const READER_SIGNALS = new WeakMap<object, AbortSignal>();
+
+/**
+ * The options a reader settled that its load left out (the sheet a workbook load read when it named
+ * none), set once the reader has read. A load records them with its source, so a save reads the
+ * file the same way again. Kept beside the reader, as READER_SIGNALS is.
+ */
+const SETTLED_OPTIONS = new WeakMap<object, Readonly<Record<string, unknown>>>();
+
+/**
+ * The options a reader settled that its load left out (see SETTLED_OPTIONS).
+ * @param reader - the reader
+ * @returns the options, or undefined when it settled none
+ */
+export function settledOptionsOf(reader: unknown): Readonly<Record<string, unknown>> | undefined {
+    return typeof reader === "object" && reader !== null ? SETTLED_OPTIONS.get(reader) : undefined;
+}
+
+/**
+ * Sets the cancel signal of the load a reader is read for (see READER_SIGNALS).
+ * @param reader - the reader
+ * @param signal - the load's cancel signal
+ */
+export function setReaderSignal(reader: object, signal: AbortSignal): void {
+    READER_SIGNALS.set(reader, signal);
+}
 
 /**
  * The reader {@link DataSource.fromSource} returns: constructed with the source's params and the
@@ -331,7 +370,9 @@ const READER_KEYS: ReadonlySet<string> = new Set(["chunkSize", "errorLimit"]);
 
 /** The registrable reader {@link DataSource.fromImporter} returns. */
 export type ImporterDataSourceClass = (new (config: BaseDataSourceConfig) => DataSource) & {
+    /** The format's id, which a load names it by. */
     readonly type: string;
+    /** What the catalog publishes about the format. See {@link DataSource.descriptor}. */
     readonly descriptor: FormatDescriptor;
 };
 
@@ -377,13 +418,20 @@ export interface DeclaredDirection {
  * @param attempt - The zero-based attempt number
  * @param last - Receives the status of a response that came back but was not ok
  * @param last.status - The status of the last response that came back but was not ok
+ * @param last.timeoutMs - The timeout of the last attempt, when it ran out of time
  */
-function checkResponse(response: Response, url: string, attempt: number, last: { status?: number }): void {
+function checkResponse(
+    response: Response,
+    url: string,
+    attempt: number,
+    last: { status?: number; timeoutMs?: number },
+): void {
     if (response.ok) {
         return;
     }
 
     last.status = response.status;
+    delete last.timeoutMs;
     const { status } = response;
     // A client error (404, 401, 403...) will answer the same on every retry,
     // so fail at once and say the same call cannot succeed. 408 and 429 are
@@ -405,11 +453,19 @@ function checkResponse(response: Response, url: string, attempt: number, last: {
  * The coded failure of a fetch whose every attempt failed.
  * @param url - URL fetched from
  * @param retries - The number of attempts made
- * @param status - The status of the last response that came back but was not ok
+ * @param last - The status of the last response that came back but was not ok, and the timeout
+ *     of the last attempt when it ran out of time
+ * @param last.status - The status of the last response that came back but was not ok
+ * @param last.timeoutMs - The timeout of the last attempt, when it ran out of time
  * @param error - What the last attempt threw
  * @returns The error
  */
-function retriesExhausted(url: string, retries: number, status: number | undefined, error: unknown): GraphtyError {
+function retriesExhausted(
+    url: string,
+    retries: number,
+    last: { status?: number; timeoutMs?: number },
+    error: unknown,
+): GraphtyError {
     const errorMsg = error instanceof Error ? error.message : String(error);
     return new GraphtyError({
         code: "E_FETCH_FAILED",
@@ -418,7 +474,7 @@ function retriesExhausted(url: string, retries: number, status: number | undefin
         // A server that was down, a network that dropped: the same call unchanged
         // could succeed later, which is exactly what this flag is for.
         recoverable: true,
-        details: { url, attempts: retries, status },
+        details: { url, attempts: retries, ...last },
         cause: error,
     });
 }
@@ -427,10 +483,13 @@ function retriesExhausted(url: string, retries: number, status: number | undefin
  * The error an attempt stops with: an aborted attempt is reported as its timeout.
  * @param error - What the attempt threw
  * @param timeout - Timeout in milliseconds for the attempt
+ * @param last - Records the timeout when the attempt ran out of time
+ * @param last.timeoutMs - The timeout of the last attempt, when it ran out of time
  * @returns The error to throw
  */
-function attemptError(error: unknown, timeout: number): unknown {
+function attemptError(error: unknown, timeout: number, last: { timeoutMs?: number }): unknown {
     if (error instanceof Error && error.name === "AbortError") {
+        last.timeoutMs = timeout;
         return new Error(`Request timeout after ${timeout}ms`);
     }
 
@@ -442,17 +501,19 @@ function attemptError(error: unknown, timeout: number): unknown {
  * Provides common functionality for validation, chunking, error handling, and data fetching.
  */
 export abstract class DataSource {
+    /** The format's id, which a load names it by (`"json"`, `"graphml"`). A subclass sets it. */
     static readonly type: string;
+    /** How many nodes a reader hands the graph at a time when the config sets no `chunkSize`. */
     static readonly DEFAULT_CHUNK_SIZE = 1000;
 
     /**
-     * What the catalogue publishes about this format: its plain name, the extensions and media
+     * What the catalog publishes about this format: its plain name, the extensions and media
      * types its files carry, and the options a host can configure reading it with.
      *
      * REQUIRED OF A REGISTERED FORMAT and refused without it, because a reader filed with no
      * description is one a picker cannot offer, `formatDescriptor` cannot find and a dropped file
-     * cannot be recognised as. It is a static on the class so that one registration is the only
-     * registration: a description filed separately from its reader would be a catalogue entry a
+     * cannot be recognized as. It is a static on the class so that one registration is the only
+     * registration: a description filed separately from its reader would be a catalog entry a
      * consumer can see, select, and then be told does not exist.
      *
      * The element's own seven do not set it -- their descriptions are the frozen built-in table
@@ -480,18 +541,32 @@ export abstract class DataSource {
      */
     static listGraphs?: GraphLister;
 
+    /**
+     * A schema every edge must match, or null (the default) to take every edge. An edge that
+     * fails it is skipped and counts toward `errorLimit`.
+     */
     edgeSchema: z.core.$ZodObject | null = null;
+    /**
+     * A schema every node must match, or null (the default) to take every node. A node that
+     * fails it is skipped and counts toward `errorLimit`.
+     */
     nodeSchema: z.core.$ZodObject | null = null;
     protected errorAggregator: ErrorAggregator;
     protected chunkSize: number;
+    /**
+     * Bytes of the file read so far, for load progress: set once the inline data, file or URL
+     * has been read (text counts its UTF-8 bytes). Undefined until then, and for a source that
+     * reads its input some other way.
+     */
+    bytesRead: number | undefined = undefined;
     /** Backing field of {@link declaredDirection}; written only by {@link declareDirection}. */
     private declaration: DeclaredDirection | null = null;
     /** Backing field of {@link declaredTime}; written only by {@link declareTime}. */
     private timeField: TimeField | null = null;
     /** Backing field of {@link declaredGraphValues}; written only by {@link declareGraphValues}. */
     private graphValues: Readonly<Record<string, unknown>> | null = null;
-    /** Backing field of {@link declaredFileLayout}; written only by {@link declareFileLayout}. */
-    private fileLayout: FileLayout | null = null;
+    /** Backing field of {@link requestedLayout}; written only by {@link declareRequestedLayout}. */
+    private requested: RequestedLayout | null = null;
 
     /**
      * Creates a new DataSource instance.
@@ -503,7 +578,12 @@ export abstract class DataSource {
         this.chunkSize = chunkSize;
     }
 
-    // abstract init(): Promise<void>;
+    /**
+     * Reads the source and yields its nodes and edges in batches. A custom reader implements it;
+     * the element validates each batch against {@link nodeSchema} and {@link edgeSchema} and draws
+     * it. A reader holding the whole graph at once can yield `this.chunkData(nodes, edges)`.
+     * @yields the batches, in order
+     */
     abstract sourceFetchData(): AsyncGenerator<DataSourceChunk, void, unknown>;
 
     /**
@@ -511,31 +591,6 @@ export abstract class DataSource {
      * Used by getContent() and other shared methods
      */
     protected abstract getConfig(): BaseDataSourceConfig;
-
-    /**
-     * Standardized error message templates
-     * @returns Object containing error message template functions
-     */
-    protected get errorMessages(): {
-        missingInput: () => string;
-        fetchFailed: (url: string, attempts: number, error: string) => string;
-        parseFailed: (error: string) => string;
-        invalidFormat: (reason: string) => string;
-        extractionFailed: (path: string, error: string) => string;
-    } {
-        return {
-            missingInput: () => `${this.type}DataSource requires data, file, or url`,
-
-            fetchFailed: (url: string, attempts: number, error: string) =>
-                `Failed to fetch ${this.type} from ${url} after ${attempts} attempts: ${error}`,
-
-            parseFailed: (error: string) => `Failed to parse ${this.type}: ${error}`,
-
-            invalidFormat: (reason: string) => `Invalid ${this.type} format: ${reason}`,
-
-            extractionFailed: (path: string, error: string) => `Failed to extract data using path '${path}': ${error}`,
-        };
-    }
 
     /**
      * Fetch with retry logic and timeout
@@ -548,40 +603,48 @@ export abstract class DataSource {
     protected async fetchWithRetry(url: string, retries = 3, timeout = 30000): Promise<Response> {
         // Data URLs don't need retries or timeouts
         if (url.startsWith("data:")) {
-            return await fetch(url);
+            return await readOrRefuse(fetch(url), { url });
         }
 
         // The status of the last response that came back but was not ok, so the coded failure can
         // carry it: a consumer that wants to tell "not found" from "forbidden" reads details.status
         // rather than parsing the message.
-        const last: { status?: number } = {};
+        const last: { status?: number; timeoutMs?: number } = {};
+        const cancel = READER_SIGNALS.get(this);
 
         for (let attempt = 0; attempt < retries; attempt++) {
+            cancel?.throwIfAborted();
             try {
-                // Create AbortController for timeout
+                // Create AbortController for timeout, which the load's own cancel also fires
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => {
                     controller.abort();
                 }, timeout);
+                const abort = (): void => {
+                    controller.abort();
+                };
+                cancel?.addEventListener("abort", abort, { once: true });
 
                 try {
                     const response = await fetch(url, { signal: controller.signal });
-                    clearTimeout(timeoutId);
                     checkResponse(response, url, attempt, last);
                     return response;
                 } catch (error) {
+                    cancel?.throwIfAborted();
+                    throw attemptError(error, timeout, last);
+                } finally {
                     clearTimeout(timeoutId);
-                    throw attemptError(error, timeout);
+                    cancel?.removeEventListener("abort", abort);
                 }
             } catch (error) {
-                if (error instanceof GraphtyError) {
+                if (error instanceof GraphtyError || cancel?.aborted === true) {
                     throw error;
                 }
 
                 const isLastAttempt = attempt === retries - 1;
 
                 if (isLastAttempt) {
-                    throw retriesExhausted(url, retries, last.status, error);
+                    throw retriesExhausted(url, retries, last, error);
                 }
 
                 // Exponential backoff: wait 1s, 2s, 4s...
@@ -654,22 +717,45 @@ export abstract class DataSource {
      * @throws An `Error` naming the reader when the configuration has no data, file or URL.
      */
     protected async getInput(): Promise<SourceInput> {
+        const input = await this.readInput();
+        this.bytesRead = typeof input === "string" ? new Blob([input]).size : input.byteLength;
+        return input;
+    }
+
+    /**
+     * The source's contents, read from inline data, a file or a URL.
+     * @returns The text or the bytes.
+     */
+    private async readInput(): Promise<SourceInput> {
         const config = this.getConfig();
 
         if (config.data !== undefined) {
             return toSourceInput(config.data);
         }
 
+        const cancel = READER_SIGNALS.get(this);
+        cancel?.throwIfAborted();
         if (config.file) {
-            return new Uint8Array(await config.file.arrayBuffer());
+            const { file } = config;
+            const bytes = await readOrRefuse(file.arrayBuffer(), { file: file.name });
+            cancel?.throwIfAborted();
+            return new Uint8Array(bytes);
         }
 
         if (config.url) {
             const response = await this.fetchWithRetry(config.url);
-            return new Uint8Array(await response.arrayBuffer());
+            const bytes = new Uint8Array(await readOrRefuse(response.arrayBuffer(), { url: config.url }));
+            cancel?.throwIfAborted();
+            keepFetched(config.url, bytes, response);
+            return bytes;
         }
 
-        throw new Error(this.errorMessages.missingInput());
+        throw new GraphtyError({
+            code: "E_OPTION_RANGE",
+            source: "data",
+            message: `${this.type}DataSource requires data, file, or url`,
+            details: { option: "data|file|url", format: this.type },
+        });
     }
 
     /**
@@ -681,7 +767,7 @@ export abstract class DataSource {
      * @returns The choice, with only the keys the caller set.
      * @throws A `GraphtyError` with `E_OPTION_RANGE` for a `graphIndex` that is not a
      * non-negative integer, a `graphName` that is not a string, both at once, or a choice this
-     * format cannot honour.
+     * format cannot honor.
      */
     protected graphChoice(): GraphChoiceOptions {
         const { graphIndex, graphName } = this.getConfig() as { graphIndex?: unknown; graphName?: unknown };
@@ -734,7 +820,7 @@ export abstract class DataSource {
      * ONE OPTIONS MECHANISM. A format declares its options as `OptionDescriptor[]` on its
      * `static descriptor`, which is the same plain-JSON declaration `session.catalog.formats()`
      * hands a host building an import dialog, and this checks the host's values against that one
-     * declaration. The form a host renders, the catalogue entry it renders from and the values
+     * declaration. The form a host renders, the catalog entry it renders from and the values
      * this accepts therefore cannot disagree, and a failure is reported in the one vocabulary
      * every other extension point uses: `E_UNKNOWN_OPTION` with the declared names and the
      * nearest few, `E_OPTION_RANGE` with the range and the value passed.
@@ -854,7 +940,6 @@ export abstract class DataSource {
     /**
      * The time field the file declared, or null when it declared none. Read it after the last chunk.
      * @returns the field, or null
-     * @experimental timeline
      * @beta
      */
     get declaredTime(): TimeField | null {
@@ -862,12 +947,11 @@ export abstract class DataSource {
     }
 
     /**
-     * Record the time field the file being parsed declares, as GEXF's `mode="dynamic"` does. With
-     * the timeline experiment on, the load designates it (`session.time.field`, and `time:field`
-     * fires) in the load's own step, unless a time field is already set; off, it is ignored. Call it
+     * Record the time field the file being parsed declares, as GEXF's `mode="dynamic"` does. The
+     * load designates it (`session.time.field`, and `time:field` fires) in the load's own step,
+     * unless a time field is already set. Call it
      * only when the file itself says which columns hold time.
      * @param field - the field, with paths as the records name them
-     * @experimental timeline
      * @beta
      * @example
      * ```ts
@@ -879,23 +963,26 @@ export abstract class DataSource {
     }
 
     /**
-     * The layout the file asks to be drawn with, as graph-io's importer read it, or null when the
-     * file names none or the source has not parsed yet. Read it after the last chunk.
-     * @returns the layout
-     * @since 3.35.0
+     * The layout the data asks to be drawn with: a graphty layout id and its options, as graph-io's
+     * `requestedLayout()` gives it, or null when it asks for none or the source has not parsed yet.
+     * Read it after the last chunk.
+     * @returns the request
      */
-    get declaredFileLayout(): FileLayout | null {
-        return this.fileLayout;
+    get requestedLayout(): RequestedLayout | null {
+        return this.requested;
     }
 
     /**
-     * Record the layout the file being parsed asks for (graph-io's `importer.layout(snapshot)`). A
-     * load that asks for the recommended layout draws the file with it.
-     * @param layout - the layout, or null when the file names none
-     * @since 3.35.0
+     * Record the layout the data being parsed asks for. A load that asks for the recommended layout
+     * draws the graph with it when it can.
+     * @param layout - the request, or null when the data asks for none
+     * @example
+     * ```ts
+     * this.declareRequestedLayout({ layout: "circular", options: {} });
+     * ```
      */
-    protected declareFileLayout(layout: FileLayout | null): void {
-        this.fileLayout = layout;
+    protected declareRequestedLayout(layout: RequestedLayout | null): void {
+        this.requested = layout;
     }
 
     /**
@@ -909,14 +996,18 @@ export abstract class DataSource {
      * parses a file itself answers null. Not an extension point: a format gets styles by being
      * read with a graph-io importer.
      * @internal
-     * @param options - Whether the defaults of the program that wrote the file are added (true
-     *     by default), and a cancel signal.
-     * @param options.toolDefaults - Whether the writing program's defaults are added.
+     * @param options - Passed to graph-io as it reads the styles, uninterpreted.
+     * @param options.toolDefaults - Whether a property the file leaves unset gets its reader's default.
+     * @param options.viewport - The canvas the drawing is first framed in, in CSS px, or null without one.
      * @param options.signal - Cancels the reading.
      * @returns The styles, or null when the file carries none or nothing has been read yet.
      */
     async fileStyles(
-        options: { readonly toolDefaults?: boolean; readonly signal?: AbortSignal } = {},
+        options: {
+            readonly toolDefaults?: boolean;
+            readonly viewport?: { readonly width: number; readonly height: number } | null;
+            readonly signal?: AbortSignal;
+        } = {},
     ): Promise<FileStylesRead | null> {
         const pending = readerImport(this);
         if (pending === null) {
@@ -927,38 +1018,27 @@ export abstract class DataSource {
         const { imported } = held;
         const extracted = extractStyles(imported.importer, imported.snapshot, imported.report, {
             ...(options.toolDefaults === undefined ? {} : { toolDefaults: options.toolDefaults }),
+            ...(options.viewport === undefined || options.viewport === null ? {} : { viewport: options.viewport }),
             ...(options.signal === undefined ? {} : { signal: options.signal }),
         });
         if (extracted === null) {
             return null;
         }
 
-        const { format, dialect } = extracted.styles.source;
         const positions = filePositionsOf(imported);
         const pxPerUnit = positions?.pxPerUnit;
-        const fit = positions?.viewerFit;
-        const box = positions?.bounds;
+        const padding = positions?.viewerFit?.padding;
+        const frame = positions?.viewerFrame;
         const annotations = imported.importer.annotations?.(imported.snapshot) ?? [];
         return {
             extracted,
             snapshot: imported.snapshot,
             ...(annotations.length === 0 ? {} : { annotations }),
             path: (kind, column) => held.path(kind, column),
-            // A JSON dialect graph-io names (it names none for plain JSON) keeps its styles under its own name.
-            format: format === "json" && dialect !== null ? dialect : format,
             ...(pxPerUnit === undefined ? {} : { positionPxPerUnit: pxPerUnit }),
             positionsStored: positions?.usable === true,
-            ...(fit === undefined || box === null || box === undefined
-                ? {}
-                : {
-                      positionFit: {
-                          padding: fit.padding,
-                          width: box.max[0] - box.min[0],
-                          height: box.max[1] - box.min[1],
-                          center: [(box.min[0] + box.max[0]) / 2, (box.min[1] + box.max[1]) / 2],
-                          ...(positions === null ? {} : { coords: positions.coords }),
-                      },
-                  }),
+            ...(padding === undefined ? {} : { framingPadding: padding }),
+            ...(frame === undefined ? {} : { framingBox: frame }),
         };
     }
 
@@ -1027,7 +1107,7 @@ export abstract class DataSource {
      * `static descriptor` is what puts it in `session.catalog.formats()`, in `formatDescriptor`,
      * in `formatsForExtension` and in detection. They happen together because a reader with no
      * description is invisible to every picker and to every dropped file, and a description
-     * without its reader is a catalogue entry a consumer can see, select, and then be told does
+     * without its reader is a catalog entry a consumer can see, select, and then be told does
      * not exist.
      *
      * THE ELEMENT'S OWN SEVEN TAKE THE OTHER BRANCH. A class registering under a name that is
@@ -1073,7 +1153,7 @@ export abstract class DataSource {
         const listGraphs = readGraphLister(type, cls.listGraphs);
 
         // Published BEFORE the class is filed, so a refusal leaves neither half registered: a
-        // reader loadable by name that no catalogue lists is the state this whole seam exists to
+        // reader loadable by name that no catalog lists is the state this whole seam exists to
         // end, and half-succeeding here would recreate it.
         const descriptor = readFormatDescriptor(type, cls.descriptor);
         assertReaderAgreesWithWriter(descriptor);
@@ -1110,7 +1190,7 @@ export abstract class DataSource {
      * Throw the `ImportError` re-exported by `@graphty/graphty-element/extend`, not one from your
      * own copy of graph-io, or the element cannot tell a refusal from a crash.
      * @param importer - the graph-io importer
-     * @param descriptor - the format's catalogue entry; its `id` is the name the class registers under
+     * @param descriptor - the format's catalog entry; its `id` is the name the class registers under
      * @param options - fixed importer options, how the file states its direction, and its time
      * @returns a `DataSource` subclass whose `type` is `descriptor.id`
      * @throws A `GraphtyError` with `E_BAD_COMMAND`, `details.field: "importer"`, when `importer` has
@@ -1192,6 +1272,23 @@ export abstract class DataSource {
                     { firstDeclarationWins: true },
                 );
                 const { snapshot, report } = imported;
+                // A declared option the load left out that the importer reports the value of. A
+                // workbook's sheet chosen by graphIndex or graphName is not left out: recording it
+                // beside them would choose the sheet twice, which the importer refuses.
+                const passed = this.#config as unknown as Record<string, unknown>;
+                const graphChosen = passed.graphIndex !== undefined || passed.graphName !== undefined;
+                const settled = Object.fromEntries(
+                    Object.entries(report.resolved ?? {}).filter(
+                        ([name]) =>
+                            passed[name] === undefined &&
+                            !(name === "sheet" && graphChosen) &&
+                            described.options.some((option) => option.name === name),
+                    ),
+                );
+                if (Object.keys(settled).length > 0) {
+                    SETTLED_OPTIONS.set(this, Object.freeze(settled));
+                }
+
                 const words = statedBy?.(snapshot, report) ?? null;
                 if (words !== null) {
                     this.declareDirection(snapshot.directed, words, report.counts.expandedMixed);
@@ -1202,14 +1299,7 @@ export abstract class DataSource {
                     this.declareTime(declared);
                 }
 
-                const { nodes, edges } = toRecords(
-                    imported,
-                    // A load drawing the file's styles leaves the file's own style slots to the layers.
-                    this.#config.styles === "file"
-                        ? withoutStyleSlots(snapshot, columnsMapping(snapshot))
-                        : columnsMapping(snapshot),
-                    this,
-                );
+                const { nodes, edges } = toRecords(imported, columnsMapping(snapshot), this, this.#config.styles);
                 yield* this.chunkData(nodes, edges);
             }
         };
@@ -1257,7 +1347,7 @@ export abstract class DataSource {
                 }
                 let loaded: Awaited<ReturnType<typeof loadFromSource>>;
                 try {
-                    loaded = await loadFromSource(source as string | GraphSource, params, options); // NOSONAR(S4325): picks the overload; tsc refuses the call without it
+                    loaded = await loadFromSource(source as string | GraphSource, params, options); // picks the overload; tsc refuses the call without it
                 } catch (error) {
                     throw toGraphtyError(error);
                 }
@@ -1265,6 +1355,7 @@ export abstract class DataSource {
                 const { snapshot } = loaded;
                 // ponytail: the whole load is held, then chunked; hand each page to the ingest as it
                 // arrives once a paged source is big enough for that to matter
+                rememberMetaExtra(this, snapshot);
                 const { nodes, edges } = toRecords(sourceGraph(loaded), columnsMapping(snapshot));
                 yield* this.chunkData(nodes, edges);
             }

@@ -80,12 +80,45 @@ describe("edges drawn through bends", () => {
         assert.closeTo(cap?.position.x ?? Number.NaN, 8, 1e-6);
     });
 
+    it("keeps a corner under the arrow head, so the line meets the head along the last segment (#8840, #8844)", async () => {
+        // the second bend lies 0.35 below the target's outline: under the head, nearer its tip than its back
+        const route = (await drawn({ "edge.bends": "0,-0.1375 1,-0.1375" })) ?? [];
+        assert.lengthOf(route, 4, "start, both bends, end");
+        const [, , b2, end] = route;
+        assert.closeTo(b2[0], 8, 1e-6);
+        assert.closeTo(b2[1], -1.1, 1e-6);
+        // the line ends on the head's axis, straight below the target, not off to the side of it
+        assert.closeTo(end[0], 8, 1e-6);
+    });
+
     it("rounds the corners when the edge is also curved", async () => {
         const route = (await drawn({ "edge.bends": ROUTE, "edge.curvature": true })) ?? [];
         // each of the two corners becomes a run of points, none of which is the corner itself
         assert.isAbove(route.length, 4);
         assert.isFalse(route.some(([x, y]) => Math.hypot(x, y + 4) < 1e-6));
     });
+
+    // down two, across six, then up the diagonal into b: the middle segment's middle (3, -2) is not halfway along the
+    // whole line (3.41, -2), nor the middle of the straight run between the two rounded corners (2.9, -2)
+    for (const [what, set] of [
+        ["a solid", {}],
+        ["a dash-dot", { "edge.style": "dash-dot" }],
+        ["a rounded solid", { "edge.curvature": true }],
+        ["a rounded dash-dot", { "edge.style": "dash-dot", "edge.curvature": true }],
+    ] as const) {
+        it(`hangs ${what} line's label on the middle of its middle segment through its bends (#8190)`, async () => {
+            await drawn({
+                ...set,
+                "edge.bends": "0,-0.25 0.75,-0.25",
+                "edge.label": "e",
+                "edge.labelStyle": { location: "top", attachOffset: 0 },
+            });
+            const [edge] = graph.getDataManager().edges.values();
+            const at = edge.label?.labelMesh?.getAbsolutePosition();
+            assert.isDefined(at, "the edge draws its label");
+            assert.closeTo(at?.x ?? Number.NaN, 3, 1e-3);
+        });
+    }
 
     it("draws an arc through its one bend on the circle through both centers (edge.bendCurve arc)", async () => {
         // yEd's arc edge: the bend is the apex, 2 above the middle of the 8 between the centers
@@ -285,8 +318,28 @@ describe("patterned lines drawn along their route (issue #3102)", () => {
         });
     }
 
-    // issue #3094: each of the six element patterns, not only the ones #3102 tested
-    for (const style of ["star", "box", "diamond", "dash-dot", "sinewave", "zigzag"]) {
+    // A star, box or diamond line is a joined line whose shader draws its elements (issue #7404): it runs through the
+    // route's corners as one run of pieces, with no element of its own.
+    for (const style of ["star", "box", "diamond"]) {
+        it(`draws a ${style} line through its bends as one joined line`, async () => {
+            const drawn = await elements(NODES, [{ src: "a", dst: "b" }], { "edge.style": style, "edge.bends": ROUTE });
+            assert.lengthOf(drawn, 0, "no pattern element of its own");
+            const [edge] = graph.getDataManager().edges.values();
+            const route = edge.drawnCurve ?? [];
+            for (const [x, y] of [
+                [0, -4],
+                [8, -4],
+            ]) {
+                assert.isTrue(
+                    route.some((p) => Math.hypot(p.x - x, p.y - y) < 1e-3),
+                    `the run turns the corner at ${String(x)},${String(y)}`,
+                );
+            }
+        });
+    }
+
+    // issue #3094: each of the element patterns, not only the ones #3102 tested
+    for (const style of ["dash-dot", "sinewave", "zigzag"]) {
         it(`places every ${style} element on the bent route, pointing along the leg it sits on`, async () => {
             await elements(NODES, [{ src: "a", dst: "b" }], { "edge.style": style, "edge.bends": ROUTE });
             const [edge] = graph.getDataManager().edges.values();

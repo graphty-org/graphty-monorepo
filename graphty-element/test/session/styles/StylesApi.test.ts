@@ -12,6 +12,8 @@ import type {
 } from "../../../src/catalog/types";
 import { EDGE_CONSTANTS } from "../../../src/constants/meshConstants";
 import { isGraphtyError } from "../../../src/errors";
+import { STYLE_DEFINITIONS } from "../../../src/session/commands/style";
+import { Dispatcher } from "../../../src/session/project/Dispatcher";
 import type { RunRef } from "../../../src/session/results/types";
 import { prepareBinding, type PreparedBinding } from "../../../src/session/styles/encoding";
 import {
@@ -52,6 +54,10 @@ import {
 import type { SelectorSource } from "../../../src/session/styles/predicate";
 import { createScaleRegistry, type ScaleRegistry } from "../../../src/session/styles/scales";
 import { DEFAULT_HIGHLIGHT } from "../../../src/session/styles/StylesApi";
+import { takeCaughtErrors } from "../../helpers/caught-errors";
+
+/** A run fixture with the name its layers are given by default. */
+type NamedRun = EncodingRun & { readonly label: string };
 
 /** One element's columns, keyed by the path a selector names. */
 type Row = Readonly<Record<Path, unknown>>;
@@ -110,7 +116,7 @@ function field(
 }
 
 /** A centrality run: a number per node, which is a thing to encode. */
-const BETWEENNESS: EncodingRun = {
+const BETWEENNESS: NamedRun = {
     id: "betweenness",
     label: "Betweenness",
     distinguishedBy: null,
@@ -122,7 +128,7 @@ const BETWEENNESS: EncodingRun = {
 };
 
 /** A route: membership on the nodes AND on the edges, which is a thing to highlight. */
-const ROUTE: EncodingRun = {
+const ROUTE: NamedRun = {
     id: "route",
     label: "Shortest Path",
     distinguishedBy: null,
@@ -138,7 +144,7 @@ const ROUTE: EncodingRun = {
 };
 
 /** A chosen set of nodes, which is the other thing to highlight. */
-const INFLUENCERS: EncodingRun = {
+const INFLUENCERS: NamedRun = {
     id: "influencers",
     label: "Influencers",
     distinguishedBy: null,
@@ -150,12 +156,13 @@ const INFLUENCERS: EncodingRun = {
 };
 
 /** Every run these harnesses can look up. */
-const RUNS: readonly EncodingRun[] = [BETWEENNESS, ROUTE, INFLUENCERS];
+const RUNS: readonly NamedRun[] = [BETWEENNESS, ROUTE, INFLUENCERS];
 
 /** Where a run is looked up, which is all the two run-bound verbs need from a session. */
 const RUN_SOURCE: EncodingSource = {
     run: (ref: RunRef): EncodingRun | undefined => RUNS.find((entry) => entry.id === ref),
     runIds: (): readonly RunId[] => RUNS.map((entry) => entry.id),
+    defaultLayerName: (id: RunId): string | undefined => RUNS.find((entry) => entry.id === id)?.label,
 };
 
 /** The scales the prepared bindings below are read through. */
@@ -194,9 +201,10 @@ function columnOf(path: Path): { column: unknown[]; unmeasured: number } {
  * verbs that read these -- the legend and the explanation -- are synchronous. This stands in for
  * the pass that would have prepared them.
  * @param layer - The layer, or undefined when it has gone.
+ * @param scales - The registry palettes are read from: the session's, so a palette a document carries resolves.
  * @returns Its prepared bindings, fixed values first and rules second.
  */
-function prepareLayer(layer: Layer | undefined): readonly PreparedBinding[] {
+function prepareLayer(layer: Layer | undefined, scales: ScaleRegistry = SCALES): readonly PreparedBinding[] {
     if (layer === undefined) {
         return [];
     }
@@ -204,7 +212,7 @@ function prepareLayer(layer: Layer | undefined): readonly PreparedBinding[] {
     const prepared: PreparedBinding[] = [];
 
     for (const [name, value] of Object.entries(layer.set ?? {})) {
-        prepared.push(prepareBinding({ channel: name as Channel, binding: { value }, scales: SCALES }));
+        prepared.push(prepareBinding({ channel: name as Channel, binding: { value }, scales }));
     }
 
     for (const [name, binding] of Object.entries(layer.encode ?? {})) {
@@ -214,7 +222,7 @@ function prepareLayer(layer: Layer | undefined): readonly PreparedBinding[] {
 
         const column = "by" in binding ? columnOf(binding.by) : undefined;
 
-        prepared.push(prepareBinding({ channel: name as Channel, binding, scales: SCALES, ...column }));
+        prepared.push(prepareBinding({ channel: name as Channel, binding, scales, ...column }));
     }
 
     return prepared;
@@ -228,11 +236,11 @@ function prepareLayer(layer: Layer | undefined): readonly PreparedBinding[] {
  * removed, and an index keyed by id would answer for the layer that has gone. Reading the entry
  * handed in also makes this late rather than captured, so a layer that has just been updated is
  * read through its new binding -- which is what a repaint pass does too.
- * @param entry - The compiled layer the stack holds.
- * @returns The bindings a legend and an explanation read.
+ * @param scales - The registry the session's styles API holds.
+ * @returns For each compiled layer the stack holds, the bindings a legend and an explanation read.
  */
-function liveEncoding(entry: CompiledLayer): readonly PreparedBinding[] {
-    return prepareLayer(entry.layer);
+function liveEncoding(scales: ScaleRegistry): (entry: CompiledLayer) => readonly PreparedBinding[] {
+    return (entry) => prepareLayer(entry.layer, scales);
 }
 
 /**
@@ -294,13 +302,17 @@ function makeStyles(extra: Partial<StylesSources> = {}): Harness {
     };
 
     const built = harness as Harness & { styles: SessionStylesApi };
+    // One registry for the styles API and the paint pass, as a session wires them, so a palette a
+    // document carries is what both read; a fresh one per harness keeps it out of other tests.
+    const scales = createScaleRegistry();
     const sources: StylesSources = {
         elements: ELEMENTS,
         base: [ELEMENT_BASE],
         paths: DIRECTORY,
         repaint,
         runs: RUN_SOURCE,
-        encoding: liveEncoding,
+        scales,
+        encoding: liveEncoding(scales),
         nodeIndex: (id) => {
             const at = Number(String(id).slice(1));
 
@@ -557,14 +569,28 @@ describe("the stack moves at once, and the picture follows it", () => {
         assert.deepStrictEqual(namesOf(harness.styles), ["Default", "Doomed"]);
     });
 
-    it("resolves with the edit applied when it is cancelled after the call", async () => {
+    it("reports a repaint that fails on undo, and tells no change for it", async () => {
+        const dispatcher = new Dispatcher({ definitions: STYLE_DEFINITIONS });
+        const harness = makeStyles({ dispatcher });
+        await harness.styles.add(layerSpec("Undone"));
+        const told = harness.changes.length;
+        const failure = new Error("the renderer gave up");
+        harness.failure = failure;
+
+        await dispatcher.undo();
+
+        assert.include(takeCaughtErrors(), failure, "the lane reports what no run could reject with");
+        assert.lengthOf(harness.changes, told, "a failed pass is not told as a painted change");
+    });
+
+    it("resolves with the edit applied when it is canceled after the call", async () => {
         const harness = makeStyles();
         let release = (): void => undefined;
         harness.gate = new Promise<void>((resolve) => {
             release = resolve;
         });
 
-        const run = harness.styles.add(layerSpec("Cancelled"));
+        const run = harness.styles.add(layerSpec("Canceled"));
 
         await flush();
         run.cancel("a newer edit replaced this one");
@@ -572,8 +598,8 @@ describe("the stack moves at once, and the picture follows it", () => {
 
         const layer = await run;
 
-        assert.strictEqual(layer.name, "Cancelled");
-        assert.deepStrictEqual(namesOf(harness.styles), ["Default", "Cancelled"]);
+        assert.strictEqual(layer.name, "Canceled");
+        assert.deepStrictEqual(namesOf(harness.styles), ["Default", "Canceled"]);
     });
 
     it("writes nothing when its signal is already aborted", async () => {
@@ -810,11 +836,16 @@ describe("checking a layer before it is committed", () => {
         assert.deepStrictEqual(codesOf(result), ["E_SELECTOR_EMPTY"]);
     });
 
-    it("refuses a layer that writes no channel at all", () => {
+    it("accepts a layer that writes no channel yet, whoever made it (issue #5905)", () => {
         const { styles } = makeStyles();
-        const result = styles.validate({ name: "Empty", target: "node", selector: { match: "everything" } });
+        const empty = { name: "Empty", target: "node", selector: { match: "everything" } } as const;
 
-        assert.deepStrictEqual(codesOf(result), ["E_BAD_LAYER"]);
+        assert.deepStrictEqual(codesOf(styles.validate(empty)), []);
+        assert.deepStrictEqual(codesOf(styles.validate({ ...empty, source: { by: "user" } })), []);
+        assert.deepStrictEqual(
+            codesOf(styles.validate({ ...empty, source: { by: "template", templateId: "mine" } })),
+            [],
+        );
     });
 
     it("refuses a channel the layer's target does not paint", () => {
@@ -879,6 +910,7 @@ describe("checking a layer before it is committed", () => {
         });
 
         assert.deepStrictEqual(codesOf(result), ["E_UNSCOPED_RUN_ENCODING"]);
+        assert.deepStrictEqual(result.errors[0]?.scope, { match: "has", path: "results.louvain.group" });
     });
 
     it("refuses a channel written twice, once as a literal and once as an encoding", () => {
@@ -938,14 +970,14 @@ describe("refusals, and where they arrive", () => {
         }
     });
 
-    it("refuses an update that would leave a layer add would have refused", async () => {
+    it("keeps a layer an update leaves writing no channel, in place and painting nothing (issue #5905)", async () => {
         const { styles } = makeStyles();
         const added = await styles.add(layerSpec("Sound"));
 
-        const code = await codeOfRejection(styles.update(added.id, { set: undefined }));
+        await styles.update(added.id, { set: undefined });
 
-        assert.strictEqual(code, "E_BAD_LAYER");
-        assert.strictEqual(styles.get(added.id)?.set?.["node.color"], "#ff0000");
+        assert.deepStrictEqual(namesOf(styles), ["Default", "Sound"]);
+        assert.isUndefined(styles.get(added.id)?.set?.["node.color"]);
     });
 });
 
@@ -1281,15 +1313,14 @@ describe("the legend, and why one element looks the way it does", () => {
         assert.strictEqual(blocks.length, 1);
         assert.strictEqual(block?.channel, "node.color");
         assert.strictEqual(block?.runId, "betweenness");
-        assert.strictEqual(block?.field?.plainName, "Betweenness");
         assert.strictEqual(block?.field?.path, "results.betweenness.value");
         assert.isAbove(swatches.length, 0);
         assert.isTrue(swatches.every((swatch) => typeof swatch.color === "string"));
     });
 
-    /* Two runs stacked on node colour: each run-made layer is scoped `{match:"has"}` to the
+    /* Two runs stacked on node color: each run-made layer is scoped `{match:"has"}` to the
        elements its run measured, so a cover test that only believed `{match:"everything"}`
-       never reported one run's colours hidden under another's. */
+       never reported one run's colors hidden under another's. */
     describe("a layer above that selects every element this one does", () => {
         /**
          * A session whose selector source can enumerate the elements a column holds a value for,
@@ -1319,8 +1350,14 @@ describe("the legend, and why one element looks the way it does", () => {
 
             const [lower, upper] = styles.legend();
 
-            assert.include(lower?.departures, 'painted over by "Route colour"');
-            assert.notInclude(upper?.departures ?? [], 'painted over by "By betweenness"');
+            assert.deepInclude(
+                (lower?.facts ?? []).map((fact) => [fact.code, fact.params.name]),
+                ["legend.painted-over", "Route colour"],
+            );
+            assert.notInclude(
+                (upper?.facts ?? []).map((fact) => fact.code),
+                "legend.painted-over",
+            );
         });
 
         it("says nothing when the layer above selects only some of them", async () => {
@@ -1336,7 +1373,10 @@ describe("the legend, and why one element looks the way it does", () => {
 
             const [lower] = styles.legend();
 
-            assert.notInclude(lower?.departures ?? [], 'painted over by "Group colour"');
+            assert.notInclude(
+                (lower?.facts ?? []).map((fact) => fact.code),
+                "legend.painted-over",
+            );
         });
     });
 
@@ -1357,7 +1397,7 @@ describe("the legend, and why one element looks the way it does", () => {
         assert.strictEqual(colour?.layerId, layer.id);
         assert.strictEqual(colour?.mode, "encoded");
         assert.isFalse(colour?.editable);
-        assert.isString(colour?.reason);
+        assert.isDefined(colour?.fact);
     });
 
     it("says why a rule cannot be edited as a code and its values", async () => {
@@ -1398,7 +1438,6 @@ describe("the legend, and why one element looks the way it does", () => {
 
         assert.isTrue(colour?.editable);
         assert.isUndefined(colour?.fact);
-        assert.isUndefined(colour?.reason);
     });
 
     it("lists the layers that contributed, bottom first", async () => {
@@ -1516,6 +1555,18 @@ describe("a style document, out and back in", () => {
         assert.deepStrictEqual(report.unbound, []);
     });
 
+    it("loads a layer that writes no channel, as it loads a starting row (issue #5905)", async () => {
+        const { styles } = makeStyles();
+
+        const report = await styles.applyTemplate({
+            version: 1,
+            layers: [{ name: "Not yet styled", target: "node", selector: { match: "everything" } }],
+        });
+
+        assert.deepStrictEqual(namesOf(styles), ["Default", "Not yet styled"]);
+        assert.strictEqual(report.applied.length, 1);
+    });
+
     it("applies what binds, disables what does not, and reports both with what it needs", async () => {
         const { styles } = makeStyles();
         const options: TemplateOptions = { templateId: "publication" };
@@ -1530,7 +1581,6 @@ describe("a style document, out and back in", () => {
             unbound.map((entry: UnboundLayer) => entry.needs),
             [["results.pagerank.score"]],
         );
-        assert.include(unbound[0]?.reason ?? "", "results.pagerank.score");
         assert.deepStrictEqual(unbound[0]?.fact, {
             code: "layer.unanswered",
             params: { layerId: unbound[0]?.layerId ?? "", name: "Waiting", paths: ["results.pagerank.score"] },
@@ -1589,21 +1639,39 @@ describe("a style document, out and back in", () => {
         assert.strictEqual(code, "E_PROTECTED");
     });
 
-    it("refuses a palette it does not have, rather than painting colours nobody chose", async () => {
+    it("applies a document naming a palette this page never registered when the document carries it", async () => {
+        // A save file carries every palette its layers name, so a palette the reading page lacks
+        // paints the colors the file was saved with (design/architecture/self-contained-save-files.md).
         const { styles } = makeStyles();
 
+        await styles.applyTemplate({
+            version: 1,
+            layers: [
+                {
+                    name: "House",
+                    target: "node",
+                    selector: { match: "has", path: "data.rank" },
+                    encode: { "node.color": { by: "data.rank", palette: DOCUMENT_PALETTE.id } },
+                },
+            ],
+            palettes: [DOCUMENT_PALETTE],
+        });
+
+        assert.deepStrictEqual(namesOf(styles), ["Default", "House"]);
+        assert.deepStrictEqual(styles.toDocument().palettes, [DOCUMENT_PALETTE], "and saves it again");
+    });
+
+    it("refuses a document naming a palette it neither carries nor this page has", async () => {
+        const { styles } = makeStyles();
         const code = await codeOfRejection(
             styles.applyTemplate({
                 version: 1,
-                layers: [...DOCUMENT.layers],
-                palettes: [
+                layers: [
                     {
-                        id: "house-style",
-                        plainName: "House Style",
-                        kind: "categorical",
-                        colors: ["#112233"],
-                        capacity: 1,
-                        colorblindSafe: [],
+                        name: "House",
+                        target: "node",
+                        selector: { match: "has", path: "data.rank" },
+                        encode: { "node.color": { by: "data.rank", palette: "house-style" } },
                     },
                 ],
             }),
@@ -1611,6 +1679,88 @@ describe("a style document, out and back in", () => {
 
         assert.strictEqual(code, "E_UNKNOWN_PALETTE");
         assert.deepStrictEqual(namesOf(styles), ["Default"]);
+    });
+
+    it("refuses a carried palette that is not an id, a kind and colors", async () => {
+        const { styles } = makeStyles();
+        const fromDisk = JSON.parse(
+            '{"version":1,"layers":[],"palettes":[{"id":"bad","kind":"sequential","colors":[]}]}',
+        ) as StyleDocument;
+
+        assert.strictEqual(await codeOfRejection(styles.applyTemplate(fromDisk)), "E_BAD_COMMAND");
+    });
+
+    it("paints a carried palette's colors over the catalog's palette of the same name", async () => {
+        const { styles } = makeStyles();
+        const older = { ...DOCUMENT_PALETTE, id: "viridis", kind: "sequential" as const, capacity: null };
+
+        await styles.applyTemplate({
+            version: 1,
+            layers: [
+                {
+                    name: "Old viridis",
+                    target: "node",
+                    selector: { match: "has", path: "data.rank" },
+                    encode: { "node.color": { by: "data.rank", palette: "viridis" } },
+                },
+            ],
+            palettes: [older],
+        });
+
+        assert.deepStrictEqual(styles.toDocument().palettes, [older], "the file's colors, not this build's");
+    });
+
+    it("reads a document written before palettes were carried, and carries them from then on", async () => {
+        // A file saved before built-in palettes and label looks were carried names them only by
+        // id; it still opens, resolved against this build's catalog.
+        const { styles } = makeStyles();
+
+        await styles.applyTemplate({
+            version: 1,
+            layers: [
+                {
+                    name: "Old",
+                    target: "node",
+                    selector: { match: "has", path: "data.rank" },
+                    set: { "node.labelStyle": { look: "card" } },
+                    encode: { "node.color": { by: "data.rank", palette: "viridis" } },
+                },
+            ],
+        });
+
+        const document = styles.toDocument();
+        assert.deepStrictEqual(
+            document.palettes?.map((each) => each.id),
+            ["viridis"],
+        );
+        assert.deepStrictEqual(
+            document.labelLooks?.map((each) => each.id),
+            ["card"],
+        );
+    });
+
+    it("applies a document naming a label look this build lacks when the document carries it", async () => {
+        const { styles } = makeStyles();
+        const look = { id: "gone", plainName: "Gone", style: { color: "#123456" } };
+
+        await styles.applyTemplate(
+            JSON.parse(
+                JSON.stringify({
+                    version: 1,
+                    layers: [
+                        {
+                            name: "Gone look",
+                            target: "node",
+                            selector: { match: "has", path: "data.rank" },
+                            set: { "node.labelStyle": { look: "gone" } },
+                        },
+                    ],
+                    labelLooks: [look],
+                }),
+            ) as StyleDocument,
+        );
+
+        assert.deepEqual(JSON.parse(JSON.stringify(styles.toDocument().labelLooks)), [look]);
     });
 
     it("applies a document that carries a palette this page has registered", async () => {
@@ -1636,7 +1786,7 @@ describe("a style document, out and back in", () => {
         }
     });
 
-    it("writes the palettes its layers name that the element does not ship, so a saved look is self-describing", async () => {
+    it("writes every palette its layers name, so a saved look is self-describing", async () => {
         registerPalette(DOCUMENT_PALETTE);
 
         try {
@@ -1658,10 +1808,10 @@ describe("a style document, out and back in", () => {
             const document = styles.toDocument();
 
             assert.deepStrictEqual(
-                document.palettes,
-                [DOCUMENT_PALETTE],
-                "the registered palette travels with the document; the element's own does not, " +
-                    "because viridis means the same thing on every page",
+                document.palettes?.map((each) => each.id),
+                [DOCUMENT_PALETTE.id, "viridis"],
+                "every palette a layer names travels with the document, the element's own included, " +
+                    "so a later build that drops or changes viridis paints what this one did",
             );
         } finally {
             clearRegisteredPalettesForTesting();

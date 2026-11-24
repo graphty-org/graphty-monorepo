@@ -180,9 +180,9 @@ describe("what a session publishes without being asked to compute", () => {
         assert.isAbove(first.catalog.palettes().length, 0);
         assert.isAbove(first.catalog.scales().length, 0);
 
-        // THE TABLES, not the catalogue object. What the element CAN do does not depend on which
+        // THE TABLES, not the catalog object. What the element CAN do does not depend on which
         // graph is loaded, so all five are the same frozen arrays for both sessions, and two
-        // sessions that disagreed about which algorithms exist would be a bug. The catalogue
+        // sessions that disagreed about which algorithms exist would be a bug. The catalog
         // itself is per session because `metrics()` is about THIS graph -- see metrics.test.ts,
         // which pins both halves of that.
         assert.strictEqual(first.catalog.algorithms(), second.catalog.algorithms());
@@ -204,7 +204,7 @@ describe("what a session publishes without being asked to compute", () => {
         session.dispose();
     });
 
-    it("publishes the acceleration capability document, and states an unfinished probe as such", () => {
+    it("publishes the acceleration capability document, and states a policy of off as off", () => {
         const session = createGraphSession({ config: { acceleration: { policy: "off" } } });
 
         assert.strictEqual(session.capabilities.acceleration.state, "off");
@@ -214,13 +214,21 @@ describe("what a session publishes without being asked to compute", () => {
 
     it("does not measure the hardware until something asks what the machine can do", async () => {
         const session = createGraphSession();
+        const probed = new Promise<void>((resolve) => {
+            const stop = session.on("capabilities:changed", ({ capabilities }) => {
+                if (capabilities.acceleration.state !== "probing") {
+                    stop();
+                    resolve();
+                }
+            });
+        });
 
         // A renderer builds a session on its way up, and reaching for a GPU adapter on the way to
         // drawing a thirty-node graph is a cost nobody asked for. Reading the capability document
         // IS the request, so that is what starts the measurement.
         assert.strictEqual(session.capabilities.acceleration.state, "probing", "the answer is not known yet");
 
-        await new Promise((resolve) => setTimeout(resolve, 0));
+        await probed;
 
         assert.strictEqual(session.capabilities.acceleration.state, "unavailable", "nothing registered an accelerator");
         assert.isString(session.capabilities.acceleration.reason, "and it says why in a sentence");

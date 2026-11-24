@@ -23,6 +23,7 @@ import {
     STYLE_ISSUE,
     styleFingerprint,
     styleTag,
+    unsettledStyles,
     writeStyleBlock,
 } from "../../src/styles/internal.js";
 import { styleBlockLosses } from "../../src/styles/io/block.js";
@@ -220,7 +221,8 @@ describe("a block that is not to be trusted", () => {
         expect(note?.params.samples).toEqual(["INVALID"]);
         // the file is read as NetworkX's node-link, with NetworkX's drawing defaults and nothing else
         expect(result.styles?.styles.source.tool).toBe("networkx");
-        expect(result.styles?.styles.rules.filter((r) => r.origin !== "tool")).toEqual([]);
+        const read = result.styles === null || result.styles === undefined ? null : unsettledStyles(result.styles);
+        expect(read?.styles.rules.filter((r) => r.origin !== "tool")).toEqual([]);
     });
 
     it("is ignored when a style column its rules read is missing from the file", () => {
@@ -243,11 +245,8 @@ describe("an opaque color another program wrote over a translucent one graphty w
         ["graphml", undefined, /<y:Fill color="#CCCCFF00"/, '<y:Fill color="#CCCCFF"'],
         ["gexf", undefined, /r="204" g="204" b="255" a="0"/, 'r="204" g="204" b="255"'],
         ["json", "graphology", /rgba\(204,204,255,0\)/, "#CCCCFF"],
+        ["json", "vis", /rgba\(204,204,255,0\)/, "#CCCCFF"],
     ];
-
-    // known failure: the vis writer writes a fitted vis-network ellipse as a sized dot, whose label the reader hangs
-    // below it, so labelOffsetY comes back as exceptions too (ISSUES.md, Specimen sheets: vis-network)
-    const known: typeof slots = [["json", "vis", /rgba\(204,204,255,0\)/, "#CCCCFF"]];
 
     const check = async (format: string, dialect: string | undefined, slot: RegExp, opaque: string): Promise<void> => {
         const registry = createRegistry();
@@ -269,7 +268,6 @@ describe("an opaque color another program wrote over a translucent one graphty w
         ).toEqual([]);
     };
     it.each(slots)("is read as opacity 1 in %s %s, as one exception over the same rules", check);
-    it.fails.each(known)("is read as opacity 1 in %s %s, as one exception over the same rules (known failure)", check);
 });
 
 describe("a block graphty writes that its reader would refuse", () => {

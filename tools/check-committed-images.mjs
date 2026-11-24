@@ -3,7 +3,7 @@
 // Design studio walk screenshots belong in tmp/design-studio/, never in git (owner, 2026-10-21): about
 // 10 GB of them (83,000 Git LFS PNGs under design/ui/studio/) once reached master in one landing.
 //
-//   node tools/check-committed-images.mjs   (pnpm run check:committed-images; tools/prepush-source-checks.sh, ci.yml's Checks job)
+//   node tools/check-committed-images.mjs   (pnpm run check:committed-images; .husky/pre-push, ci.yml's Checks job)
 //
 // "Added" is measured from the push base (tools/push-base.mjs) to HEAD: images that exist at HEAD and
 // not at the base. Images under ALLOWED never count. The push fails when the rest are more than
@@ -29,10 +29,8 @@ export const ALLOWED = [
     "visual-review/test/fixtures/",
     "visual-review/trusted/page/",
     "graph-io/test/fidelity/",
-    "graph-io/fidelity-stories/references/",
     "graph-samples/thumbnails/",
     "graphty-element/src/shaders/presets/", // each shader preset's gallery thumbnail, shipped in the package
-    "graphty-element/examples/assets/",
     "graphty-element/test/helpers/",
     "graphty/public/",
     "docs/public/",

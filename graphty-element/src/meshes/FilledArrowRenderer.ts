@@ -1,14 +1,14 @@
-import {
-    type AbstractMesh,
-    BoundingInfo,
-    Color3,
-    Effect,
-    Mesh,
-    Scene,
-    ShaderMaterial,
-    Vector3,
-    VertexData,
-} from "@babylonjs/core";
+import { BoundingInfo } from "@babylonjs/core/Culling/boundingInfo.js";
+import { Effect } from "@babylonjs/core/Materials/effect.js";
+import { MultiMaterial } from "@babylonjs/core/Materials/multiMaterial.js";
+import { ShaderMaterial } from "@babylonjs/core/Materials/shaderMaterial.js";
+import { Color3 } from "@babylonjs/core/Maths/math.color.js";
+import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData.js";
+import { SubMesh } from "@babylonjs/core/Meshes/subMesh.js";
+import { Scene } from "@babylonjs/core/scene.js";
 
 import { EDGE_CONSTANTS } from "../constants/meshConstants";
 import { ArrowCap, arrowCapBatch } from "./ArrowCapBatch";
@@ -169,6 +169,7 @@ export interface FilledArrowOptions {
     color: string; // Hex color
     opacity?: number; // 0-1
     clipEndX?: number; // X-axis clipping: undefined = no clipping, number = clip at X position
+    fill?: string; // An open cap's inside color (ArrowStyle.fillColor); unset, the inside is empty
 }
 
 /** How long a tee cap is along its line, as a fraction of its size: a bar a third as deep as its 1.5 width. */
@@ -306,7 +307,7 @@ varying float vClip;
 // head of its edge turned round), and what it stands back by; its place is read from the row
 // table each frame, so a move uploads no cap byte.
 attribute vec2 capRows;
-// The source end's gap, the target end's gap, the cap's own gap, and how far its centre sits
+// The source end's gap, the target end's gap, the cap's own gap, and how far its center sits
 // behind its tip at scale 1.
 attribute vec4 capPlace;
 uniform highp sampler2D rowPosition;
@@ -352,8 +353,8 @@ void main() {
 
 #ifdef INSTANCES
     vec3 lineDir = arrowDirection;
-    // A hidden or handed-back slot holds a ZERO matrix (ArrowCapBatch.hide). Its centre then
-    // reads as the world origin, and since this shader builds the cap from the centre and
+    // A hidden or handed-back slot holds a ZERO matrix (ArrowCapBatch.hide). Its center then
+    // reads as the world origin, and since this shader builds the cap from the center and
     // arrowSize, not from the matrix, it would draw a full-size cap there. A placed slot's
     // bottom-right is 1, so a zero there means "draw nothing": collapse the cap to a point.
     float scale = finalWorld[3][3] == 0.0 || arrowHidden > 0.5 ? 0.0 : arrowSize;
@@ -368,7 +369,7 @@ void main() {
     vec3 worldCenter = vec3(finalWorld[3][0], finalWorld[3][1], finalWorld[3][2]);
 #ifdef CAP_PULLED
     // Edge.placeArrowHead over the include's ends: the tip stands its gap back from where the line
-    // meets the head's node, the centre its offset behind the tip, both along the trimmed line.
+    // meets the head's node, the center its offset behind the tip, both along the trimmed line.
     scale = 0.0;
     if (capRows.x >= 0.0 && capRows.y >= 0.0) {
         int fromRow = int(capRows.x + 0.5);
@@ -385,12 +386,12 @@ void main() {
             vec3 tip = ends.dst;
             bool placed = ends.hasSrc && ends.hasDst && ends.dst != ends.src;
             if (placed) {
-                // A closed end lies on the line between the centres, so that line's direction is
+                // A closed end lies on the line between the centers, so that line's direction is
                 // the trimmed line's, with fewer roundings.
                 lineDir = normalize(b.xyz - a.xyz);
             } else if (any(greaterThan(abs(b.xyz - a.xyz), vec3(0.01)))) {
                 // Edge.placeArrowFromCentres: the line has no ends (the nodes overlap), so the
-                // tip stands at the target's box along the line between the centres.
+                // tip stands at the target's box along the line between the centers.
                 lineDir = normalize(b.xyz - a.xyz);
                 target.radius = -1.0;
                 tip = b.xyz - lineDir * edgeTrimReach(-lineDir, target);
@@ -442,6 +443,10 @@ uniform vec3 color;
 uniform float clipEndX;        // X-axis clipping: -1.0 = disabled, >= 0.0 = clip at this X
 #endif
 uniform float opacity;
+#ifdef CAP_FILL
+// An open cap's inside (ArrowStyle.fillColor): the batch's one fill colour, at its slot's opacity.
+uniform vec3 fillColor;
+#endif
 
 // Varyings
 varying vec3 vLocalPosition;  // Local position from vertex shader
@@ -460,7 +465,9 @@ void main() {
         discard;
     }
 
-#ifdef INSTANCES
+#if defined(INSTANCES) && defined(CAP_FILL)
+    gl_FragColor = vec4(fillColor, opacity * vColor.a);
+#elif defined(INSTANCES)
     gl_FragColor = vec4(vColor.rgb, opacity * vColor.a);
 #else
     gl_FragColor = vec4(color, opacity);
@@ -1315,7 +1322,7 @@ void main() {
      *
      * - "open-normal": the triangle's outline (Graphviz's onormal, Cytoscape.js's hollow triangle).
      * - "open-diamond": the diamond's outline (odiamond).
-     * - "open-dot": the dot's ring, centred on the origin (odot).
+     * - "open-dot": the dot's ring, centered on the origin (odot).
      * - "open-inverted": the inverted triangle's outline, its base across the tip (oinv).
      * - "open-box": the box's outline (obox, Cytoscape's OPEN_SQUARE).
      *
@@ -1350,9 +1357,11 @@ void main() {
      * @param scene - Babylon.js scene
      * @param stroke - How thick the frame is, in the cap's own lengths (its outline width over the cap's length).
      * @param breadth - How wide the cap is across its line, as a multiple of its own (`ArrowStyle.width`).
+     * @param filled - Also draw the inside the frame leaves, first, its index count in `metadata.capFill` (see
+     *     {@link splitInside}).
      * @returns The mesh, in the XZ plane like every other arrow.
      */
-    static createOpenOutline(type: string, scene: Scene, stroke: number, breadth = 1): Mesh {
+    static createOpenOutline(type: string, scene: Scene, stroke: number, breadth = 1, filled = false): Mesh {
         const outline = this.OPEN_OUTLINES[type].map(([x, z]) => [x, z * breadth] as [number, number]);
         // how far the middle (the corners' mean) is from the nearest side
         const [cx, cz] = outline.reduce(
@@ -1365,7 +1374,54 @@ void main() {
                 return Math.abs((x1 - x) * (cz - z) - (z1 - z) * (cx - x)) / Math.hypot(x1 - x, z1 - z);
             }),
         );
-        return piecesMesh(`filled-${type}-arrow`, frame(outline, Math.min(stroke, inner / 2)), scene);
+        const pieces = frame(outline, Math.min(stroke, inner / 2));
+        if (!filled) {
+            return piecesMesh(`filled-${type}-arrow`, pieces, scene);
+        }
+
+        // the inside is the frame's inner corners, apart from the frame, so neither is drawn over the other
+        const inside = pieces.map((piece) => piece[3]);
+        const mesh = piecesMesh(`filled-${type}-arrow`, [inside, ...pieces], scene);
+        mesh.metadata = { capFill: (inside.length - 2) * 3 };
+        return mesh;
+    }
+
+    /**
+     * How thick an open cap's frame is drawn when it has an inside (`ArrowStyle.fillColor`) and no outline width of its
+     * own, in its own lengths: the open-normal's own thin frame (its triangle's inradius 0.27, inset 22.5%).
+     */
+    static readonly FILLED_FRAME = 0.06;
+
+    /**
+     * Split a filled open cap's mesh in two by `metadata.capFill`, the inside's index count: sub-mesh 0 the inside, 1
+     * the frame, for a material of two (`MultiMaterial`, the inside's first).
+     * @param mesh - The cap's mesh, its inside's triangles first.
+     */
+    static splitInside(mesh: Mesh): void {
+        const inside = (mesh.metadata as { capFill?: number } | null)?.capFill ?? 0;
+        const total = mesh.getTotalIndices();
+        const vertices = mesh.getTotalVertices();
+        mesh.subMeshes = [
+            new SubMesh(0, 0, vertices, 0, inside, mesh, undefined, true, false),
+            new SubMesh(1, 0, vertices, inside, total - inside, mesh, undefined, true, false),
+        ];
+    }
+
+    /**
+     * Give a flat (2D) filled open cap its inside's color: a material of two, the inside's in `fill`, the frame keeping
+     * the material it has.
+     * @param mesh - The cap's mesh, its frame's 2D material on it.
+     * @param fill - The inside's color.
+     * @param opacity - The cap's opacity.
+     * @param scene - Babylon.js scene
+     */
+    static paintInside2D(mesh: Mesh, fill: string, opacity: number, scene: Scene): void {
+        const outline = mesh.material;
+        MaterialHelper.apply2DMaterial(mesh, fill.slice(0, 7), opacity, scene);
+        const both = new MultiMaterial(`${mesh.name}-filled`, scene);
+        both.subMaterials = [mesh.material, outline];
+        mesh.material = both;
+        this.splitInside(mesh);
     }
 
     /**
@@ -1518,7 +1574,7 @@ void main() {
      * @param build - Builds the mesh (with its material) for a new batch
      * @param options - The cap's scale, and whether its batch carries per-instance appearance
      * @param options.scale - The uniform scale the cap's normalized geometry is drawn at
-     * @param options.billboard - Whether the batch reads direction, size and colour per instance
+     * @param options.billboard - Whether the batch reads direction, size and color per instance
      * @returns The cap: one slot of the batch
      */
     static capOf(
@@ -1532,11 +1588,11 @@ void main() {
 
     /**
      * Draw one billboarded 3D arrow cap as a slot in its scene's batch for that shape. The
-     * direction, size, colour and opacity are the slot's own attributes, so caps of every look
+     * direction, size, color and opacity are the slot's own attributes, so caps of every look
      * share one draw call.
      * @param shape - The arrow type, which names the batch's geometry
      * @param createShape - Builds that geometry, for a new batch
-     * @param options - The cap's size (world-space length), colour and opacity
+     * @param options - The cap's size (world-space length), color and opacity
      * @param scene - Babylon.js scene
      * @param reuse - A cap to recolor and hand back when it is in this batch at this size
      * @returns The cap; point it with {@link ArrowCap.place}
@@ -1555,7 +1611,7 @@ void main() {
         const batch = arrowCapBatch(
             scene,
             `3d|${shape}|${pass}`,
-            () => this.applyInstancedShader(createShape(), 1, scene),
+            () => this.applyInstancedShader(createShape(), 1, scene, options.fill),
             true,
         );
         const cap = reuse?.drawsIn(batch, options.size) === true ? reuse : new ArrowCap(batch, options.size);
@@ -1566,36 +1622,52 @@ void main() {
     }
 
     /**
-     * Give a batch's mesh the billboard shader, reading direction, size and colour from
+     * Give a batch's mesh the billboard shader, reading direction, size and color from
      * per-instance buffers instead of uniforms.
      * @param mesh - The batch's mesh
      * @param opacity - The opacity every cap in the batch is drawn at
      * @param scene - Babylon.js scene
+     * @param fill - An open cap's inside color (`ArrowStyle.fillColor`), for a mesh its inside's triangles first
+     *     ({@link createOpenOutline}); unset, one material for the whole cap
      * @returns The same mesh
      */
-    static applyInstancedShader(mesh: Mesh, opacity: number, scene: Scene): Mesh {
+    static applyInstancedShader(mesh: Mesh, opacity: number, scene: Scene, fill?: string): Mesh {
         this.registerShaders();
 
-        const material = new ShaderMaterial(
-            "filledArrowMaterial",
-            scene,
-            { vertex: "filledArrow", fragment: "filledArrow" },
-            {
-                attributes: ["position", "arrowDirection", "arrowSize", "arrowColor", "arrowClip", "arrowHidden"],
-                // `world` is the batch mesh's own transform, which Babylon's instancing include
-                // multiplies a thin instance's slot matrix by. Without it in this list the
-                // include declares the uniform and nothing ever writes it, so the whole batch
-                // would sit at the origin and ignore `graph-root`.
-                uniforms: ["world", "viewProjection", "cameraPosition", "opacity"],
-            },
-        );
-        material.setFloat("opacity", opacity);
-        this.cameraTracked.add(material);
-        // See applyShader (issue #388).
-        material.blockDirtyMechanism = true;
-        material.backFaceCulling = false;
-
-        mesh.material = material;
+        const make = (inside: boolean): ShaderMaterial => {
+            const material = new ShaderMaterial(
+                inside ? "filledArrowInsideMaterial" : "filledArrowMaterial",
+                scene,
+                { vertex: "filledArrow", fragment: "filledArrow" },
+                {
+                    attributes: ["position", "arrowDirection", "arrowSize", "arrowColor", "arrowClip", "arrowHidden"],
+                    // `world` is the batch mesh's own transform, which Babylon's instancing include
+                    // multiplies a thin instance's slot matrix by. Without it in this list the
+                    // include declares the uniform and nothing ever writes it, so the whole batch
+                    // would sit at the origin and ignore `graph-root`.
+                    uniforms: ["world", "viewProjection", "cameraPosition", "opacity", "fillColor"],
+                    defines: inside ? ["#define CAP_FILL"] : [],
+                },
+            );
+            material.setFloat("opacity", opacity);
+            this.cameraTracked.add(material);
+            // See applyShader (issue #388).
+            material.blockDirtyMechanism = true;
+            material.backFaceCulling = false;
+            return material;
+        };
+        const material = make(false);
+        if (fill === undefined) {
+            mesh.material = material;
+        } else {
+            const inside = make(true);
+            // its alpha, if any, is not drawn: the cap's opacity is the whole cap's
+            inside.setColor3("fillColor", Color3.FromHexString(fill.slice(0, 7)));
+            const both = new MultiMaterial("filledArrowMaterials", scene);
+            both.subMaterials = [inside, material];
+            mesh.material = both;
+            this.splitInside(mesh);
+        }
         // Below 1 this is what puts the batch in the alpha-blended queue, as it did each cap.
         mesh.visibility = opacity;
 
@@ -1639,20 +1711,12 @@ void main() {
      * but applies a 2D StandardMaterial instead of billboarded ShaderMaterial.
      * @param type - Arrow type (normal, diamond, box, dot, vee, tee, etc.)
      * @param length - Arrow length in world units
-     * @param _width - Arrow width in world units (reserved for future use)
      * @param color - Hex color string
      * @param opacity - Opacity value 0-1
      * @param scene - Babylon.js scene
      * @returns Mesh with StandardMaterial and XY plane rotation
      */
-    static create2DArrow(
-        type: string,
-        length: number,
-        _width: number,
-        color: string,
-        opacity: number,
-        scene: Scene,
-    ): Mesh {
+    static create2DArrow(type: string, length: number, color: string, opacity: number, scene: Scene): Mesh {
         // Get the appropriate geometry for the arrow type
         const geometry = this.getGeometryForType(type, scene);
 

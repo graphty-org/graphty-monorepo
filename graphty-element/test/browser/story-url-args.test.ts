@@ -27,7 +27,7 @@ function layoutOptionsWith(changed: Record<string, unknown>): Record<string, unk
     // No data: only the options handed to the element are under test.
     delete initialArgs.dataSource;
     const element = renderFn({ ...initialArgs, ...changed }, {
-        argTypes: meta.argTypes,
+        argTypes: KamadaKawaiWeighted.argTypes,
         initialArgs,
     } as unknown as RenderContext) as Graphty;
 

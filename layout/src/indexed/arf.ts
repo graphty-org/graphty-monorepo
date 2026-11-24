@@ -4,11 +4,12 @@ import { type LayoutResult, rescaleInPlace } from "../positions.js";
 import { kickDir } from "../simulation/forceatlas2.js";
 import { seedPositions } from "../simulation/seed.js";
 import { toLayoutSnapshot } from "../simulation/snapshot.js";
-import { refusal } from "./common.js";
+import { checkScaleCenter, refusal } from "./common.js";
 import { layoutDim, startColumn } from "./start.js";
 
 /** Options of indexed.arf. */
 export interface ArfOptions {
+    /** Numbers per node: `2` or `3`. Default 2. */
     readonly dim?: 2 | 3 | undefined;
     /** The seed of the rows `pos` does not give (null or absent: unseeded). */
     readonly seed?: number | null | undefined;
@@ -16,7 +17,7 @@ export interface ArfOptions {
     readonly pos?: F32 | null | undefined;
     /** The repulsion scale; default 1. */
     readonly scaling?: number | undefined;
-    /** The spring strength between neighbours, > 1; default 1.1 (every other pair has strength 1). */
+    /** The spring strength between neighbors, > 1; default 1.1 (every other pair has strength 1). */
     readonly a?: number | undefined;
     /** The iteration cap; default 1000. The run also stops once the summed force falls to 1e-6. */
     readonly maxIter?: number | undefined;
@@ -26,7 +27,7 @@ export interface ArfOptions {
      * at.
      */
     readonly scale?: number | undefined;
-    /** The centre the result is rescaled about (missing components are 0); see `scale`. */
+    /** The center the result is rescaled about (missing components are 0); see `scale`. */
     readonly center?: ArrayLike<number> | undefined;
 }
 
@@ -38,7 +39,7 @@ interface ArfState {
     readonly change: Float64Array;
     /** Scratch: p_i - p_j. */
     readonly diff: Float64Array;
-    /** neighbour[j] === i + 1 when j is a neighbour of i. */
+    /** neighbor[j] === i + 1 when j is a neighbor of i. */
     readonly neighbour: Int32Array;
     readonly rowPtr: ArrayLike<number>;
     readonly colIdx: ArrayLike<number>;
@@ -46,7 +47,7 @@ interface ArfState {
     readonly n: number;
     /** The repulsion, scaling * sqrt(n). */
     readonly rho: number;
-    /** The neighbour spring strength. */
+    /** The neighbor spring strength. */
     readonly a: number;
 }
 
@@ -103,7 +104,7 @@ function arfChange(st: ArfState): void {
  * antisymmetric, so a step leaves the centroid where it is.
  * @param st - the run's state
  * @param dt - the step; 0 measures where the nodes are now
- * @returns the length of the centred positions
+ * @returns the length of the centered positions
  */
 function arfSpread(st: ArfState, dt: number): number {
     const { p, change, dim, n } = st;
@@ -122,7 +123,7 @@ function arfSpread(st: ArfState, dt: number): number {
 
 /**
  * Whether this tick's Euler step proves the run unstable. The force is a linear spring term plus a repulsion of length
- * rho per pair. While the summed spring stiffness is under 2 / dt the spring term cannot lengthen the centred
+ * rho per pair. While the summed spring stiffness is under 2 / dt the spring term cannot lengthen the centered
  * positions, so a stable step grows them by at most the repulsion; more than that is only reachable past the limit.
  * @param st - the run's state
  * @param dt - the step
@@ -175,6 +176,7 @@ export function arf(g: GraphSnapshot, options: ArfOptions = {}): LayoutResult {
     if (a <= 1) {
         throw refusal(new Error("The parameter a should be larger than 1"), "E_BAD_OPTION", { option: "a", value: a });
     }
+    checkScaleCenter(options.scale, options.center);
     const s = toLayoutSnapshot(g);
     const dim = layoutDim(options.dim);
     const n = s.nodeCount;
@@ -192,7 +194,7 @@ export function arf(g: GraphSnapshot, options: ArfOptions = {}): LayoutResult {
         p,
         change: new Float64Array(dim * n),
         diff: new Float64Array(dim),
-        // neighbour[j] === i + 1 marks j as a neighbour of i, so no row needs clearing
+        // neighbor[j] === i + 1 marks j as a neighbor of i, so no row needs clearing
         neighbour: new Int32Array(n),
         rowPtr: s.rowPtr,
         colIdx: s.colIdx,

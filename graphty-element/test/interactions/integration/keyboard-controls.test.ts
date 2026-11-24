@@ -1,430 +1,101 @@
 /**
- * Keyboard Controls Integration Tests
+ * @file When the camera keys must NOT move the camera: a key still down when focus leaves the
+ * canvas, and a key pressed with a modifier, which is the page's shortcut. Real key presses
+ * (test/helpers/real-input.ts), the render loop running, the outcome read from
+ * `element.getCameraState()`.
  *
- * These tests verify keyboard interactions in a real browser environment
- * by creating Graph instances directly and pressing real keys (test/helpers/real-input.ts).
+ * Which way each key moves the camera, and how fast, is in test/interactions/real-input.test.ts
+ * and test/browser/2d-camera-controls.test.ts.
  */
 
-import { assert } from "chai";
-import { afterEach, beforeEach, describe, test } from "vitest";
+import { afterEach, assert, describe, it } from "vitest";
 
-import { Graph, operationQueueOf } from "../../../src/Graph";
-import { holdKey, releaseHeldKeys, releaseKey } from "../../helpers/real-input";
-import { configureGraph } from "../../helpers/testSetup";
+import type { Graphty } from "../../../index.js";
+import { drawnFrames } from "../../helpers/drawn-frames";
+import { click, holdKey, releaseHeldKeys, releaseKey } from "../../helpers/real-input";
+import { applied, camera, EMPTY, mounted, onCleanup } from "../helpers/mounted-element";
 
-const TEST_NODES = [{ id: 1 }, { id: 2 }, { id: 3 }];
+/** More frames than the 8 a single key press owes, so a camera still moving after them is held. */
+const PAST_A_TAP = 12;
 
-const TEST_EDGES = [
-    { src: 1, dst: 2 },
-    { src: 2, dst: 3 },
-];
+afterEach(async () => {
+    await releaseHeldKeys();
+});
 
 /**
- * Helper to get the 2D input controller from the graph
+ * A mounted element whose canvas a real click has focused, at rest.
+ * @param viewMode - The view mode.
+ * @returns The element.
  */
-function get2DInputController(graph: Graph):
-    | {
-          applyKeyboardInertia: () => void;
-      }
-    | undefined {
-    const cameraManager = graph.camera;
-    // Access via internal input registry
-
-    const anyManager = cameraManager as any;
-    if (anyManager.activeInputHandler?.applyKeyboardInertia) {
-        return anyManager.activeInputHandler;
-    }
-
-    return undefined;
+async function focused(viewMode: "2d" | "3d"): Promise<Graphty> {
+    const element = await mounted(viewMode);
+    await click(element, EMPTY);
+    await applied(element);
+    assert.isTrue(element.graph.canvas.matches(":focus"), "the click focused the canvas");
+    return element;
 }
 
 /**
- * Helper to get the 2D camera controller from the graph
+ * How far the camera moves over frames past what a tap owes: the largest change in any number
+ * `getCameraState()` reports.
+ * @param element - The element.
+ * @returns The change.
  */
-function get2DCameraController(graph: Graph):
-    | {
-          velocity: { x: number; y: number; zoom: number; rotate: number };
-          camera: { position: { x: number; y: number; z: number }; orthoTop?: number; orthoBottom?: number };
-      }
-    | undefined {
-    const controller = graph.camera.getActiveController();
-
-    const anyController = controller as any;
-    if (anyController.velocity) {
-        return anyController;
-    }
-
-    return undefined;
+async function movementOverFrames(element: Graphty): Promise<number> {
+    const numbers = (): number[] =>
+        JSON.stringify(element.getCameraState())
+            .match(/-?[\d.]+(e-?\d+)?/g)
+            ?.map(Number) ?? [];
+    const before = numbers();
+    await drawnFrames(element.graph.getScene(), PAST_A_TAP);
+    const after = numbers();
+    assert.strictEqual(after.length, before.length, "the camera state kept its shape");
+    return Math.max(0, ...after.map((n, i) => Math.abs(n - before[i])));
 }
 
-/**
- * Helper to get the 3D camera state
- */
-function get3DCameraState(graph: Graph): {
-    alpha: number;
-    beta: number;
-    radius: number;
-} {
-    const controller = graph.camera.getActiveController();
-    if (!controller) {
-        throw new Error("No active camera controller");
-    }
-
-    const camera = controller.camera as any;
-    return {
-        alpha: camera.alpha ?? 0,
-        beta: camera.beta ?? 0,
-        radius: camera.radius ?? 30,
-    };
-}
-
-describe("Keyboard Controls Integration", () => {
-    let graph: Graph;
-    let container: HTMLDivElement;
-
-    describe("2D Mode", () => {
-        beforeEach(async () => {
-            container = document.createElement("div");
-            container.style.width = "800px";
-            container.style.height = "600px";
-            document.body.appendChild(container);
-
-            graph = new Graph(container);
-            await graph.init();
-
-            // Set up 2D mode
-            await configureGraph(graph, { viewMode: "2d", layout: "circular", layoutOptions: { dim: 2 } });
-            await graph.addNodes(TEST_NODES);
-            await graph.addEdges(TEST_EDGES);
-            await operationQueueOf(graph).waitForCompletion();
-
-            // Wait for camera to be activated
-            await graph.waitForStableFrame();
+describe.each([
+    ["2d", "a"],
+    ["3d", "a"],
+] as const)("in %s, %s held", (viewMode, key) => {
+    it("stops moving the camera when focus leaves the canvas", async () => {
+        const element = await focused(viewMode);
+        const button = document.createElement("button");
+        document.body.appendChild(button);
+        onCleanup(() => {
+            button.remove();
         });
 
-        afterEach(async () => {
-            await releaseHeldKeys();
-            graph.dispose();
-            document.body.removeChild(container);
-        });
+        await holdKey(key);
+        await drawnFrames(element.graph.getScene(), PAST_A_TAP);
+        const whileHeld = await movementOverFrames(element);
+        assert.isAbove(whileHeld, 0, "the held key moved the camera");
 
-        test("WASD controls work in 2D mode - W increases Y velocity", async () => {
-            graph.canvas.focus();
-            const inputController = get2DInputController(graph);
-            const cameraController = get2DCameraController(graph);
+        // Focus moves away; the key-up lands on the button, never on the canvas
+        button.focus();
+        await releaseKey(key);
+        await drawnFrames(element.graph.getScene(), PAST_A_TAP);
 
-            assert.isDefined(inputController, "Input controller should be defined");
-            assert.isDefined(cameraController, "Camera controller should be defined");
-
-            // Press W key
-            await holdKey("w");
-            // Velocity reset after the press: the render loop applies the held key too
-            cameraController.velocity = { x: 0, y: 0, zoom: 0, rotate: 0 };
-            inputController.applyKeyboardInertia();
-
-            assert.isAbove(cameraController.velocity.y, 0, "W key should increase Y velocity");
-        });
-
-        test("WASD controls work in 2D mode - S decreases Y velocity", async () => {
-            graph.canvas.focus();
-            const inputController = get2DInputController(graph);
-            const cameraController = get2DCameraController(graph);
-
-            assert.isDefined(inputController, "Input controller should be defined");
-            assert.isDefined(cameraController, "Camera controller should be defined");
-
-            // Press S key
-            await holdKey("s");
-            // Velocity reset after the press: the render loop applies the held key too
-            cameraController.velocity = { x: 0, y: 0, zoom: 0, rotate: 0 };
-            inputController.applyKeyboardInertia();
-
-            assert.isBelow(cameraController.velocity.y, 0, "S key should decrease Y velocity");
-        });
-
-        test("WASD controls work in 2D mode - A decreases X velocity", async () => {
-            graph.canvas.focus();
-            const inputController = get2DInputController(graph);
-            const cameraController = get2DCameraController(graph);
-
-            assert.isDefined(inputController, "Input controller should be defined");
-            assert.isDefined(cameraController, "Camera controller should be defined");
-
-            // Press A key
-            await holdKey("a");
-            // Velocity reset after the press: the render loop applies the held key too
-            cameraController.velocity = { x: 0, y: 0, zoom: 0, rotate: 0 };
-            inputController.applyKeyboardInertia();
-
-            assert.isBelow(cameraController.velocity.x, 0, "A key should decrease X velocity");
-        });
-
-        test("WASD controls work in 2D mode - D increases X velocity", async () => {
-            graph.canvas.focus();
-            const inputController = get2DInputController(graph);
-            const cameraController = get2DCameraController(graph);
-
-            assert.isDefined(inputController, "Input controller should be defined");
-            assert.isDefined(cameraController, "Camera controller should be defined");
-
-            // Press D key
-            await holdKey("d");
-            // Velocity reset after the press: the render loop applies the held key too
-            cameraController.velocity = { x: 0, y: 0, zoom: 0, rotate: 0 };
-            inputController.applyKeyboardInertia();
-
-            assert.isAbove(cameraController.velocity.x, 0, "D key should increase X velocity");
-        });
-
-        test("arrow keys work in 2D mode - ArrowUp increases Y velocity", async () => {
-            graph.canvas.focus();
-            const inputController = get2DInputController(graph);
-            const cameraController = get2DCameraController(graph);
-
-            assert.isDefined(inputController, "Input controller should be defined");
-            assert.isDefined(cameraController, "Camera controller should be defined");
-
-            // Press ArrowUp key
-            await holdKey("ArrowUp");
-            // Velocity reset after the press: the render loop applies the held key too
-            cameraController.velocity = { x: 0, y: 0, zoom: 0, rotate: 0 };
-            inputController.applyKeyboardInertia();
-
-            assert.isAbove(cameraController.velocity.y, 0, "ArrowUp should increase Y velocity");
-        });
-
-        test("arrow keys work in 2D mode - ArrowDown decreases Y velocity", async () => {
-            graph.canvas.focus();
-            const inputController = get2DInputController(graph);
-            const cameraController = get2DCameraController(graph);
-
-            assert.isDefined(inputController, "Input controller should be defined");
-            assert.isDefined(cameraController, "Camera controller should be defined");
-
-            // Press ArrowDown key
-            await holdKey("ArrowDown");
-            // Velocity reset after the press: the render loop applies the held key too
-            cameraController.velocity = { x: 0, y: 0, zoom: 0, rotate: 0 };
-            inputController.applyKeyboardInertia();
-
-            assert.isBelow(cameraController.velocity.y, 0, "ArrowDown should decrease Y velocity");
-        });
-
-        test("arrow keys work in 2D mode - ArrowLeft decreases X velocity", async () => {
-            graph.canvas.focus();
-            const inputController = get2DInputController(graph);
-            const cameraController = get2DCameraController(graph);
-
-            assert.isDefined(inputController, "Input controller should be defined");
-            assert.isDefined(cameraController, "Camera controller should be defined");
-
-            // Press ArrowLeft key
-            await holdKey("ArrowLeft");
-            // Velocity reset after the press: the render loop applies the held key too
-            cameraController.velocity = { x: 0, y: 0, zoom: 0, rotate: 0 };
-            inputController.applyKeyboardInertia();
-
-            assert.isBelow(cameraController.velocity.x, 0, "ArrowLeft should decrease X velocity");
-        });
-
-        test("arrow keys work in 2D mode - ArrowRight increases X velocity", async () => {
-            graph.canvas.focus();
-            const inputController = get2DInputController(graph);
-            const cameraController = get2DCameraController(graph);
-
-            assert.isDefined(inputController, "Input controller should be defined");
-            assert.isDefined(cameraController, "Camera controller should be defined");
-
-            // Press ArrowRight key
-            await holdKey("ArrowRight");
-            // Velocity reset after the press: the render loop applies the held key too
-            cameraController.velocity = { x: 0, y: 0, zoom: 0, rotate: 0 };
-            inputController.applyKeyboardInertia();
-
-            assert.isAbove(cameraController.velocity.x, 0, "ArrowRight should increase X velocity");
-        });
-
-        test("keyboard input disabled when controller is disabled", async () => {
-            graph.canvas.focus();
-            const inputController = get2DInputController(graph);
-            const cameraController = get2DCameraController(graph);
-
-            assert.isDefined(inputController, "Input controller should be defined");
-            assert.isDefined(cameraController, "Camera controller should be defined");
-
-            // Disable input controller
-
-            const anyInput = inputController as any;
-            if (anyInput.disable) {
-                anyInput.disable();
-            }
-
-            // Reset velocity before the press, so a frame that heard the key would show in it
-            cameraController.velocity = { x: 0, y: 0, zoom: 0, rotate: 0 };
-
-            // Try keyboard input
-            await holdKey("w");
-            inputController.applyKeyboardInertia();
-
-            // Velocity should remain zero when disabled
-            assert.equal(cameraController.velocity.y, 0, "Keyboard input should have no effect when disabled");
-
-            // Re-enable for cleanup
-            if (anyInput.enable) {
-                anyInput.enable();
-            }
-        });
-        test("a key still down when focus leaves the canvas stops panning", async () => {
-            const inputController = get2DInputController(graph);
-            const cameraController = get2DCameraController(graph);
-            assert.isDefined(inputController);
-            assert.isDefined(cameraController);
-            const button = document.createElement("button");
-            container.appendChild(button);
-
-            graph.canvas.focus();
-            await holdKey("a");
-            button.focus();
-            cameraController.velocity = { x: 0, y: 0, zoom: 0, rotate: 0 };
-            inputController.applyKeyboardInertia();
-
-            assert.equal(cameraController.velocity.x, 0, "a released off the canvas should not keep panning");
-        });
-
-        test("Ctrl+D is a page shortcut, not a pan", async () => {
-            const inputController = get2DInputController(graph);
-            const cameraController = get2DCameraController(graph);
-            assert.isDefined(inputController);
-            assert.isDefined(cameraController);
-
-            graph.canvas.focus();
-            cameraController.velocity = { x: 0, y: 0, zoom: 0, rotate: 0 };
-            await holdKey("Control");
-            await holdKey("d");
-            inputController.applyKeyboardInertia();
-
-            assert.equal(cameraController.velocity.x, 0);
-        });
+        // The 2D camera coasts to a stop over many frames; a key still held moves it at full speed
+        assert.isBelow(
+            await movementOverFrames(element),
+            whileHeld / 10,
+            "a key let go off the canvas does not keep moving the camera",
+        );
     });
+});
 
-    describe("3D Mode", () => {
-        beforeEach(async () => {
-            container = document.createElement("div");
-            container.style.width = "800px";
-            container.style.height = "600px";
-            document.body.appendChild(container);
+describe.each([
+    ["2d", "Control", "d"],
+    ["3d", "Shift", "a"],
+] as const)("in %s, %s+%s", (viewMode, modifier, key) => {
+    it("is a page shortcut and does not move the camera", async () => {
+        const element = await focused(viewMode);
+        const before = camera(element);
 
-            graph = new Graph(container);
-            await graph.init();
+        await holdKey(modifier);
+        await holdKey(key);
+        await drawnFrames(element.graph.getScene(), PAST_A_TAP);
 
-            // Set up 3D mode
-            await configureGraph(graph, { viewMode: "3d", layout: "circular", layoutOptions: { dim: 3 } });
-            await graph.addNodes(TEST_NODES);
-            await graph.addEdges(TEST_EDGES);
-            await operationQueueOf(graph).waitForCompletion();
-
-            // Wait for camera to be activated
-            await graph.waitForStableFrame();
-        });
-
-        afterEach(async () => {
-            await releaseHeldKeys();
-            graph.dispose();
-            document.body.removeChild(container);
-        });
-
-        test("canvas has tabindex for keyboard focus in 3D mode", () => {
-            const { canvas } = graph;
-            // Canvas should have tabindex attribute for keyboard focus
-            assert.equal(canvas.getAttribute("tabindex"), "0", "Canvas should have tabindex='0' for focus");
-        });
-
-        test("3D camera has valid initial state", () => {
-            const state = get3DCameraState(graph);
-
-            // Verify camera has valid 3D state
-            assert.isNumber(state.alpha, "Alpha should be a number");
-            assert.isNumber(state.beta, "Beta should be a number");
-            assert.isNumber(state.radius, "Radius should be a number");
-            assert.isAbove(state.radius, 0, "Radius should be positive");
-        });
-
-        test("keyboard events are received on focused canvas", async () => {
-            const { canvas } = graph;
-
-            let keyEventReceived = false;
-            const handler = (): void => {
-                keyEventReceived = true;
-            };
-
-            canvas.addEventListener("keydown", handler);
-
-            // Focus the canvas
-            canvas.focus();
-
-            // Press a real key
-            await holdKey("w");
-
-            assert.isTrue(keyEventReceived, "Canvas should receive keyboard events when focused");
-
-            canvas.removeEventListener("keydown", handler);
-        });
-
-        /**
-         * Count the camera spins the 3D input handler makes over a few frames, after real key
-         * presses on the focused canvas. Counting starts once the presses are done, so frames the
-         * render loop draws while the keys travel do not count.
-         * @param press - The real key presses to make on the focused canvas before the frames run
-         * @returns The number of spin calls
-         */
-        async function spinsAfter(press: () => Promise<void>): Promise<number> {
-            const handler = (graph.camera as any).activeInputHandler;
-            const { controller } = handler;
-
-            const { canvas } = graph;
-            canvas.focus();
-            assert.strictEqual(document.activeElement, canvas, "canvas should take focus");
-            await press();
-
-            const original = controller.spin.bind(controller);
-            let spins = 0;
-            controller.spin = (dz: number): void => {
-                spins++;
-                original(dz);
-            };
-            for (let i = 0; i < 5; i++) {
-                handler.update();
-            }
-
-            controller.spin = original;
-            return spins;
-        }
-
-        test("A held on the focused canvas spins the camera", async () => {
-            const spins = await spinsAfter(async () => {
-                await holdKey("a");
-            });
-            assert.isAbove(spins, 0);
-        });
-
-        test("Shift+A is a page shortcut, not a camera spin", async () => {
-            const spins = await spinsAfter(async () => {
-                await holdKey("Shift");
-                await holdKey("a");
-            });
-            assert.equal(spins, 0);
-        });
-
-        test("a key still down when focus leaves the canvas stops spinning", async () => {
-            const button = document.createElement("button");
-            container.appendChild(button);
-            const spins = await spinsAfter(async () => {
-                await holdKey("a");
-                // Focus moves away; the keyup lands on the button, never on the canvas
-                button.focus();
-                await releaseKey("a");
-            });
-            assert.equal(spins, 0);
-        });
+        assert.strictEqual(camera(element), before, "the camera did not move");
     });
 });

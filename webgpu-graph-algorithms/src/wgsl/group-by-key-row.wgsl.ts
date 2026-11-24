@@ -1,5 +1,5 @@
 /**
- * The `group-by-key-row` kernel body (design 8.6; the per-row group-by-key): for every listed row `v`, the arcs of
+ * The `group-by-key-row` kernel body (the per-row group-by-key): for every listed row `v`, the arcs of
  * the row are grouped by the key of their target (`keyIn[colIdx[a]]`), the weights are summed per key, and the key
  * with the largest sum wins. A tie goes to the row's OWN key (`keyIn[v]`) when it is among the tied keys -- label
  * propagation keeps a label that ties for the lead -- and otherwise to the LOWEST key. Either way the order is strict,
@@ -10,7 +10,7 @@
  * chosen from the exponents of the row's largest weight and of its degree alone so that `maxWeight x degree x 2^s`
  * lies in [2^28, 2^30), and rounded to the nearest integer, halves up. No step rounds a float: the scale needs no
  * product, scaling by a power of two is exact, and so are the integer part and the fraction of the scaled weight.
- * That matters because WGSL lets `x + y` and `x * y` round to EITHER neighbour of an inexact result, so a rounded
+ * That matters because WGSL lets `x + y` and `x * y` round to EITHER neighbor of an inexact result, so a rounded
  * step could differ between devices; as written, both tiers, every device and any CPU reference compute identical
  * integers. A weight smaller than `2^-s / 2` contributes nothing, and a negative weight counts as zero. Without
  * WEIGHTED every weight is 1.
@@ -21,7 +21,7 @@
  * slot pairs (key, sum) starting at word `rows[P.basesBase + g]` of `hashRegion`, cleared by the workgroup itself;
  * a key is claimed by a bounded compare-exchange loop with linear probing, and a lane that exhausts its bound raises
  * `hashRegion[0]`, which the driver reads and refuses. Every barrier is reached in uniform control flow: the only
- * early return keys on the workgroup id and a uniform. Body only (spec 3.5, D9); normative text.
+ * early return keys on the workgroup id and a uniform. Body only; normative text.
  */
 export const groupByKeyRowWgsl = /* wgsl */ `
 var<workgroup> shMax: array<f32, WG>;

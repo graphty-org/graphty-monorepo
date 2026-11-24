@@ -47,6 +47,7 @@ import {
     pajekExporter,
     pajekImporter,
 } from "../../src/index.js";
+import { neutralPositions } from "../../src/positions/convert.js";
 
 // ============================================================ targets
 
@@ -668,19 +669,16 @@ const FEATURES: readonly Feature[] = [
             }
             return b.freeze();
         },
+        // compared as places, through each column's spelling: Pajek and GML store y growing downward
         preserved: (o, a) => {
             const col = a.nodes.byRole("position");
-            if (col === null) {
-                return false;
-            }
             const orig = o.nodes.byRole("position");
-            if (orig === null) {
+            if (col === null || orig === null) {
                 return false;
             }
+            const [ov, av] = [neutralPositions(o, orig), neutralPositions(a, col)];
             for (let i = 0; i < o.nodeCount; i++) {
-                const ov = Array.from(orig.value(i) as ArrayLike<number>);
-                const av = Array.from(col.value(i) as ArrayLike<number>);
-                if (ov.length < 2 || av.length < 2 || ov[0] !== av[0] || ov[1] !== av[1]) {
+                if (ov[3 * i] !== av[3 * i] || ov[3 * i + 1] !== av[3 * i + 1]) {
                     return false;
                 }
             }
@@ -816,7 +814,8 @@ describe("ExportCapabilities.idCharset truthfulness (design 8.5, Q26)", () => {
             }
             b.addEdge(bad[0], bad[1]);
             const snapshot = b.freeze();
-            const notes = codes(target.exporter.check(snapshot, target.exportOptions));
+            const refuse = { ...target.exportOptions, sanitizeIds: "error" } as const;
+            const notes = codes(target.exporter.check(snapshot, refuse));
             if (idCharset === "dense-1-based") {
                 expect(notes).toContain(LOSS.ID_RENUMBERED);
                 // renumbering is not a mangling: export() succeeds and the file numbers 1..N
@@ -825,7 +824,7 @@ describe("ExportCapabilities.idCharset truthfulness (design 8.5, Q26)", () => {
                 return;
             }
             expect(notes).toContain(LOSS.ID_CHARSET);
-            await expect(target.exporter.exportToString(snapshot, target.exportOptions)).rejects.toMatchObject({
+            await expect(target.exporter.exportToString(snapshot, refuse)).rejects.toMatchObject({
                 code: "E_INVALID_ID",
                 details: { reason: "charset" },
             });

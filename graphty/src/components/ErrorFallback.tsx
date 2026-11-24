@@ -23,10 +23,8 @@ export function ErrorFallback({ resetError }: Readonly<FallbackProps>): React.JS
         >
             <Stack align="center" gap="lg">
                 <AlertTriangle size={48} color="var(--cm-text-danger)" />
-                <Title order={2} c="gray.1">
-                    Something went wrong
-                </Title>
-                <Text c="gray.4" size="sm" maw={400} ta="center">
+                <Title order={2}>Something went wrong</Title>
+                <Text size="sm" maw={400} ta="center">
                     An unexpected error occurred. The error has been reported.
                 </Text>
                 <Button leftSection={<RefreshCw size={16} />} onClick={resetError}>

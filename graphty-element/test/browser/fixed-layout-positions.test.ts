@@ -64,6 +64,45 @@ describe("the fixed layout", () => {
         assert.deepEqual(warnings, []);
     });
 
+    it("spreads unit-spaced positions so neighbors sit apart, keeping their proportions (issue #1171)", async () => {
+        await graph.addNodes([
+            { id: "a", position: { x: 0, y: 0, z: 0 } },
+            { id: "b", position: { x: 1, y: 0, z: 0 } },
+            { id: "c", position: { x: 1, y: 1, z: 0 } },
+        ]);
+        await graph.addEdges([
+            { src: "a", dst: "b" },
+            { src: "b", dst: "c" },
+        ]);
+        await graph.setLayout("fixed");
+        await operationQueueOf(graph).waitForCompletion();
+        graph.update();
+
+        const gap = at("b").x - at("a").x;
+        assert.closeTo(gap, 3, 1e-4, "three default node widths apart");
+        assert.closeTo(at("c").y - at("b").y, gap, 1e-4, "the same factor on every axis");
+    });
+
+    it("spreads the same when the edges arrive after the layout has placed the nodes (issue #9257)", async () => {
+        await placeFixed([
+            { id: "a", position: { x: 0, y: 0, z: 0 } },
+            { id: "b", position: { x: 1, y: 0, z: 0 } },
+            { id: "c", position: { x: 1, y: 1, z: 0 } },
+        ]);
+        assert.closeTo(at("b").x - at("a").x, 1, 1e-4, "no edge to measure yet: drawn as given");
+
+        await graph.addEdges([
+            { src: "a", dst: "b" },
+            { src: "b", dst: "c" },
+        ]);
+        await operationQueueOf(graph).waitForCompletion();
+        graph.update();
+
+        const gap = at("b").x - at("a").x;
+        assert.closeTo(gap, 3, 1e-4, "spread as when nodes and edges arrive together");
+        assert.closeTo(at("c").y - at("b").y, gap, 1e-4, "the same factor on every axis");
+    });
+
     it("reports W_NO_POSITION with how many nodes had no data position", async () => {
         // Top-level coordinates are not a position: the shape the guide used to show.
         await placeFixed([{ id: "a", position: { x: 10, y: 0, z: 0 } }, { id: "b", x: 100, y: 0, z: 0 }, { id: "c" }]);
@@ -95,5 +134,36 @@ describe("the fixed layout", () => {
         assert.deepEqual(warnings, [
             { layoutType: "fixed", code: "W_ROUTES_NOT_LAID", params: { reason: "graphviz.unavailable" } },
         ]);
+    });
+
+    it("draws every node at its Z again after an edit and a switch to 2D and back to 3D", async () => {
+        await placeFixed([
+            { id: "a", position: { x: 0, y: 0, z: 30 } },
+            { id: "b", position: { x: 100, y: 0, z: -20 } },
+            { id: "c", position: { x: 50, y: 100, z: 10 } },
+        ]);
+        // An edit leaves the frame following only the rows the lane logs.
+        await graph.updateNodes([{ id: "a", kind: "edited" }]);
+        await operationQueueOf(graph).waitForCompletion();
+        graph.update();
+
+        await graph.setViewMode("2d");
+        await operationQueueOf(graph).waitForCompletion();
+        graph.update();
+        await graph.setViewMode("3d");
+        await operationQueueOf(graph).waitForCompletion();
+        graph.update();
+
+        // The 2D view flattened the meshes in place, which no lane write records: the redraw walks every node.
+        const drawnZ = (id: string): number => {
+            const node = graph.getNode(id);
+            assert.isDefined(node);
+            return node.drawnPosition.z;
+        };
+        assert.deepStrictEqual(
+            ["a", "b", "c"].map((id) => drawnZ(id) - at(id).z),
+            [0, 0, 0],
+        );
+        assert.notStrictEqual(drawnZ("a"), drawnZ("b"));
     });
 });

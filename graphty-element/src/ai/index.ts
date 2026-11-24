@@ -61,9 +61,8 @@ export { AiManager, createAiManager } from "./AiManager";
 
 // Commands
 export {
-    // Capture commands (Phase 7)
+    // Capture commands
     captureScreenshot,
-    captureVideo,
     // Style commands
     clearStyles,
     CommandRegistry,
@@ -102,6 +101,7 @@ export type {
     ToolDefinition,
     VercelProviderType,
     WebLlmModelInfo,
+    WebLlmProgressStage,
     WebLlmProviderOptions,
 } from "./providers";
 export {

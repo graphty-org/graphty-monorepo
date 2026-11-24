@@ -48,6 +48,16 @@ export function projectBoundary(session: object, reason: BoundaryReason): void {
 }
 
 /**
+ * Whether a `data.steps-set` replaces the project: a replacing load under the source-steps experiment.
+ * @param command - The command.
+ * @returns `"import"`, or null.
+ */
+function stepsBoundary(command: object): BoundaryReason | null {
+    const { edit } = command as { readonly edit?: { readonly kind?: string; readonly replace?: boolean } };
+    return edit?.kind === "add" && edit.replace === true ? "import" : null;
+}
+
+/**
  * Whether a dispatched command replaces the project: a replacing import, a clear, or a source
  * that is not the one loaded (a new name for the same source is a rename, not a boundary).
  * @param command - The command, as dispatched.
@@ -65,7 +75,8 @@ export function boundaryOf(
         readonly mutation?: { readonly kind?: string };
         readonly source?: DataSourceDescriptor;
     };
-    if (fields.op === "data.import") {
+    // A load from a network source (`data.import-source`) replaces the project as a file load does.
+    if (fields.op === "data.import" || fields.op === "data.import-source") {
         return fields.mode === "merge" ? null : "import";
     }
 
@@ -73,13 +84,11 @@ export function boundaryOf(
     // behind a config.set (a file naming its nodes) replaces the project with that write.
     if (fields.op === "batch") {
         const steps = (command as { readonly steps?: readonly { readonly op: string }[] }).steps ?? [];
-        for (const step of steps) {
-            const reason = boundaryOf(step, source);
-            if (reason !== null) {
-                return reason;
-            }
-        }
-        return null;
+        return steps.map((step) => boundaryOf(step, source)).find((reason) => reason !== null) ?? null;
+    }
+
+    if (fields.op === "data.steps-set") {
+        return stepsBoundary(command);
     }
 
     if (fields.op === "data.apply") {

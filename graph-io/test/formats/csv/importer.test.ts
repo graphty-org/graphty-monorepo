@@ -18,8 +18,9 @@ import {
     NO_DATA_ROWS_CODE,
     NO_ENDPOINT_COLUMNS_CODE,
     NO_ID_COLUMN_CODE,
+    POSSIBLE_HEADER_CODE,
     ROLE_TAKEN_CODE,
-    splitNeighbour,
+    splitNeighbor,
 } from "../../../src/formats/csv/importer.js";
 import { BAD_QUOTE_CODE, UNCLOSED_QUOTE_CODE } from "../../../src/formats/csv/records.js";
 import { type CommonImportOptions, ImportError, type ImportReport } from "../../../src/types.js";
@@ -438,6 +439,18 @@ describe("csvImporter: header and delimiter handling", () => {
         expect(edgesOf(declared.snapshot)).toEqual(["a->b"]);
     });
 
+    it("warns when a first row read as data could be a header of unknown names", async () => {
+        const unknown = await load("from_node,to_node\nalice,bob\nbob,carol\n");
+        expect(edgesOf(unknown.snapshot)).toEqual(["from_node->to_node", "alice->bob", "bob->carol"]);
+        expect(codes(unknown.report)).toEqual([POSSIBLE_HEADER_CODE]);
+        // a later row repeating a first-row cell makes the first row an edge, so no warning
+        const chained = await load("alice,bob\nbob,carol\n");
+        expect(codes(chained.report)).toEqual([]);
+        // the caller decided: no warning
+        const forced = await load("from_node,to_node\nalice,bob\n", { header: false });
+        expect(codes(forced.report)).toEqual([]);
+    });
+
     it("resolves explicit endpoint columns by name and by position", async () => {
         const byName = await load("weight,to,from\n2,b,a\n", { sourceColumn: "from", targetColumn: "to" });
         expect(edgesOf(byName.snapshot)).toEqual(["a->b"]);
@@ -526,6 +539,103 @@ describe("csvImporter: header and delimiter handling", () => {
         expect(report.errorCount).toBe(42);
         expect(report.issues[0]).toMatchObject({ code: "E_INVALID_WEIGHT", line: 8 });
         expect(report.issues[1].line).toBe(15);
+    });
+});
+
+const STRING_EXPORT = [
+    "#node1\tnode2\tnode1_string_id\tnode2_string_id\tneighborhood_on_chromosome\tgene_fusion\tphylogenetic_cooccurrence\thomology\tcoexpression\texperimentally_determined_interaction\tdatabase_annotated\tautomated_textmining\tcombined_score",
+    "ATM\tTP53\t9606.ENSP00000278616\t9606.ENSP00000269305\t0\t0\t0\t0\t0.062\t0.991\t0.9\t0.997\t0.999",
+    "MDM2\tTP53\t9606.ENSP00000258149\t9606.ENSP00000269305\t0\t0\t0\t0\t0.13\t0.999\t0.9\t0.997\t0.999",
+    "",
+].join("\n");
+
+const STRING_LINKS = [
+    "protein1 protein2 combined_score",
+    "9606.ENSP00000000233 9606.ENSP00000356607 173",
+    "9606.ENSP00000000233 9606.ENSP00000427567 154",
+    "",
+].join("\n");
+
+const BIOGRID_HEADER = [
+    "#BioGRID Interaction ID",
+    "Entrez Gene Interactor A",
+    "Entrez Gene Interactor B",
+    "BioGRID ID Interactor A",
+    "BioGRID ID Interactor B",
+    "Systematic Name Interactor A",
+    "Systematic Name Interactor B",
+    "Official Symbol Interactor A",
+    "Official Symbol Interactor B",
+    "Synonyms Interactor A",
+    "Synonyms Interactor B",
+    "Experimental System",
+    "Experimental System Type",
+    "Author",
+    "Publication Source",
+    "Organism ID Interactor A",
+    "Organism ID Interactor B",
+    "Throughput",
+    "Score",
+    "Modification",
+    "Qualifications",
+    "Tags",
+    "Source Database",
+];
+
+const BIOGRID_TAB3 = [
+    BIOGRID_HEADER.join("\t"),
+    "103\t6416\t2318\t112315\t108607\t-\t-\tMAP2K4\tFLNC\tJNKK|MEK4|MKK4\tABP-280|FLN2\tTwo-hybrid\tphysical\tMarti A (1997)\tPUBMED:9006895\t9606\t9606\tLow Throughput\t-\t-\t-\t-\tBIOGRID",
+    "117\t84665\t88\t124185\t106603\t-\t-\tMYPN\tACTN2\tCMD1DD|MYOP\tCMYP6\tTwo-hybrid\tphysical\tBang ML (2001)\tPUBMED:11309420\t9606\t9606\tLow Throughput\t-\t-\t-\t-\tBIOGRID",
+    "",
+].join("\n");
+
+describe("csvImporter: STRING and BioGRID downloads", () => {
+    it("reads a STRING network export by its # header, combined_score as the weight", async () => {
+        const { snapshot, report } = await load(STRING_EXPORT);
+        expect(codes(report)).toEqual([]);
+        expect(edgesOf(snapshot)).toEqual(["ATM->TP53", "MDM2->TP53"]);
+        expect(weightsOf(snapshot)).toEqual([0.999, 0.999]);
+        expect(column(snapshot, "edges", "node1_string_id")).toEqual(["9606.ENSP00000278616", "9606.ENSP00000258149"]);
+        expect(column(snapshot, "edges", "experimentally_determined_interaction")).toEqual([0.991, 0.999]);
+        expect(snapshot.edges.get("combined_score")).toBeNull();
+    });
+
+    it("reads STRING protein links and keeps an explicit weightFrom", async () => {
+        const links = await load(STRING_LINKS);
+        expect(codes(links.report)).toEqual([]);
+        expect(edgesOf(links.snapshot)).toEqual([
+            "9606.ENSP00000000233->9606.ENSP00000356607",
+            "9606.ENSP00000000233->9606.ENSP00000427567",
+        ]);
+        expect(weightsOf(links.snapshot)).toEqual([173, 154]);
+        const coexpression = await load(STRING_EXPORT, { weightFrom: "coexpression" });
+        expect(weightsOf(coexpression.snapshot)).toEqual([0.062, 0.13]);
+        expect(column(coexpression.snapshot, "edges", "combined_score")).toEqual([0.999, 0.999]);
+    });
+
+    it("reads BioGRID TAB3 by its official symbols, every other column an attribute", async () => {
+        const { snapshot, report } = await load(BIOGRID_TAB3);
+        expect(codes(report)).toEqual([]);
+        expect(edgesOf(snapshot)).toEqual(["MAP2K4->FLNC", "MYPN->ACTN2"]);
+        expect(weightsOf(snapshot)).toEqual([undefined, undefined]);
+        expect(column(snapshot, "edges", "BioGRID Interaction ID")).toEqual([103, 117]);
+        expect(column(snapshot, "edges", "Experimental System")).toEqual(["Two-hybrid", "Two-hybrid"]);
+        // the same table without the # reads the same way
+        const plain = await load(BIOGRID_TAB3.slice(1));
+        expect(edgesOf(plain.snapshot)).toEqual(["MAP2K4->FLNC", "MYPN->ACTN2"]);
+    });
+
+    it("leaves the # header alone under header: false and lets endpoint options win", async () => {
+        const headerless = await load(STRING_LINKS.replace("protein1", "#protein1"), { header: false });
+        expect(edgesOf(headerless.snapshot)).toEqual([
+            "9606.ENSP00000000233->9606.ENSP00000356607",
+            "9606.ENSP00000000233->9606.ENSP00000427567",
+        ]);
+        const entrez = await load(BIOGRID_TAB3, {
+            sourceColumn: "Entrez Gene Interactor A",
+            targetColumn: "Entrez Gene Interactor B",
+        });
+        expect(edgesOf(entrez.snapshot)).toEqual(["6416->2318", "84665->88"]);
     });
 });
 
@@ -836,6 +946,46 @@ describe("csvImporter: node tables", () => {
         expect(report.counts.skippedNodes).toBe(1);
     });
 
+    it("keeps blank-id rows under blankIdPrefix, numbered by row", async () => {
+        const { snapshot, report } = await load("id,age\na,30\n,5\nb,7\n,6\n", {
+            table: "nodes",
+            blankIdPrefix: "~",
+        });
+        expect(snapshot.ids.toArray()).toEqual(["a", "~1", "b", "~3"]);
+        expect(column(snapshot, "nodes", "age")).toEqual([30, 5, 7, 6]);
+        expect(report.issues).toEqual([]);
+        await expect(load("id\na\n", { table: "nodes", blankIdPrefix: 1 as unknown as string })).rejects.toMatchObject({
+            code: "E_UNSUPPORTED",
+        });
+    });
+
+    it("reads the missing option's cell texts as unset, compared after NFC and never trimmed", async () => {
+        const text = 'id,age,note\na,30,N/A\nb,N/A,ok\nc,7," N/A"\nd,8,"N/A"\ne,9,cafe\u0301\n';
+        const plain = await load(text, { table: "nodes" });
+        expect(column(plain.snapshot, "nodes", "note")).toEqual(["N/A", "ok", " N/A", "N/A", "cafe\u0301"]);
+        expect(column(plain.snapshot, "nodes", "age")).toEqual(["30", "N/A", "7", "8", "9"]);
+        const { snapshot } = await load(text, { table: "nodes", missing: ["N/A", "caf\u00e9"] });
+        expect(column(snapshot, "nodes", "note")).toEqual([undefined, "ok", " N/A", undefined, undefined]);
+        // the column stays numeric: the placeholder is unset before inference
+        expect(column(snapshot, "nodes", "age")).toEqual([30, undefined, 7, 8, 9]);
+    });
+
+    it("reads a missing endpoint or id from the missing option, and never compares the header", async () => {
+        const edges = await load("source,target,N/A\na,b,1\nN/A,c,2\n", { missing: ["N/A"] });
+        expect(edgesOf(edges.snapshot)).toEqual(["a->b"]);
+        expect(codes(edges.report)).toContain(MISSING_ENDPOINT_CODE);
+        expect(column(edges.snapshot, "edges", "N/A")).toEqual([1]);
+        const nodes = await load("id,x\na,1\nN/A,2\n", { table: "nodes", idColumn: "id", missing: ["N/A"] });
+        // the id guess sees the placeholder as blank too, so no column keys every row
+        const guessed = await load("id,x\na,1\nN/A,2\n", { table: "nodes", missing: ["N/A"] });
+        expect(guessed.snapshot.ids.toArray()).toEqual([0, 1]);
+        expect(nodes.snapshot.ids.toArray()).toEqual(["a"]);
+        expect(codes(nodes.report)).toContain(MISSING_ID_CODE);
+        await expect(load("id\na\n", { missing: "N/A" as unknown as string[] })).rejects.toMatchObject({
+            code: "E_UNSUPPORTED",
+        });
+    });
+
     it("resolves the id column by candidates or by option, and fails without one", async () => {
         const named = await load("source,target\n1,2\n", { nodes: "name,x\n1,a\n2,b\n" });
         expect(column(named.snapshot, "nodes", "x")).toEqual(["a", "b"]);
@@ -845,6 +995,71 @@ describe("csvImporter: node tables", () => {
         expect(err.report.issues[0].code).toBe(NO_ID_COLUMN_CODE);
         const headerless = await load("source,target\n1,2\n", { nodes: "1,a\n2,b\n" });
         expect(column(headerless.snapshot, "nodes", "column2")).toEqual(["a", "b"]);
+    });
+
+    it("keys a node table by the first id-like column whose values are distinct", async () => {
+        // people.csv: person_id and badge_id unique, name repeated -> person_id, every row a node
+        const people = await load(
+            "person_id,badge_id,name,dept\nP1,B1,Aisha Garcia,R\nP2,B2,Aisha Garcia,F\nP3,B3,Ben,R\n",
+            { table: "auto" },
+        );
+        expect(people.snapshot.ids.toArray()).toEqual(["P1", "P2", "P3"]);
+        expect(people.report.issues).toEqual([]);
+        // the column chosen is reported, to read the file the same way again; a given one is not
+        expect(people.report.resolved).toEqual({ idColumn: "person_id" });
+        expect((await load("person_id,name\nP1,A\n", { table: "nodes", idColumn: "name" })).report.resolved).toBe(
+            undefined,
+        );
+        // id beats a column ending in id; a repeated id column is skipped for the next candidate
+        expect((await load("PersonId,id\nP1,x\nP2,y\n", { table: "nodes" })).snapshot.ids.toArray()).toEqual([
+            "x",
+            "y",
+        ]);
+        expect((await load("id,person_id\nx,P1\nx,P2\n", { table: "nodes" })).snapshot.ids.toArray()).toEqual([
+            "P1",
+            "P2",
+        ]);
+        // a column ending in id beats node, key and name; words like paid are not ids
+        expect((await load("name,paid,dept_id\nA,1,d1\nB,1,d2\n", { table: "nodes" })).snapshot.ids.toArray()).toEqual([
+            "d1",
+            "d2",
+        ]);
+        // node, then key, then name; a blank value disqualifies a column
+        expect((await load("name,key,node\nA,k1,\nB,k2,n2\n", { table: "nodes" })).snapshot.ids.toArray()).toEqual([
+            "k1",
+            "k2",
+        ]);
+        expect((await load("name,paid\nA,1\nB,1\n", { table: "nodes" })).snapshot.ids.toArray()).toEqual(["A", "B"]);
+    });
+
+    it("numbers a node table by row when no id-like column is distinct, and says so", async () => {
+        const { snapshot, report } = await load("name,badge_id\nA,b1\nA,b1\n", { table: "nodes" });
+        expect(snapshot.ids.toArray()).toEqual([0, 1]);
+        expect(report.issues.map((i) => i.code)).toEqual(["W_CSV_NO_UNIQUE_ID"]);
+        expect(report.issues[0].params).toMatchObject({ columns: ["badge_id", "name"] });
+        expect(column(snapshot, "nodes", "name")).toEqual(["A", "A"]);
+        // a node table paired with edges keeps the header-name choice: the edges name nodes by it
+        const paired = await load("source,target\na,b\n", { nodes: "id\na\na\nb\n" });
+        expect(paired.snapshot.ids.toArray()).toEqual(["a", "b"]);
+        const external = await load("source,target\na,b\nb,c\n", { nodes: "name,uniprot_id\na,P1\nb,P2\nc,P3\n" });
+        expect(external.snapshot.ids.toArray()).toEqual(["a", "b", "c"]);
+        expect(column(external.snapshot, "nodes", "uniprot_id")).toEqual(["P1", "P2", "P3"]);
+        // under table "auto", only id, node, name or key makes a node table: an edge list headed by
+        // *_id columns still fails rather than losing its edges
+        expect((await failure("user_id,friend_id\nu1,u2\nu2,u3\n", { header: true })).report.issues[0].code).toBe(
+            NO_ENDPOINT_COLUMNS_CODE,
+        );
+        // a header of *_id names over text rows is a header, and a column of its own distinct ids
+        // keys the table (door_entries.csv); entry ids appear in no other column
+        const doors = await load(
+            "entry_id,person_id,badge_id,time,door\nE1,,B-1,2026-10-01 07:58,north\nE2,P45,B-2,2026-10-01 08:19,north\n",
+            {},
+        );
+        expect(doors.snapshot.ids.toArray()).toEqual(["E1", "E2"]);
+        expect(doors.report.resolved).toEqual({ idColumn: "entry_id" });
+        // an explicit idColumn is never second-guessed
+        const explicit = await load("person_id,name\nP1,A\nP2,A\n", { table: "nodes", idColumn: "name" });
+        expect(explicit.snapshot.ids.toArray()).toEqual(["A"]);
     });
 
     it("keeps node-table row order and lets the edges add missing nodes after it", async () => {
@@ -1052,15 +1267,15 @@ describe("csvImporter: adjacency tables", () => {
     });
 
     it("splits a neighbour cell at its last colon", () => {
-        expect(splitNeighbour("b")).toEqual({ id: "b", weight: undefined });
-        expect(splitNeighbour("b:1.5")).toEqual({ id: "b", weight: 1.5 });
-        expect(splitNeighbour("b:")).toEqual({ id: "b", weight: undefined });
-        expect(splitNeighbour("h:80:")).toEqual({ id: "h:80", weight: undefined });
-        expect(splitNeighbour("h:80:2")).toEqual({ id: "h:80", weight: 2 });
-        expect(splitNeighbour("x:-0").weight).toBe(-0);
-        expect(splitNeighbour("x:Infinity").weight).toBe(Infinity);
-        expect(splitNeighbour("x:NaN")).toEqual({ id: "x:NaN", weight: undefined });
-        expect(splitNeighbour(":3")).toEqual({ id: "", weight: 3 });
+        expect(splitNeighbor("b")).toEqual({ id: "b", weight: undefined });
+        expect(splitNeighbor("b:1.5")).toEqual({ id: "b", weight: 1.5 });
+        expect(splitNeighbor("b:")).toEqual({ id: "b", weight: undefined });
+        expect(splitNeighbor("h:80:")).toEqual({ id: "h:80", weight: undefined });
+        expect(splitNeighbor("h:80:2")).toEqual({ id: "h:80", weight: 2 });
+        expect(splitNeighbor("x:-0").weight).toBe(-0);
+        expect(splitNeighbor("x:Infinity").weight).toBe(Infinity);
+        expect(splitNeighbor("x:NaN")).toEqual({ id: "x:NaN", weight: undefined });
+        expect(splitNeighbor(":3")).toEqual({ id: "", weight: 3 });
     });
 });
 

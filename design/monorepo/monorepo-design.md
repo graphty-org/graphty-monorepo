@@ -1,5 +1,8 @@
 # Monorepo Design Document for Graphty
 
+> **Historical.** This is the research written before the monorepo existed, when Graphty had five packages. Package names, versions and counts below are as they were then; the
+> current packages are in the root `CLAUDE.md` and each `package.json`.
+
 ## Executive Summary
 
 This document provides a comprehensive analysis of modern monorepo frameworks and their suitability for migrating the Graphty project to a monorepo structure. Based on extensive research of current best practices, popular open-source projects, and tool comparisons, this document recommends the most suitable approach for achieving:
@@ -629,7 +632,7 @@ This decision was made during the initial monorepo migration design phase (2024)
 - [ ] Create developer documentation
 - [ ] Verify conventional commit compliance
 - [ ] Run parallel testing period
-- [ ] Deprecate semantic-release
+- [x] Deprecate semantic-release
 
 ## Conclusion
 

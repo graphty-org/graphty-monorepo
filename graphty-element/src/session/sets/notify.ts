@@ -35,6 +35,7 @@
  */
 
 import type { RunId, SetId } from "../../catalog/types";
+import { reportCaught } from "../project/strict";
 
 /** One input that moved, as a watch is told. OPEN UNION. */
 export type MovedInput =
@@ -117,16 +118,27 @@ export class SetsNotifier {
     #cancelFrame: (() => void) | null = null;
     readonly #budget: number;
     #disposed = false;
+    readonly #onError: (error: unknown) => void;
 
     /**
      * Start with nothing watched and nothing queued.
      * @param options - the frame source and the per-frame budget, for tests
      * @param options.frames - asks for the next frame; a timer by default
      * @param options.budget - elements resolved per frame
+     * @param options.onError - told when a watch throws; by default the error is reported and
+     *     rethrown unhandled, as the derivation lane does
      */
-    constructor(options: { frames?: FrameSource; budget?: number } = {}) {
+    constructor(options: { frames?: FrameSource; budget?: number; onError?: (error: unknown) => void } = {}) {
         this.#frames = options.frames ?? timerFrames;
         this.#budget = options.budget ?? FRAME_BUDGET;
+        this.#onError =
+            options.onError ??
+            ((error) => {
+                reportCaught(error);
+                queueMicrotask(() => {
+                    throw error;
+                });
+            });
     }
 
     /**
@@ -241,9 +253,11 @@ export class SetsNotifier {
             const resolution = entry.watch.resolve();
             entry.applied = signature;
             entry.watch.ready(resolution, moved);
-        } catch {
+        } catch (error) {
             // A watch's failure is the watch's: it keeps what it had, and the next input retries it.
+            // Its callers turn expected refusals into problems, so what reaches here is a bug.
             entry.applied = undefined;
+            this.#onError(error);
         }
 
         return true;

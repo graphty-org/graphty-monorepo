@@ -1,10 +1,9 @@
 import type { ColumnRef, GraphSession } from "@graphty/graphty-element/session";
 
 import { type CommandContext, defineRegistration } from "../commands/registry";
-import { nodeModelsOn } from "../features";
-import { DEFAULT_NAME_KEY, selectionName } from "./cards";
+import { DEFAULT_NAME_KEY, selectionName, writeKind } from "./cards";
 import { addLabelLine, labelRow, selectionRow, topmostRow } from "./row";
-import { CUSTOM_MODEL, madeWords } from "./words";
+import { CUSTOM_MODEL, logUnexpected, madeWords } from "./words";
 
 /**
  * The node attribute the inspector shows, when it shows one: the attribute kind's id is the
@@ -67,17 +66,26 @@ async function layerFromSelection(session: GraphSession, workspace: CommandConte
             target = "both";
         }
         const base = topmostRow(session);
-        const parts = await session.styles.addRow(
-            {
-                name,
-                selector: session.selection.layerSelector,
-                target,
-                // The name is a default: it follows the layer's cards until the reader renames it.
-                userData: { [DEFAULT_NAME_KEY]: name },
-            },
-            base === undefined ? undefined : { above: base.id },
-        );
-        ({ id } = parts);
+        // A neighborhood is a node and its connections: its layer also styles the edges among its
+        // nodes, as "Style edges" would (an Ends card on the node pick), so Add to edge line shows.
+        const { origin } = session.selection;
+        const neighborhood = target === "node" && origin !== null && "neighborsOf" in origin;
+        id = await session.transaction(`New layer ${name}`, async (tx) => {
+            const parts = await tx.styles.addRow(
+                {
+                    name,
+                    selector: session.selection.layerSelector,
+                    target,
+                    // The name is a default: it follows the layer's cards until the reader renames it.
+                    userData: { [DEFAULT_NAME_KEY]: name },
+                },
+                base === undefined ? undefined : { above: base.id },
+            );
+            if (neighborhood) {
+                await writeKind(session, tx, parts.id, "edge", true);
+            }
+            return parts.id;
+        });
     }
     const layerName = session.styles.get(id)?.name ?? name;
     workspace.set({
@@ -95,8 +103,7 @@ async function layerFromSelection(session: GraphSession, workspace: CommandConte
 /**
  * The Style tab package's commands. "Add label line" (Quick actions, and the attribute menu's
  * door: Data > Attributes, the attribute inspector, a table column) adds the Text "+" label line
- * on the inspected layer row or Everything. "Custom model..." opens the Load custom model dialog.
- * @experimental node-models
+ * on the inspected layer row or Everything. "Add custom model..." opens the Load custom model dialog.
  */
 export const registration = defineRegistration({
     owner: "style",
@@ -106,10 +113,7 @@ export const registration = defineRegistration({
             label: CUSTOM_MODEL.button,
             group: "Project",
             description: CUSTOM_MODEL.description,
-            keywords: ["model", "3d", "glb", "gltf", "obj", "stl", "upload", "file"],
-            experiment: true,
-            feature: "node-models",
-            shown: ({ session }) => nodeModelsOn(session),
+            keywords: ["model", "3d", "glb", "gltf", "obj", "stl", "fbx", "usd", "usdz", "upload", "file"],
             disabled: ({ session, workspace }) => {
                 if (workspace.get().project === null) {
                     return "No project is open";
@@ -148,7 +152,8 @@ export const registration = defineRegistration({
                 const column = inspectedAttribute(ctx);
                 try {
                     await labelLine(ctx.session, ctx.workspace, column);
-                } catch {
+                } catch (error) {
+                    logUnexpected("style.add-label-line", error);
                     ctx.workspace.set({
                         notice: { message: `${column?.name ?? "That attribute"} could not label the nodes` },
                     });
@@ -171,7 +176,8 @@ export const registration = defineRegistration({
                 }
                 try {
                     await layerFromSelection(session, workspace);
-                } catch {
+                } catch (error) {
+                    logUnexpected("style.layer-from-selection", error);
                     workspace.set({ notice: { message: "The layer could not be made", error: true } });
                 }
             },

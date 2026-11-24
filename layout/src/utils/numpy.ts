@@ -1,118 +1,13 @@
 /**
- * NumPy-like array manipulation functions
- * Maintains exact same functionality as original implementation
+ * NumPy-like array helpers the layouts use
  */
 
-/** A number, or an array of them nested to any depth. */
-export type NestedNumbers = number | readonly NestedNumbers[];
-
 export const np = {
-    zeros: function (shape: number | number[]): number[] | NestedNumbers[] {
-        if (typeof shape === "number") {
-            return new Array(shape).fill(0) as number[];
-        }
-        if (shape.length === 1) {
-            return new Array(shape[0]).fill(0) as number[];
-        }
-        return new Array(shape[0]).fill(0).map(() => this.zeros(shape.slice(1)));
-    },
-
-    ones: function (shape: number | number[]): number[] | NestedNumbers[] {
-        if (typeof shape === "number") {
-            return new Array(shape).fill(1) as number[];
-        }
-        if (shape.length === 1) {
-            return new Array(shape[0]).fill(1) as number[];
-        }
-        return new Array(shape[0]).fill(1).map(() => this.ones(shape.slice(1)));
-    },
-
     linspace: function (start: number, stop: number, num: number): number[] {
         if (num === 1) {
             return [start];
         }
         const step = (stop - start) / (num - 1);
         return Array.from({ length: num }, (_, i) => start + i * step);
-    },
-
-    array: function <T>(arr: T | T[]): T[] {
-        return Array.isArray(arr) ? [...arr] : [arr];
-    },
-
-    repeat: function <T>(a: T | T[], repeats: number): T[] {
-        const result: T[] = [];
-        for (let i = 0; i < repeats; i++) {
-            result.push(...np.array(a));
-        }
-        return result;
-    },
-
-    mean: function (arr: number[] | number[][], axis: number | null = null): number | number[] {
-        if (axis === null) {
-            const flatArr = Array.isArray(arr[0])
-                ? ((arr as number[][]).flat(Infinity) as number[])
-                : (arr as number[]);
-            const sum = flatArr.reduce((a, b) => a + b, 0);
-            return sum / flatArr.length;
-        }
-
-        if (axis === 0) {
-            const result: number[] = [];
-            const matrix = arr as number[][];
-            for (let i = 0; i < matrix[0].length; i++) {
-                let sum = 0;
-                for (let j = 0; j < matrix.length; j++) {
-                    sum += matrix[j][i];
-                }
-                result.push(sum / matrix.length);
-            }
-            return result;
-        }
-
-        return (arr as number[][]).map((row) => np.mean(row) as number);
-    },
-
-    add: function (a: number | number[], b: number | number[]): number | number[] {
-        if (!Array.isArray(a) && !Array.isArray(b)) {
-            return a + b;
-        }
-        if (!Array.isArray(a)) {
-            return (b as number[]).map((val) => a + val);
-        }
-        if (!Array.isArray(b)) {
-            return a.map((val) => val + b);
-        }
-        return a.map((val, i) => val + b[i]);
-    },
-
-    subtract: function (a: number | number[], b: number | number[]): number | number[] {
-        if (!Array.isArray(a) && !Array.isArray(b)) {
-            return a - b;
-        }
-        if (!Array.isArray(a)) {
-            return (b as number[]).map((val) => a - val);
-        }
-        if (!Array.isArray(b)) {
-            return a.map((val) => val - b);
-        }
-        return a.map((val, i) => val - b[i]);
-    },
-
-    max: function (arr: NestedNumbers): number {
-        if (typeof arr === "number") {
-            return arr;
-        }
-        return Math.max(...((arr as readonly unknown[]).flat(Infinity) as number[]));
-    },
-
-    min: function (arr: NestedNumbers): number {
-        if (typeof arr === "number") {
-            return arr;
-        }
-        return Math.min(...((arr as readonly unknown[]).flat(Infinity) as number[]));
-    },
-
-    norm: function (arr: number[]): number {
-        return Math.sqrt(arr.reduce((sum, val) => sum + val * val, 0));
     },
 };

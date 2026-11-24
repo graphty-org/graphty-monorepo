@@ -3,7 +3,7 @@
 # @graphty/algorithms
 
 [![CI](https://github.com/graphty-org/graphty-monorepo/actions/workflows/ci.yml/badge.svg)](https://github.com/graphty-org/graphty-monorepo/actions/workflows/ci.yml)
-[![Coverage Status](https://coveralls.io/repos/github/graphty-org/graphty-monorepo/badge.svg?branch=master)](https://coveralls.io/github/graphty-org/graphty-monorepo?branch=master)
+[![Coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fgraphty-org%2Fgraphty-monorepo%2Fcoverage-badges%2Falgorithms.json)](https://github.com/graphty-org/graphty-monorepo/blob/coverage-badges/algorithms.md)
 [![npm version](https://img.shields.io/npm/v/@graphty/algorithms.svg)](https://www.npmjs.com/package/@graphty/algorithms)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Documentation](https://img.shields.io/badge/docs-vitepress-blue)](https://graphty.app/docs/algorithms/)
@@ -65,8 +65,8 @@ and `right` still read a bare `Uint32Array` as a node mask, as they always have.
 | Family                   | Functions                                                                                                                                                                                                                                                                                                |
 | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Traversal                | `breadthFirstSearch`, `directionOptimizedBfs`, `depthFirstSearch`, `topologicalSort`, `hasCycle`, `isBipartite`                                                                                                                                                                                          |
-| Components               | `connectedComponents`, `weaklyConnectedComponents`, `stronglyConnectedComponents`, `condensation`                                                                                                                                                                                                        |
-| Shortest paths           | `dijkstra`, `bellmanFord`, `bidirectionalDijkstra`, `astar`, `allPairsShortestPath`                                                                                                                                                                                                                      |
+| Components               | `connectedComponents`, `weaklyConnectedComponents`, `stronglyConnectedComponents`, `condensation`, `articulationPoints`, `bridges`                                                                                                                                                                       |
+| Shortest paths           | `dijkstra`, `bellmanFord`, `bidirectionalDijkstra`, `astar`, `allSimplePaths`, `allPairsShortestPath`                                                                                                                                                                                                    |
 | Spanning trees           | `kruskalMST`, `primMST`                                                                                                                                                                                                                                                                                  |
 | Centrality               | `degrees`, `degreeCentrality`, `betweennessCentrality`, `edgeBetweennessCentrality`, `closenessCentrality`, `nodeClosenessCentrality`, `eigenvectorCentrality`, `katzCentrality`, `hits`, `pageRank`, `personalizedPageRank`, `DeltaPageRank`, `PriorityDeltaPageRank`                                   |
 | Community detection      | `louvain`, `leiden`, `girvanNewman`, `labelPropagation`, `labelPropagationSynchronous`, `labelPropagationSemiSupervised`, `modularity`                                                                                                                                                                   |
@@ -93,7 +93,7 @@ console.log(dijkstra.result, dijkstra.values.join(", ")); // shortest-paths dist
 console.log(dijkstra.dispatch, dijkstra.accelerator); // sssp sssp
 
 const undirectedOnly = Object.values(ALGORITHMS).filter((a) => a.direction === "undirected");
-console.log(undirectedOnly.map((a) => a.name).join(", ")); // connectedComponents, kCoreDecomposition, louvain, leiden, girvanNewman, primMST
+console.log(undirectedOnly.map((a) => a.name).join(", ")); // connectedComponents, kCoreDecomposition, articulationPoints, bridges, louvain, leiden, girvanNewman, primMST
 ```
 
 - `direction`: `"any"`, `"directed"` or `"undirected"`; an algorithm throws on the other kind of graph.

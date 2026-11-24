@@ -1,3 +1,6 @@
+// The built-ins are registered where Graph registers them; the session no longer imports their classes (#890).
+import "../../src/algorithms/index";
+
 import { assert, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 
 import { Algorithm } from "../../src/algorithms/Algorithm";
@@ -35,8 +38,6 @@ describe("AlgorithmManager", () => {
             getDataManager: vi.fn().mockReturnValue({
                 nodes: new Map(),
                 edges: new Map(),
-                applyStylesToExistingNodes: vi.fn(),
-                applyStylesToExistingEdges: vi.fn(),
             }),
         } as unknown as Graph;
 

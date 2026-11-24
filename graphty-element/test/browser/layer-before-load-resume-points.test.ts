@@ -9,13 +9,14 @@
  * own door, `graph.waitForSettled()`, and then reads what the style pass painted on every node.
  */
 
-import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
+import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import type { LayerSpec } from "../../session";
 /*
  * A value import: importing the package is what defines the `<graphty-element>` custom element.
  */
 import { Graphty } from "../../src/graphty-element";
+import { mountElement, unmountElements } from "../helpers/mount-element";
 import { paintOf } from "../helpers/paint-assertions";
 
 const NODES = [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }];
@@ -66,37 +67,15 @@ const RESUME_POINTS = {
     },
 } as const;
 
-let container: HTMLDivElement;
 let element: Graphty;
-
-async function mount(): Promise<Graphty> {
-    container = document.createElement("div");
-    container.style.width = "480px";
-    container.style.height = "360px";
-    document.body.appendChild(container);
-
-    const mounted = document.createElement("graphty-element");
-    assert.instanceOf(mounted, Graphty);
-    mounted.style.width = "100%";
-    mounted.style.height = "100%";
-    mounted.style.display = "block";
-    container.appendChild(mounted);
-
-    await vi.waitFor(() => {
-        assert.isTrue(mounted.graph.initialized, "the element finished initialising");
-    });
-
-    return mounted;
-}
 
 describe("a layer added before a load and not awaited", () => {
     beforeEach(async () => {
-        element = await mount();
+        element = await mountElement({ width: 480, height: 360 });
     });
 
     afterEach(() => {
-        element.remove();
-        container.remove();
+        unmountElements();
     });
 
     for (const [loadName, load] of Object.entries(LOADS)) {

@@ -4,11 +4,6 @@ import { MockDeviceInputSystem } from "../../../src/input/mock-device-input-syst
 import { MouseButton } from "../../../src/input/types";
 
 describe("Interaction Testing Infrastructure", () => {
-    test("MockDeviceInputSystem can be created", () => {
-        const mockInput = new MockDeviceInputSystem();
-        expect(mockInput).toBeDefined();
-    });
-
     test("MockDeviceInputSystem simulates mouse events", () => {
         const mockInput = new MockDeviceInputSystem();
         mockInput.attach(document.createElement("div"));

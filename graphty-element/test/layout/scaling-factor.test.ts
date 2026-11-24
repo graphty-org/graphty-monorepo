@@ -7,9 +7,8 @@ import "../../src/layout";
 
 import { assert, describe, it } from "vitest";
 
-import type { Edge } from "../../src/Edge";
 import { LayoutEngine, layoutEngineInternals } from "../../src/layout/LayoutEngine";
-import type { Node } from "../../src/Node";
+import { fakeEdge, fakeNode } from "../helpers/layout-fakes";
 
 const ids = ["a", "b", "c", "d"];
 
@@ -19,11 +18,11 @@ const engines: [string, object][] = [
     ["bipartite", { nodes: ["a", "c"] }],
     ["circular", {}],
     ["grid", {}],
-    ["kamada-kawai", {}],
+    ["kamada-kawai", { seed: 42 }], // its 3D start is random without a seed
     ["multipartite", { subsetKey: { first: ["a", "c"], second: ["b", "d"] } }],
     ["planar", {}],
     ["radial", {}],
-    ["random", {}],
+    ["random", { seed: 42 }], // unseeded by default, so each run would scatter differently
     ["shell", {}],
     ["spectral", {}],
     ["spiral", {}],
@@ -42,10 +41,8 @@ function run(type: string, opts: object): number[] {
         return [];
     }
 
-    const nodes = ids.map((id) => ({ id }) as unknown as Node);
-    const edges = nodes
-        .slice(1)
-        .map((dst, i) => ({ srcId: nodes[i].id, dstId: dst.id, srcNode: nodes[i], dstNode: dst }) as unknown as Edge);
+    const nodes = ids.map((id) => fakeNode(id));
+    const edges = nodes.slice(1).map((dst, i) => fakeEdge(nodes[i], dst));
     layoutEngineInternals.addNodes(engine, nodes);
     layoutEngineInternals.addEdges(engine, edges);
     engine.step();

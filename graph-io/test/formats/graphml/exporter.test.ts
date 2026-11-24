@@ -665,6 +665,42 @@ ${keys}<graph id="main" edgedefault="directed">
     });
 });
 
+describe("graphmlExporter: kept namespace prefixes", () => {
+    it("writes only prefixes that are XML NCNames and notes the rest", async () => {
+        const b = builder(true);
+        b.addNode("a");
+        b.setMeta({
+            extra: {
+                graphml: {
+                    graphId: "G",
+                    edgedefault: "directed",
+                    namespaces: { 'a="x"><injected/><b c': "urn:bad", xml: "urn:xml", "p:q": "urn:pq", ok: "urn:ok" },
+                },
+            },
+        });
+        const snapshot = b.freeze();
+        const note = graphmlExporter.check(snapshot).find((n) => n.code === GRAPHML_LOSS.NAMESPACE_DROPPED);
+        expect(note?.count).toBe(3);
+        const text = await graphmlExporter.exportToString(snapshot);
+        expect(text).not.toContain("injected");
+        expect(text).not.toContain("urn:xml");
+        expect(text).not.toContain("urn:pq");
+        expect(text).toContain('xmlns:ok="urn:ok"');
+        expect((await reimport(text)).meta.extra.graphml).toMatchObject({ namespaces: { ok: "urn:ok" } });
+    });
+
+    it("keeps a __proto__ prefix through a round trip", async () => {
+        const text = `<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:__proto__="urn:p"><graph edgedefault="directed"><node id="a"/></graph></graphml>`;
+        const first = await reimport(text);
+        const { namespaces } = first.meta.extra.graphml as { namespaces: Record<string, string> };
+        expect(Object.getOwnPropertyDescriptor(namespaces, "__proto__")?.value).toBe("urn:p");
+        const written = await graphmlExporter.exportToString(first);
+        expect(written).toContain('xmlns:__proto__="urn:p"');
+        const back = (await reimport(written)).meta.extra.graphml as { namespaces: Record<string, string> };
+        expect(Object.getOwnPropertyDescriptor(back.namespaces, "__proto__")?.value).toBe("urn:p");
+    });
+});
+
 describe("graphmlExporter and importer issue codes stay distinct", () => {
     it("exposes stable code tables", () => {
         const values = [...Object.values(GRAPHML_ISSUE), ...Object.values(GRAPHML_LOSS)];

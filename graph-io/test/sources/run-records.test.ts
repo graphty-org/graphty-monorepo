@@ -62,6 +62,26 @@ describe("records sources", () => {
         expect(report.source).toMatchObject({ id: "one", version: 1, endpoint: null, next: null, requests: 0 });
     });
 
+    it("fails instead of reading forever when a source repeats the cursor it was read with", async () => {
+        let reads = 0;
+        const stuck = defineSource({
+            id: "stuck",
+            async *records() {
+                for (;;) {
+                    reads++;
+                    // page 1 points at page 2; page 2 and every later page point at page 2 again
+                    yield await Promise.resolve({ nodes: [{ id: reads }], next: { page: 2 } });
+                }
+            },
+        });
+        const err = await rejection(loadFromSource(stuck, {}));
+        expect([err.issue?.code, err.issue?.params]).toEqual([
+            "E_SOURCE_RESPONSE",
+            { origin: null, expected: "advancing-cursor", contentType: null },
+        ]);
+        expect(reads).toBe(2);
+    });
+
     it("prefixes every node id with idPrefix and keeps edge ids", async () => {
         const { snapshot } = await loadFromSource(paged, { pages: 1 }, { idPrefix: "p:" });
         expect([...snapshot.ids].map(String).sort()).toEqual(["p:0", "p:1"]);

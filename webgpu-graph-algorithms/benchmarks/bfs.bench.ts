@@ -156,10 +156,17 @@ async function printChoices(
 
 /**
  * Times one call end to end from a released core: `setup` hands the snapshot over, `teardown` releases it.
+ *
+ * The RMAT BFS rows pass `collectGarbage`: every run re-uploads the core and reads ~22 MB back at 1M / 10M, so, as for
+ * the upload rows, a full collection runs before each timer. Without it, where V8 placed its collection depended on
+ * what earlier groups had allocated, and on the T4 a collection inside the candidate's timed run read as a 20 %
+ * slowdown with no change under src/ (issue #9836). The SSSP and grid rows do not: they are many small submits, and
+ * the GPU idle the collection leaves before the timer slowed SSSP at 1M / 10M from ~270 to ~335 ms (issue #7368).
  * @param ctx - the context the call runs on
  * @param name - the row name
  * @param s - the snapshot
  * @param run - the call
+ * @param collectGarbage - run a full collection before each timed run (default false)
  * @returns the result
  */
 function timed(
@@ -167,6 +174,7 @@ function timed(
     name: string,
     s: GraphSnapshot,
     run: (input: GraphSnapshot) => Promise<unknown>,
+    collectGarbage = false,
 ): Promise<BenchResult> {
     return bench(
         BFS_GROUP,
@@ -178,7 +186,7 @@ function timed(
                 ctx.release(input);
             },
         },
-        { device: ctx.device, items: s.nodeCount, unit: "nodes" },
+        { device: ctx.device, collectGarbage, items: s.nodeCount, unit: "nodes" },
     );
 }
 
@@ -236,12 +244,16 @@ export async function runBfsBenchmarks(ctx: GpuContext): Promise<BenchResult[]> 
         const s = unweightedSnapshotOf(edges, `bfs/${rung.name}`);
         const auto = `bfs auto at ${rung.name}`;
         await printChoices(ctx, s, auto, "auto");
-        results.push(await timed(ctx, auto, s, (input) => breadthFirstSearch(ctx, input, SOURCE)));
+        results.push(await timed(ctx, auto, s, (input) => breadthFirstSearch(ctx, input, SOURCE), true));
         const topDown = `bfs top-down at ${rung.name}`;
         await printChoices(ctx, s, topDown, "top-down");
         results.push(
-            await timed(ctx, topDown, s, (input) =>
-                bfsWithTuning(ctx, input, SOURCE, undefined, { direction: "top-down" }),
+            await timed(
+                ctx,
+                topDown,
+                s,
+                (input) => bfsWithTuning(ctx, input, SOURCE, undefined, { direction: "top-down" }),
+                true,
             ),
         );
         const weighted = snapshotOf(reweighted(edges), { label: `sssp/${rung.name}` });

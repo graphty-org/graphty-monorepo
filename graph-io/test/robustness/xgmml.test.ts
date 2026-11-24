@@ -14,6 +14,7 @@ import { XgmmlParser } from "../../src/formats/xgmml/document.js";
 import { xgmmlImporter, type XgmmlImportOptions } from "../../src/formats/xgmml/importer.js";
 import { importAllGraphs, sniff } from "../../src/registry.js";
 import { type CommonImportOptions, ImportError, type ImportInput, type ImportReport } from "../../src/types.js";
+import { codes } from "./helpers.js";
 
 type Options = XgmmlImportOptions & CommonImportOptions;
 
@@ -38,10 +39,6 @@ async function failure(input: ImportInput, options?: Options): Promise<ImportErr
         return Object.assign(err as ImportError, { sinkNodes: sink.freeze().nodeCount });
     }
     throw new Error("expected an ImportError");
-}
-
-function codes(report: ImportReport): string[] {
-    return report.issues.map((i) => i.code);
 }
 
 /** The code of the fatal issue (the last one recorded). */

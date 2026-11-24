@@ -1,4 +1,4 @@
-import type { Scene } from "@babylonjs/core";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 /** How many things on each scene change the picture by themselves on every frame; see {@link animatesEveryFrame}. */
 const everyFrameAnimations = new WeakMap<Scene, number>();

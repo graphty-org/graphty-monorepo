@@ -3162,6 +3162,14 @@ export class Graph implements GraphContext {
         });
         // No frame is drawn while an element built from the defaults waits for its style.
         this.renderManager.drawHeld = (): boolean => this.dataManager.drawHeld;
+        // A consumer's own light reaches the nodes a batch draws, as it reaches the objects path's.
+        const relight = (): void => {
+            this.renderManager.relightBatches();
+            // A frozen list of what is drawn skips each mesh's material check (#9246).
+            this.updateManager.thawActiveMeshes();
+        };
+        this.scene.onNewLightAddedObservable.add(relight);
+        this.scene.onLightRemovedObservable.add(relight);
     }
 
     /**
@@ -5631,7 +5639,9 @@ export class Graph implements GraphContext {
 
                         this.renderManager.requestFrame();
                     },
-                    resized: () => {
+                    resized: (row) => {
+                        // a `Node` resized has its edges measured again (`remeasureEdgesOf`); a row has no `Node` to say so (#9857)
+                        this.updateManager.placeEdgesOfRow(row);
                         if (this.layoutManager.layoutEngine?.wakeForResize() === true) {
                             this.layoutManager.running = true;
                         }

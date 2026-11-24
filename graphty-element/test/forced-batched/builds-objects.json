@@ -256,7 +256,6 @@
     "test/interactions/selection/node-selection-click.test.ts",
     "test/interactions/selection/selection-halo-shape.test.ts",
     "test/interactions/stable-frame-waits-for-pending-visuals.test.ts",
-    "test/interactions/xr/xr-voice.test.ts",
     "test/managers/DataManager.test.ts",
     "test/managers/LayoutManager.test.ts",
     "test/managers/UpdateManager.test.ts",

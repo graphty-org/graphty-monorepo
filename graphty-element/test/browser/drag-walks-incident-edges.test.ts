@@ -248,6 +248,11 @@ async function dragCounted(
     await element.waitForStableFrame();
     const after = edge.drawnLine?.center;
     assert.isDefined(after, "its line is still drawn");
+    if (element.renderPath === "batched") {
+        // Reading t and its edge builds their objects: the rest of the ring must still be batch rows, or
+        // this counts the objects path's drag under the batched name.
+        assert.isAbove(element.rowCounts.batchedNodes, 0, `rows ${JSON.stringify(element.rowCounts)}`);
+    }
     return { visits, moved: moving.moved, followed: after.subtract(before).length(), hovered };
 }
 

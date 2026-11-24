@@ -6,12 +6,10 @@
  * thing's pop-over (a label's too).
  */
 
-import { Popout } from "@graphty/compact-mantine";
 import { type ChannelDescriptor, combineDrawn } from "@graphty/graphty-element/catalog";
-import { Button } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
-import { GLYPHS } from "../../glyphs";
+import { AdvancedDrill } from "../../options/Drill";
 import { useWorkspace } from "../../state/WorkspaceContext";
 import { Field, type RowContext } from "../PropertyRow";
 import { lineIn, writeIn } from "../row";
@@ -172,9 +170,9 @@ export function PopoverShell<G extends ShellGroup>({
 }
 
 /**
- * A pop-over's last line (design "Input rules"): "Advanced", opening the dialog of its rare settings beside it,
- * the second and last pop-out level. Every group there is always shown, under its legend, with a minus once
- * set; its lines draw no link (`InAdvanced`).
+ * A pop-over's last line (design "Input rules"): "Advanced", drilling into the pop-over in place (`Pop`) to show
+ * its rare settings, with a back button in the header. Every group there is always shown, under its legend, with a
+ * minus once set; its lines draw no link (`InAdvanced`).
  * @param props - Component props
  * @param props.title - the thing's name with its kind ("Node size")
  * @param props.groups - its advanced sub-groups
@@ -199,60 +197,37 @@ export function AdvancedLine<G extends ShellGroup>({
     if (groups.length === 0) {
         return null;
     }
-    const name = `${title} advanced settings`;
     return (
-        <div className="ws-row" data-line="advanced">
-            <Popout>
-                <Popout.Trigger>
-                    <Button
-                        variant="subtle"
-                        size="xs"
-                        fullWidth
-                        justify="space-between"
-                        aria-label={name}
-                        data-changed={groups.some((group) => isSet(group)) ? "" : undefined}
-                        rightSection={<GLYPHS.more size={14} aria-hidden />}
-                    >
-                        Advanced
-                    </Button>
-                </Popout.Trigger>
-                <Popout.Panel
-                    // Wider than a pop-over: its rarer settings have longer names ("Letter outline width").
-                    width={312}
-                    placement="left"
-                    alignment="start"
-                    header={{ variant: "title", title: `${title} advanced` }}
-                    closeLabel={`Close ${title} advanced`}
-                >
-                    <Popout.Content>
-                        <InAdvanced.Provider value>
-                            <div data-thing-popover="" data-advanced="">
-                                {groups.map((group) => (
-                                    <PlusList
-                                        key={group.name}
-                                        level="group"
-                                        title={group.name}
-                                        add={undefined}
-                                        remove={
-                                            isSet(group) ? (
-                                                <RemoveButton
-                                                    label={`Remove ${group.name.toLowerCase()}`}
-                                                    onClick={() => {
-                                                        onUnset(group);
-                                                    }}
-                                                />
-                                            ) : undefined
-                                        }
-                                    >
-                                        {linesOf(group)}
-                                    </PlusList>
-                                ))}
-                            </div>
-                        </InAdvanced.Provider>
-                    </Popout.Content>
-                </Popout.Panel>
-            </Popout>
-        </div>
+        <AdvancedDrill
+            name={`${title} advanced settings`}
+            title={`${title} advanced`}
+            changed={groups.some((group) => isSet(group))}
+        >
+            <InAdvanced.Provider value>
+                <div data-thing-popover="" data-advanced="">
+                    {groups.map((group) => (
+                        <PlusList
+                            key={group.name}
+                            level="group"
+                            title={group.name}
+                            add={undefined}
+                            remove={
+                                isSet(group) ? (
+                                    <RemoveButton
+                                        label={`Remove ${group.name.toLowerCase()}`}
+                                        onClick={() => {
+                                            onUnset(group);
+                                        }}
+                                    />
+                                ) : undefined
+                            }
+                        >
+                            {linesOf(group)}
+                        </PlusList>
+                    ))}
+                </div>
+            </InAdvanced.Provider>
+        </AdvancedDrill>
     );
 }
 

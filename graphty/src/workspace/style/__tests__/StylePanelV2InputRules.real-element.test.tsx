@@ -5,7 +5,8 @@
  * pop-over's "+", and then:
  *
  * - the pop-over is at most 6 lines tall, two inputs on one line counting once;
- * - no pop-out a pop-over line opens (level 2) holds a control that opens another (level 3);
+ * - no pop-out a pop-over line opens (level 2) holds a control that opens another (level 3); a view drilled into
+ *   the pop-over in place is the pop-over's own level;
  * - on every line, the minus is the right-most button;
  * - the link or settings button sits on its control's line, right after the control;
  * - the link and settings buttons are hidden at rest, shown on hover;
@@ -40,19 +41,10 @@ type Side = "node" | "edge";
 // ------------------------------------------------------------------------------------------------
 
 /** Pop-overs more than 6 lines tall with every sub-group shown. */
-const KNOWN_TALL: readonly string[] = [
-    "edge.endCaption",
-    "edge.label",
-    "edge.tooltip",
-    "edge.xlabel",
-    "node.chart",
-    "node.label",
-    "node.tooltip",
-    "node.xlabel",
-];
+const KNOWN_TALL: readonly string[] = [];
 
 /** Pop-overs with a level-2 pop-out that holds a control opening a third level. */
-const KNOWN_THIRD_LEVEL: readonly string[] = ["edge.arrow", "edge.pattern", "node.plate"];
+const KNOWN_THIRD_LEVEL: readonly string[] = [];
 
 /**
  * A compact-mantine component's own inner pop-out, not counted as a third level: the app cannot change it
@@ -131,12 +123,13 @@ function laidOut(element: Element): boolean {
 }
 
 /**
- * The lines of a surface: each `.ws-row` (and a pop-over's Kind line) holding a control, outside any other line.
+ * The lines of a surface: each `.ws-row` (and a pop-over's Kind line, and a sub-group's legend holding its "+",
+ * which takes a line of its own) holding a control, outside any other line.
  * @param root - the surface.
  * @returns the lines.
  */
 function linesIn(root: HTMLElement): HTMLElement[] {
-    return [...root.querySelectorAll<HTMLElement>(".ws-row, .ws-member")].filter(
+    return [...root.querySelectorAll<HTMLElement>(".ws-row, .ws-member, .cm-legend")].filter(
         (line) =>
             line.parentElement?.closest(".ws-row") === null && laidOut(line) && line.querySelector(CONTROLS) !== null,
     );
@@ -380,12 +373,15 @@ async function addEveryGroup(pop: HTMLElement): Promise<void> {
 }
 
 /**
- * Opens every level-2 pop-out a pop-over's lines open, and names the controls in each that would open a third.
- * @param pop - the pop-over (level 1).
+ * Opens every pop-out a pop-over's lines open, and names the controls in each that would open a third level. A
+ * view that drills into the pop-over in place (design "Input rules", drill-in) is the same pop-out: its own
+ * controls are walked as the pop-over's are, and it is left by its header's back button.
+ * @param pop - the pop-over (level 1), or a view drilled into it.
  * @param reopen - opens the pop-over again, when Escape closed it with the pop-out.
+ * @param panel - the pop-over's panel, whose header holds the back button.
  * @returns `<trigger> > <control>` for each.
  */
-async function thirdLevels(pop: HTMLElement, reopen: () => Promise<HTMLElement>): Promise<string[]> {
+async function thirdLevels(pop: HTMLElement, reopen: () => Promise<HTMLElement>, panel = pop): Promise<string[]> {
     const found: string[] = [];
     let surface = pop;
     const triggers = (root: HTMLElement): HTMLElement[] =>
@@ -403,12 +399,18 @@ async function thirdLevels(pop: HTMLElement, reopen: () => Promise<HTMLElement>)
         await userEvent.click(trigger);
         const level2 = await openedBy(trigger);
         const name = trigger.getAttribute("aria-label") ?? nameOf(line ?? trigger);
-        for (const inner of level2.querySelectorAll<HTMLElement>("[aria-haspopup]")) {
-            if (laidOut(inner) && !COMPONENT_OWN.includes(inner.getAttribute("aria-label") ?? "")) {
-                found.push(`${name} > ${inner.getAttribute("aria-label") ?? inner.textContent ?? inner.tagName}`);
+        if (level2.hasAttribute("data-drill-view")) {
+            const host = panel.closest<HTMLElement>('[id^="popout-panel"]') ?? panel;
+            found.push(...(await thirdLevels(level2, reopen, host)).map((each) => `${name} > ${each}`));
+            await userEvent.click(within(host).getByRole("button", { name: /^Back to / }));
+        } else {
+            for (const inner of level2.querySelectorAll<HTMLElement>("[aria-haspopup]")) {
+                if (laidOut(inner) && !COMPONENT_OWN.includes(inner.getAttribute("aria-label") ?? "")) {
+                    found.push(`${name} > ${inner.getAttribute("aria-label") ?? inner.textContent ?? inner.tagName}`);
+                }
             }
+            await userEvent.keyboard("{Escape}");
         }
-        await userEvent.keyboard("{Escape}");
         await waitFor(() => {
             assert.notStrictEqual(trigger.getAttribute("aria-expanded"), "true");
         });

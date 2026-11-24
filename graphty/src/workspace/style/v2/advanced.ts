@@ -1,7 +1,7 @@
 /**
- * Whether a line is drawn in an Advanced dialog, the last pop-out level (design/ui/style-panel-v2/design.md,
- * "Input rules"): it draws no link or settings button, which would open a third. A list's line (R15) keeps its
- * "+", which opens nothing.
+ * Whether a line is drawn in a pop-over's Advanced view (design/ui/style-panel-v2/design.md, "Input rules"), which
+ * drills into the pop-over in place: its rare lines draw no link or settings button, so binding one to data starts
+ * from a line the reader meets first. A list's line (R15) keeps its "+".
  */
 
 import React from "react";

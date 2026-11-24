@@ -15,6 +15,7 @@ import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "reac
 import { factSentence, paintWords, swatchName } from "../canvas/legendWords";
 import { focusIsLost } from "../frame/focus";
 import { GLYPHS } from "../glyphs";
+import { Pop } from "../options/Drill";
 import { count } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { BindingPopover } from "./BindingPopover";
@@ -1751,8 +1752,8 @@ function VaryButton({
     const label = named ?? bindLabel(descriptor);
     const layers = ctx.many?.inOrder?.(channel).length ?? 0;
     return (
-        <Popout opened={open} onOpenChange={openList}>
-            <Popout.Trigger>
+        <Pop opened={open} onOpenChange={openList}>
+            <Pop.Trigger>
                 {/* The Tooltip passes the trigger's click and ref to the button, but not its ARIA,
                     so the button states its own. */}
                 <Tooltip label={label}>
@@ -1764,8 +1765,8 @@ function VaryButton({
                         aria-expanded={open}
                     />
                 </Tooltip>
-            </Popout.Trigger>
-            <Popout.Panel
+            </Pop.Trigger>
+            <Pop.Panel
                 width={POPOUT_WIDTH}
                 placement="left"
                 alignment="start"
@@ -1810,8 +1811,8 @@ function VaryButton({
                         openList(false);
                     }}
                 />
-            </Popout.Panel>
-        </Popout>
+            </Pop.Panel>
+        </Pop>
     );
 }
 
@@ -1896,7 +1897,7 @@ export function BoundValue({
     }
     const { binding, layer, write, bind } = source;
     const sourceWords = view.name;
-    // The pill opens the popover itself (no Popout.Trigger), so it takes focus back itself: on
+    // The pill opens the popover itself (no Pop.Trigger), so it takes focus back itself: on
     // Escape or Done, while focus is still in the popover or has fallen to the page, never after a
     // click elsewhere took it.
     const openChange = (next: boolean): void => {
@@ -1941,16 +1942,16 @@ export function BoundValue({
             </>
         );
     return (
-        // No Popout.Trigger: its click would also fire for the pill's detach button inside it, so
+        // No Pop.Trigger: its click would also fire for the pill's detach button inside it, so
         // the pill opens the panel itself and the panel docks to it.
-        <Popout opened={open} onOpenChange={openChange}>
+        <Pop opened={open} onOpenChange={openChange}>
             <div ref={pill} className="ws-varied">
                 {few ??
                     drawn(() => {
                         setOpen(true);
                     })}
             </div>
-            <Popout.Panel
+            <Pop.Panel
                 width={POPOUT_WIDTH}
                 placement="left"
                 alignment="start"
@@ -1958,7 +1959,7 @@ export function BoundValue({
                 header={{ variant: "title", title: bindingTitle(channel, sourceWords) }}
                 closeLabel={`Close ${bindingTitle(channel, sourceWords)}`}
             >
-                <Popout.Content>
+                <Pop.Content>
                     <BindingPopover
                         descriptor={descriptor}
                         layerId={layer.id}
@@ -1974,9 +1975,9 @@ export function BoundValue({
                         }}
                         onSource={bind}
                     />
-                </Popout.Content>
-            </Popout.Panel>
-        </Popout>
+                </Pop.Content>
+            </Pop.Panel>
+        </Pop>
     );
 }
 

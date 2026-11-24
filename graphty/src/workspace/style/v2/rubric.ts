@@ -74,9 +74,9 @@ export interface SubGroup {
     readonly name: string;
     readonly lines: readonly LineSpec[];
     /**
-     * In the pop-over's Advanced dialog (design "Input rules": a pop-over over 6 lines tall moves its rare
-     * settings there), always shown there, never in the "+" menu. The dialog is the last pop-out level, so its
-     * lines draw no link and are each a number, a slider, segments or a checkbox: never a color, a list or a picker.
+     * In the pop-over's Advanced view (design "Input rules": a pop-over over 6 lines tall moves its rare
+     * settings there), always shown there, never in the "+" menu. The view drills into the pop-over in place, so it
+     * may hold colors and drop-downs; its lines draw no link.
      */
     readonly advanced?: true;
 }
@@ -473,9 +473,10 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
                     { channel: "node.chartHorizontal" },
                 ],
             },
-            // The colors stay here: a color picker in the Advanced dialog would open a third level.
+            // Advanced drills into the pop-over in place, so its color pickers are the second level, not a third.
             {
                 name: "Strokes",
+                advanced: true,
                 lines: [
                     { channel: "node.chartBorderColor", name: "Border" },
                     { channel: "node.chartBackgroundColor", name: "Background" },
@@ -643,7 +644,7 @@ function edgeEnd(end: EdgeEnd): ThingRubric {
         ],
         main: [],
         groups: [
-            // The fill color stays here: a color picker in the Advanced dialog would open a third level.
+            // An open cap's fill is an everyday line, so it stays in the pop-over.
             { name: "Open caps", lines: [{ channel: at("FillColor"), name: "Fill" }] },
             {
                 name: "Cap",

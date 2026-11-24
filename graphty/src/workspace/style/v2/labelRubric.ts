@@ -59,8 +59,8 @@ export interface LabelLineSpec {
     /** R7t: the flags drawn as icon toggles after the line's own field, on one line (Bold, Italic, ...). */
     readonly toggles?: readonly LabelField[];
     /**
-     * In the pop-over's Advanced dialog, under its group's name (design "Input rules": a pop-over over 6 lines
-     * moves its rare settings there). The dialog is the last pop-out level: never a color, a list or a picker.
+     * In the pop-over's Advanced view, under its group's name (design "Input rules": a pop-over over 6 lines
+     * moves its rare settings there). The view drills into the pop-over in place, so it may hold colors and lists.
      */
     readonly advanced?: true;
 }
@@ -155,7 +155,9 @@ export const LABEL_RUBRIC: LabelRubric = {
         { field: "location", name: "Location", rule: "R2" },
         { field: "size", name: "Unit", fullName: "Size unit", rule: "R8f", unit: SIZE_UNIT, advanced: true },
     ],
-    // ia-design.md "Label settings groups": nine groups by how often files vary them, a divider between tiers.
+    // ia-design.md "Label settings groups": nine groups by how often files vary them, a divider between tiers. Every
+    // group is in Advanced, which drills into the pop-over in place, so the pop-over keeps its everyday lines and
+    // stays 6 lines tall (owner's input rules, 2026-11-23).
     groups: [
         {
             name: "Position",
@@ -174,7 +176,7 @@ export const LABEL_RUBRIC: LabelRubric = {
         {
             name: "Letters",
             lines: [
-                // The number of the weight (Bold is the Style line's toggle): a number, as a preset list would open a third level.
+                // The number of the weight (Bold is the Style line's toggle).
                 { field: "weight", name: "Weight", rule: "R5", advanced: true },
                 { field: "opacity", name: "Opacity", advanced: true },
                 { field: "lineHeight", name: "Line height", advanced: true },
@@ -182,7 +184,7 @@ export const LABEL_RUBRIC: LabelRubric = {
                 { field: "runAlign", name: "Run align", rule: "R8f", advanced: true },
                 // The letters' own stroke; the box's is Box stroke (ia-design: no look has two homes).
                 // Its Width and Opacity follow it and read as its, as the shadows' lines follow their switches.
-                { field: "outline", name: "Letter outline" },
+                { field: "outline", name: "Letter outline", advanced: true },
                 { field: "outlineWidth", name: "Width", fullName: "Letter outline width", under: true, advanced: true },
                 {
                     field: "outlineOpacity",
@@ -209,7 +211,7 @@ export const LABEL_RUBRIC: LabelRubric = {
         {
             name: "Background",
             lines: [
-                { field: "background", name: "Color", fullName: "Background color" },
+                { field: "background", name: "Color", fullName: "Background color", advanced: true },
                 { field: "backgroundOpacity", name: "Opacity", fullName: "Background opacity", advanced: true },
                 { field: "backgroundShape", name: "Shape", rule: "R8", advanced: true },
                 { field: "cornerRadius", name: "Corners", advanced: true },
@@ -223,7 +225,7 @@ export const LABEL_RUBRIC: LabelRubric = {
                     advanced: true,
                 },
                 // The lines under the Gradient switch read as its: "Kind" is the gradient's kind.
-                { field: "gradient", name: "Gradient" },
+                { field: "gradient", name: "Gradient", advanced: true },
                 {
                     field: "gradientType",
                     name: "Kind",
@@ -232,7 +234,7 @@ export const LABEL_RUBRIC: LabelRubric = {
                     rule: "R8",
                     advanced: true,
                 },
-                { field: "gradientColors", name: "Colors", fullName: "Gradient colors", under: true },
+                { field: "gradientColors", name: "Colors", fullName: "Gradient colors", under: true, advanced: true },
                 {
                     field: "gradientDirection",
                     name: "Direction",
@@ -248,7 +250,7 @@ export const LABEL_RUBRIC: LabelRubric = {
             divider: true,
             lines: [
                 { field: "borderWidth", name: "Width", fullName: "Box stroke width", advanced: true },
-                { field: "borderColor", name: "Color", fullName: "Box stroke color" },
+                { field: "borderColor", name: "Color", fullName: "Box stroke color", advanced: true },
                 { field: "borderOpacity", name: "Opacity", fullName: "Box stroke opacity", advanced: true },
                 { field: "borderAlign", name: "Align", fullName: "Box stroke align", rule: "R8", advanced: true },
                 { field: "borderStyle", name: "Style", fullName: "Box stroke style", rule: "R8", advanced: true },
@@ -266,8 +268,8 @@ export const LABEL_RUBRIC: LabelRubric = {
             name: "Label shadow",
             lines: [
                 // Each look's switch leads its lines, which read as its (ia-design: "Text shadow ...", "Box shadow ...").
-                { field: "shadow", name: "Text shadow" },
-                { field: "shadowColor", name: "Color", fullName: "Text shadow color", under: true },
+                { field: "shadow", name: "Text shadow", advanced: true },
+                { field: "shadowColor", name: "Color", fullName: "Text shadow color", under: true, advanced: true },
                 { field: "shadowBlur", name: "Blur", fullName: "Text shadow blur", under: true, advanced: true },
                 {
                     field: "shadowOffsetX",
@@ -278,8 +280,8 @@ export const LABEL_RUBRIC: LabelRubric = {
                     letters: XY,
                     advanced: true,
                 },
-                { field: "panelShadow", name: "Box shadow" },
-                { field: "panelShadowColor", name: "Color", fullName: "Box shadow color", under: true },
+                { field: "panelShadow", name: "Box shadow", advanced: true },
+                { field: "panelShadowColor", name: "Color", fullName: "Box shadow color", under: true, advanced: true },
                 { field: "panelShadowBlur", name: "Blur", fullName: "Box shadow blur", under: true, advanced: true },
                 {
                     field: "panelShadowOffsetX",
@@ -319,7 +321,7 @@ export const LABEL_RUBRIC: LabelRubric = {
         {
             name: "Badge",
             lines: [
-                { field: "badge", name: "Badge", rule: "R9" },
+                { field: "badge", name: "Badge", rule: "R9", advanced: true },
                 { field: "icon", name: "Icon", fullName: "Icon beside text", rule: "R14", advanced: true },
                 { field: "iconPosition", name: "Icon side", rule: "R8", advanced: true },
                 // A picture in the label beside or behind its words (yEd's label icon), its size and where it sits.
@@ -340,7 +342,7 @@ export const LABEL_RUBRIC: LabelRubric = {
                 { field: "minNodeScreenSize", name: "Min node", advanced: true },
                 { field: "depthFade", name: "Depth fade", advanced: true },
                 { field: "depthFadeNear", name: "Fade", pair: "depthFadeFar", advanced: true },
-                { field: "animation", name: "Animation", rule: "R9" },
+                { field: "animation", name: "Animation", rule: "R9", advanced: true },
                 { field: "animationSpeed", name: "Speed", advanced: true },
                 { field: "pickable", name: "Pickable", advanced: true },
                 { field: "closeButton", name: "Close button", advanced: true },

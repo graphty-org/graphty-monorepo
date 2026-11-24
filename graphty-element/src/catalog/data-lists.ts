@@ -284,6 +284,8 @@ export interface DataPartFact {
     readonly key: string;
     readonly name: string;
     readonly text: string;
+    /** The part's number before formatting (a count, an item, a group's measure), or null for a gray missing part. Absent for a pattern's column. */
+    readonly value?: number | null;
     readonly color: string;
     readonly role?: "other";
     /** True when the part is one column a pattern matched (its key is the column's path); absent for a list item, a category, a group or Other. */

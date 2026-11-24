@@ -1391,13 +1391,23 @@ export function prepareData(
                 key: part.key,
                 name: list.categories?.[part.key]?.label ?? part.name,
                 text: write(part.value),
+                value: part.value === null || Number.isNaN(part.value) ? null : part.value,
                 color: colorOf(part),
                 ...(part.column === true ? { column: true as const } : {}),
             }));
             const other = drawn.find((part) => part.role === "other");
             const others: DataPartFact[] =
                 other !== undefined && at === otherAt
-                    ? [{ key: "", name: other.name, text: write(other.value), color: otherColor, role: "other" }]
+                    ? [
+                          {
+                              key: "",
+                              name: other.name,
+                              text: write(other.value),
+                              value: other.value,
+                              color: otherColor,
+                              role: "other",
+                          },
+                      ]
                     : [];
             return { ...read.fact, parts: [...parts, ...others] };
         });

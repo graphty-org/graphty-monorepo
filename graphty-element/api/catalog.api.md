@@ -881,6 +881,7 @@ export interface DataPartFact {
     readonly role?: "other";
     // (undocumented)
     readonly text: string;
+    readonly value?: number | null;
 }
 
 export { DATASET_DESCRIPTORS }

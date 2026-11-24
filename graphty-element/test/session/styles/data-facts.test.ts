@@ -70,6 +70,11 @@ describe("data facts", () => {
                 ["dog", "2"],
             ],
         );
+        assert.deepStrictEqual(
+            facts.entries[0].parts?.map((part) => part.value),
+            [1, 2],
+            "each part's number before formatting",
+        );
         assert.strictEqual(facts.entries[1].text, "$1,235");
         assert.deepStrictEqual(
             facts.categories.map((each) => each.key),

@@ -15,6 +15,7 @@ import { ActionIcon, Box, Button, Group, Menu, Stack, Text, Tooltip } from "@man
 import React, { useState } from "react";
 
 import { stylePanelV2On } from "../features";
+import { AdvancedDrill } from "../options/Drill";
 import { GLYPHS } from "../glyphs";
 import { count as countOf } from "../inspector/words";
 import { formatNumber } from "../settings/numberFormat";
@@ -219,6 +220,30 @@ export function BindingPopover(props: Readonly<BindingPopoverProps>): React.JSX.
     const { binding, patch } = parts;
     const numberParts = isNumber && !detail;
     const v2 = stylePanelV2On(session);
+    const noValue =
+        detail || !parts.noValue ? null : (
+            <NoValue
+                session={session}
+                descriptor={descriptor}
+                missing={binding.missing ?? "skip"}
+                patch={patch}
+                segments={v2}
+            />
+        );
+    // v2: what happens past the palette is a rare choice, so it leaves the groups for the Advanced view.
+    const overflow =
+        v2 && parts.categorical && !detail && overflowLine(session, descriptor, parts) ? (
+            <OverflowField session={session} descriptor={descriptor} parts={parts} />
+        ) : null;
+    const rampRare = v2 && !detail ? parts.rampAdvanced : null;
+    const rare = (
+        <>
+            {rampRare}
+            {noValue}
+            {overflow}
+        </>
+    );
+    const hasRare = rampRare !== null || noValue !== null || overflow !== null;
 
     return (
         <Stack gap={8} role="group" aria-label={`${name} binding`}>
@@ -249,16 +274,24 @@ export function BindingPopover(props: Readonly<BindingPopoverProps>): React.JSX.
             {numberParts ? (
                 <Range key={String(binding.range)} descriptor={descriptor} range={binding.range} patch={patch} />
             ) : null}
-            {detail || !parts.noValue ? null : (
-                <NoValue
-                    session={session}
-                    descriptor={descriptor}
-                    missing={binding.missing ?? "skip"}
-                    patch={patch}
-                    segments={v2}
-                />
-            )}
+            {v2 ? null : rare}
             {numberParts && !v2 ? <CombineField name={name} binding={binding} patch={patch} /> : null}
+            {/* v2: the rarer choices (Scale, Clamp outliers, No value, More values than colors) drill in from an
+                Advanced line, so the dialog keeps its source, operation, range and palette (owner, 2026-11-23). */}
+            {v2 && hasRare ? (
+                <AdvancedDrill
+                    name={`${name} by data advanced settings`}
+                    title={`${name} by data advanced`}
+                    changed={
+                        binding.scale !== undefined ||
+                        binding.clamp !== undefined ||
+                        binding.missing !== undefined ||
+                        binding.overflow !== undefined
+                    }
+                >
+                    <Stack gap={8}>{rare}</Stack>
+                </AdvancedDrill>
+            ) : null}
         </Stack>
     );
 }
@@ -290,7 +323,7 @@ function GroupsSection({
     // "More values than colors" only when there are: more groups than the palette in force holds.
     // A choice made for it (a run's "Extend the palette") changes nothing while every group has a
     // color of its own, so it is not offered then either.
-    const overflows = overflowsPalette(session, binding, parts);
+    const overflows = !stylePanelV2On(session) && overflowsPalette(session, binding, parts);
     return (
         <Stack gap={8}>
             {detail ? null : parts.readAs}
@@ -307,6 +340,17 @@ function GroupsSection({
             {plain && overflows ? <OverflowField session={session} descriptor={descriptor} parts={parts} /> : null}
         </Stack>
     );
+}
+
+/**
+ * Whether the "More values than colors" line shows: a color read through a palette, its groups past it.
+ * @param session - the element's session
+ * @param descriptor - the bound property
+ * @param parts - what the source puts in the popover
+ * @returns whether it shows
+ */
+function overflowLine(session: GraphSession, descriptor: ChannelDescriptor, parts: Parts): boolean {
+    return descriptor.accepts === "color" && !parts.asWritten && overflowsPalette(session, parts.binding, parts);
 }
 
 /**
@@ -432,6 +476,8 @@ interface Parts {
     /** The palette it paints with when it names none. */
     readonly palette: string | undefined;
     readonly ramp: React.ReactNode;
+    /** v2: the ramp's rarer choices (Scale, Clamp outliers), in the Advanced view; null without a ramp. */
+    readonly rampAdvanced: React.ReactNode;
     readonly readAs: React.ReactNode;
     readonly list: React.ReactNode;
     /** Whether No value shows. */
@@ -478,6 +524,10 @@ function dataParts(
         ramp:
             preview !== null && !categorical && (isColor || descriptor.accepts === "number") ? (
                 <Ramp {...part} preview={preview} />
+            ) : null,
+        rampAdvanced:
+            preview !== null && !categorical && (isColor || descriptor.accepts === "number") ? (
+                <RampAdvanced {...part} preview={preview} />
             ) : null,
         readAs: (
             <>
@@ -550,6 +600,7 @@ function layerParts(
         asWritten: false,
         palette,
         ramp: null,
+        rampAdvanced: null,
         readAs: null,
         list: (
             <LayerGroupList
@@ -794,6 +845,61 @@ function openLayerFor(
 }
 
 /**
+ * The numeric scales a ramp can read through, in words.
+ * @param session - the element's session
+ * @returns the scales
+ */
+function numericScales(session: GraphSession): { value: string; label: string }[] {
+    return session.catalog
+        .scales()
+        .filter((s) => s.domainKind === "numeric")
+        .map((s) => ({ value: s.name, label: SCALE_WORDS[s.name] ?? enumWords(s.name) }));
+}
+
+/**
+ * v2: a ramp's rarer choices, in the link dialog's Advanced view: its Scale and Clamp outliers.
+ * @param props - Component props
+ * @param props.session - the element's session
+ * @param props.binding - the binding
+ * @param props.preview - the element's preview of it
+ * @param props.patch - writes a change
+ * @returns The lines
+ */
+function RampAdvanced({ session, binding, preview, patch }: Readonly<PartProps>): React.JSX.Element {
+    return (
+        <Stack gap={8}>
+            <PanelLabelsProvider showLabels>
+                <FieldRow
+                    trailing={
+                        binding.scale !== undefined && (
+                            <ResetButton
+                                label="Scale"
+                                onClick={() => {
+                                    patch({ scale: undefined });
+                                }}
+                            />
+                        )
+                    }
+                >
+                    <PanelField
+                        label="Scale"
+                        kind="select"
+                        width="fill"
+                        // Unset, it shows the scale in force.
+                        data={numericScales(session)}
+                        value={binding.scale ?? preview.scale}
+                        onChange={(next) => {
+                            patch({ scale: String(next), palette: binding.palette });
+                        }}
+                    />
+                </FieldRow>
+            </PanelLabelsProvider>
+            <Clamp binding={binding} patch={patch} />
+        </Stack>
+    );
+}
+
+/**
  * A numeric binding: the ramp editor, a clamp, and for a stepped scale its steps with counts.
  * @param props - Component props
  * @param props.session - the element's session
@@ -818,10 +924,9 @@ function Ramp({
     const isColor = descriptor.accepts === "color";
     const domain = preview.domain ?? [0, 0];
     const scale = binding.scale ?? preview.scale;
-    const scales = session.catalog
-        .scales()
-        .filter((s) => s.domainKind === "numeric")
-        .map((s) => ({ value: s.name, label: SCALE_WORDS[s.name] ?? enumWords(s.name) }));
+    const scales = numericScales(session);
+    // v2: Scale and Clamp outliers are in the dialog's Advanced view (RampAdvanced).
+    const v2 = stylePanelV2On(session);
     const palettes = session.catalog.palettes().filter((p) => p.kind !== "categorical");
     const shownPalette = session.styles.legendOf(layerId).find((block) => block.channel === descriptor.channel)
         ?.palette?.name;
@@ -884,7 +989,7 @@ function Ramp({
                 scale={binding.scale}
                 defaultScale={preview.scale}
                 // Inside a binding every field shows what it paints now, a default included.
-                scales={scales}
+                scales={v2 ? undefined : scales}
                 onScaleChange={(next) => {
                     patch({ scale: next, palette: binding.palette });
                 }}
@@ -923,7 +1028,7 @@ function Ramp({
                     Fit to the data
                 </Button>
             ) : null}
-            <Clamp binding={binding} patch={patch} />
+            {v2 ? null : <Clamp binding={binding} patch={patch} />}
             {perValue ? (
                 <QuietButton
                     onClick={() => {

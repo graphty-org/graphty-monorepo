@@ -14,7 +14,7 @@ type Send = (method: string, params?: Record<string, unknown>) => Promise<unknow
  * Sends Chrome DevTools Protocol commands to the test's browser.
  * @returns the send function, bound to the session.
  */
-function cdpSend(): Send {
+export function cdpSend(): Send {
     const session = cdp() as unknown as { send: Send };
     return session.send.bind(session);
 }
@@ -46,7 +46,10 @@ function inTopPage(x: number, y: number): { x: number; y: number } {
  * visible part when unset.
  * @returns The point in the top page's CSS pixels.
  */
-function topPagePoint(element: Element, at?: { readonly x: number; readonly y: number }): { x: number; y: number } {
+export function topPagePoint(
+    element: Element,
+    at?: { readonly x: number; readonly y: number },
+): { x: number; y: number } {
     const rect = element.getBoundingClientRect();
     if (at !== undefined) {
         return inTopPage(rect.left + at.x, rect.top + at.y);

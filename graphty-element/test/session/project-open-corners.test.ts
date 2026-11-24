@@ -39,16 +39,18 @@ function sessionMember(file: V1File): Record<string, unknown> {
  * Open a file in a new session.
  * @param file - The file, or its text.
  * @param options - The open options.
+ * @param features - The session's experiments; absent means the page default.
  * @returns The session and the report, or the refusal's code and details.
  */
 async function open(
     file: unknown,
     options: Parameters<GraphSession["project"]["open"]>[1] = {},
+    features?: string[],
 ): Promise<
     | { session: GraphSession; report: Awaited<ReturnType<GraphSession["project"]["open"]>> }
     | { code: string; details: unknown }
 > {
-    const session = createGraphSession();
+    const session = createGraphSession(features === undefined ? {} : { features });
     try {
         const report = await session.project.open(typeof file === "string" ? file : JSON.stringify(file), options);
         return { session, report };
@@ -104,7 +106,8 @@ describe("a document the open refuses", () => {
     });
 
     it("refuses a version 2 file without the experiment, naming the experiment that reads it", async () => {
-        const result = await open({ kind: "graphty-document", version: 2, sections: {} });
+        // No experiments, so the refusal holds in the features-on test projects too.
+        const result = await open({ kind: "graphty-document", version: 2, sections: {} }, {}, []);
         assert.deepStrictEqual(result, {
             code: "E_UNSUPPORTED_VERSION",
             details: { kind: "graphty-document", found: 2, reads: [1], feature: "save-files-v2" },

@@ -892,6 +892,34 @@ export function newProjectId(state: WorkspaceState): number {
     return lastProjectId;
 }
 
+/** The stores whose whole workspace is being unmounted: see {@link workspaceUnmounting}. */
+const unmounting = new WeakSet<WorkspaceStore>();
+
+/**
+ * Marks a store's workspace as unmounting whole, or mounted again. The workspace marks it on its
+ * own mount and unmount.
+ * @param store - the store.
+ * @param leaving - true while it unmounts.
+ */
+export function markWorkspaceUnmounting(store: WorkspaceStore, leaving: boolean): void {
+    if (leaving) {
+        unmounting.add(store);
+    } else {
+        unmounting.delete(store);
+    }
+}
+
+/**
+ * Whether the whole workspace is unmounting (a development hot swap remounts it, or the page goes),
+ * rather than one panel closing: a part that closes what it owns when it unmounts leaves the store
+ * as it is then, so the workspace that mounts next opens with what the reader had open (issue #9973).
+ * @param store - the store.
+ * @returns true while the workspace unmounts.
+ */
+export function workspaceUnmounting(store: WorkspaceStore): boolean {
+    return unmounting.has(store);
+}
+
 /**
  * Makes a store.
  * @param initial - fields to start from (a story's or test's state).

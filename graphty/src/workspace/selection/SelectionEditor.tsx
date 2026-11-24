@@ -43,6 +43,7 @@ import { canFocus, focusInspectorTitle, focusIsLost, tabStops } from "../frame/f
 import { GLYPHS } from "../glyphs";
 import { formatNumber } from "../inspector/words";
 import { isTypingTarget, matchesKey, printable } from "../keys/keys";
+import { workspaceUnmounting } from "../state/store";
 import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { DrawnSwatches } from "../style/drawnSwatches";
@@ -650,11 +651,13 @@ export function SelectionEditor({
     }, [open]);
     // Leaving the place unmounts the editor: the workspace closes with it, as Done. Decided a
     // microtask later: StrictMode's development-only rerun mounts the editor again first, and a
-    // workspace a reload kept stays open (issue #9655).
+    // workspace a reload kept stays open (issue #9655). The whole workspace unmounting (a
+    // development hot swap) is not leaving the place: the workspace stays open in the store, for
+    // the workspace that mounts next (issue #9973).
     useEffect(
         () => () => {
             queueMicrotask(() => {
-                if (mounted.current) {
+                if (mounted.current || workspaceUnmounting(store)) {
                     return;
                 }
                 endVisit("done");

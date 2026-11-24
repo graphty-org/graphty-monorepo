@@ -1,6 +1,5 @@
 /**
- * Tests of tools/test-select.mjs (the advisory test selector) and the log parsing of
- * tools/test-select-replay.mjs, on small hand-made import graphs.
+ * Tests of tools/test-select.mjs (the advisory test selector), on small hand-made import graphs.
  */
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
@@ -60,8 +59,6 @@ import {
     wholePackageRule,
     withLockfile,
 } from "./test-select.mjs";
-import { ciFailures, parseGateLog } from "./test-select-replay.mjs";
-import { applyBudgets, keyOf, percentile, replayRecord, SETUP_MS, summarize } from "./light-check-replay.mjs";
 import { candidateShards, changedSince, describePlan } from "./test-changed.mjs";
 import {
     mutant,
@@ -323,28 +320,7 @@ describe("buildInput", () => {
     });
 });
 
-describe("the replay's log parsing", () => {
-    it("reads the shard lines of a gate log", () => {
-        const log = [
-            "Left to CI (this push changes none of the files they test): graphty-element-browser-1, graphty-element-storybook-2",
-            "  [SKIP] layout: passed at 2026-10-20 on abc with byte-identical inputs",
-            "  [PASS] graph-io (331s)",
-            "  [FAIL] graphty-element-default (exit 1, 281s); the end of /x/graphty-element-default.log:",
-            " FAIL  |default| test/styles/a.test.ts > a > b",
-            "  [FAIL] graphty-element-default: its whole log is kept in /k/g.log",
-        ].join("\n");
-        const g = parseGateLog(log);
-        assert.deepEqual(g.skipped, ["layout"]);
-        assert.deepEqual(g.leftToCi, ["graphty-element-browser-1", "graphty-element-storybook-2"]);
-        assert.deepEqual(
-            g.ran.map((r) => [r.shard, r.ok, r.secs, r.kept ?? null]),
-            [
-                ["graph-io", true, 331, null],
-                ["graphty-element-default", false, 281, "/k/g.log"],
-            ],
-        );
-    });
-
+describe("failingFiles", () => {
     it("names the failing test files of a vitest log, stories and unhandled errors included", () => {
         const log = [
             "\u001b[31m FAIL \u001b[39m |browser (chromium)| test/browser/x.test.ts > a",
@@ -721,43 +697,6 @@ describe("building a package's import graph (a fixture package, walked by Vitest
         } finally {
             rmSync(fixture, { recursive: true, force: true });
         }
-    });
-});
-
-describe("the CI collector", () => {
-    const shards = [
-        { shard: "graph-io", package: "graph-io" },
-        { shard: "layout", package: "layout" },
-    ];
-    const dirs = ["graph-io", "layout"];
-    const check = (name, notes) => ({ name, annotations: { nodes: notes } });
-
-    it("reads failing test files from failure annotations, and failed shards from a group job", () => {
-        assert.deepEqual(
-            ciFailures(
-                check("Test (small-node)", [
-                    { path: "graph-io/test/a.test.ts", message: "slow", annotationLevel: "WARNING" },
-                    { path: ".github", message: "failed: graph-io, layout", annotationLevel: "FAILURE" },
-                ]),
-                shards,
-                dirs,
-            ).map((f) => [f.package, f.file]),
-            [
-                ["graph-io", null],
-                ["layout", null],
-            ],
-        );
-        assert.deepEqual(
-            ciFailures(
-                check("Test (graph-io)", [
-                    { path: "graph-io/test/a.test.ts", message: "boom\nstack", annotationLevel: "FAILURE" },
-                ]),
-                shards,
-                dirs,
-            ),
-            [{ package: "graph-io", shard: "graph-io", file: "test/a.test.ts", what: "boom" }],
-        );
-        assert.deepEqual(ciFailures(check("Lint", []), shards, dirs), []);
     });
 });
 
@@ -1845,111 +1784,6 @@ describe("packBins", () => {
         const ms = new Map(files.map((f) => [f, 550]));
         const { overheadMs, scale } = binCost("graphty-element-default");
         assert.equal(packBins(files, ms, BIN_LIMIT_MS, overheadMs, scale).length, 1);
-    });
-});
-
-describe("light-check-replay", () => {
-    const MIN = 60_000;
-    const fileLevel = new Set(["graphty-element", "graphty"]);
-    const sel = (shard, pkg, mode, files = [], extra = {}) => ({
-        shard,
-        package: pkg,
-        mode,
-        total: extra.total ?? files.length,
-        files: files.map((file) => ({ file })),
-        reasons: extra.reasons ?? [],
-    });
-    const durations = new Map([
-        [
-            "graphty",
-            new Map([
-                ["graphty/a.test.ts", 5 * MIN],
-                ["graphty/b.test.ts", 3 * MIN],
-            ]),
-        ],
-        ["graph-io", new Map([["graph-io/x.test.ts", 2 * MIN]])],
-    ]);
-
-    it("merges a family's slices and runs its longest bin after the setup", () => {
-        const record = {
-            at: "2026-10-23T00:00:00Z",
-            selection: [
-                sel("graphty-1", "graphty", "files", ["graphty/a.test.ts"]),
-                sel("graphty-2", "graphty", "files", ["graphty/a.test.ts", "graphty/b.test.ts"]),
-                sel("graph-format", "graph-format", "none"),
-            ],
-        };
-        const r = replayRecord(record, durations, fileLevel, 8 * MIN);
-        assert.deepEqual(r, {
-            key: "run:ci.yml:pr",
-            at: record.at,
-            bins: 2,
-            testMs: 5 * MIN * binCost("graphty").scale + binCost("graphty").overheadMs,
-            runMs: SETUP_MS + 5 * MIN * binCost("graphty").scale + binCost("graphty").overheadMs,
-            overLimit: false,
-        });
-    });
-
-    it("runs a whole family with its unrecorded files at the family's longest", () => {
-        const record = { selection: [sel("graph-io", "graph-io", "all", [], { total: 5 })] };
-        const r = replayRecord(record, durations, fileLevel, 8 * MIN);
-        assert.equal(r.key, "run:ci.yml:pr-graph-io", "a package off fileLevel has its own key");
-        assert.equal(r.bins, 2, "five 2-minute files plus their overhead make bins of three and two files");
-        assert.equal(r.testMs, 6 * MIN + 3 * FILE_OVERHEAD_MS);
-    });
-
-    it("keys a global input or a graphty-element build change as pr-wide", () => {
-        assert.equal(keyOf({ everything: "package.json", selection: [] }, [], fileLevel), "run:ci.yml:pr-wide");
-        const dependent = sel("graphty-1", "graphty", "all", [], {
-            reasons: ["depends on graphty-element, whose build changed"],
-        });
-        assert.equal(keyOf({ selection: [dependent] }, [], fileLevel), "run:ci.yml:pr-wide");
-        const byFile = sel("graphty-1", "graphty", "files", []);
-        byFile.files = [
-            { file: "graphty/src/App.test.tsx", why: "imports graphty-element/src/a.ts, from graphty-element's build" },
-        ];
-        assert.equal(
-            keyOf({ selection: [byFile] }, [], fileLevel),
-            "run:ci.yml:pr-wide",
-            "a dependent selected file by file",
-        );
-        const own = sel("graphty-element-1", "graphty-element", "files", []);
-        own.files = [{ file: "graphty-element/test/a.test.ts", why: "imports graphty-element/src/a.ts" }];
-        assert.equal(keyOf({ selection: [own] }, [], fileLevel), "run:ci.yml:pr", "graphty-element's own tests alone");
-        const longest = [
-            { package: "graphty", ms: 9 },
-            { package: "layout", ms: 3 },
-        ];
-        assert.equal(keyOf({ selection: [] }, longest, fileLevel), "run:ci.yml:pr-layout");
-    });
-
-    it("summarizes p50 and p90 per key and writes them as budgets", () => {
-        assert.equal(percentile([5, 1, 4, 2, 3], 0.5), 3);
-        assert.equal(percentile([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 0.9), 9);
-        assert.equal(percentile([], 0.9), 0);
-        const row = (runMs, at) => ({ key: "run:ci.yml:pr", at, bins: 2, runMs, overLimit: false });
-        const table = summarize([row(10 * MIN, "2026-10-22T01:00:00Z"), row(12.5 * MIN, "2026-10-23T01:00:00Z")]);
-        assert.deepEqual(table, [
-            {
-                key: "run:ci.yml:pr",
-                n: 2,
-                p50: 10,
-                p90: 12.5,
-                bins50: 2,
-                bins90: 2,
-                overLimit: 0,
-                from: "2026-10-22",
-                to: "2026-10-23",
-            },
-        ]);
-        const before = { version: 1, budgets: { "run:ci.yml:pr": { minutes: 20, owner: "pipeline" } } };
-        const after = applyBudgets(before, table);
-        assert.equal(before.budgets["run:ci.yml:pr"].minutes, 20, "the input is not changed");
-        assert.deepEqual(after.budgets["run:ci.yml:pr"], {
-            minutes: 13,
-            owner: "pipeline",
-            why: "light-check replay of 2 advisory records (2026-10-22 to 2026-10-23): p50 10 min, p90 12.5 min; table on #3418",
-        });
     });
 });
 

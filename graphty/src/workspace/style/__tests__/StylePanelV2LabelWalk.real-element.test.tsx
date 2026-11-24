@@ -507,6 +507,10 @@ describe("every label field is reachable from the Label row and draws (E673)", (
          * @param test - its case.
          * @returns the value it should hold.
          */
+        const hasLine = async (root: HTMLElement, field: LabelField): Promise<boolean> => {
+            await session.styles.settled();
+            return root.querySelector(`.ws-row[data-line="node.labelStyle.${field}"]`) !== null;
+        };
         const setByHand = async (field: LabelField, test: WalkCase): Promise<unknown> => {
             const descriptor = labelFieldDescriptor(field);
             assert.isDefined(descriptor, field);
@@ -532,6 +536,11 @@ describe("every label field is reachable from the Label row and draws (E673)", (
                 let root = pop ?? (await rowOf());
                 if (pop !== undefined && place.group !== undefined) {
                     root = await openGroup(pop, place.group.name);
+                }
+                if (field === "gradientDirection" && !(await hasLine(root, field))) {
+                    // A gradient's direction is its Linear tab's line: picked first, as a reader does.
+                    const linear = within(root).getByRole<HTMLInputElement>("radio", { name: "Linear" });
+                    await userEvent.click(root.querySelector<HTMLElement>(`label[for="${linear.id}"]`) ?? linear);
                 }
                 if (place.how === "unit") {
                     const line = await lineIn(root, `node.labelStyle.${place.line.field}:unit`);

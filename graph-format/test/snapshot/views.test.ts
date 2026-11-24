@@ -1,6 +1,7 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
+import { GraphBuilder } from "../../src/builder/graph-builder.js";
 import { INVALID_INDEX } from "../../src/constants.js";
 import { peekView } from "../../src/snapshot/graph-snapshot.js";
 import {
@@ -343,6 +344,30 @@ describe("sharing and aliasing rules (I17, section 7.2)", () => {
         expect(viewByteLength(identity, "edgeList", il)).toBe(12);
         const unweighted = makeSnapshot({ directed: false, edges: [[1, 0]] });
         expect(unweighted.edgeList().weights).toBeNull();
+    });
+});
+
+describe("edgeWeights()", () => {
+    it("returns the exact weights in edge order where edgeList().weights holds 32-bit floats", () => {
+        const b = new GraphBuilder({ directed: false, weightDtype: "f64" });
+        b.addEdge("b", "a", 0.1);
+        b.addEdge("a", "c", 2);
+        b.addEdge("c", "b");
+        const s = b.freeze();
+        expect(s.edgeList().weights?.[0]).toBe(Math.fround(0.1));
+        const w = s.edgeWeights();
+        expect(w).toEqual(new Float64Array([0.1, 2, 1]));
+        expect(s.edgeWeights()).not.toBe(w);
+    });
+
+    it("widens exact 32-bit weights and is null when unweighted", () => {
+        const b = new GraphBuilder({ directed: true });
+        b.addEdge("a", "b", 0.5);
+        b.addEdge("b", "c", 3);
+        expect(b.freeze().edgeWeights()).toEqual(new Float64Array([0.5, 3]));
+        const u = new GraphBuilder({ directed: true });
+        u.addEdge("a", "b");
+        expect(u.freeze().edgeWeights()).toBeNull();
     });
 });
 

@@ -1,6 +1,6 @@
 /**
  * @file The `recipe` section codec, version 2: the replayable analysis steps (spec 4.3).
- * Experimental (`save-files-v2`).
+ *
  *
  * A recipe opened from a file is kept and written back as read (spec 8.1 rule 5); it is applied to
  * the data only when the caller asks (spec 8.2 rule 4), by replaying the commands in order through

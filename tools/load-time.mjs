@@ -11,24 +11,48 @@
  * `{ date, machine, sha?, results: [{ group, name, medianMs, minMs, samplesMs }] }`, the shape
  * tools/results/post-benchmarks.mjs reads, so the health dashboard keeps the series (source `graphty-load`).
  *
- *   node tools/load-time.mjs            judge the out files against benchmarks/results/load-time.json
- *   node tools/load-time.mjs --record   and then append them to it as a baseline session
+ *   node tools/load-time.mjs --pair-app <dist> --pair-element <bundle> [--rounds 4] [--reference-commit <sha>]
+ *       the paired judge (CI's Performance Benchmarks job): time a reference build (the job passes what nightly
+ *       serves, and its commit) and the candidate (HEAD) on the same machine, alternating, and fail on a row the
+ *       candidate is slower in
+ *   node tools/load-time.mjs            print the out files against benchmarks/results/load-time.json, for trends
+ *   node tools/load-time.mjs --record   and then append them to it as a session
  *
- * The rules are webgpu-graph-algorithms/scripts/bench-compare.js's, with this file's own constants:
- *   - a row is compared only with sessions of the same machine (the CPU model, as the dashboard keys it): GitHub's
- *     hosted runners land on CPU models about 2x apart, so a baseline from another CPU means nothing;
- *   - the baseline is the best median and the best minimum EVERY session of that machine has recorded for the row, so
- *     an appended slow session can never lower the bar it is judged by;
- *   - a REGRESSION needs the median AND the minimum above THRESHOLD x the baseline's, and both to have risen by at
- *     least FLOOR_MS: interference only ever slows a sample, so a minimum that held means the cost held;
- *   - no out file: nothing to compare, exit 0; no baseline for this machine: every row "new", exit 0.
+ * Why paired (issue #9876): GitHub's hosted runners that report the same CPU model differ in speed by up to about
+ * x1.38 between sessions (the results file's 2026-11-17 and 2026-11-18 sessions on the Xeon Platinum 8573C), more
+ * than THRESHOLD, so a baseline recorded on another day cannot tell a slower runner from slower code: a full run went
+ * red on three rows that no merge had changed (#9855). Timing both builds in the same job, alternately, removes the
+ * runner from the comparison, as webgpu-graph-algorithms/scripts/bench-ab.js does for the GPU.
  *
- * THRESHOLD and FLOOR_MS are derived in their comments below from the recorded sessions.
- * Re-pinning is by hand, as in bench-compare.js: delete the superseded sessions from the results file in a reviewed
- * commit that names the change that made the new cost correct. Never to quiet a red row.
+ * The paired run (--pair-app and --pair-element each pair one benchmark; give one or both):
+ *   - R rounds (--rounds, default 4); each round runs every paired benchmark once per build, the reference first in
+ *     even rounds and the candidate first in odd ones (ABBA), so a drift that is linear in time cancels;
+ *   - both builds run under the candidate's benchmark files (the reference build only supplies the page through
+ *     LOAD_TIME_APP_DIST or LOAD_TIME_ELEMENT_BUNDLE), so both are timed by the same instrument;
+ *   - each side's samples of every round are pooled into one row (median and minimum of all of them);
+ *   - a REGRESSION needs the candidate's median AND minimum above THRESHOLD x the reference's, and both to have risen
+ *     by at least FLOOR_MS: interference only ever slows a sample, so a minimum that held means the cost held. These
+ *     are the rules of webgpu-graph-algorithms/scripts/bench-compare.js; bench-ab.js's interval over per-round
+ *     minima is not used, because a round here is one benchmark run and its noise is what the pooled median and
+ *     minimum already absorb;
+ *   - the candidate's pooled rows are written to benchmarks/out/load-time-<part>.json, which the dashboard posts.
+ *
+ * Accepting a slowdown (the owner only; never to quiet a red row nobody has explained): a change that makes loading
+ * slower on purpose would fail every full run until nightly, the reference, holds it, and nightly moves only on a
+ * green run. The owner records it in benchmarks/load-time-accepted.json, an owner-only file:
+ *   [{ "row": "app/graph settled", "commit": "<sha of the change or its merge>", "ratio": 1.3,
+ *      "reason": "why the cost is worth it" }]
+ * A REGRESSION on that row is then "accepted" (and printed with the reason) while the candidate contains the commit
+ * and the reference does not, and the candidate is within THRESHOLD (and FLOOR_MS) of the reference x ratio: a
+ * further slowdown on top of the accepted one still fails. Once nightly holds the commit the entry stops applying by
+ * itself, and can be deleted. Needs the git history of both commits (the job fetches it when the file lists any).
+ *
+ * The history (benchmarks/results/load-time.json) is printed after the paired verdict, against the best median and
+ * best minimum every session of the same CPU model recorded, for trends only: it never fails a run.
  */
 
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { cpus } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -36,6 +60,8 @@ import { fileURLToPath } from "node:url";
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 export const OUT_DIR = join(REPO, "benchmarks/out");
 export const RESULTS_FILE = join(REPO, "benchmarks/results/load-time.json");
+/** The owner's accepted slowdowns (see the header); an owner-only file. */
+export const ACCEPTED_FILE = join(REPO, "benchmarks/load-time-accepted.json");
 
 /**
  * The factor a median and a minimum must both exceed. Measured on the i9-14900KF under the load of other sessions'
@@ -125,12 +151,50 @@ export function pinned(sessions, on) {
 }
 
 /**
+ * The owner's accepted slowdowns that apply to this pair: those whose commit the candidate contains and the reference
+ * does not yet (once nightly holds the commit, the reference carries the cost and the entry no longer applies).
+ * @param entries - benchmarks/load-time-accepted.json: `[{ row, commit, ratio, reason }]`
+ * @param has - has.candidate(commit) and has.reference(commit): whether that build contains the commit
+ * @returns the applying entries, by row (the largest ratio when a row has several)
+ */
+export function acceptedRows(entries, has) {
+    const rows = new Map();
+    for (const e of entries) {
+        const badRatio = !Number.isFinite(e.ratio) || e.ratio < 1;
+        if (typeof e.row !== "string" || !/^[0-9a-f]{7,40}$/.test(e.commit ?? "") || badRatio || !e.reason)
+            throw new Error(
+                `${ACCEPTED_FILE}: an entry needs row, commit (a sha), ratio (>= 1) and reason: ${JSON.stringify(e)}`,
+            );
+        if (has.candidate(e.commit) && !has.reference(e.commit) && (rows.get(e.row)?.ratio ?? 0) < e.ratio)
+            rows.set(e.row, e);
+    }
+    return rows;
+}
+
+/**
+ * rowStatus, with an accepted slowdown: a REGRESSION that is not one against the baseline x the accepted ratio is
+ * "accepted".
+ * @param r - the current row
+ * @param base - the baseline row
+ * @param accepted - the row's applying acceptance, if any
+ * @returns the status
+ */
+function acceptedStatus(r, base, accepted) {
+    const status = rowStatus(r, base);
+    if (status !== "REGRESSION" || !accepted) return status;
+    const scaled = { medianMs: base.medianMs * accepted.ratio, minMs: base.minMs * accepted.ratio };
+    return rowStatus(r, scaled) === "REGRESSION" ? status : "accepted";
+}
+
+/**
  * Judge sessions against the baseline file's sessions.
  * @param current - the out files' sessions
  * @param baseline - the results file's sessions
+ * @param accepted - accepted slowdowns by row (acceptedRows): a REGRESSION within THRESHOLD of the baseline scaled by
+ *   its ratio is "accepted"
  * @returns a table and the count of regressions
  */
-export function judge(current, baseline) {
+export function judge(current, baseline, accepted = new Map()) {
     const lines = [];
     let regressions = 0;
     for (const s of current) {
@@ -139,7 +203,8 @@ export function judge(current, baseline) {
         lines.push(`${s.machine}: ${known}`);
         for (const r of s.results) {
             const b = base.get(`${r.group}/${r.name}`);
-            const status = rowStatus(r, b);
+            const a = accepted.get(`${r.group}/${r.name}`);
+            const status = acceptedStatus(r, b, a);
             if (status === "REGRESSION") regressions++;
             const ratio = (now, then) => (then ? `x${(now / then).toFixed(2)}` : "");
             lines.push(
@@ -152,12 +217,125 @@ export function judge(current, baseline) {
                     ratio(r.minMs, b?.minMs).padStart(7),
                 ].join(" "),
             );
+            if (status === "accepted")
+                lines.push(
+                    `            accepted by the owner up to x${a.ratio} since ${a.commit.slice(0, 10)}: ${a.reason}`,
+                );
         }
     }
     return { lines, regressions };
 }
 
+/**
+ * Pool one side's rounds into one row per benchmark: every round's samples, summarized together.
+ * @param sessions - that side's sessions, one per round
+ * @returns the pooled rows, in first-seen order
+ */
+export function pool(sessions) {
+    const rows = new Map();
+    for (const s of sessions)
+        for (const r of s.results) {
+            const key = `${r.group}/${r.name}`;
+            const row = rows.get(key) ?? { group: r.group, name: r.name, samplesMs: [] };
+            row.samplesMs.push(...r.samplesMs);
+            rows.set(key, row);
+        }
+    return [...rows.values()].map((r) => summarize(r.group, r.name, r.samplesMs));
+}
+
+/**
+ * Which build runs first in a round: the reference in even rounds, the candidate in odd ones (ABBA).
+ * @param round - the round, from 0
+ * @returns the two sides in running order
+ */
+export const roundOrder = (round) => (round % 2 === 0 ? ["base", "candidate"] : ["candidate", "base"]);
+
+/** The paired benchmarks: where each runs, its command, and the variable that points it at the reference build. */
+const PARTS = {
+    element: {
+        cwd: join(REPO, "graphty-element"),
+        args: ["exec", "vitest", "run", "--project=bench", "test/load/load-time.bench.test.ts"],
+        variable: "LOAD_TIME_ELEMENT_BUNDLE",
+    },
+    app: {
+        cwd: join(REPO, "graphty"),
+        args: ["exec", "vitest", "run", "--project=bench"],
+        variable: "LOAD_TIME_APP_DIST",
+    },
+};
+
+/**
+ * Run the paired benchmarks in ABBA rounds.
+ * @param pair - the reference build per part (`app`: a built app directory, `element`: a script-tag bundle)
+ * @param rounds - how many rounds
+ * @returns per side, the sessions of every round, by part
+ */
+function measurePairs(pair, rounds) {
+    const out = { base: {}, candidate: {} };
+    for (let round = 0; round < rounds; round++)
+        for (const [part, reference] of Object.entries(pair))
+            for (const side of roundOrder(round)) {
+                const { cwd, args, variable } = PARTS[part];
+                const env = { ...process.env };
+                delete env[variable];
+                if (side === "base") env[variable] = resolve(reference);
+                const file = join(OUT_DIR, `load-time-${part}.json`);
+                rmSync(file, { force: true });
+                console.log(`round ${round + 1}/${rounds}: ${part}, ${side}`);
+                const run = spawnSync("pnpm", args, { cwd, env, stdio: ["ignore", "ignore", "inherit"] });
+                if (run.status !== 0 || !existsSync(file))
+                    throw new Error(`${part} benchmark of the ${side} build failed (exit ${run.status ?? run.signal})`);
+                out[side][part] = [...(out[side][part] ?? []), JSON.parse(readFileSync(file, "utf8"))];
+            }
+    return out;
+}
+
+const HEADER = `status      row${" ".repeat(38)}median  baseline  median    min`;
+
+/**
+ * Whether a commit is in a build's history (git merge-base --is-ancestor). Throws when git cannot tell (a shallow
+ * clone without the commit), so an acceptance is never skipped in silence.
+ * @param commit - the accepted commit
+ * @param rev - the build's commit
+ * @returns true when rev contains commit
+ */
+function contains(commit, rev) {
+    const r = spawnSync("git", ["merge-base", "--is-ancestor", commit, rev], { cwd: REPO, encoding: "utf8" });
+    if (r.status === 0 || r.status === 1) return r.status === 0;
+    throw new Error(`git cannot tell whether ${rev} contains ${commit} (fetch the history): ${r.stderr.trim()}`);
+}
+
 function main(argv) {
+    const option = (name) => (argv.includes(name) ? argv[argv.indexOf(name) + 1] : undefined);
+    const pair = Object.fromEntries(
+        Object.entries({ app: option("--pair-app"), element: option("--pair-element") }).filter(([, v]) => v),
+    );
+    let regressions = 0;
+    if (Object.keys(pair).length) {
+        const rounds = Number(option("--rounds") ?? 4);
+        // read before measuring, so a malformed entry or a missing history fails in seconds, not after the rounds
+        const reference = option("--reference-commit");
+        const entries = existsSync(ACCEPTED_FILE) ? JSON.parse(readFileSync(ACCEPTED_FILE, "utf8")) : [];
+        const accepted = acceptedRows(entries, {
+            candidate: (c) => contains(c, "HEAD"),
+            reference: (c) => (reference ? contains(c, reference) : false),
+        });
+        const sides = measurePairs(pair, rounds);
+        const session = (side, part) => ({ machine: machine(), results: pool(sides[side][part]) });
+        const parts = Object.keys(pair);
+        for (const part of parts) writeLoadTimes(part, session("candidate", part).results);
+        const verdict = judge(
+            parts.map((p) => session("candidate", p)),
+            parts.map((p) => session("base", p)),
+            accepted,
+        );
+        console.log(
+            `\npaired: the candidate against the reference build, ${rounds} ABBA rounds (baseline = reference)`,
+        );
+        console.log(HEADER);
+        for (const l of verdict.lines) console.log(l);
+        regressions = verdict.regressions;
+    }
     const files = existsSync(OUT_DIR)
         ? readdirSync(OUT_DIR)
               .filter((f) => /^load-time-.+\.json$/.test(f))
@@ -165,25 +343,33 @@ function main(argv) {
         : [];
     if (!files.length) {
         console.log("nothing to compare: no benchmarks/out/load-time-*.json (the load-time benchmarks wrote nothing)");
-        return 0;
+        return regressions ? 1 : 0;
     }
     const current = files.map((f) => JSON.parse(readFileSync(f, "utf8")));
-    const baseline = existsSync(RESULTS_FILE) ? JSON.parse(readFileSync(RESULTS_FILE, "utf8")) : [];
-    const { lines, regressions } = judge(current, baseline);
-    console.log(`status      row${" ".repeat(38)}median  baseline  median    min`);
-    for (const l of lines) console.log(l);
+    const history = existsSync(RESULTS_FILE) ? JSON.parse(readFileSync(RESULTS_FILE, "utf8")) : [];
+    console.log("\nagainst the history of this CPU model, for trends only (never fails: runners of one model differ)");
+    console.log(HEADER);
+    for (const l of judge(current, history).lines) console.log(l);
     if (argv.includes("--record")) {
-        writeFileSync(RESULTS_FILE, `${JSON.stringify([...baseline, ...current], null, 1)}\n`);
+        writeFileSync(RESULTS_FILE, `${JSON.stringify([...history, ...current], null, 1)}\n`);
         console.log(`recorded ${current.length} session(s) in ${RESULTS_FILE}`);
     }
     if (regressions) {
         console.error(
-            `\n${regressions} load-time regression(s): median and minimum both above x${THRESHOLD} and ${FLOOR_MS} ms over the baseline. ` +
-                "Fix the slowdown, or have the owner accept it (tools/load-time.mjs says how to re-pin).",
+            `\n${regressions} load-time regression(s): median and minimum both above x${THRESHOLD} and ${FLOOR_MS} ms over ` +
+                "the reference build timed on the same machine. Find the change that slowed them and fix it; a cost the " +
+                "owner accepts goes in benchmarks/load-time-accepted.json (tools/load-time.mjs says how).",
         );
         return 1;
     }
     return 0;
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) process.exit(main(process.argv.slice(2)));
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+    try {
+        process.exitCode = main(process.argv.slice(2));
+    } catch (e) {
+        console.error(`load-time: ${e instanceof Error ? e.message : String(e)}`);
+        process.exitCode = 1;
+    }
+}

@@ -15,7 +15,6 @@ import { afterEach, assert, beforeAll, beforeEach, describe, it, vi } from "vite
 import { commands, page, userEvent } from "vitest/browser";
 
 import { watchDownloads } from "../../../test/downloads";
-import { withoutFeatures } from "../../../test/features";
 import { openBy } from "../../../test/open";
 import { pickSample } from "../../../test/samples-dialog";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
@@ -144,7 +143,12 @@ async function saveAs(name: string, current = "Florentine families"): Promise<vo
         assert.strictEqual(document.activeElement, field);
     });
     assert.equal(field.value.slice(field.selectionStart ?? 0, field.selectionEnd ?? 0), current);
-    await userEvent.keyboard(`${name}{Enter}`);
+    await userEvent.keyboard(name);
+    // Enter submits only once Save is enabled, after graphty-element says what the save writes.
+    await waitFor(() => {
+        assert.isFalse(within(dialog).getByRole<HTMLButtonElement>("button", { name: "Save" }).disabled);
+    });
+    await userEvent.keyboard("{Enter}");
     await waitFor(() => {
         assert.isNull(screen.queryByRole("dialog"));
     });
@@ -162,10 +166,6 @@ async function closeFromMenu(): Promise<void> {
     await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
     await userEvent.click(await screen.findByRole("menuitem", { name: "Back to start" }));
 }
-
-// Saving through the name-only Save as and opening at once; version 2 save files replace both,
-// tested in SaveFilesV2.real-element.test.tsx.
-withoutFeatures(["save-files-v2"]);
 
 beforeEach(async () => {
     await clearRecent();

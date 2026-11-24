@@ -1117,20 +1117,22 @@ export class NodeDragHandler {
     }
 
     /**
-     * Handle a click on this node - select it (shift-click adds it to the selection, or takes it
-     * out) and emit node-click event.
+     * Handle a click on this node - select it (Shift-click, and Ctrl-click or Cmd-click, add it to
+     * the selection, or take it out) and emit node-click event.
      */
     private handleClick(): void {
         const context = this.getContext();
-        // Shift adds the node to the selection, as Shift on an edge does (Graph.ts); a plain click
-        // replaces it. XR's select() has no pointer event, so it always replaces.
+        // Shift, Ctrl or Cmd adds the node to the selection, or takes it out when it is already in;
+        // a plain click replaces it. XR's select() has no pointer event, so it always replaces.
         const selectionManager = context.getSelectionManager?.();
         // A right-click is a request for a menu about the selection, so on a node already in it
         // the selection stays whole; on any other node it selects that node, as a click does.
         const secondary = this.clickState?.pointerEvent?.button === 2;
         if (selectionManager && !(secondary && selectionManager.isSelected(this.node))) {
             selectionManager.byInput("click", () => {
-                if (this.clickState?.pointerEvent?.shiftKey === true && !secondary) {
+                const pointer = this.clickState?.pointerEvent;
+                const multi = pointer?.shiftKey === true || pointer?.ctrlKey === true || pointer?.metaKey === true;
+                if (multi && !secondary) {
                     selectionManager.toggle(this.node);
                 } else {
                     selectionManager.select(this.node);

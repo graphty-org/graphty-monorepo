@@ -2572,15 +2572,22 @@ export class UpdateManager implements Manager {
      * @param resized - The nodes this frame resized.
      */
     private remeasureEdgesOf(resized: ReadonlySet<Node>): void {
+        for (const node of resized) {
+            this.remeasureEdgesAt(node.id);
+        }
+    }
+
+    /**
+     * Make the edges of one node measure again, and place them this frame unless a load holds the draw.
+     * @param id - The node.
+     */
+    private remeasureEdgesAt(id: NodeIdType): void {
         this.sceneChanged = true;
         const place = !this.dataManager.drawHeld;
-
-        for (const node of resized) {
-            for (const edge of this.edgesAt(node.id)) {
-                edge.invalidatePositionCache();
-                if (place) {
-                    this.edgesToPlace.push(edge);
-                }
+        for (const edge of this.edgesAt(id)) {
+            edge.invalidatePositionCache();
+            if (place) {
+                this.edgesToPlace.push(edge);
             }
         }
     }

@@ -142,13 +142,7 @@ export function ValueListbox({
                     {mixed ? "Mixed" : (current?.plainName ?? "")}
                 </Button>
             </Popout.Trigger>
-            <Popout.Panel
-                width={240}
-                placement="left"
-                alignment="start"
-                header={{ variant: "title", title: label }}
-                closeLabel={`Close ${label}`}
-            >
+            <Popout.Panel width={240} header={{ variant: "title", title: label }} closeLabel={`Close ${label}`}>
                 <QuickActions
                     role="group"
                     aria-label={`${label} values`}

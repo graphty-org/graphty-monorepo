@@ -280,8 +280,6 @@ export function PicturePopover({
         >
             <Popout.Panel
                 width={WIDTH}
-                placement="left"
-                alignment="start"
                 anchorY={anchor}
                 header={{ variant: "title", title: "Picture" }}
                 closeLabel="Close Picture"

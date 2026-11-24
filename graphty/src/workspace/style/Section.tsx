@@ -654,8 +654,6 @@ function ShadersSection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
             >
                 <Popout.Panel
                     width={280}
-                    placement="left"
-                    alignment="start"
                     anchorY={sectionBox}
                     boundaryTop={gallery ? headerBottom() : 0}
                     header={{ variant: "title", title: spec.title }}

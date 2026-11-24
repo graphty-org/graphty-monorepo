@@ -179,8 +179,6 @@ export function ModelsPopover({
         >
             <Popout.Panel
                 width={WIDTH}
-                placement="left"
-                alignment="start"
                 anchorY={anchor}
                 header={{ variant: "title", title: "Models" }}
                 closeLabel="Close Models"

@@ -1542,8 +1542,6 @@ function VaryButton({
             </Popout.Trigger>
             <Popout.Panel
                 width={POPOUT_WIDTH}
-                placement="left"
-                alignment="start"
                 header={{ variant: "title", title: label }}
                 closeLabel={`Close ${label}`}
             >
@@ -1726,8 +1724,6 @@ function BoundValue({
             </div>
             <Popout.Panel
                 width={POPOUT_WIDTH}
-                placement="left"
-                alignment="start"
                 anchorY={pill}
                 header={{ variant: "title", title: bindingTitle(channel, sourceWords) }}
                 closeLabel={`Close ${bindingTitle(channel, sourceWords)}`}

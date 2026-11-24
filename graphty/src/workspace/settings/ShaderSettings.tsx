@@ -97,8 +97,6 @@ export function BackgroundShader({
                 </Popout.Trigger>
                 <Popout.Panel
                     width={POPOUT_WIDTH}
-                    placement="left"
-                    alignment="start"
                     boundaryTop={picking ? headerBottom() : 0}
                     header={{ variant: "title", title: "Background" }}
                     closeLabel="Close Background"
@@ -224,8 +222,6 @@ function HeldShadersRow({ session }: Readonly<{ session: GraphSession }>): React
                 </Popout.Trigger>
                 <Popout.Panel
                     width={POPOUT_WIDTH}
-                    placement="left"
-                    alignment="start"
                     header={{ variant: "title", title: "Held shaders" }}
                     closeLabel="Close Held shaders"
                 >

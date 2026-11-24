@@ -461,13 +461,7 @@ export function PartsPopover({
                 }
             }}
         >
-            <Popout.Panel
-                width={WIDTH}
-                placement="left"
-                alignment="start"
-                anchorY={anchor}
-                header={{ variant: "title", title }}
-            >
+            <Popout.Panel width={WIDTH} anchorY={anchor} header={{ variant: "title", title }}>
                 <Popout.Content>
                     <Stack
                         gap={8}

@@ -412,6 +412,12 @@ interface WeightedSearch {
     readonly delta: F64;
     /** The nodes in the order Dijkstra settles them. */
     readonly order: U32;
+    /**
+     * Each node's place in `order`, or -1 while unsettled. A shortest path only runs from a node to one settled
+     * after it: across an edge of weight 0 two nodes share a distance, and each would otherwise count the other's
+     * paths as its own.
+     */
+    readonly rank: Int32Array;
     readonly heap: IndexedMinHeap;
 }
 
@@ -422,17 +428,21 @@ interface WeightedSearch {
  * @returns How many nodes were settled
  */
 function settleByWeight(ws: WeightedSearch, source: number): number {
-    const { colIdx, rowPtr, arcs, weights, dist, sigma, order, heap } = ws;
+    const { colIdx, rowPtr, arcs, weights, dist, sigma, order, rank, heap } = ws;
     let tail = 0;
     dist[source] = 0;
     sigma[source] = 1;
     heap.push(source, 0);
     while (!heap.isEmpty()) {
         const v = heap.pop();
+        rank[v] = tail;
         order[tail++] = v;
         for (let k = rowPtr[v], end = rowPtr[v + 1]; k < end; k++) {
             const a = arcs[k];
             const w = colIdx[a];
+            if (rank[w] >= 0) {
+                continue;
+            }
             const d = dist[v] + weights[a];
             if (d < dist[w]) {
                 dist[w] = d;
@@ -453,11 +463,11 @@ function settleByWeight(ws: WeightedSearch, source: number): number {
  * @param edge - Edge sums, or null
  */
 function gatherDependency(ws: WeightedSearch, v: number, edge: F64 | null): void {
-    const { colIdx, arcToEdge, rowPtr, arcs, weights, dist, sigma, delta } = ws;
+    const { colIdx, arcToEdge, rowPtr, arcs, weights, dist, sigma, delta, rank } = ws;
     for (let k = rowPtr[v], end = rowPtr[v + 1]; k < end; k++) {
         const a = arcs[k];
         const w = colIdx[a];
-        if (dist[v] + weights[a] === dist[w]) {
+        if (rank[w] > rank[v] && dist[v] + weights[a] === dist[w]) {
             creditArc(sigma, delta, edge, arcToEdge[a], v, w);
         }
     }
@@ -481,7 +491,7 @@ function addDependencies(
     edge: F64 | null,
     endpoints: boolean,
 ): void {
-    const { dist, sigma, delta, order } = ws;
+    const { dist, sigma, delta, order, rank } = ws;
     for (let i = tail - 1; i >= 0; i--) {
         const v = order[i];
         gatherDependency(ws, v, edge);
@@ -497,6 +507,7 @@ function addDependencies(
         dist[v] = Infinity;
         sigma[v] = 0;
         delta[v] = 0;
+        rank[v] = -1;
     }
 }
 
@@ -531,6 +542,7 @@ function accumulateWeighted(
         sigma: new Float64Array(n),
         delta: new Float64Array(n),
         order: new Uint32Array(n),
+        rank: new Int32Array(n).fill(-1),
         heap: new IndexedMinHeap(n, true),
     };
     for (const source of sources) {

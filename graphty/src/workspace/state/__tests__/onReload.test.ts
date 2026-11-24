@@ -26,7 +26,7 @@ const ITEM = "app.graphty.workspace.place";
  * The most fields a reload may still lose that the reader made, each `gap #<issue>`: a ratchet,
  * lowered when a gap is fixed and never raised.
  */
-const MAX_GAPS = 6;
+const MAX_GAPS = 1;
 
 /** What is saved beside the kept fields, about the project. */
 const PROJECT_FIELDS = ["name", "blank", "opened", "entry"];

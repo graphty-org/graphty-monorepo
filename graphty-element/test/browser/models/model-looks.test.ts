@@ -905,10 +905,43 @@ describe("model load progress", () => {
         });
         const element = await mount();
         const idle = DEFAULT_MODEL_LIMITS.fetchTimeoutMs;
-        // The product's own idle timer, stepped on a fake clock: no wall-clock wait.
-        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        // Only the download's idle timer is stepped, on a clock of the test's own: no wall-clock wait.
+        // Every other timer stays real. A fake clock for the whole page dropped Babylon.js's scene
+        // readiness poll when real timers came back, and the scene then never reported ready again.
+        let now = 0;
+        const idleTimers = new Map<number, { due: number; fire: () => void }>();
+        let nextIdleId = 2 ** 31;
+        const realSetTimeout = globalThis.setTimeout;
+        const realClearTimeout = globalThis.clearTimeout;
+        const setSpy = vi.spyOn(globalThis, "setTimeout").mockImplementation(((
+            handler: () => void,
+            ms?: number,
+            ...rest: unknown[]
+        ) => {
+            if (ms !== idle) {
+                return realSetTimeout(handler, ms, ...rest);
+            }
+            const id = nextIdleId++;
+            idleTimers.set(id, { due: now + ms, fire: handler });
+            return id;
+        }) as typeof setTimeout);
+        const clearSpy = vi.spyOn(globalThis, "clearTimeout").mockImplementation((id) => {
+            if (!idleTimers.delete(Number(id))) {
+                realClearTimeout(id);
+            }
+        });
+        const advance = (ms: number): void => {
+            now += ms;
+            for (const [id, timer] of idleTimers) {
+                if (timer.due <= now) {
+                    idleTimers.delete(id);
+                    timer.fire();
+                }
+            }
+        };
         cleanups.push(() => {
-            vi.useRealTimers();
+            setSpy.mockRestore();
+            clearSpy.mockRestore();
         });
         const received: number[] = [];
         let heard: () => void = () => undefined;
@@ -935,13 +968,11 @@ describe("model load progress", () => {
         for (let at = 0; at < bytes.length; at += quarter) {
             const chunk = bytes.slice(at, at + quarter);
             const arrived = heardUpTo(at + chunk.length);
-            vi.advanceTimersByTime(idle * 0.6);
+            advance(idle * 0.6);
             send(chunk);
             await arrived;
         }
-        // Every byte has arrived, so the idle timer has nothing left to test. Babylon.js polls a scene's
-        // readiness on setTimeout while its shaders compile, so the model is drawn on the real clock.
-        vi.useRealTimers();
+        assert.strictEqual(idleTimers.size, 1, "the idle timer is armed again after the last chunk");
         send(null);
         const record = await adding;
         assert.strictEqual(record.state, "accepted", JSON.stringify(record.problems));

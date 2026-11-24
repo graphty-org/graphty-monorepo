@@ -307,6 +307,30 @@ function workflowJobs(yaml: string, advisory: string[]): WorkflowJob[] {
 }
 
 /**
+ * A job's name patterns (isJob): its `name:`, or its id when it has none. A name that is one whole `${{ ... }}`
+ * expression would match every job, so it becomes the names its string literals spell, each `format` placeholder
+ * matching anything: `${{ matrix.part == 'others' && 'Lint' || format('Lint ({0})', matrix.part) }}` is "Lint" and
+ * "Lint (...)". A literal compared with `==` or `!=` is a value, not a name, and is left out; with no literal left,
+ * the job's id.
+ * ponytail: reads literals, not the expression's logic; a literal used as a function argument other than format's
+ * first would be taken for a name. Evaluate the expression if a workflow ever does that.
+ * @param j - the job
+ * @returns the patterns naming the job
+ */
+function jobNames(j: WorkflowJob): string[] {
+    const expr = /^\$\{\{(.*)\}\}$/.exec(j.name ?? "")?.[1];
+    if (expr === undefined || expr.includes("}}")) {
+        return [j.name ?? j.id];
+    }
+    const names = [...expr.matchAll(/'((?:[^']|'')*)'/g)]
+        .filter(
+            (m) => !/[!=]=\s*$/.test(expr.slice(0, m.index)) && !/^\s*[!=]=/.test(expr.slice(m.index + m[0].length)),
+        )
+        .map((m) => m[1].replaceAll("''", "'").replaceAll(/\{\d+\}/g, ["$", "{{ }}"].join("")));
+    return names.length ? names : [j.id];
+}
+
+/**
  * The jobs of a workflow file allowed to fail, each by its `name:`, or its id when it has none; a `${{ ... }}` in a
  * name matches anything (a matrix job).
  * @param yaml - the workflow file
@@ -316,7 +340,7 @@ function workflowJobs(yaml: string, advisory: string[]): WorkflowJob[] {
 export function nonGatingJobs(yaml: string, advisory: string[] = []): string[] {
     return workflowJobs(yaml, advisory)
         .filter((j) => j.non)
-        .map((j) => j.name ?? j.id);
+        .flatMap((j) => jobNames(j));
 }
 
 /**
@@ -324,7 +348,7 @@ export function nonGatingJobs(yaml: string, advisory: string[] = []): string[] {
  * @param yaml - the workflow file
  * @returns the job names
  */
-export const definedJobs = (yaml: string): string[] => workflowJobs(yaml, []).map((j) => j.name ?? j.id);
+export const definedJobs = (yaml: string): string[] => workflowJobs(yaml, []).flatMap((j) => jobNames(j));
 
 /**
  * Whether a job (its family name, as ci.job_outcome keys it) is the non-gating job `pattern` names, called or not:

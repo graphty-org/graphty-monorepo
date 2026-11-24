@@ -153,6 +153,41 @@ describe("pointer on rows", () => {
                 assert.deepEqual([snapshot.nodeCount, snapshot.edgeCount], [5, 4]);
             });
 
+            // Issue #9915: the node ID target draws a node smaller than a pixel larger than it is, so batched hover
+            // named it half a pixel off its shape, where a click and elementAt find nothing.
+            it("hovers a node smaller than a pixel only where a click finds it", async () => {
+                const element = await mounted(path);
+                await element.session.data.addNodes([
+                    { id: "left", position: { x: -6, y: -4, z: 0 } },
+                    { id: "right", position: { x: 6, y: 4, z: 0 } },
+                    { id: "tiny", position: { x: 0, y: 0, z: 0 } },
+                ]);
+                await element.session.styles.add({
+                    name: "Tiny",
+                    target: "node",
+                    selector: { match: "everything" },
+                    set: { "node.size": 0.01 },
+                });
+                await settled(element);
+                drawnOn(element, path, 3);
+                const tiny = element.nodeScreenPosition("tiny");
+                assert.isDefined(tiny);
+                assert.isBelow(tiny.radius ?? Infinity, 0.3, "the node is smaller than a pixel");
+
+                await hover(element, { x: tiny.x, y: tiny.y });
+                await element.waitForStableFrame();
+                assert.equal(element.session.selection.hovered, "tiny", "its center hovers it");
+
+                const beside = { x: tiny.x + 0.6, y: tiny.y };
+                await hover(element, beside);
+                await element.waitForStableFrame();
+                assert.isNull(element.elementAt(beside), "elementAt finds nothing beside it");
+                assert.isNull(element.session.selection.hovered, "hover finds nothing there either");
+                await click(element, beside);
+                await element.waitForStableFrame();
+                assert.deepEqual(element.session.selection.nodes, [], "a click there selects nothing");
+            });
+
             it("runs an action a consumer put on a node's mesh", async () => {
                 const element = await mounted(path);
                 await element.session.data.addNodes([{ id: "a", position: { x: 0, y: 0, z: 0 } }]);

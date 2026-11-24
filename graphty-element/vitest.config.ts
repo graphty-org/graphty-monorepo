@@ -95,12 +95,14 @@ const MINIMUM_WORK_TESTS = [
     "test/browser/label-declutter.test.ts",
     "test/browser/label-declutter-dense.test.ts",
     "test/browser/curves-rest-the-same-however-frames-split.test.ts",
+    "test/browser/view-switch-draws-every-node.test.ts",
     "test/browser/node-gap-rests-the-same-however-frames-split.test.ts",
     "test/interactions/stable-frame-waits-for-pending-visuals.test.ts",
     "test/browser/a-layer-added-later-paints.test.ts",
     "test/browser/framing-sizes-screen-labels-for-its-camera.test.ts",
     "test/browser/label-textures-fit-across-frames.test.ts",
     "test/browser/branches-view-scaling.test.ts",
+    "test/browser/edges-follow-running-layout.test.ts",
 ];
 
 /**
@@ -242,6 +244,8 @@ const PREBUNDLED = [...BABYLON_SIDE_EFFECTS, ...LODASH_FUNCTIONS, ...AI_FRAMEWOR
 /** The tests that run real immersive sessions: the "xr" project runs them, "browser" and "interactions" do not. */
 const XR_BROWSER_TESTS = [
     "test/browser/node-batch-xr.test.ts",
+    "test/browser/xr-eye-plane.test.ts",
+    "test/interactions/xr/xr-batched-rows.test.ts",
     "test/browser/xr-session.test.ts",
     "test/browser/XRUIManager.test.ts",
     "test/browser/NodeBehavior-xr-compatibility.test.ts",

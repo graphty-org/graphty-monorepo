@@ -42,6 +42,14 @@ import type { GraphSceneMetadata } from "./types/sceneMetadata";
 const graphLogger: Logger = GraphtyLogger.getLogger(["graphty", "graph"]);
 
 /** One {@link Graph.waitForStableFrame} call: whether it gave up, and how to stop its current round. */
+/** The parts of a click's pointer event that decide what it does to the selection. */
+interface ClickModifiers {
+    button?: number;
+    shiftKey?: boolean;
+    ctrlKey?: boolean;
+    metaKey?: boolean;
+}
+
 interface StableFrameWait {
     gaveUp: boolean;
     stop: (() => void) | undefined;
@@ -3154,6 +3162,14 @@ export class Graph implements GraphContext {
         });
         // No frame is drawn while an element built from the defaults waits for its style.
         this.renderManager.drawHeld = (): boolean => this.dataManager.drawHeld;
+        // A consumer's own light reaches the nodes a batch draws, as it reaches the objects path's.
+        const relight = (): void => {
+            this.renderManager.relightBatches();
+            // A frozen list of what is drawn skips each mesh's material check (#9246).
+            this.updateManager.thawActiveMeshes();
+        };
+        this.scene.onNewLightAddedObservable.add(relight);
+        this.scene.onLightRemovedObservable.add(relight);
     }
 
     /**
@@ -5623,7 +5639,9 @@ export class Graph implements GraphContext {
 
                         this.renderManager.requestFrame();
                     },
-                    resized: () => {
+                    resized: (row) => {
+                        // a `Node` resized has its edges measured again (`remeasureEdgesOf`); a row has no `Node` to say so (#9857)
+                        this.updateManager.placeEdgesOfRow(row);
                         if (this.layoutManager.layoutEngine?.wakeForResize() === true) {
                             this.layoutManager.running = true;
                         }
@@ -6095,14 +6113,12 @@ export class Graph implements GraphContext {
     /**
      * A click on the canvas. A click on a node is the node's own handler's. On a label with a
      * close button it deselects only on the x, and anywhere else on that label does nothing. On
-     * an edge it selects the edge (Shift adds it); on empty canvas it clears the selection. A
+     * an edge it selects the edge (Shift adds it; Ctrl or Cmd adds it or takes it out); on empty canvas it clears the selection. A
      * right-click asks for a menu about the selection, so it keeps a selection that holds its
      * edge, and on empty canvas it clears nothing.
-     * @param event - The pointer event: which button, and whether Shift was held.
-     * @param event.button - The mouse button; 2 is the secondary one.
-     * @param event.shiftKey - Whether Shift was held.
+     * @param event - The pointer event: which button, and which modifier keys were held.
      */
-    private handleBackgroundClick(event: { button?: number; shiftKey?: boolean }): void {
+    private handleBackgroundClick(event: ClickModifiers): void {
         const { pointerX: x, pointerY: y } = this.scene;
         if (this.handledOnCloseLabel(x, y)) {
             return;
@@ -6136,15 +6152,8 @@ export class Graph implements GraphContext {
      * @param x - The pointer's x on the canvas.
      * @param y - The pointer's y on the canvas.
      * @param event - The pointer event.
-     * @param event.button - The mouse button; 2 is the secondary one.
-     * @param event.shiftKey - Whether Shift was held.
      */
-    private clickAt(
-        edgeId: EdgeId | undefined,
-        x: number,
-        y: number,
-        event: { button?: number; shiftKey?: boolean },
-    ): void {
+    private clickAt(edgeId: EdgeId | undefined, x: number, y: number, event: ClickModifiers): void {
         const secondary = event.button === 2;
         if (edgeId === undefined) {
             const outline = this.renderManager.pickGroupOutline(x, y);
@@ -6158,8 +6167,13 @@ export class Graph implements GraphContext {
         }
 
         if (!(secondary && this.session.selection.edges.includes(edgeId))) {
-            const add = event.shiftKey === true;
-            this.session.selection.applyNow({ edges: [edgeId] }, add ? "add" : "replace", "user");
+            let op: "toggle" | "add" | "replace" = "replace";
+            if (event.ctrlKey === true || event.metaKey === true) {
+                op = "toggle";
+            } else if (event.shiftKey === true) {
+                op = "add";
+            }
+            this.session.selection.applyNow({ edges: [edgeId] }, op, "user");
         }
         this.session.elementClick({ edge: edgeId });
     }
@@ -7149,12 +7163,20 @@ export class Graph implements GraphContext {
         // The cache took every row's source with it: each row drawn with no `Node` is painted
         // again onto the new dimension's source at the next frame.
         const painter = this.getStylePainter();
-        for (const row of dataManagerInternals.unbuiltRows(this.dataManager)) {
+        const unbuilt = dataManagerInternals.unbuiltRows(this.dataManager);
+        for (const row of unbuilt) {
             painter.queue("node", row);
         }
 
         for (const row of lineRows) {
             painter.queue("edge", row);
+        }
+
+        // No frame draws until every row queued here is drawn on its new source: a frame drawn part
+        // way, when the repaint is split across frames, showed every edge and a few nodes (#9866).
+        // Only the batched path has such rows; every `Node` and `Edge` was drawn again above.
+        if (unbuilt.length > 0 || lineRows.length > 0) {
+            this.dataManager.notePaintQueued();
         }
 
         this.updateManager.meshesAdded();
@@ -11823,6 +11845,9 @@ export class Graph implements GraphContext {
             // for `view.immersive` with `null` (`xrSessionEnded`).
             onSessionEnded: ({ mode, cause }) => {
                 this.xrSessionEnded(mode === "immersive-vr" ? "vr" : "ar", cause);
+            },
+            onFrameError: (error) => {
+                this.eventManager.emitGraphError(this, error, "xr", error.details);
             },
         };
     }

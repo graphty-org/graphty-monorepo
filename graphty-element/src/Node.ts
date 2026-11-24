@@ -3436,11 +3436,18 @@ export class Node implements ModelUser {
      */
     private paintFrom(meshKey: string, style: NodeStyleConfig, color: Rgba | null): void {
         this.drawnAsGroup = this.context.getLayoutManager().groupBox(this.id) !== undefined;
+        const seenThrough = this.paintedOpacity < 1;
         if (this.drawnAsGroup) {
             const region = groupRegionPaint(meshKey, style);
             this.drawPaint(region.meshKey, region.style, color);
         } else {
             this.drawPaint(meshKey, style, color);
+        }
+
+        // A body turning translucent (or opaque) moves where a plain line leaves it (`Edge.bareEnd`, #8281) though
+        // the node did not move, so its edges measure their ends again (issue #9875).
+        if (seenThrough !== this.paintedOpacity < 1) {
+            this.geometryChanged();
         }
 
         this.context.getNodeBatches?.()?.sync(this);

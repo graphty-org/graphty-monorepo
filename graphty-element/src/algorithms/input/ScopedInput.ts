@@ -120,7 +120,7 @@ export interface ScopedInput {
     /**
      * The column behind a declared "attribute" or "partition" option, over the rows of `graph`:
      * node rows or edge rows, whichever the attribute is carried on. An option naming a result
-     * path (`results.<run>.<field>`) reads that run's published values. `column.meta.name` is the
+     * path (`store.graphty.<run>.<field>`) reads that run's published values. `column.meta.name` is the
      * path, which is also its name in `subgraph()`.
      * @param optionName - The option's name.
      * @returns The column; a row whose element carries no value is unset.

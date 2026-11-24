@@ -1,14 +1,14 @@
 /**
  * @file Addressing results: the path, the lookup, and the "did you mean".
  *
- * A result is published at `results.<runId>.<field>` and that string is what a style selector
+ * A result is published at `store.graphty.<runId>.<field>` and that string is what a style selector
  * matches on, what a filter reads and what an expression editor completes. Nobody types it by
  * hand: {@link ResultsApi.path} builds it from the run, and the field defaults to the one the
  * run's shape declares primary, because a caller holding a `Run` should not have to open the
  * catalog to learn that a centrality's number is called `value`.
  *
  * The other half is the one an editor needs. `roots` publishes every run that has a result
- * together with the fields it carries, so an unknown `results.*` path can be answered with the
+ * together with the fields it carries, so an unknown `store.graphty.*` path can be answered with the
  * nearest candidates instead of matching nothing in silence -- which is the difference between a
  * typo a person fixes in a second and a selector that quietly paints nothing.
  *
@@ -101,7 +101,7 @@ export function nearestNames(
 }
 
 /**
- * The published paths closest to a `results.*` path that resolved to nothing.
+ * The published paths closest to a `store.graphty.*` path that resolved to nothing.
  *
  * This is what turns "the selector matched no elements" into "there is no run called `betwenness`
  * -- did you mean `betweenness`?". A path that is not under the results root has no candidates at
@@ -142,7 +142,7 @@ export function suggestResultPaths(
 
 /** What the results API needs to know about one run in order to answer for it. */
 export interface ResultsRunEntry {
-    /** The run id, which is the path segment under `results`. */
+    /** The run id, which is the path segment under `store.graphty`. */
     readonly id: RunId;
     /** The option the run's name was suggested by; none when absent. */
     readonly distinguishedBy?: RunDistinction | null;

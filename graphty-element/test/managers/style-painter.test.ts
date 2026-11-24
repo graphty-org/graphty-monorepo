@@ -38,17 +38,17 @@ type Row = Readonly<Record<Path, unknown>>;
 
 /** Four nodes carrying one metric, so a continuous encoding has something to ramp over. */
 const NODES: readonly Row[] = [
-    { "data.kind": "host", "results.degree.value": 0 },
-    { "data.kind": "host", "results.degree.value": 1 },
-    { "data.kind": "switch", "results.degree.value": 2 },
-    { "data.kind": "switch", "results.degree.value": 3 },
+    { "data.kind": "host", "store.graphty.degree.value": 0 },
+    { "data.kind": "host", "store.graphty.degree.value": 1 },
+    { "data.kind": "switch", "store.graphty.degree.value": 2 },
+    { "data.kind": "switch", "store.graphty.degree.value": 3 },
 ];
 
 /** Two edges, enough to tell an edge's key from a node's. */
 const EDGES: readonly Row[] = [{ "data.kind": "wire" }, { "data.kind": "wire" }];
 
 /** The elements the degree run measured, which is every node here. */
-const MEASURED: Readonly<Record<Path, readonly number[]>> = { "results.degree.value": [0, 1, 2, 3] };
+const MEASURED: Readonly<Record<Path, readonly number[]>> = { "store.graphty.degree.value": [0, 1, 2, 3] };
 
 /**
  * The element's default node color, as a string.
@@ -269,8 +269,8 @@ describe("StylePainter channels", () => {
         const spec: LayerSpec = {
             name: "degree ramp",
             target: "node",
-            selector: { match: "has", path: "results.degree.value" },
-            encode: { "node.color": { by: "results.degree.value", scale: "linear", palette: "viridis" } },
+            selector: { match: "has", path: "store.graphty.degree.value" },
+            encode: { "node.color": { by: "store.graphty.degree.value", scale: "linear", palette: "viridis" } },
         };
         await held.styles.add(spec);
         await held.paintAll();
@@ -313,7 +313,7 @@ describe("StylePainter channels", () => {
             name: "another start",
             target: "node",
             selector: { match: "expression", where: 'data.kind == `"host"`' },
-            encode: { "node.color": { by: "results.degree.value", scale: "linear", palette: "viridis" } },
+            encode: { "node.color": { by: "store.graphty.degree.value", scale: "linear", palette: "viridis" } },
         });
         await held.paintAll();
         assert.notStrictEqual(held.painter.nodePaint(0)?.meshKey, held.painter.nodePaint(1)?.meshKey);
@@ -527,8 +527,8 @@ describe("StylePainter row paints, one look per mesh key", () => {
     const RAMP: LayerSpec = {
         name: "degree ramp",
         target: "node",
-        selector: { match: "has", path: "results.degree.value" },
-        encode: { "node.color": { by: "results.degree.value", scale: "linear", palette: "viridis" } },
+        selector: { match: "has", path: "store.graphty.degree.value" },
+        encode: { "node.color": { by: "store.graphty.degree.value", scale: "linear", palette: "viridis" } },
     };
 
     it("paints a row with no Node exactly as its Node would be painted", async () => {
@@ -566,8 +566,8 @@ describe("StylePainter row paints, one look per mesh key", () => {
         await held.styles.add({
             name: "size by degree",
             target: "node",
-            selector: { match: "has", path: "results.degree.value" },
-            encode: { "node.size": { by: "results.degree.value", scale: "linear", range: [1, 4] } },
+            selector: { match: "has", path: "store.graphty.degree.value" },
+            encode: { "node.size": { by: "store.graphty.degree.value", scale: "linear", range: [1, 4] } },
         });
         await held.paintAll();
 

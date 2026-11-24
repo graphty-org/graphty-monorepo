@@ -10,7 +10,7 @@
  * | a `member` leaf `"visible"`, `"selection"`, `"search"`   | the visibility filter, the selection, the search |
  * | a `state` leaf                                         | the selection, which it is as live as |
  * | a `member` leaf `"largest-component"`; `component`, `degree`, `neighborhood`, `isolated`, `self-loop`, `repeated-edge` | topology (the snapshot) |
- * | a path `results.<run>.<field>` a query or `threshold` reads | that run (follows its current execution) |
+ * | a path `store.graphty.<run>.<field>` a query or `threshold` reads | that run (follows its current execution) |
  * | an `item` leaf without `run`                            | that result (follows its current run) |
  * | an `item` leaf with `run`                               | that run of the result (holds it)   |
  * | any other path a query, `range`, `categories` or `threshold` reads | that top-level attribute field |
@@ -32,6 +32,10 @@ import { readingOfScope } from "../../catalog/sets/parse";
 import type { Path, Query, ResultItem, RuleTree, RunId, Scope, SetDefinition, SetId } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
 import { isNotePath } from "../notes/paths";
+import { isRunPath, RESULT_ROOT } from "../results/types";
+
+/** What every run path starts with. */
+const RUN_PREFIX = `${RESULT_ROOT}.`;
 
 /** One thing a definition reads. */
 type Dependency =
@@ -74,7 +78,7 @@ export interface DependencySources {
      */
     readonly shapeOf?: (run: RunId) => string | undefined;
     /**
-     * Which halves carry a value path, `results.<run>.<field>` or `data.<field>`, so a rule read
+     * Which halves carry a value path, `store.graphty.<run>.<field>` or `data.<field>`, so a rule read
      * `induced` over an edge field is refused. Absent: nothing is known.
      * @param path - The path.
      * @returns `"node"`, `"edge"` or both.
@@ -99,9 +103,9 @@ function isObject(value: unknown): value is Loose {
  * @returns The run or the field.
  */
 export function dependencyOf(path: Path): { run: RunId } | { field: string } {
-    if (path.startsWith("results.")) {
-        const dot = path.indexOf(".", "results.".length);
-        return { run: path.slice("results.".length, dot === -1 ? undefined : dot) };
+    if (isRunPath(path)) {
+        const dot = path.indexOf(".", RUN_PREFIX.length);
+        return { run: path.slice(RUN_PREFIX.length, dot === -1 ? undefined : dot) };
     }
 
     const key = path.startsWith("data.") ? path.slice("data.".length) : path;

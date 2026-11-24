@@ -47,7 +47,7 @@ data column, a run's community, a k-core shell.
 A community run numbers its groups afresh every time, so community 3 may come back as community 1.
 When a run re-runs, the element matches each old group to the new group that shares the most
 members, and moves everything that names the group along with it: value entries, hidden values,
-and the rules of other layers (`{ kind: "categories", attribute: "results.louvain.group", values: ["3"] }`).
+and the rules of other layers (`{ kind: "categories", attribute: "store.graphty.louvain.group", values: ["3"] }`).
 A value that is not a run's group, such as a team name, is matched by name.
 
 A group the element cannot match is reported on the layer, as `layer.unmatched`: a list of

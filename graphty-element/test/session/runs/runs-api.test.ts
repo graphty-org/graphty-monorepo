@@ -756,7 +756,7 @@ describe("stability over seeds", () => {
                 technicalName: "community",
                 kind: "node",
                 type: "integer",
-                path: "results.$.group",
+                path: "store.graphty.$.group",
             },
         ],
     });

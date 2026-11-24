@@ -23,7 +23,7 @@ const CAVEATS: Caveats = {
 
 /** A field descriptor with the path a catalog descriptor would have written. */
 function field(spec: Omit<FieldDescriptor, "path">): FieldDescriptor {
-    return { ...spec, path: `results.$.${spec.name}` };
+    return { ...spec, path: `store.graphty.$.${spec.name}` };
 }
 
 /** A finished node-metric result over two nodes. */
@@ -89,7 +89,7 @@ describe("addressing a result", () => {
     it("builds the path nobody should have to type", () => {
         const results = createResultsApi(REGISTRY);
 
-        assert.strictEqual(results.path("degree", "value"), "results.degree.value");
+        assert.strictEqual(results.path("degree", "value"), "store.graphty.degree.value");
     });
 
     it("defaults to the field the run's shape calls primary", () => {
@@ -97,27 +97,27 @@ describe("addressing a result", () => {
         // centrality's number is called "value" and a partition's is called "group".
         const results = createResultsApi(REGISTRY);
 
-        assert.strictEqual(results.path("degree"), "results.degree.value");
-        assert.strictEqual(results.path("louvain"), "results.louvain.group");
+        assert.strictEqual(results.path("degree"), "store.graphty.degree.value");
+        assert.strictEqual(results.path("louvain"), "store.graphty.louvain.group");
     });
 
     it("addresses the whole result for a shape with no primary field", () => {
-        assert.strictEqual(createResultsApi(REGISTRY).path("facts"), "results.facts");
+        assert.strictEqual(createResultsApi(REGISTRY).path("facts"), "store.graphty.facts");
     });
 
     it("takes a run, its result or a bare id", () => {
         const results = createResultsApi(REGISTRY);
 
-        assert.strictEqual(results.path(runRef("degree", "node-metric")), "results.degree.value");
-        assert.strictEqual(results.path(DEGREE), "results.degree.value");
-        assert.strictEqual(results.path("degree"), "results.degree.value");
+        assert.strictEqual(results.path(runRef("degree", "node-metric")), "store.graphty.degree.value");
+        assert.strictEqual(results.path(DEGREE), "store.graphty.degree.value");
+        assert.strictEqual(results.path("degree"), "store.graphty.degree.value");
     });
 
     it("reads the shape off the reference when the session holds no such run", () => {
         const results = createResultsApi(registryOf([]));
 
-        assert.strictEqual(results.path(runRef("elsewhere", "community")), "results.elsewhere.group");
-        assert.strictEqual(results.path("elsewhere"), "results.elsewhere");
+        assert.strictEqual(results.path(runRef("elsewhere", "community")), "store.graphty.elsewhere.group");
+        assert.strictEqual(results.path("elsewhere"), "store.graphty.elsewhere");
     });
 });
 
@@ -180,9 +180,9 @@ describe("did you mean", () => {
 
     it("suggests published paths for a results path that resolved to nothing", () => {
         const { roots } = createResultsApi(REGISTRY);
-        const suggested = suggestResultPaths("results.degre.value", roots, 1);
+        const suggested = suggestResultPaths("store.graphty.degre.value", roots, 1);
 
-        assert.deepStrictEqual(suggested, ["results.degree.value"]);
+        assert.deepStrictEqual(suggested, ["store.graphty.degree.value"]);
     });
 
     it("suggests nothing for a path that is not a results path", () => {
@@ -196,7 +196,7 @@ describe("did you mean", () => {
             { runId: "facts", distinguishedBy: null, siblingsDifferBy: null, fields: [] },
         ];
 
-        assert.deepStrictEqual(suggestResultPaths("results.fact", roots, 1), ["results.facts"]);
+        assert.deepStrictEqual(suggestResultPaths("store.graphty.fact", roots, 1), ["store.graphty.facts"]);
     });
 });
 
@@ -212,21 +212,21 @@ describe("addressing a result inside an expression", () => {
     it("quotes a hyphenated run id so the comparison is a comparison", () => {
         const api = createResultsApi({ entry: () => undefined, entries: () => [] });
 
-        assert.strictEqual(api.term("shortest-path_3k1f", "value"), 'results."shortest-path_3k1f".value');
+        assert.strictEqual(api.term("shortest-path_3k1f", "value"), 'store.graphty."shortest-path_3k1f".value');
         assert.notInclude(api.term("shortest-path_3k1f", "value"), "results.shortest-path");
     });
 
     it("leaves a path that needs no quoting exactly as it is", () => {
         const api = createResultsApi({ entry: () => undefined, entries: () => [] });
 
-        assert.strictEqual(api.term("degree", "value"), "results.degree.value");
+        assert.strictEqual(api.term("degree", "value"), "store.graphty.degree.value");
     });
 
     it("names the same column its path verb names, so the two cannot drift", () => {
         const api = createResultsApi({ entry: () => undefined, entries: () => [] });
 
         assert.include(api.term("min-cut_2", "rank"), "rank");
-        assert.strictEqual(api.term("min-cut_2", "rank"), 'results."min-cut_2".rank');
-        assert.strictEqual(api.path("min-cut_2", "rank"), "results.min-cut_2.rank");
+        assert.strictEqual(api.term("min-cut_2", "rank"), 'store.graphty."min-cut_2".rank');
+        assert.strictEqual(api.path("min-cut_2", "rank"), "store.graphty.min-cut_2.rank");
     });
 });

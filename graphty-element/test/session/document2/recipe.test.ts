@@ -68,7 +68,7 @@ function lab(): Lab {
                     technicalName: "value",
                     kind: "node",
                     type: "number",
-                    path: "results.$.value",
+                    path: "store.graphty.$.value",
                 },
             ],
             measured: { nodes: 0, edges: 0 },
@@ -274,7 +274,7 @@ async function analysis(): Promise<Lab> {
     await session.runs.start("degree", undefined, { as: "lab__links", style: false });
     session.sets.create({ kind: "rule", where: "data.score > `2`", reading: "induced" }, { name: "High" });
     session.sets.create(
-        { kind: "rule", where: "results.lab__links.value > `1`", reading: "induced" },
+        { kind: "rule", where: "store.graphty.lab__links.value > `1`", reading: "induced" },
         { name: "Hubs" },
     );
     await session.layout.setDimension("2d");
@@ -317,7 +317,7 @@ describe("the version 2 recipe codec", () => {
         assert.strictEqual(run.style, false);
         assert.isUndefined(run.scope, "a run over the graph the recipe's filters keep needs no scope");
         // The set reading the run names it by `as`, and comes after it.
-        assert.strictEqual(commands[4].where, "results.links.value > `1`");
+        assert.strictEqual(commands[4].where, "store.graphty.links.value > `1`");
         assert.strictEqual(commands[5].dimension, 2);
         assert.deepEqual(written.header?.dependencies, {
             columns: [
@@ -473,14 +473,14 @@ describe("the version 2 recipe codec", () => {
                     op: "set.define",
                     id: "set_01JCBPX7K2M4Q8R1T5V9W3Y6ZB",
                     name: "M",
-                    where: "results.motifs.count > `1`",
+                    where: "store.graphty.motifs.count > `1`",
                     reading: "induced",
                 },
                 {
                     op: "algo.run",
                     algorithm: "degree",
                     as: "two",
-                    scope: { where: "results.motifs.count > `1`" },
+                    scope: { where: "store.graphty.motifs.count > `1`" },
                     style: false,
                 },
                 { op: "algo.run", algorithm: "degree", as: "three", style: false },
@@ -673,7 +673,7 @@ describe("the version 2 recipe codec", () => {
                     { op: "algo.run", algorithm: "degree", as: "styled", style: { size: true, glow: 1 } },
                 ],
             },
-            { others: { style: { layers: [{ encode: { by: "results.read.value" } }] } } },
+            { others: { style: { layers: [{ encode: { by: "store.graphty.read.value" } }] } } },
         );
         assert.deepEqual(problems, [
             { code: "W_UNKNOWN_MEMBER", params: { section: "recipe", pointer: "/commands/1/style/glow" } },

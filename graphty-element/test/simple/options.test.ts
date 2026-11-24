@@ -172,15 +172,15 @@ describe("the checks before the author's code runs", () => {
 
     it("refuse a result path whose run has not completed", () => {
         const options = expandOptions("defineAlgorithm", "acme-share", {
-            strength: { type: "attribute", default: "results.strength.value" },
+            strength: { type: "attribute", default: "store.graphty.strength.value" },
         });
         const error = thrown(() =>
-            checkViewOptions(graph(), "acme-share", options, { strength: "results.strength.value" }),
+            checkViewOptions(graph(), "acme-share", options, { strength: "store.graphty.strength.value" }),
         );
 
         assert.strictEqual(
             error.message,
-            'acme-share: option "strength" reads results.strength.value, but no completed run is named "strength"; ' +
+            'acme-share: option "strength" reads store.graphty.strength.value, but no completed run is named "strength"; ' +
                 'run the algorithm that produces it first, with { as: "strength" }.',
         );
     });

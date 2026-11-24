@@ -48,8 +48,8 @@ describe("selection.checkRule", () => {
 
         const check = session.selection.checkRule("value > `2` && id != 'x'");
 
-        assert.deepEqual(check.unknown, [{ path: "value", candidates: ["results.deg.value"] }]);
-        assert.strictEqual(check.suggestion, "results.deg.value > `2` && id != 'x'");
+        assert.deepEqual(check.unknown, [{ path: "value", candidates: ["store.graphty.deg.value"] }]);
+        assert.strictEqual(check.suggestion, "store.graphty.deg.value > `2` && id != 'x'");
         assert.deepEqual(session.selection.checkRule(check.suggestion ?? ""), { unknown: [] });
         const alone = session.selection.checkRule("value > `0`").suggestion ?? "";
         const { nodes } = await session.selection.count({ text: `=${alone}` });
@@ -81,7 +81,11 @@ describe("selectorRule with comparisons", () => {
         assert.deepEqual(rule("donations >= `10000`"), { kind: "range", attribute: "data.donations", min: 10000 });
         assert.deepEqual(rule("data.hours <= `20`"), { kind: "range", attribute: "data.hours", max: 20 });
         assert.deepEqual(rule("`5` <= shared_chapters"), { kind: "range", attribute: "data.shared_chapters", min: 5 });
-        assert.deepEqual(rule("results.deg.value > `16`"), { kind: "threshold", path: "results.deg.value", above: 16 });
+        assert.deepEqual(rule("store.graphty.deg.value > `16`"), {
+            kind: "threshold",
+            path: "store.graphty.deg.value",
+            above: 16,
+        });
         assert.deepEqual(rule("hours >= `1` && hours <= `5`"), {
             kind: "all",
             of: [

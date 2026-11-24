@@ -219,7 +219,7 @@ export interface NodeView {
     /**
      * An attribute or a published result, by path: the key on the node record as loaded (`tier`
      * for `{ id: 1, tier: 2 }`), a dotted path into it ("location.lat"), or a result
-     * ("results.clusters.group"). undefined when absent, or when `path` is undefined (an unbound
+     * ("store.graphty.clusters.group"). undefined when absent, or when `path` is undefined (an unbound
      * optional "attribute" option).
      */
     attr(path: string | undefined): unknown;
@@ -296,7 +296,7 @@ interface AlgorithmDefinitionBase<O extends OptionsShorthand> extends Definition
     readonly passes?: keyof O & string;
     /**
      * Optional: the name of a run's result, from its option values. `id` becomes the path a style
-     * layer reads (`results.<id>.value`): lower-case letters, digits and underscores. `label` is
+     * layer reads (`store.graphty.<id>.value`): lower-case letters, digits and underscores. `label` is
      * what the layer list and legend show. Return undefined to use the algorithm id.
      */
     readonly suggestedName?: (options: OptionValuesOf<O>) => SuggestedName | undefined;

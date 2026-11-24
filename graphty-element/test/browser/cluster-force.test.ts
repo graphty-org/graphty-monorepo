@@ -132,7 +132,7 @@ describe("clusterBy", () => {
             await graph.addDataFromSource("gexf", { data: lesMiserablesGexf });
             await operationQueueOf(graph).waitForCompletion();
             await session.layout.set(layout, {
-                options: { dim: 2, seed: 5, clusterBy: "results.louvain.group", clusterStrength: 4 },
+                options: { dim: 2, seed: 5, clusterBy: "store.graphty.louvain.group", clusterStrength: 4 },
             });
             await settle(graph);
 

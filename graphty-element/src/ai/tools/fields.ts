@@ -203,8 +203,13 @@ function repairSelector(where: string, attributes: readonly string[]): string {
     });
 }
 
-/** `results.<run>.<field>`, the run written as an id, an algorithm key (quoted or not) or "latest". */
-const RESULT_REFERENCE = /(?<![\w.])results\.(?:"([^"]+)"|'([^']+)'|`([^`]+)`|([\w:-]+))\.([A-Za-z_]\w*)/g;
+/**
+ * `store.graphty.<run>.<field>`, the run written as an id, an algorithm key (quoted or not) or
+ * "latest"; the older `store.graphty.<run>.<field>` a model may still write too. Not a note value
+ * (`store.graphty.notes.count`).
+ */
+const RESULT_REFERENCE =
+    /(?<![\w.])(?:store\.graphty|results)\.(?!notes\.)(?:"([^"]+)"|'([^']+)'|`([^`]+)`|([\w:-]+))\.([A-Za-z_]\w*)/g;
 
 /**
  * Rewrite each run a selector names by what the model knows -- its algorithm key, quoted or not, or

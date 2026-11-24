@@ -25,7 +25,7 @@ const published = new Map<string, Published>();
  * @returns the descriptor
  */
 function field(runId: string, name: string, kind: FieldDescriptor["kind"], type: FieldDescriptor["type"]) {
-    return { name, plainName: name, technicalName: name, kind, type, path: `results.${runId}.${name}` } as const;
+    return { name, plainName: name, technicalName: name, kind, type, path: `store.graphty.${runId}.${name}` } as const;
 }
 
 /**
@@ -159,7 +159,7 @@ describe("result values as page columns", () => {
             {
                 run: "degree",
                 field: "value",
-                path: "results.degree.value",
+                path: "store.graphty.degree.value",
                 type: "number",
                 pending: false,
                 values: [3, 2],
@@ -345,11 +345,11 @@ describe("result values as page columns", () => {
         const edges = session.data.resultColumns("edge");
 
         assert.deepStrictEqual(nodes, [
-            { run: "degree", field: "value", path: "results.degree.value", type: "number", grouping: false },
-            { run: "groups", field: "group", path: "results.groups.group", type: "integer", grouping: true },
+            { run: "degree", field: "value", path: "store.graphty.degree.value", type: "number", grouping: false },
+            { run: "groups", field: "group", path: "store.graphty.groups.group", type: "integer", grouping: true },
         ]);
         assert.deepStrictEqual(edges, [
-            { run: "bridges", field: "value", path: "results.bridges.value", type: "boolean", grouping: false },
+            { run: "bridges", field: "value", path: "store.graphty.bridges.value", type: "boolean", grouping: false },
         ]);
         for (const column of nodes) {
             assert.doesNotThrow(() => session.data.nodePage({ columns: [column.run], limit: 0 }));
@@ -392,9 +392,9 @@ describe("result values as page columns", () => {
 
     it("never reads an attribute key as a result: a key sort is always the literal key", async () => {
         const session = await scored();
-        await session.data.addNodes([{ id: "spoof", "results.degree.value": 100 }]);
+        await session.data.addNodes([{ id: "spoof", "store.graphty.degree.value": 100 }]);
 
-        const page = session.data.nodePage({ sort: { key: "results.degree.value", descending: true }, limit: 1 });
+        const page = session.data.nodePage({ sort: { key: "store.graphty.degree.value", descending: true }, limit: 1 });
 
         assert.strictEqual(page.records[0]?.id, "spoof");
         session.dispose();
@@ -420,7 +420,7 @@ describe("result values as page columns", () => {
         assert.include(unknownRun.details.candidates as string[], "degree");
         assert.strictEqual(refusal(() => session.data.nodePage({ columns: ["data.weight"] })).code, "E_UNKNOWN_RUN");
 
-        const path = refusal(() => session.data.nodePage({ columns: ["results.degree.value"] }));
+        const path = refusal(() => session.data.nodePage({ columns: ["store.graphty.degree.value"] }));
         assert.strictEqual(path.code, "E_UNKNOWN_RUN", "a string is a run id, never a path");
         assert.strictEqual((path.details.candidates as string[])[0], "degree", "the run the path names comes first");
         assert.strictEqual(

@@ -60,6 +60,7 @@ import { otherIdSpelling } from "../../data/nodeIdSpelling";
 import { GraphtyError, isGraphtyError } from "../../errors";
 import type { AttributeRevisions, InputTick } from "../attributes";
 import { buildHistogram } from "../results/statistics";
+import { isRunPath } from "../results/types";
 import { sealedSet } from "../sealed";
 import { resolveSet, SetsCache } from "../sets/cache";
 import { type Capture, capturedHalves } from "../sets/captures";
@@ -244,7 +245,7 @@ export interface ScopeSources {
      * @returns Its scope, or undefined.
      */
     readonly runScopeOf?: (run: RunId) => Scope | undefined;
-    /** A run's current result. Absent refuses a rule's `item` leaf and a `threshold` over `results.*`. */
+    /** A run's current result. Absent refuses a rule's `item` leaf and a `threshold` over `store.graphty.*`. */
     readonly result?: FilterSources["result"];
     /**
      * What a held item's re-run captured (design/sets 5.2). Absent: nothing was captured.
@@ -1270,7 +1271,7 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
                     : scopeEdges;
             }
 
-            const run = path.startsWith("results.") ? path.split(".")[1] : undefined;
+            const run = isRunPath(path) ? path.split(".")[2] : undefined;
             const field = path.split(".").at(-1);
             const unstable =
                 run !== undefined &&

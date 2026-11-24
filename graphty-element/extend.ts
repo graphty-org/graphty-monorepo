@@ -319,7 +319,7 @@ export type { Node, NodeIdType } from "./src/Node";
  * a subclass returns a result instead of writing one.
  *
  * The field-spec builders and `metricField`/`nodeMetricFields` are published because the
- * alternative is hand-writing every field descriptor including its `results.$.<name>` path
+ * alternative is hand-writing every field descriptor including its `store.graphty.$.<name>` path
  * string, which is a path format a plugin should never have to know.
  *
  * An edge result is keyed by the element's own edge id, which a plugin reads from its input:

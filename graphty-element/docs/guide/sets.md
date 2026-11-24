@@ -98,7 +98,7 @@ const run = element.run("pagerank");
 await run;
 
 const top = sets.create(
-    { kind: "rule", where: { kind: "threshold", path: `results.${run.id}.value`, top: 10 }, reading: "induced" },
+    { kind: "rule", where: { kind: "threshold", path: `store.graphty.${run.id}.value`, top: 10 }, reading: "induced" },
     { name: "Top ten" },
 );
 ```
@@ -376,7 +376,7 @@ const hubs = element.session.sets.create(
             kind: "all",
             of: [
                 { kind: "item", item: community },
-                { kind: "threshold", path: `results.${pagerank.id}.value`, top: 10 },
+                { kind: "threshold", path: `store.graphty.${pagerank.id}.value`, top: 10 },
             ],
         },
         reading: "induced",

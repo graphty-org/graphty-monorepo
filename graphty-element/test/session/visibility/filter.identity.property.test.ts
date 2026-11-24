@@ -98,7 +98,7 @@ const NODE_LEAF: fc.Arbitrary<RuleTree> = fc.oneof(
         .integer({ min: 0, max: 3 })
         .map((level): RuleTree => ({ kind: "item", item: { result: "lvl", key: { field: "level", value: level } } })),
     fc
-        .tuple(fc.constantFrom("data.score", "results.met.value"), fc.boolean(), fc.integer({ min: 0, max: 5 }))
+        .tuple(fc.constantFrom("data.score", "store.graphty.met.value"), fc.boolean(), fc.integer({ min: 0, max: 5 }))
         .map(([path, top, n]): RuleTree =>
             top ? { kind: "threshold", path, top: n } : { kind: "threshold", path, above: n - 1 },
         ),

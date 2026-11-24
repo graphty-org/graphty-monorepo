@@ -230,7 +230,7 @@ export type EncodingProposal =
  * machinery in behind a question about a result's fields.
  */
 export interface EncodingRun {
-    /** The run id, which is the path segment under `results`. */
+    /** The run id, which is the path segment under `store.graphty`. */
     readonly id: RunId;
     /**
      * The option the run's name was suggested by, once it left its default. See

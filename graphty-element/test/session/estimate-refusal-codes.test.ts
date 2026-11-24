@@ -32,7 +32,7 @@ function assertRefused(estimate: CostEstimate, code: string, params: Record<stri
  */
 async function threeGroups(context: RunExecutionContext): Promise<RunOutcome> {
     await Promise.resolve();
-    const path = `results.${context.runId}.group`;
+    const path = `store.graphty.${context.runId}.group`;
     return {
         result: createRunResult({
             runId: context.runId,
@@ -94,7 +94,7 @@ describe("a refused estimate's coded refusal", () => {
         );
         const { session } = harness;
         const run = await session.runs.start("louvain", {}, { style: false });
-        const attribute = `results.${run.runId}.group`;
+        const attribute = `store.graphty.${run.runId}.group`;
 
         assertRefused(
             session.estimate({ op: "layout.set", id: "bipartite", options: { groupBy: attribute } }),

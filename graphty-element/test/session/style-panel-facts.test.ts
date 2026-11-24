@@ -62,7 +62,7 @@ async function degree(context: RunExecutionContext): Promise<RunOutcome> {
         technicalName: name,
         kind: "node",
         type: "integer",
-        path: `results.${context.runId}.${name}`,
+        path: `store.graphty.${context.runId}.${name}`,
     });
 
     return {
@@ -155,13 +155,13 @@ describe("a rank binding's legend block", () => {
         const layer = await session.styles.add({
             name: "Degree",
             target: "node",
-            selector: { match: "has", path: "results.deg.rank" },
-            encode: { "node.size": { by: "results.deg.rank", range: [1, 3] } },
+            selector: { match: "has", path: "store.graphty.deg.rank" },
+            encode: { "node.size": { by: "store.graphty.deg.rank", range: [1, 3] } },
         });
         await session.styles.settled();
         const block = session.styles.legendOf(layer.id).find((entry) => entry.channel === "node.size");
 
-        assert.strictEqual(block?.field?.path, "results.deg.rank");
+        assert.strictEqual(block?.field?.path, "store.graphty.deg.rank");
         assert.deepStrictEqual(block?.field?.result, { algorithm: "degree", field: "rank" });
         assert.strictEqual(block?.field?.technicalName, "rank");
         assert.strictEqual(block?.painted, 77);

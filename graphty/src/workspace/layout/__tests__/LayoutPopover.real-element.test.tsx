@@ -82,13 +82,13 @@ describe("the Layout popover", () => {
         // K5 is one group: Two columns names the grouping by the run's name, not its field path.
         const columns = within(popover).getByRole("option", { name: /^Two columns/ });
         assert.include(columns.textContent, "Needs exactly two groups; Louvain has 1");
-        assert.notInclude(columns.textContent, "results.");
+        assert.notInclude(columns.textContent, "store.graphty.");
         await userEvent.click(within(popover).getByRole("option", { name: /^Rings by group/ }));
         await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
         await waitFor(() => {
             assert.strictEqual(session.layout.id, "shell");
         });
-        assert.deepInclude(session.layout.options, { groupBy: `results.${run.runId}.group` });
+        assert.deepInclude(session.layout.options, { groupBy: `store.graphty.${run.runId}.group` });
     });
 
     it("opens Rings by group grouped by the latest community run, not by a name column", async () => {
@@ -147,7 +147,7 @@ describe("the Layout popover", () => {
         const planar = within(popover).getByRole("option", { name: /^No crossings/ });
         assert.strictEqual(planar.getAttribute("aria-disabled"), "true", "K5 cannot be drawn without crossings");
         assert.include(planar.textContent, "cannot be drawn without crossings");
-        for (const elementWords of ["G is not planar", '"planar"', "results.", "dim:", "`"]) {
+        for (const elementWords of ["G is not planar", '"planar"', "store.graphty.", "dim:", "`"]) {
             assert.notInclude(planar.textContent, elementWords);
         }
 

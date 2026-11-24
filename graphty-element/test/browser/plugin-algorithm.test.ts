@@ -43,7 +43,7 @@ const EDGES = [
  * What a plugin publishes about itself.
  *
  * The `shape` is the load-bearing field: field NAMES are fixed by the shape rather than by the
- * algorithm, which is what lets a consumer read `results.<runId>.value` on ANY node metric
+ * algorithm, which is what lets a consumer read `store.graphty.<runId>.value` on ANY node metric
  * without opening the catalog first. Declaring "node-metric" is therefore a promise about the
  * names below, not a label.
  */
@@ -61,7 +61,7 @@ const COUNTING_DESCRIPTOR: AlgorithmDescriptor = {
             technicalName: "neighbour count",
             kind: "node",
             type: "integer",
-            path: "results.$.value",
+            path: "store.graphty.$.value",
         },
     ],
     options: [],

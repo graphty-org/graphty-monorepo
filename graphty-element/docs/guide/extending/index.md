@@ -101,7 +101,7 @@ receive the graph as nodes and edges with their real ids:
 | `edge.other(node)`                                                | the far end seen from `node` -- the way to walk from a node along its edges           |
 | `node.edgesTo(other)`, `node.weightTo(other, path)`               | the edges between two nodes, and their summed weight                                  |
 | `edge.weight(path)`, `node.strength(path)`                        | an edge's weight, and a node's summed edge weight                                     |
-| `node.attr(path)`, `edge.attr(path)`                              | an attribute, or a finished run's result (`"results.degree.value"`)                   |
+| `node.attr(path)`, `edge.attr(path)`                              | an attribute, or a finished run's result (`"store.graphty.degree.value"`)             |
 | `node.number(path)`, `edge.number(path)`                          | the same, when it is a number; `undefined` otherwise                                  |
 
 A toy example: on the path `a - b - c` with a self-loop on `c`,

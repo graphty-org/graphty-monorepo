@@ -37,7 +37,7 @@ const computed: string[] = [];
  * @returns The descriptor.
  */
 function field(name: string, kind: FieldDescriptor["kind"]): FieldDescriptor {
-    return { name, plainName: name, technicalName: name, kind, type: "number", path: `results.$.${name}` };
+    return { name, plainName: name, technicalName: name, kind, type: "number", path: `store.graphty.$.${name}` };
 }
 
 /**

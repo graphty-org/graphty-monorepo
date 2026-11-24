@@ -37,7 +37,7 @@ is 0.75.
 ## What each entry says
 
 - `path` -- what a binding's `by` or a rule's leaf reads: `"id"`, `data.<column>`, or
-  `results.<run>.<field>`. Every entry has its own path.
+  `store.graphty.<run>.<field>`. Every entry has its own path.
 - `plainName`, `technicalName` -- the column's own name, or the run field's catalog names.
 - `on` -- `"node"` or `"edge"`: which kind carries the value.
 - `from` -- `"element"` for the node id, `"data"` for a column, `"run"` for a run's field, with

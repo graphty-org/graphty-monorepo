@@ -3763,7 +3763,7 @@ export type Selector = {
     edges?: readonly EdgeId[];
 }
 /**
-* The top `n` elements by one run field (`results.<run>.<field>`), cut only between tie
+* The top `n` elements by one run field (`store.graphty.<run>.<field>`), cut only between tie
 * groups: a group of equal values is painted whole, and only when all of it fits inside `n`.
 * See `TopRanking` for the policy. `ties: "all"` takes the group the cut falls in whole
 * instead, so the top can hold more than `n` (see {@link TopTies}).

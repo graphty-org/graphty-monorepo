@@ -151,7 +151,7 @@ a node attribute, or a run's field the way a style layer does. Every force layou
 centroids are computed on the device.
 
 ```typescript
-element.layoutConfig = { clusterBy: "results.louvain.group" };
+element.layoutConfig = { clusterBy: "store.graphty.louvain.group" };
 await element.session.runs.start("louvain", {}, { as: "louvain" });
 ```
 

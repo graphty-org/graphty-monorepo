@@ -426,7 +426,7 @@ console.log(summary.max, summary.min, summary.top[0].id);
 ```
 
 The same values are published as columns under the run's id, which is what a style layer and a
-filter read: `results.<runId>.value`. A table reads them the same way, a page of records at a
+filter read: `store.graphty.<runId>.value`. A table reads them the same way, a page of records at a
 time, sorted by the run's values -- see [Result Columns](./result-columns).
 
 ### A result that stopped early
@@ -663,9 +663,9 @@ for (const option of options) {
   with `E_UNKNOWN_ALGORITHM`.
 
 **A run's id names its result, in words.** A run you do not name with `as:` is named after its
-algorithm -- `results.degree.value`, `results.pagerank.value`, `results.shortest_path.onPath` --
+algorithm -- `store.graphty.degree.value`, `store.graphty.pagerank.value`, `store.graphty.shortest_path.onPath` --
 and an algorithm whose settings change what its result means adds the setting once it leaves its
-default: `results.louvain_resolution_1_5.group`, or `results.pagerank_damping_0_9.value`. The
+default: `store.graphty.louvain_resolution_1_5.group`, or `store.graphty.pagerank_damping_0_9.value`. The
 built-ins name PageRank's damping, Katz's alpha, the direction of eigenvector centrality and HITS,
 the resolution of Louvain and Leiden, the strength of components, and the method of shortest path
 and link prediction.
@@ -732,7 +732,7 @@ This automatically maps algorithm results to visual properties like color and si
 ## Custom Styling with Algorithm Results
 
 A run publishes its measurements under its own id, so a layer reads them the way it reads any
-other column -- `results.<runId>.<field>`:
+other column -- `store.graphty.<runId>.<field>`:
 
 ```typescript
 const run = await element.run("degree");
@@ -741,7 +741,7 @@ const run = await element.run("degree");
 await element.session.styles.add({
     name: "Hubs",
     target: "node",
-    selector: { match: "expression", where: `results.${run.id}.value > \`10\`` },
+    selector: { match: "expression", where: `store.graphty.${run.id}.value > \`10\`` },
     set: { "node.color": "#E74C3C", "node.size": 2 },
 });
 ```

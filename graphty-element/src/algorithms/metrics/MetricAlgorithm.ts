@@ -12,7 +12,7 @@
  * and the honest qualification of those numbers; `createRunResult` fills the rank, the percentile
  * and every graph-level statistic from that column, once, in the same arithmetic for every
  * metric. That result is the source of truth, and a style layer reads it at
- * `results.<runId>.<field>`.
+ * `store.graphty.<runId>.<field>`.
  */
 
 import type { FieldDescriptor, NodeId } from "../../catalog/types";

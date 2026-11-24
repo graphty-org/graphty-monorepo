@@ -936,7 +936,7 @@ export function readableName(session: GraphSession, value: ReadableValue): { nam
 /**
  * A run's group's rank, the number the key names it by: 1 for the largest.
  * @param session - the element's session.
- * @param path - the value's path, such as `results.louvain.community`.
+ * @param path - the value's path, such as `store.graphty.louvain.community`.
  * @param value - one of its values.
  * @returns the rank, or undefined for a value that is not a run's ranked group.
  */

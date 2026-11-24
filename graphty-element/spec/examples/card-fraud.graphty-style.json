@@ -102,11 +102,11 @@
             "target": "node",
             "selector": {
                 "match": "has",
-                "path": "results.communities.group"
+                "path": "store.graphty.communities.group"
             },
             "encode": {
                 "node.color": {
-                    "by": "results.communities.group",
+                    "by": "store.graphty.communities.group",
                     "scale": "ordinal",
                     "palette": "okabe-ito",
                     "overflow": "other"
@@ -127,11 +127,11 @@
             "target": "node",
             "selector": {
                 "match": "has",
-                "path": "results.pagerank.value"
+                "path": "store.graphty.pagerank.value"
             },
             "encode": {
                 "node.color": {
-                    "by": "results.pagerank.value",
+                    "by": "store.graphty.pagerank.value",
                     "scale": "linear",
                     "palette": "org.example-bank.risk"
                 }

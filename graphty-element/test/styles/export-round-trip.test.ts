@@ -142,7 +142,7 @@ function sessionWithDegree(): GraphSession {
                                 technicalName: "degree",
                                 kind: "node",
                                 type: "number",
-                                path: "results.$.value",
+                                path: "store.graphty.$.value",
                             },
                         ],
                         measured: { nodes: nodes.length, edges: 0 },
@@ -223,7 +223,7 @@ const STACK: readonly LayerSpec[] = [
         target: "node",
         kind: "encoding",
         selector: { match: "expression", where: "data.team == 'y'" },
-        encode: { "node.size": { by: "results.deg.value", scale: "log", range: [1, 3] } },
+        encode: { "node.size": { by: "store.graphty.deg.value", scale: "log", range: [1, 3] } },
     },
     {
         name: "edge kind",

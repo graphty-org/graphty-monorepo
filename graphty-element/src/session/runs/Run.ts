@@ -406,8 +406,8 @@ function createDeferred<T>(): Deferred<T> {
 
 /**
  * A run's fields with their paths naming this run. A catalog descriptor is written before any
- * run exists, so its paths say `results.$.value`; a consumer reading `run.fields` gets
- * `results.<runId>.value`, the path a layer or `session.results.path(run)` uses.
+ * run exists, so its paths say `store.graphty.$.value`; a consumer reading `run.fields` gets
+ * `store.graphty.<runId>.value`, the path a layer or `session.results.path(run)` uses.
  * @param fields - The fields as the descriptor or the executor declared them.
  * @param runId - The run they belong to.
  * @returns The fields, each path bound.

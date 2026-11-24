@@ -85,7 +85,7 @@ async function twoGroups(context: RunExecutionContext): Promise<RunOutcome> {
                     technicalName: "community",
                     kind: "node",
                     type: "integer",
-                    path: `results.${context.runId}.group`,
+                    path: `store.graphty.${context.runId}.group`,
                 },
             ],
             measured: { nodes: 7, edges: 5 },
@@ -112,7 +112,7 @@ describe("session.catalog.optionsFor", () => {
 
         const result = await harness.session.runs.start("louvain", {}, { style: false });
 
-        assert.deepStrictEqual(await groupBy(), [`results.${result.runId}.group`, "team"]);
+        assert.deepStrictEqual(await groupBy(), [`store.graphty.${result.runId}.group`, "team"]);
         const choices = (await harness.session.catalog.optionsFor("shell")).find(
             (option) => option.name === "groupBy",
         )?.values;
@@ -146,8 +146,8 @@ describe("session.catalog.optionsFor", () => {
         const second = await harness.session.runs.start("louvain", { resolution: 2 }, { style: false });
         const after = await groupBy();
         assert.deepStrictEqual(after?.slice(0, 3), [
-            `results.${second.runId}.group`,
-            `results.${first.runId}.group`,
+            `store.graphty.${second.runId}.group`,
+            `store.graphty.${first.runId}.group`,
             "team",
         ]);
         harness.session.dispose();

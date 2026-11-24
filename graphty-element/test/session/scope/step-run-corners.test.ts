@@ -81,7 +81,7 @@ function counting(executions: Executions) {
                         technicalName: "value",
                         kind: "node",
                         type: "number",
-                        path: `results.${context.runId}.value`,
+                        path: `store.graphty.${context.runId}.value`,
                     },
                 ],
                 nodes: [...inside].map((id, at) => ({ id, values: { value: at } })),

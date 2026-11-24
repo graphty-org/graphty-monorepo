@@ -24,7 +24,7 @@ import type {
 } from "../catalog/types";
 import { describeRows } from "./attributes";
 import { elementIdsOf } from "./results/RunResult";
-import { fieldMeasurement } from "./results/types";
+import { fieldMeasurement, isRunPath } from "./results/types";
 import type { Run } from "./runs/types";
 import { CHANNEL_DESCRIPTORS } from "./styles/channels";
 import { columnFits, readableKindOf } from "./styles/EncodingSpec";
@@ -164,7 +164,7 @@ function factsOf(field: FieldDescriptor): ReadableValue["facts"] {
  * @returns The leaf kinds.
  */
 function testsOf(kind: ReadableValueKind, path: Path, countable: boolean): readonly RuleTestKind[] {
-    const ranked = path.startsWith("data.") || path.startsWith("results.");
+    const ranked = path.startsWith("data.") || isRunPath(path);
     const tests: RuleTestKind[] = [];
     if (kind === "number") {
         tests.push("range", ...(ranked ? (["top", "above"] as const) : []));

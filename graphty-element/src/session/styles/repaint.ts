@@ -154,7 +154,7 @@ export interface RepaintSources {
      * is correct and merely slower.
      *
      * The indices must be within the current element count and must not repeat.
-     * @param path - The column path, such as `results.louvain.group`.
+     * @param path - The column path, such as `store.graphty.louvain.group`.
      * @param target - Whether the asking layer paints nodes or edges.
      * @returns The indices, or undefined when this session cannot enumerate that column.
      */

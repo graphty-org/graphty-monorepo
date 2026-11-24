@@ -1477,7 +1477,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
 
     /**
      * What a filter and a window read besides the graph: the run entries whose results a
-     * `results.*` path names.
+     * `store.graphty.*` path names.
      * @param filter - The filter, or null.
      * @param window - The window, or null.
      * @returns The entries; none when nothing is filtering, which reads nothing.

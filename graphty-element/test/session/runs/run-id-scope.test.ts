@@ -56,7 +56,11 @@ function harnessOf(execute: (context: RunExecutionContext) => Promise<RunOutcome
  * @returns The layer.
  */
 function boundTo(run: RunId): LayerSpec {
-    return { name: "Bound", selector: { match: "has", path: `results.${run}.value` }, set: { "node.color": RED } };
+    return {
+        name: "Bound",
+        selector: { match: "has", path: `store.graphty.${run}.value` },
+        set: { "node.color": RED },
+    };
 }
 
 /**

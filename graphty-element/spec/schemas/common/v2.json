@@ -470,10 +470,10 @@
         },
         "path": {
             "type": "string",
-            "description": "A raw path (README 4.8.1), never quoted: data.<column>, results.<run>.<field>, graphty.<value> or _source.loads. graphty.types, the saved graph's plural, is reserved and never a path.",
+            "description": "A raw path (README 4.8.1), never quoted: data.<column>, store.<namespace>.<key>.<field> (a run is store.graphty.<run>.<field>), graphty.<value> or _source.loads; an older file's results.<run>.<field> is read at store.graphty.<run>.<field>. graphty.types, the saved graph's plural, is reserved and never a path.",
             "minLength": 1,
             "maxLength": 1024,
-            "pattern": "^(data\\..+|results\\.[^.]+\\..+|graphty\\..+|_source\\.loads)$",
+            "pattern": "^(data\\..+|store\\..+|results\\.[^.]+\\..+|graphty\\..+|_source\\.loads)$",
             "not": {
                 "const": "graphty.types"
             }

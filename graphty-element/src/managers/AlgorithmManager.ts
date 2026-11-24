@@ -209,7 +209,7 @@ export class AlgorithmManager implements Manager {
         // NO REPAINT IS FORCED HERE, and that is the point. A run used to have to walk every node
         // and every edge itself, because a 1.x selector read `algorithmResults.<namespace>.<type>`
         // off the element and only a re-resolution could make the new value visible. A session
-        // selector reads `results.<runId>.<field>`, so painting the new values is the style
+        // selector reads `store.graphty.<runId>.<field>`, so painting the new values is the style
         // stack's work, scheduled from the run finishing: the `algorithm-run` trigger Graph
         // registers repaints from the session's stack once the run leaves the queue.
 
@@ -539,7 +539,7 @@ function yieldToHost(): Promise<void> {
  * The result a run publishes when there was nothing to measure.
  *
  * It declares the algorithm's fields even though it filled none of them, so that
- * `results.<runId>.value` is an empty column rather than an unknown name: a consumer asking a
+ * `store.graphty.<runId>.value` is an empty column rather than an unknown name: a consumer asking a
  * finished run for its ranking wants an empty list, not a thrown error about a field the
  * catalog told it to expect.
  * @param context - What the run handed the work.

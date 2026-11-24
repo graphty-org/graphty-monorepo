@@ -469,12 +469,12 @@ describe("paths nothing answered", () => {
     it("carries through the paths a query engine could not resolve", () => {
         const harness = harnessOf([{ id: "a" }]);
 
-        const shown = applied(harness, { kind: "expression", where: "results.nope.value > `1`" }, null, {
+        const shown = applied(harness, { kind: "expression", where: "store.graphty.nope.value > `1`" }, null, {
             match: () => [],
-            unresolvedPathsOf: () => ["results.nope.value"],
+            unresolvedPathsOf: () => ["store.graphty.nope.value"],
         });
 
-        assert.deepStrictEqual(shown.unresolved, ["results.nope.value"]);
+        assert.deepStrictEqual(shown.unresolved, ["store.graphty.nope.value"]);
         harness.session.dispose();
     });
 

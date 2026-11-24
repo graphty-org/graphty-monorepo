@@ -50,7 +50,7 @@ function withDegree(): { harness: Harness; calls: () => number } {
                     technicalName: "degree",
                     kind: "node",
                     type: "number",
-                    path: "results.$.value",
+                    path: "store.graphty.$.value",
                 },
                 {
                     name: "from",
@@ -58,7 +58,7 @@ function withDegree(): { harness: Harness; calls: () => number } {
                     technicalName: "from",
                     kind: "edge",
                     type: "string",
-                    path: "results.$.from",
+                    path: "store.graphty.$.from",
                 },
             ],
             measured: { nodes: snapshot.nodeCount, edges: snapshot.edgeCount },
@@ -305,7 +305,7 @@ describe("the project file", () => {
         ]);
         await session.runs.start("degree", undefined, { as: "links", style: false });
         // Keeps the nodes with two links or more: b.
-        await session.visibility.set({ kind: "range", attribute: "results.links.value", min: 2 });
+        await session.visibility.set({ kind: "range", attribute: "store.graphty.links.value", min: 2 });
         const before = session.runs.get("links")?.record;
         const staleBefore = session.runs.get("links")?.stale;
         assert.deepStrictEqual([...session.visibility.nodes], ["b"]);
@@ -454,7 +454,7 @@ describe("the project file", () => {
     it("binds a saved layer to a run whose fields name it by the placeholder", async () => {
         const harness = await busySession();
         const report = await harness.session.styles.applyTemplate(harness.session.styles.toDocument());
-        assert.deepStrictEqual(report.unbound, [], "results.links.value is answered by the run links");
+        assert.deepStrictEqual(report.unbound, [], "store.graphty.links.value is answered by the run links");
         const [block] = harness.session.styles.legend().filter((entry) => entry.runId === "links");
         assert.strictEqual(block.field?.result?.algorithm, "degree", "the legend names the run field by its algorithm");
         harness.session.dispose();

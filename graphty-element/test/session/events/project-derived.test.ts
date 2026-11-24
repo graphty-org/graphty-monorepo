@@ -35,7 +35,7 @@ function degree(session: () => GraphSession, context: RunExecutionContext): Prom
         shape: "node-metric",
         fields: (algorithmByKey("degree")?.fields ?? []).map((field) => ({
             ...field,
-            path: `results.${context.runId}.${field.name}`,
+            path: `store.graphty.${context.runId}.${field.name}`,
         })),
         measured: { nodes: snapshot.nodeCount, edges: snapshot.edgeCount },
         nodes: counts.map((value, index) => ({ id: snapshot.ids.idOf(index), values: { value } })),
@@ -135,7 +135,7 @@ describe("project:derived", () => {
         await s.styles.add({
             name: "Degree",
             target: "node",
-            selector: { match: "expression", where: "results.deg.value > `1`" },
+            selector: { match: "expression", where: "store.graphty.deg.value > `1`" },
             set: { "node.size": 3 },
         });
         await s.runs.start("degree", {}, { as: "deg" });

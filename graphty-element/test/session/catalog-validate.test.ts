@@ -69,7 +69,7 @@ describe("session.catalog.validate", () => {
 
     it("names a results path whose run does not exist as an unknown run", async () => {
         const session = await loaded();
-        const check = session.catalog.validate("results.betweeness.value > `0`", { kind: "filter" });
+        const check = session.catalog.validate("store.graphty.betweeness.value > `0`", { kind: "filter" });
         assert.isFalse(check.ok);
         assert.strictEqual(check.unresolvedPaths[0].reason, "unknown-run");
         session.dispose();

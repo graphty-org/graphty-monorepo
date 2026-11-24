@@ -93,7 +93,7 @@ export type Selector =
      */
     | { readonly match: "ids"; readonly nodes?: readonly NodeId[]; readonly edges?: readonly EdgeId[] }
     /**
-     * The top `n` elements by one run field, `results.<run>.<field>`, cut only between tie
+     * The top `n` elements by one run field, `store.graphty.<run>.<field>`, cut only between tie
      * groups: a group of equal values is painted whole, and only when all of it fits inside `n`.
      * So a layer never paints more than `n` elements, and paints none on a graph whose highest
      * value is shared by more than `n`. `RunResult.top` is the same cut, with the tie group it left out. With
@@ -186,7 +186,7 @@ const TYPE_PATH = "graphty.type";
 const TYPE_PATHS: readonly Path[] = Object.freeze([TYPE_PATH]);
 
 /** The prefix of the only paths a top selector ranks: a run's published fields. */
-const RESULT_PATH_PREFIX = "results.";
+const RESULT_PATH_PREFIX = "store.graphty.";
 
 // ---------------------------------------------------------------------------------------------
 // Refusals
@@ -416,7 +416,7 @@ export type RuleSelector = Extract<
  *
  * const route = session.styles.list().find((layer) => layer.source.by === "run" && layer.kind === "highlight");
  * selectorRule(route.selector);
- * // { match: "rule", where: { kind: "text", reads: "results.route.onPath", mode: "exact", text: "true", caseSensitive: true } }
+ * // { match: "rule", where: { kind: "text", reads: "store.graphty.route.onPath", mode: "exact", text: "true", caseSensitive: true } }
  * ```
  * @param selector - Any selector.
  * @returns Its rule form: a `rule` selector as it is; `has` as "has a value" (a `text` leaf
@@ -526,7 +526,7 @@ function assertExpressionSelector(selector: Extract<Selector, { match: "expressi
  */
 function assertHasSelector(selector: Extract<Selector, { match: "has" }>): void {
     if (typeof selector.path !== "string") {
-        throw badShape("has-path-missing", 'A "has" selector needs a path, such as "results.louvain.group".', {
+        throw badShape("has-path-missing", 'A "has" selector needs a path, such as "store.graphty.louvain.group".', {
             path: selector.path,
         });
     }
@@ -544,7 +544,7 @@ function assertTopSelector(selector: Extract<Selector, { match: "top" }>): void 
     if (typeof selector.path !== "string" || !selector.path.startsWith(RESULT_PATH_PREFIX)) {
         throw badShape(
             "top-path-not-a-result",
-            'A "top" selector ranks a run\'s field, so its path is "results.<run>.<field>", such as "results.degree.value".',
+            'A "top" selector ranks a run\'s field, so its path is "store.graphty.<run>.<field>", such as "store.graphty.degree.value".',
             { path: selector.path },
         );
     }
@@ -724,7 +724,7 @@ export function compileSelector(selector: Selector, target: SelectorTarget, sour
                 match: selector.match,
                 target,
                 test: scopePredicate(live, target),
-                // What the rule reads ("results.louvain.group"), so the layer's reads name it.
+                // What the rule reads ("store.graphty.louvain.group"), so the layer's reads name it.
                 paths: scope === null ? EMPTY_PATHS : Object.freeze(pathsRead(scope, queryPaths)),
                 problem: () => live.problem(),
             };

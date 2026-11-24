@@ -11,7 +11,7 @@ export interface GroupedRows {
 
 /**
  * Split the graph's rows into the groups the layout's `groupBy` option names: a node attribute
- * (`group`, `data.group`) or a run's partition (`results.louvain.group`).
+ * (`group`, `data.group`) or a run's partition (`store.graphty.louvain.group`).
  * @param input - The layout's input.
  * @param layout - The layout's name, for the refusal.
  * @returns The groups.

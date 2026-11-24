@@ -419,7 +419,7 @@ export function assertRunId(value: string): RunId {
             code: "E_BAD_COMMAND",
             message:
                 `"${value}" cannot be a run id. An id starts with a lower-case letter and carries ` +
-                "only lower-case letters, digits, hyphens and underscores.",
+                'only lower-case letters, digits, hyphens and underscores, and is not "notes".',
             source: "run",
             details: { id: value, pattern: RUN_ID_PATTERN.source },
         });

@@ -128,7 +128,9 @@ describe("starting a run", () => {
                                 result: createRunResult({
                                     runId: context.runId,
                                     shape: "node-metric",
-                                    fields: [{ ...field("value", "integer"), path: `results.${context.runId}.value` }],
+                                    fields: [
+                                        { ...field("value", "integer"), path: `store.graphty.${context.runId}.value` },
+                                    ],
                                     measured: { nodes: size, edges: size },
                                     nodes: published.map((id, at) => ({ id, values: { value: at % 7 } })),
                                     caveats: CAVEATS,

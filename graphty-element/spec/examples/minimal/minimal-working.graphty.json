@@ -244,7 +244,7 @@
                     },
                     "encode": {
                         "node.size": {
-                            "by": "results.rank.value",
+                            "by": "store.graphty.rank.value",
                             "scale": "linear",
                             "range": [1, 3]
                         }

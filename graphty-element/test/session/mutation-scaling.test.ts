@@ -38,7 +38,7 @@ function partitionOf(size: number): (context: RunExecutionContext) => Promise<Ru
                         technicalName: "community",
                         kind: "node",
                         type: "integer",
-                        path: `results.${context.runId}.group`,
+                        path: `store.graphty.${context.runId}.group`,
                     },
                 ],
                 measured: { nodes: size, edges: size - 1 },

@@ -124,7 +124,7 @@ describe("change notification", () => {
     it("a run moving its result: the end of a run, a re-run and a removal, before run:changed", async () => {
         const h = graph();
         const log: string[] = [];
-        const watched = probe(h, { where: "results.pr.value > `2`" }, log);
+        const watched = probe(h, { where: "store.graphty.pr.value > `2`" }, log);
         const bystander = probe(h, "graph");
         h.session.on("run:changed", (change) => log.push(`run:${change.phase}`));
 

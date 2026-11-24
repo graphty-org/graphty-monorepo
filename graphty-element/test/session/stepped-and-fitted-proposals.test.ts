@@ -35,7 +35,7 @@ async function chain(): Promise<GraphSession> {
                         technicalName: "value",
                         kind: "edge",
                         type: "number",
-                        path: `results.${context.runId}.value`,
+                        path: `store.graphty.${context.runId}.value`,
                     },
                 ],
                 measured: { nodes: NODES.length, edges: edges.length },

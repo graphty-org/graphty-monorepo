@@ -31,7 +31,7 @@ const RENAMED: AlgorithmDescriptor = {
             technicalName: "value",
             kind: "node",
             type: "number",
-            path: "results.$.value",
+            path: "store.graphty.$.value",
         },
     ],
     options: [{ name: "newOpt", plainName: "New option", type: "number", default: 1, formerNames: ["oldOpt"] }],

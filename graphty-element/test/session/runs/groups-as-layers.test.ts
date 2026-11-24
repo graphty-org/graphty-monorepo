@@ -42,7 +42,7 @@ async function communities(context: RunExecutionContext): Promise<RunOutcome> {
                     technicalName: "community",
                     kind: "node",
                     type: "integer",
-                    path: `results.${context.runId}.group`,
+                    path: `store.graphty.${context.runId}.group`,
                 },
             ],
             measured: { nodes: nodes.length, edges: 0 },
@@ -106,7 +106,7 @@ describe("a partition's groups as layers", () => {
         const top = s.styles.get(folder.children[3].id);
         assert.deepEqual(top?.selector, {
             match: "rule",
-            where: { kind: "categories", attribute: "results.louvain.group", values: ["0"] },
+            where: { kind: "categories", attribute: "store.graphty.louvain.group", values: ["0"] },
         });
         for (const node of Object.keys(FIRST)) {
             assert.strictEqual(
@@ -202,7 +202,7 @@ describe("a partition's groups as layers", () => {
         );
         await s.styles.settled();
         assert.deepEqual(asked[1], ["Group 1"], "each name sees the names before it");
-        assert.strictEqual(s.data.valueLabels("results.louvain.group").get("1"), "Group 2", "e, f and g's group");
+        assert.strictEqual(s.data.valueLabels("store.graphty.louvain.group").get("1"), "Group 2", "e, f and g's group");
 
         membership = SECOND;
         await s.runs.start("louvain", {}, { as: "louvain", seed: 7 });
@@ -212,9 +212,9 @@ describe("a partition's groups as layers", () => {
         const names = folder.children.map((row) => row.name);
         assert.lengthOf(new Set(names), names.length, `no two layers share a name: ${names.join(", ")}`);
         // The re-run numbered e, f and g's group 0; the element kept its number, and its name.
-        assert.strictEqual(s.data.valueLabels("results.louvain.group").get("1"), "Group 2");
+        assert.strictEqual(s.data.valueLabels("store.graphty.louvain.group").get("1"), "Group 2");
         const fresh = folder.children[0];
-        assert.strictEqual(s.data.valueLabels("results.louvain.group").get("4"), fresh.name);
+        assert.strictEqual(s.data.valueLabels("store.graphty.louvain.group").get("4"), fresh.name);
         assert.notInclude(
             folder.children.slice(1).map((row) => s.styles.get(row.id)?.set?.["node.color"]),
             s.styles.get(fresh.id)?.set?.["node.color"],
@@ -234,7 +234,7 @@ describe("a partition's groups as layers", () => {
                 const where = selector?.match === "rule" ? selector.where : undefined;
                 const value = where?.kind === "categories" ? where.values[0] : "";
                 const { bins } = s.styles.preview(
-                    { by: "results.louvain.group", scale: "ordinal", palette: "okabe-ito" },
+                    { by: "store.graphty.louvain.group", scale: "ordinal", palette: "okabe-ito" },
                     { channel: "node.color", within: row.id },
                 );
                 const paints = bins.find((bin) => bin.count > 0)?.paints as { hex: string };
@@ -244,7 +244,7 @@ describe("a partition's groups as layers", () => {
                         set: {},
                         encode: {
                             "node.color": {
-                                by: "results.louvain.group",
+                                by: "store.graphty.louvain.group",
                                 scale: "ordinal",
                                 palette: "okabe-ito",
                                 map: { [value]: paints.hex },

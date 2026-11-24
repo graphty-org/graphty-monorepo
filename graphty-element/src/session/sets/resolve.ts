@@ -152,7 +152,7 @@ export interface ResolveContext {
     readonly stateRevision?: () => number;
     /** The runs a union step's `measure` leaf reads. Absent refuses `measure`. */
     readonly steps?: FilterSources["steps"];
-    /** A run's current result. Absent refuses a rule's `item` leaf and a `threshold` over `results.*`. */
+    /** A run's current result. Absent refuses a rule's `item` leaf and a `threshold` over `store.graphty.*`. */
     readonly result?: FilterSources["result"];
     /** What a held item's re-run captured (`./captures`). Absent: nothing was captured. */
     readonly captured?: FilterSources["captured"];

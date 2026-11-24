@@ -337,7 +337,7 @@ describe("attributes", () => {
 
     it("refuses a result path whose run has not completed, saying which run to do first", () => {
         const { view } = viewOf([{ id: "a" }]);
-        const error = thrown(() => nodeOf(view, "a").number("results.strength.value"));
+        const error = thrown(() => nodeOf(view, "a").number("store.graphty.strength.value"));
 
         assert.strictEqual(error.code, "E_OPTION_RANGE");
         assert.match(error.message, /no completed run is named "strength"; run the algorithm that produces it first/);

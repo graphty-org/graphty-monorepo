@@ -32,7 +32,7 @@ export const clusterStrengthOption = {
 };
 
 /**
- * Reads a `data.<key>` or `results.<run>.<field>` path through the session, by row of a snapshot.
+ * Reads a `data.<key>` or `store.graphty.<run>.<field>` path through the session, by row of a snapshot.
  * @param path - The path.
  * @param graph - The snapshot whose rows the values are laid out over; absent, the element's current one.
  * @returns The values, or null when nothing carries the path.
@@ -146,7 +146,7 @@ function readMembers<M>(
     skip: (row: number) => boolean,
     graph?: GraphSnapshot,
 ): Map<M, number> {
-    const fromSession = path.startsWith("results.") || path.startsWith("data.");
+    const fromSession = path.startsWith("store.graphty.") || path.startsWith("data.");
     const values = fromSession ? (column?.(path, graph) ?? null) : null;
     const numbers = new Map<unknown, number>();
     const communities = new Map<M, number>();

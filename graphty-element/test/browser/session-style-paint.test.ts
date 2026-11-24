@@ -340,7 +340,7 @@ describe("session style paint", () => {
             await session.styles.add({
                 name: "measured nodes are green",
                 target: "node",
-                selector: { match: "has", path: "results.later.value" },
+                selector: { match: "has", path: "store.graphty.later.value" },
                 set: { "node.color": "#00FF00" },
             });
             await operationQueueOf(graph).waitForCompletion();

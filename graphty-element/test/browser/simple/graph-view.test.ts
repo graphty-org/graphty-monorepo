@@ -145,12 +145,12 @@ describe("the graph view over a rendered graph", () => {
 
         for (const node of graphView.nodes()) {
             assert.strictEqual(
-                node.number("results.degree.value"),
+                node.number("store.graphty.degree.value"),
                 result.node(node.id)?.value,
                 `node ${String(node.id)} reads the value the run published`,
             );
         }
-        assert.isAbove(nodeOf(graphView, "a").number("results.degree.value") ?? 0, 0, "the run measured node a");
+        assert.isAbove(nodeOf(graphView, "a").number("store.graphty.degree.value") ?? 0, 0, "the run measured node a");
     });
 
     it("refuses a misspelt attribute with the names the nodes do carry", () => {

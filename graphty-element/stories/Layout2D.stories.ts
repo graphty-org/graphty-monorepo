@@ -408,7 +408,7 @@ export const ClusterBy: Story = {
         setup: storySetup({ viewMode: "2d", algorithms: ["graphty:louvain"], preSteps: 100, stepMultiplier: 20 }),
         runAlgorithmsOnLoad: true,
         layout: "forceatlas2",
-        layoutConfig: { dim: 2, seed: 12, clusterBy: "results.louvain.group", clusterStrength: 4 },
+        layoutConfig: { dim: 2, seed: 12, clusterBy: "store.graphty.louvain.group", clusterStrength: 4 },
     },
     parameters: {
         controls: {

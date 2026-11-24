@@ -319,11 +319,11 @@
             "matches": true
         },
         {
-            "note": "A quoted run name reads the raw path results.min-cut.value.",
-            "where": "results.\"min-cut\".value == `1`",
+            "note": "A quoted run name reads the raw path store.graphty.min-cut.value.",
+            "where": "store.graphty.\"min-cut\".value == `1`",
             "on": "nodes",
             "values": {
-                "results.min-cut.value": 1
+                "store.graphty.min-cut.value": 1
             },
             "matches": true
         },
@@ -362,7 +362,7 @@
         },
         {
             "note": "- between two names with no spaces: quote the name.",
-            "where": "results.min-cut.x",
+            "where": "store.graphty.min-cut.x",
             "refused": true
         },
         {

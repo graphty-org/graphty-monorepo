@@ -30,7 +30,7 @@
  *   `data.` and `data..a` both compile -- while `data.a === 1` fails with an internal
  *   `TypeError` rather than a parse error. A selector typed into a form has to be refused at
  *   the character that is wrong, which that parser cannot say.
- * - A path is not walked here, it is READ: `results.louvain.group` is one column lookup, not
+ * - A path is not walked here, it is READ: `store.graphty.louvain.group` is one column lookup, not
  *   three object dereferences, because the session stores values in columns addressed by path.
  *   An off-the-shelf evaluator would need the whole root materialized per element, which is an
  *   object allocation per element per layer.
@@ -49,6 +49,7 @@ import type { AiRule, AiRuleTerm } from "../../catalog/ai";
 import type { EdgeId, ElementState, NodeId, Path, Query, RuleTree, Scope, TopTies } from "../../catalog/types";
 import { otherIdSpelling } from "../../data/nodeIdSpelling";
 import { GraphtyError } from "../../errors";
+import { isRunPath, RESULT_ROOT } from "../results/types";
 
 // ---------------------------------------------------------------------------------------------
 // What a predicate reads
@@ -74,7 +75,7 @@ export interface SelectorSource {
     /**
      * The value one node carries for a path.
      * @param index - The dense node index.
-     * @param path - The column path, such as `results.louvain.group`.
+     * @param path - The column path, such as `store.graphty.louvain.group`.
      * @returns The value, or undefined when the node carries none.
      */
     readonly nodeValue: (index: number, path: Path) => unknown;
@@ -159,7 +160,7 @@ export interface SelectorSource {
      *
      * Asked once per element, so it must answer from something already computed: a session
      * reads it off the run's result, which keeps the answer per field and `n`.
-     * @param path - The column path, `results.<run>.<field>`.
+     * @param path - The column path, `store.graphty.<run>.<field>`.
      * @param target - Whether the asking layer paints nodes or edges.
      * @param n - The most elements the top may hold.
      * @param ties - What the top does with the tie group its cut falls in.
@@ -833,7 +834,7 @@ function rejectUnsupported(where: Query, at: number, character: string): void {
 function lexToken(where: Query, at: number, character: string): { token: Token; next: number } | undefined {
     const operator = OPERATORS.find((candidate) => where.startsWith(candidate, at));
     if (operator === "-" && continuesIdentifier(where.charAt(at - 1)) && startsIdentifier(where.charAt(at + 1))) {
-        // `results.min-cut.x` is a hyphenated name far more often than a subtraction.
+        // `store.graphty.min-cut.x` is a hyphenated name far more often than a subtraction.
         throw badSelector(
             "minus-needs-spaces",
             "A `-` between two names is read as subtraction: quote a hyphenated name, or put spaces round the minus",
@@ -1010,7 +1011,7 @@ function atOperator(state: ParseState, text: string): boolean {
  * Parse one path: a name, then every `.name` that follows it.
  *
  * The segments are joined back into a dotted string, because that string IS the column key the
- * session stores the value under. `results.louvain.group` is one lookup, not a walk down three
+ * session stores the value under. `store.graphty.louvain.group` is one lookup, not a walk down three
  * objects, and `data."min-cut".partition` is the column `data.min-cut.partition`.
  * @param state - The parse state.
  * @returns The path node.
@@ -1355,13 +1356,13 @@ const hasValue = (path: Path): RuleTree => ({ kind: "text", reads: path, mode: "
 
 /**
  * A path as a rule leaf names it: a bare column name (`minutes`) is the file column it reads
- * (`data.minutes`); a `data.` or `results.` path is itself.
+ * (`data.minutes`); a `data.` or run (`store.graphty.<run>.<field>`) path is itself.
  * @param path - The path as the expression wrote it.
  * @param bare - Whether a bare column name is read.
  * @returns The leaf's path, or undefined for a path a leaf does not read the same way.
  */
 function leafPathOf(path: Path, bare: boolean): Path | undefined {
-    if (/^(data|results)\./.test(path)) {
+    if (path.startsWith("data.") || isRunPath(path)) {
         return path;
     }
     // The node id and the element's own `graphty.` values are not file columns.
@@ -1463,7 +1464,7 @@ function equalityRule(operator: "==" | "!=", path: Path, value: unknown): RuleTr
 }
 
 /**
- * The rule tree an expression reads as, for an editor that draws rules: `results.route.onPath ==
+ * The rule tree an expression reads as, for an editor that draws rules: `store.graphty.route.onPath ==
  * \`true\`` is the leaf "onPath is true". Only the forms whose rule matches exactly the same
  * elements are read: equality with a number or a yes-or-no value, the presence test, and `&&` of
  * those, over a `data.` or `results.` path. With `comparisons`, also `>=` and `<=` with a number
@@ -1612,15 +1613,15 @@ export function renamePaths(where: Query, rename: (path: Path) => Query | undefi
 }
 
 /**
- * An expression with every run its `results.<run>.<field>` paths name renamed, by token: a string
- * literal holding `results.x` is not a path and is left alone, and a renamed path is quoted where
- * a segment needs it (`results."min-cut".value`).
+ * An expression with every run its `store.graphty.<run>.<field>` paths name renamed, by token: a string
+ * literal holding `store.graphty.x` is not a path and is left alone, and a renamed path is quoted where
+ * a segment needs it (`store.graphty."min-cut".value`).
  *
  * ```ts
  * import { renameRunPaths } from "@graphty/graphty-element/session";
  *
- * renameRunPaths("results.louvain.group == `3`", (run) => (run === "louvain" ? "ns__louvain" : undefined));
- * // "results.ns__louvain.group == `3`"
+ * renameRunPaths("store.graphty.louvain.group == `3`", (run) => (run === "louvain" ? "ns__louvain" : undefined));
+ * // "store.graphty.ns__louvain.group == `3`"
  * ```
  * @param where - The expression.
  * @param rename - The new name of a run, or undefined to keep it.
@@ -1635,26 +1636,28 @@ export function renameRunPaths(where: Query, rename: (run: string) => string | u
 }
 
 /**
- * A raw path (never quoted) with the run a `results.<run>.<field>` path names renamed; any other
+ * A raw path (never quoted) with the run a `store.graphty.<run>.<field>` path names renamed; any other
  * path comes back as it was.
  * @param path - The raw path.
  * @param rename - The new name of a run, or undefined to keep it.
  * @returns The path.
  */
 export function renameRunInPath(path: Path, rename: (run: string) => string | undefined): Path {
-    if (!path.startsWith("results.")) {
+    // A version 1 file's `results.<run>` path is renamed before it is read at its current address.
+    const root = [`${RESULT_ROOT}.`, "results."].find((prefix) => path.startsWith(prefix));
+    if (root === undefined || (root !== "results." && !isRunPath(path))) {
         return path;
     }
 
-    const rest = path.slice("results.".length);
+    const rest = path.slice(root.length);
     const dot = rest.indexOf(".");
     const run = dot < 0 ? rest : rest.slice(0, dot);
     const renamed = run === "" ? undefined : rename(run);
-    return renamed === undefined ? path : `results.${renamed}${rest.slice(run.length)}`;
+    return renamed === undefined ? path : `${root}${renamed}${rest.slice(run.length)}`;
 }
 
 /** The roots a path may start with (spec 4.8.1 rule 1). */
-const ROOT = /^(data|results|graphty|_source)\./;
+const ROOT = /^(data|results|store|graphty|_source)\./;
 
 /**
  * A version 1 expression as version 2 writes it: every bare number put between backticks, and
@@ -1932,7 +1935,7 @@ function compileTest(node: ExpressionNode, columns: ElementColumns): ElementPred
  *
  * A segment is only an unquoted name when it is a letter or an underscore followed by letters,
  * digits and underscores; anything else has to be written as a quoted name, which is what the
- * grammar provides double quotes for. A run's column key is `results.<algorithm>_<random>.<field>`
+ * grammar provides double quotes for. A run's column key is `store.graphty.<algorithm>_<random>.<field>`
  * and a great many algorithm names carry a hyphen -- "min-cut", "shortest-path",
  * "bipartite-matching" -- so a key pasted into an expression unquoted lexes the hyphen as
  * arithmetic and the whole selector is refused. That is not a hypothetical: it took the picture

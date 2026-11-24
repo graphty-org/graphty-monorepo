@@ -8,6 +8,7 @@
 import { z } from "zod";
 
 import type { AiCallInput, AiEffect, AiInputKind, AiRule } from "../../catalog/ai";
+import { resultPath } from "../../session/results/types";
 import { ruleParts } from "../../session/styles/predicate";
 import type { CommandRegistry } from "../commands/CommandRegistry";
 import type { AiConversationSnapshot } from "../conversation/snapshot";
@@ -134,7 +135,7 @@ function partsOf(kind: AiInputKind, value: unknown): AiRule | undefined {
         (each): each is string | number | boolean | null =>
             each === null || ["string", "number", "boolean"].includes(typeof each),
     );
-    const column = `results.${result.run}.${result.field}`;
+    const column = resultPath(result.run, result.field);
     return { join: "all", terms: [{ column, op: op === "in" ? "==" : op, values }] };
 }
 

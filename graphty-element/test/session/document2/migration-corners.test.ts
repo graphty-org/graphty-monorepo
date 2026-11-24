@@ -377,7 +377,7 @@ describe("version 1 layers and value labels, migrated", () => {
         ];
         member(file, "graphty-session").valueLabels = [
             { path: "data.dept", value: 1, label: "Research" },
-            { path: "results.links.value", value: 2, label: "Two" },
+            { path: "store.graphty.links.value", value: 2, label: "Two" },
             { path: "graphty.x", value: 1, label: "Other" },
             { path: "data.dept", value: { no: 1 }, label: "Bad" },
         ];
@@ -392,7 +392,7 @@ describe("version 1 layers and value labels, migrated", () => {
         );
         assert.deepStrictEqual(sections.style.valueLabels, [
             { path: "data.dept", value: 1, label: "Research" },
-            { path: "results.links.value", value: 2, label: "Two" },
+            { path: "store.graphty.links.value", value: 2, label: "Two" },
         ]);
         assert.includeMembers(leftOut(problems), ["graphty-session /valueLabels/2", "graphty-session /valueLabels/3"]);
     });

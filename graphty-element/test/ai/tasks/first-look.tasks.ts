@@ -214,7 +214,9 @@ export const FIRST_LOOK_TASKS = [
             const run = runOf(s, ...COMMUNITY_ALGORITHMS);
             const colored = s.styles
                 .list()
-                .some((layer) => JSON.stringify(layer.encode?.["node.color"] ?? {}).includes(`results.${run.id}.`));
+                .some((layer) =>
+                    JSON.stringify(layer.encode?.["node.color"] ?? {}).includes(`store.graphty.${run.id}.`),
+                );
             assert.isTrue(colored, `no layer colors the nodes by the ${run.algorithm} run's groups`);
         },
     }),

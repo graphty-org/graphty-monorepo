@@ -438,8 +438,8 @@ export const PATH_TASKS = [
                 .list()
                 .some(
                     (layer) =>
-                        JSON.stringify(layer.selector).includes(`results.${run.id}.`) ||
-                        JSON.stringify(layer.encode ?? {}).includes(`results.${run.id}.`),
+                        JSON.stringify(layer.selector).includes(`store.graphty.${run.id}.`) ||
+                        JSON.stringify(layer.encode ?? {}).includes(`store.graphty.${run.id}.`),
                 );
             // Showing only the tree's roads shows it as well as painting them does.
             const tree = [...s.data.edges()].map((edge) => edge.id).filter((id) => run.result?.edge(id)?.in === true);
@@ -515,7 +515,9 @@ export const CENTRALITY_TASKS = [
             const run = runOf(s, "pagerank");
             const sized = s.styles
                 .list()
-                .some((layer) => JSON.stringify(layer.encode?.["node.size"] ?? {}).includes(`results.${run.id}.`));
+                .some((layer) =>
+                    JSON.stringify(layer.encode?.["node.size"] ?? {}).includes(`store.graphty.${run.id}.`),
+                );
             assert.isTrue(sized, "no layer sizes the blogs by PageRank");
             const values = [...nodeValues(s, run.id, "value")].filter(
                 (entry): entry is [string, number] => typeof entry[1] === "number",
@@ -590,7 +592,7 @@ export const CENTRALITY_TASKS = [
                         tool: "select",
                         args: {
                             action: "set",
-                            where: "results.degree.value > 20 && results.clustering-coefficient.value < 0.2",
+                            where: "store.graphty.degree.value > 20 && store.graphty.clustering-coefficient.value < 0.2",
                         },
                     },
                 ],
@@ -652,7 +654,7 @@ export const CENTRALITY_TASKS = [
         reference: [
             [
                 [{ tool: "run_algorithm", args: { name: "degree", style: false } }],
-                [{ tool: "select", args: { action: "set", where: "results.degree.value > `57.6`" } }],
+                [{ tool: "select", args: { action: "set", where: "store.graphty.degree.value > `57.6`" } }],
             ],
         ],
         check: ({ s }) => {

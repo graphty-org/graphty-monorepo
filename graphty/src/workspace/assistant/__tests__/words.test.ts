@@ -162,9 +162,9 @@ describe("endWords", () => {
         } as unknown as GraphSession;
         const line = effectLine(session, {
             code: "AI_EFFECT_STYLE",
-            params: { channel: "node.size", nodes: 3, source: "results.degree-1.value" },
+            params: { channel: "node.size", nodes: 3, source: "store.graphty.degree-1.value" },
         });
-        assert.notInclude(line, "results.");
+        assert.notInclude(line, "store.graphty.");
         assert.match(line, /^Sized 3 nodes by \S/);
     });
 

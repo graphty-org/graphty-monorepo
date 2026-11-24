@@ -49,7 +49,7 @@ async function pathSession(size?: number): Promise<{ session: GraphSession; exec
                         technicalName: "value",
                         kind: "node",
                         type: "number",
-                        path: `results.${context.runId}.value`,
+                        path: `store.graphty.${context.runId}.value`,
                     },
                 ],
                 nodes: [...context.scope.nodes].map((id) => ({ id, values: { value: 1 } })),

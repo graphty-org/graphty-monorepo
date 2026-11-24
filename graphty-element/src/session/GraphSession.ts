@@ -145,7 +145,7 @@ import { type RecipesApi, recipesOf } from "./recipes/RecipesApi";
 import { createResultsApi, type ResultsApi, type ResultsRunEntry, type RunRef } from "./results";
 import { resultExecutionOf } from "./results/ResultsApi";
 import { shareNodeIndex } from "./results/RunResult";
-import { bindResultPath } from "./results/types";
+import { bindResultPath, isRunPath, RESULT_ROOT } from "./results/types";
 import {
     type Caveats,
     createLocalRunQueue,
@@ -2802,7 +2802,7 @@ function resolveAcceleration(
  * `data.attributes()` reports -- while a record bag is keyed by the key the record arrived with.
  * The prefix is what separates the two, and stripping it here is what keeps every other caller
  * from having to know that the session's attributes all live under one root today.
- * A run's value (`results.<run>.<field>`, the run named by its id or its algorithm) is read
+ * A run's value (`store.graphty.<run>.<field>`, the run named by its id or its algorithm) is read
  * through the source the style layers read, so a rule over a run's value holds the elements a
  * binding on that value paints.
  * @param records - Where the attribute bags are read.
@@ -2821,8 +2821,7 @@ function valueSourceOf(
         path.startsWith(ATTRIBUTE_PREFIX) ? path.slice(ATTRIBUTE_PREFIX.length) : path;
     // A run's value, every value under `graphty.` (an end's node value, a degree, a file's style
     // value) and under `store.` (a note value) are the style source's to read.
-    const isResult = (path: Path): boolean =>
-        path.startsWith("results.") || path.startsWith("graphty.") || path.startsWith("store.");
+    const isResult = (path: Path): boolean => path.startsWith("graphty.") || path.startsWith("store.");
 
     return {
         nodeValue: (index: number, path: Path): unknown =>
@@ -2845,7 +2844,7 @@ function valueSourceOf(
 /**
  * Which halves carry a value path: a run field's declared kinds, the kinds of the data attribute
  * at that path, or for a value graphty-element provides, the kinds it is on.
- * @param path - `results.<run>.<field>`, `data.<field>`, either read at an edge's end, a degree,
+ * @param path - `store.graphty.<run>.<field>`, `data.<field>`, either read at an edge's end, a degree,
  *     a note value or a file's style value.
  * @param data - The session's data surface.
  * @param fieldsOf - A run's published fields, or undefined when it has no result.
@@ -2874,8 +2873,8 @@ function fieldKindsOf(
         return data.readableKinds(path);
     }
 
-    if (path.startsWith("results.")) {
-        const rest = path.slice("results.".length);
+    if (isRunPath(path)) {
+        const rest = path.slice(`${RESULT_ROOT}.`.length);
         const dot = rest.indexOf(".");
         const field = rest.slice(dot + 1);
 
@@ -3238,7 +3237,7 @@ function searchedPaths(data: SessionData, kind: "node" | "edge"): readonly Path[
 
 /**
  * The words one column goes by, for a legend that says "Connections" rather than
- * "results.degree.value".
+ * "store.graphty.degree.value".
  * @param data - The session's data surface.
  * @param runs - The runs this session holds.
  * @returns A reader for the words, answering undefined for a path nothing in the session names.
@@ -5442,7 +5441,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     });
 
     // The `runs` hook: a run whose entry changed -- recorded, re-run, undone, redone -- has
-    // replaced the columns under `results.<runId>`, which any layer may read (a run's own layers,
+    // replaced the columns under `store.graphty.<runId>`, which any layer may read (a run's own layers,
     // and a reader's layer selecting on the run's values), so what was prepared is forgotten and
     // every kept layer that reads a changed run is repainted. Layers added or removed with the
     // run are the `styles` hook's, which runs after this one.
@@ -5464,7 +5463,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         const kept = new Set(rendered.styles);
         // As it paints: a hidden row's layer repaints as disabled, never as its author wrote it.
         const stack = paintingOf(styles, target.styles);
-        // An edge reading a value at one of its ends (`graphty.source.results.<run>...`) reads that run.
+        // An edge reading a value at one of its ends (`graphty.source.store.graphty.<run>...`) reads that run.
         const readsChanged = (path: Path): boolean => {
             const dependency = dependencyOf(edgeEndPathOf(path)?.node ?? path);
             return "run" in dependency && changed.has(dependency.run);

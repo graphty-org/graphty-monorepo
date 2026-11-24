@@ -75,7 +75,7 @@ export interface SnapshotLayoutInput {
     /**
      * The values of the node attribute an option names, one per row, `undefined` where a node has
      * none. The option's value is a path into the node's data, dot separated (`"geo.lat"`), an
-     * attribute as `data.<key>`, or a run's result field as `results.<run>.<field>`.
+     * attribute as `data.<key>`, or a run's result field as `store.graphty.<run>.<field>`.
      * @param optionName - the option naming the attribute
      * @returns the values, or null when the option is not set to a path
      */
@@ -161,7 +161,7 @@ interface SnapshotLayoutHost {
     /** An asynchronous answer has arrived and wants a frame to be published in. */
     arrived(): void;
     /**
-     * The values at a `data.<key>` or `results.<run>.<field>` path, by row of `graph`.
+     * The values at a `data.<key>` or `store.graphty.<run>.<field>` path, by row of `graph`.
      * @returns the values, or null when nothing carries the path
      */
     column?(graph: GraphSnapshot, path: string): readonly unknown[] | null;
@@ -485,7 +485,7 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
 
                 // A run's result, or an attribute named the way an algorithm's option names one,
                 // is read through the session; a bare path is read from each node's own data.
-                if (path.startsWith("results.") || path.startsWith("data.")) {
+                if (path.startsWith("store.graphty.") || path.startsWith("data.")) {
                     const read = this.#host?.column?.(graph(), path);
                     if (read !== undefined) {
                         return read;

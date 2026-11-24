@@ -533,7 +533,7 @@ export class LocationMapLayout extends SnapshotLayoutEngine {
 
     /**
      * The values of a column an option names: through the run's column reader, which also reads
-     * `results.<run>.<field>` and dotted paths, else the nodes' own data.
+     * `store.graphty.<run>.<field>` and dotted paths, else the nodes' own data.
      * @param input - The run's input.
      * @param columns - The nodes' own data.
      * @param name - The column.

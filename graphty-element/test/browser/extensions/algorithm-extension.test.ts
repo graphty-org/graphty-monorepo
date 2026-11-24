@@ -174,12 +174,12 @@ const HOPS_OPTION: OptionDescriptor = {
  *
  * Ten descriptors for a metric that measures one number, because the RESULT SHAPE fixes the
  * names rather than the algorithm: every node metric publishes `value`, `rank` and `percentile`
- * per node and seven statistics for the graph, so a consumer can read `results.<run>.value` off
+ * per node and seven statistics for the graph, so a consumer can read `store.graphty.<run>.value` off
  * any metric without looking the algorithm up first. Only `value` is computed here -- the
  * element fills the other nine from that column.
  *
  * Calling `nodeMetricFields` rather than writing them out is the point of the line. Each
- * descriptor carries a published PATH (`results.$.value`), and a path format is exactly the kind
+ * descriptor carries a published PATH (`store.graphty.$.value`), and a path format is exactly the kind
  * of thing an extension author should never have to learn, retype, or keep in step with a
  * release.
  */
@@ -225,7 +225,7 @@ const PROGRESS_PHASE = "Counting nearby nodes";
  * It fills only `value`; the element fills `rank` and `percentile` from that column, and the
  * graph-level statistics from it too. Declaring the full set is what says "this is a node
  * metric" -- the shape fixes the names, which is how any consumer reads
- * `results.<runId>.value` without opening the catalog first.
+ * `store.graphty.<runId>.value` without opening the catalog first.
  */
 const HOP_REACH_FILLED: readonly ResultFieldSpec[] = metricFieldSpecs("node", "integer");
 
@@ -445,7 +445,7 @@ const ALPHABET_WALK_DESCRIPTOR: AlgorithmDescriptor = {
     category: "path",
     shape: "path",
     // `metricField` is the element's own path builder: it fills in the published
-    // `results.$.<name>` address so no extension author retypes one.
+    // `store.graphty.$.<name>` address so no extension author retypes one.
     fields: [
         metricField({
             name: "onPath",
@@ -1932,7 +1932,7 @@ class ColumnProbe extends DeclaredAlgorithm {
         shape: "node-metric",
         fields: nodeMetricFields({ plainName: "Team size", technicalName: "team size" }),
         options: [
-            { name: "tie", plainName: "Tie", type: "attribute", default: "results.ties.value" },
+            { name: "tie", plainName: "Tie", type: "attribute", default: "store.graphty.ties.value" },
             { name: "team", plainName: "Team", type: "partition", default: "team" },
             { name: "raw", plainName: "Raw strength", type: "attribute", default: "data.strength" },
             { name: "missing", plainName: "Missing", type: "attribute", default: "no-such-attribute" },
@@ -2105,7 +2105,7 @@ describe("the snapshot accessor a plugin algorithm reads through", () => {
         );
 
         // The result column is over the graph's edge rows, one value per edge.
-        assert.strictEqual(seen.tie?.meta.name, "results.ties.value");
+        assert.strictEqual(seen.tie?.meta.name, "store.graphty.ties.value");
         ids.forEach((id, row) => {
             assert.closeTo(seen.tie?.value(row) as number, ties?.edge(id)?.value as number, 1e-9, `row ${String(row)}`);
         });

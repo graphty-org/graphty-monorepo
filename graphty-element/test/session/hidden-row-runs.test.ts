@@ -33,7 +33,7 @@ async function groups(context: RunExecutionContext): Promise<RunOutcome> {
                     technicalName: "community",
                     kind: "node",
                     type: "integer",
-                    path: `results.${context.runId}.group`,
+                    path: `store.graphty.${context.runId}.group`,
                 },
             ],
             measured: { nodes: ids.length, edges: 0 },

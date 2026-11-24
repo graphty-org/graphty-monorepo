@@ -37,10 +37,10 @@ type Row = Readonly<Record<Path, unknown>>;
  * on every real graph -- and so does the missing row, which is what "not measured" counts.
  */
 const NODES: readonly Row[] = [
-    { "results.betweenness.value": 0, "results.louvain.group": "a" },
-    { "results.betweenness.value": 4, "results.louvain.group": "a" },
-    { "results.betweenness.value": 16, "results.louvain.group": "b" },
-    { "results.betweenness.value": 100, "results.louvain.group": "c" },
+    { "store.graphty.betweenness.value": 0, "store.graphty.louvain.group": "a" },
+    { "store.graphty.betweenness.value": 4, "store.graphty.louvain.group": "a" },
+    { "store.graphty.betweenness.value": 16, "store.graphty.louvain.group": "b" },
+    { "store.graphty.betweenness.value": 100, "store.graphty.louvain.group": "c" },
     {},
 ];
 
@@ -166,8 +166,8 @@ function betweennessColor(extra: Partial<LayerSpec> = {}): LayerSpec {
     return {
         name: "Betweenness - Node Color",
         kind: "encoding",
-        selector: { match: "has", path: "results.betweenness.value" },
-        encode: { "node.color": { by: "results.betweenness.value", palette: "viridis" } },
+        selector: { match: "has", path: "store.graphty.betweenness.value" },
+        encode: { "node.color": { by: "store.graphty.betweenness.value", palette: "viridis" } },
         source: { by: "run", runId: "betweenness", algorithm: "betweenness", params: {} },
         ...extra,
     };
@@ -220,8 +220,8 @@ describe("a legend block names everything the picture does not say for itself", 
         assert.strictEqual(block.runId, "betweenness");
         assert.strictEqual(block.kind, "sequential");
         assert.deepEqual(block.field, {
-            technicalName: "results.betweenness.value",
-            path: "results.betweenness.value",
+            technicalName: "store.graphty.betweenness.value",
+            path: "store.graphty.betweenness.value",
         });
         assert.deepEqual(block.scale, { kind: "linear" });
         assert.deepEqual(block.domain, { min: 0, max: 100 });
@@ -237,7 +237,7 @@ describe("a legend block names everything the picture does not say for itself", 
 
         assert.deepEqual(blocks[0].field, {
             technicalName: "betweenness_centrality",
-            path: "results.betweenness.value",
+            path: "store.graphty.betweenness.value",
         });
     });
 
@@ -265,7 +265,7 @@ describe("the departures are what stop a legend implying something the picture d
     it("prints the percentiles a clamp cut the extent at, in the domain and in the departures", () => {
         const block = onlyBlock([
             betweennessColor({
-                encode: { "node.color": { by: "results.betweenness.value", clamp: [2, 98], palette: "viridis" } },
+                encode: { "node.color": { by: "store.graphty.betweenness.value", clamp: [2, 98], palette: "viridis" } },
             }),
         ]);
 
@@ -281,7 +281,7 @@ describe("the departures are what stop a legend implying something the picture d
     it("says how many values a logarithmic scale has no place for", () => {
         const block = onlyBlock([
             betweennessColor({
-                encode: { "node.color": { by: "results.betweenness.value", scale: "log", palette: "viridis" } },
+                encode: { "node.color": { by: "store.graphty.betweenness.value", scale: "log", palette: "viridis" } },
             }),
         ]);
 
@@ -326,8 +326,8 @@ describe("the departures are what stop a legend implying something the picture d
 });
 
 describe("a column with no spread", () => {
-    const flat: readonly Row[] = [1, 2, 3].map(() => ({ "results.betweenness.value": 3 }));
-    const spread: readonly Row[] = [{ "results.betweenness.value": 0 }, { "results.betweenness.value": 6 }];
+    const flat: readonly Row[] = [1, 2, 3].map(() => ({ "store.graphty.betweenness.value": 3 }));
+    const spread: readonly Row[] = [{ "store.graphty.betweenness.value": 0 }, { "store.graphty.betweenness.value": 6 }];
 
     it("paints the middle of the palette, and the legend shows that same colour and says there is no spread", () => {
         const fixture = harness([betweennessColor()], flat);
@@ -359,7 +359,9 @@ describe("the swatches are read out of the encoding, whatever shape it has", () 
     it("gives a grouping by equal counts one swatch per group, labelled with the values in it", () => {
         const block = onlyBlock([
             betweennessColor({
-                encode: { "node.color": { by: "results.betweenness.value", scale: "quantile", palette: "viridis" } },
+                encode: {
+                    "node.color": { by: "store.graphty.betweenness.value", scale: "quantile", palette: "viridis" },
+                },
             }),
         ]);
 
@@ -373,8 +375,8 @@ describe("the swatches are read out of the encoding, whatever shape it has", () 
             {
                 name: "Communities",
                 kind: "encoding",
-                selector: { match: "has", path: "results.louvain.group" },
-                encode: { "node.color": { by: "results.louvain.group", scale: "ordinal", palette: "okabe-ito" } },
+                selector: { match: "has", path: "store.graphty.louvain.group" },
+                encode: { "node.color": { by: "store.graphty.louvain.group", scale: "ordinal", palette: "okabe-ito" } },
             },
         ]);
 
@@ -388,15 +390,17 @@ describe("the swatches are read out of the encoding, whatever shape it has", () 
 
     it("caps the swatches at twelve and counts the rest", () => {
         const rows: readonly Row[] = Array.from({ length: 14 }, (_unused, at) => ({
-            "results.louvain.group": `g${String(at)}`,
+            "store.graphty.louvain.group": `g${String(at)}`,
         }));
         const block = onlyBlock(
             [
                 {
                     name: "Communities",
                     kind: "encoding",
-                    selector: { match: "has", path: "results.louvain.group" },
-                    encode: { "node.color": { by: "results.louvain.group", scale: "ordinal", palette: "viridis" } },
+                    selector: { match: "has", path: "store.graphty.louvain.group" },
+                    encode: {
+                        "node.color": { by: "store.graphty.louvain.group", scale: "ordinal", palette: "viridis" },
+                    },
                 },
             ],
             rows,
@@ -409,7 +413,7 @@ describe("the swatches are read out of the encoding, whatever shape it has", () 
     it("carries a size encoding's numbers rather than pretending they are colours", () => {
         const block = onlyBlock([
             betweennessColor({
-                encode: { "node.size": { by: "results.betweenness.value", range: [1, 5] } },
+                encode: { "node.size": { by: "store.graphty.betweenness.value", range: [1, 5] } },
             }),
         ]);
 
@@ -424,8 +428,8 @@ describe("the swatches are read out of the encoding, whatever shape it has", () 
             {
                 name: "Shapes",
                 kind: "encoding",
-                selector: { match: "has", path: "results.louvain.group" },
-                encode: { "node.shape": { by: "results.louvain.group", scale: "ordinal" } },
+                selector: { match: "has", path: "store.graphty.louvain.group" },
+                encode: { "node.shape": { by: "store.graphty.louvain.group", scale: "ordinal" } },
             },
         ]);
 
@@ -445,7 +449,7 @@ describe("a block states what a higher value means, and the range a number is bo
 
         assert.deepEqual(block.reading, {
             code: "legend.higher",
-            params: { channel: "node.color", direction: "lighter", field: "results.betweenness.value" },
+            params: { channel: "node.color", direction: "lighter", field: "store.graphty.betweenness.value" },
         });
         assert.isUndefined(block.range, "a colour has no numeric range");
     });
@@ -453,7 +457,7 @@ describe("a block states what a higher value means, and the range a number is bo
     it("says darker when the ramp is reversed", () => {
         const block = onlyBlock([
             betweennessColor({
-                encode: { "node.color": { by: "results.betweenness.value", palette: "viridis", reverse: true } },
+                encode: { "node.color": { by: "store.graphty.betweenness.value", palette: "viridis", reverse: true } },
             }),
         ]);
 
@@ -462,7 +466,7 @@ describe("a block states what a higher value means, and the range a number is bo
 
     it("states a size binding's range and says a higher value is larger", () => {
         const block = onlyBlock([
-            betweennessColor({ encode: { "node.size": { by: "results.betweenness.value", range: [1, 3] } } }),
+            betweennessColor({ encode: { "node.size": { by: "store.graphty.betweenness.value", range: [1, 3] } } }),
         ]);
 
         assert.deepEqual(block.range, { min: 1, max: 3 });
@@ -473,7 +477,7 @@ describe("a block states what a higher value means, and the range a number is bo
     it("reads a reversed range low to high, and says a higher value is smaller", () => {
         const block = onlyBlock([
             betweennessColor({
-                encode: { "node.size": { by: "results.betweenness.value", range: [1, 3], reverse: true } },
+                encode: { "node.size": { by: "store.graphty.betweenness.value", range: [1, 3], reverse: true } },
             }),
         ]);
 
@@ -484,7 +488,7 @@ describe("a block states what a higher value means, and the range a number is bo
     it("states the range of a binding that steps through it in groups", () => {
         const block = onlyBlock([
             betweennessColor({
-                encode: { "edge.width": { by: "results.betweenness.value", range: [0.5, 4], scale: "quantile" } },
+                encode: { "edge.width": { by: "store.graphty.betweenness.value", range: [0.5, 4], scale: "quantile" } },
             }),
         ]);
 
@@ -497,13 +501,15 @@ describe("a block states what a higher value means, and the range a number is bo
             {
                 name: "Communities",
                 kind: "encoding",
-                selector: { match: "has", path: "results.louvain.group" },
-                encode: { "node.color": { by: "results.louvain.group", scale: "ordinal", palette: "okabe-ito" } },
+                selector: { match: "has", path: "store.graphty.louvain.group" },
+                encode: { "node.color": { by: "store.graphty.louvain.group", scale: "ordinal", palette: "okabe-ito" } },
             },
         ]);
         const diverging = onlyBlock([
             betweennessColor({
-                encode: { "node.color": { by: "results.betweenness.value", palette: "blue-orange", midpoint: 50 } },
+                encode: {
+                    "node.color": { by: "store.graphty.betweenness.value", palette: "blue-orange", midpoint: 50 },
+                },
             }),
         ]);
         const fixed = onlyBlock([
@@ -511,7 +517,7 @@ describe("a block states what a higher value means, and the range a number is bo
         ]);
         const flat = onlyBlock(
             [betweennessColor()],
-            [{ "results.betweenness.value": 7 }, { "results.betweenness.value": 7 }],
+            [{ "store.graphty.betweenness.value": 7 }, { "store.graphty.betweenness.value": 7 }],
         );
 
         for (const block of [categorical, diverging, fixed, flat]) {
@@ -524,7 +530,7 @@ describe("a block states what a higher value means, and the range a number is bo
         for (const scale of ["bins", "quantile"] as const) {
             const block = onlyBlock([
                 betweennessColor({
-                    encode: { "node.color": { by: "results.betweenness.value", scale, palette: "okabe-ito" } },
+                    encode: { "node.color": { by: "store.graphty.betweenness.value", scale, palette: "okabe-ito" } },
                 }),
             ]);
 
@@ -538,9 +544,9 @@ describe("a block states what a higher value means, and the range a number is bo
             {
                 name: "Communities",
                 kind: "encoding",
-                selector: { match: "has", path: "results.louvain.group" },
+                selector: { match: "has", path: "store.graphty.louvain.group" },
                 encode: {
-                    "node.size": { by: "results.louvain.group", scale: "ordinal", map: { a: 5, b: 10, c: 20 } },
+                    "node.size": { by: "store.graphty.louvain.group", scale: "ordinal", map: { a: 5, b: 10, c: 20 } },
                 },
             },
         ]);
@@ -600,7 +606,7 @@ describe("what a legend leaves out, and why", () => {
             harness([
                 betweennessColor({
                     set: { "node.outline": "#ffffff" },
-                    encode: { "node.color": { by: "results.betweenness.value", palette: "viridis" } },
+                    encode: { "node.color": { by: "store.graphty.betweenness.value", palette: "viridis" } },
                 }),
             ]).legend,
         );
@@ -732,7 +738,7 @@ describe("explain says whether a channel can be edited where it is, and why not"
         assert.strictEqual(color.mode, "encoded");
         assert.strictEqual(color.editable, false);
         assert.strictEqual(color.fact?.code, "channel.encoded");
-        assert.strictEqual(color.fact?.params.path, "results.betweenness.value");
+        assert.strictEqual(color.fact?.params.path, "store.graphty.betweenness.value");
     });
 
     it("refuses a control on an element-owned layer, whatever the channel is", () => {
@@ -757,8 +763,8 @@ describe("explain says whether a channel can be edited where it is, and why not"
 describe("resolveToStatic turns a rule into a fixed value a person can then edit", () => {
     const rule: LayerSpec = betweennessColor({
         encode: {
-            "node.color": { by: "results.betweenness.value", palette: "viridis" },
-            "node.size": { by: "results.betweenness.value", range: [1, 5] },
+            "node.color": { by: "store.graphty.betweenness.value", palette: "viridis" },
+            "node.size": { by: "store.graphty.betweenness.value", range: [1, 5] },
         },
     });
 
@@ -835,7 +841,7 @@ describe("resolveToStatic turns a rule into a fixed value a person can then edit
 });
 
 describe("a layer that reads what this session cannot answer is reported, never swallowed", () => {
-    const directory: PathDirectory = { answers: (path: Path) => path === "results.betweenness.value" };
+    const directory: PathDirectory = { answers: (path: Path) => path === "store.graphty.betweenness.value" };
 
     /** A layer reading a column this session does not hold. */
     const missing: LayerSpec = {
@@ -876,7 +882,7 @@ describe("the legend's facts are codes and values, worded by the application", (
     it("carries every departure as a coded fact", () => {
         const block = onlyBlock([
             betweennessColor({
-                encode: { "node.color": { by: "results.betweenness.value", clamp: [2, 98], palette: "viridis" } },
+                encode: { "node.color": { by: "store.graphty.betweenness.value", clamp: [2, 98], palette: "viridis" } },
             }),
         ]);
 
@@ -887,7 +893,7 @@ describe("the legend's facts are codes and values, worded by the application", (
     it("names the scale and the count a logarithmic scale cannot place", () => {
         const block = onlyBlock([
             betweennessColor({
-                encode: { "node.color": { by: "results.betweenness.value", scale: "log", palette: "viridis" } },
+                encode: { "node.color": { by: "store.graphty.betweenness.value", scale: "log", palette: "viridis" } },
             }),
         ]);
 
@@ -914,7 +920,7 @@ describe("the legend's facts are codes and values, worded by the application", (
             betweennessColor({
                 encode: {
                     "node.color": {
-                        by: "results.betweenness.value",
+                        by: "store.graphty.betweenness.value",
                         scale: "log",
                         domain: [-5, -1],
                         palette: "viridis",
@@ -949,7 +955,9 @@ describe("the legend's facts are codes and values, worded by the application", (
     it("gives a stepped numeric row the extent of values it stands for", () => {
         const block = onlyBlock([
             betweennessColor({
-                encode: { "node.color": { by: "results.betweenness.value", scale: "quantile", palette: "viridis" } },
+                encode: {
+                    "node.color": { by: "store.graphty.betweenness.value", scale: "quantile", palette: "viridis" },
+                },
             }),
         ]);
 
@@ -966,7 +974,7 @@ describe("a binding that names its values with a map", () => {
 
     /** A layer that paints the louvain groups through `map`, with the scale given or left out. */
     function mapped(channel: Channel, map: Record<string, unknown>, scale?: string): LayerSpec {
-        const by = "results.louvain.group";
+        const by = "store.graphty.louvain.group";
         return {
             name: "Communities",
             kind: "encoding",

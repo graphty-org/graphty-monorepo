@@ -61,7 +61,7 @@ export interface AlgorithmStatics {
      * styling the element derives from a result's shape.
      *
      * The `shape` is the load-bearing field: field NAMES are fixed by the shape rather than by
-     * the algorithm, which is what lets any consumer read `results.<runId>.value` without
+     * the algorithm, which is what lets any consumer read `store.graphty.<runId>.value` without
      * opening the catalog first. `checkShapeContract` will tell you whether your fields match
      * the shape you declared.
      *
@@ -108,7 +108,7 @@ export interface AlgorithmStatics {
     version?: string;
     /**
      * The name a run's result is given, from the run's option values (the declared defaults
-     * filled in): `{ id, label }`, where `id` becomes the result path `results.<id>.value` and
+     * filled in): `{ id, label }`, where `id` becomes the result path `store.graphty.<id>.value` and
      * `label` is what the layer list and the legend show. Name only the settings worth telling
      * two results apart by, and return undefined (or leave this out) to name the result after
      * the algorithm key.

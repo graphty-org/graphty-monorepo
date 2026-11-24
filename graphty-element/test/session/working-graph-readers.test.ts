@@ -30,7 +30,7 @@ function executeOnes(context: RunExecutionContext): Promise<RunOutcome> {
                 technicalName: "one",
                 kind: "node",
                 type: "number",
-                path: "results.$.value",
+                path: "store.graphty.$.value",
             },
         ],
         measured: { nodes: 1, edges: 0 },

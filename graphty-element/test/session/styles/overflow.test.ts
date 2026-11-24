@@ -219,9 +219,9 @@ describe('overflow: "shape"', () => {
     it("adds a node shape binding to the same layer, so the two are added and removed together", () => {
         const shape = bindingOf(layer, "node.shape");
 
-        assert.strictEqual(shape.by, "results.louvain.group");
+        assert.strictEqual(shape.by, "store.graphty.louvain.group");
         assert.strictEqual(shape.overflow, "shape");
-        assert.deepEqual(layer.selector, { match: "has", path: "results.louvain.group" });
+        assert.deepEqual(layer.selector, { match: "has", path: "store.graphty.louvain.group" });
     });
 
     it("cycles the colours and moves to the next shape on each full cycle", () => {

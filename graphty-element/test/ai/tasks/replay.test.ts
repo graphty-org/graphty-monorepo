@@ -47,7 +47,7 @@ describe("assistant tasks, replayed", () => {
         // A real model's answer (#7699): show only the tree's roads instead of painting them.
         const metrics = await replay("minimum-spanning-tree", [
             { tool: "run_algorithm", args: { name: "kruskal", options: { weight: "data.weight" } } },
-            { tool: "filter", args: { action: "show_only", on: "edge", where: "results.kruskal.in == true" } },
+            { tool: "filter", args: { action: "show_only", on: "edge", where: "store.graphty.kruskal.in == true" } },
         ]);
         assert.isTrue(metrics.success, metrics.failure);
         assert.strictEqual(metrics.wrongTools, 0, metrics.calls.join(", "));

@@ -1008,7 +1008,7 @@ class Result implements RunResult {
         this.#init = init;
         this.runId = init.runId;
         this.shape = init.shape;
-        // An algorithm declares its fields before any run exists, as "results.$.value"; the
+        // An algorithm declares its fields before any run exists, as "store.graphty.$.value"; the
         // result a consumer reads names its own run, the path a layer selects on.
         this.fields = Object.freeze(
             init.fields.map((field) => ({ ...field, path: bindResultPath(field.path, init.runId) })),

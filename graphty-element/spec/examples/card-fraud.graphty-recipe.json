@@ -88,7 +88,7 @@
                     },
                     {
                         "kind": "expression",
-                        "where": "results.pagerank.value > `0.2`"
+                        "where": "store.graphty.pagerank.value > `0.2`"
                     }
                 ]
             }

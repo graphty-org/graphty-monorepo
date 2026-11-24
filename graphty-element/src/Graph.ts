@@ -1876,7 +1876,7 @@ export class Graph implements GraphContext {
         });
 
         // A run's measurements reach the paint through the session's `runs` hook, in the pass
-        // that records the run: a layer bound to `results.<runId>.<field>` is repainted there,
+        // that records the run: a layer bound to `store.graphty.<runId>.<field>` is repainted there,
         // forward and on undo and redo, so nothing here repaints after a run.
 
         // Initialize UpdateManager
@@ -4392,7 +4392,7 @@ export class Graph implements GraphContext {
      * Run a graph algorithm, addressed the 1.10 way.
      * @remarks
      * Algorithms are identified by namespace and type (e.g., `graphty:degree`). What the run
-     * produces is published on the run itself and addressed at `results.<runId>.<field>`, which
+     * produces is published on the run itself and addressed at `store.graphty.<runId>.<field>`, which
      * is what a style selector reads; nothing is written onto a node.
      *
      * Available algorithms by category:
@@ -4405,7 +4405,7 @@ export class Graph implements GraphContext {
      * - **Flow**: max-flow, min-cut
      * @deprecated Since 2.0. Use {@link Graph.run}, which returns a `Run`: the result is on the
      *   object the call hands back, the work reports progress and can be canceled, and the
-     *   result is addressed at `results.<runId>.<field>`. This method still works and is
+     *   result is addressed at `store.graphty.<runId>.<field>`. This method still works and is
      *   expressed in terms of `run`, so it produces the same run and the same result; what it
      *   cannot give back is the run object those three things hang off.
      * @param namespace - Algorithm namespace (e.g., "graphty")
@@ -10874,7 +10874,7 @@ export class Graph implements GraphContext {
      *
      * The export carries whatever the format can represent: every node and edge with its
      * attributes, the current positions, every published algorithm result (as attributes named
-     * by the result's path, `results.<runId>.<field>`) and the color, size and edge width each
+     * by the result's path, `store.graphty.<runId>.<field>`) and the color, size and edge width each
      * element is drawn with. What the format has no place for is listed in `losses`, one coded
      * fact per kind of omission; nothing is dropped silently. The element's internal ids and columns
      * are never written.

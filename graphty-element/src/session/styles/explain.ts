@@ -304,7 +304,7 @@ export interface StyleCounts {
     readonly outsideScale: number;
     /**
      * Every value the layer reads, its selector's and its bindings', without repeats, as paths
-     * (`data.age`, `results.louvain.group`): what a panel lists as "values read". Empty for a
+     * (`data.age`, `store.graphty.louvain.group`): what a panel lists as "values read". Empty for a
      * layer that reads none, such as one matching everything with fixed values.
      * @since 3.26.0
      */

@@ -58,7 +58,7 @@ function degreeExecutor(): Runner {
                             technicalName: "degree",
                             kind: "node",
                             type: "number",
-                            path: `results.${context.runId}.value`,
+                            path: `store.graphty.${context.runId}.value`,
                         },
                     ],
                     measured: { nodes: snapshot.nodeCount, edges: snapshot.edgeCount },
@@ -129,7 +129,7 @@ describe("runs on the session", () => {
 
         assert.strictEqual(run.id, "degree");
         assert.strictEqual(run.status, "succeeded");
-        assert.strictEqual(harness.session.results.path(run), "results.degree.value");
+        assert.strictEqual(harness.session.results.path(run), "store.graphty.degree.value");
         assert.strictEqual(harness.session.results.get("degree"), result);
         assert.isTrue(harness.session.results.has(run, "value"));
         assert.deepStrictEqual(

@@ -28,7 +28,7 @@ const CAVEATS: Caveats = {
 };
 
 function field(spec: Omit<FieldDescriptor, "path">): FieldDescriptor {
-    return { ...spec, path: `results.$.${spec.name}` };
+    return { ...spec, path: `store.graphty.$.${spec.name}` };
 }
 
 const LOUVAIN_FIELDS = BUILT_IN_ALGORITHMS.find((entry) => entry.key === "louvain")?.fields ?? [];

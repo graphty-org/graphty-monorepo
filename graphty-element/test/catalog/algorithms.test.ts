@@ -194,7 +194,7 @@ describe("built-in algorithm catalogue", () => {
                 for (const declared of descriptor.fields) {
                     assert.strictEqual(
                         declared.path,
-                        `results.$.${declared.name}`,
+                        `store.graphty.$.${declared.name}`,
                         `${descriptor.key}.${declared.name}`,
                     );
                     assert.isAbove(declared.plainName.length, 0);

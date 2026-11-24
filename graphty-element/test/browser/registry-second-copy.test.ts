@@ -84,7 +84,7 @@ const ALGORITHM_DESCRIPTOR: AlgorithmDescriptor = {
             technicalName: "value",
             kind: "node",
             type: "number",
-            path: "results.$.value",
+            path: "store.graphty.$.value",
         },
     ],
     options: [],

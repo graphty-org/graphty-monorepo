@@ -52,8 +52,10 @@ import type { CaveatCode, PartialCode } from "./caveatFacts";
  *
  * An id ends up inside a style selector, a saved document and an export filename, so it is
  * restricted to lower-case letters, digits, hyphens and underscores, starting with a letter.
+ * `notes` is not an id: a run is read at `store.graphty.<run>.<field>`, and
+ * `store.graphty.notes.*` holds the note values.
  */
-export const RUN_ID_PATTERN = /^[a-z][a-z0-9_-]*$/;
+export const RUN_ID_PATTERN = /^(?!notes$)[a-z][a-z0-9_-]*$/;
 
 /**
  * Tell whether a string can be used as a run id.

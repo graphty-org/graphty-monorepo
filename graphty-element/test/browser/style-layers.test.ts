@@ -294,7 +294,7 @@ describe("an encoding over a real algorithm run", () => {
 
         const layer = await session.styles.encode({ run: run.id, channel: "node.color" });
 
-        assert.deepStrictEqual(layer.selector, { match: "has", path: "results.degree.value" });
+        assert.deepStrictEqual(layer.selector, { match: "has", path: "store.graphty.degree.value" });
         assert.deepStrictEqual(layer.source, { by: "run", runId: "degree", algorithm: "degree", params: run.params });
         assert.strictEqual(layer.kind, "encoding");
     });
@@ -322,7 +322,7 @@ describe("an encoding over a real algorithm run", () => {
 
         assert.isUndefined(result.node("f"), "the walk never reached f");
         assert.isDefined(result.node("e"), "it did reach e");
-        assert.deepStrictEqual(layer.selector, { match: "has", path: "results.reach.level" });
+        assert.deepStrictEqual(layer.selector, { match: "has", path: "store.graphty.reach.level" });
         assert.strictEqual(painted().nodes, REACHED);
         assert.isBelow(REACHED, NODES.length, "a run that measured five of six must not resolve six");
     });
@@ -384,7 +384,10 @@ describe("a layer bound to what one run chose", () => {
         // Every node the search looked at carries `onPath`, false included, so a presence test
         // would paint the whole neighborhood in the color of the route. The layer tests the
         // VALUE, and the count above is what proves it.
-        assert.deepStrictEqual(nodeLayer.selector, { match: "expression", where: "results.route.onPath == `true`" });
+        assert.deepStrictEqual(nodeLayer.selector, {
+            match: "expression",
+            where: "store.graphty.route.onPath == `true`",
+        });
         assert.strictEqual(nodeLayer.kind, "highlight");
     });
 
@@ -406,7 +409,7 @@ describe("a layer bound to what one run chose", () => {
     /*
      * A HYPHEN IN A RUN ID IS WHY highlight() QUOTES THE SEGMENT IT INTERPOLATES.
      *
-     * highlight() composes the expression "results.<runId>.<field> == `true`" and hands it to the
+     * highlight() composes the expression "store.graphty.<runId>.<field> == `true`" and hands it to the
      * expression parser, which reads an unquoted name as [A-Za-z_][A-Za-z0-9_]* exactly as
      * JMESPath does (src/session/styles/predicate.ts). Written plain, a run called "first-route"
      * lexes as a subtraction and the layer is refused before it reaches the stack.
@@ -434,7 +437,7 @@ describe("a layer bound to what one run chose", () => {
         assert.isDefined(nodeLayer);
         assert.deepStrictEqual(nodeLayer.selector, {
             match: "expression",
-            where: `results.${JSON.stringify(run.id)}.onPath == \`true\``,
+            where: `store.graphty.${JSON.stringify(run.id)}.onPath == \`true\``,
         });
         assert.strictEqual(session.styles.list().length, 4, "the element's two, plus one per half of the route");
         assert.deepStrictEqual(painted(), { nodes: ROUTE_NODES, edges: ROUTE_EDGES });
@@ -510,7 +513,7 @@ describe("what a reader is told about a real run", () => {
         assert.isDefined(block, "the encoding layer earns a legend block");
         assert.strictEqual(block.channel, "node.color");
         assert.isDefined(block.field, "a block over a measured column names the field it reads");
-        assert.strictEqual(block.field.path, `results.${run.id}.value`, "and it names the column it reads");
+        assert.strictEqual(block.field.path, `store.graphty.${run.id}.value`, "and it names the column it reads");
         assert.isDefined(block.domain, "a continuous encoding reports the domain it ramps over");
         // Read off the graph rather than restated: f is connected to nothing and c carries three
         // edges (a-c, b-c, c-d), so the column the pass measured runs 0 to 3.

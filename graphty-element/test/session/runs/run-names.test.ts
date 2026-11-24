@@ -1,7 +1,7 @@
 /**
  * The id an unnamed run gets: the name its algorithm suggests, never a hash.
  *
- * `results.<id>.value` is what a reader sees in a style selector, so the id is the algorithm's
+ * `store.graphty.<id>.value` is what a reader sees in a style selector, so the id is the algorithm's
  * plain name (`degree`) or the name it suggests from the run's settings (`louvain_resolution_1_5`).
  * The same computation started again is the same run; a different computation that would take the
  * same name gets `_2`, `_3`, ... A name the caller passes with `as` still wins.

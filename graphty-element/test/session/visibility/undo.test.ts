@@ -70,7 +70,7 @@ function scoreRun(harness: () => Harness, context: RunExecutionContext): Promise
                 technicalName: "value",
                 kind: "node",
                 type: "number",
-                path: `results.${context.runId}.value`,
+                path: `store.graphty.${context.runId}.value`,
             },
         ],
         measured: { nodes: snapshot.nodeCount, edges: snapshot.edgeCount },
@@ -327,7 +327,7 @@ describe("mask copies", () => {
         const { session } = clocked();
         scores = { n0: 5, n1: 5 };
         await session.runs.start("degree", {}, { as: "score", style: false });
-        await session.visibility.set({ kind: "expression", where: "results.score.value > `1`" });
+        await session.visibility.set({ kind: "expression", where: "store.graphty.score.value > `1`" });
         assert.deepEqual(visible(session), ["n0", "n1"]);
 
         scores = { n4: 5 };

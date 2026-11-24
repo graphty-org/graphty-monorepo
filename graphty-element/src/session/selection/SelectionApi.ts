@@ -164,7 +164,7 @@ export interface UnknownRulePath {
     readonly path: Path;
     /**
      * The `data.readableValues()` paths whose catalog name (`plainName` or `technicalName`) is the
-     * path's last name, ignoring case: `degree` names a Degree run's `results.<run>.value`. When
+     * path's last name, ignoring case: `degree` names a Degree run's `store.graphty.<run>.value`. When
      * none is, the node structure value of that name, which a rule reads with no run:
      * `graphty.degree` for `degree`, and on a directed graph `graphty.inDegree` and
      * `graphty.outDegree` for `indegree` and `outdegree`.
@@ -395,8 +395,8 @@ export interface SelectionApi {
      * ```ts
      * // After a Degree run, with no file column named degree:
      * session.selection.checkRule("degree > `16`");
-     * // { unknown: [{ path: "degree", candidates: ["results.degree.value"] }],
-     * //   suggestion: "results.degree.value > `16`" }
+     * // { unknown: [{ path: "degree", candidates: ["store.graphty.degree.value"] }],
+     * //   suggestion: "store.graphty.degree.value > `16`" }
      * ```
      * Before any run, the same rule suggests the degree every node carries:
      * `` graphty.degree > `16` ``.

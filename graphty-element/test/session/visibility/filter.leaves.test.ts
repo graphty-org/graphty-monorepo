@@ -259,7 +259,7 @@ describe("the item leaf", () => {
             edges: edgesOf(harness, "ab", "ac", "bc", "cd", "de"),
         });
         const outcome = await harness.session.visibility.set(gone);
-        assert.include(outcome.unresolvedPaths, "results.never.group", "the path nothing answers is reported");
+        assert.include(outcome.unresolvedPaths, "store.graphty.never.group", "the path nothing answers is reported");
         assert.deepStrictEqual(await members(harness, rule(gone, "clipped")), { nodes: [], edges: [] });
         harness.session.dispose();
     });
@@ -334,15 +334,15 @@ describe("the threshold leaf", () => {
         const { harness } = await withRuns();
 
         assert.deepStrictEqual(
-            (await visible(harness, { kind: "threshold", path: "results.deg.value", top: 1 })).nodes,
+            (await visible(harness, { kind: "threshold", path: "store.graphty.deg.value", top: 1 })).nodes,
             ["c"],
         );
         assert.deepStrictEqual(
-            (await visible(harness, { kind: "threshold", path: "results.deg.value", above: 1 })).nodes,
+            (await visible(harness, { kind: "threshold", path: "store.graphty.deg.value", above: 1 })).nodes,
             ["a", "b", "c", "d"],
         );
         assert.deepStrictEqual(
-            (await visible(harness, { kind: "threshold", path: "results.never.value", above: 1 })).nodes,
+            (await visible(harness, { kind: "threshold", path: "store.graphty.never.value", above: 1 })).nodes,
             [],
             "a run with no result holds nothing",
         );
@@ -451,7 +451,7 @@ describe("refusals at the doors", () => {
         ],
         [
             "a results path with no field",
-            { kind: "rule", reading: "clipped", where: { kind: "threshold", path: "results.pr", top: 1 } },
+            { kind: "rule", reading: "clipped", where: { kind: "threshold", path: "store.graphty.pr", top: 1 } },
         ],
         [
             "an item with no run",

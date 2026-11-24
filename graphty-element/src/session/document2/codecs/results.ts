@@ -597,7 +597,7 @@ function fieldsIn(saved: unknown, descriptor: AlgorithmDescriptor): FieldDescrip
                 technicalName: name,
                 kind,
                 type: field.type as FieldDescriptor["type"],
-                path: `results.$.${name}`,
+                path: `store.graphty.$.${name}`,
             }
         );
     });

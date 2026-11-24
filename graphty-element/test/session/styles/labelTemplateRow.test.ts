@@ -11,16 +11,16 @@ import { isGraphtyError } from "../../../src/errors";
 describe("labelTemplateRow and labelTemplateLine", () => {
     it("reads the rows an editor writes", () => {
         assert.deepEqual(labelTemplateRow("<bold>{data.id}</bold>"), { text: "", path: "data.id", bold: true });
-        assert.deepEqual(labelTemplateRow("Connections: {results.degree.value}"), {
+        assert.deepEqual(labelTemplateRow("Connections: {store.graphty.degree.value}"), {
             text: "Connections: ",
-            path: "results.degree.value",
+            path: "store.graphty.degree.value",
             bold: false,
         });
     });
 
     it("answers null for a line that is not one row", () => {
         for (const line of [
-            "Community {results.louvain.group|rank} of {results.louvain.group|count}",
+            "Community {store.graphty.louvain.group|rank} of {store.graphty.louvain.group|count}",
             "{a} and {b}",
             "{data.id} items",
             "<color='red'>{data.id}</color>",

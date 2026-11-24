@@ -1,7 +1,7 @@
 /**
  * @file The recipe commands of version 2 (spec 4.3) and their mapping to and from today's session
  * state: which members each command knows, which filter steps are exact `graph.filter` commands,
- * which rules and scopes name elements, and the `results.<as>` rewriting between a recipe's run
+ * which rules and scopes name elements, and the `store.graphty.<as>` rewriting between a recipe's run
  * names and the session's run ids. Experimental (`save-files-v2`).
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.
@@ -207,7 +207,7 @@ export function splitRunId(id: string): { namespace: string; as: string } | unde
 export { PATH_MEMBERS } from "../../storePaths";
 
 /**
- * A value with every run it names renamed: the run of each `results.<run>.<field>` path in a path
+ * A value with every run it names renamed: the run of each `store.graphty.<run>.<field>` path in a path
  * member, and in an expression (a `where`, or the value itself when it is a string), by token, so a
  * string literal is never touched; and each `{ "result": "<name>.<field>" }` option. An expression
  * that does not parse is kept as it is.
@@ -267,7 +267,7 @@ function renameRunsInString(
  * @returns The expression.
  */
 function renameRunsIn(where: string, rename: (name: string) => string | undefined): string {
-    if (!where.includes("results.") && !where.includes('results."')) {
+    if (!where.includes("results.") && !where.includes("store.graphty.")) {
         return where;
     }
 
@@ -361,7 +361,7 @@ function acceptsExpression(where: string): boolean {
 }
 
 /**
- * The runs a value reads: each `results.<name>` and `{ "result" }` option in it.
+ * The runs a value reads: each `store.graphty.<name>` and `{ "result" }` option in it.
  * @param value - The value.
  * @returns The names, in order of first reading.
  */

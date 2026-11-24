@@ -29,7 +29,7 @@ function betweenness(context: RunExecutionContext): Promise<RunOutcome> {
                 technicalName: "betweenness",
                 kind: "node",
                 type: "number",
-                path: "results.$.value",
+                path: "store.graphty.$.value",
             },
         ],
         measured: { nodes: NODES.length, edges: EDGES.length },

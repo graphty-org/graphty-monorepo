@@ -28,6 +28,7 @@
 
 import { GraphtyError } from "../../errors/GraphtyError";
 import { noteFieldOf } from "../../session/notes/paths";
+import { isRunPath } from "../../session/results/types";
 import type { EdgeMember, EdgeReading, Scope, SetDefinition } from "../types";
 import { canonicalSetDefinition, DEFINITION_FIELDS, EDGE_MEMBER_FIELDS, runIdOfRef } from "./canonical";
 
@@ -290,7 +291,7 @@ function checkItem(value: unknown, walker: Walker): void {
 }
 
 /**
- * Whether a path is a value path a threshold may rank: `data.<field>` or `results.<run>.<field>`.
+ * Whether a path is a value path a threshold may rank: `data.<field>` or `store.graphty.<run>.<field>`.
  * @param path - The candidate.
  * @returns True when it names a field.
  */
@@ -307,7 +308,7 @@ function isValuePath(path: unknown): boolean {
         return path.length > "data.".length;
     }
 
-    const rest = path.startsWith("results.") ? path.slice("results.".length) : "";
+    const rest = isRunPath(path) ? path.slice("store.graphty.".length) : "";
     const dot = rest.indexOf(".");
 
     return dot > 0 && dot < rest.length - 1;
@@ -333,7 +334,9 @@ function checkThreshold(value: Loose, walker: Walker): void {
     checkRoot(value.path);
 
     if (!isValuePath(value.path)) {
-        throw bad('A "threshold" leaf\'s path is "data.<field>" or "results.<run>.<field>".', { path: value.path });
+        throw bad('A "threshold" leaf\'s path is "data.<field>" or "store.graphty.<run>.<field>".', {
+            path: value.path,
+        });
     }
 
     // A reserved cut kept opaque on load counts as the leaf's cut.
@@ -378,7 +381,7 @@ function checkThreshold(value: Loose, walker: Walker): void {
  * The roots a field path may start with, beside `graphty.source.` and `graphty.target.` in front
  * of one of them. Any other root is reserved for a later release.
  */
-const FIELD_ROOTS = new Set(["data", "results"]);
+const FIELD_ROOTS = new Set(["data", "store"]);
 
 /** The structure values a rule reads with no run and no column: a node's degree. */
 const STRUCTURE_PATHS: ReadonlySet<string> = new Set(["graphty.degree", "graphty.inDegree", "graphty.outDegree"]);
@@ -415,7 +418,7 @@ function checkRoot(path: unknown): void {
     const root = path.split(".")[0];
     if (!FIELD_ROOTS.has(root)) {
         throw bad(
-            `A field path starts with "data." or "results.", so "${path}" is refused: the root "${root}" is reserved.`,
+            `A field path starts with "data." or "store.", so "${path}" is refused: the root "${root}" is reserved.`,
             {
                 path,
                 root,
@@ -547,7 +550,9 @@ function checkFrom(value: Loose): void {
 function checkValuePath(path: unknown, kind: string): void {
     checkRoot(path);
     if (!isValuePath(path)) {
-        throw bad(`A "${kind}" leaf's path is "data.<field>", "results.<run>.<field>" or "graphty.degree".`, { path });
+        throw bad(`A "${kind}" leaf's path is "data.<field>", "store.graphty.<run>.<field>" or "graphty.degree".`, {
+            path,
+        });
     }
 }
 
@@ -1070,7 +1075,7 @@ export function readingOfScope(scope: unknown, referent?: (id: string) => string
  * set is read `listed` or `clipped`, or an `item` or `threshold` leaf over a field edges carry.
  * @param node - A validated tree node, or a query.
  * @param referent - The reading of the set an id names, when the caller can look it up.
- * @param fieldKinds - Which halves carry a value path (`results.<run>.<field>` or `data.<field>`),
+ * @param fieldKinds - Which halves carry a value path (`store.graphty.<run>.<field>` or `data.<field>`),
  * when the caller can look it up; without it an `item` or `threshold` leaf is not known to.
  * @returns True when some leaf speaks the edge half.
  */
@@ -1101,7 +1106,7 @@ export function speaksEdges(
             return (
                 typeof run === "string" &&
                 typeof key.field === "string" &&
-                fieldKinds?.(`results.${run}.${key.field}`).includes("edge") === true
+                fieldKinds?.(`store.graphty.${run}.${key.field}`).includes("edge") === true
             );
         }
         case "threshold":

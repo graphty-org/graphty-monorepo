@@ -43,6 +43,7 @@
 
 import { layoutAlias, layoutDescriptor, layoutIdForEngine, savedLayoutOptions } from "../../catalog/layouts";
 import { withParentIds } from "../parentIds";
+import { isRunPath } from "../results/types";
 import { ELEMENT_VERSION } from "../runs/engine";
 import { rewriteOldPaths } from "../styles/fileStyles/oldLooks";
 import { renameRunInPath, v1Expression } from "../styles/predicate";
@@ -179,7 +180,7 @@ function runKey(id: string, derived: boolean): { namespace: string; as: string }
 }
 
 /** The roots a version 2 path starts with (spec 4.8.1 rule 1). */
-const PATH_ROOT = /^(data|results|graphty|_source)\./;
+const PATH_ROOT = /^(data|results|store|graphty|_source)\./;
 
 /** The members holding an algorithm's or a layout's own options, whose names are not path members. */
 const OPTION_MEMBERS = new Set(["params", "options", "userData"]);
@@ -531,7 +532,7 @@ function migrateStyle(
             return [{ path, value, label: label.label }];
         }
 
-        if (path.startsWith("results.")) {
+        if (path.startsWith("results.") || isRunPath(path)) {
             return [{ path: renameRunInPath(path, asName), value, label: label.label }];
         }
 

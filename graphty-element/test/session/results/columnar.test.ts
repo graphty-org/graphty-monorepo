@@ -198,8 +198,8 @@ describe("a result's ids", () => {
                     runId: context.runId,
                     shape: "node-metric",
                     fields: [
-                        { ...field("value", "number"), path: `results.${context.runId}.value` },
-                        { ...field("weight", "number", "edge"), path: `results.${context.runId}.weight` },
+                        { ...field("value", "number"), path: `store.graphty.${context.runId}.value` },
+                        { ...field("weight", "number", "edge"), path: `store.graphty.${context.runId}.weight` },
                     ],
                     measured: { nodes: context.scope.nodeCount, edges: context.scope.edgeCount },
                     // Reversed, so the result's order is not the snapshot's.

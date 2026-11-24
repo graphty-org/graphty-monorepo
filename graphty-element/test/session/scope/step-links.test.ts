@@ -55,7 +55,7 @@ function recording(seen: Seen) {
                         technicalName: "value",
                         kind: "node",
                         type: "number",
-                        path: `results.${context.runId}.value`,
+                        path: `store.graphty.${context.runId}.value`,
                     },
                 ],
                 nodes: inside.map((id) => ({ id, values: { value: 1 } })),

@@ -4,7 +4,7 @@
  *
  * Three things are checked here and they fail for three different reasons. The shape contract
  * fails when an algorithm skips a field its shape promised, which is what makes
- * `results.<run>.group` readable without opening the catalog. The catalog agreement fails
+ * `store.graphty.<run>.group` readable without opening the catalog. The catalog agreement fails
  * when a run publishes a field the descriptor never declared, or declares one at a type the
  * descriptor spells differently -- the two halves of the same fact, held against each other. And
  * the run context checks fail when an algorithm cannot be watched or stopped, which is the whole

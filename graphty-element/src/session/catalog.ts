@@ -67,6 +67,7 @@ import { transitionDescriptors } from "../transitions/registry";
 import { describeMetrics, type MetricsSource } from "./metrics";
 import { optionsFor, type OptionsForSource } from "./optionsFor";
 import { nearestNames } from "./results/ResultsApi";
+import { isRunPath } from "./results/types";
 import { channelDescriptor, sessionChannels } from "./styles/channels";
 import type { SessionCatalogApi } from "./types";
 
@@ -310,10 +311,11 @@ function validateQuery(
     }
 
     const answerable = unresolved.length === 0 ? [] : [...new Set(source?.answerablePaths() ?? [])];
-    const runs = new Set(answerable.filter((path) => path.startsWith("results.")).map((path) => path.split(".")[1]));
+    const runOf = (path: Path): string | undefined => (isRunPath(path) ? path.split(".")[2] : undefined);
+    const runs = new Set(answerable.map((path) => runOf(path)));
     const unresolvedPaths = unresolved.map((path) => {
-        const [root, run] = path.split(".");
-        const reason = root === "results" && !runs.has(run) ? "unknown-run" : "unknown-attribute";
+        const run = runOf(path);
+        const reason = run !== undefined && !runs.has(run) ? "unknown-run" : "unknown-attribute";
         return Object.freeze({ path, reason, candidates: nearestNames(path, answerable) } as const);
     });
     return Object.freeze({ ok: unresolvedPaths.length === 0, unresolvedPaths: Object.freeze(unresolvedPaths) });

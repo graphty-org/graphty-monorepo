@@ -166,7 +166,7 @@ export function categoriesOf(
 /**
  * Every value one layer paints by a category path, with each channel's entry for it.
  * @param layer - The layer.
- * @param path - The category path, such as `results.louvain.group`.
+ * @param path - The category path, such as `store.graphty.louvain.group`.
  * @param prepared - What the last repaint prepared for the layer.
  * @param names - The names given to the path's values.
  * @returns The values, largest first; none when no channel of the layer reads the path.
@@ -713,7 +713,7 @@ function realignRule(state: Realign, tree: RuleTree): RuleTree {
  * a re-run of one run, and reports what could not be matched.
  * @param layer - The layer.
  * @param runId - The run that re-ran.
- * @param root - The prefix of that run's value paths, `results.<run>.`.
+ * @param root - The prefix of that run's value paths, `store.graphty.<run>.`.
  * @param matchOf - How one of the run's paths matched; `named` says the layer names a value of it.
  *   Undefined when the path does not take part.
  * @returns The patch, or null when nothing changes.

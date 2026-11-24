@@ -45,7 +45,7 @@ const CAVEATS: Caveats = {
  * @returns The descriptor.
  */
 function field(runId: string, name: string, kind: "edge" | "node", type: FieldDescriptor["type"]): FieldDescriptor {
-    return { name, plainName: name, technicalName: name, kind, type, path: `results.${runId}.${name}` };
+    return { name, plainName: name, technicalName: name, kind, type, path: `store.graphty.${runId}.${name}` };
 }
 
 /**
@@ -325,11 +325,11 @@ describe("a selector source over what a run published", () => {
         });
         await harness.session.runs.start("louvain", undefined, { as: "groups" });
 
-        assert.strictEqual(source.nodeValue(0, "results.groups.group"), "left");
-        assert.strictEqual(source.nodeValue(3, "results.groups.group"), "right");
+        assert.strictEqual(source.nodeValue(0, "store.graphty.groups.group"), "left");
+        assert.strictEqual(source.nodeValue(3, "store.graphty.groups.group"), "right");
         // groupSize is filled in by the result factory rather than by the algorithm, and it is
         // addressable exactly like any other field.
-        assert.strictEqual(source.nodeValue(0, "results.groups.groupSize"), 2);
+        assert.strictEqual(source.nodeValue(0, "store.graphty.groups.groupSize"), 2);
         harness.session.dispose();
     });
 
@@ -343,9 +343,9 @@ describe("a selector source over what a run published", () => {
         });
         await harness.session.runs.start("louvain", undefined, { as: "groups" });
 
-        assert.strictEqual(source.nodeValue(2, "results.groups.group"), undefined);
-        assert.isFalse(source.nodeHas(2, "results.groups.group"));
-        assert.isTrue(source.nodeHas(0, "results.groups.group"));
+        assert.strictEqual(source.nodeValue(2, "store.graphty.groups.group"), undefined);
+        assert.isFalse(source.nodeHas(2, "store.graphty.groups.group"));
+        assert.isTrue(source.nodeHas(0, "store.graphty.groups.group"));
         harness.session.dispose();
     });
 
@@ -358,11 +358,11 @@ describe("a selector source over what a run published", () => {
         });
         await harness.session.runs.start("max-flow", undefined, { as: "flow" });
 
-        assert.strictEqual(source.edgeValue(0, "results.flow.value"), 3);
-        assert.strictEqual(source.edgeValue(1, "results.flow.value"), undefined);
-        assert.strictEqual(source.edgeValue(2, "results.flow.value"), 7);
-        assert.isTrue(source.edgeHas(2, "results.flow.value"));
-        assert.isFalse(source.edgeHas(1, "results.flow.value"));
+        assert.strictEqual(source.edgeValue(0, "store.graphty.flow.value"), 3);
+        assert.strictEqual(source.edgeValue(1, "store.graphty.flow.value"), undefined);
+        assert.strictEqual(source.edgeValue(2, "store.graphty.flow.value"), 7);
+        assert.isTrue(source.edgeHas(2, "store.graphty.flow.value"));
+        assert.isFalse(source.edgeHas(1, "store.graphty.flow.value"));
         harness.session.dispose();
     });
 
@@ -371,10 +371,10 @@ describe("a selector source over what a run published", () => {
         // the repaint, which is what the evaluator this replaces did.
         const { harness, source } = fixture();
 
-        assert.strictEqual(source.nodeValue(0, "results.nothing.value"), undefined);
-        assert.isFalse(source.nodeHas(0, "results.nothing.value"));
-        assert.strictEqual(source.edgeValue(0, "results.nothing.value"), undefined);
-        assert.isFalse(source.edgeHas(0, "results.nothing.value"));
+        assert.strictEqual(source.nodeValue(0, "store.graphty.nothing.value"), undefined);
+        assert.isFalse(source.nodeHas(0, "store.graphty.nothing.value"));
+        assert.strictEqual(source.edgeValue(0, "store.graphty.nothing.value"), undefined);
+        assert.isFalse(source.edgeHas(0, "store.graphty.nothing.value"));
         harness.session.dispose();
     });
 
@@ -383,8 +383,12 @@ describe("a selector source over what a run published", () => {
         await harness.session.runs.start("louvain", undefined, { as: "groups" });
 
         assert.strictEqual(harness.session.results.get("groups")?.graph.groupCount, 1, "the run did publish it");
-        assert.strictEqual(source.nodeValue(0, "results.groups.groupCount"), undefined, "but no element carries it");
-        assert.isFalse(source.nodeHas(0, "results.groups.groupCount"));
+        assert.strictEqual(
+            source.nodeValue(0, "store.graphty.groups.groupCount"),
+            undefined,
+            "but no element carries it",
+        );
+        assert.isFalse(source.nodeHas(0, "store.graphty.groups.groupCount"));
         harness.session.dispose();
     });
 
@@ -392,9 +396,9 @@ describe("a selector source over what a run published", () => {
         const { harness, source } = fixture({ execute: communities([["a", "left"]]) });
         await harness.session.runs.start("louvain", undefined, { as: "groups" });
 
-        assert.strictEqual(source.nodeValue(0, "results.groups"), undefined);
-        assert.isFalse(source.nodeHas(0, "results.groups"));
-        assert.strictEqual(source.nodeValue(0, "results.groups.group.deeper"), undefined);
+        assert.strictEqual(source.nodeValue(0, "store.graphty.groups"), undefined);
+        assert.isFalse(source.nodeHas(0, "store.graphty.groups"));
+        assert.strictEqual(source.nodeValue(0, "store.graphty.groups.group.deeper"), undefined);
         harness.session.dispose();
     });
 });
@@ -406,12 +410,12 @@ describe("a selector source reading past what it holds", () => {
 
         assert.strictEqual(source.nodeValue(9, "data.kind"), undefined, "the column road");
         assert.strictEqual(source.nodeValue(9, "data.label"), undefined, "the record road");
-        assert.strictEqual(source.nodeValue(9, "results.groups.group"), undefined, "the result road");
+        assert.strictEqual(source.nodeValue(9, "store.graphty.groups.group"), undefined, "the result road");
         assert.isFalse(source.nodeHas(9, "data.kind"));
         assert.isFalse(source.nodeHas(9, "data.tier"), "not even a column that declares a default");
-        assert.isFalse(source.nodeHas(9, "results.groups.group"));
+        assert.isFalse(source.nodeHas(9, "store.graphty.groups.group"));
         assert.strictEqual(source.edgeValue(9, "data.link"), undefined);
-        assert.strictEqual(source.edgeValue(9, "results.groups.group"), undefined);
+        assert.strictEqual(source.edgeValue(9, "store.graphty.groups.group"), undefined);
         harness.session.dispose();
     });
 
@@ -476,7 +480,7 @@ describe("the measured column a run-bound layer walks", () => {
         });
         await harness.session.runs.start("louvain", undefined, { as: "groups" });
 
-        const measured = source.measured("results.groups.group", "node");
+        const measured = source.measured("store.graphty.groups.group", "node");
         assert.isDefined(measured);
         assert.deepStrictEqual(Array.from(measured), [0, 3], "dense order, whatever order the run published in");
 
@@ -484,7 +488,7 @@ describe("the measured column a run-bound layer walks", () => {
         // list is an element the layer would silently never visit.
         const byPresence: number[] = [];
         for (let index = 0; index < 4; index++) {
-            if (source.nodeHas(index, "results.groups.group")) {
+            if (source.nodeHas(index, "store.graphty.groups.group")) {
                 byPresence.push(index);
             }
         }
@@ -502,14 +506,14 @@ describe("the measured column a run-bound layer walks", () => {
         });
         await harness.session.runs.start("max-flow", undefined, { as: "flow" });
 
-        const measured = source.measured("results.flow.value", "edge");
+        const measured = source.measured("store.graphty.flow.value", "edge");
         assert.isDefined(measured);
         assert.deepStrictEqual(Array.from(measured), [0, 2]);
 
         // The same path asked about the other half of the graph: the run published no node
         // values, so no node carries one, and a node layer bound to it walks nothing rather than
         // walking every node to find that out.
-        const nodes = source.measured("results.flow.value", "node");
+        const nodes = source.measured("store.graphty.flow.value", "node");
         assert.isDefined(nodes);
         assert.strictEqual(nodes.length, 0);
         harness.session.dispose();
@@ -522,7 +526,7 @@ describe("the measured column a run-bound layer walks", () => {
 
         assert.isUndefined(source.measured("data.kind", "node"));
         assert.isUndefined(source.measured("data.link", "edge"));
-        assert.isUndefined(source.measured("results.groups", "node"), "and for a path that names no field");
+        assert.isUndefined(source.measured("store.graphty.groups", "node"), "and for a path that names no field");
         harness.session.dispose();
     });
 
@@ -530,7 +534,7 @@ describe("the measured column a run-bound layer walks", () => {
         // Not undefined: "no element carries this" is knowable, and it is what turns a layer bound
         // to a run that has not finished into a layer that walks nothing at all.
         const { harness, source } = fixture();
-        const measured = source.measured("results.nothing.value", "node");
+        const measured = source.measured("store.graphty.nothing.value", "node");
 
         assert.isDefined(measured);
         assert.strictEqual(measured.length, 0);
@@ -541,8 +545,12 @@ describe("the measured column a run-bound layer walks", () => {
         const { harness, source } = fixture({ execute: communities([["a", "left"]]) });
         await harness.session.runs.start("louvain", undefined, { as: "groups" });
 
-        const first = source.measured("results.groups.group", "node");
-        assert.strictEqual(source.measured("results.groups.group", "node"), first, "walked once, not once per pass");
+        const first = source.measured("store.graphty.groups.group", "node");
+        assert.strictEqual(
+            source.measured("store.graphty.groups.group", "node"),
+            first,
+            "walked once, not once per pass",
+        );
         harness.session.dispose();
     });
 
@@ -554,13 +562,13 @@ describe("the measured column a run-bound layer walks", () => {
             ]),
         });
 
-        const before = source.measured("results.groups.group", "node");
+        const before = source.measured("store.graphty.groups.group", "node");
         assert.isDefined(before);
         assert.strictEqual(before.length, 0, "nothing has run yet");
 
         await harness.session.runs.start("louvain", undefined, { as: "groups" });
 
-        const after = source.measured("results.groups.group", "node");
+        const after = source.measured("store.graphty.groups.group", "node");
         assert.isDefined(after);
         assert.deepStrictEqual(Array.from(after), [1, 2], "the cache is keyed on the result, not only the graph");
         harness.session.dispose();
@@ -615,14 +623,14 @@ describe("a freeze that renumbers the rows", () => {
         });
         await harness.session.runs.start("louvain", undefined, { as: "groups" });
 
-        assert.strictEqual(source.nodeValue(0, "results.groups.group"), "left", "before: row 0 is a");
+        assert.strictEqual(source.nodeValue(0, "store.graphty.groups.group"), "left", "before: row 0 is a");
 
         harness.store.builder.removeNode("a");
         harness.store.account();
 
-        assert.strictEqual(source.nodeValue(0, "results.groups.group"), "left", "after: row 0 is b, also left");
-        assert.strictEqual(source.nodeValue(2, "results.groups.group"), "right", "and row 2 is d");
-        assert.isFalse(source.nodeHas(1, "results.groups.group"), "row 1 is c, which the run never measured");
+        assert.strictEqual(source.nodeValue(0, "store.graphty.groups.group"), "left", "after: row 0 is b, also left");
+        assert.strictEqual(source.nodeValue(2, "store.graphty.groups.group"), "right", "and row 2 is d");
+        assert.isFalse(source.nodeHas(1, "store.graphty.groups.group"), "row 1 is c, which the run never measured");
         harness.session.dispose();
     });
 
@@ -635,14 +643,14 @@ describe("a freeze that renumbers the rows", () => {
         });
         await harness.session.runs.start("louvain", undefined, { as: "groups" });
 
-        const before = source.measured("results.groups.group", "node");
+        const before = source.measured("store.graphty.groups.group", "node");
         assert.isDefined(before);
         assert.deepStrictEqual(Array.from(before), [0, 3]);
 
         harness.store.builder.removeNode("a");
         harness.store.account();
 
-        const after = source.measured("results.groups.group", "node");
+        const after = source.measured("store.graphty.groups.group", "node");
         assert.isDefined(after);
         assert.deepStrictEqual(Array.from(after), [2], "only d survives, and it is row 2 now");
         harness.session.dispose();
@@ -657,17 +665,17 @@ describe("a freeze that renumbers the rows", () => {
         });
         await harness.session.runs.start("max-flow", undefined, { as: "flow" });
 
-        const before = source.measured("results.flow.value", "edge");
+        const before = source.measured("store.graphty.flow.value", "edge");
         assert.isDefined(before);
         assert.deepStrictEqual(Array.from(before), [0, 2]);
 
         harness.store.builder.removeNode("a");
         harness.store.account();
 
-        const after = source.measured("results.flow.value", "edge");
+        const after = source.measured("store.graphty.flow.value", "edge");
         assert.isDefined(after);
         assert.deepStrictEqual(Array.from(after), [1], "c->d is the second of the two surviving edges");
-        assert.strictEqual(source.edgeValue(1, "results.flow.value"), 7);
+        assert.strictEqual(source.edgeValue(1, "store.graphty.flow.value"), 7);
         harness.session.dispose();
     });
 });
@@ -686,9 +694,9 @@ describe("wired to the selector engine it was written for", () => {
         });
         await harness.session.runs.start("louvain", undefined, { as: "groups" });
 
-        const has = compileSelector({ match: "has", path: "results.groups.group" }, "node", source);
+        const has = compileSelector({ match: "has", path: "store.graphty.groups.group" }, "node", source);
         const expression = compileSelector(
-            { match: "expression", where: "results.groups.group != `null`" },
+            { match: "expression", where: "store.graphty.groups.group != `null`" },
             "node",
             source,
         );
@@ -706,7 +714,7 @@ describe("wired to the selector engine it was written for", () => {
 
         assert.deepStrictEqual(accepted, [0, 3]);
 
-        const measured = source.measured("results.groups.group", "node");
+        const measured = source.measured("store.graphty.groups.group", "node");
         assert.isDefined(measured);
         assert.deepStrictEqual(Array.from(measured), accepted, "and the list the repaint walks is the same set");
         harness.session.dispose();
@@ -737,7 +745,7 @@ describe("wired to the selector engine it was written for", () => {
 
     it("matches nothing, and refuses nothing, for a selector naming a run that never happened", () => {
         const { harness, source } = fixture();
-        const selector = compileSelector({ match: "has", path: "results.nothing.value" }, "node", source);
+        const selector = compileSelector({ match: "has", path: "store.graphty.nothing.value" }, "node", source);
 
         for (let index = 0; index < 4; index++) {
             assert.isFalse(selector.test?.(index), `node ${index}`);
@@ -755,7 +763,7 @@ describe("a top selector over a run's column", () => {
      * @returns The node indices it accepts.
      */
     function topOf(source: SessionSelectorSource, n: number): number[] {
-        const selector = compileSelector({ match: "top", path: "results.degree.value", n }, "node", source);
+        const selector = compileSelector({ match: "top", path: "store.graphty.degree.value", n }, "node", source);
         const accepted: number[] = [];
 
         for (let index = 0; index < 4; index++) {

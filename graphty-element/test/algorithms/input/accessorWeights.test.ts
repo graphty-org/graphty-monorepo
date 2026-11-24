@@ -146,17 +146,17 @@ describe("result paths as columns", () => {
     const edgeIdAt = (row: number): never => String(row) as never;
 
     it("reads a field on the kind of element that carries it", () => {
-        assert.deepStrictEqual(columns.read(graph, "results.r.value", "edge", edgeIdAt)?.values, [2, 2, 2, 2, 2]);
-        assert.deepStrictEqual(columns.read(graph, "results.r.rank", "node", edgeIdAt)?.values, [1, 1, 1]);
-        assert.strictEqual(columns.read(graph, "results.r.rank", undefined, edgeIdAt)?.kind, "node");
+        assert.deepStrictEqual(columns.read(graph, "store.graphty.r.value", "edge", edgeIdAt)?.values, [2, 2, 2, 2, 2]);
+        assert.deepStrictEqual(columns.read(graph, "store.graphty.r.rank", "node", edgeIdAt)?.values, [1, 1, 1]);
+        assert.strictEqual(columns.read(graph, "store.graphty.r.rank", undefined, edgeIdAt)?.kind, "node");
     });
 
     it("refuses a field the run did not publish, or one on the other kind of element", () => {
         for (const on of ["node", "edge", undefined] as const) {
-            assert.isNull(columns.read(graph, "results.r.typo", on, edgeIdAt), `typo on ${String(on)}`);
+            assert.isNull(columns.read(graph, "store.graphty.r.typo", on, edgeIdAt), `typo on ${String(on)}`);
         }
-        assert.isNull(columns.read(graph, "results.r.value", "node", edgeIdAt), "an edge field as a partition");
-        assert.isNull(columns.read(graph, "results.r.rank", "edge", edgeIdAt), "a node field as a weight");
-        assert.isNull(columns.read(graph, "results.missing.value", "edge", edgeIdAt));
+        assert.isNull(columns.read(graph, "store.graphty.r.value", "node", edgeIdAt), "an edge field as a partition");
+        assert.isNull(columns.read(graph, "store.graphty.r.rank", "edge", edgeIdAt), "a node field as a weight");
+        assert.isNull(columns.read(graph, "store.graphty.missing.value", "edge", edgeIdAt));
     });
 });

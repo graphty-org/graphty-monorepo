@@ -330,7 +330,7 @@ describe("at a million nodes and five million edges, without a scene", () => {
                     technicalName: "value",
                     kind: "node",
                     type: "number",
-                    path: "results.deg.value",
+                    path: "store.graphty.deg.value",
                 },
             ],
             measured: { nodes: MILLION, edges: ARCS },

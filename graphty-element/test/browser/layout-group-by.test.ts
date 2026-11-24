@@ -103,12 +103,12 @@ describe("grouping nodes by an attribute", () => {
         }
         assert.isAbove(groups.size, 2, "Louvain finds several communities");
 
-        await session.layout.set("shell", { options: { groupBy: "results.louvain.group" } });
+        await session.layout.set("shell", { options: { groupBy: "store.graphty.louvain.group" } });
         await graph.waitForSettled();
         let at = coordinates(session);
         assertOneValueEach(groups, (id) => Math.hypot(...(at.get(id) ?? [Number.NaN, Number.NaN])), "radius");
 
-        await session.layout.set("layers", { options: { groupBy: "results.louvain.group" } });
+        await session.layout.set("layers", { options: { groupBy: "store.graphty.louvain.group" } });
         await graph.waitForSettled();
         at = coordinates(session);
         assertOneValueEach(groups, (id) => at.get(id)?.[0] ?? Number.NaN, "column");

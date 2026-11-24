@@ -1,7 +1,7 @@
 /**
  * @file The name an unnamed run's result is given: what its algorithm suggests, or its key.
  *
- * The id is what a reader sees in a style selector -- `results.louvain_resolution_1_5.group` --
+ * The id is what a reader sees in a style selector -- `store.graphty.louvain_resolution_1_5.group` --
  * so it is made of words, never a hash. A registered algorithm suggests its own through
  * `static suggestedName` (or `suggestedName` in `defineAlgorithm`); a built-in names the one
  * setting worth telling two of its results apart by, and only once that setting leaves its

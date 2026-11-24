@@ -143,7 +143,7 @@ export function publishAlgorithmDescriptor(entry: RegisteredAlgorithm, options?:
         });
     }
 
-    // `results.<result>.runs` is reserved for naming one run under a result, so a field of that
+    // `store.graphty.<result>.runs` is reserved for naming one run under a result, so a field of that
     // name would change meaning when it arrives (design/sets 15.3, item 36).
     const runs = entry.descriptor.fields.find((field) => field.name === "runs");
     if (runs !== undefined) {

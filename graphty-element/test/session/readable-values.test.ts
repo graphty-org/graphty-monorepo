@@ -32,7 +32,7 @@ function execute(session: () => GraphSession, context: RunExecutionContext): Pro
     const community = context.algorithm === "louvain";
     const fields = (algorithmByKey(context.algorithm)?.fields ?? []).map((field) => ({
         ...field,
-        path: `results.${context.runId}.${field.name}`,
+        path: `store.graphty.${context.runId}.${field.name}`,
     }));
     const counted = degrees(snapshot);
     const groups = community ? louvain(snapshot.toUndirected().snapshot).labels : null;
@@ -121,7 +121,7 @@ describe("session.data.readableValues()", () => {
         assert.strictEqual(degree.from, "run");
         assert.strictEqual(degree.kind, "number");
         assert.strictEqual(degree.plainName, "Connections");
-        assert.match(degree.path, /^results\.[^.]+\.value$/);
+        assert.match(degree.path, /^store\.graphty\.[^.]+\.value$/);
         assert.deepEqual(degree.range, { min: 1, max: 36 });
         assert.includeMembers([...degree.fits], ["color", "number"]);
 
@@ -148,7 +148,7 @@ describe("session.data.readableValues()", () => {
         const session = await lesMisAfterRuns();
         const header = (await exportSession(session, "csv", { table: "nodes" }).text()).split("\n")[0];
 
-        assert.match(header, /results\.[^.,]+\.value/);
+        assert.match(header, /store\.graphty\.[^.,]+\.value/);
         assert.notMatch(header, /inDegree|outDegree/, header);
     });
 

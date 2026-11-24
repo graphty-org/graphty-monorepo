@@ -134,13 +134,13 @@ export type ExportGraphOptions = Readonly<Record<string, unknown>> &
  *
  * ```ts
  * const result = await graph.exportGraph("csv", {
- *     groupTable: { groupBy: "results.louvain.group", summaries: { "data.age": ["mean"] } },
+ *     groupTable: { groupBy: "store.graphty.louvain.group", summaries: { "data.age": ["mean"] } },
  * });
  * await result.text(); // "group,size,data.age.mean\n3,14,31.5\n..."
  * ```
  */
 export interface ExportGroupTable extends GroupTableOptions {
-    /** The node path holding each node's group, such as a community run's `results.<run>.group`. */
+    /** The node path holding each node's group, such as a community run's `store.graphty.<run>.group`. */
     readonly groupBy: string;
 }
 

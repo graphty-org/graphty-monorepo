@@ -69,17 +69,22 @@ type Row = Readonly<Record<Path, unknown>>;
  * which is the whole reason a highlight asks about the value instead of its presence.
  */
 const NODES: readonly Row[] = [
-    { "data.rank": 3, "results.louvain.group": "a", "results.betweenness.value": 0, "results.route.onPath": true },
-    { "data.rank": 9, "results.betweenness.value": 8, "results.route.onPath": false },
+    {
+        "data.rank": 3,
+        "store.graphty.louvain.group": "a",
+        "store.graphty.betweenness.value": 0,
+        "store.graphty.route.onPath": true,
+    },
+    { "data.rank": 9, "store.graphty.betweenness.value": 8, "store.graphty.route.onPath": false },
     {},
 ];
 
 /** Every path this session can answer. */
 const KNOWN: readonly Path[] = [
     "data.rank",
-    "results.louvain.group",
-    "results.betweenness.value",
-    "results.route.onPath",
+    "store.graphty.louvain.group",
+    "store.graphty.betweenness.value",
+    "store.graphty.route.onPath",
 ];
 
 /** What the session can say about one element. */
@@ -112,7 +117,7 @@ function field(
     type: FieldDescriptor["type"],
     runId: RunId,
 ): FieldDescriptor {
-    return { name, plainName: name, technicalName: name, kind, type, path: `results.${runId}.${name}` };
+    return { name, plainName: name, technicalName: name, kind, type, path: `store.graphty.${runId}.${name}` };
 }
 
 /** A centrality run: a number per node, which is a thing to encode. */
@@ -170,7 +175,7 @@ const SCALES: ScaleRegistry = createScaleRegistry();
 
 /** The words the session has for one field, which is what a legend prints. */
 function fieldWords(path: Path): FieldWords | undefined {
-    return path === "results.betweenness.value"
+    return path === "store.graphty.betweenness.value"
         ? { plainName: "Betweenness", technicalName: "betweenness" }
         : undefined;
 }
@@ -671,13 +676,13 @@ describe("what the repaint is handed", () => {
     it("hands over a compiled predicate rather than a selector to parse", async () => {
         const { styles } = makeStyles();
 
-        await styles.add(layerSpec("Measured", { selector: { match: "has", path: "results.louvain.group" } }));
+        await styles.add(layerSpec("Measured", { selector: { match: "has", path: "store.graphty.louvain.group" } }));
 
         const compiled: readonly CompiledLayer[] = styles.compiled();
         const measured = compiled[1];
 
         assert.strictEqual(measured?.selector.match, "has");
-        assert.deepStrictEqual(measured?.selector.paths, ["results.louvain.group"]);
+        assert.deepStrictEqual(measured?.selector.paths, ["store.graphty.louvain.group"]);
         assert.isTrue(measured?.selector.test?.(0));
         assert.isFalse(measured?.selector.test?.(1));
     });
@@ -713,10 +718,10 @@ describe("what the repaint is handed", () => {
         const harness = makeStyles();
 
         await harness.styles.add(
-            layerSpec("Waiting", { selector: { match: "has", path: "results.betweenness.score" } }),
+            layerSpec("Waiting", { selector: { match: "has", path: "store.graphty.betweenness.score" } }),
         );
 
-        assert.deepStrictEqual(harness.changes[0]?.unresolvedPaths, ["results.betweenness.score"]);
+        assert.deepStrictEqual(harness.changes[0]?.unresolvedPaths, ["store.graphty.betweenness.score"]);
     });
 });
 
@@ -888,8 +893,8 @@ describe("checking a layer before it is committed", () => {
     it("accepts a run-bound encoding on a layer that paints everything, which paints only measured elements", () => {
         const { styles } = makeStyles();
         for (const [channel, by] of [
-            ["node.opacity", "results.degree.value"],
-            ["node.color", "results.louvain.group"],
+            ["node.opacity", "store.graphty.degree.value"],
+            ["node.color", "store.graphty.louvain.group"],
         ] as const) {
             const result = styles.validate({
                 name: "Everything",
@@ -906,11 +911,13 @@ describe("checking a layer before it is committed", () => {
         const result = styles.validate({
             name: "Unscoped",
             selector: { match: "everything" },
-            encode: { "node.color": { by: "results.louvain.group", scale: "ordinal", missing: { value: "#888888" } } },
+            encode: {
+                "node.color": { by: "store.graphty.louvain.group", scale: "ordinal", missing: { value: "#888888" } },
+            },
         });
 
         assert.deepStrictEqual(codesOf(result), ["E_UNSCOPED_RUN_ENCODING"]);
-        assert.deepStrictEqual(result.errors[0]?.scope, { match: "has", path: "results.louvain.group" });
+        assert.deepStrictEqual(result.errors[0]?.scope, { match: "has", path: "store.graphty.louvain.group" });
     });
 
     it("refuses a channel written twice, once as a literal and once as an encoding", () => {
@@ -928,17 +935,17 @@ describe("checking a layer before it is committed", () => {
     it("reports a path nothing answers without calling it an error", () => {
         const { styles } = makeStyles();
         const result = styles.validate(
-            layerSpec("Early", { selector: { match: "has", path: "results.pagerank.score" } }),
+            layerSpec("Early", { selector: { match: "has", path: "store.graphty.pagerank.score" } }),
         );
 
         assert.isTrue(result.ok);
-        assert.deepStrictEqual(result.unresolvedPaths, ["results.pagerank.score"]);
+        assert.deepStrictEqual(result.unresolvedPaths, ["store.graphty.pagerank.score"]);
     });
 
     it("reports no unresolved path when the session cannot say", () => {
         const styles = createStylesApi({ elements: ELEMENTS });
         const result = styles.validate(
-            layerSpec("Early", { selector: { match: "has", path: "results.pagerank.score" } }),
+            layerSpec("Early", { selector: { match: "has", path: "store.graphty.pagerank.score" } }),
         );
 
         assert.isTrue(result.ok);
@@ -1016,7 +1023,7 @@ describe("encode(), the one path an analysis layer takes", () => {
 
         assert.strictEqual(layer.kind, "encoding");
         assert.strictEqual(layer.target, "node");
-        assert.deepStrictEqual(layer.selector, { match: "has", path: "results.betweenness.value" });
+        assert.deepStrictEqual(layer.selector, { match: "has", path: "store.graphty.betweenness.value" });
         assert.deepStrictEqual(layer.source, {
             by: "run",
             runId: "betweenness",
@@ -1063,8 +1070,8 @@ describe("encode(), the one path an analysis layer takes", () => {
             name: "Betweenness",
             source: { by: "element", reason: "default" },
             kind: "encoding",
-            selector: { match: "has", path: "results.betweenness.value" },
-            encode: { "node.color": { by: "results.betweenness.value", palette: "viridis" } },
+            selector: { match: "has", path: "store.graphty.betweenness.value" },
+            encode: { "node.color": { by: "store.graphty.betweenness.value", palette: "viridis" } },
         };
         const { styles } = makeStyles({ base: [ELEMENT_BASE, derived] });
         const before = styles.list()[1];
@@ -1080,9 +1087,9 @@ describe("encode(), the one path an analysis layer takes", () => {
         const { styles } = makeStyles();
         await styles.add(
             layerSpec("Mine", {
-                selector: { match: "has", path: "results.betweenness.value" },
+                selector: { match: "has", path: "store.graphty.betweenness.value" },
                 set: undefined,
-                encode: { "node.color": { by: "results.betweenness.value", palette: "viridis" } },
+                encode: { "node.color": { by: "store.graphty.betweenness.value", palette: "viridis" } },
             }),
         );
 
@@ -1106,22 +1113,22 @@ describe("encode(), the one path an analysis layer takes", () => {
 
         assert.deepStrictEqual(styles.proposeEncoding({ run: "betweenness", channel: "node.size" }), {
             ok: true,
-            binding: { by: "results.betweenness.value", scale: "linear", range: [1, 3] },
+            binding: { by: "store.graphty.betweenness.value", scale: "linear", range: [1, 3] },
         });
         const layer = await styles.encode({ run: "betweenness", channel: "node.size" });
         assert.deepStrictEqual(layer.encode?.["node.size"], {
-            by: "results.betweenness.value",
+            by: "store.graphty.betweenness.value",
             scale: "linear",
             range: [1, 3],
         });
         assert.deepStrictEqual(
             styles.proposeEncoding({ run: "betweenness", channel: "node.size", range: [2, 9] }),
-            { ok: true, binding: { by: "results.betweenness.value", scale: "linear", range: [2, 9] } },
+            { ok: true, binding: { by: "store.graphty.betweenness.value", scale: "linear", range: [2, 9] } },
             "a range the caller named is kept",
         );
         assert.deepStrictEqual(
             styles.proposeEncoding({ run: "betweenness", channel: "node.color" }),
-            { ok: true, binding: { by: "results.betweenness.value", scale: "linear" } },
+            { ok: true, binding: { by: "store.graphty.betweenness.value", scale: "linear" } },
             "a colour has no size range",
         );
     });
@@ -1168,7 +1175,7 @@ describe("highlight(), which is exclusive", () => {
 
         assert.deepStrictEqual(nodes?.selector, {
             match: "expression",
-            where: "results.route.onPath == `true`",
+            where: "store.graphty.route.onPath == `true`",
         });
     });
 
@@ -1313,7 +1320,7 @@ describe("the legend, and why one element looks the way it does", () => {
         assert.strictEqual(blocks.length, 1);
         assert.strictEqual(block?.channel, "node.color");
         assert.strictEqual(block?.runId, "betweenness");
-        assert.strictEqual(block?.field?.path, "results.betweenness.value");
+        assert.strictEqual(block?.field?.path, "store.graphty.betweenness.value");
         assert.isAbove(swatches.length, 0);
         assert.isTrue(swatches.every((swatch) => typeof swatch.color === "string"));
     });
@@ -1343,7 +1350,7 @@ describe("the legend, and why one element looks the way it does", () => {
             await styles.encode({ run: "betweenness", channel: "node.color", name: "By betweenness" });
             await styles.add(
                 layerSpec("Route colour", {
-                    selector: { match: "has", path: "results.route.onPath" },
+                    selector: { match: "has", path: "store.graphty.route.onPath" },
                     set: { "node.color": "#00ff00" },
                 }),
             );
@@ -1366,7 +1373,7 @@ describe("the legend, and why one element looks the way it does", () => {
             await styles.encode({ run: "betweenness", channel: "node.color", name: "By betweenness" });
             await styles.add(
                 layerSpec("Group colour", {
-                    selector: { match: "has", path: "results.louvain.group" },
+                    selector: { match: "has", path: "store.graphty.louvain.group" },
                     set: { "node.color": "#00ff00" },
                 }),
             );
@@ -1412,7 +1419,7 @@ describe("the legend, and why one element looks the way it does", () => {
                 layerId: layer.id,
                 name: "By betweenness",
                 channel: "node.color",
-                path: "results.betweenness.value",
+                path: "store.graphty.betweenness.value",
             },
         });
     });
@@ -1523,7 +1530,7 @@ const DOCUMENT: StyleDocument = {
         { name: "Ranked", selector: { match: "has", path: "data.rank" }, set: { "node.size": 2 } },
         {
             name: "Waiting",
-            selector: { match: "has", path: "results.pagerank.score" },
+            selector: { match: "has", path: "store.graphty.pagerank.score" },
             set: { "node.color": "#00ff00" },
         },
     ],
@@ -1579,11 +1586,11 @@ describe("a style document, out and back in", () => {
         assert.strictEqual(applied.length, 1);
         assert.deepStrictEqual(
             unbound.map((entry: UnboundLayer) => entry.needs),
-            [["results.pagerank.score"]],
+            [["store.graphty.pagerank.score"]],
         );
         assert.deepStrictEqual(unbound[0]?.fact, {
             code: "layer.unanswered",
-            params: { layerId: unbound[0]?.layerId ?? "", name: "Waiting", paths: ["results.pagerank.score"] },
+            params: { layerId: unbound[0]?.layerId ?? "", name: "Waiting", paths: ["store.graphty.pagerank.score"] },
         });
         assert.isFalse(waiting?.enabled);
         assert.isTrue(styles.get(applied[0] ?? "")?.enabled);

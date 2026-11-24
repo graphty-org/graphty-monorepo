@@ -4,7 +4,7 @@
  *
  * A page names a result by the run, never by a path, so the run id never has to be known and a
  * column of imported data can never pose as a result. The values are read from the run's own
- * result, the same records a style layer's `results.<run>.<field>` reads, so a page and a layer
+ * result, the same records a style layer's `store.graphty.<run>.<field>` reads, so a page and a layer
  * cannot disagree.
  */
 
@@ -79,9 +79,9 @@ export function resolveResult(
     if (run === undefined) {
         const available = runs.runIds();
         const shown = String(wanted);
-        // A path such as "results.pagerank.value" type-checks, because a string is a run id; name
+        // A path such as "store.graphty.pagerank.value" type-checks, because a string is a run id; name
         // the run it points at first, so the mistake is one lookup away from the fix.
-        const pathRun = /^results\.([^.]+)/.exec(shown)?.[1];
+        const pathRun = /^store\.graphty\.([^.]+)/.exec(shown)?.[1];
         const pointed = pathRun !== undefined && available.includes(pathRun) ? [pathRun] : [];
         const hint = pointed.length > 0 ? ` A string names a run, not a path: pass "${pointed[0]}".` : "";
         throw new GraphtyError({

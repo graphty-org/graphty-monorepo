@@ -296,7 +296,7 @@ export interface SelectionMatch {
     /**
      * The paths the predicate named that nothing in this session answers.
      *
-     * A predicate over `results.betwenness.value` parses perfectly and matches nothing, which
+     * A predicate over `store.graphty.betwenness.value` parses perfectly and matches nothing, which
      * reads exactly like a correct answer of zero. Reporting the path is what turns that into a
      * sentence a person can act on.
      */

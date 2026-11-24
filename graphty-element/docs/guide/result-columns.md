@@ -40,7 +40,7 @@ its `id` at once, before the run finishes, so you can name a column on a run tha
 computing; awaiting the handle gives the run's result, which names the same run. `sort` takes the
 same `{ run, field? }`, plus `descending`.
 
-A path string such as `"results.pagerank.value"` type-checks, because a string is a run id, but it
+A path string such as `"store.graphty.pagerank.value"` type-checks, because a string is a run id, but it
 is refused with `E_UNKNOWN_RUN`; the error's `details.candidates` puts the run the path points at
 first.
 
@@ -48,7 +48,7 @@ first.
 
 - `{ run }` or `{ run, field }` sorts by a run's result.
 - `{ key: "weight" }` sorts by one of the records' own attributes, and only that. A key is never
-  read as a result: `{ key: "results.pagerank.value" }` sorts by an imported attribute that happens
+  read as a result: `{ key: "store.graphty.pagerank.value" }` sorts by an imported attribute that happens
   to have that name, and by nothing when there is none. To sort by a result, name the run.
 
 The primary field comes from the run's `shape` (`run.shape`, or `shape` on the algorithm's entry
@@ -93,15 +93,15 @@ listed; its column comes back `pending` until the result publishes.
 order you asked. Its type says so too: a page read with `columns` has `columns` as a plain array,
 so `const [rank] = page.columns` needs no `?? []`.
 
-| Member    | What it holds                                                                  |
-| --------- | ------------------------------------------------------------------------------ |
-| `run`     | the run's id, a string, whatever form you named the run in                     |
-| `field`   | the field read, after the primary-field default                                |
-| `path`    | the field's path, `results.<run>.<field>`, as a style layer or filter reads it |
-| `type`    | `"number"`, `"integer"`, `"boolean"` or `"string"`                             |
-| `pending` | `true` while the run has no result yet; every cell is then `undefined`         |
-| `values`  | one cell per record, aligned with `page.records`                               |
-| `ranks`   | a community's `group` column only: each cell's group rank, aligned likewise    |
+| Member    | What it holds                                                                        |
+| --------- | ------------------------------------------------------------------------------------ |
+| `run`     | the run's id, a string, whatever form you named the run in                           |
+| `field`   | the field read, after the primary-field default                                      |
+| `path`    | the field's path, `store.graphty.<run>.<field>`, as a style layer or filter reads it |
+| `type`    | `"number"`, `"integer"`, `"boolean"` or `"string"`                                   |
+| `pending` | `true` while the run has no result yet; every cell is then `undefined`               |
+| `values`  | one cell per record, aligned with `page.records`                                     |
+| `ranks`   | a community's `group` column only: each cell's group rank, aligned likewise          |
 
 `pending` means the run has never published a result, not that it is busy: a column on a
 still-running handle comes back pending, an awaited run never is, and a run that is re-running

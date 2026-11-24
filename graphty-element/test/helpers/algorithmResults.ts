@@ -6,7 +6,7 @@
  * back from there. That projection existed for exactly one consumer -- the hand-written
  * `suggestedStyles` layers, whose selectors and calculated-style inputs named those paths -- and
  * it went with them. An algorithm now returns a `RunResult`, and a style layer reads
- * `results.<runId>.<field>`.
+ * `store.graphty.<runId>.<field>`.
  *
  * So the old KEYS are translated here, in the tests, rather than kept alive in the element. The
  * table below is the whole of the 1.x vocabulary and what each name became; a name with no

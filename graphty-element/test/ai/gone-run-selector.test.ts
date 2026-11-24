@@ -16,7 +16,7 @@ describe("a selector over a run an Undo took back", () => {
         assert.deepEqual(session.runs.list(), []);
 
         await scripted.say("hide the weak ones", [
-            { tool: "filter", args: { action: "show_only", on: "node", where: "results.degree.value >= `2`" } },
+            { tool: "filter", args: { action: "show_only", on: "node", where: "store.graphty.degree.value >= `2`" } },
         ]);
 
         assert.strictEqual(scripted.lastResults().at(-1)?.code, "AI_UNKNOWN_RUN");

@@ -77,7 +77,7 @@ describe("a run's group value (#906)", () => {
             assert.strictEqual(swatch?.rank, group.rank);
 
             await session.selection.apply({
-                where: `results.${run.id}.group == \`${JSON.stringify(swatch?.value)}\``,
+                where: `store.graphty.${run.id}.group == \`${JSON.stringify(swatch?.value)}\``,
             });
             assert.strictEqual(session.selection.nodes.length, group.size, "the swatch's value selects its group");
         }

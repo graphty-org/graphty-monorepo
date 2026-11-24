@@ -618,7 +618,7 @@ interface LayoutScopeSource {
      */
     detached(scope: Scope): boolean;
     /**
-     * The node values at a `data.<key>` or `results.<run>.<field>` path, by row of a snapshot.
+     * The node values at a `data.<key>` or `store.graphty.<run>.<field>` path, by row of a snapshot.
      * @param graph - The snapshot whose rows the values are laid out over.
      * @param path - The path.
      * @returns The values, or null when nothing carries the path.

@@ -58,7 +58,7 @@ interface PathRefusalFacts {
     readonly path: string;
     /** The attribute names that kind of element does carry. */
     readonly carriers: readonly string[];
-    /** The run a `results.<run>.<field>` path names, when it is one. */
+    /** The run a `store.graphty.<run>.<field>` path names, when it is one. */
     readonly run?: string;
 }
 
@@ -179,7 +179,7 @@ export function carriedList(facts: PathRefusalFacts): string {
  * @returns The run.
  */
 function runOf(path: string): string | undefined {
-    const match = /^results\.([^.]+)\./.exec(path);
+    const match = /^store\.graphty\.([^.]+)\./.exec(path);
     return match === null ? undefined : match[1];
 }
 

@@ -37,7 +37,7 @@ async function communities(context: RunExecutionContext): Promise<RunOutcome> {
                     technicalName: "community",
                     kind: "node",
                     type: "integer",
-                    path: `results.${context.runId}.group`,
+                    path: `store.graphty.${context.runId}.group`,
                 },
             ],
             measured: { nodes: nodes.length, edges: 0 },
@@ -135,7 +135,7 @@ describe("per-value entries", () => {
             target: "node",
             selector: {
                 match: "rule",
-                where: { kind: "categories", attribute: "results.louvain.group", values: ["3"] },
+                where: { kind: "categories", attribute: "store.graphty.louvain.group", values: ["3"] },
             },
             set: { "node.size": 3 },
         });
@@ -174,7 +174,7 @@ describe("per-value entries", () => {
         assert.strictEqual(colorOf(harness, layer, 3), "#123456");
         assert.deepStrictEqual(
             (styles.get(hand.id)?.selector as { where?: unknown }).where,
-            { kind: "categories", attribute: "results.louvain.group", values: ["3"] },
+            { kind: "categories", attribute: "store.graphty.louvain.group", values: ["3"] },
             "the hand layer's rule names community 3 still",
         );
         assert.strictEqual(styles.counts(hand.id).matched, 3, "and holds the same three members");
@@ -185,7 +185,7 @@ describe("per-value entries", () => {
         );
         assert.deepStrictEqual(
             after?.unmatched,
-            [{ code: "group.new", params: { path: "results.louvain.group", value: 4 } }],
+            [{ code: "group.new", params: { path: "store.graphty.louvain.group", value: 4 } }],
             "the community f moved to is new",
         );
         assert.isUndefined(styles.get(hand.id)?.unmatched, "a rule naming no lost group reports nothing");

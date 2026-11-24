@@ -264,7 +264,7 @@ async function apply(op: Op, model: Model, real: Real): Promise<void> {
                 });
             } else if (op.make === 2) {
                 made = { kind: "follow-pr" };
-                id = session.sets.create({ kind: "rule", where: "results.pr.value > `2`", reading: "induced" });
+                id = session.sets.create({ kind: "rule", where: "store.graphty.pr.value > `2`", reading: "induced" });
             } else if (op.make === 3 && louv !== undefined && token !== undefined) {
                 made = { kind: "hold-louv", execution: louv, group: op.group };
                 id = session.sets.create({

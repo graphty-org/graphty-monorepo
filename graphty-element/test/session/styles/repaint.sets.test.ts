@@ -284,7 +284,7 @@ describe("a layer naming a set repaints only what moved", () => {
         const h = path({ execute: publishing(new Map([["pr", degrees]])) });
         const run = h.session.runs.start("degree", undefined, { as: "pr", scope: "graph", style: false });
         await run;
-        const id = h.session.sets.create({ kind: "rule", where: "results.pr.value > `1`", reading: "induced" });
+        const id = h.session.sets.create({ kind: "rule", where: "store.graphty.pr.value > `1`", reading: "induced" });
         await h.session.styles.add(redLayer({ set: id }));
         await paintAll(h);
         assert.deepStrictEqual(red(h), ["b", "c", "d"]);
@@ -423,12 +423,12 @@ describe("a finished run repaints only the layers that read it", () => {
         });
         await h.session.styles.add({
             name: "Other's nodes",
-            selector: { match: "has", path: "results.other.value" },
+            selector: { match: "has", path: "store.graphty.other.value" },
             set: { "node.size": 2 },
         });
         await h.session.styles.add({
             name: "Pr's nodes",
-            selector: { match: "has", path: "results.pr.value" },
+            selector: { match: "has", path: "store.graphty.pr.value" },
             set: { "node.color": RED },
         });
         await paintAll(h);

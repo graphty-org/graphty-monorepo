@@ -117,8 +117,8 @@ describe("the style codec writes", () => {
         await session.styles.add({
             name: "Hubs",
             target: "node",
-            selector: { match: "has", path: "results.team__hubs.value" },
-            encode: { "node.color": { by: "results.team__hubs.value", scale: "linear", palette: "viridis" } },
+            selector: { match: "has", path: "store.graphty.team__hubs.value" },
+            encode: { "node.color": { by: "store.graphty.team__hubs.value", scale: "linear", palette: "viridis" } },
         });
         await session.styles.add({
             name: "Big",
@@ -135,7 +135,7 @@ describe("the style codec writes", () => {
             ["Base", "Hubs", "Big"],
         );
         assert.isTrue(layers.every((layer) => typeof layer.id === "string" && layer.id !== ""));
-        assert.strictEqual((layers[1].selector as JsonObject).path, "results.hubs.value");
+        assert.strictEqual((layers[1].selector as JsonObject).path, "store.graphty.hubs.value");
         assert.deepEqual(
             (section.palettes as JsonObject[]).map((palette) => palette.id),
             ["viridis"],
@@ -235,8 +235,8 @@ describe("the style codec round-trips", () => {
         await first.styles.add({
             name: "Hubs",
             target: "node",
-            selector: { match: "has", path: "results.hubs.value" },
-            encode: { "node.color": { by: "results.hubs.value", palette: "viridis" } },
+            selector: { match: "has", path: "store.graphty.hubs.value" },
+            encode: { "node.color": { by: "store.graphty.hubs.value", palette: "viridis" } },
         });
         await first.styles.addFolder("Looks");
         const { section } = await saveStyle(first);
@@ -364,8 +364,8 @@ describe("the style codec reads", () => {
         const session = createGraphSession(ON);
         const style = file([
             layer({
-                selector: { match: "has", path: "results.hubs.value" },
-                encode: { "node.size": { by: "results.hubs.value" } },
+                selector: { match: "has", path: "store.graphty.hubs.value" },
+                encode: { "node.size": { by: "store.graphty.hubs.value" } },
             }),
         ]);
         const recipe = {
@@ -386,7 +386,7 @@ describe("the style codec reads", () => {
             true,
         );
         const [applied] = session.styles.list().filter((each) => !each.locked);
-        assert.deepEqual(applied.selector, { match: "has", path: "results.team__hubs.value" });
+        assert.deepEqual(applied.selector, { match: "has", path: "store.graphty.team__hubs.value" });
         // Saved again, the run is named by its `as`.
         assert.deepEqual((await saveStyle(session)).section.layers, style.layers);
     });
@@ -471,7 +471,7 @@ describe("the version 2 style section's own rules", () => {
                 {
                     id: "x",
                     name: "X",
-                    selector: { match: "has", path: "results.pagerank.value" },
+                    selector: { match: "has", path: "store.graphty.pagerank.value" },
                     set: { "node.size": 2 },
                 },
             ],
@@ -481,7 +481,7 @@ describe("the version 2 style section's own rules", () => {
             [{ code: "W_REFERENCE_UNBOUND", params: { section: "style", pointer: "/layers/0", ref: "pagerank" } }],
         );
         const [applied] = session.styles.list().filter((each) => !each.locked);
-        assert.deepEqual(applied.selector, { match: "has", path: "results.pagerank.value" });
+        assert.deepEqual(applied.selector, { match: "has", path: "store.graphty.pagerank.value" });
     });
 
     it("writes dependency columns with their table", async () => {
@@ -565,19 +565,19 @@ describe("paths in a style section are renamed by token", () => {
         const layer = {
             selector: {
                 match: "expression",
-                where: "results.\"min-cut\".value > `1` && data.note != 'results.min-cut.value'",
+                where: "results.\"min-cut\".value > `1` && data.note != 'store.graphty.min-cut.value'",
             },
-            encode: { "node.size": { by: "results.min-cut.value" } },
-            name: "results.min-cut.value",
+            encode: { "node.size": { by: "store.graphty.min-cut.value" } },
+            name: "store.graphty.min-cut.value",
         };
         const renamed = renameRuns(layer, (run) => (run === "min-cut" ? "ns__min-cut" : undefined));
         assert.deepEqual(renamed, {
             selector: {
                 match: "expression",
-                where: "results.\"ns__min-cut\".value > `1` && data.note != 'results.min-cut.value'",
+                where: "results.\"ns__min-cut\".value > `1` && data.note != 'store.graphty.min-cut.value'",
             },
-            encode: { "node.size": { by: "results.ns__min-cut.value" } },
-            name: "results.min-cut.value",
+            encode: { "node.size": { by: "store.graphty.ns__min-cut.value" } },
+            name: "store.graphty.min-cut.value",
         });
     });
 

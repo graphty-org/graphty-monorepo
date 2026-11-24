@@ -115,7 +115,7 @@ describe("session.data.valueCounts over a run's field", () => {
                             technicalName: "community",
                             kind: "node",
                             type: "integer",
-                            path: `results.${context.runId}.group`,
+                            path: `store.graphty.${context.runId}.group`,
                         },
                     ],
                     measured: { nodes: ids.length, edges: 0 },
@@ -136,7 +136,7 @@ describe("session.data.valueCounts over a run's field", () => {
         const session = createGraphSession({ runs: { execute } });
         await session.data.addNodes(PEOPLE);
         const run = await session.runs.start("louvain", {});
-        assert.deepStrictEqual(session.data.valueCounts(`results.${run.runId}.group`), {
+        assert.deepStrictEqual(session.data.valueCounts(`store.graphty.${run.runId}.group`), {
             values: [
                 { value: 1, count: 2 },
                 { value: 0, count: 1 },

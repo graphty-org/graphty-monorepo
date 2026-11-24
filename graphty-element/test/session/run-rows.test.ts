@@ -28,7 +28,7 @@ const ROUTE = ["Napoleon", "Myriel", "Valjean", "Fantine", "Tholomyes"];
  * @returns The descriptor.
  */
 function field(runId: string, name: string, kind: "node" | "edge", type: FieldDescriptor["type"]): FieldDescriptor {
-    return { name, plainName: name, technicalName: name, kind, type, path: `results.${runId}.${name}` };
+    return { name, plainName: name, technicalName: name, kind, type, path: `store.graphty.${runId}.${name}` };
 }
 
 /**
@@ -202,7 +202,7 @@ describe("a run's style layers", () => {
                 assert.isDefined(rule, `${layer.name} reads as a rule`);
                 const where = rule?.where ?? { kind: "all", of: [] };
                 assert.isTrue(
-                    leafPaths(where).some((path) => path.startsWith(`results.${as}.`)),
+                    leafPaths(where).some((path) => path.startsWith(`store.graphty.${as}.`)),
                     `${layer.name}'s rule names the run's value: ${JSON.stringify(where)}`,
                 );
                 const channel = layer.target === "node" ? "node.size" : "edge.width";
@@ -228,7 +228,7 @@ describe("a run's style layers", () => {
         const session = await lesMis();
         await run(session, "louvain", "lv");
         const [louvain] = layersOf(session, "lv");
-        const where: RuleTree = { kind: "categories", attribute: "results.lv.group", values: ["3"] };
+        const where: RuleTree = { kind: "categories", attribute: "store.graphty.lv.group", values: ["3"] };
         const layer = await session.styles.add(
             { name: "Louvain 3", target: "node", selector: { match: "rule", where }, set: { "node.color": "#00ff00" } },
             { above: louvain.id },

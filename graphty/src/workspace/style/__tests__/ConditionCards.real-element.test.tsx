@@ -308,7 +308,7 @@ describe("the combined Style panel", () => {
     it("a category card writes the ticked values, and its chip counts what the element counts", async () => {
         const session = await openSample();
         const run = await session.runs.start("louvain", {}, { style: false, seed: 1 });
-        const group = cardFields(session, "node").find((field) => field.path === `results.${run.runId}.group`);
+        const group = cardFields(session, "node").find((field) => field.path === `store.graphty.${run.runId}.group`);
         assert.isDefined(group);
         const layer = await layerOf(session, "Groups");
         await cardsFor(session, "Groups");
@@ -616,7 +616,7 @@ describe("the combined Style panel", () => {
     it("Enter on an unticked value ticks it; adding a field already carded goes back to its card", async () => {
         const session = await openSample();
         const run = await session.runs.start("louvain", {}, { style: false, seed: 1 });
-        const group = cardFields(session, "node").find((field) => field.path === `results.${run.runId}.group`);
+        const group = cardFields(session, "node").find((field) => field.path === `store.graphty.${run.runId}.group`);
         const name = group?.name ?? "";
         const layer = await layerOf(session, "Groups");
         await cardsFor(session, "Groups");

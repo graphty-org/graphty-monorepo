@@ -948,7 +948,7 @@ function stepOf(rule: UnionLeaf, stepId: string): UnionStep {
 }
 
 /**
- * The runs a rule reads: through a `results.<run>.*` path in any leaf or query, or an `item`
+ * The runs a rule reads: through a `store.graphty.<run>.*` path in any leaf or query, or an `item`
  * leaf naming a result.
  * @param tree - The rule.
  * @returns The run ids.

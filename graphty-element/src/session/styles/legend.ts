@@ -34,7 +34,7 @@
  */
 
 import type { AlgorithmKey, Binding, Channel, LayerId, PaletteId, Path, RunId } from "../../catalog/types";
-import { RESULT_ROOT } from "../results/types";
+import { pathParts } from "../results/types";
 import type { CodedFact } from "../shared";
 import { DRAFT_MARKS, DRAFT_PATH } from "../sources/steps/paths";
 import { asColorValue } from "./channels";
@@ -73,7 +73,7 @@ export interface LegendSwatch {
     };
     /**
      * The group's place by size, from 1 for the largest, on a block that colors a run's groups
-     * (`results.<run>.group`): the same `rank` the run summary's group carries, so a list of
+     * (`store.graphty.<run>.group`): the same `rank` the run summary's group carries, so a list of
      * groups, a table column and the legend can name one group the same way. Absent on any other
      * row.
      */
@@ -691,12 +691,12 @@ function sweepRuns(prepared: PreparedBinding, domain: readonly [number, number])
  * Those swatches carry the ranks the run's summary gives the same groups, so an application that
  * words a group from its rank names it the same in the key and in the list of groups.
  * @param path - The column path.
- * @returns The run id for `results.<run>.group`, otherwise undefined.
+ * @returns The run id for `store.graphty.<run>.group`, otherwise undefined.
  */
 function groupsRunOf(path: Path | null): string | undefined {
-    const parts = path?.split(".") ?? [];
+    const parts = path === null ? undefined : pathParts(path);
 
-    return parts.length === 3 && parts[0] === RESULT_ROOT && parts[2] === "group" ? parts[1] : undefined;
+    return parts?.from === "run" && parts.field === "group" ? parts.runId : undefined;
 }
 
 /**

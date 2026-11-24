@@ -69,7 +69,7 @@ function positions(hold: Hold): (context: RunExecutionContext) => Promise<RunOut
                         technicalName: "value",
                         kind: "node",
                         type: "number",
-                        path: `results.${context.runId}.value`,
+                        path: `store.graphty.${context.runId}.value`,
                     },
                 ],
                 nodes,

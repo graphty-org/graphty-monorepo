@@ -76,7 +76,7 @@ function standInExecutor(session: () => GraphSession): (context: RunExecutionCon
                     technicalName: "value",
                     kind: "node",
                     type: "number",
-                    path: "results.$.value",
+                    path: "store.graphty.$.value",
                 },
             ]
         )

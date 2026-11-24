@@ -32,7 +32,7 @@
  * A PATH THAT NOTHING ANSWERS IS NOT AN ERROR. A selector naming a run that has not been started
  * parses perfectly and matches nothing, and an empty screen reads exactly like a correct answer
  * of zero. So it is reported separately, in {@link ValidationResult.unresolvedPaths}, and the
- * caller decides: a form says "0 would match -- results.louvain.group is not in this session", an
+ * caller decides: a form says "0 would match -- store.graphty.louvain.group is not in this session", an
  * import disables the layer with that reason, and a consumer that knows the run is coming carries
  * on.
  *
@@ -80,6 +80,7 @@ import { isGraphtyError } from "../../errors";
 import type { GraphtyWarningCode } from "../../errors/codes";
 import { isPlainObject } from "../../utils/isPlainObject";
 import { deepFreeze } from "../project/draft";
+import { isRunPath } from "../results/types";
 import type { RunProgressReport } from "../runs";
 import { trimTrailingSeparators } from "../runs/runId";
 import type { CodedFact } from "../shared";
@@ -285,7 +286,7 @@ export interface ValidationResult {
 export interface PathDirectory {
     /**
      * Whether something in this session can answer a path for a kind of element.
-     * @param path - The column path, such as `results.louvain.group`.
+     * @param path - The column path, such as `store.graphty.louvain.group`.
      * @param target - Whether the layer asking paints nodes or edges.
      * @returns True when the session holds a column for it.
      */
@@ -457,7 +458,7 @@ export type LayerRepaint = (request: RepaintRequest, context: RepaintContext) =>
 const ID_FALLBACK = "layer";
 
 /** The path prefix a run's published result sits under, which is what makes an encoding run-bound. */
-const RUN_PATH_PREFIX = "results.";
+const RUN_PATH_PREFIX = "store.graphty.";
 
 /** The overflow policies a binding may name. */
 const OVERFLOW_POLICIES: readonly BindingOverflow[] = Object.freeze(["other", "shape", "pattern", "extend"]);
@@ -1066,7 +1067,7 @@ function checkBinding(
     if (typeof binding.by !== "string" || binding.by.trim() === "") {
         report(log, {
             code: "E_BAD_LAYER",
-            message: `${descriptor.plainName} is encoded from a path, such as "results.betweenness.score".`,
+            message: `${descriptor.plainName} is encoded from a path, such as "store.graphty.betweenness.score".`,
             path: `${path}.by`,
         });
 
@@ -1889,7 +1890,9 @@ export function checkLayerSpec(given: LayerSpec, options: LayerCheckOptions): La
             : Object.freeze(
                   log.paths.filter(
                       (path) =>
-                          (path.startsWith("graphty.") || path.startsWith("store.")) &&
+                          // A run's path is not checked, as before it moved under `store.`: that would
+                          // describe every record to style by a run.
+                          (path.startsWith("graphty.") || (path.startsWith("store.") && !isRunPath(path))) &&
                           directory.answers(`data.${path}`, target),
                   ),
               );

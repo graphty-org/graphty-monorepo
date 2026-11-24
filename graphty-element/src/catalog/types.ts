@@ -136,7 +136,7 @@ export type RunId = string;
 /**
  * The name an algorithm suggests for a run's result, from the run's settings.
  *
- * `id` becomes the result path a style layer reads (`results.<id>.value`), so it is lower-case
+ * `id` becomes the result path a style layer reads (`store.graphty.<id>.value`), so it is lower-case
  * letters, digits and underscores, starting with a letter: `pagerank`, `louvain_resolution_1_5`.
  * `label` is what a reader sees in the layer list and the legend: "Influence (damping 0.9)".
  */
@@ -160,7 +160,7 @@ export type SetId = string;
 export type ScopeId = SetId;
 
 /**
- * A column key: `data.<name>` for a data column, `results.<run>.<field>` for a run's result.
+ * A column key: `data.<name>` for a data column, `store.graphty.<run>.<field>` for a run's result.
  *
  * The part after the root is the column's name LITERALLY, never an expression: a column named
  * `shared chapters` or `a.b` has the path `data.shared chapters` or `data.a.b`. Wherever a path is
@@ -478,7 +478,7 @@ export interface FieldInterpretation {
 
 /** One field a result publishes, per element or for the graph as a whole. */
 export interface FieldDescriptor {
-    /** The field's name, as its result path spells it: `results.<run>.<name>`. */
+    /** The field's name, as its result path spells it: `store.graphty.<run>.<name>`. */
     name: string;
     /** The field's default name for a reader, such as "Influence". */
     plainName: string;
@@ -543,7 +543,7 @@ export interface FieldDescriptor {
      * @beta
      */
     unstable?: true;
-    /** The path a style layer or a rule reads the field by, such as `results.pagerank.score`. */
+    /** The path a style layer or a rule reads the field by, such as `store.graphty.pagerank.score`. */
     path: Path;
 }
 
@@ -1357,7 +1357,7 @@ export type Binding =
           format?: BindingNumberFormat;
       }
     | {
-          /** The value each element is painted by, such as `data.age` or `results.pagerank.score`. */
+          /** The value each element is painted by, such as `data.age` or `store.graphty.pagerank.score`. */
           by: Path;
           /** How the value meets what lies beneath. See {@link CombineMode}. @since 3.26.0 */
           combine?: CombineMode;
@@ -1512,7 +1512,7 @@ export type Selector =
     | {
           /** The elements that carry a value for a path. */
           match: "has";
-          /** The value path, such as `data.age` or `results.pagerank.score`. */
+          /** The value path, such as `data.age` or `store.graphty.pagerank.score`. */
           path: Path;
       }
     | {
@@ -1524,7 +1524,7 @@ export type Selector =
           edges?: readonly EdgeId[];
       }
     /**
-     * The top `n` elements by one run field (`results.<run>.<field>`), cut only between tie
+     * The top `n` elements by one run field (`store.graphty.<run>.<field>`), cut only between tie
      * groups: a group of equal values is painted whole, and only when all of it fits inside `n`.
      * See `TopRanking` for the policy. `ties: "all"` takes the group the cut falls in whole
      * instead, so the top can hold more than `n` (see {@link TopTies}).
@@ -1532,7 +1532,7 @@ export type Selector =
     | {
           /** The top elements by one run field. */
           match: "top";
-          /** The run field ranked, `results.<run>.<field>`. */
+          /** The run field ranked, `store.graphty.<run>.<field>`. */
           path: Path;
           /** How many elements at most, with the default tie policy. */
           n: number;
@@ -1724,7 +1724,7 @@ export interface LayerUnmatchedGroup {
     readonly code: GroupMatchCode;
     /** Which group, of which value. */
     readonly params: {
-        /** The value path the group is a value of, such as `results.louvain.group`. */
+        /** The value path the group is a value of, such as `store.graphty.louvain.group`. */
         readonly path: Path;
         /** The group, as the data spells it. */
         readonly value: string | number | boolean;
@@ -2431,14 +2431,14 @@ export type ReadableChannelKind = "color" | "number" | "enum" | "text" | "boolea
  *     console.log(value.path, value.plainName, value.kind, value.range ?? value.valueCount);
  * }
  * // "data.age" "age" "number" { min: 18, max: 64 }
- * // "results.louvain.group" "Community" "category" 6
+ * // "store.graphty.louvain.group" "Community" "category" 6
  * ```
  * @since 3.26.0
  */
 export interface ReadableValue {
     /**
      * What a rule or a binding reads: `"id"` for the node id (a rule's text leaf reads it),
-     * `data.<name>` for a data column, `results.<run>.<field>` for a run's field. Distinct for every
+     * `data.<name>` for a data column, `store.graphty.<run>.<field>` for a run's field. Distinct for every
      * entry, so the node id and a data column named `id` are two entries.
      */
     readonly path: Path;
@@ -2501,7 +2501,7 @@ export interface ReadableValue {
      * `technicalName`, `kind`, `range` and `valueCount` are the node value's (read over the nodes).
      * A rule such as "edges whose source is Valjean" reads
      * `{ kind: "text", reads: "graphty.source.data.name", mode: "exact", text: "Valjean" }`, and a
-     * binding such as "width by the source's Connections" reads `graphty.source.results.<run>.value`.
+     * binding such as "width by the source's Connections" reads `graphty.source.store.graphty.<run>.value`.
      * @since 3.26.0
      */
     readonly end?: "source" | "target";
@@ -2865,7 +2865,7 @@ export type RuleTree =
     | {
           /** The elements whose value for a path passes one cut. */
           readonly kind: "threshold";
-          /** A value path: `results.<run>.<field>` or `data.<field>`. */
+          /** A value path: `store.graphty.<run>.<field>` or `data.<field>`. */
           readonly path: Path;
           /** The top `n`, whole tie groups only (the `TopRanking` tie policy). Exactly one cut. */
           readonly top?: number;
@@ -3166,7 +3166,7 @@ export interface NonemptyLeaf {
 export interface SameValueLeaf {
     /** The elements sharing a value with a reference node. */
     readonly kind: "same-value";
-    /** A value path: `data.<field>`, `results.<run>.<field>` or `graphty.degree`. */
+    /** A value path: `data.<field>`, `store.graphty.<run>.<field>` or `graphty.degree`. */
     readonly path: Path;
     /** The reference. Absent, the step is inert (`no-reference`). */
     readonly as?: StepReference;

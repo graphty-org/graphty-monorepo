@@ -37,7 +37,7 @@ console.log(session.styles.counts(bobs.id).matched, session.styles.counts(odd.id
 ## Matching text
 
 A `text` condition reads one value (`"id"` for the element's id, `"data.<column>"` for a column,
-`"results.<run>.<field>"` for a run's value) and tests it with a `mode`:
+`"store.graphty.<run>.<field>"` for a run's value) and tests it with a `mode`:
 
 | `mode`          | Holds an element when its value |
 | --------------- | ------------------------------- |

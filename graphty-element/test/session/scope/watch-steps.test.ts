@@ -69,7 +69,7 @@ function degreeInScope(executions: Executions) {
                         technicalName: "value",
                         kind: "node",
                         type: "number",
-                        path: `results.${context.runId}.value`,
+                        path: `store.graphty.${context.runId}.value`,
                     },
                     {
                         name: "group",
@@ -79,7 +79,7 @@ function degreeInScope(executions: Executions) {
                         type: "integer",
                         measurement: "categorical",
                         unstable: true,
-                        path: `results.${context.runId}.group`,
+                        path: `store.graphty.${context.runId}.group`,
                     },
                 ],
                 nodes: [...inside].map((id) => ({
@@ -383,7 +383,7 @@ describe("watchSteps", () => {
         await session.visibility.addCondition({ effect: "keep", rule: STAFF });
         const run = session.runs.start("degree", {}, { scope: "visible", style: false });
         await run;
-        const field = `results.${run.id}.value`;
+        const field = `store.graphty.${run.id}.value`;
         const rules: RuleTree[] = [
             { kind: "range", attribute: field, min: 1 },
             { kind: "threshold", path: field, top: 3 },
@@ -1125,7 +1125,7 @@ describe("scope.histogram", () => {
     it("names the best-connected member of each value of an unstable field", async () => {
         const session = await lesMis();
         const run = await session.runs.start("degree", {}, { scope: "graph", style: false });
-        const groups = session.scope.histogram(`results.${run.runId}.group`);
+        const groups = session.scope.histogram(`store.graphty.${run.runId}.group`);
         assert.strictEqual(groups.kind, "categorical");
         const valjean =
             groups.kind === "categorical" ? groups.values.find((each) => each.member === "Valjean") : undefined;

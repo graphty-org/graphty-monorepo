@@ -180,7 +180,7 @@ export abstract class DeclaredAlgorithm<
      * @param context - What the element gave the run: a signal, a progress channel and a yield.
      *   The graph the run computes over is bound here, as the context's `input`.
      * @param runId - The id the result is published under, which is the `<runId>` in
-     *   `results.<runId>`.
+     *   `store.graphty.<runId>`.
      * @param declared - The catalog's descriptors for this algorithm's fields, when the caller
      *   holds them.
      * @returns The result, or undefined when there was nothing to compute.

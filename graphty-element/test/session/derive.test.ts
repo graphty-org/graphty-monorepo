@@ -34,7 +34,7 @@ function scores(context: RunExecutionContext): Promise<RunOutcome> {
                     technicalName: "score",
                     kind: "node",
                     type: "integer",
-                    path: `results.${context.runId}.value`,
+                    path: `store.graphty.${context.runId}.value`,
                 },
             ],
             measured: { nodes: 3, edges: 2 },

@@ -19,7 +19,7 @@ import { type Harness, makeSession } from "../helpers";
  * @returns The descriptor.
  */
 function field(runId: string, name: string, kind: "node" | "edge", type: "number" | "boolean"): FieldDescriptor {
-    return { name, plainName: name, technicalName: name, kind, type, path: `results.${runId}.${name}` };
+    return { name, plainName: name, technicalName: name, kind, type, path: `store.graphty.${runId}.${name}` };
 }
 
 /**

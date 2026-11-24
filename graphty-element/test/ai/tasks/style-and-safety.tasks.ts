@@ -277,7 +277,7 @@ export const STYLE_TASKS = [
             const layers = s.styles.list();
             const gold = layers.findIndex((layer) => isColorNamed(layer.set?.["node.color" as never], "gold"));
             const community = layers.findIndex((layer) =>
-                JSON.stringify(layer.encode?.["node.color"] ?? {}).includes("results.louvain."),
+                JSON.stringify(layer.encode?.["node.color"] ?? {}).includes("store.graphty.louvain."),
             );
             assert.isAbove(gold, -1, "the gold layer is gone");
             assert.isAbove(community, gold, "the community colors are not above the gold");

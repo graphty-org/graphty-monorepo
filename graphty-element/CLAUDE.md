@@ -197,7 +197,7 @@ These apply to every consumer of graphty-element's styling, acceleration and API
       "this element is not part of my result" into a paint instruction. So does an input that is
       `undefined` before the algorithm has even run
       Scope the layer with a selector that matches only the elements carrying a result
-      (``algorithmResults.graphty.dijkstra.isInPath == `true` ``), so a non-result element is never
+      (``store.graphty.dijkstra.isInPath == `true` ``), so a non-result element is never
       visited at all
 - Dimming, fading, greying or hiding what an algorithm did NOT select is a READER's choice, not
   the algorithm's. It belongs to the caller -- a story, the app, a user-added layer -- and MUST

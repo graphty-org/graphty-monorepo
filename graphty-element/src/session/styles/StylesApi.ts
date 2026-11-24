@@ -1242,11 +1242,11 @@ export interface StylesApi {
      * each value's count, hidden state, name and per-channel value-table entries.
      *
      * ```ts
-     * const groups = session.styles.groups(layer.id, "results.louvain.group");
+     * const groups = session.styles.groups(layer.id, "store.graphty.louvain.group");
      * groups[0].entries["node.shape"]; // "box", when the largest group has a shape entry
      * ```
      * @param id - The layer.
-     * @param path - The category path, such as `results.<run>.group`.
+     * @param path - The category path, such as `store.graphty.<run>.group`.
      * @returns The values; none when no channel of the layer reads the path by category.
      * @throws `E_UNKNOWN_LAYER` for an id the stack does not hold.
      * @since 3.26.0
@@ -1259,7 +1259,7 @@ export interface StylesApi {
      * value, else the channel's default) as the binding's `otherwise`.
      *
      * ```ts
-     * await session.styles.setValueEntries(layer.id, "results.louvain.group", [
+     * await session.styles.setValueEntries(layer.id, "store.graphty.louvain.group", [
      *     { channel: "node.shape", value: 3, entry: "box" },
      *     { channel: "node.label", value: 3, entry: "Students" },
      * ]);
@@ -1282,8 +1282,8 @@ export interface StylesApi {
      * way. `styles.groups` lists the folded groups last, marked `folded`.
      *
      * ```ts
-     * await session.styles.setFoldBelow(layer.id, "results.louvain.group", 3); // under 3 nodes
-     * await session.styles.setFoldBelow(layer.id, "results.louvain.group", undefined); // unfold
+     * await session.styles.setFoldBelow(layer.id, "store.graphty.louvain.group", 3); // under 3 nodes
+     * await session.styles.setFoldBelow(layer.id, "store.graphty.louvain.group", undefined); // unfold
      * ```
      * @param id - The layer.
      * @param by - The category path.
@@ -1298,13 +1298,13 @@ export interface StylesApi {
     setFoldBelow(id: LayerId, by: Path, below: number | undefined, options?: RunOptions): Run<Layer>;
     /**
      * The value one node or edge carries for a path, read the way a layer reads it: which group of
-     * `results.louvain.group` the selected node is in, say, so a group list can put it first.
+     * `store.graphty.louvain.group` the selected node is in, say, so a group list can put it first.
      *
      * ```ts
-     * session.styles.valueAt({ node: "Valjean" }, "results.louvain.group"); // 3
+     * session.styles.valueAt({ node: "Valjean" }, "store.graphty.louvain.group"); // 3
      * ```
      * @param target - The node or the edge.
-     * @param path - The path, such as `results.<run>.group` or `data.dept`.
+     * @param path - The path, such as `store.graphty.<run>.group` or `data.dept`.
      * @returns The value, or undefined when the element carries none.
      * @throws `E_BAD_COMMAND` when the session holds no such element.
      * @since 3.27.0

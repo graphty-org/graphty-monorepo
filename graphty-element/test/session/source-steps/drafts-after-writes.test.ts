@@ -100,7 +100,7 @@ describe("source-steps drafts: writes while After is drawn", () => {
         await d.show("before");
         await session.styles.settled();
         assert.strictEqual(session.history.steps.length, steps, "nothing recorded");
-        assert.notInclude((await session.project.save()).text, "results.degree");
+        assert.notInclude((await session.project.save()).text, "store.graphty.degree");
         session.dispose();
     });
 

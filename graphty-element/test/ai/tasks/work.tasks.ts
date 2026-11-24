@@ -470,7 +470,7 @@ export const COMMUNICATION_TASKS = [
         prepare: async (s) => {
             await s.runs.start("pagerank");
         },
-        prompts: ["Remove the PageRank results."],
+        prompts: ["Remove the PageRank store.graphty."],
         tools: ["results"],
         reference: [[[{ tool: "results", args: { action: "remove", run: "pagerank" } }]]],
         check: ({ s }) => {

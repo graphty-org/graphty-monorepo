@@ -123,7 +123,7 @@ describe("an algorithm that chooses a subset marks it with explicit channels", (
                 assert.deepStrictEqual(layer.set, layer.target === "node" ? NODE_SET : EDGE_SET);
                 assert.deepStrictEqual(layer.selector, {
                     match: "expression",
-                    where: `results.${run.id}.${field} == \`true\``,
+                    where: `store.graphty.${run.id}.${field} == \`true\``,
                 });
             }
 

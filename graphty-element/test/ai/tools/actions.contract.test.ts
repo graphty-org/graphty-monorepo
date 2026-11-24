@@ -974,11 +974,11 @@ describe("every generated action", () => {
         await assistant.say(
             "select",
             [{ tool: "run_algorithm", args: { name: "clustering-coefficient", style: false } }],
-            [{ tool: "select", args: { action: "set", where: "results.clustering-coefficient.value >= 0" } }],
+            [{ tool: "select", args: { action: "set", where: "store.graphty.clustering-coefficient.value >= 0" } }],
         );
         const [, selected] = assistant.lastResults();
         assert.strictEqual(selected.code, "AI_OK", JSON.stringify(selected));
-        assert.include(String(selected.params.rewritten), "results.clustering_coefficient.value");
+        assert.include(String(selected.params.rewritten), "store.graphty.clustering_coefficient.value");
     });
 });
 

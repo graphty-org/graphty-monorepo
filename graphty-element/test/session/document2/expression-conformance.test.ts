@@ -77,7 +77,7 @@ describe("the expression conformance cases", () => {
 const READING_KINDS = new Set(["graphty-style", "graphty-view", "graphty-recipe"]);
 
 /** The pattern of a raw path (common schema `path`). */
-const PATH = /^(data\..+|results\.[^.]+\..+|graphty\..+|_source\.loads)$/;
+const PATH = /^(data\..+|store\.graphty\.[^.]+\..+|graphty\..+|_source\.loads)$/;
 
 /**
  * Every example file, as a path under spec/examples/.

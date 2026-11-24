@@ -106,7 +106,7 @@ describe("ruleValuePath", () => {
     const cases: readonly (readonly [RuleTree, string | undefined])[] = [
         [{ kind: "range", attribute: "data.age", min: 1 }, "data.age"],
         [{ kind: "categories", attribute: "data.group", values: ["a"] }, "data.group"],
-        [{ kind: "threshold", path: "results.r.value", top: 3, ties: "all" }, "results.r.value"],
+        [{ kind: "threshold", path: "store.graphty.r.value", top: 3, ties: "all" }, "store.graphty.r.value"],
         [{ kind: "text", reads: "data.name", mode: "substring", text: "x" }, "data.name"],
         [{ kind: "same-value", path: "data.community" }, "data.community"],
         [{ kind: "by-size", path: "data.community", top: 2 }, "data.community"],
@@ -128,7 +128,7 @@ describe("rulePath", () => {
         assert.strictEqual(rulePath("data.minutes"), "minutes");
         assert.strictEqual(rulePath("data.a.b"), "data.a.b", "a dotted name keeps its data. prefix");
         assert.strictEqual(rulePath("data.min-cut"), 'data."min-cut"');
-        assert.strictEqual(rulePath("results.run-1.value"), quotePath("results.run-1.value"));
+        assert.strictEqual(rulePath("store.graphty.run-1.value"), quotePath("store.graphty.run-1.value"));
     });
 
     for (const name of ["minutes", "a.b", "min-cut", "results"]) {

@@ -37,16 +37,16 @@ type Row = Readonly<Record<Path, unknown>>;
 
 /** Six nodes, three of which a run measured. */
 const NODES: readonly Row[] = [
-    { "results.louvain.group": "a" },
-    { "results.louvain.group": "b" },
-    { "results.louvain.group": "a" },
+    { "store.graphty.louvain.group": "a" },
+    { "store.graphty.louvain.group": "b" },
+    { "store.graphty.louvain.group": "a" },
     {},
     {},
     {},
 ];
 
 /** Which nodes the run measured, which is what a `has` selector walks instead of the node list. */
-const MEASURED: Readonly<Record<Path, readonly number[]>> = { "results.louvain.group": [0, 1, 2] };
+const MEASURED: Readonly<Record<Path, readonly number[]>> = { "store.graphty.louvain.group": [0, 1, 2] };
 
 /** The element's own layer, at the bottom of the stack. */
 const ELEMENT_BASE: ElementLayerSpec = {
@@ -113,7 +113,7 @@ function makeHarness(): Harness {
         add: (name: string) =>
             styles.add({
                 name,
-                selector: { match: "has", path: "results.louvain.group" },
+                selector: { match: "has", path: "store.graphty.louvain.group" },
                 set: { "node.color": "#ff0000" },
             }),
     };

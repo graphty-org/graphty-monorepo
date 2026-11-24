@@ -162,7 +162,7 @@ describe("sets.containing", () => {
         const h = fixture();
         await h.session.runs.start("degree", {}, { as: "deg", scope: "graph", style: false });
         h.session.sets.create(
-            { kind: "rule", where: { kind: "threshold", path: "results.deg.value", top: 2 }, reading: "induced" },
+            { kind: "rule", where: { kind: "threshold", path: "store.graphty.deg.value", top: 2 }, reading: "induced" },
             { name: "Hubs" },
         );
 

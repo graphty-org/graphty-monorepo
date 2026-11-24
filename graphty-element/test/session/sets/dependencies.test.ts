@@ -39,7 +39,7 @@ describe("what a definition reads", () => {
         const tree: RuleTree = {
             kind: "all",
             of: [
-                { kind: "expression", where: "data.score > `1` && results.pr.rank < `3`" },
+                { kind: "expression", where: "data.score > `1` && store.graphty.pr.rank < `3`" },
                 { kind: "edges", where: "data.weight > `0.5`" },
                 { kind: "range", attribute: "data.score", min: 0 },
                 { kind: "categories", attribute: "data.type.name", values: ["x"] },
@@ -55,7 +55,7 @@ describe("what a definition reads", () => {
                     ],
                 },
                 { kind: "member", of: "largest-component" },
-                { kind: "member", of: { where: "results.louvain.community == `3`" } },
+                { kind: "member", of: { where: "store.graphty.louvain.community == `3`" } },
                 { kind: "member", of: { define: rule({ kind: "member", of: { set: "set_inner" } }) } },
             ],
         };
@@ -80,7 +80,7 @@ describe("what a definition reads", () => {
             of: [
                 { kind: "item", item: { result: "louvain", key: { field: "group", value: 3 }, run: "s1:7" } },
                 { kind: "item", item: { result: "route", key: { field: "onPath", value: true } } },
-                { kind: "threshold", path: "results.pr.rank", top: 10 },
+                { kind: "threshold", path: "store.graphty.pr.rank", top: 10 },
                 { kind: "threshold", path: "data.revenue.usd", above: 5 },
             ],
         };
@@ -94,7 +94,9 @@ describe("what a definition reads", () => {
     });
 
     it("reads a query rule's paths, and nothing for a fixed set or a path", () => {
-        assert.deepStrictEqual(dependenciesOf(rule("results.pr.rank > `0.1`"), pathsOf), [{ kind: "run", run: "pr" }]);
+        assert.deepStrictEqual(dependenciesOf(rule("store.graphty.pr.rank > `0.1`"), pathsOf), [
+            { kind: "run", run: "pr" },
+        ]);
         assert.deepStrictEqual(dependenciesOf({ kind: "fixed", nodes: ["a"], reading: "induced" }, pathsOf), []);
         assert.deepStrictEqual(dependenciesOf({ kind: "path", nodes: ["a", "b"] }, pathsOf), []);
     });

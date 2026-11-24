@@ -1110,7 +1110,7 @@ const text = await result.text(); // or iterate result.bytes for a large file
 
 An export carries whatever the format can represent: every node and edge with its attributes,
 the current positions, every published algorithm result (as attributes named
-`results.<runId>.<field>`, the element's rank and percentile included) and the color, size and
+`store.graphty.<runId>.<field>`, the element's rank and percentile included) and the color, size and
 edge width and node shape each element is drawn with. Edge weights are the weights the element
 runs on -- read through `edgeWeightPath` or the legacy `value` key, and folded under
 `repeatedEdges` -- and positions are written in file units (divided by `positionScale`), so a

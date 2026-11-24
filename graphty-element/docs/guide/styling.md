@@ -66,9 +66,9 @@ rather than implied:
 
 ```typescript
 { match: "everything" }                          // every node, or every edge
-{ match: "has", path: "results.degree.value" }   // every element that carries a value there
+{ match: "has", path: "store.graphty.degree.value" }   // every element that carries a value there
 { match: "ids", nodes: ["alice", "bob"] }        // exactly these
-{ match: "top", path: "results.degree.value", n: 10 } // the top 10 by a run's field, whole ties only
+{ match: "top", path: "store.graphty.degree.value", n: 10 } // the top 10 by a run's field, whole ties only
 { match: "expression", where: "data.type == 'server'" }
 { match: "member", of: { set: id } }           // the members of a set, or any other scope
 { match: "hover", reach: "neighbors" }          // the node under the pointer, and its neighbors
@@ -141,7 +141,7 @@ node, even a selected one. Unset, a node has a halo only while it is selected, a
 ### The top N
 
 `{ match: "top", path, n }` paints the `n` highest elements by one field a run published, such as
-"label the ten best-connected nodes". The path is a run's field, `results.<run>.<field>`: build it
+"label the ten best-connected nodes". The path is a run's field, `store.graphty.<run>.<field>`: build it
 with `session.results.path(run, field)`. The layer follows the run: it reads the run's values each
 time it paints, so after a re-run the top is taken again from the new values.
 
@@ -189,9 +189,9 @@ ratio, and parentheses group as usual. A leading minus takes the whole path afte
   as `'3'`, `true`, a list, or no value at all), the answer is `null`.
 - **Dividing by zero gives `null`**, as does any answer that is not a finite number. `null` is no
   value: a selector does not match the element, and a computed column leaves it without one.
-- A `-` written between two names with no space (`results.min-cut.x`) is refused with
+- A `-` written between two names with no space (`store.graphty.min-cut.x`) is refused with
   `reason: "minus-needs-spaces"` rather than read as a subtraction: quote a hyphenated name
-  (`results."min-cut".x`, which `quotePath` writes for you) or put spaces round the minus.
+  (`store.graphty."min-cut".x`, which `quotePath` writes for you) or put spaces round the minus.
 
 The same expression works outside a style layer, and matches the same elements there:
 `session.scope.count({ where })`, `session.selection.apply({ where })` and a visibility filter
@@ -206,7 +206,7 @@ const run = await element.run("degree");
 await element.session.styles.add({
     name: "Hubs",
     target: "node",
-    selector: { match: "expression", where: `results.${run.id}.value > \`10\`` },
+    selector: { match: "expression", where: `store.graphty.${run.id}.value > \`10\`` },
     set: { "node.color": "#EF4444" },
 });
 ```
@@ -215,9 +215,11 @@ await element.session.styles.add({
 
 A path that starts `graphty.` or `store.` reads a value the element itself provides, not a column
 of your data. `store.<namespace>.` is the area where values kept on each node and edge live, one
-namespace per owner; graphty-element's own are under `store.graphty.`. A saved project or style
-that still reads a note value at its older address, `graphty.notes.<field>`, opens reading
-`store.graphty.notes.<field>`.
+namespace per owner; graphty-element's own are under `store.graphty.`: a run's values at
+`store.graphty.<run>.<field>` (so no run is named `notes`) and the note values at
+`store.graphty.notes.<field>`. A saved project or style that still reads a value at its older
+address -- a run's `results.<run>.<field>`, a note's `graphty.notes.<field>` -- opens reading it at
+the new one.
 
 | Path                                        | Value                                                                                                                                   |
 | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |

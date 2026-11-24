@@ -35,7 +35,7 @@ async function execute(context: RunExecutionContext): Promise<RunOutcome> {
                     technicalName: "pagerank",
                     kind: "node",
                     type: "number",
-                    path: `results.${context.runId}.value`,
+                    path: `store.graphty.${context.runId}.value`,
                 },
             ],
             measured: { nodes: 0, edges: 0 },

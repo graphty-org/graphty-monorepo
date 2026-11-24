@@ -289,7 +289,7 @@ describe("a row whose kind changes", () => {
             await Promise.resolve();
             const nodes = session.data.nodes();
             const edges = session.data.edges();
-            const path = `results.${context.runId}.value`;
+            const path = `store.graphty.${context.runId}.value`;
             return {
                 result: createRunResult({
                     runId: context.runId,

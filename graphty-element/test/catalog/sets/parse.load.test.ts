@@ -59,7 +59,7 @@ const OPAQUE: readonly (readonly [string, Record<string, unknown>, string])[] = 
         {
             kind: "rule",
             reading: "clipped",
-            where: { kind: "threshold", path: "results.pr.rank", population: "group", top: 3 },
+            where: { kind: "threshold", path: "store.graphty.pr.rank", population: "group", top: 3 },
         },
         "threshold.population",
     ],

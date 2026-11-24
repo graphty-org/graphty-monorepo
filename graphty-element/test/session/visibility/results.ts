@@ -43,7 +43,7 @@ export function resultOf(runId: string, published: Published): RunResult {
                 technicalName: name,
                 kind,
                 type: "number" as const,
-                path: `results.${runId}.${name}`,
+                path: `store.graphty.${runId}.${name}`,
             });
         }
     }

@@ -884,7 +884,7 @@ export interface AiEffect {
  * holds more than one value only for `==` (any of them) and `!=` (none of them).
  */
 export interface AiRuleTerm {
-    /** The column, as the rule names it: a bare column name (`weight`) or a path (`results.r1.community`). */
+    /** The column, as the rule names it: a bare column name (`weight`) or a path (`store.graphty.r1.community`). */
     readonly column: string;
     /** The comparison. */
     readonly op: "==" | "!=" | "<" | "<=" | ">" | ">=";

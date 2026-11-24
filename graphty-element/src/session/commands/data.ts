@@ -45,6 +45,7 @@ import type { UndoableContext, UndoableDefinition } from "../project/Dispatcher"
 import { type Draft, frozenRecord } from "../project/draft";
 import { edgeKey, nodeKey } from "../project/graphOps";
 import { isRowsView } from "../project/recordMap";
+import { isRunPath } from "../results/types";
 import type { CodedFact } from "../shared";
 import { type Provenance, PROVENANCE_VALUE } from "../sources/provenance";
 import { applyFileStyles, asksFileStyles, type ImportOutcome } from "../styles/fileStyles/apply";
@@ -474,7 +475,7 @@ interface DataSetSourceCommand {
  */
 interface DataLabelCommand {
     readonly op: "data.label";
-    /** The value path: `data.<column>` or `results.<run>.<field>`. */
+    /** The value path: `data.<column>` or `store.graphty.<run>.<field>`. */
     readonly path: Path;
     /** The value, compared as the legend spells it, so `3` and `"3"` are one value. */
     readonly value: string | number | boolean;
@@ -1402,14 +1403,14 @@ const dataLabel: UndoableDefinition<DataLabelCommand> = {
         const { path, value, label } = command;
         const valid =
             typeof path === "string" &&
-            (path.startsWith("data.") || path.startsWith("results.")) &&
+            (path.startsWith("data.") || isRunPath(path)) &&
             ["string", "number", "boolean"].includes(typeof value) &&
             (label === null || typeof label === "string");
         if (!valid) {
             throw new GraphtyError({
                 code: "E_BAD_COMMAND",
                 message:
-                    'A value is named on a path ("data.<column>" or "results.<run>.<field>"), with text or null to remove the name.',
+                    'A value is named on a path ("data.<column>" or "store.graphty.<run>.<field>"), with text or null to remove the name.',
                 source: "data",
                 details: { path, value, label },
             });

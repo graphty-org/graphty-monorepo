@@ -21,7 +21,7 @@ function resultOf(runId: string, shape: ResultShape, values: Record<string, numb
         technicalName: name,
         kind: "node",
         type: shape === "community" ? "integer" : "number",
-        path: `results.${runId}.${name}`,
+        path: `store.graphty.${runId}.${name}`,
     };
     const ids = Object.keys(values);
 

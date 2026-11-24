@@ -182,7 +182,7 @@ describe("encoding a column", () => {
                             technicalName: "value",
                             kind: onEdges ? "edge" : "node",
                             type: "number",
-                            path: "results.$.value",
+                            path: "store.graphty.$.value",
                         },
                     ],
                     measured: { nodes: graph.data.nodes().length, edges: graph.data.edges().length },

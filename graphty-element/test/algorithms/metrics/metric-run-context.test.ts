@@ -170,8 +170,8 @@ describe("a metric run through a run context", () => {
 
         assert.isDefined(result);
         assert.strictEqual(result.runId, "connections-2");
-        // The catalog declares "results.$.value"; the result names the run it belongs to (#354).
-        assert.strictEqual(result.fields[0].path, "results.connections-2.value");
+        // The catalog declares "store.graphty.$.value"; the result names the run it belongs to (#354).
+        assert.strictEqual(result.fields[0].path, "store.graphty.connections-2.value");
     });
 
     it("reports what it is doing", async () => {

@@ -51,12 +51,12 @@ const RECORDS: EdgeRecord[] = [
 ];
 
 /**
- * The paths a test query reads: its words that start `data.` or `results.`.
+ * The paths a test query reads: its words that start `data.` or `store.graphty.`.
  * @param where - The query.
  * @returns The paths.
  */
 function pathsOf(where: Query): string[] {
-    return where.split(/\s+/).filter((word) => word.startsWith("data.") || word.startsWith("results."));
+    return where.split(/\s+/).filter((word) => word.startsWith("data.") || word.startsWith("store.graphty."));
 }
 
 /** Everything one audit test drives. */
@@ -274,7 +274,7 @@ describe("the resolution cache, input by input", () => {
 
     it("misses on the execution token of a run a query reads, minted or put by a load; hits on another run's", () => {
         const f = new Fixture();
-        const where = { where: "results.pr.score > 0" };
+        const where = { where: "store.graphty.pr.score > 0" };
         f.executions.set("pr", "n1.1");
         assert.isFalse(
             served(
@@ -473,7 +473,7 @@ describe("the latent defect of a saved predicate over results", () => {
         const { runs, scope } = harness.session;
         const run = runs.start("degree", undefined, { as: "pr", style: false });
         await run;
-        const id = scope.save("Hot", { where: "results.pr.score > `0`" });
+        const id = scope.save("Hot", { where: "store.graphty.pr.score > `0`" });
         assert.deepStrictEqual([...(await scope.resolve({ set: id })).nodes], ["a"]);
 
         const { hits } = cacheCounters;

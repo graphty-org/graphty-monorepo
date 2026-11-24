@@ -50,7 +50,7 @@ const pagerank: AlgorithmDescriptor = {
             technicalName: "PageRank score",
             kind: "node",
             type: "number",
-            path: "results.pagerank.value",
+            path: "store.graphty.pagerank.value",
         },
     ],
     options: [
@@ -170,9 +170,9 @@ describe("catalogue descriptors", () => {
             ok: false,
             unresolvedPaths: [
                 {
-                    path: "results.betweeness.value",
+                    path: "store.graphty.betweeness.value",
                     reason: "unknown-run",
-                    candidates: ["results.betweenness.value"],
+                    candidates: ["store.graphty.betweenness.value"],
                 },
             ],
         };

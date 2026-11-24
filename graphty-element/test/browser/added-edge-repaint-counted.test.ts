@@ -177,7 +177,7 @@ describe("adding one edge", () => {
 
         await session.styles.add({
             name: "Measured",
-            selector: { match: "has", path: "results.deg.value" },
+            selector: { match: "has", path: "store.graphty.deg.value" },
             set: { "node.opacity": 0.5 },
         });
         await settle(element);

@@ -147,7 +147,7 @@ describe("a run that finishes", () => {
                         technicalName: "betweenness",
                         kind: "node",
                         type: "number",
-                        path: "results.degree_test.value",
+                        path: "store.graphty.degree_test.value",
                     },
                 ],
             }),

@@ -162,7 +162,7 @@ async function hullPerCommunity(element: Graphty, format: string, data: string):
             name: `Community ${String(community)}`,
             set: { "node.shaders": [{ shader: HULL }] },
             target: "node",
-            selector: { match: "expression", where: `results.louvain.group == \`${String(community)}\`` },
+            selector: { match: "expression", where: `store.graphty.louvain.group == \`${String(community)}\`` },
         });
         layers.push(layer.id);
     }

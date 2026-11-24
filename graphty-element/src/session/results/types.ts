@@ -1,10 +1,10 @@
 /**
  * @file What a run produces, and the field contract every result shape keeps.
  *
- * A result is addressed at `results.<runId>.<field>`. That path is public API: it is what a
+ * A result is addressed at `store.graphty.<runId>.<field>`. That path is public API: it is what a
  * style selector matches on, what a filter reads, what an expression editor completes and what
  * an export writes. Because it is public, the field NAMES cannot be an algorithm's private
- * choice -- `results.<run>.value` has to mean the same thing for every metric, forever, or a
+ * choice -- `store.graphty.<run>.value` has to mean the same thing for every metric, forever, or a
  * consumer has to open the catalog before it can read a number.
  *
  * So the names are fixed by the result's SHAPE rather than by the algorithm, and the table that
@@ -30,6 +30,7 @@ import type {
     RunId,
 } from "../../catalog/types";
 import { quoteEach } from "../../utils/quote-each";
+import { isNotePath } from "../notes/paths";
 import type { Caveats, Run, RunDistinction } from "../runs/types";
 import type { CodedFact } from "../shared";
 import type { CompareSide, ResultComparison } from "./compare";
@@ -38,13 +39,30 @@ import type { CompareSide, ResultComparison } from "./compare";
 // The published path
 // ---------------------------------------------------------------------------------------------
 
-/** The root every run's result hangs from in the published expression namespace. */
-export const RESULT_ROOT = "results";
+/**
+ * The root every run's result hangs from in the published expression namespace: graphty's own
+ * area of the shared store, `store.<namespace>.<key>.<field>`, which it shares with the note
+ * values (`store.graphty.notes.*`).
+ */
+export const RESULT_ROOT = "store.graphty";
+
+/** What every run path starts with. */
+const RESULT_PREFIX = `${RESULT_ROOT}.`;
+
+/**
+ * Whether a path reads a run: `store.graphty.<run>...`, and not a note value, which shares the
+ * area under the reserved key `notes`.
+ * @param path - The path.
+ * @returns True for a run's path.
+ */
+export function isRunPath(path: Path): boolean {
+    return path.startsWith(RESULT_PREFIX) && !isNotePath(path);
+}
 
 /**
  * What a static field path writes where a run id will go.
  *
- * A catalog descriptor is written before any run exists, so it publishes `results.$.value`.
+ * A catalog descriptor is written before any run exists, so it publishes `store.graphty.$.value`.
  * {@link bindResultPath} swaps the placeholder for a real id once a run has one.
  */
 export const RESULT_PATH_RUN_PLACEHOLDER = "$";
@@ -70,7 +88,7 @@ export const RESULT_PATH_RUN_PLACEHOLDER = "$";
  * ```
  * @param runId - The run that produced the value.
  * @param field - The field name; omit it to address the run's whole result object.
- * @returns The path, such as "results.louvain.group".
+ * @returns The path, such as "store.graphty.louvain.group".
  */
 export function resultPath(runId: RunId, field?: string): Path {
     return field === undefined ? `${RESULT_ROOT}.${runId}` : `${RESULT_ROOT}.${runId}.${field}`;
@@ -104,10 +122,10 @@ export type PathParts =
  * import { pathParts } from "@graphty/graphty-element/session";
  *
  * pathParts("data.minutes"); // { from: "data", column: "minutes" }
- * pathParts("results.louvain.group"); // { from: "run", runId: "louvain", field: "group" }
+ * pathParts("store.graphty.louvain.group"); // { from: "run", runId: "louvain", field: "group" }
  * pathParts("id"); // undefined
  * ```
- * @param path - A path such as `data.<column>` or `results.<run>.<field>`, as
+ * @param path - A path such as `data.<column>` or `store.graphty.<run>.<field>`, as
  *   `data.readableValues()` lists it.
  * @returns Its parts, or undefined for any other path (the node id, `source`, a whole run).
  * @since 3.40.0
@@ -117,8 +135,9 @@ export function pathParts(path: Path): PathParts | undefined {
     if (root === "data" && rest.length > 0 && rest.join(".") !== "") {
         return { from: "data", column: rest.join(".") };
     }
-    if (root === RESULT_ROOT && rest.length === 2 && rest[0] !== "" && rest[1] !== "") {
-        return { from: "run", runId: rest[0], field: rest[1] };
+    const run = isRunPath(path) ? path.slice(RESULT_PREFIX.length).split(".") : [];
+    if (run.length === 2 && run[0] !== "" && run[1] !== "") {
+        return { from: "run", runId: run[0], field: run[1] };
     }
     return undefined;
 }
@@ -145,7 +164,7 @@ export function compareGroupKeys(left: string | number, right: string | number):
 
 /**
  * Replace the run-id placeholder in a catalog descriptor's static path with a real run id.
- * @param path - The path as a descriptor declares it, such as "results.$.value".
+ * @param path - The path as a descriptor declares it, such as "store.graphty.$.value".
  * @param runId - The run to bind it to.
  * @returns The bound path, unchanged when it carried no placeholder.
  */
@@ -1224,7 +1243,7 @@ export interface ResultRoot {
  *
  * Nobody types a run id by hand: `path()` builds the string, and every encoding helper takes a
  * run rather than a path. `roots` is what an expression editor's autocomplete reads, and it is
- * why an unknown `results.*` path can be reported with the nearest candidates instead of
+ * why an unknown `store.graphty.*` path can be reported with the nearest candidates instead of
  * matching nothing in silence.
  */
 export interface ResultsApi {

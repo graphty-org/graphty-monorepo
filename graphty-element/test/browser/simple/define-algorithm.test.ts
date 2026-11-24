@@ -2,8 +2,8 @@
  * @file The simple tier's algorithm verb, `defineAlgorithm`, driven the way a reader of the guide
  * drives it: the guide's own toy examples (docs/examples/simple-tier/, the files the guide shows)
  * are registered on a page with a `<graphty-element>` holding a small real graph, run with
- * `element.run`, and judged by what a reader would see -- the values under `results.<as>.value`
- * or `results.<as>.group`, the layer the element derived from the run and which nodes and edges
+ * `element.run`, and judged by what a reader would see -- the values under `store.graphty.<as>.value`
+ * or `store.graphty.<as>.group`, the layer the element derived from the run and which nodes and edges
  * it paints, the options form the catalog offers, and the error a beginner reads first.
  *
  * The last block holds a simple registration against one written by hand in the advanced tier:
@@ -167,7 +167,7 @@ function paintedBy(runId: string, target: { node: NodeId } | { edge: string }): 
 }
 
 describe("the first plugin: confidence-weighted degree and its edge companion", () => {
-    it("publishes each node's summed confidence under results.strength.value", async () => {
+    it("publishes each node's summed confidence under store.graphty.strength.value", async () => {
         await EXAMPLES.confidenceDegree();
 
         // The guide's "use it" line.
@@ -244,7 +244,7 @@ describe("the first plugin: confidence-weighted degree and its edge companion", 
         );
     });
 
-    it("publishes each edge's share under results.share.value, by the element's own edge ids", async () => {
+    it("publishes each edge's share under store.graphty.share.value, by the element's own edge ids", async () => {
         await EXAMPLES.confidenceShare();
 
         const run = element.run("acme-confidence-share", {}, { as: "share" });
@@ -306,7 +306,7 @@ describe("an optional weight", () => {
 });
 
 describe("a grouping", () => {
-    it("publishes one group per connected component under results.parts.group", async () => {
+    it("publishes one group per connected component under store.graphty.parts.group", async () => {
         await EXAMPLES.components();
 
         const run = element.run("acme-components", {}, { as: "parts" });

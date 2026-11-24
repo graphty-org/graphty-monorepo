@@ -1,7 +1,7 @@
 /**
  * @file The field lists a metric or a community result publishes.
  *
- * The names are fixed by the result's SHAPE rather than by the algorithm -- `results.<run>.value`
+ * The names are fixed by the result's SHAPE rather than by the algorithm -- `store.graphty.<run>.value`
  * means the same thing for every metric -- so they are built here once instead of being written
  * out by each algorithm. `test/algorithms/metrics/catalog-agreement.test.ts` asserts that what an
  * algorithm publishes is exactly what the catalog declares for it, which is what keeps a

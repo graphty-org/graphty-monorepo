@@ -127,7 +127,7 @@ describe("what a built-in algorithm draws by itself", () => {
                 technicalName: "g",
                 kind: "node",
                 type: "integer",
-                path: "results.x.group",
+                path: "store.graphty.x.group",
             },
             {
                 name: "label",
@@ -135,7 +135,7 @@ describe("what a built-in algorithm draws by itself", () => {
                 technicalName: "l",
                 kind: "node",
                 type: "string",
-                path: "results.x.label",
+                path: "store.graphty.x.label",
             },
         ] as const satisfies readonly FieldDescriptor[];
         const suggestions = suggestStyles(runOf("louvain", "community", fields));

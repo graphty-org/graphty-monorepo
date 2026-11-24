@@ -35,7 +35,7 @@ const CAVEATS: Caveats = {
 
 /** A field descriptor with the path a catalog descriptor would have written. */
 function field(spec: Omit<FieldDescriptor, "path">): FieldDescriptor {
-    return { ...spec, path: `results.$.${spec.name}` };
+    return { ...spec, path: `store.graphty.$.${spec.name}` };
 }
 
 /** A finished metric over the four nodes of the line, worth more the further along it sits. */
@@ -248,7 +248,7 @@ describe("a predicate and a text search", () => {
     /** A matcher that answers one fixed set, and one predicate it cannot answer at all. */
     const match = (where: Query): SelectionMatch =>
         where === "unanswerable"
-            ? { unresolvedPaths: ["results.betwenness.value"] }
+            ? { unresolvedPaths: ["store.graphty.betwenness.value"] }
             : { nodes: ["a", "c"], edges: [AB] };
 
     it("selects whatever the query engine matched, in both halves", () => {
@@ -269,7 +269,7 @@ describe("a predicate and a text search", () => {
         const delta = selection.applyNow({ where: "unanswerable" });
 
         assert.strictEqual(delta.nodes, 0);
-        assert.deepStrictEqual([...delta.unresolvedPaths], ["results.betwenness.value"]);
+        assert.deepStrictEqual([...delta.unresolvedPaths], ["store.graphty.betwenness.value"]);
         harness.session.dispose();
     });
 
@@ -612,8 +612,8 @@ describe("a finished run's ranking", () => {
         const running = selection.applyNow({ top: { run: "running", field: "value", n: 2 } });
         const missing = selection.applyNow({ above: { run: "nobody", field: "value", threshold: 1 } });
 
-        assert.deepStrictEqual([...running.unresolvedPaths], ["results.running.value"]);
-        assert.deepStrictEqual([...missing.unresolvedPaths], ["results.nobody.value"]);
+        assert.deepStrictEqual([...running.unresolvedPaths], ["store.graphty.running.value"]);
+        assert.deepStrictEqual([...missing.unresolvedPaths], ["store.graphty.nobody.value"]);
         assert.strictEqual(selection.size, 0);
         harness.session.dispose();
     });

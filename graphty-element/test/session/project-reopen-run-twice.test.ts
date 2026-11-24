@@ -42,7 +42,7 @@ function withDegree(): Harness & { executed: () => number } {
                     technicalName: "degree",
                     kind: "node",
                     type: "number",
-                    path: "results.$.value",
+                    path: "store.graphty.$.value",
                 },
             ],
             measured: { nodes: snapshot.nodeCount, edges: snapshot.edgeCount },

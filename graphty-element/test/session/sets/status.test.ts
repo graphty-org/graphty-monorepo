@@ -176,7 +176,7 @@ function status(
 }
 
 /** A rule over run `pr`'s values. */
-const OVER_PR: SetDefinitionInput = { kind: "rule", where: "results.pr.value > `2`", reading: "induced" };
+const OVER_PR: SetDefinitionInput = { kind: "rule", where: "store.graphty.pr.value > `2`", reading: "induced" };
 
 /**
  * Register a plugin algorithm, so it can later be unregistered.
@@ -249,7 +249,7 @@ describe("status, row by row of the design's table", () => {
         assert.deepStrictEqual(await countOf(f, id), [0, 0]);
     });
 
-    it("a rule over results.pr.value, then pr re-runs: current, and it re-resolves", async () => {
+    it("a rule over store.graphty.pr.value, then pr re-runs: current, and it re-resolves", async () => {
         const f = fixture();
         await run(f, "pr");
         const id = f.harness.session.sets.create(OVER_PR);
@@ -296,11 +296,11 @@ describe("status, row by row of the design's table", () => {
             await run(f, "kept", { set: kept });
             await run(f, "inline", { define: definition });
             const overKept = sets.create(
-                { kind: "rule", where: "results.kept.value > `0`", reading: "induced" },
+                { kind: "rule", where: "store.graphty.kept.value > `0`", reading: "induced" },
                 { name: "Over kept" },
             );
             const overInline = sets.create(
-                { kind: "rule", where: "results.inline.value > `0`", reading: "induced" },
+                { kind: "rule", where: "store.graphty.inline.value > `0`", reading: "induced" },
                 { name: "Over inline" },
             );
             assert.strictEqual(statusOfSet(f, overKept).freshness, "current", kind);
@@ -328,7 +328,7 @@ describe("status, row by row of the design's table", () => {
         await run(f, "plug", "graph", "plugrank");
         const id = f.harness.session.sets.create({
             kind: "rule",
-            where: "results.plug.value > `2`",
+            where: "store.graphty.plug.value > `2`",
             reading: "induced",
         });
         clearRegisteredAlgorithmsForTesting();
@@ -351,7 +351,7 @@ describe("status, row by row of the design's table", () => {
         await run(f, "plug", { set: scope }, "plugrank");
         const id = f.harness.session.sets.create({
             kind: "rule",
-            where: "results.plug.value > `2`",
+            where: "store.graphty.plug.value > `2`",
             reading: "induced",
         });
         clearRegisteredAlgorithmsForTesting();
@@ -550,7 +550,7 @@ describe("status, row by row of the design's table", () => {
         const stale = f.harness.session.sets.create(OVER_PR);
         const stuck = f.harness.session.sets.create({
             kind: "rule",
-            where: "results.plug.value > `2`",
+            where: "store.graphty.plug.value > `2`",
             reading: "induced",
         });
         const gone = f.harness.session.sets.create({ kind: "fixed", nodes: ["a"], reading: "induced" });
@@ -615,7 +615,7 @@ describe("status beyond the table", () => {
         const scope = sets.create({ kind: "fixed", nodes: ["a"], reading: "induced" });
         const id = sets.create({
             kind: "rule",
-            where: { kind: "threshold", path: "results.old.value", top: 1 },
+            where: { kind: "threshold", path: "store.graphty.old.value", top: 1 },
             reading: "induced",
         });
         const old = {

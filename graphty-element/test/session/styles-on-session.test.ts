@@ -150,7 +150,7 @@ function degreeRunner(): Runner {
                             type: "number",
                             // What the element's own metric algorithms publish: the catalog's
                             // path, naming the run as "$" (#354).
-                            path: "results.$.value",
+                            path: "store.graphty.$.value",
                         },
                     ],
                     measured: { nodes: snapshot.nodeCount, edges: snapshot.edgeCount },
@@ -351,7 +351,7 @@ describe("session.styles", () => {
     });
 
     it("resolves a path naming a catalogue run's field, and the run's fields name the run (#354)", async () => {
-        // The runner publishes "results.$.value", as the element's metric algorithms do, and the
+        // The runner publishes "store.graphty.$.value", as the element's metric algorithms do, and the
         // catalog descriptor says the same until a run is bound.
         const runner = degreeRunner();
         const harness = harnessOf({ execute: runner.execute });
@@ -422,7 +422,7 @@ describe("session.styles", () => {
         const topLayer = (n: number): LayerSpec => ({
             name: `Top ${String(n)}`,
             target: "node",
-            selector: { match: "top", path: "results.degree.value", n },
+            selector: { match: "top", path: "store.graphty.degree.value", n },
             set: { "node.color": "#ff9900" },
         });
 
@@ -452,7 +452,7 @@ describe("session.styles", () => {
         const layer = await harness.session.styles.add({
             name: "Top 3",
             target: "node",
-            selector: { match: "top", path: "results.degree.value", n: 3 },
+            selector: { match: "top", path: "store.graphty.degree.value", n: 3 },
             set: { "node.color": "#ff9900" },
         });
         assert.strictEqual(seen.at(-1)?.painted?.nodes, 3);
@@ -476,7 +476,7 @@ describe("session.styles", () => {
         await harness.session.styles.add({
             name: "Top 3",
             target: "node",
-            selector: { match: "top", path: "results.degree.value", n: 3 },
+            selector: { match: "top", path: "store.graphty.degree.value", n: 3 },
             set: { "node.color": "#ff9900" },
         });
         const { paint } = harness.session as ElementSession;
@@ -507,7 +507,7 @@ describe("session.styles", () => {
 
         const layer = await harness.session.styles.encode({ run: run.id, channel: "node.color" });
 
-        assert.deepStrictEqual(layer.selector, { match: "has", path: "results.degree.value" });
+        assert.deepStrictEqual(layer.selector, { match: "has", path: "store.graphty.degree.value" });
         assert.deepStrictEqual(layer.source, {
             by: "run",
             runId: "degree",

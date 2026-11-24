@@ -107,9 +107,9 @@ describe("arithmetic in the expression language", () => {
     });
 
     it("keeps hyphenated names and wildcards refused, with a code", () => {
-        assert.deepStrictEqual(refusal("results.min-cut.x"), {
+        assert.deepStrictEqual(refusal("store.graphty.min-cut.x"), {
             reason: "minus-needs-spaces",
-            position: 11,
+            position: 17,
             construct: undefined,
         });
         assert.strictEqual(refusal("data.*").construct, "wildcards");

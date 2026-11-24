@@ -105,7 +105,14 @@ interface Counted {
  * @returns The descriptor.
  */
 function field(name: string, kind: "node" | "edge") {
-    return { name, plainName: name, technicalName: name, kind, type: "number" as const, path: `results.$.${name}` };
+    return {
+        name,
+        plainName: name,
+        technicalName: name,
+        kind,
+        type: "number" as const,
+        path: `store.graphty.$.${name}`,
+    };
 }
 
 /**

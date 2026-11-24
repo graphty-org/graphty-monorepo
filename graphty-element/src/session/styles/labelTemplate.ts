@@ -222,8 +222,8 @@ export function prepareTemplate(
 
 /**
  * One template line that reads one value: the words before it, and whether the line is bold.
- * `{ text: "Connections: ", path: "results.degree.value" }` is the line
- * `"Connections: {results.degree.value}"`; with `bold: true` it is wrapped in `<bold>`.
+ * `{ text: "Connections: ", path: "store.graphty.degree.value" }` is the line
+ * `"Connections: {store.graphty.degree.value}"`; with `bold: true` it is wrapped in `<bold>`.
  */
 export interface LabelTemplateRow {
     /** The words before the value, drawn as written (no markup). */

@@ -32,7 +32,7 @@ export function sessionWithRuns(features?: readonly string[]): GraphSession {
                                 technicalName: "degree",
                                 kind: "node",
                                 type: "number",
-                                path: "results.$.value",
+                                path: "store.graphty.$.value",
                             },
                             {
                                 name: "from",
@@ -40,7 +40,7 @@ export function sessionWithRuns(features?: readonly string[]): GraphSession {
                                 technicalName: "from",
                                 kind: "edge",
                                 type: "number",
-                                path: "results.$.from",
+                                path: "store.graphty.$.from",
                             },
                         ],
                         measured: { nodes: snapshot.nodeCount, edges: snapshot.edgeCount },

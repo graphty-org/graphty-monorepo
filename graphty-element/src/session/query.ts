@@ -80,7 +80,7 @@ interface QueryEngineParts {
     /**
      * The catalog names of a searched value, which a find matches as well as its values: typing
      * "degree" finds the Connections a Degree run published.
-     * @param path - The path, such as `results.degree.value`.
+     * @param path - The path, such as `store.graphty.degree.value`.
      * @param kind - Which kind of element carries it.
      * @returns The names, or undefined when the value has none beyond its path.
      */

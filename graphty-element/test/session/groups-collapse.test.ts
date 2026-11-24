@@ -27,7 +27,7 @@ const RED = "#ff0000";
 function teams(session: () => GraphSession, context: RunExecutionContext): Promise<RunOutcome> {
     const fields = (algorithmByKey(context.algorithm)?.fields ?? []).map((field) => ({
         ...field,
-        path: `results.${context.runId}.${field.name}`,
+        path: `store.graphty.${context.runId}.${field.name}`,
     }));
     const nodes = session().data.nodes();
     const edges = session().data.edges();

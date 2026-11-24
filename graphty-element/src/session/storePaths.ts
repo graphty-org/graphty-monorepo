@@ -25,7 +25,10 @@ export const PATH_MEMBERS: ReadonlySet<string> = new Set([
 ]);
 
 /** The older addresses that moved into the shared area, by the prefix each moved from. */
-const MOVED: readonly (readonly [from: string, to: string])[] = [["graphty.notes.", "store.graphty.notes."]];
+const MOVED: readonly (readonly [from: string, to: string])[] = [
+    ["graphty.notes.", "store.graphty.notes."],
+    ["results.", "store.graphty."],
+];
 
 /** A node value read at one end of an edge: `graphty.source.<node path>`, `graphty.target.<node path>`. */
 const END = /^graphty\.(source|target)\.(.+)$/;
@@ -34,8 +37,9 @@ const END = /^graphty\.(source|target)\.(.+)$/;
 const PLACEHOLDER = /\{([^{}|]*)((?:\|[^{}]*)?)\}/g;
 
 /**
- * One raw path at its current address: `graphty.notes.<field>` is `store.graphty.notes.<field>`,
- * at an edge's end too; every other path comes back as it was.
+ * One raw path at its current address: `graphty.notes.<field>` is `store.graphty.notes.<field>`
+ * and a run's `results.<run>.<field>` is `store.graphty.<run>.<field>`, at an edge's end too;
+ * every other path comes back as it was.
  * @param path - The raw path (never quoted).
  * @returns The path.
  */
@@ -56,7 +60,7 @@ function upgradeStorePath(path: Path): Path {
  * @returns The expression.
  */
 function upgradeExpression(where: string): string {
-    if (!where.includes("graphty.")) {
+    if (!where.includes("graphty.") && !where.includes("results.")) {
         return where;
     }
 

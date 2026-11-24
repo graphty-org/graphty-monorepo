@@ -28,7 +28,7 @@ export type GroupValue = string | number | boolean;
 
 /**
  * One group: a run's group (its primary field, such as a community's `group`), or the nodes
- * holding one value at any node path (`data.team`, `results.<run>.<field>`).
+ * holding one value at any node path (`data.team`, `store.graphty.<run>.<field>`).
  * @beta
  */
 export type GroupRef =

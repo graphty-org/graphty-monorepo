@@ -22,7 +22,7 @@ const TIE_STRENGTH_DESCRIPTOR: AlgorithmDescriptor = {
     technicalName: "share of the weaker end's strength",
     description: "How much of the weaker end's total strength one tie between two nodes carries.",
     category: "structure",
-    // The shape fixes the FIELD NAMES, which is how any consumer reads `results.<runId>.value`
+    // The shape fixes the FIELD NAMES, which is how any consumer reads `store.graphty.<runId>.value`
     // without opening the catalog first.
     shape: "edge-metric",
     // Ten descriptors for one measured number, each carrying a published path string a plugin

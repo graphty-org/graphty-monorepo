@@ -40,7 +40,7 @@ function field(
     type: FieldDescriptor["type"],
     runId: RunId,
 ): FieldDescriptor {
-    return { name, plainName: name, technicalName: name, kind, type, path: `results.${runId}.${name}` };
+    return { name, plainName: name, technicalName: name, kind, type, path: `store.graphty.${runId}.${name}` };
 }
 
 /** A run that has finished and is ready to be told about. */
@@ -318,7 +318,7 @@ describe("when somebody has already said what that channel looks like", () => {
             layerOf(
                 "earlier",
                 { by: "run", runId: "degree", algorithm: "degree", params: {} },
-                { kind: "encoding", set: undefined, encode: { "node.color": { by: "results.degree.value" } } },
+                { kind: "encoding", set: undefined, encode: { "node.color": { by: "store.graphty.degree.value" } } },
             ),
         ];
 
@@ -471,8 +471,8 @@ describe("what the policy reports about each suggestion", () => {
 
 /** Three nodes: two the runs measured, and one they never looked at. */
 const NODES: readonly Readonly<Record<Path, unknown>>[] = [
-    { "results.betweenness.value": 0, "results.degree.value": 2, "results.route.onPath": true },
-    { "results.betweenness.value": 8, "results.degree.value": 5, "results.route.onPath": false },
+    { "store.graphty.betweenness.value": 0, "store.graphty.degree.value": 2, "store.graphty.route.onPath": true },
+    { "store.graphty.betweenness.value": 8, "store.graphty.degree.value": 5, "store.graphty.route.onPath": false },
     {},
 ];
 
@@ -535,7 +535,7 @@ describe("what the policy leaves in a real stack", () => {
         const layers = styles.list();
 
         assert.lengthOf(layers, 2, "the element's base layer, and the derived one above it");
-        assert.deepStrictEqual(layers[1].selector, { match: "has", path: "results.betweenness.value" });
+        assert.deepStrictEqual(layers[1].selector, { match: "has", path: "store.graphty.betweenness.value" });
         assert.strictEqual(layers[1].kind, "encoding");
         assert.deepStrictEqual(layers[1].source, {
             by: "run",
@@ -563,7 +563,7 @@ describe("what the policy leaves in a real stack", () => {
         assert.lengthOf(layers, 2, "the same two layers");
         assert.strictEqual(layers[1].id, derived.id, "the same layer, in the same place");
         assert.deepStrictEqual(layers[1].encode?.["node.color"], {
-            by: "results.betweenness.value",
+            by: "store.graphty.betweenness.value",
             scale: "linear",
             palette: "inferno",
         });
@@ -578,7 +578,7 @@ describe("what the policy leaves in a real stack", () => {
         const layers = styles.list();
 
         assert.lengthOf(layers, 3);
-        assert.deepStrictEqual(layers[2].selector, { match: "has", path: "results.degree.value" });
+        assert.deepStrictEqual(layers[2].selector, { match: "has", path: "store.graphty.degree.value" });
     });
 
     it("paints a route as ordinary layers over both halves it runs through, with explicit channels", async () => {
@@ -604,7 +604,7 @@ describe("what the policy leaves in a real stack", () => {
         for (const layer of layers) {
             assert.deepStrictEqual(layer.selector, {
                 match: "expression",
-                where: "results.route.onPath == `true`",
+                where: "store.graphty.route.onPath == `true`",
             });
         }
     });
@@ -621,9 +621,9 @@ describe("what the policy leaves in a real stack", () => {
             .map((layer) => (layer.selector.match === "expression" ? layer.selector.where : layer.selector.match));
 
         assert.deepStrictEqual(wheres, [
-            "results.route.onPath == `true`",
-            "results.route.onPath == `true`",
-            "results.influencers.in == `true`",
+            "store.graphty.route.onPath == `true`",
+            "store.graphty.route.onPath == `true`",
+            "store.graphty.influencers.in == `true`",
         ]);
     });
 
@@ -733,7 +733,7 @@ describe("the size layer in a real stack", () => {
         const size = styles.list().find((layer) => layer.encode?.["node.size"] !== undefined);
 
         assert.isDefined(size);
-        assert.deepStrictEqual(size?.selector, { match: "has", path: "results.betweenness.value" });
+        assert.deepStrictEqual(size?.selector, { match: "has", path: "store.graphty.betweenness.value" });
 
         await styles.removeBySource((source) => source.by === "run" && source.runId === "betweenness");
 

@@ -81,7 +81,7 @@ async function partition(context: RunExecutionContext): Promise<RunOutcome> {
                     technicalName: "community",
                     kind: "node",
                     type: "integer",
-                    path: `results.${context.runId}.group`,
+                    path: `store.graphty.${context.runId}.group`,
                 },
             ],
             measured: { nodes: MEMBERSHIP.length, edges: 0 },
@@ -94,16 +94,16 @@ async function partition(context: RunExecutionContext): Promise<RunOutcome> {
 
 describe("a template binding", () => {
     it("reads {path} with the same path dialect as by", () => {
-        const text = paint(["<bold>{data.name}</bold>", "Connections: {results.degree.value}"], {
+        const text = paint(["<bold>{data.name}</bold>", "Connections: {store.graphty.degree.value}"], {
             "data.name": "alpha",
-            "results.degree.value": 3,
+            "store.graphty.degree.value": 3,
         });
 
         assert.strictEqual(text, "<bold>alpha</bold>\nConnections: 3");
     });
 
     it("leaves out a line with a missing value and keeps the others", () => {
-        const text = paint(["{data.name}", "Community {results.louvain.group}", "end"], { "data.name": "alpha" });
+        const text = paint(["{data.name}", "Community {store.graphty.louvain.group}", "end"], { "data.name": "alpha" });
 
         assert.strictEqual(text, "alpha\nend");
     });
@@ -113,13 +113,13 @@ describe("a template binding", () => {
     });
 
     it("gives the number of distinct values with |count and the 1-based sorted place with |rank", () => {
-        const columns = { "results.louvain.group": [0, 5, 5, 2, 10, undefined, 2] };
-        const template = ["Community {results.louvain.group|rank} of {results.louvain.group|count}"];
+        const columns = { "store.graphty.louvain.group": [0, 5, 5, 2, 10, undefined, 2] };
+        const template = ["Community {store.graphty.louvain.group|rank} of {store.graphty.louvain.group|count}"];
 
-        assert.strictEqual(paint(template, { "results.louvain.group": 0 }, columns), "Community 1 of 4");
-        assert.strictEqual(paint(template, { "results.louvain.group": 5 }, columns), "Community 3 of 4");
+        assert.strictEqual(paint(template, { "store.graphty.louvain.group": 0 }, columns), "Community 1 of 4");
+        assert.strictEqual(paint(template, { "store.graphty.louvain.group": 5 }, columns), "Community 3 of 4");
         // Sorted as numbers, not as text: 10 comes after 5.
-        assert.strictEqual(paint(template, { "results.louvain.group": 10 }, columns), "Community 4 of 4");
+        assert.strictEqual(paint(template, { "store.graphty.louvain.group": 10 }, columns), "Community 4 of 4");
         assert.isUndefined(paint(template, {}, columns), "a node with no group has no row");
     });
 
@@ -150,8 +150,8 @@ describe("a template binding", () => {
         const format = { maximumFractionDigits: 1, locale: "en-US" };
         const columns = { "data.group": ["x", "y"] };
         const text = paint(
-            ["{data.name}", "{results.pagerank.value}", "{data.group|count}"],
-            { "data.name": "12345.678", "results.pagerank.value": 12345.678, "data.group": "x" },
+            ["{data.name}", "{store.graphty.pagerank.value}", "{data.group|count}"],
+            { "data.name": "12345.678", "store.graphty.pagerank.value": 12345.678, "data.group": "x" },
             columns,
             "node.label",
             format,
@@ -216,7 +216,7 @@ describe("a template layer in a session", () => {
                 "node.label": {
                     template: [
                         "<bold>{data.name}</bold>",
-                        "Community {results.louvain.group|rank} of {results.louvain.group|count}",
+                        "Community {store.graphty.louvain.group|rank} of {store.graphty.louvain.group|count}",
                     ],
                 },
             },

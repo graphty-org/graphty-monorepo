@@ -41,7 +41,7 @@ async function execute(context: RunExecutionContext): Promise<RunOutcome> {
                     technicalName: field,
                     kind: "node",
                     type: community ? "integer" : "string",
-                    path: `results.${context.runId}.${field}`,
+                    path: `store.graphty.${context.runId}.${field}`,
                 },
             ],
             measured: { nodes: nodes.length, edges: 0 },
@@ -105,7 +105,7 @@ describe("a re-run that loses a group", () => {
         const where: RuleTree = {
             kind: "any",
             of: [
-                { kind: "categories", attribute: "results.r.group", values: ["1", "2"] },
+                { kind: "categories", attribute: "store.graphty.r.group", values: ["1", "2"] },
                 { kind: "not", of: { kind: "categories", attribute: "data.other", values: ["x"] } },
                 { kind: "all", of: [{ kind: "item", item: { result: "r", key: { field: "group", value: 1 } } }] },
             ],
@@ -121,18 +121,18 @@ describe("a re-run that loses a group", () => {
         assert.deepStrictEqual(color.map, { 2: "#222222" }, "the lost community's entry is dropped");
         assert.isUndefined(color.hidden, "and so is its hidden value");
         assert.deepStrictEqual(styles.get(layer.id)?.unmatched, [
-            { code: "group.gone", params: { path: "results.r.group", value: 1, dropped: true } },
+            { code: "group.gone", params: { path: "store.graphty.r.group", value: 1, dropped: true } },
         ]);
         assert.deepStrictEqual(ruleOf(harness, hand.id), {
             kind: "any",
             of: [
-                { kind: "categories", attribute: "results.r.group", values: ["2"] },
+                { kind: "categories", attribute: "store.graphty.r.group", values: ["2"] },
                 { kind: "not", of: { kind: "categories", attribute: "data.other", values: ["x"] } },
                 { kind: "all", of: [{ kind: "item", item: { result: "r", key: { field: "group", value: 1 } } }] },
             ],
         });
         assert.deepStrictEqual(styles.get(hand.id)?.unmatched, [
-            { code: "group.gone", params: { path: "results.r.group", value: 1, dropped: true } },
+            { code: "group.gone", params: { path: "store.graphty.r.group", value: 1, dropped: true } },
         ]);
         harness.session.dispose();
     });
@@ -143,8 +143,8 @@ describe("a re-run that loses a group", () => {
         const layer = await styles.add({
             name: "Categories",
             target: "node",
-            selector: { match: "has", path: "results.r.category" },
-            encode: { "node.color": { by: "results.r.category", scale: "ordinal" } },
+            selector: { match: "has", path: "store.graphty.r.category" },
+            encode: { "node.color": { by: "store.graphty.r.category", scale: "ordinal" } },
         });
         await styles.setValueEntry(layer.id, "node.color", "z", "#333333");
         await styles.setValueEntry(layer.id, "node.color", "x", "#444444");
@@ -154,15 +154,15 @@ describe("a re-run that loses a group", () => {
             target: "node",
             selector: {
                 match: "rule",
-                where: { kind: "categories", attribute: "results.r.category", values: ["z", "y"] },
+                where: { kind: "categories", attribute: "store.graphty.r.category", values: ["z", "y"] },
             },
             set: {},
         });
         const plain = await styles.add({
             name: "Plain",
             target: "node",
-            selector: { match: "has", path: "results.r.category" },
-            encode: { "node.size": { by: "results.r.category", scale: "ordinal" } },
+            selector: { match: "has", path: "store.graphty.r.category" },
+            encode: { "node.size": { by: "store.graphty.r.category", scale: "ordinal" } },
         });
 
         published = { a: "x", b: "x", c: "y", d: "w" };
@@ -175,17 +175,17 @@ describe("a re-run that loses a group", () => {
         assert.sameDeepMembers(
             [...(styles.get(layer.id)?.unmatched ?? [])],
             [
-                { code: "group.new", params: { path: "results.r.category", value: "w" } },
-                { code: "group.gone", params: { path: "results.r.category", value: "z", dropped: true } },
+                { code: "group.new", params: { path: "store.graphty.r.category", value: "w" } },
+                { code: "group.gone", params: { path: "store.graphty.r.category", value: "z", dropped: true } },
             ],
         );
         assert.deepStrictEqual(ruleOf(harness, hand.id), {
             kind: "categories",
-            attribute: "results.r.category",
+            attribute: "store.graphty.r.category",
             values: ["z", "y"],
         });
         assert.deepStrictEqual(styles.get(hand.id)?.unmatched, [
-            { code: "group.gone", params: { path: "results.r.category", value: "z", dropped: true } },
+            { code: "group.gone", params: { path: "store.graphty.r.category", value: "z", dropped: true } },
         ]);
         assert.isUndefined(styles.get(plain.id)?.unmatched, "a layer naming no value has nothing to report by name");
         harness.session.dispose();

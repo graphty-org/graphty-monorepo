@@ -30,7 +30,7 @@ function execute(context: RunExecutionContext): Promise<RunOutcome> {
                 technicalName: "value",
                 kind: "node",
                 type: "number",
-                path: "results.$.value",
+                path: "store.graphty.$.value",
             },
         ],
         measured: { nodes: 0, edges: 0 },
@@ -72,7 +72,7 @@ describe("session.recipes", () => {
         await first.styles.add({
             name: "By degree",
             target: "node",
-            selector: { match: "has", path: "results.lab__deg.value" },
+            selector: { match: "has", path: "store.graphty.lab__deg.value" },
             set: { "node.color": "#c62828" },
         });
         const { text } = await first.recipes.export();

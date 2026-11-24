@@ -114,7 +114,7 @@ function measureTwo(context: RunExecutionContext): Promise<RunOutcome> {
                     technicalName: "degree",
                     kind: "node",
                     type: "number",
-                    path: `results.${context.runId}.value`,
+                    path: `store.graphty.${context.runId}.value`,
                 },
             ],
             measured: { nodes: 2, edges: 0 },
@@ -258,7 +258,8 @@ describe("the export snapshot", () => {
         assert.include(text, 'attr.name="label"');
         assert.include(text, "Alpha");
         // graph-format's own weight shadow is read by role, as the weight; nothing internal is written.
-        assert.notInclude(text, "graphty.");
+        // A run's field is written under its own path, `store.graphty.<run>.<field>`.
+        assert.notMatch(text, /(?<!store\.)graphty\./);
         assert.include(text, ">2<", "the explicit weight is written");
         harness.session.dispose();
     });
@@ -404,7 +405,7 @@ function partitionSix(context: RunExecutionContext): Promise<RunOutcome> {
                     technicalName: "community",
                     kind: "node",
                     type: "integer",
-                    path: `results.${context.runId}.group`,
+                    path: `store.graphty.${context.runId}.group`,
                 },
             ],
             measured: { nodes: 6, edges: 0 },

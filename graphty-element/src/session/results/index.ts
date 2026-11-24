@@ -5,7 +5,7 @@
  * says what the ten result shapes must publish and what each field name means, so a path is
  * guessable without the catalog. `./RunResult` turns what an algorithm produced into an object
  * carrying its own ranking, distribution, range and bounded summary, so no consumer writes
- * statistics code. `./ResultsApi` builds the `results.<runId>.<field>` path and answers "did you
+ * statistics code. `./ResultsApi` builds the `store.graphty.<runId>.<field>` path and answers "did you
  * mean" for the ones that do not resolve.
  *
  * Nothing in this module's import graph reaches Babylon.js, Lit or the DOM.

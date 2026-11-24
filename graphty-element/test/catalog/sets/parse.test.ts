@@ -203,7 +203,7 @@ describe("parseSetDefinition, the door-mode validator", () => {
         }
     });
 
-    it("refuses a field path whose root is not data or results, with reason reserved-root", () => {
+    it("refuses a field path whose root is not data or store, with reason reserved-root", () => {
         for (const where of [
             { kind: "threshold", path: "graph.degree", top: 3 },
             { kind: "threshold", path: "runs.pr.value", above: 1 },
@@ -221,7 +221,7 @@ describe("parseSetDefinition, the door-mode validator", () => {
         assert.doesNotThrow(() =>
             parseSetDefinition({
                 kind: "rule",
-                where: { kind: "range", attribute: "graphty.source.results.degree.value", min: 1 },
+                where: { kind: "range", attribute: "graphty.source.store.graphty.degree.value", min: 1 },
                 reading: "induced",
             }),
         );
@@ -237,7 +237,7 @@ describe("parseSetDefinition, the door-mode validator", () => {
         assert.doesNotThrow(() =>
             parseSetDefinition({
                 kind: "rule",
-                where: { kind: "threshold", path: "results.pr.value", top: 1 },
+                where: { kind: "threshold", path: "store.graphty.pr.value", top: 1 },
                 reading: "induced",
             }),
         );

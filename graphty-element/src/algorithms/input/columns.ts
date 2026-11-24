@@ -40,7 +40,7 @@ export interface InputColumns {
     /**
      * The values at an attribute or result path, by row of `graph`.
      * @param graph - The snapshot whose rows the values are laid out over.
-     * @param path - `data.<key>` (or the bare key), or `results.<run>.<field>`.
+     * @param path - `data.<key>` (or the bare key), or `store.graphty.<run>.<field>`.
      * @param on - The kind of element, when the caller fixes it; else the kind that carries it.
      * @param edgeIdAt - The element's edge id of a row of `graph`.
      * @returns The values, or null when nothing carries the path.
@@ -53,7 +53,7 @@ export interface InputColumns {
     ): ColumnValues | null;
 }
 
-const RESULT_PREFIX = "results.";
+const RESULT_PREFIX = "store.graphty.";
 const ATTRIBUTE_PREFIX = "data.";
 
 /**

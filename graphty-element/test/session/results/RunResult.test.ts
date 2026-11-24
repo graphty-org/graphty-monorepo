@@ -24,7 +24,7 @@ const CAVEATS: Caveats = {
 
 /** A field descriptor with the path a catalog descriptor would have written. */
 function field(spec: Omit<FieldDescriptor, "path">): FieldDescriptor {
-    return { ...spec, path: `results.$.${spec.name}` };
+    return { ...spec, path: `store.graphty.$.${spec.name}` };
 }
 
 /** The uniform field list a metric shape publishes, per element and per graph. */

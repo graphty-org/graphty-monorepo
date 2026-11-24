@@ -2,7 +2,7 @@
  * A layer over a run's result is checked when it is added, and part of the check is whether
  * every path it reads is one the session can answer. A run moves the input tick the attribute
  * descriptions are cached on, so that check used to describe the attributes again -- a walk of
- * every node and edge record -- just to learn that `results.<run>.group` is a run's field. On the
+ * every node and edge record -- just to learn that `store.graphty.<run>.group` is a run's field. On the
  * "every airline route on earth" sample (3,214 nodes, 36,906 edges) that walk froze the page for
  * over 200 ms at a 6x CPU throttle. Counted, never timed: the edge records the check reads.
  */
@@ -32,7 +32,7 @@ function partition(context: RunExecutionContext): Promise<RunOutcome> {
                     technicalName: "community",
                     kind: "node",
                     type: "integer",
-                    path: `results.${context.runId}.group`,
+                    path: `store.graphty.${context.runId}.group`,
                 },
             ],
             measured: { nodes: SIZE, edges: SIZE - 1 },

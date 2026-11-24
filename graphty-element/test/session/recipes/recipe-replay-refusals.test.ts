@@ -31,7 +31,7 @@ function execute(context: RunExecutionContext): Promise<RunOutcome> {
                 technicalName: "value",
                 kind: "node",
                 type: "number",
-                path: "results.$.value",
+                path: "store.graphty.$.value",
             },
         ],
         measured: { nodes: 0, edges: 0 },

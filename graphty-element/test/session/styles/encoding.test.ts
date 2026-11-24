@@ -64,7 +64,7 @@ function hex(value: EncodedValue | undefined): string | undefined {
 
 describe("the four things calculatedStyle was used for", () => {
     it("maps a node's degree to its size", () => {
-        const prepared = prepare("node.size", { by: "results.degree.value", range: [1, 5] }, [1, 2, 3, 4]);
+        const prepared = prepare("node.size", { by: "store.graphty.degree.value", range: [1, 5] }, [1, 2, 3, 4]);
 
         assert.deepEqual(prepared.domain, [1, 4]);
         assert.strictEqual(prepared.paint(1), 1);
@@ -73,7 +73,11 @@ describe("the four things calculatedStyle was used for", () => {
     });
 
     it("maps a degree to a size by area, which is what a radius has to do to read as a count", () => {
-        const prepared = prepare("node.size", { by: "results.degree.value", scale: "sqrt", range: [1, 5] }, [1, 4, 9]);
+        const prepared = prepare(
+            "node.size",
+            { by: "store.graphty.degree.value", scale: "sqrt", range: [1, 5] },
+            [1, 4, 9],
+        );
 
         assert.strictEqual(prepared.paint(1), 1);
         assert.strictEqual(prepared.paint(4), 3);
@@ -83,7 +87,7 @@ describe("the four things calculatedStyle was used for", () => {
     it("maps a community to a colour, one colour per group and never two groups to one colour", () => {
         const prepared = prepare(
             "node.color",
-            { by: "results.louvain.group", scale: "ordinal", palette: "okabe-ito" },
+            { by: "store.graphty.louvain.group", scale: "ordinal", palette: "okabe-ito" },
             [0, 0, 1, 2],
         );
 
@@ -126,7 +130,7 @@ describe("the four things calculatedStyle was used for", () => {
         // The closed channel set has no "label on or off" channel, so the declarative spelling of
         // "label these and nothing else" is a layer that writes node.label for the elements it
         // selects. Everything else keeps the label the layers below it gave it.
-        const prepared = prepare("node.label", { by: "results.degree.value" }, [3, 7]);
+        const prepared = prepare("node.label", { by: "store.graphty.degree.value" }, [3, 7]);
 
         assert.strictEqual(prepared.paint(7), "7");
         assert.isUndefined(prepared.paint(undefined));
@@ -185,7 +189,7 @@ describe("a value with no place on the scale", () => {
 
 describe("an element the run never measured", () => {
     it("is not painted at all, rather than painted a default", () => {
-        const prepared = prepare("node.color", { by: "results.betweenness.value" }, [0.1, 0.9]);
+        const prepared = prepare("node.color", { by: "store.graphty.betweenness.value" }, [0.1, 0.9]);
 
         assert.isUndefined(prepared.paint(undefined));
         assert.isUndefined(prepared.paint(null));
@@ -194,7 +198,7 @@ describe("an element the run never measured", () => {
     it("is not painted a muted grey either, unless the layer says so in writing", () => {
         const asked = prepare(
             "node.color",
-            { by: "results.betweenness.value", missing: { value: "#888888" } },
+            { by: "store.graphty.betweenness.value", missing: { value: "#888888" } },
             [0.1, 0.9],
         );
 
@@ -215,7 +219,9 @@ describe("an element the run never measured", () => {
     });
 
     it("is counted for the legend when the caller says how many there were", () => {
-        const prepared = prepare("node.color", { by: "results.betweenness.value" }, [0.1, 0.9], { unmeasured: 312 });
+        const prepared = prepare("node.color", { by: "store.graphty.betweenness.value" }, [0.1, 0.9], {
+            unmeasured: 312,
+        });
 
         assert.strictEqual(prepared.counts.unmeasured, 312);
         assert.deepInclude(prepared.facts, { code: "legend.not-measured", params: { count: 312 } });
@@ -672,7 +678,7 @@ function field(
     type: FieldDescriptor["type"],
     runId: RunId = "$",
 ): FieldDescriptor {
-    return { name, plainName: name, technicalName: name, kind, type, path: `results.${runId}.${name}` };
+    return { name, plainName: name, technicalName: name, kind, type, path: `store.graphty.${runId}.${name}` };
 }
 
 /** A centrality run: a number per node. */
@@ -778,30 +784,30 @@ describe("encode()", () => {
     it("writes the selector itself, and writes a presence test rather than an expression", () => {
         const layer = plan({ run: "betweenness", channel: "node.color" });
 
-        assert.deepEqual(layer.selector, { match: "has", path: "results.betweenness.value" });
+        assert.deepEqual(layer.selector, { match: "has", path: "store.graphty.betweenness.value" });
     });
 
     it("scopes the layer to exactly the elements the run measured", () => {
         const layer = plan({ run: "louvain", channel: "node.color" });
 
-        assert.deepEqual(layer.selector, { match: "has", path: "results.louvain.group" });
+        assert.deepEqual(layer.selector, { match: "has", path: "store.graphty.louvain.group" });
     });
 
     it("reads the field the shape declares primary, so nobody opens the catalogue to name it", () => {
         assert.strictEqual(
             bindingOf(plan({ run: "betweenness", channel: "node.color" }), "node.color").by,
-            "results.betweenness.value",
+            "store.graphty.betweenness.value",
         );
         assert.strictEqual(
             bindingOf(plan({ run: "louvain", channel: "node.color" }), "node.color").by,
-            "results.louvain.group",
+            "store.graphty.louvain.group",
         );
     });
 
     it("reads another field when one is named", () => {
         const layer = plan({ run: "betweenness", field: "percentile", channel: "node.size" });
 
-        assert.deepEqual(layer.selector, { match: "has", path: "results.betweenness.percentile" });
+        assert.deepEqual(layer.selector, { match: "has", path: "store.graphty.betweenness.percentile" });
     });
 
     it("records which run, which algorithm and which parameters painted the layer", () => {
@@ -821,7 +827,7 @@ describe("encode()", () => {
         const layer = plan({ run: "flow", channel: "edge.width" });
 
         assert.strictEqual(layer.target, "edge");
-        assert.deepEqual(layer.selector, { match: "has", path: "results.flow.value" });
+        assert.deepEqual(layer.selector, { match: "has", path: "store.graphty.flow.value" });
     });
 
     it("names the layer after the run, never the channel, and takes a name when given one", () => {
@@ -957,7 +963,7 @@ describe("what encode() refuses", () => {
         // the cut put every node on one side or the other, so every node carries one.
         const layer = plan({ run: "cut", field: "side", channel: "node.color" });
 
-        assert.deepEqual(layer.selector, { match: "has", path: "results.cut.side" });
+        assert.deepEqual(layer.selector, { match: "has", path: "store.graphty.cut.side" });
         assert.strictEqual(bindingOf(layer, "node.color").scale, "ordinal");
         assert.strictEqual(
             codeOf(() => plan({ run: "cut", channel: "edge.color" })),
@@ -985,7 +991,7 @@ describe("a number written as label text", () => {
     const BRIDGING = [129.64334674418717, 0.012345678, 1504.5];
 
     it("is written in full without a format, as before", () => {
-        const prepared = prepare("node.label", { by: "results.betweenness.bridging" }, BRIDGING);
+        const prepared = prepare("node.label", { by: "store.graphty.betweenness.bridging" }, BRIDGING);
 
         assert.strictEqual(prepared.paint(BRIDGING[0]), String(BRIDGING[0]));
         assert.isAbove((prepared.paint(BRIDGING[0]) as string).length, 15);
@@ -994,7 +1000,7 @@ describe("a number written as label text", () => {
     it("is written to 3 significant digits with maximumSignificantDigits: 3", () => {
         const prepared = prepare(
             "node.label",
-            { by: "results.betweenness.bridging", format: { maximumSignificantDigits: 3, locale: "en-US" } },
+            { by: "store.graphty.betweenness.bridging", format: { maximumSignificantDigits: 3, locale: "en-US" } },
             BRIDGING,
         );
 

@@ -54,7 +54,7 @@ element.run("acme-confidence-share", {}, { as: "share" }); // colors the edges
 here, so each takes its default); `{ as: "strength" }` names the result. A run colors the graph
 when it first completes, with no style code: a node score becomes a color ramp over the nodes it
 measured, an edge score one over the edges. Your own style layer reaches the values at
-`results.strength.value` and `results.share.value` -- the path is `results.<as name>.value` -- and a
+`store.graphty.strength.value` and `store.graphty.share.value` -- the path is `store.graphty.<as name>.value` -- and a
 script reads them from the result the run resolves to: `(await element.run(...)).node(id)?.value`.
 The color layer is written just after the run resolves, so a script that inspects the style
 layers straight after the `await` may not see it yet.
@@ -171,12 +171,12 @@ is refused, not silently missed. `min` and `max` are inclusive, so an option tha
 
 A definition carries exactly one of these, and the function decides what is published:
 
-| Function                 | Called               | Publishes                                                                     |
-| ------------------------ | -------------------- | ----------------------------------------------------------------------------- |
-| `node(node, context)`    | once per node        | a score per node, at `results.<as>.value`                                     |
-| `edge(edge, context)`    | once per edge        | a score per edge, at `results.<as>.value`                                     |
-| `nodes(graph, context)`  | once, may be `async` | a score per node, from a `Map` of node id to number                           |
-| `groups(graph, context)` | once, may be `async` | a group per node, at `results.<as>.group`, from a `Map` of node id to a label |
+| Function                 | Called               | Publishes                                                                           |
+| ------------------------ | -------------------- | ----------------------------------------------------------------------------------- |
+| `node(node, context)`    | once per node        | a score per node, at `store.graphty.<as>.value`                                     |
+| `edge(edge, context)`    | once per edge        | a score per edge, at `store.graphty.<as>.value`                                     |
+| `nodes(graph, context)`  | once, may be `async` | a score per node, from a `Map` of node id to number                                 |
+| `groups(graph, context)` | once, may be `async` | a group per node, at `store.graphty.<as>.group`, from a `Map` of node id to a label |
 
 `context` holds `options` and `graph` (the whole graph). Prefer `node` or `edge` whenever the
 method fits: the element owns their loop, so they can never freeze the page.
@@ -248,7 +248,7 @@ reads edge direction declares `direction: "directed"`; without it the directed a
 
 A run you start without `as` is named for you, and the name is the path a style layer reads. With
 nothing else declared it is your id with underscores for hyphens: an unnamed run of
-`acme-confidence-degree` publishes at `results.acme_confidence_degree.value`.
+`acme-confidence-degree` publishes at `store.graphty.acme_confidence_degree.value`.
 
 When a setting makes two runs mean different things, `suggestedName` names the result after it.
 It receives the run's options, with the defaults filled in, and returns an `id` -- lower-case
@@ -277,8 +277,8 @@ defineAlgorithm({
 ```
 
 ```ts
-element.run("acme-reach"); // results.acme_reach.value, labeled "Acme reach"
-element.run("acme-reach", { hops: 3 }); // results.acme_reach_3.value, labeled "Reach in 3 hops"
+element.run("acme-reach"); // store.graphty.acme_reach.value, labeled "Acme reach"
+element.run("acme-reach", { hops: 3 }); // store.graphty.acme_reach_3.value, labeled "Reach in 3 hops"
 ```
 
 How the element uses the name:
@@ -297,7 +297,7 @@ Move to the advanced tier below when your algorithm needs a result that is not a
 group (a path, a set of nodes, pairs of nodes), several values per node in one result, control
 over how parallel edges merge, a seed or sampling, or speed on graphs of about 100,000 nodes and
 more. Keep the same id when you do: documents, saved options and style layers that name
-`results.<as>.value` keep working, because the advanced version publishes under the same names.
+`store.graphty.<as>.value` keep working, because the advanced version publishes under the same names.
 
 ## Advanced: full control
 
@@ -339,7 +339,7 @@ const TIE_STRENGTH_DESCRIPTOR: AlgorithmDescriptor = {
     technicalName: "share of the weaker end's strength",
     description: "How much of the weaker end's total strength one tie between two nodes carries.",
     category: "structure",
-    // The shape fixes the FIELD NAMES, which is how any consumer reads `results.<runId>.value`
+    // The shape fixes the FIELD NAMES, which is how any consumer reads `store.graphty.<runId>.value`
     // without opening the catalog first.
     shape: "edge-metric",
     // Ten descriptors for one measured number, each carrying a published path string a plugin
@@ -441,7 +441,7 @@ DeclaredAlgorithm.register(TieStrength);
 A class names its result the way a definition does, with an optional
 `static suggestedName = (options) => ({ id, label }) | undefined` beside `static version` (see
 "Naming its result"). Left out, an unnamed run of this class publishes at
-`results.tie_strength.value`.
+`store.graphty.tie_strength.value`.
 
 `compute` RETURNS what it measured. It never writes a result anywhere, and it computes no ranking,
 no percentile and no statistics -- those are the element's to derive, and deriving them per
@@ -543,7 +543,7 @@ sees the name:
 const DESCRIPTOR: AlgorithmDescriptor = {
     // ...
     options: [
-        { name: "group", plainName: "Grouping", type: "partition", default: "results.communities.group" },
+        { name: "group", plainName: "Grouping", type: "partition", default: "store.graphty.communities.group" },
         { name: "confidence", plainName: "Confidence", type: "attribute", default: "confidence" },
     ],
 };
@@ -568,7 +568,7 @@ override async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | 
 ```
 
 The value of the option is a path. `confidence` or `data.confidence` names an attribute the
-records carry; `results.<run>.<field>` names what an earlier run published, so one algorithm can
+records carry; `store.graphty.<run>.<field>` names what an earlier run published, so one algorithm can
 build on another's result. A row whose element carries no value is unset (`isSet(row)` is false).
 An attribute that both nodes and edges carry under the same name is read on the nodes; give an
 edge attribute a name no node attribute uses. A partition is always read on the nodes, and the

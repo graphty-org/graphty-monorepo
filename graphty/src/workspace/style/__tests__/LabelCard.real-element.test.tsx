@@ -181,7 +181,7 @@ describe("a label drawn as a card on the real element", () => {
 
     it("keeps a line written by hand and shows it as written", async () => {
         const { session, store } = await opened();
-        const community = "Community {results.louvain.group|rank} of {results.louvain.group|count}";
+        const community = "Community {store.graphty.louvain.group|rank} of {store.graphty.louvain.group|count}";
         // A card layer as a project file saved it, its third line written by hand.
         const card = await session.styles.add({
             name: "Selected card",
@@ -190,7 +190,7 @@ describe("a label drawn as a card on the real element", () => {
             set: { "node.labelStyle": { enabled: true, ...CARD_LOOK } },
             encode: {
                 "node.label": {
-                    template: ["<bold>{data.id}</bold>", "Connections: {results.degree.value}", community],
+                    template: ["<bold>{data.id}</bold>", "Connections: {store.graphty.degree.value}", community],
                 },
             },
         });

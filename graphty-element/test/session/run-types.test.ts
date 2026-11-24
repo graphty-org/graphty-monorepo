@@ -321,12 +321,12 @@ describe("the built-in catalogue", () => {
 
 describe("result paths", () => {
     it("addresses a field under its run", () => {
-        assert.strictEqual(resultPath("louvain", "group"), "results.louvain.group");
-        assert.strictEqual(resultPath("louvain"), "results.louvain");
+        assert.strictEqual(resultPath("louvain", "group"), "store.graphty.louvain.group");
+        assert.strictEqual(resultPath("louvain"), "store.graphty.louvain");
     });
 
     it("binds a descriptor's placeholder path to a run", () => {
-        assert.strictEqual(bindResultPath("results.$.value", "betweenness"), "results.betweenness.value");
+        assert.strictEqual(bindResultPath("store.graphty.$.value", "betweenness"), "store.graphty.betweenness.value");
         assert.strictEqual(bindResultPath("data.weight", "betweenness"), "data.weight");
     });
 
@@ -334,7 +334,14 @@ describe("result paths", () => {
         assert.deepEqual(pathParts("data.minutes"), { from: "data", column: "minutes" });
         assert.deepEqual(pathParts("data.a.b"), { from: "data", column: "a.b" });
         assert.deepEqual(pathParts(resultPath("louvain", "group")), { from: "run", runId: "louvain", field: "group" });
-        for (const other of ["id", "source", "data.", "results.louvain", "results.louvain.a.b", "results..x"]) {
+        for (const other of [
+            "id",
+            "source",
+            "data.",
+            "store.graphty.louvain",
+            "store.graphty.louvain.a.b",
+            "store.graphty..x",
+        ]) {
             assert.isUndefined(pathParts(other), other);
         }
     });

@@ -4,7 +4,7 @@
  * `./predicate` compiles a selector into a closure over {@link SelectorSource} and implements
  * none of it -- two value readers, two presence tests, two id readers, and nothing about where a
  * value lives. THIS file is the other half: a `data.*` path is a column of the snapshot or a key
- * of the record a node arrived with, and a `results.*` path is one field of one run's result. The
+ * of the record a node arrived with, and a `store.graphty.*` path is one field of one run's result. The
  * split is what lets the compiler stay a compiler; it never learns what a session is, and this
  * file never learns what an expression is.
  *
@@ -47,6 +47,7 @@ import type { Column, GraphSnapshot } from "@graphty/graph-format";
 import type { EdgeId, NodeId, Path, RunId, TopTies } from "../../catalog/types";
 import { type NoteFacts, type NoteFactsReader, noteFieldOf } from "../notes/paths";
 import { RESULT_ROOT, type RunResult } from "../results";
+import { isRunPath } from "../results/types";
 import { edgeSpaceOf } from "../scope/spaces";
 import { DRAFT_PATH, RECORD_PATHS } from "../sources/steps/paths";
 import type { SessionRecordSource } from "../types";
@@ -73,7 +74,7 @@ export interface SelectorSourceParts {
      * A reader rather than the `ResultsApi`, because this is called once per element per layer and
      * `ResultsApi.get` builds a registry entry object on every call. A session hands in
      * `(id) => runs.get(id)?.result`, which is a map lookup and a field read. Absent, no
-     * `results.*` path is answered and every one of them reads absent -- which is what a session
+     * `store.graphty.*` path is answered and every one of them reads absent -- which is what a session
      * that has run nothing should say.
      * @param runId - The run to read.
      * @returns Its result, or undefined when the run has not published one.
@@ -158,14 +159,14 @@ export interface SessionSelectorSource extends SelectorSource {
      * every element that allocates an array as long as the graph, to save a walk over every
      * element that allocates nothing -- so the honest answer is "this session cannot enumerate
      * that", and the repaint walks the element list.
-     * @param path - The column path, such as `results.louvain.group`.
+     * @param path - The column path, such as `store.graphty.louvain.group`.
      * @param target - Whether the asking layer paints nodes or edges.
      * @returns The indices, ascending, or undefined when the column cannot be enumerated.
      */
     readonly measured: (path: Path, target: SelectorTarget) => ArrayLike<number> | undefined;
     /**
      * The lowest value in the top `n` of a run's column, from `RunResult.top`, which keeps it.
-     * @param path - The column path, `results.<run>.<field>`.
+     * @param path - The column path, `store.graphty.<run>.<field>`.
      * @param target - Whether the asking layer paints nodes or edges.
      * @param n - The most elements the top may hold.
      * @returns The cut, or undefined when nothing is taken or the path names no numeric field of
@@ -335,15 +336,15 @@ const NOTHING: PathEntry = Object.freeze({ kind: "none", key: "", runId: "", fie
  *
  * Called once per path and memoized, because the alternative is splitting a string per element.
  *
- * A `results.*` path that is not exactly `results.<run>.<field>` is refused into
- * {@link NOTHING} rather than guessed at. `results.<run>` on its own addresses the run's whole
+ * A `store.graphty.*` path that is not exactly `store.graphty.<run>.<field>` is refused into
+ * {@link NOTHING} rather than guessed at. `store.graphty.<run>` on its own addresses the run's whole
  * result object, which is a graph-level thing and belongs to no element, and a deeper path names
  * a field of a field, which no result publishes.
  * @param path - The path as the selector spelled it.
  * @returns What reads it.
  */
 function parsePath(path: Path): PathEntry {
-    if (path.startsWith(RESULT_PREFIX)) {
+    if (isRunPath(path)) {
         const dot = path.indexOf(".", RESULT_PREFIX.length);
         const runId = dot === -1 ? "" : path.slice(RESULT_PREFIX.length, dot);
         const field = dot === -1 ? "" : path.slice(dot + 1);

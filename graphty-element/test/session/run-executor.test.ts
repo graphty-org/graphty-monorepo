@@ -174,7 +174,7 @@ describe("the run executor", () => {
         // THE EXECUTOR DOES NOT PAINT. It used to walk every node and every edge at the end of
         // every run, because a 1.x selector read `algorithmResults.<namespace>.<type>` and only
         // re-resolving an element made a new value visible to it. A selector reads
-        // `results.<runId>.<field>` now, and the repaint hangs off the run finishing -- in the
+        // `store.graphty.<runId>.<field>` now, and the repaint hangs off the run finishing -- in the
         // element's own wiring, on the `algorithm-run` queue trigger, where it can be scheduled
         // with the rest of the frame's work. `test/browser/session-style-paint.test.ts` pins
         // that the picture really does catch up. A repaint here would have to reach past the

@@ -671,7 +671,7 @@ describe("a slide whose filter's inputs change", () => {
         const { time, visibility } = session;
         await time.setField({ nodes: { start: "t" } });
         await session.runs.start("degree", {}, { as: "score", style: false });
-        await visibility.set({ kind: "expression", where: "results.score.value > `1`" });
+        await visibility.set({ kind: "expression", where: "store.graphty.score.value > `1`" });
         await time.window({ from: 50, to: 60, step: 10 });
         await time.stepBy(1);
         assert.strictEqual(windowCount(visibility).nodes, 0);
@@ -704,7 +704,7 @@ function scored(context: RunExecutionContext, graph: GraphSnapshot, scores: Read
                     technicalName: "value",
                     kind: "node",
                     type: "number",
-                    path: `results.${context.runId}.value`,
+                    path: `store.graphty.${context.runId}.value`,
                 },
             ],
             measured: { nodes: graph.nodeCount, edges: graph.edgeCount },
@@ -744,7 +744,7 @@ describe("a window over a graph that changes between moves", () => {
             );
             await session.time.setField({ nodes: { start: "t" }, edges: { start: "t" } });
             await session.runs.start("degree", {}, { as: "score", style: false });
-            await session.visibility.set({ kind: "expression", where: "results.score.value > `1`" });
+            await session.visibility.set({ kind: "expression", where: "store.graphty.score.value > `1`" });
             await session.time.window({ from: 300, to: 500, step: 25, nodes: "ends" });
 
             const check = (what: string): void => {

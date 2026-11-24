@@ -63,6 +63,7 @@ import { rowOfEitherSpelling } from "../../data/nodeIdSpelling";
 import { GraphtyError } from "../../errors";
 import { quoteEach } from "../../utils/quote-each";
 import { rankEntries, topOfRanking } from "../results/statistics";
+import { isRunPath, RESULT_ROOT, resultPath } from "../results/types";
 import { type ComponentLabels, edgeSpaceOf, type ElementMask } from "../scope/index";
 import {
     type ChainStep,
@@ -333,7 +334,7 @@ export interface FilterSources {
     readonly scope?: (scope: Scope) => ScopeLeaf;
     /**
      * A run's current result, as `item` and `threshold` leaves read it. Absent refuses both over
-     * `results.*`; a run it does not know leaves the leaf holding nothing.
+     * `store.graphty.*`; a run it does not know leaves the leaf holding nothing.
      * @param run - The run.
      * @returns The result, or undefined when the run has none.
      */
@@ -1532,8 +1533,8 @@ function pathReaders(
         return { node: structure, edge: null };
     }
 
-    if (path.startsWith("results.")) {
-        const rest = path.slice("results.".length);
+    if (isRunPath(path)) {
+        const rest = path.slice(`${RESULT_ROOT}.`.length);
         const dot = rest.indexOf(".");
         const field = rest.slice(dot + 1);
         const result = resultOf(context, kind, rest.slice(0, dot));
@@ -1909,7 +1910,7 @@ function compileItem(context: CompileContext, item: ResultItem): CompiledHalves 
     const run = runIdOfRef(item.result) as RunId;
     const { field, value } = item.key;
     const result = resultOf(context, "item", run);
-    const mark = markFor(context, `results.${run}.${field}`);
+    const mark = markFor(context, resultPath(run, field));
 
     // A held execution that is no longer current reads what its run's re-run captured, and
     // nothing when no capture was kept.
@@ -2684,7 +2685,7 @@ function compileMeasure(context: CompileContext, leaf: Extract<RuleTree, { kind:
         return NOTHING;
     }
 
-    const path = `results.${MEASURE_RUN}.${leaf.field}`;
+    const path = resultPath(MEASURE_RUN, leaf.field);
     const inner: CompileContext = {
         ...context,
         sources: {

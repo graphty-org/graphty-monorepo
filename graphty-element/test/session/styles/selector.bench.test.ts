@@ -58,7 +58,7 @@ let reads = 0;
 const source: SelectorSource = {
     nodeValue: (index, path) => {
         reads++;
-        return path === "results.louvain.group" ? groups[index] : flags[index];
+        return path === "store.graphty.louvain.group" ? groups[index] : flags[index];
     },
     edgeValue: () => undefined,
     nodeIdOf: (index) => {
@@ -154,7 +154,7 @@ function measure(run: (index: number) => boolean): Measurement {
 function measureSearch(): Measurement {
     const root = { data: { type: "host" }, results: { louvain: { group: 3 } } };
 
-    return measure(() => jmespath.search(root, "results.louvain.group != `null`") === true);
+    return measure(() => jmespath.search(root, "store.graphty.louvain.group != `null`") === true);
 }
 
 /**
@@ -211,7 +211,7 @@ describe("selector evaluation stays inside the repaint budget", () => {
     });
 
     it("runs an expression selector far cheaper than a search per element", () => {
-        const measurement = measureSelector({ match: "expression", where: "results.louvain.group != `null`" });
+        const measurement = measureSelector({ match: "expression", where: "store.graphty.louvain.group != `null`" });
         report("expression: path != `null`", measurement, baseline.perElement);
 
         assert.strictEqual(measurement.matched, ELEMENTS - Math.ceil(ELEMENTS / 7));
@@ -227,7 +227,7 @@ describe("selector evaluation stays inside the repaint budget", () => {
     });
 
     it("runs the generated has selector at least as cheaply as the expression it replaces", () => {
-        const measurement = measureSelector({ match: "has", path: "results.louvain.group" });
+        const measurement = measureSelector({ match: "has", path: "store.graphty.louvain.group" });
         report("has: one column presence test", measurement, baseline.perElement);
 
         assert.strictEqual(measurement.matched, ELEMENTS - Math.ceil(ELEMENTS / 7));
@@ -249,7 +249,7 @@ describe("selector evaluation stays inside the repaint budget", () => {
     });
 
     it("parses once at compile time, whatever the element count", () => {
-        const where = "results.louvain.group != `null` && data.isInPath == `true`";
+        const where = "store.graphty.louvain.group != `null` && data.isInPath == `true`";
 
         for (let round = 0; round < 200; round++) {
             compileSelector({ match: "expression", where }, "node", source);

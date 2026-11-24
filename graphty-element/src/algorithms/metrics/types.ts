@@ -29,7 +29,7 @@ import type { Caveats, RunProgressReport } from "../../session/runs";
  * locks the screen for as long as it takes, whatever the progress bar says.
  */
 export interface MetricRunContext {
-    /** The run id the result is published under, which is the `<runId>` in `results.<runId>`. */
+    /** The run id the result is published under, which is the `<runId>` in `store.graphty.<runId>`. */
     readonly runId: string;
     /** Aborted when the run is canceled. A measurement throws from it rather than swallowing it. */
     readonly signal: AbortSignal;

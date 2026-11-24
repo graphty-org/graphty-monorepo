@@ -23,7 +23,7 @@
  *
  * Two conventions worth stating once:
  *
- * **The `$` in a field path.** A field's path is `results.$.<field>`, where `$` stands for the
+ * **The `$` in a field path.** A field's path is `store.graphty.$.<field>`, where `$` stands for the
  * run id that a static descriptor cannot know. `session.results.path(run, field)` returns the
  * same path with a real run id in place of the `$`.
  *
@@ -76,7 +76,7 @@ export interface BuiltInAlgorithmDescriptor extends AlgorithmDescriptor {
 // ---------------------------------------------------------------------------------------------
 
 /** The root a static field path is written against; `$` stands for the run id. */
-const RESULT_PATH_ROOT = "results.$";
+const RESULT_PATH_ROOT = "store.graphty.$";
 
 /**
  * Add the published path to a field, so no descriptor spells the path out by hand.
@@ -119,7 +119,7 @@ interface MetricValue {
  * Build the fields every node-metric and edge-metric result publishes.
  *
  * The per-element trio and the graph-level statistics are fixed by the shape, which is what lets
- * a consumer read `results.<run>.value` for any metric without opening the catalog.
+ * a consumer read `store.graphty.<run>.value` for any metric without opening the catalog.
  * @param kind - Whether the metric is measured per node or per edge.
  * @param value - What this metric's primary value is called.
  * @returns The uniform field list for a metric shape.

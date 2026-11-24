@@ -229,8 +229,8 @@ await element.session.styles.add({
         "node.label": {
             template: [
                 "<bold>{data.name}</bold>",
-                "Connections: {results.degree.value}",
-                "Community {results.louvain.group|rank} of {results.louvain.group|count}",
+                "Connections: {store.graphty.degree.value}",
+                "Community {store.graphty.louvain.group|rank} of {store.graphty.louvain.group|count}",
             ],
         },
     },
@@ -252,7 +252,7 @@ await element.session.styles.add({
     selector: { match: "everything" },
     encode: {
         "node.label": {
-            template: ["{data.name}", "{results.pagerank.value}"],
+            template: ["{data.name}", "{store.graphty.pagerank.value}"],
             format: { maximumFractionDigits: 2, useGrouping: true, locale: "en-US" },
         },
     },

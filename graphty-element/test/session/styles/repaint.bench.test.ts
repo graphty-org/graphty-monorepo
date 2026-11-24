@@ -83,10 +83,10 @@ const NARROW_INDICES = Uint32Array.from({ length: NARROW }, (_, index) => index 
 const GROUPS = new Map<number, string>([...NARROW_INDICES].map((index, at) => [index, `g${String(at % 6)}`]));
 
 /** What the wide run published. */
-const WIDE_PATH: Path = "results.betweenness.score";
+const WIDE_PATH: Path = "store.graphty.betweenness.score";
 
 /** What the narrow run published. */
-const NARROW_PATH: Path = "results.louvain.group";
+const NARROW_PATH: Path = "store.graphty.louvain.group";
 
 /** The element's own layer: a flat color over the whole graph, which every stack below sits on. */
 const ELEMENT_BASE: ElementLayerSpec = {
@@ -135,7 +135,7 @@ function measureSearchPass(): number {
     const started = cpuMs();
 
     for (let index = 0; index < ELEMENTS; index++) {
-        jmespath.search(root, "results.betweenness.score != `null`");
+        jmespath.search(root, "store.graphty.betweenness.score != `null`");
     }
 
     return cpuMs() - started;

@@ -2493,10 +2493,10 @@ export interface SessionDataApi {
      * members with the one it was given to.
      *
      * ```ts
-     * await session.data.setValueLabel("results.louvain.group", 3, "Students");
-     * session.data.valueLabels("results.louvain.group").get("3"); // "Students"
+     * await session.data.setValueLabel("store.graphty.louvain.group", 3, "Students");
+     * session.data.valueLabels("store.graphty.louvain.group").get("3"); // "Students"
      * ```
-     * @param path - The value path: `data.<column>` or `results.<run>.<field>`.
+     * @param path - The value path: `data.<column>` or `store.graphty.<run>.<field>`.
      * @param value - The value, compared as the legend spells it, so `3` and `"3"` are one value.
      * @param label - The name, or null (or empty text) to remove it.
      * @returns Settles once the name is recorded.
@@ -2543,11 +2543,11 @@ export interface SessionDataApi {
     ): ColumnHistogram;
     /**
      * How many elements carry each value of a readable path, for a checklist of values with their
-     * counts: a data column, a run's field (`results.<run>.group`) or a node value read at an
+     * counts: a data column, a run's field (`store.graphty.<run>.group`) or a node value read at an
      * edge's end, as `data.readableValues()` lists them. Walks the elements on every call.
      *
      * ```ts
-     * const groups = session.data.valueCounts("results.louvain.group");
+     * const groups = session.data.valueCounts("store.graphty.louvain.group");
      * groups.values[0]; // { value: 3, count: 14 }, the largest group
      * groups.missing; // nodes with no group
      * ```
@@ -2610,7 +2610,7 @@ export interface SessionDataApi {
      * `workingGraph` is on, the whole graph while it is off. Walks the nodes on every call.
      *
      * ```ts
-     * const table = session.data.groupTable("results.louvain.group", {
+     * const table = session.data.groupTable("store.graphty.louvain.group", {
      *     summaries: { "data.age": ["mean", "max"] },
      * });
      * table.rows[0]; // { group: 3, size: 14, "data.age.mean": 31.5, "data.age.max": 60 }

@@ -109,21 +109,21 @@ describe("selector shapes", () => {
 
     it("matches the elements carrying a column value", () => {
         const rows: Row[] = [
-            { "results.louvain.group": 0 },
+            { "store.graphty.louvain.group": 0 },
             {},
-            { "results.louvain.group": null },
-            { "results.louvain.group": 7 },
+            { "store.graphty.louvain.group": null },
+            { "store.graphty.louvain.group": 7 },
         ];
         const harness = makeSource(rows);
 
-        assert.deepStrictEqual(matched({ match: "has", path: "results.louvain.group" }, rows, harness), [0, 3]);
+        assert.deepStrictEqual(matched({ match: "has", path: "store.graphty.louvain.group" }, rows, harness), [0, 3]);
     });
 
     it("reports the column a has selector reads", () => {
         const harness = makeSource([{}]);
-        const compiled = compileSelector({ match: "has", path: "results.r1.value" }, "node", harness.source);
+        const compiled = compileSelector({ match: "has", path: "store.graphty.r1.value" }, "node", harness.source);
 
-        assert.deepStrictEqual([...compiled.paths], ["results.r1.value"]);
+        assert.deepStrictEqual([...compiled.paths], ["store.graphty.r1.value"]);
     });
 
     it("uses a supplied presence test rather than reading the value", () => {
@@ -231,7 +231,8 @@ describe("a top selector", () => {
 
         for (const n of [-1, 1.5, Number.NaN]) {
             assert.strictEqual(
-                refusalOf(() => compileSelector({ match: "top", path: "results.r1.value", n }, "node", source)).code,
+                refusalOf(() => compileSelector({ match: "top", path: "store.graphty.r1.value", n }, "node", source))
+                    .code,
                 "E_BAD_SELECTOR",
             );
         }
@@ -241,23 +242,29 @@ describe("a top selector", () => {
         const harness = makeSource([{}]);
 
         assert.strictEqual(
-            refusalOf(() => compileSelector({ match: "top", path: "results.r1.value", n: 3 }, "node", harness.source))
-                .code,
+            refusalOf(() =>
+                compileSelector({ match: "top", path: "store.graphty.r1.value", n: 3 }, "node", harness.source),
+            ).code,
             "E_UNSUPPORTED",
         );
     });
 
     it("paints the elements at or above the cut the source ranks, and reports the column it reads", () => {
-        const rows: Row[] = [{ "results.r1.value": 4 }, { "results.r1.value": 3 }, {}, { "results.r1.value": 4 }];
+        const rows: Row[] = [
+            { "store.graphty.r1.value": 4 },
+            { "store.graphty.r1.value": 3 },
+            {},
+            { "store.graphty.r1.value": 4 },
+        ];
         const harness = makeSource(rows);
         const source = { ...harness.source, topCut: () => 4 };
-        const compiled = compileSelector({ match: "top", path: "results.r1.value", n: 2 }, "node", source);
+        const compiled = compileSelector({ match: "top", path: "store.graphty.r1.value", n: 2 }, "node", source);
 
         assert.deepStrictEqual(
             [0, 1, 2, 3].map((index) => compiled.test?.(index)),
             [true, false, false, true],
         );
-        assert.deepStrictEqual([...compiled.paths], ["results.r1.value"]);
+        assert.deepStrictEqual([...compiled.paths], ["store.graphty.r1.value"]);
     });
 });
 
@@ -345,17 +352,17 @@ describe("selector refusals", () => {
 
 describe("the expression subset: the shapes the element ships", () => {
     const rows: Row[] = [
-        { "results.dijkstra.isInPath": true, "data.type": "host", "data.weight": 3 },
-        { "results.dijkstra.isInPath": false, "data.type": "router", "data.weight": 9 },
+        { "store.graphty.dijkstra.isInPath": true, "data.type": "host", "data.weight": 3 },
+        { "store.graphty.dijkstra.isInPath": false, "data.type": "router", "data.weight": 9 },
         { "data.type": "host", "data.weight": 0 },
-        { "results.dijkstra.isInPath": true, "data.weight": 12 },
+        { "store.graphty.dijkstra.isInPath": true, "data.weight": 12 },
     ];
 
     it("reads a presence test written as an expression", () => {
         const harness = makeSource(rows);
 
         assert.deepStrictEqual(
-            matched({ match: "expression", where: "results.dijkstra.isInPath != `null`" }, rows, harness),
+            matched({ match: "expression", where: "store.graphty.dijkstra.isInPath != `null`" }, rows, harness),
             [0, 1, 3],
         );
     });
@@ -364,7 +371,7 @@ describe("the expression subset: the shapes the element ships", () => {
         const harness = makeSource(rows);
 
         assert.deepStrictEqual(
-            matched({ match: "expression", where: "results.dijkstra.isInPath == `true`" }, rows, harness),
+            matched({ match: "expression", where: "store.graphty.dijkstra.isInPath == `true`" }, rows, harness),
             [0, 3],
         );
     });
@@ -376,12 +383,15 @@ describe("the expression subset: the shapes the element ships", () => {
     });
 
     it("reads a quoted attribute name, which is how a dashed run id is addressed", () => {
-        const dashed: Row[] = [{ "results.min-cut.inCut": true }, { "results.min-cut.inCut": false }];
+        const dashed: Row[] = [{ "store.graphty.min-cut.inCut": true }, { "store.graphty.min-cut.inCut": false }];
         const harness = makeSource(dashed);
-        const selector: Selector = { match: "expression", where: 'results."min-cut".inCut == `true`' };
+        const selector: Selector = { match: "expression", where: 'store.graphty."min-cut".inCut == `true`' };
 
         assert.deepStrictEqual(matched(selector, dashed, harness), [0]);
-        assert.deepStrictEqual([...compileSelector(selector, "node", harness.source).paths], ["results.min-cut.inCut"]);
+        assert.deepStrictEqual(
+            [...compileSelector(selector, "node", harness.source).paths],
+            ["store.graphty.min-cut.inCut"],
+        );
     });
 
     it("treats a measured zero as a value, not as false", () => {
@@ -398,7 +408,7 @@ describe("the expression subset: the shapes the element ships", () => {
         const harness = makeSource(rows, [], true);
 
         assert.deepStrictEqual(
-            matched({ match: "expression", where: "results.dijkstra.isInPath != `null`" }, rows, harness),
+            matched({ match: "expression", where: "store.graphty.dijkstra.isInPath != `null`" }, rows, harness),
             [0, 1, 3],
         );
         assert.strictEqual(harness.presenceReads, rows.length);
@@ -656,7 +666,7 @@ describe("every selector refusal says why, as a code", () => {
             [{ match: "ids", nodes: "a" }, "ids-not-a-list"],
             [{ match: "ids", nodes: [{}] }, "not-an-id"],
             [{ match: "top", path: "data.a", n: 1 }, "top-path-not-a-result"],
-            [{ match: "top", path: "results.degree.value", n: 1.5 }, "top-n-not-whole"],
+            [{ match: "top", path: "store.graphty.degree.value", n: 1.5 }, "top-n-not-whole"],
             [{ match: "member", of: 7 }, "bad-member-scope"],
             [{ match: "nope" }, "unknown-kind"],
         ];

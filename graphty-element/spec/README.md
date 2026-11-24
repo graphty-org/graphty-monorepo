@@ -43,7 +43,7 @@ Each section is either a file of its own (a **section file**) or a member of a *
 holds any subset of the sections.
 
 **The smallest working file** is `examples/minimal/minimal-working.graphty.json`: one embedded
-CSV source in data, a layer sizing nodes by a pagerank run's `results.rank.value`, the run and a
+CSV source in data, a layer sizing nodes by a pagerank run's `store.graphty.rank.value`, the run and a
 seeded force layout. What happens when a file opens comes from view (the runs it lists are run
 again, its `layout` is drawn and its layers apply) and from style (its layers apply). The recipe
 is only what applies to new data (8.2 rule 4), so it repeats the run and the layout for that. A
@@ -233,7 +233,7 @@ instead of failing.
    table only. `schema` is a JSON Schema (draft 2020-12) fragment with graphty's two keywords:
    `measurement` (`categorical`, `ordinal`, `quantitative`, `time`; an open vocabulary) and `unit`
    (text, such as `USD`). An ordinal column lists its values in order in `enum`.
-2. A result path (`results.pagerank.value`) MUST be listed under `results`, never under `columns`.
+2. A result path (`store.graphty.pagerank.value`) MUST be listed under `results`, never under `columns`.
 3. Every source reference in a reusable section (a join step, a rule tree's `source` leaf, a
    calculated source path) names a role listed in `sources`. When the section is applied, the
    caller maps roles to the open data's sources as it maps columns. A role maps by default only
@@ -753,7 +753,7 @@ A style section holds `layers` (REQUIRED), `palettes`, `shaders`, `tree`, `value
 7. `tree` holds the style tree, bottom first: rows `{ "layer": <layer id> }` or
    `{ "folder", "children" }`, each with optional `pin`, `locked` and `hidden`.
 8. `valueLabels` lists `{ path, value, label }`, `path` a value path (`data.<column>`,
-   `results.<as>.<field>`).
+   `store.graphty.<as>.<field>`).
 9. **Unset channels.** A channel no layer sets is drawn with the renderer's own look. That look is
    informative, not part of the file's meaning, and may change with no version change. A file that
    wants a fixed look sets the channel in a layer; the starting rows a new project writes are such
@@ -1010,7 +1010,7 @@ View is the record a file is opened to. It holds `bindsTo` (REQUIRED) and any of
    it is the reader's decision, not data. The data section holds the graph expanded: every member,
    its edges and, in `pinned` and results' `layout`, its pin and coordinates; never the node or
    edges standing in. `groups` lists each collapse as `groupBy` (the node path the members were
-   grouped by, `data.<column>` or `results.<run id>.<field>`), `group` (their value at it, a string,
+   grouped by, `data.<column>` or `store.graphty.<run id>.<field>`), `group` (their value at it, a string,
    number or boolean), `position` (where the node standing in stood, when placed) and
    `"pinned": true` (when it was pinned). A collapse of collapsed groups comes after the groups it
    holds, and after every group an end of an edge it holds stands in for. A reader collapses each
@@ -1036,8 +1036,12 @@ small languages, defined here once.
 1. A path is `<root>.<rest>`. There are four roots:
     - `data.<column>`: the whole rest is the working column name, which may contain dots
       (`data.el.load` reads the column `el.load`);
-    - `results.<run>.<field>`: `<run>` runs to the first `.` after `results.`; a run's `as` and its
-      id never contain `.`;
+    - `store.<namespace>.<key>.<field>`: a value graphty-element or an extension keeps on an
+      element, under the namespace of whoever keeps it. graphty-element's own are under
+      `store.graphty.`: a run's field is `store.graphty.<run>.<field>`, where `<run>` runs to the
+      first `.` after `store.graphty.` (a run's `as` and its id never contain `.`, and are never
+      `notes`), and the note values are `store.graphty.notes.<field>`. A reader reads an older
+      file's `results.<run>.<field>` at `store.graphty.<run>.<field>`;
     - `graphty.<value>`: a value graphty-element computes (rule 3);
     - `_source.loads`, exactly.
 
@@ -1107,7 +1111,7 @@ small languages, defined here once.
       backticks (`` \` `` escapes a backtick), or a bare `true`, `false` or `null` that does not
       follow `.` and is not followed by `.` or `(`.
     - A path's names joined by `.` give its raw path (4.8.1): `data."amount (usd)"` reads
-      `data.amount (usd)`, and `results."min-cut".value` reads `results.min-cut.value`.
+      `data.amount (usd)`, and `store.graphty."min-cut".value` reads `store.graphty.min-cut.value`.
 4. Refused:
     - a bare number (write it between backticks: `` data.age > `30` ``);
     - `[`, `]`, `{`, `}`, `,`, `@`, `:`, a single `|` or `&`, the wildcard `*`, and function calls;
@@ -1463,7 +1467,7 @@ be a new major version of the view section.
    sources that need a file).
 7. A reusable section meeting new data goes through the column mapping step (3.6), which maps
    columns and source roles; anything that cannot bind waits and switches on if matching data
-   arrives. A style section's `results.<as>`, `source.runId` and bare set id bind to the one open
+   arrives. A style section's `store.graphty.<as>`, `source.runId` and bare set id bind to the one open
    run with that `as`, or the one open set with that id or that id under a namespace; when none or
    several match, the layer is unbound and reported. Binding a run edits paths, never other text,
    as 4.3 rule 6 says.
@@ -1737,7 +1741,7 @@ being one of `number`, `integer`, `boolean`, `string`, `enum`, `seed`, `node-id`
 `edge-set`, `attribute`, `partition`, `ordering`, `color` or `unknown`; a `min` or `max` may be a
 bound measured on the graph, such as `graph.nodeCount`. A field is `{ name, kind, type, unit,
 normalization, measurement, directedOnly, domain, polarity, order, missing, unstable }`, read as
-`results.<as>.<name>`.
+`store.graphty.<as>.<name>`.
 
 1. The names are named built-ins: 9 rule 5 applies, except as rule 2 says.
 2. **Renames are additive.**

@@ -6,7 +6,7 @@
  * (design/extensions/simple-tier.md section 2.3 rule 3). The only way to keep that promise is to
  * read through the same code, so this builds the view's reader with `createSelectorSource` -- the
  * factory the session's style stack, query engine and selection all read through -- over the
- * session's own records and results. A `results.<run>.<field>` path therefore reads a finished
+ * session's own records and results. A `store.graphty.<run>.<field>` path therefore reads a finished
  * run's published values exactly as a style layer bound to it does.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.

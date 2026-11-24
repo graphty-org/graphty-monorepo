@@ -32,7 +32,7 @@ function field(
     type: FieldDescriptor["type"],
     runId: RunId,
 ): FieldDescriptor {
-    return { name, plainName: name, technicalName: name, kind, type, path: `results.${runId}.${name}` };
+    return { name, plainName: name, technicalName: name, kind, type, path: `store.graphty.${runId}.${name}` };
 }
 
 /**
@@ -254,7 +254,7 @@ describe("the layer a suggestion becomes", () => {
         // one the plan writes is a presence test on this run's own column.
         const layer = layerFor(BETWEENNESS);
 
-        assert.deepStrictEqual(layer.selector, { match: "has", path: "results.betweenness.value" });
+        assert.deepStrictEqual(layer.selector, { match: "has", path: "store.graphty.betweenness.value" });
         assert.strictEqual(layer.target, "node");
         assert.strictEqual(layer.kind, "encoding");
     });
@@ -276,13 +276,13 @@ describe("the layer a suggestion becomes", () => {
         assert.isDefined(measured);
         assert.isDefined(grouped);
         assert.deepStrictEqual(measured, {
-            by: "results.betweenness.value",
+            by: "store.graphty.betweenness.value",
             scale: "linear",
         });
         // A grouping carries the default overflow policy, so a run that finds more groups than the
         // palette has colors folds the smallest into one gray rather than being refused.
         assert.deepStrictEqual(grouped, {
-            by: "results.louvain.group",
+            by: "store.graphty.louvain.group",
             scale: "ordinal",
             overflow: "other",
         });
@@ -414,7 +414,7 @@ describe("widening edges by an edge measurement, asked for with style: { size }"
         const layer = spec === undefined ? undefined : planEncoding(spec, RUN_SOURCE);
 
         assert.strictEqual(layer?.target, "edge");
-        assert.deepStrictEqual(layer?.selector, { match: "has", path: "results.edgebetweenness.value" });
+        assert.deepStrictEqual(layer?.selector, { match: "has", path: "store.graphty.edgebetweenness.value" });
         assert.deepStrictEqual(Object.keys(layer?.encode ?? {}), ["edge.width"]);
     });
 });
@@ -465,7 +465,7 @@ describe("sizing by the run's measurement, asked for with style: { size }", () =
         const spec = sizeOf(suggestStyles(BETWEENNESS, { size: true }))?.spec;
         const layer = spec === undefined ? undefined : planEncoding(spec, RUN_SOURCE);
 
-        assert.deepStrictEqual(layer?.selector, { match: "has", path: "results.betweenness.value" });
+        assert.deepStrictEqual(layer?.selector, { match: "has", path: "store.graphty.betweenness.value" });
     });
 });
 

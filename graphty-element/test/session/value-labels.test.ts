@@ -32,7 +32,7 @@ async function communities(): Promise<GraphSession> {
                         technicalName: "community",
                         kind: "node",
                         type: "integer",
-                        path: `results.${context.runId}.group`,
+                        path: `store.graphty.${context.runId}.group`,
                     },
                 ],
                 measured: { nodes: ids.length, edges: 0 },
@@ -61,7 +61,7 @@ describe("a value's name", () => {
         const session = await communities();
         const run = await session.runs.start("louvain", {});
         await session.styles.settled();
-        const path = `results.${run.runId}.group`;
+        const path = `store.graphty.${run.runId}.group`;
 
         await session.data.setValueLabel(path, 0, "Students");
         assert.strictEqual(session.data.valueLabels(path).get("0"), "Students");
@@ -89,7 +89,7 @@ describe("a value's name", () => {
     it("stays on its group when the run is computed again and its algorithm renumbers the groups", async () => {
         const session = await communities();
         const run = await session.runs.start("louvain", {});
-        const path = `results.${run.runId}.group`;
+        const path = `store.graphty.${run.runId}.group`;
         await session.data.setValueLabel(path, 0, "First two");
 
         // A data change makes the same run compute again; the algorithm numbers the a-and-b group
@@ -105,7 +105,7 @@ describe("a value's name", () => {
     it("is saved with the project and read back when it opens", async () => {
         const session = await communities();
         const run = await session.runs.start("louvain", {});
-        const path = `results.${run.runId}.group`;
+        const path = `store.graphty.${run.runId}.group`;
         await session.data.setValueLabel(path, 1, "Last two");
         const saved = await session.project.save();
         session.dispose();
@@ -119,7 +119,7 @@ describe("a value's name", () => {
     it("is written once, right after the views, so a save matches files saved before", async () => {
         const session = await communities();
         const run = await session.runs.start("louvain", {});
-        const path = `results.${run.runId}.group`;
+        const path = `store.graphty.${run.runId}.group`;
         await session.data.setValueLabel(path, 1, "Last two");
         const saved = await session.project.save();
         session.dispose();

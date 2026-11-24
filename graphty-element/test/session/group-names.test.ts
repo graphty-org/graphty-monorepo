@@ -41,7 +41,7 @@ async function partition(context: RunExecutionContext): Promise<RunOutcome> {
                     technicalName: "community",
                     kind: "node",
                     type: "integer",
-                    path: `results.${context.runId}.group`,
+                    path: `store.graphty.${context.runId}.group`,
                 },
             ],
             measured: { nodes: MEMBERSHIP.length, edges: 0 },
@@ -203,9 +203,9 @@ describe("the names of a partition's groups", () => {
         const layer = await styles.add({
             name: "group and weight",
             target: "node",
-            selector: { match: "has", path: `results.${result.runId}.group` },
+            selector: { match: "has", path: `store.graphty.${result.runId}.group` },
             encode: {
-                "node.color": { by: `results.${result.runId}.group`, scale: "ordinal" },
+                "node.color": { by: `store.graphty.${result.runId}.group`, scale: "ordinal" },
                 "node.size": { by: "data.weight", scale: "linear", range: [1, 4] },
             },
         });
@@ -228,10 +228,10 @@ describe("the names of a partition's groups", () => {
         const layer = await styles.add({
             name: "ordered groups",
             target: "node",
-            selector: { match: "has", path: `results.${result.runId}.group` },
+            selector: { match: "has", path: `store.graphty.${result.runId}.group` },
             encode: {
                 "node.color": {
-                    by: `results.${result.runId}.group`,
+                    by: `store.graphty.${result.runId}.group`,
                     scale: "ordinal",
                     map: { "7": "#ff0000", "0": "#00ff00" },
                 },
@@ -263,10 +263,10 @@ describe("the names of a partition's groups", () => {
         const layer = await styles.add({
             name: "folded groups",
             target: "node",
-            selector: { match: "has", path: `results.${result.runId}.group` },
+            selector: { match: "has", path: `store.graphty.${result.runId}.group` },
             encode: {
                 "node.color": {
-                    by: `results.${result.runId}.group`,
+                    by: `store.graphty.${result.runId}.group`,
                     scale: "ordinal",
                     other: { threshold: 3, value: "#888888" },
                 },
@@ -301,7 +301,7 @@ describe("the names of a partition's groups", () => {
 
         const group = run.fields.find((field) => field.name === "group");
         assert.strictEqual(group?.unstable, true, "the run's field keeps what the catalog declares of it");
-        const read = harness.session.scope.histogram(`results.${run.id}.group`, { as: "categorical" });
+        const read = harness.session.scope.histogram(`store.graphty.${run.id}.group`, { as: "categorical" });
         assert.strictEqual(read.kind, "categorical");
         if (read.kind === "categorical") {
             assert.isTrue(

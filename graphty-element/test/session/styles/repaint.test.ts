@@ -43,18 +43,23 @@ type Row = Readonly<Record<Path, unknown>>;
  * four a centrality run measured, and two that no run measured at all.
  */
 const NODES: readonly Row[] = [
-    { "data.kind": "host", "data.weight": 0, "results.louvain.group": "a", "results.betweenness.score": 0 },
-    { "data.kind": "host", "data.weight": 4, "results.louvain.group": "b", "results.betweenness.score": 4 },
-    { "data.kind": "switch", "data.weight": 8, "results.louvain.group": "a", "results.betweenness.score": 8 },
-    { "data.kind": "switch", "data.weight": 12, "results.betweenness.score": 12 },
+    { "data.kind": "host", "data.weight": 0, "store.graphty.louvain.group": "a", "store.graphty.betweenness.score": 0 },
+    { "data.kind": "host", "data.weight": 4, "store.graphty.louvain.group": "b", "store.graphty.betweenness.score": 4 },
+    {
+        "data.kind": "switch",
+        "data.weight": 8,
+        "store.graphty.louvain.group": "a",
+        "store.graphty.betweenness.score": 8,
+    },
+    { "data.kind": "switch", "data.weight": 12, "store.graphty.betweenness.score": 12 },
     { "data.kind": "host" },
     { "data.kind": "switch" },
 ];
 
 /** Which nodes each run measured, which is what a `has` selector walks instead of the node list. */
 const MEASURED: Readonly<Record<Path, readonly number[]>> = {
-    "results.louvain.group": [0, 1, 2],
-    "results.betweenness.score": [0, 1, 2, 3],
+    "store.graphty.louvain.group": [0, 1, 2],
+    "store.graphty.betweenness.score": [0, 1, 2, 3],
 };
 
 /** The element's own layer, seeded at the bottom of every stack below. */
@@ -190,7 +195,7 @@ describe("what a repaint paints", () => {
         await harness.paintAll();
         await harness.styles.add({
             name: "Communities",
-            selector: { match: "has", path: "results.louvain.group" },
+            selector: { match: "has", path: "store.graphty.louvain.group" },
             set: { "node.color": "#ff0000" },
         });
 
@@ -244,7 +249,7 @@ describe("what a repaint paints", () => {
         await harness.paintAll();
         const layer = await harness.styles.add({
             name: "Communities",
-            selector: { match: "has", path: "results.louvain.group" },
+            selector: { match: "has", path: "store.graphty.louvain.group" },
             set: { "node.color": "#ff0000" },
         });
 
@@ -277,7 +282,7 @@ describe("an edit repaints a dirty set, not the graph", () => {
         await harness.paintAll();
         const layer = await harness.styles.add({
             name: "Moving",
-            selector: { match: "has", path: "results.louvain.group" },
+            selector: { match: "has", path: "store.graphty.louvain.group" },
             set: { "node.color": "#ff0000" },
         });
 
@@ -295,7 +300,7 @@ describe("an edit repaints a dirty set, not the graph", () => {
         await harness.paintAll();
         const layer = await harness.styles.add({
             name: "Communities",
-            selector: { match: "has", path: "results.louvain.group" },
+            selector: { match: "has", path: "store.graphty.louvain.group" },
             set: { "node.color": "#ff0000" },
         });
 
@@ -315,7 +320,7 @@ describe("an edit repaints a dirty set, not the graph", () => {
 
         await harness.styles.add({
             name: "Sizes",
-            selector: { match: "has", path: "results.louvain.group" },
+            selector: { match: "has", path: "store.graphty.louvain.group" },
             set: { "node.size": 3 },
         });
 
@@ -354,7 +359,7 @@ describe("an edit repaints a dirty set, not the graph", () => {
 
         await harness.styles.add({
             name: "Communities",
-            selector: { match: "has", path: "results.louvain.group" },
+            selector: { match: "has", path: "store.graphty.louvain.group" },
             set: { "node.color": "#ff0000" },
         });
 
@@ -377,7 +382,7 @@ describe("an edit repaints a dirty set, not the graph", () => {
                     throw new Error(`the repaint read node ${String(index)}, which no run measured`);
                 }
 
-                return path === "results.pagerank.score" ? index : undefined;
+                return path === "store.graphty.pagerank.score" ? index : undefined;
             },
             edgeValue: () => undefined,
             nodeIdOf: (index) => `n${String(index)}`,
@@ -387,14 +392,14 @@ describe("an edit repaints a dirty set, not the graph", () => {
             nodeCount: () => 50_000,
             edgeCount: () => 0,
             elements,
-            measured: (path) => (path === "results.pagerank.score" ? measured : undefined),
+            measured: (path) => (path === "store.graphty.pagerank.score" ? measured : undefined),
         });
         const styles = createStylesApi({ elements, repaint: engine.repaint });
 
         await styles.add({
             name: "PageRank",
-            selector: { match: "has", path: "results.pagerank.score" },
-            encode: { "node.size": { by: "results.pagerank.score", scale: "linear", range: [1, 4] } },
+            selector: { match: "has", path: "store.graphty.pagerank.score" },
+            encode: { "node.size": { by: "store.graphty.pagerank.score", scale: "linear", range: [1, 4] } },
         });
 
         assert.strictEqual(engine.styleOf("node", 0)["node.size"], 1);
@@ -410,8 +415,8 @@ describe("style identity", () => {
         await harness.paintAll();
         await harness.styles.add({
             name: "Betweenness",
-            selector: { match: "has", path: "results.betweenness.score" },
-            encode: { "node.color": { by: "results.betweenness.score", scale: "linear", palette: "viridis" } },
+            selector: { match: "has", path: "store.graphty.betweenness.score" },
+            encode: { "node.color": { by: "store.graphty.betweenness.score", scale: "linear", palette: "viridis" } },
         });
 
         const colors = new Set([0, 1, 2, 3].map((index) => colorOf(harness.engine, index)));
@@ -997,7 +1002,7 @@ describe("the bindings the last pass painted from", () => {
         const harness = makeHarness();
         const layer = await harness.styles.add({
             name: "Nobody",
-            selector: { match: "has", path: "results.nothing.here" },
+            selector: { match: "has", path: "store.graphty.nothing.here" },
             set: { "node.color": "#ff0000" },
         });
 
@@ -1036,7 +1041,7 @@ describe("the bindings the last pass painted from", () => {
         // prepares it and there is nothing of its own for it to report.
         const second = await harness.styles.add({
             name: "Weight",
-            selector: { match: "has", path: "results.nothing.here" },
+            selector: { match: "has", path: "store.graphty.nothing.here" },
             set: { "node.color": "#00ff00" },
         });
 
@@ -1120,7 +1125,7 @@ describe("removing a layer whose selector no longer matches what it painted", ()
     } {
         const rows = NODES.map((row) => ({ ...row }));
         const measured: Record<Path, number[] | undefined> = {
-            "results.louvain.group": [0, 1, 2],
+            "store.graphty.louvain.group": [0, 1, 2],
         };
         const harness = makeHarness(rows, {
             measured: (path, target) => (target === "node" ? measured[path] : undefined),
@@ -1135,7 +1140,7 @@ describe("removing a layer whose selector no longer matches what it painted", ()
         await harness.paintAll();
         const layer = await harness.styles.add({
             name: "Communities",
-            selector: { match: "has", path: "results.louvain.group" },
+            selector: { match: "has", path: "store.graphty.louvain.group" },
             set: { "node.color": "#ff0000" },
         });
 
@@ -1143,9 +1148,9 @@ describe("removing a layer whose selector no longer matches what it painted", ()
 
         // The run goes, and its column with it, before its layer is removed.
         for (const row of rows) {
-            delete row["results.louvain.group"];
+            delete row["store.graphty.louvain.group"];
         }
-        measured["results.louvain.group"] = undefined;
+        measured["store.graphty.louvain.group"] = undefined;
 
         await harness.styles.remove(layer.id);
 
@@ -1180,14 +1185,14 @@ describe("removing a layer whose selector no longer matches what it painted", ()
         await harness.paintAll();
         const layer = await harness.styles.add({
             name: "Communities",
-            selector: { match: "has", path: "results.louvain.group" },
+            selector: { match: "has", path: "store.graphty.louvain.group" },
             set: { "node.color": "#ff0000" },
         });
 
         for (const row of rows) {
-            delete row["results.louvain.group"];
+            delete row["store.graphty.louvain.group"];
         }
-        measured["results.louvain.group"] = undefined;
+        measured["store.graphty.louvain.group"] = undefined;
 
         await harness.styles.update(layer.id, { enabled: false });
 
@@ -1224,7 +1229,7 @@ describe("removing a layer whose selector no longer matches what it painted", ()
 describe("what a layer was applied to, across a dataset boundary", () => {
     it("forgets the old dataset's indices, so an edit to a layer that matches nothing now repaints nothing", async () => {
         const rows: Row[] = NODES.map((row) => ({ ...row }));
-        const measured: Record<Path, number[] | undefined> = { "results.louvain.group": [0, 1, 2] };
+        const measured: Record<Path, number[] | undefined> = { "store.graphty.louvain.group": [0, 1, 2] };
         const harness = makeHarness(rows, {
             measured: (path, target) => (target === "node" ? measured[path] : undefined),
         });
@@ -1232,7 +1237,7 @@ describe("what a layer was applied to, across a dataset boundary", () => {
         await harness.paintAll();
         const layer = await harness.styles.add({
             name: "Communities",
-            selector: { match: "has", path: "results.louvain.group" },
+            selector: { match: "has", path: "store.graphty.louvain.group" },
             set: { "node.color": "#ff0000" },
         });
 
@@ -1240,7 +1245,7 @@ describe("what a layer was applied to, across a dataset boundary", () => {
 
         // A different dataset of five nodes, none measured by the run the layer is bound to.
         rows.splice(0, rows.length, ...[0, 1, 2, 3, 4].map(() => ({ "data.kind": "host" })));
-        measured["results.louvain.group"] = undefined;
+        measured["store.graphty.louvain.group"] = undefined;
         harness.engine.renumbered();
 
         await harness.styles.update(layer.id, { name: "Communities, over a graph it never saw" });

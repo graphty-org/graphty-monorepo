@@ -16,7 +16,7 @@
  * statistics -- the node coordinates, the O(1) status facts, the catalog of everything the
  * element can offer, the configuration and what the machine can do. On top of those, runs: start
  * one and get back an object with an identity, a label, progress, a cancel and a promise that
- * resolves to the result; address what it produced at `results.<runId>.<field>`; and ask, before
+ * resolves to the result; address what it produced at `store.graphty.<runId>.<field>`; and ask, before
  * the click, what a command would cost (`estimate`, synchronous) or what it would do (`plan`).
  * Beside them, the three models that say which elements anything applies to: `scope` turns a
  * specification into the elements it names, `selection` is the two sets a person is pointing at,

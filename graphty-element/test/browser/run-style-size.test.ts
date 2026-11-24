@@ -87,7 +87,7 @@ describe("sizing nodes by a run with style: { size }", () => {
         const sizeLayers = session.styles.list().filter((layer) => layer.encode?.["node.size"] !== undefined);
 
         assert.lengthOf(sizeLayers, 1, "one size layer");
-        assert.deepStrictEqual(sizeLayers[0].selector, { match: "has", path: `results.${run.id}.value` });
+        assert.deepStrictEqual(sizeLayers[0].selector, { match: "has", path: `store.graphty.${run.id}.value` });
 
         const removal = session.runs.remove(run.id);
 

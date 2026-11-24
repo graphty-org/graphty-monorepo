@@ -159,10 +159,12 @@ export interface RendererStatus {
      */
     readonly drawing: boolean;
     /**
-     * Where an accelerated layout runs, decided when the renderer opens and never changed by a run:
-     * `"shared"` on the WebGPU device the graph is drawn with, `"separate"` on a device of its own (under
-     * WebGL, and on a software adapter, which never shares), null when no accelerator is offered
-     * (acceleration is off, or `@graphty/graphty-element/webgpu` was not imported before the renderer opened).
+     * Where an accelerated layout runs: `"shared"` on the WebGPU device the graph is drawn with, so a loss of
+     * that device reaches the layout too, `"separate"` on a device of its own (under WebGL, on a software
+     * adapter, which never shares, and for an accelerator attached before the renderer was on its way). Once an
+     * accelerator is attached this names the device it was built on; before then, the one the renderer offers
+     * it. Null when no accelerator is offered or attached (acceleration is off, or
+     * `@graphty/graphty-element/webgpu` was not imported before the renderer opened).
      * @since 3.47.0
      */
     readonly layoutDevice: LayoutDevice | null;

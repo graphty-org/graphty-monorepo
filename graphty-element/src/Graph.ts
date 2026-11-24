@@ -2612,7 +2612,16 @@ export class Graph implements GraphContext {
      * @returns The status once {@link Graph.init} has chosen; null before.
      */
     get rendererStatus(): RendererStatus | null {
-        return this.#rendererStatus;
+        const status = this.#rendererStatus;
+        // Where the attached accelerator really runs, which can differ from what the renderer offered it: one
+        // probed before a renderer was on its way opened its own device (issue #9986).
+        const shared = this.acceleration.sharesRendererDevice;
+        if (status === null || shared === undefined) {
+            return status;
+        }
+
+        const layoutDevice = shared ? "shared" : "separate";
+        return status.layoutDevice === layoutDevice ? status : { ...status, layoutDevice };
     }
 
     /**

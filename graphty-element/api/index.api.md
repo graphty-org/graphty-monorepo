@@ -3253,6 +3253,10 @@ export class Graph implements GraphContext {
         extent?: CameraViewExtent;
     }): CameraState;
     restartRenderer(): Promise<void>;
+    // @internal
+    resumeTour(name: string, stop: number): Promise<{
+        reason: TourEndReason;
+    }>;
     retryLastAiCommand(): Promise<ExecutionResult>;
     get rowCounts(): RowCounts;
     run(algorithm: AlgorithmKey, params?: Record<string, unknown>, options?: StartOptions): Run;
@@ -3342,6 +3346,11 @@ export class Graph implements GraphContext {
     stopInputRecording(): RecordedInputEvent[];
     stopVoiceInput(): void;
     get styles(): Styles;
+    // @internal
+    tourPlace(): {
+        name: string;
+        stop: number;
+    } | null;
     update(frameMs?: number): void;
     updateEdges(updates: {
         id: string;
@@ -7661,6 +7670,7 @@ export interface NotesApi {
     list(options?: NoteListOptions): readonly Note[];
     mergeDocument(document: unknown, options?: NoteMergeOptions): NotesReport;
     remove(id: NoteId): void;
+    savedTarget(target: NoteTargetInput): NoteTarget | undefined;
     status(id: NoteId): NoteStatus;
     // (undocumented)
     tags(): readonly string[];

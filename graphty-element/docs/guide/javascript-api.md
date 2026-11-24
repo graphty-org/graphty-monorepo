@@ -295,8 +295,23 @@ if (column !== null) {
 ```
 
 It offers only a column with no role yet. `time` is the column whose values read as time best; `label` the first of `label`, `name` or `title` holding text; an edge's
-`weight` a number column named `confidence`, `score` or `strength`, else the only number column.
+`weight` a number column named `confidence`, `score` or `strength`, else the only number column;
+`kind` the first of `type`, `kind` or `category` (any case) holding text.
 Every other role, and a node's weight, answers null.
+
+The `kind` role names the column that says what each node or edge is (person, account, device).
+A file that declares kinds sets it at load (Neo4j's `:LABEL` and `:TYPE`, or any column graph-io
+reads as labels or a kind), as does a load mapping's `kind`; `setRole` sets it on any other column.
+`data.kinds()` counts the elements of each kind, most first, with `null` where no column has the role:
+
+```typescript
+await session.data.setRole({ kind: "node", name: "type" }, "kind");
+const { nodes, edges } = session.data.kinds();
+nodes?.values; // [{ value: "person", count: 40 }, { value: "account", count: 12 }]
+edges; // null: no edge column has the kind role
+```
+
+A list value (Neo4j's several labels) counts once under each kind it lists.
 
 `usedBy` says what reads a column now: each style layer whose selector or bindings read it
 (`{ kind: "layer", id }`), then each finished run that weighed its edges by it

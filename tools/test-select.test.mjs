@@ -13,7 +13,6 @@ import { fileURLToPath } from "node:url";
 import { plan as matrixPlan, SHARDS } from "./ci-test-matrix.mjs";
 import { isolatedGitEnv } from "./isolated-git-env.mjs";
 import {
-    advisoryMisses,
     buildInput,
     changedImporters,
     estimate,
@@ -40,7 +39,6 @@ import {
     sameOutside,
     planRuns,
     projectSelected,
-    reportAdvisory,
     selectInGraph,
     selectPackages,
     selectShards,
@@ -57,7 +55,6 @@ import {
     selectedCommand,
     shardRuns,
     sourceOf,
-    startAdvisory,
     testRefs,
     useNamesRoot,
     wholePackageRule,
@@ -469,75 +466,6 @@ describe("file-level selection, allowed and measured", () => {
         assert.equal(changed.mode, "all");
         const [untouched] = selectShards([shard], select(["design/x.md"]).packages, g, new Set());
         assert.equal(untouched.mode, "none");
-    });
-});
-
-describe("the advisory record", () => {
-    const selection = [
-        { shard: "a", package: "pa", mode: "files", files: [{ file: "pa/test/a.test.ts" }], total: 4, reasons: [] },
-        {
-            shard: "b",
-            package: "pb",
-            mode: "all",
-            files: [],
-            total: 4,
-            reasons: ["not allowed"],
-            measured: { mode: "files", files: [{ file: "pb/test/x.test.ts" }] },
-        },
-        { shard: "c", package: "pc", mode: "none", files: [], total: 4, reasons: [] },
-    ];
-
-    it("counts a failing file outside a file selection as a miss, measured selections included", () => {
-        const results = [
-            { shard: "a", ok: false, failing: ["pa/test/a.test.ts", "pa/test/b.test.ts"] },
-            { shard: "b", ok: false, failing: ["pb/test/y.test.ts"] },
-            { shard: "c", ok: false, failing: [] },
-        ];
-        assert.deepEqual(advisoryMisses(results, selection), [
-            { shard: "a", file: "pa/test/b.test.ts" },
-            { shard: "b", file: "pb/test/y.test.ts" },
-            { shard: "c", file: null },
-        ]);
-    });
-
-    it("writes the failing files, both time figures and the misses, and prints one line", () => {
-        const main = mkdtempSync(join(ROOT, "tmp", "test-select-advisory-"));
-        try {
-            const log = join(main, "a.log");
-            writeFileSync(log, " FAIL  |unit| test/b.test.ts > fails\n");
-            const out = JSON.stringify({ everything: null, unexplainedRoot: [], shards: selection }) + "\n";
-            const results = [
-                { shard: "a", ok: false, secs: 40, log },
-                { shard: "b", ok: true, secs: 100, log: join(main, "none.log") },
-            ];
-            reportAdvisory({ root: ROOT, base: "x", gateBase: "y", main, results, done: true, out });
-            const rec = JSON.parse(readFileSync(join(main, "tmp/test-select/advisory.jsonl"), "utf8"));
-            assert.deepEqual(rec.results[0].failing, ["pa/test/b.test.ts"]);
-            assert.equal(rec.results[1].failing, undefined);
-            assert.deepEqual(rec.missed, [{ shard: "a", file: "pa/test/b.test.ts" }]);
-            assert.deepEqual(rec.time, { full: 140, selected: 110 });
-            assert.deepEqual(rec.measuredTime, { full: 140, selected: 35 });
-            assert.equal(rec.base, "x");
-            assert.equal(rec.gateBase, "y");
-        } finally {
-            rmSync(main, { recursive: true, force: true });
-        }
-    });
-
-    it("never throws into the gate when the selector failed or had not finished", async () => {
-        const main = mkdtempSync(join(ROOT, "tmp", "test-select-advisory-"));
-        try {
-            const adv = startAdvisory(ROOT, "no-such-ref-for-this-test", main);
-            adv.report([{ shard: "a", ok: true, secs: 1 }]);
-            await adv.closed;
-            const failed = startAdvisory(ROOT, "no-such-ref-for-this-test", main);
-            await failed.closed;
-            failed.report([{ shard: "a", ok: true, secs: 1 }]);
-        } catch (e) {
-            assert.fail(`report threw: ${e.message}`);
-        } finally {
-            rmSync(main, { recursive: true, force: true });
-        }
     });
 });
 

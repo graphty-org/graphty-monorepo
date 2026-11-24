@@ -2,10 +2,10 @@ name: Report a failure to the summary checks now
 description: >
     Marks "All Checks Pass" as failed on the pull request's head commit the
     moment a job they require fails, instead of when the slowest job of the run ends. Without it a
-    pull request, or a merge-queue batch Mergify could already be splitting, waited up to half an hour
-    for a verdict that was settled. Each check is a new check run of the same name, which GitHub files
-    under another workflow's check suite, not this run's: the summary jobs' own verdict does NOT replace
-    it, and Mergify kept a pull request whose re-run passed out of the queue for days (#2639). So a
+    pull request waited up to half an hour for a verdict that was settled. Each check is a new check
+    run of the same name, which GitHub files under another workflow's check suite, not this run's: the
+    summary jobs' own verdict does NOT replace it, and a pull request whose re-run passed was kept
+    from merging for days (#2639). So a
     summary job that passes rewrites every early verdict of its name on the commit as passing (its "Clear
     this check's early verdicts" step in ci.yml). This step only ever reports a failure, and only for a
     job whose failure fails "All Checks Pass" anyway, so it can make a verdict earlier but never

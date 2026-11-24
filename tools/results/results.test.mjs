@@ -2114,6 +2114,35 @@ describe("cli", () => {
         assert.deepEqual(built, ["@graphty/remote-logger:build", "layout:build"]);
     });
 
+    it("fetches the Git LFS files a plain family's shard reads before running it (#10000)", async () => {
+        const root = join(import.meta.dirname, "../..");
+        const execs = [];
+        const exec = (cmd, args) => execs.push([cmd, ...args].join(" "));
+        const run = async () => 0;
+        const file = "graphty-element/test/browser/oracle-scorecard.test.ts";
+        await baseCheck({
+            root,
+            variant: "graphty-element-forced-batched|flags=off|whole",
+            file,
+            env: {},
+            build: true,
+            run,
+            exec,
+        });
+        assert.equal(execs[0], "git lfs pull --include graph-io/test/fidelity/oracles/*.png");
+        execs.length = 0;
+        await baseCheck({
+            root,
+            variant: "layout|flags=off|whole",
+            file: "layout/test/x.test.ts",
+            env: {},
+            build: true,
+            run,
+            exec,
+        });
+        assert.deepEqual(execs, ["pnpm exec nx run layout:build"]);
+    });
+
     it("runs a `-shots` variant's story with its screenshots, as the story-tests job runs its shard (#5428)", async () => {
         const root = join(import.meta.dirname, "../..");
         const cases = [

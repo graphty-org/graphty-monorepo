@@ -120,7 +120,8 @@ function TextSource({
         >
             <ValueButton
                 label={`${title} source`}
-                words={shown}
+                // Never empty (owner's input rules): with no source picked yet, the label draws no words.
+                words={shown === "" ? NO_WORDS : shown}
                 opens="dialog"
                 expanded={open}
                 left={bound ? <GLYPHS.link size={12} aria-hidden /> : undefined}
@@ -129,6 +130,9 @@ function TextSource({
         </SourcePicker>
     );
 }
+
+/** What a label source reads while it has none: the label draws no words. */
+const NO_WORDS = "No words";
 
 /** Props for LabelRow. */
 interface LabelRowProps {

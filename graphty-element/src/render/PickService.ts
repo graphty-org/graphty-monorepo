@@ -825,6 +825,38 @@ function babylonPickWithRay(scene: Scene): Scene["pickWithRay"] {
 const pickingRows = new WeakSet<Scene>();
 
 /**
+ * Put an instance of a meshless row's source on the row's anchor, named and labeled as the row's mesh was, so a
+ * Babylon pick that sees only meshes can land on the row: the one it had, when it still draws that source.
+ * @param standIn - The stand-in put there before, if any.
+ * @param source - The row's source mesh.
+ * @param anchor - The row's anchor.
+ * @returns The stand-in, enabled.
+ */
+export function rowStandIn(
+    standIn: InstancedMesh | null | undefined,
+    source: Mesh,
+    anchor: TransformNode,
+): InstancedMesh {
+    if (standIn?.sourceMesh !== source || standIn.isDisposed()) {
+        standIn?.dispose();
+        standIn = source.createInstance(anchor.name);
+        // An instance starts at its source's place; the anchor is the whole placement.
+        standIn.position.setAll(0);
+        standIn.rotationQuaternion = null;
+        standIn.rotation.setAll(0);
+        standIn.scaling.setAll(1);
+        // Babylon's pointer predicates admit a mesh with no actions only with this set; a node's mesh has actions.
+        standIn.enablePointerMoveEvents = true;
+    }
+
+    standIn.name = anchor.name;
+    standIn.metadata = anchor.metadata as unknown;
+    standIn.parent = anchor;
+    standIn.setEnabled(true);
+    return standIn;
+}
+
+/**
  * Let Babylon's own `scene.pick` and `scene.pickWithRay` find the rows a batch draws, which have no mesh of their own.
  *
  * On the `"objects"` path every node is a mesh, so those picks name it: a consumer's own pick, the `pickInfo` Babylon
@@ -870,23 +902,7 @@ function pickRowsInBabylon(scene: Scene): void {
             return info;
         }
 
-        const anchor = node.drawnAnchor;
-        if (standIn?.sourceMesh !== source || standIn.isDisposed()) {
-            standIn?.dispose();
-            standIn = source.createInstance(anchor.name);
-            // An instance starts at its source's place; the anchor is the whole placement.
-            standIn.position.setAll(0);
-            standIn.rotationQuaternion = null;
-            standIn.rotation.setAll(0);
-            standIn.scaling.setAll(1);
-            // Babylon's pointer predicates admit a mesh with no actions only with this set; a node's mesh has actions.
-            standIn.enablePointerMoveEvents = true;
-        }
-
-        standIn.name = anchor.name;
-        standIn.metadata = anchor.metadata as unknown;
-        standIn.parent = anchor;
-        standIn.setEnabled(true);
+        standIn = rowStandIn(standIn, source, node.drawnAnchor);
         const admitted = predicate
             ? predicate(standIn, -1)
             : standIn.isPickable && standIn.isVisible && standIn.isEnabled();

@@ -14,6 +14,7 @@ import { Chit } from "./color/Chit";
 import { ColorPickerPanel } from "./color/ColorPickerPanel";
 import { revertOnEscape } from "./color/escape";
 import { OpacityInput } from "./color/OpacityInput";
+import { type ColorPalette, PaletteBrowser, type PaletteBrowserLabels } from "./color/PaletteBrowser";
 import { typedColor } from "./color/typed-color";
 import { DiscardNote } from "./inputs/DiscardNote";
 import { Popout } from "./popout";
@@ -40,6 +41,23 @@ const HEXA_LENGTH = 9;
 
 /** Where the alpha pair starts in `#RRGGBBAA`. */
 const HEXA_ALPHA_START = 7;
+
+/** The words of the picker's tabs, and of the palette list, in English by default. */
+export interface CompactColorInputLabels extends PaletteBrowserLabels {
+    /** The tab holding the picker. */
+    customTab: string;
+    /** The tab holding the palette list. */
+    palettesTab: string;
+}
+
+const TAB_LABELS = { customTab: "Custom", palettesTab: "Palettes" };
+
+/**
+ * The swatch set as one string, to tell a new set from the same colors passed again.
+ * @param colors - the swatches
+ * @returns their colors joined
+ */
+const swatchKey = (colors: readonly string[]): string => colors.join(",");
 
 /**
  * Props for the CompactColorInput component.
@@ -164,6 +182,19 @@ export interface CompactColorInputProps {
      * @default SWATCH_COLORS_HEXA
      */
     swatches?: readonly string[];
+    /**
+     * Palettes offered on a Palettes tab beside the picker: choosing one loads its colors into
+     * the swatches. No tab when absent or empty, and the pop-out is the picker alone under a title.
+     */
+    palettes?: readonly ColorPalette[];
+    /**
+     * Called with a chosen palette's colors, which become the swatches. Pass them back as
+     * `swatches` to keep them; without it the input keeps the loaded swatches itself while it is
+     * mounted, until `swatches` changes.
+     */
+    onSwatchesChange?: (colors: readonly string[]) => void;
+    /** Replace the English words of the tabs and the palette list. */
+    labels?: Partial<CompactColorInputLabels>;
     /**
      * The field's name, drawn above the control and used to name the group the
      * three controls sit in.
@@ -568,6 +599,9 @@ function ResetButton({
  * @param props.onChange - Called once per gesture with both halves of the color, whichever of them moved
  * @param props.onChangeEnd - Called once when a gesture settles, with both halves of the color
  * @param props.swatches - The swatch set the picker offers
+ * @param props.palettes - Palettes offered on a Palettes tab, loaded into the swatches when chosen
+ * @param props.onSwatchesChange - Called with a chosen palette's colors
+ * @param props.labels - Replace the English words of the tabs and the palette list
  * @param props.label - The field's name, drawn above the control and used to name the group
  * @param props.showOpacity - Whether to offer the opacity box
  * @param props.disabled - Whether the control cannot be used at all
@@ -603,6 +637,9 @@ export function CompactColorInput({
     onChange,
     onChangeEnd,
     swatches = SWATCH_COLORS_HEXA,
+    palettes,
+    onSwatchesChange,
+    labels: wordOverrides,
     label,
     showOpacity = true,
     disabled = false,
@@ -649,6 +686,8 @@ export function CompactColorInput({
     // field silently goes back to its value.
     const [refusal, setRefusal] = useState<{ message: string } | undefined>(undefined);
     const [discarded, setDiscarded] = useState("");
+    // The swatches a picked palette loaded, and the `swatches` they were loaded over.
+    const [loaded, setLoaded] = useState<{ base: string; colors: readonly string[] }>();
     const hexRef = useRef<HTMLInputElement>(null);
     // Set by an Enter that settled the box: the value it shows next is selected, so the next key
     // replaces it. Typing and leaving clear it.
@@ -786,21 +825,54 @@ export function CompactColorInput({
 
     const hexaValue = `${displayColor}${opacityToAlphaHex(displayOpacity)}`.toUpperCase();
 
-    const pickerPanel = (
-        <Popout.Panel
-            width={PANEL_GRID.POPOVER_WIDTH}
-            header={{ variant: "title", title: label ?? labels.colorPanelTitle }}
-        >
-            <ColorPickerPanel
-                value={hexaValue}
-                onChange={handlePickerChange}
-                onChangeEnd={handlePickerChangeEnd}
-                withAlpha={showOpacity}
-                swatches={swatches}
-                labels={{ colorWord: labels.colorWord }}
-            />
-        </Popout.Panel>
+    // A loaded palette stands in for `swatches` until the caller passes a different set.
+    const shownSwatches = loaded?.base === swatchKey(swatches) ? loaded.colors : swatches;
+    const picker = (
+        <ColorPickerPanel
+            value={hexaValue}
+            onChange={handlePickerChange}
+            onChangeEnd={handlePickerChangeEnd}
+            withAlpha={showOpacity}
+            swatches={shownSwatches}
+            labels={{ colorWord: labels.colorWord }}
+        />
     );
+    const tabWords = { ...TAB_LABELS, ...wordOverrides };
+    const pickerPanel =
+        palettes === undefined || palettes.length === 0 ? (
+            <Popout.Panel
+                width={PANEL_GRID.POPOVER_WIDTH}
+                header={{ variant: "title", title: label ?? labels.colorPanelTitle }}
+            >
+                {picker}
+            </Popout.Panel>
+        ) : (
+            <Popout.Panel
+                width={PANEL_GRID.POPOVER_WIDTH}
+                header={{
+                    variant: "tabs",
+                    defaultTab: "custom",
+                    tabs: [
+                        { id: "custom", label: tabWords.customTab, content: picker },
+                        {
+                            id: "palettes",
+                            label: tabWords.palettesTab,
+                            content: (
+                                <PaletteBrowser
+                                    palettes={palettes}
+                                    value={palettes.find((p) => swatchKey(p.colors) === swatchKey(shownSwatches))?.id}
+                                    onPick={(palette) => {
+                                        setLoaded({ base: swatchKey(swatches), colors: palette.colors });
+                                        onSwatchesChange?.(palette.colors);
+                                    }}
+                                    labels={wordOverrides}
+                                />
+                            ),
+                        },
+                    ],
+                }}
+            />
+        );
 
     const chitColor = showOpacity ? hexaValue : displayColor;
 

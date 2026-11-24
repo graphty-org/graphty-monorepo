@@ -199,11 +199,6 @@
       "count": 2
     }
   },
-  "tools/light-check-replay.mjs": {
-    "unicorn/no-array-callback-reference": {
-      "count": 2
-    }
-  },
   "tools/load-time.mjs": {
     "unicorn/no-array-callback-reference": {
       "count": 1
@@ -279,11 +274,6 @@
     }
   },
   "tools/test-select-mutate.mjs": {
-    "unicorn/no-array-callback-reference": {
-      "count": 1
-    }
-  },
-  "tools/test-select-replay.mjs": {
     "unicorn/no-array-callback-reference": {
       "count": 1
     }

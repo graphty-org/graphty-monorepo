@@ -148,8 +148,9 @@ written.
 
 ### 2.6 Settings popover
 
-`SettingsPopout` (264 px) beside the panel at the row's height; closes on outside click and Escape. Pickers
-opened from it are plain `Popout`s (SettingsPopout refuses nesting).
+`SettingsPopout` (264 px) beside the panel at the row's height; closes on outside click and Escape. Views opened
+from it drill into it in place (Input rules, "Nesting, by drill-in"); pickers are plain `Popout`s (SettingsPopout
+refuses nesting).
 
 - **Header**: the thing's name. The popover's "+" (`AddButton`), listing the thing's sub-groups not shown yet
   (at most 12), sits on the Main legend: compact-mantine's `Popout` header actions are icon buttons with an
@@ -451,14 +452,19 @@ Rules for style inputs:
 
 ### How they are applied (decisions)
 
-- **Nesting.** The panel is level 0. A row's settings pop-over is level 1. The advanced dialog of an over-tall
-  pop-over is level 2, the second and last pop-out level: nothing opens a third. So a level-2 surface (an
-  advanced dialog, the link-a-value dialog opened from a pop-over line, a color picker, a drop-down's list)
-  holds no control that opens another pop-out: no color chip, gradient, drop-down list, link button or Switch to
-  picker. Colors, gradients and lists stay in the level-1 pop-over.
+- **Nesting, by drill-in.** The panel is level 0. A row's settings pop-over is level 1. Whatever opens from inside
+  the pop-over as a view of its own (its Advanced view, the link-a-value dialog, a bound value's dialog, a shape,
+  pattern or arrow list) drills in: it replaces the pop-over's content in place, with a back button in the
+  header that returns to what was there, and the header's title names it. A view opened from a drilled view
+  drills again, in the same pop-out. So drilled views stay level 1, and the pickers any of them opens (a color
+  picker, a drop-down's list, the Picture pop-over) are level 2, the last: nothing opens a third, and a drilled
+  view may hold colors and drop-downs. Escape goes back one view; the close button closes the pop-over. A link
+  dialog opened from a line under a row (no pop-over) is a pop-out of its own and hosts drill-in the same way.
+  Built as `Pop` (`graphty/src/workspace/options/Drill.tsx`) over compact-mantine's `Popout`: the back button is
+  the header's action button (the header has no slot before its title, so it sits before the close button).
 - **Height.** "Components tall" counts lines from top to bottom with every sub-group shown: two inputs on one
   line count once, a Kind line and a Combine or operation line count, each list item counts. Over 6, the rarer
-  or optional lines move to the advanced dialog.
+  or optional lines move to the Advanced view. A sub-group's legend holding its "+" (Main's) is a line too.
 - **Components.** A single color: `CompactColorInput`. A gradient: compact-mantine `GradientEditor`. A list of
   6 or more options: a drop-down (`PanelField kind="select"`, or the existing `ValueListbox` for pictured
   lists). Fewer than six exclusive options: grouped buttons (`SegmentedControl`). A number with a fixed minimum
@@ -491,11 +497,27 @@ Rules for style inputs:
   a plain number's pop-over has no Combine line: it shows only where a layer already writes a combine (a file,
   an earlier version), named "Combine", so that value stays changeable.
 
-- **Advanced dialog.** A pop-over's last line is "Advanced" when its thing has rare settings: a full-width button
-  that opens the dialog beside the pop-over. The rubric marks a sub-group `advanced` (a thing's) or a line
+- **Advanced view.** A pop-over's last line is "Advanced" when its thing has rare settings: a full-width button
+  that drills into the pop-over (Nesting). The rubric marks a sub-group `advanced` (a thing's) or a line
   `advanced` (a label's); the dialog shows every such group, always, under its name, with the group's minus once
   set, and those groups leave the "+" menu. Its lines draw no link button. A line under a switch (a label's
-  "Opacity" under Letter outline) is called by its whole name there.
+  "Opacity" under Letter outline) is called by its whole name there. Every label sub-group (Position, Letters,
+  Wrap, Background, Box stroke, shadows, Callout, Badge, Behavior) and the chart's stroke colors are there, so a
+  label pop-over is Kind, Main, Font, Style, Location, Advanced; a Glyph's is Kind, Glyph, Size, Color, Style,
+  Advanced (its Font in Advanced). So are an arrow's Open caps fill, a pattern's Wave, Force curves' Curve and
+  stripes' band Size and Frame. A Size pop-over's width and height pair is "W / H", so no second "Size" shows
+  under its main value. An edge's Animation pop-over holds its Speed line (and its link).
+- **Link dialog.** Its main view keeps the source, Operation (numbers), the histogram and range, the from/to
+  output and the palette and group table; Scale, Clamp outliers, No value and More values than colors drill in
+  from its "Advanced" line.
+- **Free text and pictures.** An unset text field holds the words drawn there ("+" for a badge's suffix) as its
+  value, or "None" where none are drawn; left so, nothing is written. A picture (a label's image, a node image's
+  Fallback, an arrow's Image) is the app's Picture field and pop-over (R16), reading "None" with no picture. A
+  label's Icon is a character drawn beside its words (graphty-element's `icon`), not a file, so it stays text.
+- **Sidebar rows with a pictured list or a drop-down** (Pattern, Arrow, Route, Force curves) draw their name above
+  and the value across the row, so a value is never cut ("Triangle", "Barnes hut").
+- **A basic Shape row** has no settings pop-over: its Kind drop-down is the line under it, so the Shape section
+  draws two carets (its list and its Kind), every other section one at most.
 - **Unset values.** A number graphty-element names no one value for (it picks one per element: a node's width
   follows its shape) reads "Auto". A segment line whose unset state is none of the element's values has an option
   for it ("Off" for Fit to label, "Both" for an arrow's side), shown while unset; picking it unsets. A drop-down

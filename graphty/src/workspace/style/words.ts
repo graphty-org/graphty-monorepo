@@ -1044,6 +1044,10 @@ export function valueName(session: GraphSession, path: string, value: unknown): 
  * @returns the words.
  */
 export function enumWords(value: string): string {
+    // An axis read the other way ("-y", a model's up axis) keeps its minus: "-Y".
+    if (/^-[a-z]$/i.test(value)) {
+        return value.toUpperCase();
+    }
     const spaced = value
         .replaceAll(/[-_]/g, " ")
         .replaceAll(/([a-z])([A-Z])/g, "$1 $2")

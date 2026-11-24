@@ -460,7 +460,7 @@ export function GraphSettingsV2(): React.JSX.Element | null {
                         <ControlGroup label="Framing">
                             {line(
                                 "framing.extent",
-                                null,
+                                "Extent",
                                 "R8",
                                 <SegmentsLine
                                     label="Framing extent"

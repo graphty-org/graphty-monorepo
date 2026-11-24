@@ -580,12 +580,15 @@ function listControl(args: ControlArgs): React.ReactNode {
  */
 function valueControl(args: ControlArgs): React.ReactNode {
     const { ctx, descriptor, value, label, write } = args;
+    const shown = drawnValue(ctx, descriptor.channel);
     return (
         <ValueField
             descriptor={descriptor}
             label={label}
-            value={value}
-            shown={drawnValue(ctx, descriptor.channel)}
+            // Unset, the value drawn there (else the element's default) is its value, never a placeholder (design
+            // "Input rules": every input has a value); the minus still shows only once the layer sets it.
+            value={value ?? shown}
+            shown={shown}
             swatches={ctx.documentColors}
             onChange={(next) => {
                 write(descriptor.channel, next);

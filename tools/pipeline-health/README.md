@@ -215,17 +215,18 @@ write (pull request runs, or the listed workflows on master). A body is at most 
 
 [`local/collector.mjs`](local/collector.mjs) posts this machine's test runs, each record once:
 
-| Source in the main checkout                                | Route                        |
-| ---------------------------------------------------------- | ---------------------------- |
-| `tmp/waits.jsonl` (each test run's slot hold: what, exit)  | `POST /v1/local/push-runs`   |
-| `tmp/waits.jsonl` (test and GPU slot waits)                | `POST /v1/local/waits`       |
-| `tmp/test-ledger/records/<date>/*.json.gz` (pre-push gate) | `POST /v1/local/invocations` |
-| `tmp/push-log.jsonl` (pre-push gate runs)                  | `POST /v1/local/push-runs`   |
-| `tmp/issue-round/grouping-metrics.jsonl` (daily ledger)    | `POST /v1/local/grouping`    |
+| Source in the main checkout                               | Route                        |
+| --------------------------------------------------------- | ---------------------------- |
+| `tmp/waits.jsonl` (each test run's slot hold: what, exit) | `POST /v1/local/push-runs`   |
+| `tmp/waits.jsonl` (test and GPU slot waits)               | `POST /v1/local/waits`       |
+| `tmp/test-ledger/records/<date>/*.json.gz` (history)      | `POST /v1/local/invocations` |
+| `tmp/push-log.jsonl` (history)                            | `POST /v1/local/push-runs`   |
+| `tmp/issue-round/grouping-metrics.jsonl` (daily ledger)   | `POST /v1/local/grouping`    |
 
 Every test run on this machine holds a test slot (`tools/test-slots.mjs`), which logs the hold with what ran
 (the package, or the shard family `tools/run-tests.sh` ran) and its exit code: those are the Local runs page's
-runs and local time. The test ledger and the push log are written only by the pre-push gate, now run by hand.
+runs and local time. No tool on master writes the test ledger or the push log any more (the retired push checks did); the collector
+posts what they hold.
 The grouping metrics line is appended once a day by issue-round (`tools/issue-groups.mjs metrics --append`). Only
 these fields are posted, as the source `grouping-ledger` (age limit 48 hours): `issuesPerMergedPr` and `multiFixShare`
 (the ledger counts a pull request's closing links and its commits' Fixes lines, so the dashboard never counts issues

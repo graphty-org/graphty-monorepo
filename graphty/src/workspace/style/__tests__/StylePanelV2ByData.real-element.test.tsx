@@ -223,8 +223,8 @@ describe("Style panel v2's by-data links", () => {
                 return found;
             });
             // Every sub-group shown, by real clicks on its "+".
-            // A group all of whose lines are rare is the Advanced dialog's, whose lines draw no link (design "Input
-            // rules"): a rare field set there is linked from its line under the row.
+            // A group all of whose lines are rare is the Advanced pop-over's (design "Input rules"): its lines' links
+            // are checked there by StylePanelV2CommonLines; here, a rare field is met from its line under the row.
             for (const group of LABEL_RUBRIC.groups.filter((each) =>
                 each.lines.some((line) => line.advanced !== true),
             )) {
@@ -277,7 +277,7 @@ describe("Style panel v2's by-data links", () => {
                     met.add(field);
                 }
             }
-            // A rare field's line is the Advanced dialog's, linked from under the row once set.
+            // A rare field's line is the Advanced pop-over's, met here from under the row once set.
             const rare = new Set(
                 [...LABEL_RUBRIC.main, ...LABEL_RUBRIC.groups.flatMap((g) => g.lines)]
                     .filter((line) => line.advanced === true)

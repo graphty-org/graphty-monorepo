@@ -286,10 +286,17 @@ export async function pickKind(row: HTMLElement, title: string | RegExp, kind: s
 }
 
 /**
- * Closes the open settings pop-over with Escape, as a reader does: a view drilled into it (its Advanced view) goes
- * back first, on an Escape of its own when focus is in it.
+ * Closes the open settings pop-over with Escape, as a reader does: its Advanced pop-over closes first, and a view
+ * drilled into it goes back first, each on an Escape of its own when focus is in it.
  */
 export async function closeSettings(): Promise<void> {
+    const advanced = document.querySelector("[data-advanced-pop]");
+    if (advanced !== null) {
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isFalse(advanced.isConnected, "the Advanced pop-over closed");
+        });
+    }
     const drilled = document.querySelector("[data-drill-view]:not([hidden])");
     if (drilled?.contains(document.activeElement) === true) {
         await userEvent.keyboard("{Escape}");
@@ -325,15 +332,25 @@ export async function kindOf(row: HTMLElement, title: string | RegExp): Promise<
 }
 
 /**
- * Opens a pop-over's Advanced view (its rare settings, drilled into the pop-over in place), as a reader does; an
- * Advanced view already open is returned as it is (its Advanced line is then hidden under it).
+ * A pop-over's Advanced button: the "..." in its header, or null when it has no rare settings.
+ * @param pop - the pop-over, or an element in it.
+ * @returns the button.
+ */
+export function advancedButton(pop: HTMLElement): HTMLElement | null {
+    const panel = pop.closest<HTMLElement>("[data-popout-id]") ?? pop;
+    return panel.querySelector<HTMLElement>('[data-testid="popout-header"] button[aria-label="Advanced settings"]');
+}
+
+/**
+ * Opens a pop-over's Advanced pop-over (its rare settings, beside it) from the "..." in its header, as a reader does;
+ * one already open is returned as it is.
  * @param pop - the pop-over.
- * @returns the view.
+ * @returns the Advanced pop-over's content.
  */
 export async function openAdvanced(pop: HTMLElement): Promise<HTMLElement> {
     const button = await waitFor(() => {
-        const found = pop.querySelector<HTMLElement>('button[aria-label$=" advanced settings"]');
-        assert.isNotNull(found, "the Advanced line");
+        const found = advancedButton(pop);
+        assert.isNotNull(found, "the Advanced button");
         return found;
     });
     if (button.getAttribute("aria-expanded") !== "true") {
@@ -354,10 +371,10 @@ export async function openAdvanced(pop: HTMLElement): Promise<HTMLElement> {
  * @returns the line.
  */
 export async function popoverLine(pop: HTMLElement, selector: string): Promise<HTMLElement> {
-    // The pop-over has drawn once its Main legend (or its Advanced line) is there.
+    // The pop-over has drawn once the line (or its Advanced button) is there.
     const here = await waitFor(() => {
         const line = pop.querySelector<HTMLElement>(selector);
-        assert.isTrue(line !== null || pop.querySelector('[data-line="advanced"]') !== null, "the pop-over is drawn");
+        assert.isTrue(line !== null || advancedButton(pop) !== null, "the pop-over is drawn");
         return line;
     });
     if (here !== null) {

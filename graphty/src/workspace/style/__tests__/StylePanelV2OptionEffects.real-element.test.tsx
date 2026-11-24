@@ -215,7 +215,7 @@ describe("Style panel v2: options that would change nothing", () => {
             assert.strictEqual(written(session, edges, "edge.supportScale"), "drawing");
         });
         await waitFor(() => {
-            const open = document.querySelector<HTMLElement>("[data-drill-view] [data-thing-popover]");
+            const open = document.querySelector<HTMLElement>("[data-advanced-pop] [data-thing-popover]");
             assert.isNotNull(open);
             assert.match(lineDim(open, "edge.supportUnit") ?? "", /^Only when .+ is Unit$/);
         });

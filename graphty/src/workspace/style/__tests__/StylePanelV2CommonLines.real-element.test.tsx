@@ -14,10 +14,10 @@ import { assert, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
-import { screen, waitFor, within } from "../../../test/test-utils";
+import { screen, waitFor } from "../../../test/test-utils";
 import { flatOf, type LabelField } from "../v2/labelRubric";
 import { showKind } from "./kindTab";
-import { openAdvanced, openGraph, openStyle } from "./v2Harness";
+import { advancedButton, openAdvanced, openGraph, openStyle } from "./v2Harness";
 
 /** A line's by-data link (design 2.6, E551). */
 const LINK = 'button[aria-label$=" by attribute"]';
@@ -100,6 +100,10 @@ function bindsOwnValue(line: HTMLElement): boolean {
     if (/:(sides|bottom|unit)$/.test(address) || address.startsWith("combine:")) {
         return false;
     }
+    // A list's line (R15) holds its "+" in that slot; each item binds on its own line.
+    if (rule === "R15") {
+        return false;
+    }
     // A thing's row (its first line) holds its "..." there; its main value binds from the pop-over's first line.
     const thing = line.closest("[data-thing]");
     if (line.querySelector('button[aria-label$=" settings"]') !== null || thing?.querySelector(".ws-row") === line) {
@@ -135,8 +139,8 @@ async function readLines(tab: HTMLElement, seen: Map<string, Line>, links: Links
                 kind: `${kindOf(line.dataset.line ?? "")} ${line.dataset.rule ?? ""}`.trim(),
                 widgets: widgetsOf(line),
             });
-            // An Advanced view's lines draw no link (design "Input rules", Advanced view).
-            if (where !== "advanced" && bindsOwnValue(line)) {
+            // An Advanced pop-over's lines carry their link too (owner, 2026-11-24).
+            if (bindsOwnValue(line)) {
                 links.set(`${where} ${line.dataset.line ?? ""}`, line.querySelector(LINK) !== null);
             }
             const slot = line.querySelector(".cm-scrub-slot");
@@ -164,7 +168,7 @@ async function readLines(tab: HTMLElement, seen: Map<string, Line>, links: Links
         });
         take(pop, "pop-over");
         // Its rare settings: the Advanced dialog's lines follow the same pattern (design "Input rules").
-        if (within(pop).queryByRole("button", { name: / advanced settings$/ }) !== null) {
+        if (advancedButton(pop) !== null) {
             take(await openAdvanced(pop), "advanced");
             await userEvent.keyboard("{Escape}");
         }

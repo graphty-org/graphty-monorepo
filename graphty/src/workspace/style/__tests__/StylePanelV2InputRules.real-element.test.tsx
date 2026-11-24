@@ -5,8 +5,14 @@
  * pop-over's "+", and then:
  *
  * - the pop-over is at most 6 lines tall, two inputs on one line counting once;
- * - no pop-out a pop-over line opens (level 2) holds a control that opens another (level 3); a view drilled into
- *   the pop-over in place is the pop-over's own level;
+ * - the panel's own pop-overs nest at most two deep (a row's pop-over is 1, the Advanced pop-over its header's "..."
+ *   opens is 2); a dedicated component (a color picker, a drop-down's list, the Picture picker, a pictured list, the
+ *   data field picker, the link dialog) may open from either as the third level, and nothing goes to a fourth;
+ * - nothing replaces a pop-over's content in place: no back button anywhere, and a pop-over keeps its title and
+ *   content while what it opens is open (owner, 2026-11-24: "do not use in-place pop-overs");
+ * - every Advanced entry is a "..." icon button named "Advanced settings", and the pop-over it opens leaves its
+ *   pop-over open and uncovered (owner, 2026-11-24; and at 768 x 1024, an iPad held upright);
+ * - the link dialog is at most 6 components tall, with no Advanced of its own;
  * - on every line, the minus is the right-most button;
  * - the link or settings button sits on its control's line, right after the control;
  * - the link and settings buttons are hidden at rest, shown on hover;
@@ -24,15 +30,15 @@ import "@graphty/graphty-element";
 
 import type { Channel, ChannelValue } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { assert, describe, it } from "vitest";
-import { userEvent } from "vitest/browser";
+import { afterAll, assert, beforeAll, describe, it } from "vitest";
+import { page, userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
 import { findValuePicker, screen, waitFor, within } from "../../../test/test-utils";
 import { TEXT_THINGS } from "../v2/labelRubric";
 import { SECTIONS, type ThingSpec } from "../v2/things";
 import { showKind } from "./kindTab";
-import { openGraph, openStyle, sectionOf } from "./v2Harness";
+import { advancedButton, openAdvanced, openGraph, openStyle, sectionOf } from "./v2Harness";
 
 type Side = "node" | "edge";
 
@@ -43,11 +49,23 @@ type Side = "node" | "edge";
 /** Pop-overs more than 6 lines tall with every sub-group shown. */
 const KNOWN_TALL: readonly string[] = [];
 
-/** Pop-overs with a level-2 pop-out that holds a control opening a third level. */
-const KNOWN_THIRD_LEVEL: readonly string[] = [];
+/** Pop-overs with a pop-out at a fourth level (see the file header for how levels count). */
+const KNOWN_FOURTH_LEVEL: readonly string[] = [];
+
+/** Pop-overs whose content is replaced in place by what they open, or that draw a back button. */
+const KNOWN_IN_PLACE: readonly string[] = [];
+
+/** Link dialogs more than 6 components tall. */
+const KNOWN_LINK_TALL: readonly string[] = [];
+
+/** Pop-overs whose Advanced entry is not the "..." icon button named "Advanced settings". */
+const KNOWN_ADVANCED_NOT_ICON: readonly string[] = [];
+
+/** Pop-overs whose Advanced pop-over closes or covers the pop-over it opened from. */
+const KNOWN_ADVANCED_COVERS: readonly string[] = [];
 
 /**
- * A compact-mantine component's own inner pop-out, not counted as a third level: the app cannot change it
+ * A compact-mantine component's own inner pop-out, not counted as a fourth level: the app cannot change it
  * (compact-mantine is locked to Figma). `CompactColorInput`'s picker holds a Color format select; reported to the
  * owner as a question for compact-mantine, not an app defect.
  */
@@ -298,7 +316,16 @@ async function openedBy(trigger: HTMLElement): Promise<HTMLElement> {
 /** What one thing's walk finds, by rule. */
 interface Found {
     tall?: string;
-    third: string[];
+    /** Pop-outs at a fourth level. */
+    fourth: string[];
+    /** Pop-overs replaced in place, or back buttons. */
+    inPlace: string[];
+    /** The link dialog's height, when over 6 components. */
+    linkTall?: string;
+    /** Advanced entries that are not the "..." icon button named "Advanced settings". */
+    notIcon: string[];
+    /** Advanced pop-overs that closed or covered the pop-over they opened from. */
+    covers: string[];
     minus: string[];
     slot: string[];
     rest: string[];
@@ -373,19 +400,71 @@ async function addEveryGroup(pop: HTMLElement): Promise<void> {
 }
 
 /**
- * Opens every pop-out a pop-over's lines open, and names the controls in each that would open a third level. A
- * view that drills into the pop-over in place (design "Input rules", drill-in) is the same pop-out: its own
- * controls are walked as the pop-over's are, and it is left by its header's back button.
- * @param pop - the pop-over (level 1), or a view drilled into it.
- * @param reopen - opens the pop-over again, when Escape closed it with the pop-out.
- * @param panel - the pop-over's panel, whose header holds the back button.
- * @returns `<trigger> > <control>` for each.
+ * Whether two boxes overlap.
+ * @param a - one box.
+ * @param b - the other.
+ * @returns whether they share any area.
  */
-async function thirdLevels(pop: HTMLElement, reopen: () => Promise<HTMLElement>, panel = pop): Promise<string[]> {
+function overlap(a: DOMRect, b: DOMRect): boolean {
+    return a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5;
+}
+
+/**
+ * Whether the pop-over an Advanced pop-over opened from is still open and visible beside it.
+ * @param parent - the pop-over's panel.
+ * @param advanced - the Advanced pop-over's panel.
+ * @returns why not, or undefined.
+ */
+function coveredBy(parent: HTMLElement, advanced: HTMLElement): string | undefined {
+    if (!parent.isConnected || !laidOut(parent)) {
+        return "its pop-over closed";
+    }
+    const a = parent.getBoundingClientRect();
+    const b = advanced.getBoundingClientRect();
+    return overlap(a, b)
+        ? `covers it (${[a, b].map((box) => [box.left, box.top, box.right, box.bottom].map(Math.round).join(",")).join(" over ")})`
+        : undefined;
+}
+
+/** What a walk of a pop-over's pop-outs finds, beyond the levels. */
+interface Walked {
+    readonly covers: string[];
+    readonly inPlace: string[];
+}
+
+/**
+ * Whether a pop-out is the panel's own pop-over (the Advanced pop-over) rather than a dedicated component.
+ * @param opened - what a trigger opened.
+ * @returns whether it is a pop-over level of the panel.
+ */
+function panelPopover(opened: HTMLElement): boolean {
+    return opened.hasAttribute("data-advanced-pop");
+}
+
+/**
+ * Opens every pop-out a pop-out's controls and header open, and names those at a fourth level. The panel's own
+ * pop-overs are levels 1 and 2 (a row's pop-over, its Advanced pop-over, closed by its "..." again, which must leave
+ * its pop-over open and uncovered); a dedicated component may open from either as the next level, and a pop-out
+ * inside a third level is a fourth. A drop-down's list inside a component (a pictured list's section drop-down) and
+ * a compact-mantine component's own (`COMPONENT_OWN`) are that component's, not a level. While anything is open,
+ * the pop-out it opened from keeps its title and stays shown, and no back button is drawn: nothing opens in place.
+ * @param pop - the pop-out's panel.
+ * @param reopen - opens it again, when Escape closed it with what it opened.
+ * @param walked - where in-place and covering findings are named.
+ * @param depth - its level: 1 for a row's pop-over.
+ * @returns `<trigger> > <control>` for each pop-out at a fourth level.
+ */
+async function deepLevels(
+    pop: HTMLElement,
+    reopen: () => Promise<HTMLElement>,
+    walked: Walked,
+    depth = 1,
+): Promise<string[]> {
     const found: string[] = [];
     let surface = pop;
     const triggers = (root: HTMLElement): HTMLElement[] =>
         [...root.querySelectorAll<HTMLElement>('button[aria-haspopup="dialog"]')].filter(laidOut);
+    const titleOf = (root: HTMLElement): string => root.querySelector("h2")?.textContent ?? "";
     const count = triggers(surface).length;
     for (let at = 0; at < count; at++) {
         const trigger = triggers(surface)[at];
@@ -396,20 +475,77 @@ async function thirdLevels(pop: HTMLElement, reopen: () => Promise<HTMLElement>,
         if (line !== null) {
             await userEvent.hover(line);
         }
+        const title = titleOf(surface);
         await userEvent.click(trigger);
-        const level2 = await openedBy(trigger);
+        const opened = await openedBy(trigger);
         const name = trigger.getAttribute("aria-label") ?? nameOf(line ?? trigger);
-        if (level2.hasAttribute("data-drill-view")) {
-            const host = panel.closest<HTMLElement>('[id^="popout-panel"]') ?? panel;
-            found.push(...(await thirdLevels(level2, reopen, host)).map((each) => `${name} > ${each}`));
-            await userEvent.click(within(host).getByRole("button", { name: /^Back to / }));
-        } else {
-            for (const inner of level2.querySelectorAll<HTMLElement>("[aria-haspopup]")) {
-                if (laidOut(inner) && !COMPONENT_OWN.includes(inner.getAttribute("aria-label") ?? "")) {
-                    found.push(`${name} > ${inner.getAttribute("aria-label") ?? inner.textContent ?? inner.tagName}`);
+        const level = depth + 1;
+        // Nothing in place: the pop-out stays shown under its own title, and there is no back button.
+        if (!laidOut(surface) || titleOf(surface) !== title || surface.contains(opened)) {
+            walked.inPlace.push(`${name} replaced ${title}`);
+        }
+        const back = screen.queryAllByRole("button", { name: /^Back to / });
+        if (back.length > 0) {
+            walked.inPlace.push(`${name}: ${back.map((each) => each.getAttribute("aria-label")).join(", ")}`);
+        }
+        const own = opened.closest<HTMLElement>("[data-popout-id]") ?? opened;
+        if (level > 3 || (level > 2 && panelPopover(opened))) {
+            found.push(`${name} (level ${String(level)})`);
+        } else if (panelPopover(opened)) {
+            const parent = trigger.closest<HTMLElement>("[data-popout-id]");
+            assert.isNotNull(parent, `${name}'s pop-over`);
+            const why = coveredBy(parent, own);
+            if (why !== undefined) {
+                walked.covers.push(`${name}: ${why}`);
+            }
+            const reopenAdvanced = async (): Promise<HTMLElement> => {
+                const again = advancedButton(await reopen());
+                assert.isNotNull(again, "the Advanced button again");
+                await userEvent.click(again);
+                const content = await openedBy(again);
+                return content.closest<HTMLElement>("[data-popout-id]") ?? content;
+            };
+            found.push(...(await deepLevels(own, reopenAdvanced, walked, level)).map((each) => `${name} > ${each}`));
+            // "..." again closes only the Advanced pop-over.
+            const again = advancedButton(parent);
+            if (again !== null) {
+                await userEvent.click(again);
+                await waitFor(() => {
+                    assert.isFalse(opened.isConnected, `${name} again closes its pop-over`);
+                });
+                if (!parent.isConnected) {
+                    walked.covers.push(`${name}: "..." again closed its pop-over too`);
+                }
+            }
+        } else if (level === 3) {
+            // A third level is a dedicated component: anything it opens is a fourth, but for its own parts.
+            for (const inner of own.querySelectorAll<HTMLElement>("[aria-haspopup]")) {
+                const label = inner.getAttribute("aria-label") ?? "";
+                if (
+                    laidOut(inner) &&
+                    !COMPONENT_OWN.includes(label) &&
+                    inner.getAttribute("aria-haspopup") !== "listbox"
+                ) {
+                    found.push(`${name} > ${label || inner.textContent || inner.tagName} (level 4)`);
                 }
             }
             await userEvent.keyboard("{Escape}");
+        } else {
+            // A component at level 2: what it opens is the third level.
+            const reopenComponent = async (): Promise<HTMLElement> => {
+                const back = await reopen();
+                const again = [...back.querySelectorAll<HTMLElement>("button")].find(
+                    (each) => each.getAttribute("aria-label") === trigger.getAttribute("aria-label"),
+                );
+                assert.isDefined(again, `${name} again`);
+                await userEvent.click(again);
+                const content = await openedBy(again);
+                return content.closest<HTMLElement>("[data-popout-id]") ?? content;
+            };
+            found.push(...(await deepLevels(own, reopenComponent, walked, level)).map((each) => `${name} > ${each}`));
+            if (opened.isConnected) {
+                await userEvent.keyboard("{Escape}");
+            }
         }
         await waitFor(() => {
             assert.notStrictEqual(trigger.getAttribute("aria-expanded"), "true");
@@ -419,6 +555,58 @@ async function thirdLevels(pop: HTMLElement, reopen: () => Promise<HTMLElement>,
         }
     }
     return found;
+}
+
+/**
+ * How many components tall a link dialog is: each part of the binding from top to bottom, two choices on one line
+ * counting once (a plain stack of parts counts by its parts).
+ * @param dialog - the link dialog.
+ * @returns the count.
+ */
+function componentsTall(dialog: HTMLElement): number {
+    const parts = (root: Element): number =>
+        [...root.children].reduce(
+            (sum, child) =>
+                sum +
+                (child.classList.contains("mantine-Stack-root") && !child.hasAttribute("role")
+                    ? parts(child)
+                    : Number(laidOut(child) && child.querySelector(CONTROLS) !== null)),
+            0,
+        );
+    const binding = dialog.querySelector('[role="group"][aria-label$=" binding"]');
+    return binding === null ? 0 : parts(binding);
+}
+
+/**
+ * Advanced entries in a pop-over that are not the "..." icon button named "Advanced settings": any other button
+ * naming Advanced, or that button with words or another glyph than the row's settings "...".
+ * @param pop - the pop-over's panel.
+ * @param row - the row, whose settings button draws the "..." glyph.
+ * @returns what is wrong.
+ */
+function advancedNotIcon(pop: HTMLElement, row: HTMLElement): string[] {
+    const wrong = [...pop.querySelectorAll<HTMLElement>("button")]
+        .filter((each) => /advanced/i.test(`${each.getAttribute("aria-label") ?? ""} ${each.textContent}`))
+        .filter((each) => each.getAttribute("aria-label") !== "Advanced settings")
+        .map((each) => `a button "${each.getAttribute("aria-label") ?? each.textContent}"`);
+    const button = advancedButton(pop);
+    if (button === null) {
+        return wrong;
+    }
+    const glyph = (of: Element | null | undefined): string => of?.querySelector("svg")?.getAttribute("class") ?? "";
+    const dots = glyph(
+        [...row.querySelectorAll<HTMLElement>("button[aria-label]")].find((each) =>
+            / settings( has configured values)?$/.test(each.getAttribute("aria-label") ?? ""),
+        ),
+    );
+    const box = button.getBoundingClientRect();
+    return [
+        ...wrong,
+        ...(button.textContent.trim() === "" ? [] : [`"${button.textContent}" in it`]),
+        ...(glyph(button) === dots && dots !== "" ? [] : [`glyph ${glyph(button)}, not ${dots}`]),
+        ...(box.width === 24 && box.height === 24 ? [] : [`${String(box.width)} x ${String(box.height)}`]),
+        ...(button.closest('[data-testid="popout-header"]') === null ? ["not in the header"] : []),
+    ];
 }
 
 /**
@@ -486,7 +674,10 @@ describe("Style panel v2's input rules (owner, 2026-11-23)", () => {
                 slot: slotNotAfterControl(lines),
                 rest: shownAtRest(lines),
                 empty: emptyInputs(lines),
-                third: [],
+                fourth: [],
+                inPlace: [],
+                notIcon: pop === null ? [] : advancedNotIcon(pop, row),
+                covers: [],
             };
             // Hovering a line shows its buttons.
             const shownNow = (button: HTMLElement): boolean => {
@@ -506,12 +697,12 @@ describe("Style panel v2's input rules (owner, 2026-11-23)", () => {
                     assert.isTrue(shownNow(button), `${nameOf(hidden)} on hover`);
                 }
             }
-            found.third = pop === null ? [] : await thirdLevels(pop, openSettings);
+            found.fourth = pop === null ? [] : await deepLevels(pop, openSettings, found);
             FOUND.set(walk.key, found);
         });
     }
 
-    it("node.fill bound: the link dialog a bound line opens from its pop-over opens no third level", async () => {
+    it("node.fill bound: the link dialog a bound line opens is 6 components tall at most, and opens no fourth level", async () => {
         const { session, nodes } = await openGraph();
         await session.runs.start("degree");
         const tab = await openStyle("Key people");
@@ -537,13 +728,41 @@ describe("Style panel v2's input rules (owner, 2026-11-23)", () => {
             assert.isTrue(bound !== undefined && "by" in bound, "the fill color is bound");
         });
         const open = document.querySelector<HTMLElement>("[data-thing-popover]") ?? (await openSettings());
-        FOUND.set("node.fill:bound", {
-            third: await thirdLevels(open.closest<HTMLElement>('[id^="popout-panel"]') ?? open, openSettings),
+        const panel = open.closest<HTMLElement>('[id^="popout-panel"]') ?? open;
+        // The bound line's link dialog: its pill opens it, beside the pop-over.
+        const pill = panel.querySelector<HTMLElement>(".ws-varied button");
+        assert.isNotNull(pill, "the bound line's pill");
+        await userEvent.click(pill);
+        const dialog = await waitFor(() => {
+            const found = document.querySelector<HTMLElement>('[role="group"][aria-label$=" binding"]');
+            assert.isNotNull(found, "the link dialog is open");
+            return found.closest<HTMLElement>("[data-popout-id]") ?? found;
+        });
+        const tall = componentsTall(dialog);
+        assert.isAbove(tall, 2, "the link dialog's parts are counted");
+        assert.isNull(advancedButton(dialog), "the link dialog has no Advanced");
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isFalse(dialog.isConnected, "the link dialog closed");
+        });
+        const walked: Found = {
+            fourth: [],
+            inPlace: [],
+            linkTall: tall > 6 ? String(tall) : undefined,
+            notIcon: [],
+            covers: [],
             minus: [],
             slot: [],
             rest: [],
             empty: [],
-        });
+        };
+        walked.fourth = await deepLevels(
+            document.querySelector<HTMLElement>("[data-thing-popover]")?.closest<HTMLElement>('[id^="popout-panel"]') ??
+                (await openSettings()),
+            openSettings,
+            walked,
+        );
+        FOUND.set("node.fill:bound", walked);
     });
 
     it("the rule hiding link and settings buttons applies only on hover devices, outside hover and focus", () => {
@@ -592,9 +811,29 @@ describe("Style panel v2's input rules (owner, 2026-11-23)", () => {
                 KNOWN_TALL,
             ),
             compare(
-                "Pop-outs nested three deep",
-                by((found) => found.third),
-                KNOWN_THIRD_LEVEL,
+                "Pop-outs at a fourth level",
+                by((found) => found.fourth),
+                KNOWN_FOURTH_LEVEL,
+            ),
+            compare(
+                "Pop-overs replaced in place, or back buttons",
+                by((found) => found.inPlace),
+                KNOWN_IN_PLACE,
+            ),
+            compare(
+                "Link dialogs over 6 components tall",
+                by((found) => found.linkTall),
+                KNOWN_LINK_TALL,
+            ),
+            compare(
+                'Advanced not the "..." icon button',
+                by((found) => found.notIcon),
+                KNOWN_ADVANCED_NOT_ICON,
+            ),
+            compare(
+                "Advanced pop-over closes or covers its pop-over",
+                by((found) => found.covers),
+                KNOWN_ADVANCED_COVERS,
             ),
             compare(
                 "Minus not the right-most button",
@@ -618,5 +857,38 @@ describe("Style panel v2's input rules (owner, 2026-11-23)", () => {
             ),
         ].filter((each) => each.fixed.length > 0 || each.added.length > 0);
         assert.deepEqual(results, []);
+    });
+});
+
+describe("Style panel v2's Advanced pop-over on an iPad held upright (owner, 2026-11-24)", () => {
+    withFeatures(["file-styles", "style-panel-v2"]);
+    beforeAll(async () => {
+        await page.viewport(768, 1024);
+    });
+    afterAll(async () => {
+        await page.viewport(1200, 900);
+    });
+
+    it("node.label: at 768 x 1024 its Advanced pop-over leaves the label pop-over open and uncovered", async () => {
+        const { session, nodes } = await openGraph();
+        await session.styles.update(nodes, {
+            set: { ...session.styles.get(nodes)?.set, [TEXT_THINGS.node.label.words]: "Hello" },
+        });
+        await session.styles.settled();
+        const tab = await openStyle("Key people");
+        await showKind("node");
+        const row = await waitFor(() => {
+            const found = tab.querySelector<HTMLElement>('[data-thing="label"]');
+            assert.isNotNull(found, "the label row");
+            return found;
+        });
+        await userEvent.hover(row);
+        const settings = within(row).getByRole("button", { name: /^Node label settings/ });
+        await userEvent.click(settings);
+        const pop = await openedBy(settings);
+        const advanced = await openAdvanced(pop);
+        const own = advanced.closest<HTMLElement>("[data-popout-id]");
+        assert.isNotNull(own);
+        assert.isUndefined(coveredBy(pop, own));
     });
 });

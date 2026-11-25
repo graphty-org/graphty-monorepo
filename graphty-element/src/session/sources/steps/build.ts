@@ -496,7 +496,8 @@ type Held = [origin: string, value: Value];
  * @param v - The cell.
  * @returns True when it does.
  */
-export const isNumber = (v: Value | undefined): boolean => !isEmpty(v) && !Array.isArray(v) && !Number.isNaN(Number(v));
+export const isNumber = (v: Value | undefined): boolean =>
+    !isEmpty(v) && !Array.isArray(v) && !Number.isNaN(Number(v)) && !(typeof v === "string" && v.startsWith("+"));
 /**
  * Whether a cell reads as a date, as `min` and `max` order it.
  * @param v - The cell.

@@ -799,12 +799,20 @@ function blocksIn(min: Vector3, max: Vector3, spots: readonly FramingSpot[] | un
 
     const reach = new Vector3(Infinity, Infinity, Infinity);
     const far = new Vector3(-Infinity, -Infinity, -Infinity);
+    // plain numbers: this runs over every node on every frame a moving graph is framed (issue #9420)
     const blocks = spots.map(({ pos, half }) => {
-        const lo = Vector3.Maximize(pos.subtractFromFloats(half, half, half), min);
-        const hi = Vector3.Minimize(pos.add(new Vector3(half, half, half)), max);
-        reach.minimizeInPlace(lo);
-        far.maximizeInPlace(hi);
-        return { pos: lo.add(hi).scale(0.5).subtract(center), half: hi.subtract(lo).scale(0.5) };
+        const lx = Math.max(pos.x - half, min.x);
+        const ly = Math.max(pos.y - half, min.y);
+        const lz = Math.max(pos.z - half, min.z);
+        const hx = Math.min(pos.x + half, max.x);
+        const hy = Math.min(pos.y + half, max.y);
+        const hz = Math.min(pos.z + half, max.z);
+        reach.set(Math.min(reach.x, lx), Math.min(reach.y, ly), Math.min(reach.z, lz));
+        far.set(Math.max(far.x, hx), Math.max(far.y, hy), Math.max(far.z, hz));
+        return {
+            pos: new Vector3((lx + hx) / 2 - center.x, (ly + hy) / 2 - center.y, (lz + hz) / 2 - center.z),
+            half: new Vector3((hx - lx) / 2, (hy - ly) / 2, (hz - lz) / 2),
+        };
     });
 
     const slack = 1e-6 * (max.subtract(min).length() + 1);
@@ -857,26 +865,99 @@ function axisFit(
  * @param axis - The screen axis in world space, a unit vector.
  * @param forward - The line of sight, a unit vector.
  * @param distance - How far behind the center the camera stands.
- * @returns The corners.
+ * @returns The corners, eight a block: each one's place along the axis and its depth.
  */
 function seenCorners(
     points: readonly Block[],
     axis: Vector3,
     forward: Vector3,
     distance: number,
-): { x: number; depth: number }[] {
-    const signs = [-1, 1];
-    return points.flatMap(({ pos, half }) =>
-        signs.flatMap((sx) =>
-            signs.flatMap((sy) =>
-                signs.map((sz) => {
-                    const corner = new Vector3(pos.x + sx * half.x, pos.y + sy * half.y, pos.z + sz * half.z);
-                    const depth = Math.max(Vector3.Dot(corner, forward) + distance, Number.EPSILON);
-                    return { x: Vector3.Dot(corner, axis), depth };
-                }),
-            ),
-        ),
-    );
+): { xs: Float64Array; depths: Float64Array } {
+    const xs = new Float64Array(points.length * 8);
+    const depths = new Float64Array(points.length * 8);
+    let i = 0;
+    for (const { pos, half } of points) {
+        for (let sx = -1; sx <= 1; sx += 2) {
+            for (let sy = -1; sy <= 1; sy += 2) {
+                for (let sz = -1; sz <= 1; sz += 2) {
+                    const cx = pos.x + sx * half.x;
+                    const cy = pos.y + sy * half.y;
+                    const cz = pos.z + sz * half.z;
+                    xs[i] = cx * axis.x + cy * axis.y + cz * axis.z;
+                    depths[i] = Math.max(cx * forward.x + cy * forward.y + cz * forward.z + distance, Number.EPSILON);
+                    i++;
+                }
+            }
+        }
+    }
+
+    return { xs, depths };
+}
+
+/** How many corners a fit's centering has weighed over all its halvings, so a test can count the work. */
+export const centeringWork = { corners: 0 };
+
+/**
+ * The corners on the outline of all of them, as seen along one screen axis and in depth: the convex hull of the
+ * points `(x, depth)`. {@link centeredOffset} needs no other corner: its tangent `(x - offset) / depth`, with every
+ * depth positive, is widest over the corners at a corner of their hull, and so are the smallest and largest `x` and
+ * the greatest depth. A fit of a moving 20,000-node graph halved over all 160,000 corners some 60 times on each axis,
+ * every frame (issue #9420); the outline holds tens of corners.
+ * @param corners - The corners, from {@link seenCorners}.
+ * @param corners.xs - Each one's place along the axis.
+ * @param corners.depths - Each one's depth.
+ * @returns The hull's corners, collinear ones kept.
+ */
+function outline(corners: { xs: Float64Array; depths: Float64Array }): { x: number; depth: number }[] {
+    type Corner = { x: number; depth: number };
+    const { xs, depths } = corners;
+    const count = xs.length;
+    const at = (i: number): Corner => ({ x: xs[i], depth: depths[i] });
+    let [left, right, near, far] = [0, 0, 0, 0];
+    for (let i = 1; i < count; i++) {
+        left = xs[i] < xs[left] ? i : left;
+        right = xs[i] > xs[right] ? i : right;
+        near = depths[i] < depths[near] ? i : near;
+        far = depths[i] > depths[far] ? i : far;
+    }
+
+    // drop every corner strictly inside the four extremes' quadrilateral first, which is most of them, so the sort
+    // below sees few (Akl and Toussaint)
+    const turnAt = (ox: number, oz: number, ax: number, az: number, bx: number, bz: number): number =>
+        (ax - ox) * (bz - oz) - (az - oz) * (bx - ox);
+    const turn = (o: Corner, a: Corner, b: Corner): number => turnAt(o.x, o.depth, a.x, a.depth, b.x, b.depth);
+    const ring = [left, near, right, far];
+    const kept: Corner[] = [];
+    for (let i = 0; i < count; i++) {
+        let inside = true;
+        for (let r = 0; r < 4 && inside; r++) {
+            const [o, a] = [ring[r], ring[(r + 1) % 4]];
+            inside = turnAt(xs[o], depths[o], xs[a], depths[a], xs[i], depths[i]) > 0;
+        }
+
+        if (!inside) {
+            kept.push(at(i));
+        }
+    }
+
+    kept.sort((a, b) => a.x - b.x || a.depth - b.depth);
+    // boxes share corners' places: a repeated corner makes every turn after it 0, so nothing behind it is dropped
+    const distinct = kept.filter((c, i) => i === 0 || c.x !== kept[i - 1].x || c.depth !== kept[i - 1].depth);
+
+    // Andrew's monotone chain; a corner is dropped only on a strict turn the wrong way
+    const chain = (from: Corner[]): Corner[] => {
+        const out: Corner[] = [];
+        for (const c of from) {
+            while (out.length >= 2 && turn(out.at(-2) as Corner, out.at(-1) as Corner, c) < 0) {
+                out.pop();
+            }
+
+            out.push(c);
+        }
+
+        return out;
+    };
+    return [...chain(distinct), ...chain([...distinct].reverse())];
 }
 
 /**
@@ -903,7 +984,7 @@ function centeredOffset(
     hi: number,
     distance: number,
 ): number {
-    const corners = seenCorners(points, axis, forward, distance);
+    const corners = outline(seenCorners(points, axis, forward, distance));
     const middle = (lo + hi) / 2;
     let low = Infinity;
     let high = -Infinity;
@@ -920,7 +1001,7 @@ function centeredOffset(
     // An area whose middle is off the line of sight puts the offset up to that far outside them.
     low -= Math.abs(middle) * deepest;
     high += Math.abs(middle) * deepest;
-    // ponytail: a pass over the corners per halving, about 60 for doubles; a closed form per axis if a fit ever shows in a profile.
+    // a pass over the outline's corners per halving, about 60 for doubles
     for (let step = 0; step < 200; step++) {
         const at = (low + high) / 2;
         if (at <= low || at >= high) {
@@ -929,6 +1010,7 @@ function centeredOffset(
 
         let above = -Infinity;
         let below = -Infinity;
+        centeringWork.corners += corners.length;
         for (const { x, depth } of corners) {
             above = Math.max(above, (x - at) / depth - middle);
             below = Math.max(below, middle - (x - at) / depth);

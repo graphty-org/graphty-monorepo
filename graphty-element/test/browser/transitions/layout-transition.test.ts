@@ -19,7 +19,10 @@ import {
     type SnapshotLayoutInput,
 } from "../../../extend";
 import type { Graphty } from "../../../index.js";
-import { type Edge, edgeInternals } from "../../../src/Edge";
+import type { Edge } from "../../../src/Edge";
+// edgeInternals is read through the module, not imported by name: the build from before the renderer work lacks
+// it, and this file's other cases run against that build too (benchmarks/compare/parity-vs-reference.mjs).
+import * as edgeModule from "../../../src/Edge";
 import { operationQueueOf } from "../../../src/Graph";
 import { dataManagerInternals } from "../../../src/managers/DataManager";
 import type { RenderPath } from "../../../src/meshes/NodeBatch";
@@ -203,7 +206,7 @@ async function until(element: Graphty, what: string, holds: () => boolean): Prom
  * @returns Its two ends, source first.
  */
 function drawnEnds(element: Graphty, edge: Edge): [Vector3, Vector3] {
-    const { lineBatch, lineSlots, pulled } = edgeInternals.drawn(edge);
+    const { lineBatch, lineSlots, pulled } = edgeModule.edgeInternals.drawn(edge);
     if (pulled !== null) {
         const table = element.graph.getRowTable();
         assert.isNotNull(table, "a pulled line is drawn from the row table");
@@ -463,8 +466,9 @@ describe("layout transitions", () => {
 });
 
 // Issue #9864: on the batched path a node added after the first frame is drawn from its row with no
-// Node, and a transition moves that row by itself. A dashed edge is laid on the CPU from its rows,
-// and was left at the old layout while its nodes moved.
+// Node, and a transition moves that row by itself. A dashed edge was laid on the CPU from its rows,
+// and was left at the old layout while its nodes moved. The batched path now pulls a dashed line from
+// the row table, as it does a solid one; the objects path still lays it on the CPU.
 describe.each([
     { path: "objects", view: "2d" },
     { path: "objects", view: "3d" },
@@ -509,7 +513,13 @@ describe.each([
 
             const scene = element.graph.getScene();
             const edge = [...element.graph.getDataManager().edges.values()][0];
-            assert.isNull(edgeInternals.drawn(edge).pulled, "the dashed line is laid on the CPU, not pulled");
+            const { pulled } = edgeModule.edgeInternals.drawn(edge);
+            if (path === "batched") {
+                assert.isNotNull(pulled, "the dashed line is pulled from the row table");
+            } else {
+                assert.isNull(pulled, "the dashed line is laid on the CPU, not pulled");
+            }
+
             const runner = (): ReturnType<typeof transitionsOf> => transitionsOf(element.graph.getLayoutManager());
             const misses: string[] = [];
             let moving = 0;

@@ -959,6 +959,15 @@ export class Node implements ModelUser {
     private styleHidden = false;
 
     /**
+     * Whether its style hides it (`node.visible` false), however a filter or a time window shows it.
+     * @returns True when it does.
+     * @internal
+     */
+    get hiddenByStyle(): boolean {
+        return this.styleHidden;
+    }
+
+    /**
      * Whether this node is in the session's selection.
      *
      * The highlight this drives is drawn BY CONSTRUCTION -- a halo mesh the element owns -- and
@@ -2818,6 +2827,8 @@ export class Node implements ModelUser {
         if (hidden !== this.styleHidden) {
             this.styleHidden = hidden;
             this.applyRenderState();
+            // an edge pulled from the row table onto this node's row draws nothing to a hidden row: its edges look again
+            this.context.getUpdateManager?.()?.noteEndsChanged(this.index);
         }
 
         this.syncShaders();

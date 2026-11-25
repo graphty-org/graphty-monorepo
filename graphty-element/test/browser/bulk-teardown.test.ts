@@ -89,6 +89,20 @@ function batchMeshes(): Set<AbstractMesh> {
         }
     }
 
+    // On the batched path an edge between two built nodes may be a row line with no `Edge`, drawn (with its
+    // arrowhead) by a batch only the scene lists.
+    const nodeMeshes = new Set(Array.from(graph.getDataManager().nodes.values(), (node) => node.mesh));
+    for (const mesh of graph.getScene().meshes) {
+        if (
+            isBatch(mesh) &&
+            !mesh.isDisposed() &&
+            !nodeMeshes.has(mesh) &&
+            mesh.parent === graphRoot(graph.getScene())
+        ) {
+            batches.add(mesh);
+        }
+    }
+
     return batches;
 }
 

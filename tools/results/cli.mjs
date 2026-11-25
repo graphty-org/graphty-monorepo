@@ -166,7 +166,8 @@ function checkRun(root, { SHARDS, STORY_PROJECTS = {}, STORY_RUNS = {} }, family
  * @param o.file the test file
  * @param [o.repeat] how many runs
  * @param [o.env] the environment
- * @param [o.build] build the shard's package first, and for a `-shots` variant fetch its baselines and fonts
+ * @param [o.build] build the shard's package first, and fetch the Git LFS files the run reads (a `-shots` variant's
+ * baselines and fonts, or the shard's own "lfs")
  * @param [o.run] runGroup (tests replace it)
  * @param [o.exec] execFileSync (tests replace it)
  * @returns the worst exit code
@@ -190,7 +191,10 @@ export async function baseCheck({
     }
     const { shard, cmd, shots } = found;
     if (build) {
-        if (shots) exec("git", ["lfs", "pull", "--include", shots.lfs], { cwd: root, stdio: "inherit" });
+        // the Git LFS files the run reads, as ci.yml's test job pulls a shard's "lfs": without them the checkout holds
+        // pointer text where a picture should be (the forced-batched family's oracle scorecard, #10000)
+        const lfs = shots ? shots.lfs : shard.lfs;
+        if (lfs) exec("git", ["lfs", "pull", "--include", lfs], { cwd: root, stdio: "inherit" });
         for (const project of [nxProject(root, shard.package), ...(shots?.build ?? [])])
             exec("pnpm", ["exec", "nx", "run", `${project}:build`], { cwd: root, stdio: "inherit" });
     }

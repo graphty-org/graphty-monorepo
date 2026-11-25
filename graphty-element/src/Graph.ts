@@ -242,9 +242,9 @@ import {
 import { bootstrapEdgePaint, bootstrapNodePaint } from "./managers/StylePainter";
 import { columnCenter, type ColumnFraming } from "./managers/UpdateManager";
 import { AnnotationMeshes } from "./meshes/AnnotationMeshes";
-import { arrowCapMeshes } from "./meshes/ArrowCapBatch";
+import { arrowCapMeshes, pulledCapHosts } from "./meshes/ArrowCapBatch";
 import { edgeDrawPlace } from "./meshes/EdgeLineBatch";
-import { EdgeRowLines } from "./meshes/EdgeRowLines";
+import { EdgeRowLines, pulledLineSortsWith } from "./meshes/EdgeRowLines";
 import { payLabelAnimations } from "./meshes/labelAnimationDebt";
 import { closeRectOnScreen, hasCloseLabels, inRect, isCloseLabel } from "./meshes/labelClose";
 import { labelFontsLoading, watchFontLoads } from "./meshes/labelFonts";
@@ -336,6 +336,7 @@ import { loadLineOf, type LoadTurn } from "./session/loadLine";
 import type { SessionCommand } from "./session/planning";
 import {
     cancelReasonOf,
+    type Dispatcher,
     type DispatchFunction,
     queueScheduler,
     type TransactionOptions as DispatcherTransactionOptions,
@@ -1248,6 +1249,11 @@ export class Graph implements GraphContext {
      * it is why every data question this class answers is forwarded rather than computed.
      */
     private readonly session: ElementSession;
+    /**
+     * The session's dispatcher once looked up: {@link Graph.is2D} and the configuration document are read for every
+     * edge placed, every frame a layout moves (issue #9420), and a weak map lookup each time showed in the profile.
+     */
+    #dispatcher: Dispatcher | undefined;
     /** The queue loads, layouts, runs and style passes take their turn in; see {@link operationQueueOf}. */
     private readonly operationQueue: OperationQueueManager;
 
@@ -3737,6 +3743,15 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * The session's dispatcher, looked up once (see `#dispatcher`).
+     * @returns The dispatcher.
+     */
+    private dispatcher(): Dispatcher {
+        this.#dispatcher ??= dispatcherOf(this.session);
+        return this.#dispatcher;
+    }
+
+    /**
      * The configuration document `styles.config` reads: frozen, merged from the project settings
      * and the view settings, and rebuilt only when one of them has changed since the last read,
      * so two reads with no change between them return the same object.
@@ -3750,7 +3765,7 @@ export class Graph implements GraphContext {
             return this.mergeConfig(DEFAULT_PROJECT, DEFAULT_LAYOUT);
         }
 
-        const dispatcher = dispatcherOf(session);
+        const dispatcher = this.dispatcher();
         const writes = dispatcher.lane.writes("config");
         const layout = dispatcher.lane.writes("layout");
         let cache = this.configCache;
@@ -5604,6 +5619,19 @@ export class Graph implements GraphContext {
 
         if (batched && this.#nodeBatches === null) {
             const places = this.openRowTable();
+            // the scene's cap batches draw arrowheads pulled from the row table too (`ArrowCapBatch.setPulled`)
+            pulledCapHosts.set(this.scene, {
+                rows: places,
+                settled: () => !this.isRunning() || this.layoutManager.layoutEngine?.isSettled !== false,
+                placedCaps: (count) => {
+                    // one count an arrowhead placed and its edge's ends found, as an object edge counts its own
+                    for (const counter of [this.statsManager.arrowCapUpdate, this.statsManager.intersectCalc]) {
+                        for (let at = 0; at < count; at++) {
+                            counter.fetchNewFrame();
+                        }
+                    }
+                },
+            });
             this.#nodeBatches = new NodeBatches(
                 {
                     cache: this.dataManager.meshCache,
@@ -5657,6 +5685,7 @@ export class Graph implements GraphContext {
                 requestFrame: () => {
                     this.renderManager.requestFrame();
                 },
+                settled: () => !this.isRunning() || this.layoutManager.layoutEngine?.isSettled !== false,
             });
             const batches = this.#nodeBatches;
             const target = new NodeIdTarget(this.scene, {
@@ -5684,6 +5713,7 @@ export class Graph implements GraphContext {
             });
             useEdgeIdTarget(this.scene, this.#edgeIds);
         } else if (!batched && this.#nodeBatches !== null) {
+            pulledCapHosts.delete(this.scene);
             useEdgeIdTarget(this.scene, null);
             this.#edgeIds?.dispose();
             this.#edgeIds = null;
@@ -6285,7 +6315,7 @@ export class Graph implements GraphContext {
      * @returns "2d" or "3d".
      */
     private dimension(): "2d" | "3d" {
-        return (dispatcherOf(this.session).state.layout ?? DEFAULT_LAYOUT).dimension;
+        return (this.dispatcher().state.layout ?? DEFAULT_LAYOUT).dimension;
     }
 
     /**
@@ -6572,7 +6602,17 @@ export class Graph implements GraphContext {
             (then: (a: SubMesh, b: SubMesh) => number) =>
             (a: SubMesh, b: SubMesh): number =>
                 rank(a.getMesh()) - rank(b.getMesh()) || lineOrder(a.getMesh(), b.getMesh()) || then(a, b);
-        const opaque = byRank((a, b) => RenderingGroup.PainterSortCompare(a, b));
+        // a 2D pulled line batch draws where the line batch of its width does (`pulledLineSortsWith`), just after it
+        const painter = (a: SubMesh, b: SubMesh): number => {
+            const [ma, mb] = [a.getMesh(), b.getMesh()];
+            const [pa, pb] = [pulledLineSortsWith.get(ma) ?? ma, pulledLineSortsWith.get(mb) ?? mb];
+            if (pa === pb) {
+                return Number(pa !== ma) - Number(pb !== mb);
+            }
+
+            return pa.material && pb.material ? pa.material.uniqueId - pb.material.uniqueId : pa.uniqueId - pb.uniqueId;
+        };
+        const opaque = byRank(painter);
         this.scene.setRenderingOrder(
             0,
             opaque,

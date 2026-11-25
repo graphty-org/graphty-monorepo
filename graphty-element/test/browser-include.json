@@ -1,0 +1,14 @@
+[
+    "test/browser/**/*.test.ts",
+    "test/managers/DataManager.test.ts",
+    "test/managers/LayoutManager.test.ts",
+    "test/managers/LifecycleManager.test.ts",
+    "test/managers/UpdateManager.test.ts",
+    "test/managers/SelectionManager.test.ts",
+    "test/mesh-testing/real-mesh-simple.test.ts",
+    "test/performance/**/*.test.ts",
+    "test/examples/**/*.test.ts",
+    "test/Edge.bezier.test.ts",
+    "test/edge-cases/**/*.test.ts",
+    "test/integration/Edge.integration.test.ts"
+]

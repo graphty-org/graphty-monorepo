@@ -483,7 +483,7 @@ const OFF_SHARDS = [
     ...Array.from({ length: ELEMENT_BROWSER_PARTS }, (_, i) => i + 1).map((n) => ({
         shard: `graphty-element-forced-batched-${n}`,
         package: "graphty-element",
-        "test-command": `cd graphty-element && pnpm exec vitest run --project=forced-batched --shard=${n}/${ELEMENT_BROWSER_PARTS} ${ELEMENT_REPORTERS}`,
+        "test-command": `cd graphty-element && pnpm exec vitest run --project=forced-batched --project=minimum-work-batched --shard=${n}/${ELEMENT_BROWSER_PARTS} ${ELEMENT_REPORTERS}`,
         "needs-browser": true,
         "pack-whole": false,
         // every oracle's rasterized PNG (about 48 MB, the fidelity slices' cached pull), since a glob of the

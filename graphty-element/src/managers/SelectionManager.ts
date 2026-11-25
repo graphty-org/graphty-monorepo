@@ -180,10 +180,29 @@ export class SelectionManager implements Manager {
 
     /**
      * Add a node to the selection, or take it out if it is in: what a shift-click on it means.
+     * Only that node's membership changes; selected edges and other nodes stay selected.
      * @param node - The node.
      */
     toggle(node: Node): void {
         const previousNode = this.getSelectedNode();
+        const { selection } = this;
+        if (selection !== null) {
+            // A node-only toggle on the session's sets. A replace built from the selected nodes
+            // would drop every selected edge (issue #10020).
+            selection.applyNow({ nodes: [node.id] }, "toggle", "user");
+            // Past the selection cap the masks may refuse the node, so ring it only if they took it.
+            const on = selection.has(node.id);
+            if (on) {
+                this.selectedNodes.set(node.id, node);
+            } else {
+                this.selectedNodes.delete(node.id);
+            }
+
+            node.setSelected(on);
+            this.eventManager.emitSelectionChanged(previousNode, this.getSelectedNode());
+            return;
+        }
+
         const selected = this.getSelectedNodes();
         const others = selected.filter((other) => other.id !== node.id);
         const nodes = others.length < selected.length ? others : [...others, node];

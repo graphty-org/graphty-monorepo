@@ -18,12 +18,15 @@ import { type Edge, type EdgeCapEnd, edgeInternals } from "../Edge";
 import type { DrawnNodeSpot, Graph, NodeScreenPosition } from "../Graph";
 import { dataManagerInternals } from "../managers/DataManager";
 import type { ArrowCap } from "../meshes/ArrowCapBatch";
+import { EdgeMesh } from "../meshes/EdgeMesh";
 import type { NodeDecorationMetadata } from "../meshes/NodeDecorationMesh";
+import { type PulledHead, pulledHeadBatch, pulledHeadOf } from "../meshes/pulledHead";
+import { roundRowsEnds } from "../meshes/restPlacement";
 import type { PanelGradientShape, RichTextLabel } from "../meshes/RichTextLabel";
 import { pixelsPerUnit } from "../meshes/screenSize";
 import { convexHull, flatShapeOutline, isFlatShape, type Point2 } from "../meshes/shapeOutlines";
 import { type Node, nodeInternals } from "../Node";
-import type { RowMeasure } from "../render/RowTable";
+import type { RowMeasure, RowTable } from "../render/RowTable";
 import { toColorValue } from "../session/styles/channels";
 import { downloadBlob } from "../utils/download";
 import { captureError } from "./captureError";
@@ -677,8 +680,8 @@ function edgeLines(
         // Where the canvas draws the line: along its curve, bends or bundle, or straight and stopped at
         // its arrowheads or a translucent node's outline; a row line drawn with no `Edge` runs between its
         // nodes, stopped at a translucent one's outline as its pulled piece's shader stops it.
-        const path =
-            (edge === undefined ? null : edgeInternals.lineInWorld(edge)) ?? rowLine(src, dst, root, fromWorld);
+        const pulled = pulledHeadDrawn(graph, edge, style, source, target);
+        const path = figureLine(edge, pulled, src, dst, root, fromWorld);
         const points = path.map((p): Point2 => {
             const at = graph.worldToScreen(p);
             return [at.x, at.y];
@@ -692,6 +695,10 @@ function edgeLines(
         if (edge) {
             caps.push(...edgeCaps(graph, edge, style, camera));
         }
+
+        if (pulled !== null) {
+            caps.push(...pulledHeadShapes(graph, pulled, style, root, camera));
+        }
         const words = labelText(edge?.label, graph, camera, css);
         if (words) {
             texts.push(words);
@@ -699,6 +706,162 @@ function edgeLines(
     }
 
     return edges;
+}
+
+/**
+ * Where an edge's line is drawn, in the world: an `Edge`'s own line, a row line stopped at its pulled head's back, or a
+ * row line between its nodes.
+ * @param edge - The edge's `Edge`, or undefined for a row line.
+ * @param pulled - Its pulled head's place, or null.
+ * @param src - Its source node.
+ * @param dst - Its target node.
+ * @param root - graph-root's world matrix.
+ * @param fromWorld - Its inverse.
+ * @returns The line's points.
+ */
+function figureLine(
+    edge: Edge | undefined,
+    pulled: PulledHeadPlace | null,
+    src: ShownNode,
+    dst: ShownNode,
+    root: Matrix,
+    fromWorld: Matrix,
+): Vector3[] {
+    const own = edge === undefined ? null : edgeInternals.lineInWorld(edge);
+    if (own !== null) {
+        return own;
+    }
+
+    return pulled === null
+        ? rowLine(src, dst, root, fromWorld)
+        : [pulled.from, pulled.back].map((p) => Vector3.TransformCoordinates(p, root));
+}
+
+/** A head drawn from the row table at rest, in graph-root's space: the line's start and back, and the head's frame. */
+interface PulledHeadPlace {
+    readonly head: PulledHead;
+    readonly from: Vector3;
+    readonly back: Vector3;
+    readonly centre: Vector3;
+    readonly direction: Vector3;
+    readonly length: number;
+}
+
+/** Scratch for {@link pulledHeadDrawn}: the line's start, its tip and where it stops, x, y, z each. */
+const pulledEnds = new Float64Array(9);
+
+/**
+ * Where an arrowhead pulled from the row table on renderPath "batched" is drawn (`ArrowCapBatch.placePulled`, step for
+ * step): for a row line with a head, or an `Edge` whose head is pulled with its line (no cap of its own).
+ * @param graph - The graph.
+ * @param edge - The edge's `Edge`, or undefined for a row line.
+ * @param style - Its style.
+ * @param source - Its source row.
+ * @param target - Its target row.
+ * @returns The head's place, or null for an edge that draws no pulled head.
+ */
+function pulledHeadDrawn(
+    graph: Graph,
+    edge: Edge | undefined,
+    style: EdgeStyleConfig,
+    source: number,
+    target: number,
+): PulledHeadPlace | null {
+    const rows: RowTable | null = graph.getRowTable();
+    if (
+        rows === null ||
+        EdgeMesh.drawsNoCap(style.arrowHead) ||
+        (edge !== undefined &&
+            (edge.arrowCap !== null || !edge.isPulled || !edge.drawnCaps.some((cap) => cap.end === "arrowHead")))
+    ) {
+        return null;
+    }
+
+    const head = pulledHeadOf(style, EdgeMesh.drawsFlat(graph.getScene()));
+    const scale = head === null ? 0 : roundRowsEnds(rows, source, target, head.look, pulledEnds);
+    if (head === null || scale === 0) {
+        return null;
+    }
+
+    const e = pulledEnds;
+    const tip = new Vector3(e[3], e[4], e[5]);
+    const direction = tip.subtract(new Vector3(e[0], e[1], e[2]));
+    const span = direction.length();
+    if (span !== 0) {
+        direction.scaleInPlace(1 / span);
+    }
+
+    const length = head.look.size * scale;
+    return {
+        head,
+        from: new Vector3(e[0], e[1], e[2]),
+        back: new Vector3(e[6], e[7], e[8]),
+        centre: tip.subtract(direction.scale(head.look.centreBackAt(length))),
+        direction,
+        length,
+    };
+}
+
+/**
+ * A pulled head's shape, as the billboard shader draws its batch's mesh at its place ({@link capPlace}'s frame).
+ * @param graph - The graph.
+ * @param place - Where the head is.
+ * @param style - Its edge's style, for its color.
+ * @param root - graph-root's world matrix.
+ * @param camera - The camera.
+ * @returns The shape, or none when the head is not drawn.
+ */
+function pulledHeadShapes(
+    graph: Graph,
+    place: PulledHeadPlace,
+    style: EdgeStyleConfig,
+    root: Matrix,
+    camera: Camera,
+): FigureDrawing["caps"][number][] {
+    const { head } = place;
+    if (head.opacity <= 0) {
+        return [];
+    }
+
+    const { mesh } = pulledHeadBatch(head, graph.getScene());
+    const centre = Vector3.TransformCoordinates(place.centre, root);
+    const forward = Vector3.TransformNormal(place.direction, root).normalize();
+    const size = Vector3.TransformNormal(new Vector3(place.length, 0, 0), root).length();
+    const frame = billboardFrame(centre, forward, size, camera);
+    const color = style.arrowHead?.color ?? style.line?.color;
+    return [
+        {
+            triangles: meshTriangles(graph, mesh, frame),
+            fill: typeof color === "string" ? color : "#FFFFFF",
+            opacity: head.opacity,
+        },
+    ];
+}
+
+/**
+ * The billboard shader's frame (FilledArrowRenderer, filledArrowVertexShader): along the line, across it facing the
+ * camera, at the cap's length.
+ * @param centre - The cap's center in the world.
+ * @param forward - Its unit direction along the line.
+ * @param size - Its length.
+ * @param camera - The camera.
+ * @returns Where a vertex of the cap's mesh is drawn.
+ */
+function billboardFrame(
+    centre: Vector3,
+    forward: Vector3,
+    size: number,
+    camera: Camera,
+): (x: number, y: number, z: number) => Vector3 {
+    let right = Vector3.Cross(forward, camera.globalPosition.subtract(centre).normalize());
+    if (right.lengthSquared() < 1e-12) {
+        right = Vector3.Cross(forward, Math.abs(forward.y) < 0.99 ? Vector3.Up() : Vector3.Right());
+    }
+
+    right.normalize();
+    const up = Vector3.Cross(right, forward);
+    return (x, y, z) =>
+        centre.add(forward.scale(x).addInPlace(up.scale(y)).addInPlace(right.scale(z)).scaleInPlace(size));
 }
 
 /**
@@ -821,18 +984,7 @@ function capPlace(cap: ArrowCap, mesh: Mesh, camera: Camera): ((x: number, y: nu
         // A 2D cap, an image cap or the 3D sphere-dot: its geometry under its slot's matrix.
         return (x, y, z) => Vector3.TransformCoordinates(new Vector3(x, y, z), world);
     }
-    // The billboard shader's frame (FilledArrowRenderer, filledArrowVertexShader): along the
-    // line, across it facing the camera, at the cap's length.
-    const centre = world.getTranslation();
-    const forward = look.direction.normalizeToNew();
-    let right = Vector3.Cross(forward, camera.globalPosition.subtract(centre).normalize());
-    if (right.lengthSquared() < 1e-12) {
-        right = Vector3.Cross(forward, Math.abs(forward.y) < 0.99 ? Vector3.Up() : Vector3.Right());
-    }
-    right.normalize();
-    const up = Vector3.Cross(right, forward);
-    return (x, y, z) =>
-        centre.add(forward.scale(x).addInPlace(up.scale(y)).addInPlace(right.scale(z)).scaleInPlace(look.size));
+    return billboardFrame(world.getTranslation(), look.direction.normalizeToNew(), look.size, camera);
 }
 
 /**

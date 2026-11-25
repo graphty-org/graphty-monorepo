@@ -32,7 +32,14 @@ import {
     type Target,
     writeIn,
 } from "./row";
-import { focusLineNext, focusSectionNext, lineTarget, listOpensNext, openListNext } from "./useFocusLine";
+import {
+    focusLineNext,
+    focusSectionNext,
+    lineTarget,
+    listOpensNext,
+    openListNext,
+    useFocusOnRemoval,
+} from "./useFocusLine";
 import { ModelNameField, ValueField } from "./ValueField";
 import { ValuePicker } from "./ValuePicker";
 import {
@@ -308,30 +315,6 @@ function undrawnCode(session: GraphSession, layer: LayerId, channel: Channel): s
         return undefined;
     }
     return session.styles.counts(layer).undrawn.find((fact) => UNDRAWN_WORDS[fact.code] !== undefined)?.code;
-}
-
-/**
- * Hands focus to its section's "+" when a row that holds focus goes away (its minus, Delete, or an
- * Undo of the add), so focus never falls to the page (WCAG 2.4.3).
- * @param box - the row.
- */
-function useFocusOnRemoval(box: React.RefObject<HTMLElement | null>): void {
-    useLayoutEffect(() => {
-        const node = box.current;
-        return () => {
-            if (!node?.contains(document.activeElement)) {
-                return;
-            }
-            const section = node.closest<HTMLElement>("[data-section]")?.dataset.section;
-            // Only focus that fell to the page: a tab that replaced this row's (a selection's first
-            // line made a layer) may already have handed focus to its own copy of the row.
-            requestAnimationFrame(() => {
-                if (section !== undefined && (document.activeElement ?? document.body) === document.body) {
-                    document.querySelector<HTMLElement>(`[data-section="${section}"] [data-plus]`)?.focus();
-                }
-            });
-        };
-    }, [box]);
 }
 
 /**
@@ -1542,8 +1525,6 @@ function VaryButton({
             </Popout.Trigger>
             <Popout.Panel
                 width={POPOUT_WIDTH}
-                placement="left"
-                alignment="start"
                 header={{ variant: "title", title: label }}
                 closeLabel={`Close ${label}`}
             >
@@ -1726,8 +1707,6 @@ function BoundValue({
             </div>
             <Popout.Panel
                 width={POPOUT_WIDTH}
-                placement="left"
-                alignment="start"
                 anchorY={pill}
                 header={{ variant: "title", title: bindingTitle(channel, sourceWords) }}
                 closeLabel={`Close ${bindingTitle(channel, sourceWords)}`}

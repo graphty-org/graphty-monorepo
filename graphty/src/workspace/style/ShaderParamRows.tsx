@@ -364,8 +364,6 @@ function ParamGear({ row, rowName, marked, onChange }: Readonly<ParamGearProps>)
             </Popout.Trigger>
             <Popout.Panel
                 width={GEAR_WIDTH}
-                placement="left"
-                alignment="start"
                 header={{ variant: "title", title }}
                 closeLabel={EDITOR_WORDS.closeSettings(rowName)}
             >

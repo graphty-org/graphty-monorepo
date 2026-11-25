@@ -639,7 +639,8 @@ export interface TimeSources {
     /**
      * Moves on every change to the graph other than rows added at the end: a record edit, a
      * removal, an undo, rows renumbered. While it stands still, rows already indexed still hold
-     * what they held and new ones follow them, so the index merges them in. Absent, it rebuilds.
+     * what they held and new ones follow them, so the index merges them in, and a write that adds
+     * no row keeps the index. Absent, it rebuilds on every token.
      */
     readonly rewrites?: () => string;
     /** Settles when the load running now and those behind it have; null when none runs. */
@@ -1245,13 +1246,18 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     const rewritesNow = (): string => sources.rewrites?.() ?? "";
 
     /**
-     * The data as a key: what moved when an index built over it no longer fits.
+     * The data as a key: what moved when an index built over it no longer fits. With the write mark,
+     * the mark and the counts say it all, so a write that changes no row (a graph value such as a
+     * load's report, a direction) leaves the key, and the index, as they were (issue #9951); the
+     * token, which moves on every write, keys it only without the mark.
      * @returns The key.
      */
     const dataKey = (): string => {
         const graph = sources.snapshot();
+        const rewrites = rewritesNow();
+        const mark = rewrites === "" ? `t${String(sources.token())}` : `r${rewrites}`;
 
-        return `${sources.token()}|${graph.nodeCount}|${graph.edgeCount}|${rewritesNow()}`;
+        return `${mark}|${graph.nodeCount}|${graph.edgeCount}`;
     };
 
     /**

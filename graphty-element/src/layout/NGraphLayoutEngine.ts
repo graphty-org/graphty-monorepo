@@ -19,7 +19,14 @@ import {
     sameCommunities,
 } from "./clusterForce";
 import type { D3RowSource, RowExtent } from "./D3GraphLayoutEngine";
-import { EdgePosition, type EdgeRow, heldEdgeProblems, LayoutEngine, Position } from "./LayoutEngine";
+import {
+    edgeEndsFollowNodes,
+    EdgePosition,
+    type EdgeRow,
+    heldEdgeProblems,
+    LayoutEngine,
+    Position,
+} from "./LayoutEngine";
 import { nodeGapFrontOption, nodeGapOption } from "./nodeGapOptions";
 import { seedSchema } from "./seedOption";
 
@@ -1392,3 +1399,5 @@ export class NGraphEngine extends LayoutEngine {
         return ngraphNode;
     }
 }
+
+edgeEndsFollowNodes(NGraphEngine);

@@ -25,7 +25,7 @@ import { dataManagerInternals } from "../../src/managers/DataManager";
 import type { RenderPath } from "../../src/meshes/NodeBatch";
 import { curveWork } from "../../src/meshes/pulledCurve";
 import type { NodeShapeValue } from "../../src/session/styles/channels";
-import { drag, hover } from "../helpers/real-input";
+import { drag, hover, wheel } from "../helpers/real-input";
 
 const COUNT = 40;
 const NODES = Array.from({ length: COUNT }, (_, id) => ({
@@ -303,6 +303,44 @@ describe("reads on the batched path", () => {
         assert.strictEqual(diamond.size, EDGES.length, "every curve is still drawn from its rows");
         const recut = [...diamond].filter(([row, start]) => Math.abs(start - (rectangle.get(row) ?? start)) > 0.05);
         assert.strictEqual(recut.length, EDGES.length, "every curve is cut again at the diamond's outline");
+    });
+
+    it("a curve drawn from its rows is cut again when a zoom resizes its node's screen-pixel border", async () => {
+        const element = await mounted("batched", "3d", FIXED_3D);
+        await element.session.styles.add({
+            name: "rings",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.borderScreenWidth": 4 },
+        });
+        await element.session.styles.add({
+            name: "curves",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.arrowHead": "none", "edge.curvature": true },
+        });
+        await operationQueueOf(element.graph).waitForCompletion();
+        await element.waitForStableFrame();
+        const lines = element.graph.getEdgeRowLines();
+        const start = (): number[] => {
+            const all: number[] = [];
+            lines?.forEachShownCurve((_, points) => all.push(points[0], points[1], points[2]));
+            return all;
+        };
+        const near = start();
+        assert.strictEqual(near.length, EDGES.length * 3, "every curve is drawn from its rows");
+
+        // a zoom far out widens each ring in scene units, which moves where every curve leaves its node
+        for (let turn = 0; turn < 6; turn++) {
+            await wheel(element, { x: 200, y: 150 }, 400);
+            await element.waitForStableFrame();
+        }
+
+        const far = start();
+        assert.isTrue(
+            far.some((v, i) => v !== near[i]),
+            "the curves are cut again at the rings the zoom rebuilt",
+        );
     });
 
     // An add of more edges than the edge set's log keeps (4,096, `data/edgeSetLog.ts`) names no pairs: every edge is

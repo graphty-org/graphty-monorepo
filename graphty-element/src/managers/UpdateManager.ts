@@ -2765,6 +2765,9 @@ export class UpdateManager implements Manager {
                 edge.invalidatePositionCache();
                 this.edgesToPlace.push(edge);
             }
+
+            // ...and its curves drawn with no `Edge`, cut again at its new outline
+            this.graphContext.getEdgeRowLines?.()?.endChanged(row);
         }
 
         this.sceneChanged = true;
@@ -2850,6 +2853,7 @@ export class UpdateManager implements Manager {
         for (const edge of this.builtEdges()) {
             edge.invalidatePositionCache();
         }
+        this.graphContext.getEdgeRowLines?.()?.placeEveryCurve();
         this.forceEdgeWalk();
         this.updateEdges();
     }
@@ -5610,6 +5614,10 @@ export class UpdateManager implements Manager {
      * @internal
      */
     placeEdgesOfNode(node: Node): void {
+        if (node.index !== INVALID_INDEX) {
+            this.graphContext.getEdgeRowLines?.()?.endChanged(node.index);
+        }
+
         // Placed by the frame that next places edges (`placeTouchedEdges` keeps them while a load holds the draw).
         for (const edge of this.edgesAt(node.id)) {
             edge.invalidatePositionCache();
@@ -5765,6 +5773,14 @@ export class UpdateManager implements Manager {
         for (const edge of this.builtEdges()) {
             if (ids.has(edge.srcId) || ids.has(edge.dstId)) {
                 edge.invalidatePositionCache();
+            }
+        }
+
+        // ...and the curves drawn with no `Edge` on them are cut again at the new ring (`EdgeRowLines.endChanged`)
+        const lines = this.graphContext.getEdgeRowLines?.() ?? null;
+        for (const node of resized) {
+            if (node.index !== INVALID_INDEX) {
+                lines?.endChanged(node.index);
             }
         }
 

@@ -874,6 +874,13 @@ export class EdgeRowLines implements StraightPieceHolder {
         }
     }
 
+    /** Place every curve at the next {@link EdgeRowLines.placeCurves}, however little its nodes moved. */
+    placeEveryCurve(): void {
+        this.placedBounds = null;
+        this.placedExtents = null;
+        this.curvesPlacedAt = -1;
+    }
+
     /**
      * The moved node rows with those {@link EdgeRowLines.endChanged} named since the last placement added.
      * @param moved - What {@link EdgeRowLines.movedEnds} found.

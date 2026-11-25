@@ -625,8 +625,10 @@ describe("every kind of joining, from the sample files", () => {
             ["people.csv", "p01", "people"],
             ["buildings.csv", "b1", "buildings"],
         ] as const) {
-            await userEvent.click(within(within(place).getByRole("listitem", { name: row })).getAllByRole("button")[0]);
-            await userEvent.click(await within(place).findByRole("button", { name: "Add to node attributes" }));
+            // Every source's entry opens by itself: the button is this one's.
+            const entry = within(within(place).getByRole("listitem", { name: row }));
+            await userEvent.click(entry.getAllByRole("button")[0]);
+            await userEvent.click(await entry.findByRole("button", { name: "Add to node attributes" }));
             // The file's name is the only kind offered: Kind of node is added with it.
             await userEvent.click(await screen.findByRole("menuitem", { name: "Kind of node" }));
             await waitFor(() => {

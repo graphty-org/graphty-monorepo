@@ -174,7 +174,7 @@ export const PROGRAM_SAMPLES: readonly ProgramSample[] = [
             "The network of Cytoscape's data visualization tutorial, genes colored by expression where Cytoscape placed them.",
         size: "331 nodes, 362 edges",
         picture: `${PROGRAMS_URL}cytoscape-xgmml.webp`,
-        url: `${PROGRAMS_URL}cytoscape.xgmml`,
+        url: `${PROGRAMS_URL}cytoscape.xgmml.gz`,
     },
     {
         id: "program-ndex-cx",

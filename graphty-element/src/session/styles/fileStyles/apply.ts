@@ -23,7 +23,13 @@ import {
 
 import type { Channel, EdgeId, LayerId, LayerSpec, NodeId, Path } from "../../../catalog/types";
 import type { LoadReport } from "../../../data/report";
-import type { DataImportCommand } from "../../commands/data";
+import {
+    COLUMNS_VALUE,
+    type ColumnSettings,
+    type DataImportCommand,
+    declarationKey,
+    NO_COLUMN_SETTINGS,
+} from "../../commands/data";
 import type { UndoableContext } from "../../project/Dispatcher";
 import type { TimeField } from "../../time/TimeApi";
 import type { GraphFraming } from "../../types";
@@ -437,8 +443,10 @@ async function applyRead(
     // The values, written onto the elements the element holds as ordinary data columns: only those a layer reads,
     // so a value a layer the file rebuilt no longer reads leaves no column behind.
     const reads = readsOf(accepted);
+    const valueColumns: string[] = [];
     for (const kind of ["node", "edge"] as const) {
         const used = new Map([...translation.columns[kind]].filter(([key]) => reads(columnPath(kind, key))));
+        valueColumns.push(...valueColumnKeys(kind, used.keys(), columnPath));
         const rows = rowsOf(
             used,
             ids[kind],
@@ -448,6 +456,10 @@ async function applyRead(
         if (rows.length > 0) {
             await ctx.inline({ op: "data.apply", mutation: { kind: "update-rows", target: kind, rows } });
         }
+    }
+
+    if (options.valueColumns === "hidden") {
+        await hideColumns(ctx, valueColumns);
     }
 
     const layers: LayerId[] = [];
@@ -495,6 +507,39 @@ async function applyRead(
     }
 
     return { layers, notes, sceneScale, lengthScale: translation.sceneScale ?? 1 };
+}
+
+/**
+ * The column keys (`<kind>:<name>`) of the style values a kind's layers read: a copy of the file's own data column
+ * goes back into that column, so it is the file's data, not a style value, and is left out.
+ * @param kind - Nodes or edges.
+ * @param keys - The translation's keys the layers read.
+ * @param columnPath - The `data.` path each key lands at.
+ * @returns The column keys.
+ */
+function valueColumnKeys(
+    kind: "node" | "edge",
+    keys: Iterable<string>,
+    columnPath: (kind: "node" | "edge", key: string) => Path,
+): string[] {
+    return [...keys]
+        .filter((key) => carriedColumnOf(key) === null)
+        .map((key) => declarationKey({ kind, name: columnPath(kind, key).slice(DATA_PREFIX.length) }));
+}
+
+/**
+ * Hide columns, inside the load's step, as `session.data.setHidden` hides them.
+ * @param ctx - The import's context.
+ * @param columns - The column keys (`<kind>:<name>`).
+ */
+async function hideColumns(ctx: UndoableContext, columns: readonly string[]): Promise<void> {
+    if (columns.length === 0) {
+        return;
+    }
+
+    const settings = (ctx.state.graph.values.get(COLUMNS_VALUE) as ColumnSettings | undefined) ?? NO_COLUMN_SETTINGS;
+    const hidden = [...new Set([...settings.hidden, ...columns])];
+    await ctx.inline({ op: "data.columns", settings: { ...settings, hidden } });
 }
 
 /** The prefix of a path reading a record's attribute. */

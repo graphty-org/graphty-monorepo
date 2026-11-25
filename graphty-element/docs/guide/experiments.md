@@ -245,6 +245,27 @@ draft.replaceStep(at, { act: "connect", options: { ...ends, to: { ...ends.to, ke
 draft.steps()[at]?.act?.to?.keepRow; // true: each entry is a node between a person and a building
 ```
 
+`draft.link` links nodes whose rows share a value in a column: an edge per pair of nodes, its
+`shared` attribute the number of values they share, or with `as: "nodes"` one node per value. A value
+more than `maxShared` nodes hold (default 10) links none of them, and a pair must share `minShared`
+values (default 1). For values in rows of their own, `field` names the node holding each row's and
+`into` where those nodes are. `extract` makes nodes of a column's values, joined to the node each row
+is, or to one end of edge rows; `split` makes one node per value of a cell, and `columns` moves
+columns onto the new nodes, which splits one file into several node types. Each step reads its
+options back in `link` or `extract`, and `replaceStep` makes it again with one changed:
+
+```ts
+const accounts = await draft.stage(accountsCsv, { key: "account", type: "account" });
+draft.link({ source: accounts, columns: ["phone", "device"], maxShared: 5 });
+draft.extract(accounts, { column: "tags", split: ";", type: "tag" });
+draft.extract(accounts, { column: "branch_id", type: "branch", columns: ["branch_name"] });
+const step = draft.steps().find((row) => row.link !== null);
+if (step?.link) {
+    draft.replaceStep(step.index, { act: "link", options: { ...step.link, minShared: 2 } });
+    console.log(draft.steps()[step.index]?.buckets?.newEdges); // pairs sharing two values
+}
+```
+
 `preview()` compares the draft's graph with the committed one, counted over every row: totals and
 counts per type `before` and `after`; nodes and edges added, removed and changed; and for each
 step its counts (`buckets`) and their change from the committed ones:
@@ -261,6 +282,7 @@ step its counts (`buckets`) and their change from the committed ones:
 | `namedOnly`                                            | nodes a source's edges name that its own node rows lack                  |
 | `valuesDiffer`                                         | cells, per column, where another source wrote a different value          |
 | `repeated1`, `repeated2`, `rowsDiffer`                 | keys repeated on either side, and those whose rows differ                |
+| `hub`, `pairsBelowMin`                                 | values too many nodes share, and pairs sharing too few, so not linked    |
 | `groups`                                               | how many nodes each merged node was made from, largest first             |
 | `parallelPairs`, `selfLoops`                           | end pairs an earlier edge already joins, and edges from a node to itself |
 | `endsMeet`, `endsMissing`                              | edge ends that found a node, or none, per id space                       |

@@ -51,3 +51,24 @@ export async function sourceJoinOptions(
     draft.replaceStep(at, { act: "connect", options: { ...ends, to: { ...ends.to, keepRow: true } } });
     console.log(draft.steps()[at]?.act?.to?.keepRow); // true: each entry is a node between a person and a building
 }
+
+/**
+ * The guide's shared values and columns into nodes: accounts linked by a phone or a device, and their
+ * tags and branches made nodes.
+ * @param draft - the open draft
+ * @param accountsCsv - the accounts file
+ */
+export async function sourceSharedValues(
+    draft: SourceDraft,
+    accountsCsv: { type: string; config: { data: string } },
+): Promise<void> {
+    const accounts = await draft.stage(accountsCsv, { key: "account", type: "account" });
+    draft.link({ source: accounts, columns: ["phone", "device"], maxShared: 5 });
+    draft.extract(accounts, { column: "tags", split: ";", type: "tag" });
+    draft.extract(accounts, { column: "branch_id", type: "branch", columns: ["branch_name"] });
+    const step = draft.steps().find((row) => row.link !== null);
+    if (step?.link) {
+        draft.replaceStep(step.index, { act: "link", options: { ...step.link, minShared: 2 } });
+        console.log(draft.steps()[step.index]?.buckets?.newEdges); // pairs sharing two values
+    }
+}

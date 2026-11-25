@@ -33,6 +33,8 @@ describe("experiments guide: source-steps", () => {
             "data.sourceTable(",
             "data.setMapping(",
             "sameName",
+            "draft.link(",
+            "draft.extract(",
         ]) {
             assert.include(text, member, member);
         }

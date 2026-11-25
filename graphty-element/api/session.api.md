@@ -7810,6 +7810,7 @@ export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "match
         readonly overlap?: "separate" | "merge";
     }): Promise<string>;
     include(step: number, keys: readonly SourceCellValue[]): void;
+    link(options: SourceLinkOptions): number;
     merge(options: SourceMergeOptions): void;
     moveColumns(source: SourceKey, options: SourceMoveColumnsOptions): void;
     moveStep(index: number, to: number): void;
@@ -8154,8 +8155,9 @@ export interface SourceExtractOptions {
     readonly column: string;
     readonly columns?: readonly string[];
     readonly edgeType?: SourceTypeName;
-    readonly from?: "source" | "target";
+    readonly from?: "source" | "target" | "row";
     readonly space?: SourceSpaceName;
+    readonly split?: string;
     readonly type?: SourceTypeName;
 }
 
@@ -8208,6 +8210,13 @@ export type SourceJoinAct = {
 } | {
     readonly act: "connect";
     readonly options: SourceConnectOptions;
+} | {
+    readonly act: "link";
+    readonly options: SourceLinkOptions;
+} | {
+    readonly act: "extract";
+    readonly source: SourceKey;
+    readonly options: SourceExtractOptions;
 };
 
 // @public
@@ -8243,6 +8252,22 @@ export interface SourceLineage {
     }[];
     readonly supplied: readonly SourceKey[];
     readonly type: SourceTypeName | null;
+}
+
+// @public
+export interface SourceLinkOptions {
+    readonly as?: "edges" | "nodes";
+    readonly columns: readonly string[];
+    readonly edgeType?: SourceTypeName;
+    readonly field?: string;
+    readonly ignoreCase?: boolean;
+    readonly ignoreSpaces?: boolean;
+    readonly into?: SourceJoinInto;
+    readonly maxShared?: number;
+    readonly minShared?: number;
+    readonly source: SourceKey;
+    readonly space?: SourceSpaceName;
+    readonly type?: SourceTypeName;
 }
 
 export { SourceListing }
@@ -8644,6 +8669,7 @@ export interface SourceStepCounts {
     readonly newNodes: number;
     readonly newNodeTypes: Readonly<Record<SourceTypeName, number>>;
     readonly op: SourceStepOp;
+    readonly pairsBelowMin: number;
     readonly parallelPairs: number;
     readonly part?: number;
     readonly repeated1: number;
@@ -8684,8 +8710,11 @@ export interface SourceStepPatch {
     readonly existing?: "add" | "merge";
     readonly ignoreCase?: boolean;
     readonly ignoreSpaces?: boolean;
+    readonly maxShared?: number;
+    readonly minShared?: number;
     readonly off?: boolean;
     readonly repeated?: "first" | "last" | "both" | null;
+    readonly split?: string | null;
     readonly unmatchedFrom?: "keep" | "drop";
 }
 
@@ -8701,8 +8730,10 @@ export interface SourceStepRow {
     readonly act: SourceStepAct | null;
     readonly buckets: SourceStepCounts | null;
     readonly except: SourceRowFilter | null;
+    readonly extract: SourceExtractOptions | null;
     readonly held: boolean;
     readonly index: number;
+    readonly link: SourceLinkOptions | null;
     readonly missing: readonly SourceRefreshIssue[];
     readonly off: boolean;
     readonly op: SourceStepOp;

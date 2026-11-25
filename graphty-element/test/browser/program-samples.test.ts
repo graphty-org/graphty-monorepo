@@ -39,10 +39,40 @@ interface Expected {
     readonly widthToSpacing?: number;
     /** The layout the file asks for, which draws it when it stores no positions, and no two nodes overlap in it. */
     readonly layout?: string;
+    /**
+     * How many labels are drawn at each place round their node: the place the file states for each label, counted.
+     * Every node its program labels is counted, so a label left out or drawn elsewhere changes a count.
+     */
+    readonly labelPositions: Readonly<Partial<Record<LabelPlace, number>>>;
 }
+
+/** Where a label is drawn round its node. */
+type LabelPlace = NonNullable<SceneNode["label"]>["position"];
+
+/** A sample whose format carries no styling: the column its node labels come from, and one node's text in it. */
+interface Unstyled {
+    /** The column the element offers for the label role, or null when the node id is the label. */
+    readonly column: string | null;
+    /** A node and the text the file gives it in that column. */
+    readonly node?: readonly [string, string];
+}
+
+const UNSTYLED: Readonly<Record<string, Unstyled>> = {
+    // a person's name; a film has a title instead
+    neo4j: { column: "name", node: ["Keanu", "Keanu Reeves"] },
+    // the term's name
+    "obo-foundry": { column: "name", node: ["TAXRANK:0000006", "species"] },
+    // nothing but the ids
+    "cytoscape-sif": { column: null },
+    "cytoscape-table": { column: null },
+    // a name as the id and a group number
+    d3: { column: null },
+};
 
 const EXPECTED: Readonly<Record<string, Expected>> = {
     yed: {
+        // its groups' internal labels (top and center) are drawn inside, its nodes' sandwich labels (south) below
+        labelPositions: { inside: 19, below: 46 },
         nodes: {
             // a group whose fill has no color (hasColor="false"): drawn unfilled
             n0: { shape: "roundrect", fill: null, label: "External File" },
@@ -56,6 +86,8 @@ const EXPECTED: Readonly<Record<string, Expected>> = {
         placed: true,
     },
     "yed-live": {
+        // each label at its own model position: 113 of its 183 nodes have none
+        labelPositions: { inside: 24, below: 35, above: 6, left: 2, right: 3 },
         nodes: {
             n0: { shape: "ellipse", fill: "#ff8c00", label: "x1" },
             n3: { shape: "ellipse", fill: null, label: "p(X4)" },
@@ -65,6 +97,7 @@ const EXPECTED: Readonly<Record<string, Expected>> = {
         placed: true,
     },
     cytoscape: {
+        labelPositions: { inside: 30 },
         labelsCentered: true,
         nodes: {
             "7541": { shape: "rect", fill: "#ffffff", label: "Apoptosis" },
@@ -75,6 +108,8 @@ const EXPECTED: Readonly<Record<string, Expected>> = {
         placed: true,
     },
     "cytoscape-xgmml": {
+        // NODE_LABEL_POSITION C,C: on the node; two nodes' NODE_LABEL is empty
+        labelPositions: { inside: 329 },
         labelsCentered: true,
         nodes: {
             "392": { shape: "rect", fill: "#f2e1df", label: "SNF3" },
@@ -84,6 +119,7 @@ const EXPECTED: Readonly<Record<string, Expected>> = {
         placed: true,
     },
     "ndex-cx": {
+        labelPositions: { inside: 33, right: 1 },
         labelsCentered: true,
         nodes: {
             "1655": { shape: "ellipse", fill: "#006666", label: "STAT3", labelColor: "#ffffff" },
@@ -96,6 +132,8 @@ const EXPECTED: Readonly<Record<string, Expected>> = {
         placed: true,
     },
     "ndex-cx2": {
+        // centered; 52 unnamed shapes have no label
+        labelPositions: { inside: 228 },
         labelsCentered: true,
         nodes: {
             "136962": { shape: "rect", fill: "#ffffff", label: "FBXW5", labelColor: "#0033ff" },
@@ -105,6 +143,8 @@ const EXPECTED: Readonly<Record<string, Expected>> = {
         placed: true,
     },
     "cytoscape-js": {
+        // text-valign center
+        labelPositions: { inside: 31 },
         nodes: {
             "296": { shape: "ellipse", fill: "#999999", label: "MED6", labelColor: "#ffffff" },
             "142": { shape: "ellipse", fill: "#666666", label: "RAD50" },
@@ -113,6 +153,8 @@ const EXPECTED: Readonly<Record<string, Expected>> = {
         placed: true,
     },
     gephi: {
+        // Gephi centers labels on nodes; its Preview hides three crowded ones
+        labelPositions: { inside: 74 },
         nodes: {
             "0": { shape: "ellipse", fill: "#5b5bf5", label: "Myriel" },
             "16": { shape: "ellipse", fill: "#5bc2f5", label: "Tholomyes" },
@@ -121,6 +163,8 @@ const EXPECTED: Readonly<Record<string, Expected>> = {
         placed: true,
     },
     graphviz: {
+        // Graphviz centers a label in its node; its 13 point and empty-label nodes draw none
+        labelPositions: { inside: 52 },
         nodes: {
             SCI: { shape: "ellipse", fill: "#d9e7ee", label: "System calls" },
             DM: { shape: "octagon", fill: "#91b5c9", label: "Device\nModel" },
@@ -132,6 +176,8 @@ const EXPECTED: Readonly<Record<string, Expected>> = {
         layout: "graphviz-dot",
     },
     ogdf: {
+        // OGDF centers a label in its box
+        labelPositions: { inside: 43 },
         nodes: {
             // the text inside the label's markup, in its textColor
             "0": { shape: "rect", fill: "#ffd700", label: "Sample Attribute", labelColor: "#000000" },
@@ -143,8 +189,12 @@ const EXPECTED: Readonly<Record<string, Expected>> = {
         // two joined boxes), so a box is most of the way across to its neighbor, not a speck between them
         widthToSpacing: 0.5,
         placed: false,
+        // OGDF's energy layout keeps a gap between the circles round its boxes: the force layout keeps it too
+        layout: "ngraph",
     },
     pajek: {
+        // Pajek draws a label beside its vertex, at the default label angle (0, to the right)
+        labelPositions: { right: 111 },
         nodes: {
             "1": { shape: "ellipse", fill: "#ffccff", label: "207-555-8248" },
             "2": { shape: "rect", fill: "#ccffff", label: "415-555-2188" },
@@ -195,10 +245,14 @@ afterEach(() => {
 });
 
 describe("the sample files from other programs, drawn with their file styles", () => {
-    it("has an expectation for every styled sample", () => {
+    it("has an expectation for every sample", () => {
         assert.deepEqual(
             SAMPLES.filter((sample) => sample.styled).map((sample) => sample.id),
             Object.keys(EXPECTED),
+        );
+        assert.deepEqual(
+            SAMPLES.filter((sample) => !sample.styled).map((sample) => sample.id),
+            Object.keys(UNSTYLED),
         );
     });
 
@@ -220,6 +274,19 @@ describe("the sample files from other programs, drawn with their file styles", (
         assert.deepEqual([counts.nodes, counts.edges], [sample.nodes, sample.edges], `${sample.id} counts`);
         const expected = EXPECTED[sample.id] as Expected | undefined;
         if (expected === undefined) {
+            // no labels of its own: the element offers the file's name column for the label role, else the node id
+            const unstyled = UNSTYLED[sample.id];
+            assert.isDefined(unstyled, `${sample.id} has an expectation`);
+            assert.equal(
+                element.session.data.roleCandidate("node", "label"),
+                unstyled.column,
+                `${sample.id} label column`,
+            );
+            if (unstyled.node !== undefined && unstyled.column !== null) {
+                const [id, text] = unstyled.node;
+                const record = [...element.session.data.nodes()].find((node) => node.id === id);
+                assert.equal(record?.[unstyled.column], text, `${sample.id} node ${id} ${unstyled.column}`);
+            }
             return;
         }
         if (expected.placed) {
@@ -239,6 +306,14 @@ describe("the sample files from other programs, drawn with their file styles", (
             .filter((node) => node.label?.position !== "inside")
             .map((node) => `${node.id} ${String(node.label?.text)} ${String(node.label?.position)}`);
         assert.deepEqual(offNode, [], `${sample.id} labels the file centers on their node`);
+        // every label the file gives is drawn, where the file puts it
+        const places: Partial<Record<LabelPlace, number>> = {};
+        for (const node of scene.nodes) {
+            if (node.label !== null && node.label.text !== "" && node.label.visible) {
+                places[node.label.position] = (places[node.label.position] ?? 0) + 1;
+            }
+        }
+        assert.deepEqual(places, expected.labelPositions, `${sample.id} labels drawn where the file puts them`);
         if (expected.widthToSpacing !== undefined) {
             assert.isAtLeast(
                 widthToSpacing(scene.nodes),

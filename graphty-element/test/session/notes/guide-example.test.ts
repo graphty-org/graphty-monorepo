@@ -39,8 +39,8 @@ describe("the notes guide's examples", () => {
         await session.styles.add({
             name: "Notes",
             target: "node",
-            selector: { match: "has", path: "graphty.notes.count" },
-            encode: { "node.label": { by: "graphty.notes.latest" } },
+            selector: { match: "has", path: "store.graphty.notes.count" },
+            encode: { "node.label": { by: "store.graphty.notes.latest" } },
         });
         await session.styles.settled();
         assert.strictEqual(labelOf(session, "ada"), "Wrote the first program.");

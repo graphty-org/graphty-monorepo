@@ -190,6 +190,33 @@ describe("Graphviz layouts in the element", () => {
         assert.isAbove(off / length, 0.05, "its dashes bow off the line between its nodes, round b");
     });
 
+    // An undirected edge carries no arrow, so on "batched" it is a plain line, which is drawn from the shared batch
+    // straight between its nodes unless the layout lays it (issue #10024); the forced-batched lane runs these.
+    it("draws an undirected edge along the route dot laid it, round b (issue #10024)", async () => {
+        await graph.getSession().data.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }]);
+        await graph.getSession().data.addEdges(
+            [
+                ["a", "b"],
+                ["b", "c"],
+                ["a", "c"],
+            ].map(([source, target]) => ({ source, target, directed: false })),
+        );
+        await graph.setLayout("graphviz-dot");
+        await settled();
+        await graph.waitForStableFrame();
+
+        assert.isAbove(bow("a", "c"), 0.05, "the edge bows off the line between its nodes, round b");
+    });
+
+    it("draws an undirected DOT file's edge along the route dot laid it, round b (issue #10024)", async () => {
+        await graph.getSession().data.import({ type: "dot", config: { data: "graph { a -- b; b -- c; a -- c }" } });
+        await graph.setLayout("graphviz-dot");
+        await settled();
+        await graph.waitForStableFrame();
+
+        assert.isAbove(bow("a", "c"), 0.05, "the edge bows off the line between its nodes, round b");
+    });
+
     it("draws a DOT file loaded with layout recommended with the engine the file names", async () => {
         const session = graph.getSession();
         await session.data.import(
@@ -486,6 +513,21 @@ describe("Graphviz layouts in the element", () => {
             0.1,
             "an edge into a port goes round the wall on its way to it, as Graphviz routes it",
         );
+    });
+
+    it("has Graphviz route an undirected placed DOT file's edge round the node in its way (issue #10024)", async () => {
+        // `fixed` with Graphviz's routes lays its edges; an undirected edge is a plain line on "batched"
+        const session = graph.getSession();
+        await session.data.import(
+            { type: "dot", config: { data: PLACED.replace("digraph", "graph").replaceAll("->", "--") } },
+            { layout: "recommended", styleOptions: { lengths: "file" } },
+        );
+        await settled();
+        await graph.waitForStableFrame();
+
+        assert.strictEqual(session.layout.options.edgeRoutes, "graphviz");
+        // with no file styles the block is drawn small, so the route Graphviz laid round it bows only a little
+        assert.isAbove(bow("a", "c"), 0.005, "the edge goes round the block between its nodes, not straight");
     });
 
     it("draws a DOT file's edge label where dot put it, beside the line, not on its middle", async () => {

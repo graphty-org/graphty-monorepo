@@ -1,6 +1,6 @@
 /**
  * @file Notes in styles (design/notes/notes-design.md section 6): the reserved `graphty.` path
- * root, `graphty.notes.count`, `graphty.notes.latest` and `graphty.notes.latestTime` in selectors,
+ * root, `store.graphty.notes.count`, `store.graphty.notes.latest` and `store.graphty.notes.latestTime` in selectors,
  * bindings and `select({ where })`, the repaint a note write owes, `styles.validate`, and the
  * `notes-path` refusal everywhere a path decides what a result, a set or the filter holds.
  */
@@ -9,6 +9,7 @@ import { assert, describe, it } from "vitest";
 
 import type { NodeId } from "../../../src/catalog/types";
 import { StylePainter } from "../../../src/managers/StylePainter";
+import { upgradeStorePaths } from "../../../src/session/storePaths";
 import type { ElementSession } from "../../../src/session/types";
 import { edgeBetween, type Harness, makeSession } from "../helpers";
 import { notesHarness, refusalOf } from "./harness";
@@ -69,15 +70,15 @@ function passes(h: Harness): { count: number; nodes: string[] } {
     return seen;
 }
 
-describe("graphty.notes.* in styles", () => {
-    it("a has selector on graphty.notes.count paints exactly the noted nodes, and follows writes and undo", async () => {
+describe("store.graphty.notes.* in styles", () => {
+    it("a has selector on store.graphty.notes.count paints exactly the noted nodes, and follows writes and undo", async () => {
         const h = notesHarness();
         const { session } = h;
         session.notes.add({ text: "x", targets: [{ node: "a" }, { node: "11" }] });
         await session.styles.add({
             name: "Noted",
             target: "node",
-            selector: { match: "has", path: "graphty.notes.count" },
+            selector: { match: "has", path: "store.graphty.notes.count" },
             set: { "node.color": RED },
         });
         await session.styles.settled();
@@ -104,8 +105,8 @@ describe("graphty.notes.* in styles", () => {
         await session.styles.add({
             name: "Count",
             target: "node",
-            selector: { match: "expression", where: "graphty.notes.count > `0`" },
-            encode: { "node.label": { by: "graphty.notes.count" } },
+            selector: { match: "expression", where: "store.graphty.notes.count > `0`" },
+            encode: { "node.label": { by: "store.graphty.notes.count" } },
         });
         await session.styles.settled();
         assert.strictEqual(String(labelOf(h, "a")), "2");
@@ -115,8 +116,8 @@ describe("graphty.notes.* in styles", () => {
         await session.styles.add({
             name: "Latest",
             target: "node",
-            selector: { match: "has", path: "graphty.notes.latest" },
-            encode: { "node.label": { by: "graphty.notes.latest" } },
+            selector: { match: "has", path: "store.graphty.notes.latest" },
+            encode: { "node.label": { by: "store.graphty.notes.latest" } },
         });
         await session.styles.settled();
         assert.strictEqual(labelOf(h, "a"), "second");
@@ -128,8 +129,8 @@ describe("graphty.notes.* in styles", () => {
         await session.styles.add({
             name: "When",
             target: "node",
-            selector: { match: "has", path: "graphty.notes.latestTime" },
-            encode: { "node.label": { by: "graphty.notes.latestTime" } },
+            selector: { match: "has", path: "store.graphty.notes.latestTime" },
+            encode: { "node.label": { by: "store.graphty.notes.latestTime" } },
         });
         await session.styles.settled();
         assert.strictEqual(labelOf(h, "b"), session.notes.get(second)?.time);
@@ -143,13 +144,13 @@ describe("graphty.notes.* in styles", () => {
         await session.styles.add({
             name: "Noted edges",
             target: "edge",
-            selector: { match: "has", path: "graphty.notes.count" },
+            selector: { match: "has", path: "store.graphty.notes.count" },
             set: { "edge.color": RED },
         });
         await session.styles.add({
             name: "Noted nodes",
             target: "node",
-            selector: { match: "has", path: "graphty.notes.count" },
+            selector: { match: "has", path: "store.graphty.notes.count" },
             set: { "node.color": RED },
         });
         await session.styles.settled();
@@ -167,7 +168,7 @@ describe("graphty.notes.* in styles", () => {
         assert.deepEqual(red(h), [], "the set's member c is not counted");
     });
 
-    it("a note write repaints only when a layer reads graphty.notes.*, and then the affected elements", async () => {
+    it("a note write repaints only when a layer reads store.graphty.notes.*, and then the affected elements", async () => {
         const h = notesHarness();
         const { session } = h;
         await session.styles.add({
@@ -186,7 +187,7 @@ describe("graphty.notes.* in styles", () => {
         await session.styles.add({
             name: "Noted",
             target: "node",
-            selector: { match: "has", path: "graphty.notes.count" },
+            selector: { match: "has", path: "store.graphty.notes.count" },
             set: { "node.color": RED },
         });
         await session.styles.settled();
@@ -201,7 +202,7 @@ describe("graphty.notes.* in styles", () => {
 });
 
 describe("note text in labels is plain text", () => {
-    it("note-7: a label bound to graphty.notes.latest is drawn as plain text; a data or fixed label is not", async () => {
+    it("note-7: a label bound to store.graphty.notes.latest is drawn as plain text; a data or fixed label is not", async () => {
         const h = makeSession({ directed: true });
         h.add([{ id: "a" }, { id: "b", name: "<bold>y</bold>" }]);
         const { session } = h;
@@ -210,8 +211,8 @@ describe("note text in labels is plain text", () => {
         await session.styles.add({
             name: "Note",
             target: "node",
-            selector: { match: "has", path: "graphty.notes.latest" },
-            encode: { "node.label": { by: "graphty.notes.latest" } },
+            selector: { match: "has", path: "store.graphty.notes.latest" },
+            encode: { "node.label": { by: "store.graphty.notes.latest" } },
         });
         await session.styles.add({
             name: "Name",
@@ -241,19 +242,19 @@ describe("note text in labels is plain text", () => {
 describe("the graphty. path root", () => {
     it("note-23: a bare graphty. path reads the element's value, data.graphty. the column, and validate says so", async () => {
         const h = makeSession({ directed: true });
-        h.add([{ id: "a" }, { id: "b", "graphty.notes.count": 5 }]);
+        h.add([{ id: "a" }, { id: "b", "store.graphty.notes.count": 5 }]);
         const { session } = h;
         session.notes.add({ text: "x", targets: [{ node: "a" }] });
 
         const bare = {
             name: "Bare",
             target: "node" as const,
-            selector: { match: "has" as const, path: "graphty.notes.count" },
+            selector: { match: "has" as const, path: "store.graphty.notes.count" },
             set: { "node.color": RED },
         };
         const result = session.styles.validate(bare);
         assert.isTrue(result.ok);
-        assert.deepEqual(result.shadowedPaths, ["graphty.notes.count"]);
+        assert.deepEqual(result.shadowedPaths, ["store.graphty.notes.count"]);
         assert.deepEqual(result.unresolvedPaths, []);
 
         await session.styles.add(bare);
@@ -263,13 +264,13 @@ describe("the graphty. path root", () => {
         await session.styles.add({
             name: "Column",
             target: "node",
-            selector: { match: "has", path: "data.graphty.notes.count" },
-            encode: { "node.label": { by: "data.graphty.notes.count" } },
+            selector: { match: "has", path: "data.store.graphty.notes.count" },
+            encode: { "node.label": { by: "data.store.graphty.notes.count" } },
         });
         await session.styles.settled();
         assert.strictEqual(String(labelOf(h, "b")), "5");
         assert.deepEqual(
-            session.styles.validate({ ...bare, selector: { match: "has", path: "data.graphty.notes.count" } })
+            session.styles.validate({ ...bare, selector: { match: "has", path: "data.store.graphty.notes.count" } })
                 .shadowedPaths,
             [],
         );
@@ -298,21 +299,21 @@ describe("the graphty. path root", () => {
         const result = session.styles.validate({
             name: "Later",
             target: "node",
-            selector: { match: "has", path: "graphty.notes.count" },
-            encode: { "node.label": { by: "graphty.notes.latest" } },
+            selector: { match: "has", path: "store.graphty.notes.count" },
+            encode: { "node.label": { by: "store.graphty.notes.latest" } },
         });
         assert.deepEqual(result.unresolvedPaths, []);
     });
 });
 
-describe("graphty.notes.* outside styles", () => {
+describe("store.graphty.notes.* outside styles", () => {
     it("select({ where }) reads the note values", async () => {
         const h = notesHarness();
         const { session } = h;
         session.notes.add({ text: "x", targets: [{ node: "a" }, { node: "b" }] });
         session.notes.add({ text: "y", targets: [{ node: "a" }] });
 
-        const delta = await session.selection.apply({ where: "graphty.notes.count > `1`" });
+        const delta = await session.selection.apply({ where: "store.graphty.notes.count > `1`" });
         assert.deepEqual(session.selection.nodes, ["a"]);
         assert.deepEqual(delta.unresolvedPaths ?? [], []);
     });
@@ -320,10 +321,10 @@ describe("graphty.notes.* outside styles", () => {
     it("note-24: the filter, a run scope, a scope and a set rule refuse a note path", async () => {
         const h = notesHarness();
         const { session } = h;
-        const where = "graphty.notes.count > `0`";
+        const where = "store.graphty.notes.count > `0`";
         const refusals = [
             refusalOf(() => session.visibility.set({ kind: "expression", where })),
-            refusalOf(() => session.visibility.set({ kind: "range", attribute: "graphty.notes.count", min: 1 })),
+            refusalOf(() => session.visibility.set({ kind: "range", attribute: "store.graphty.notes.count", min: 1 })),
             refusalOf(() => session.runs.start("degree", {}, { scope: { where }, style: false })),
             refusalOf(() =>
                 session.sets.create({ kind: "rule", where: { kind: "expression", where }, reading: "induced" }),
@@ -337,5 +338,54 @@ describe("graphty.notes.* outside styles", () => {
 
         await session.styles.settled();
         assert.strictEqual(session.visibility.filter, null, "nothing changed");
+    });
+});
+
+describe("the older graphty.notes.* addresses", () => {
+    it("upgradeStorePaths moves path members, expressions, end paths and template placeholders", () => {
+        const layer = {
+            selector: { match: "expression", where: "graphty.notes.count > `0` && data.name == 'graphty.notes.count'" },
+            encode: {
+                "node.label": { template: ["{graphty.notes.latest} ({graphty.notes.count|rank})", "{data.name}"] },
+                "edge.color": { by: "graphty.source.graphty.notes.count" },
+                "node.size": { by: "data.graphty.notes.count" },
+            },
+            filter: { attribute: "graphty.notes.latestTime" },
+        };
+        assert.deepEqual(upgradeStorePaths(layer), {
+            selector: {
+                match: "expression",
+                where: "store.graphty.notes.count > `0` && data.name == 'graphty.notes.count'",
+            },
+            encode: {
+                "node.label": {
+                    template: ["{store.graphty.notes.latest} ({store.graphty.notes.count|rank})", "{data.name}"],
+                },
+                "edge.color": { by: "graphty.source.store.graphty.notes.count" },
+                "node.size": { by: "data.graphty.notes.count" },
+            },
+            filter: { attribute: "store.graphty.notes.latestTime" },
+        });
+    });
+
+    it("a saved project whose layer reads graphty.notes.count opens reading the note count", async () => {
+        const h = notesHarness();
+        const { session } = h;
+        session.notes.add({ text: "x", targets: [{ node: "a" }] });
+        await session.styles.add({
+            name: "Noted",
+            target: "node",
+            selector: { match: "has", path: "store.graphty.notes.count" },
+            set: { "node.color": RED },
+        });
+        await session.styles.settled();
+        assert.deepEqual(red(h), ["a"]);
+
+        const { text } = await session.project.save();
+        const old = text.replaceAll("store.graphty.notes.", "graphty.notes.");
+        assert.notInclude(old, "store.graphty.notes.");
+        await session.project.open(old, { discard: true });
+        await session.styles.settled();
+        assert.deepEqual(red(h), ["a"], "the old address reads the note count");
     });
 });

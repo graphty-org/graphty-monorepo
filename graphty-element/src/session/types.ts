@@ -2982,7 +2982,8 @@ export interface SessionDataApi {
      */
     generate(name: string, params?: GeneratorParams, options?: ImportOptions): Promise<void>;
     /**
-     * Download one of `catalog.datasets()` by name and load it, as one undoable step.
+     * Download one of `catalog.datasets()` by name and load it, as one undoable step. Its source in
+     * `sources()` is named by the dataset's catalog `title` (`"Zachary's karate club"`).
      *
      * The element names no download host of its own: `baseUrl` says where graph-samples' dataset
      * files are published. graph-samples exports the address of its own copy:

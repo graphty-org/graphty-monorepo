@@ -636,5 +636,12 @@ or a registered one.
 the element has a GPU accelerator attached. Only the element's built-in simulation layouts
 (`forceatlas2`, `spring` and `spring-electrical`) run on an accelerator.
 
-**A routed or curved edge path is not available.** Edges are drawn between the two ends
-`getEdgePosition` reports, for every engine alike.
+**Your `getEdgePosition` is drawn on both render paths, at a cost on `"batched"`.** Every edge is
+drawn between the two ends your `getEdgePosition` reports, which may sit off the nodes' centers, and
+along the `bends` it returns, if any (`along, across` pairs relative to the line between the ends,
+as the `line.bends` style holds them; a route the edge's style stores wins). On
+`renderPath: "batched"` a plain edge of the element's own layouts, and of one made with
+`registerSnapshotLayout` or `defineLayout`, is drawn from one shared batch straight between its
+nodes. An engine with a `getEdgePosition` of its own instead has each edge drawn as an object, as
+on `"objects"`, so it draws where you say but a large graph draws more slowly. A
+`SimpleLayoutEngine` whose edges simply join their nodes should leave `getEdgePosition` out.

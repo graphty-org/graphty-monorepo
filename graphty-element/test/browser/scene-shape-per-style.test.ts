@@ -175,8 +175,9 @@ describe("the scene grows with styles and nodes, not with edges", () => {
     });
 
     it("adds exactly one line batch for a second edge style", async () => {
-        // A head keeps the line in the line batch: "batched" pulls a capless straight line, whose width keys no batch.
-        await styleEveryEdge(graph, { "edge.arrowHead": "normal" });
+        // A tail keeps the line in the line batch: "batched" pulls a straight line with no cap or a head, whose width
+        // keys no batch.
+        await styleEveryEdge(graph, { "edge.arrowTail": "normal" });
         await frame();
         const oneStyle = graph.scene.meshes.length;
 
@@ -326,8 +327,8 @@ describe("the scene grows with styles and nodes, not with edges", () => {
     }
 
     it("uploads a line batch's slots, and draws the moved slot, when a node moves", async () => {
-        // A head keeps the line in the line batch: "batched" pulls a capless straight line instead.
-        await styleEveryEdge(graph, { "edge.arrowHead": "normal" });
+        // A tail keeps the line in the line batch: "batched" pulls a straight line with no cap or a head instead.
+        await styleEveryEdge(graph, { "edge.arrowTail": "normal" });
         await frame();
 
         const edge = edges().find((candidate) => candidate.srcId === "n0");
@@ -363,13 +364,14 @@ describe("the scene grows with styles and nodes, not with edges", () => {
     });
 
     it("uploads a cap batch's matrices, and draws the moved matrix, when a node moves", async () => {
-        await styleEveryEdge(graph, { "edge.arrowHead": "normal" });
+        // A tail is a placed cap on either path ("batched" pulls a head from the row table).
+        await styleEveryEdge(graph, { "edge.arrowTail": "normal" });
         await frame();
 
-        // The head sits at the destination end, so move the destination.
-        const edge = edges().find((candidate) => candidate.dstId === "n0");
+        // The tail sits at the source end, so move the source.
+        const edge = edges().find((candidate) => candidate.srcId === "n0");
         assert.isDefined(edge);
-        const cap = edge.arrowCap;
+        const cap = edge.arrowTailCap;
         assert.isNotNull(cap);
         const capBatch = cap.batchMesh;
         assert.isNotNull(capBatch);
@@ -387,10 +389,11 @@ describe("the scene grows with styles and nodes, not with edges", () => {
     });
 
     it("uploads a cap batch's sizes and colours when the cap style changes", async () => {
-        await styleEveryEdge(graph, { "edge.arrowHead": "normal" });
+        // A tail is a placed cap on either path ("batched" pulls a head from the row table).
+        await styleEveryEdge(graph, { "edge.arrowTail": "normal" });
         await frame();
 
-        const capBatch = edges()[0].arrowCap?.batchMesh;
+        const capBatch = edges()[0].arrowTailCap?.batchMesh;
         assert.isDefined(capBatch);
         assert.isNotNull(capBatch);
         const uploads: string[] = [];
@@ -404,7 +407,7 @@ describe("the scene grows with styles and nodes, not with edges", () => {
             };
         }
 
-        await styleEveryEdge(graph, { "edge.arrowHeadColor": "#ff00ff", "edge.arrowHeadSize": 3 }, "restyle caps");
+        await styleEveryEdge(graph, { "edge.arrowTailColor": "#ff00ff", "edge.arrowTailSize": 3 }, "restyle caps");
         await frame();
 
         assert.include(uploads, "arrowColor", "a new cap colour is uploaded");

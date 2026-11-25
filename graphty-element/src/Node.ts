@@ -48,6 +48,7 @@ import {
 import { convexRayHit } from "./meshes/convexHit";
 import { surfaceReach, type Xyz } from "./meshes/edgeRoute";
 import { applyFlatHalo, flatHaloLift } from "./meshes/flatHalo";
+import { disposeLater } from "./meshes/handOverTogether";
 import { oweLabelAnimations } from "./meshes/labelAnimationDebt";
 import { unfreezeFor } from "./meshes/LabelBatch";
 import { imageAspectExtent, labelFitExtent } from "./meshes/labelFit";
@@ -1790,7 +1791,7 @@ export class Node implements ModelUser {
         // The same box as the shared source's, which it is but for float32 rounding of the rebuilt vertices: the
         // group's size is read off it (drawAsGroup's stretch, drawnHalfExtents), and must not move by a rebuild.
         const { minimum, maximum } = shared.getBoundingInfo();
-        mesh.buildBoundingInfo(minimum, maximum);
+        mesh.buildBoundingInfo(minimum, maximum, mesh.worldMatrixFromCache);
         if (from !== this.groupFill) {
             // The shared source stays alive under a hidden instance: the mesh cache disposes a source with no
             // instance left, and its material with it, which the group's own fill is drawn with (as groupBorderSource).
@@ -2089,7 +2090,7 @@ export class Node implements ModelUser {
                     : new TransformNode(this.#anchor.name, scene);
             Node.moveOnto(this.#mesh, anchor);
             this.retargetLabels(this.#mesh, anchor);
-            this.#mesh.dispose();
+            disposeLater(this.#mesh);
             this.#anchor = anchor;
             this.#mesh = null;
             this.forgetMeasuredMesh();
@@ -2098,7 +2099,7 @@ export class Node implements ModelUser {
             this.build(this.#fit.meshKey, this.#fit.style);
             Node.moveOnto(anchor, this.#anchor);
             this.retargetLabels(anchor, this.#anchor);
-            anchor.dispose();
+            disposeLater(anchor);
             this.forgetMeasuredMesh();
             if (this.#actions !== null) {
                 this.makeDrawnPickable(this.#actions);

@@ -1,7 +1,8 @@
 /**
  * @file What a reader sees, frame by frame, while a GPU layout lands its batches on a device that can be lost:
  * each node drawn where `nodeScreenPosition` says it is in that frame, each edge on its two nodes, no stray ink, and
- * ink at all -- with four batches in flight, after a node with no edges is added mid-run, in the first frames after
+ * ink at all -- with four batches in flight, after a node with no edges is added mid-run, after a node is removed
+ * mid-run and the removal undone, in the first frames after
  * a shared-device loss, after a WebGL context restore mid-layout, and a settled layout left settled by a loss.
  *
  * shared-device-drawn.test.ts compares the row texture with the CPU copy; this file reads the picture
@@ -14,7 +15,14 @@
 import { assert, describe, it } from "vitest";
 
 import type { Graph } from "../../src/Graph";
-import { checkDrawnFrames, describeFrames, faulty, type FrameReport } from "../helpers/frame-recorder";
+import {
+    checkDrawnFrames,
+    describeFrames,
+    faulty,
+    type FrameReport,
+    STILL_CHECKED,
+    stillFrames,
+} from "../helpers/frame-recorder";
 import { copied, deviceOf, landed, layoutOf, nextFrame, running, textureDiff, toldRowsLanded } from "./shared-device";
 
 /** Nodes the shared-device graph holds (shared-device.ts), and its edges. */
@@ -100,6 +108,58 @@ describe("GPU landings as drawn", () => {
             await copied(graph);
             assertGoodFrames(await checkDrawnFrames(graph, IDS, PAIRS, 20), `${String(maxInFlight)} in flight`, 20);
             assert.isBelow((await textureDiff(graph)).worst, 1e-5, "the row texture holds the landed batch");
+        });
+    }
+
+    // A removal renumbers every row after the removed one while the batches in flight were computed for the old
+    // rows, and landings are copied into the row texture by row: an old batch copied over the new rows draws nodes
+    // on each other's places and edges off their nodes. Undo brings the rows back through the records.
+    for (const maxInFlight of [3, 4]) {
+        it(`draws each frame on the renumbered rows after a mid-run removal, and still frames after its undo, with ${String(maxInFlight)} batches in flight`, async () => {
+            const graph = await running("batched");
+            await inked(graph);
+            await graph.setLayout("forceatlas2", {
+                maxIter: 1_000_000_000,
+                maxInFlight,
+                iterationsPerStep: 256,
+                settleThreshold: 1e-12,
+            });
+            await landed(graph);
+            await copied(graph);
+            const session = graph.getSession();
+            // n0's place is the first row, so every other row moves down one
+            await session.data.removeNodes(["n0"]);
+            const ids = IDS.filter((id) => id !== "n0");
+            const pairs = PAIRS.filter((pair) => !pair.includes("n0"));
+            assert.strictEqual(session.data.snapshot().edgeCount, pairs.length, "n0's edges went with it");
+            await landed(graph);
+            assertGoodFrames(
+                await checkDrawnFrames(graph, ids, pairs, 20),
+                `${String(maxInFlight)} in flight after a removal`,
+                20,
+            );
+            // undo stops the layout and puts back the arrangement the history holds (design/undo/undo-design.md
+            // section 6.2): no batch in flight at the undo may land on the rows it brought back
+            await session.undo();
+            assert.strictEqual(session.data.snapshot().edgeCount, PAIRS.length, "undo brought n0's edges back");
+            assert.isFalse(graph.isRunning(), "undo stopped the layout");
+            await graph.waitForStableFrame();
+            const before = IDS.map((id) => graph.nodeScreenPosition(id));
+            const reports = await stillFrames(graph, IDS, PAIRS);
+            const moved = Math.max(
+                ...before.map((b, i) => {
+                    const a = graph.nodeScreenPosition(IDS[i]);
+                    return b === undefined || a === undefined ? Infinity : Math.hypot(a.x - b.x, a.y - b.y);
+                }),
+            );
+            assert.strictEqual(
+                reports.length,
+                STILL_CHECKED,
+                `every frame was read, none moved: ${describeFrames(reports)}`,
+            );
+            assert.isFalse(reports.some(faulty), `after the undo: ${describeFrames(reports)}`);
+            assert.isBelow(moved, 1, `no node moved after the undo (worst ${String(moved)} px)`);
+            assert.isBelow((await textureDiff(graph)).worst, 1e-5, "the row texture holds the restored rows");
         });
     }
 

@@ -22,6 +22,7 @@ import { afterEach, assert, describe, it } from "vitest";
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
 import type { RenderPath } from "../../src/meshes/NodeBatch";
+import { curveWork } from "../../src/meshes/pulledCurve";
 import { drag } from "../helpers/real-input";
 import { edgeBetween } from "../helpers/testSetup";
 import { type CanvasFrame as Frame, pixelsOverBar as overBar, readCanvas } from "../helpers/whole-canvas";
@@ -135,6 +136,45 @@ describe.each(RENDERERS)("pulled curves on the batched path on %s", (renderer) =
         assert.lengthOf(curveBatches, 1, "the lone curves are drawn from one curve batch");
         assert.equal(overBar(objectsRest, await readCanvas(batched.graph)), 0, "at rest");
         assert.equal(overBar(objectsMoved, await moved(batched)), 0, "after a drag");
+    });
+
+    it("restyle straight edges to curves, drawing the objects path's picture, each curve worked out once a placement", async () => {
+        /**
+         * Mount the graph with straight edges, then curve every edge with a new layer.
+         * @param path - The render path.
+         * @returns The element, and the curve work the restyle did.
+         */
+        async function curved(path: RenderPath): Promise<{ element: Graphty; work: typeof curveWork }> {
+            const element = await loaded(renderer, path);
+            const ids = EDGES.map((edge) => edgeId(element, edge.src, edge.dst));
+            await element.session.styles.add({
+                name: "straight",
+                target: "edge",
+                selector: { match: "ids", edges: ids },
+                set: { "edge.curvature": false, "edge.fanned": false },
+            } as never);
+            await settled(element);
+            curveWork.spans = 0;
+            curveWork.controls = 0;
+            await element.session.styles.add({
+                name: "curved",
+                target: "edge",
+                selector: { match: "ids", edges: ids },
+                set: { "edge.curvature": true },
+            } as never);
+            await settled(element);
+            return { element, work: { ...curveWork } };
+        }
+
+        const objects = await curved("objects");
+        const objectsFrame = await readCanvas(objects.element.graph);
+        objects.element.remove();
+
+        const batched = await curved("batched");
+        assert.deepInclude(batched.element.graph.rowCounts, { pulledEdges: EDGES.length, objectEdges: 0 });
+        assert.equal(overBar(objectsFrame, await readCanvas(batched.element.graph)), 0, "the same picture");
+        assert.isAtLeast(batched.work.spans, EDGES.length, "every curve is placed");
+        assert.strictEqual(batched.work.controls, batched.work.spans, "one control-point working-out per placement");
     });
 
     it("fan a pulled curve out beside a parallel edge, and draw it as before once the edge goes", async () => {

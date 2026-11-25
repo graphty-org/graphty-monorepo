@@ -6,6 +6,7 @@
  */
 
 import { GraphtyError } from "../../../errors/GraphtyError";
+import { isSourceFactKey } from "../ids";
 import { sourceOf } from "./acts";
 import { isDate, isEmpty, isNumber, normalize, ownSpace, tableRows } from "./build";
 import { buildOf, type Copies, copyMap, type SourceSteps, type StepsSource } from "./project";
@@ -191,7 +192,7 @@ function rowsOf(
 }
 
 /**
- * The columns of some rows, in the order first read.
+ * The columns of some rows, in the order first read, without the element's own `_source.` facts.
  * @param rows - The rows.
  * @returns The column names.
  */
@@ -199,7 +200,9 @@ function columnsOf(rows: readonly Row[]): string[] {
     const out = new Set<string>();
     for (const row of rows) {
         for (const k of Object.keys(row)) {
-            out.add(k);
+            if (!isSourceFactKey(k)) {
+                out.add(k);
+            }
         }
     }
     return [...out];

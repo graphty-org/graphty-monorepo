@@ -13,7 +13,7 @@ import { type ResolvedExportOptions, resolveExportOptions } from "../../common/o
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
-import { nonEmpty } from "../../styles/columns.js";
+import { hideEdgesAtHiddenEnds, nonEmpty } from "../../styles/columns.js";
 import {
     type CytoscapeDialect,
     type CytoscapeEmitted,
@@ -307,6 +307,7 @@ export function readDeclaredStyles(
                 : {}),
         };
         const values = resolveCytoscape(target, style, elements, { notes, budget: context.budget });
+        hideAsDesktop(snapshot, target, out.node.values.visible, values);
         // a file graphty wrote: a value its style writes as the nearest Cytoscape value is the block's
         exactFromBlock(snapshot, target, values, dialect, created);
         const { rules, columns } = cytoscapeRules(target, style, elements, { notes, budget: context.budget });
@@ -324,6 +325,24 @@ export function readDeclaredStyles(
         notes: notes.list(),
         readFrom,
     };
+}
+
+/**
+ * Cytoscape desktop draws no edge of a node it hides; a file graphty wrote holds graphty's drawing.
+ * @param snapshot - the graph
+ * @param target - nodes or edges (only edges change)
+ * @param shown - the nodes' `visible` values
+ * @param values - the target's values per property, changed in place
+ */
+function hideAsDesktop(
+    snapshot: GraphSnapshot,
+    target: StyleTarget,
+    shown: StyleColumn | undefined,
+    values: Partial<Record<string, StyleColumn>>,
+): void {
+    if (target === "edge" && !snapshot.graph.has(STYLE_BLOCK_NAME)) {
+        hideEdgesAtHiddenEnds(snapshot, shown, values);
+    }
 }
 
 /**

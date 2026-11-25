@@ -1,6 +1,6 @@
 import "./source-steps.css";
 
-import { DataTable, type DataTableColumn, PANEL_GRID, SegmentedControl } from "@graphty/compact-mantine";
+import { DataTable, PANEL_GRID, SegmentedControl } from "@graphty/compact-mantine";
 import type {
     GraphSession,
     SourceColumnProfile,
@@ -14,6 +14,7 @@ import { sourceName } from "../data-place/words";
 import { formatNumber } from "../inspector/words";
 import type { JoinCardState } from "../state/store";
 import { field1Profile, field2Profile, joinOptions, joinPair, spaceChoices } from "./join";
+import { MATCH_VALUE_COLUMNS } from "./tableColumns";
 import { cellWords, JOIN_WORDS, KIND_WORDS, OVERLAP_FILTERS } from "./words";
 
 /** How many values the list asks the element for at a time. */
@@ -61,13 +62,6 @@ function Profile({
         </fieldset>
     );
 }
-
-/** The value list's columns: the value, then how many in each side hold it. */
-const COLUMNS: readonly DataTableColumn<SourceMatchValue>[] = [
-    { id: "value", header: JOIN_WORDS.value, sortable: false, rowHeader: true, value: (row) => cellWords(row.value) },
-    { id: "in1", header: JOIN_WORDS.in1, sortable: false, align: "end", value: (row) => row.count1 },
-    { id: "in2", header: JOIN_WORDS.in2, sortable: false, align: "end", value: (row) => row.count2 },
-];
 
 /**
  * The names of the card's two fields: Field 1's type and field, Field 2's source and field.
@@ -149,7 +143,7 @@ export function FieldsTab({
                                 setOffset(Math.max(0, start - PAGE / 4));
                             }
                         }}
-                        columns={COLUMNS}
+                        columns={MATCH_VALUE_COLUMNS}
                         getRowId={(row) => `${typeof row.value}:${String(row.value)}`}
                         // Below the profiles (six rows) and the filter.
                         height={Math.max(PANEL_GRID.ROW_PITCH * 4, height - PANEL_GRID.ROW_PITCH * 8)}

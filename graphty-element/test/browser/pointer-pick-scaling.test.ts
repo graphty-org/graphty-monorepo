@@ -14,6 +14,7 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
+import { pickWork } from "../../src/render/PickService";
 import { click, drag, hover, type Point } from "../helpers/real-input";
 
 /** The two graph sizes: big enough that a pick per node is 4x. */
@@ -176,5 +177,27 @@ describe("one pointer move onto a node", () => {
         const message = `picking rays built: ${String(small)} at 100 nodes, ${String(large)} at 1000`;
         assert.isAbove(small, 0, message);
         assert.strictEqual(large, small, message);
+    });
+});
+
+describe("one click on a node", () => {
+    it("picks the scene once for the press: the release reuses its answer", async () => {
+        const element = await mounted(SIZES[0]);
+        const at = target(element);
+        await hover(element, at);
+        // Frames drawn while the input is sent make no picks of their own: only the input does.
+        element.graph.engine.stopRenderLoop();
+
+        const before = pickWork.meshPicks;
+        await click(element, at);
+        await vi.waitFor(() => {
+            assert.strictEqual(element.getSelectedNode()?.id, "t", "the click selected the node");
+        });
+
+        // Each pick walks every mesh on the "objects" path. One for the move the click arrives
+        // with (the hover) and one for the press. Before, the release picked again to tell a node
+        // from the background, and again to look for a close button no label in the scene has:
+        // four walks for one click (issue #10116).
+        assert.strictEqual(pickWork.meshPicks - before, 2, "the hover's walk and the press's, nothing more");
     });
 });

@@ -4154,8 +4154,12 @@ export class Node implements ModelUser {
             // The node's own geometry, stretched about its center so its band is one width all
             // round (haloAxisScale): a box gets a box, a cylinder a cylinder, and a node drawn
             // wider than tall a halo as thick at its top as at its sides.
-            const grow = haloAxisScale(overlay.getBoundingInfo().boundingBox.extendSize, selection.scale);
             const own = this.#anchor.scaling;
+            const grow = haloAxisScale(
+                overlay.getBoundingInfo().boundingBox.extendSize,
+                selection.scale,
+                own.x === 0 ? 0 : this.borderReach / Math.abs(own.x),
+            );
             overlay.scaling.copyFromFloats(own.x * grow.x, own.y * grow.y, own.z * grow.z);
             this.haloLift = flatHaloLift(overlay, this.#anchor.scaling.z);
         } else {

@@ -279,9 +279,14 @@ function bandAlong(
 }
 
 describe("the selection highlight around a node wider than tall", () => {
-    it.each(["ellipse", "rectangle"])(
-        "rings a 2-to-1 %s with a band as thick at the top as at the sides",
-        async (shape) => {
+    it.each([
+        ["ellipse", 0],
+        ["rectangle", 0],
+        // A wide border hid the whole band at the top and bottom: the band starts past the border.
+        ["ellipse", 0.6],
+    ] as const)(
+        "rings a 2-to-1 %s (border %s) with a band as thick at the top as at the sides",
+        async (shape, border) => {
             const element = await mounted("2d", [
                 { id: "wide", kind: shape, position: { x: 0, y: 0, z: 0 } },
                 // far corners, so fitting the view leaves room around the selected node
@@ -292,7 +297,12 @@ describe("the selection highlight around a node wider than tall", () => {
                 name: "wide and green",
                 target: "node",
                 selector: { match: "ids", nodes: ["wide"] },
-                set: { "node.width": 4, "node.height": 2, "node.color": "#00AA00" },
+                set: {
+                    "node.width": 4,
+                    "node.height": 2,
+                    "node.color": "#00AA00",
+                    ...(border > 0 ? { "node.borderWidth": border, "node.borderColor": "#000000" } : {}),
+                },
             });
             await element.session.styles.add({
                 name: "a magenta halo on the selection",

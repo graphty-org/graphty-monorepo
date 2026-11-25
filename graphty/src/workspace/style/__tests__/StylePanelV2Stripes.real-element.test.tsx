@@ -14,7 +14,7 @@ import { userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
-import { openProject, openStyle, sectionOf, written } from "./v2Harness";
+import { openGroup, openProject, openStyle, sectionOf, written } from "./v2Harness";
 
 /**
  * Opens the project with fixed stripes on its layer, and the Stripes pop-over.
@@ -40,8 +40,13 @@ async function openStripes(
         return found;
     });
     await userEvent.click(within(row).getByRole("button", { name: /^Node stripes settings/ }));
+    await waitFor(() => {
+        assert.isNotNull(document.querySelector("[data-thing-popover]"));
+    });
+    // The stripes are one line of the pop-over, opening their list beside it (design "Lists in pop-overs").
+    await userEvent.click(await screen.findByRole("button", { name: /^Edit stripes/ }));
     const pop = await waitFor(() => {
-        const found = document.querySelector<HTMLElement>("[data-thing-popover]");
+        const found = document.querySelector<HTMLElement>('[data-beside-pop="Stripes"]');
         assert.isNotNull(found);
         return found;
     });
@@ -109,6 +114,97 @@ describe("Style panel v2's Stripes", () => {
             );
         });
         assert.strictEqual(session.history.position, before + 1, "one undo step");
+        await waitFor(() => {
+            assert.match(
+                document.activeElement?.getAttribute("aria-label") ?? "",
+                /^Stripe 2 of 3/,
+                "focus follows the moved stripe",
+            );
+        });
+    });
+
+    it("writes a dragged share once, on release, the later shares giving way", async () => {
+        const { session, layer, pop } = await openStripes({ "node.stripeColors": "#E69F00 #56B4E9" });
+        const before = session.history.position;
+        const line = within(pop).getByRole("slider", { name: "Stripe 1 share" });
+        const track = line.closest<HTMLElement>(".mantine-Slider-root");
+        assert.isNotNull(track);
+        const { width } = track.getBoundingClientRect();
+        await userEvent.dragAndDrop(line, track, { targetPosition: { x: width * 0.8, y: 6 } });
+        await waitFor(() => {
+            const sizes = String(written(session, layer, "node.stripeSizes"))
+                .split(" ")
+                .map(Number);
+            assert.isAbove(sizes[0], 0.6, "stripe 1 takes what it was dragged to");
+        });
+        assert.strictEqual(session.history.position, before + 1, "one undo step");
+        const share = within(pop).getByRole<HTMLInputElement>("spinbutton", { name: "Stripe 2 share" });
+        assert.notInclude(share.value, "S", "no letter before the number");
+        assert.isAtMost(share.value.split(".")[1]?.length ?? 0, 1, "one decimal at most");
+    });
+
+    it("adds Stripes from Fill without opening anything, and a stripe from + scrolls into view", async () => {
+        const { session, id } = await openProject();
+        const tab = await openStyle("Key people");
+        await userEvent.click(within(sectionOf(tab, "node-fill")).getByRole("button", { name: /^Add to node fill/ }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Stripes" }));
+        await waitFor(() => {
+            assert.isDefined(written(session, id, "node.stripeColors"), "two stripes written");
+        });
+        assert.isNull(screen.queryByRole("listbox", { name: "Node stripes data" }), "no data picker opened");
+        assert.isNull(document.querySelector("[data-thing-popover]"), "no pop-over opened");
+        const row = sectionOf(tab, "node-fill").querySelector<HTMLElement>('[data-thing="stripes"]');
+        assert.isNotNull(row);
+        await userEvent.click(within(row).getByRole("button", { name: /^Node stripes settings/ }));
+        await userEvent.click(await screen.findByRole("button", { name: /^Edit stripes/ }));
+        for (let added = 0; added < 4; added++) {
+            await userEvent.click(await screen.findByRole("button", { name: "Add stripe" }));
+        }
+        const last = await waitFor(() => {
+            const found = document.querySelector<HTMLElement>('[data-item-line="5"]');
+            assert.isNotNull(found);
+            return found;
+        });
+        const region = last.closest<HTMLElement>(".mantine-ScrollArea-viewport");
+        assert.isNotNull(region);
+        await waitFor(() => {
+            const box = region.getBoundingClientRect();
+            const line = last.getBoundingClientRect();
+            assert.isAtLeast(line.top, box.top - 1, "stripe 6 is in view");
+            assert.isAtMost(line.bottom, box.bottom + 1, "stripe 6 is in view");
+        });
+        assert.strictEqual(region.scrollWidth, region.clientWidth, "the list never scrolls sideways");
+    });
+
+    it("writes one side of a frame a lower layer draws by its own address", async () => {
+        const { session, layer } = await openStripes({ "node.stripeColors": "#E69F00 #56B4E9" });
+        await session.styles.add(
+            {
+                name: "Frame",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.stripeFrame": "0.1 0.1 0.1 0.1" },
+            },
+            { below: layer },
+        );
+        await session.styles.settled();
+        await userEvent.keyboard("{Escape}");
+        const fixed = await waitFor(() => {
+            const found = document.querySelector<HTMLElement>("[data-thing-popover]");
+            assert.isNotNull(found);
+            return found;
+        });
+        // Fixed has one group: the header "..." opens Stripe area directly.
+        await openGroup(fixed, "Stripe area");
+        await typeInto(await screen.findByRole("spinbutton", { name: "Band frame right" }), "30");
+        await waitFor(() => {
+            const held = session.styles.get(layer);
+            const at = { ...(held?.set ?? {}), ...(held?.encode ?? {}) } as Record<string, unknown>;
+            assert.isDefined(at["node.stripeFrame.1"], "the right side's own address");
+            assert.isUndefined(at["node.stripeFrame"], "the frame stays the lower layer's");
+        });
+        const merged = session.styles.explain({ node: "a" }).merged as Record<string, unknown>;
+        assert.strictEqual(merged["node.stripeFrame"], "0.1 0.3 0.1 0.1");
     });
 
     it("shows a color's own alpha as the picker's Opacity, and writes it folded into the stripe's opacity", async () => {

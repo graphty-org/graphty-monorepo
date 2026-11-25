@@ -45,6 +45,7 @@ import type { ExportGraphOptions, ExportResult } from "./data/export";
 import type { GraphtyWarningCode } from "./errors/codes";
 import { isGraphtyError } from "./errors/GraphtyError";
 import {
+    type EdgeEventDetail,
     type GraphEvent,
     type GraphtyForwardedEventMap,
     isDomForwardableEvent,
@@ -1127,6 +1128,17 @@ export class Graphty extends LitElement {
                     composed: true,
                 }),
             );
+        });
+        this.#graph.eventManager.onEdgeEvent.add((event) => {
+            if (event.type !== "edge-hover") {
+                return;
+            }
+
+            const detail: EdgeEventDetail = {
+                edgeId: event.edgeId,
+                ...(event.tooltip === undefined ? {} : { tooltip: event.tooltip }),
+            };
+            this.dispatchEvent(new CustomEvent("graphty-edge-hover", { detail, bubbles: true, composed: true }));
         });
 
         // Note: Property setters now forward to Graph methods automatically,
@@ -7889,6 +7901,8 @@ declare global {
         "graphty-node-drag-start": CustomEvent<NodeEventDetail>;
         /** Emitted when a dragged node is let go, with the node's id. */
         "graphty-node-drag-end": CustomEvent<NodeEventDetail>;
+        /** Emitted when the pointer moves onto an edge, with the edge's id and its tooltip's words. */
+        "graphty-edge-hover": CustomEvent<EdgeEventDetail>;
         /** Emitted when how many node labels are drawn, or hidden and why, changes. */
         "graphty-label-change": CustomEvent<NodeLabelCounts>;
         /** Emitted once the element has started, with the experiments it switched on and the ids it did not recognize. */

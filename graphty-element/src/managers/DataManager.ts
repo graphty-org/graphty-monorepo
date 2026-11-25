@@ -4043,7 +4043,7 @@ export class DataManager implements Manager {
     builtEdgesOfPairs(
         pairs: Iterable<readonly [NodeIdType, NodeIdType]>,
         freeze: boolean,
-    ): { readonly a: NodeIdType; readonly b: NodeIdType; readonly edges: Edge[] }[] | null {
+    ): { readonly a: NodeIdType; readonly b: NodeIdType; readonly edges: Edge[]; readonly rows: number[] }[] | null {
         if (!freeze && this.store.stale) {
             return null;
         }
@@ -4052,6 +4052,7 @@ export class DataManager implements Manager {
             a,
             b,
             edges: members.filter((each): each is Edge => typeof each !== "number"),
+            rows: members.filter((each): each is number => typeof each === "number"),
         }));
     }
 

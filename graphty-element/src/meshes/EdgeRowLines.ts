@@ -408,6 +408,15 @@ export class EdgeRowLines implements StraightPieceHolder {
     }
 
     /**
+     * Whether an edge row is drawn here as a curve.
+     * @param row - The edge row.
+     * @returns True when it is.
+     */
+    isCurve(row: number): boolean {
+        return this.lines.has(row) && this.lines.curved(row);
+    }
+
+    /**
      * The shown curves' edge rows: the edge ID target draws only straight lines, so a hover measures these whatever
      * its window names, as it measures a curved `Edge`.
      * @returns The rows, in row order.

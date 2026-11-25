@@ -245,6 +245,32 @@ describe("reads on the batched path", () => {
         assert.strictEqual(built(element).edges, before.edges, "the drag built no Edge");
     });
 
+    it("a curve drawn from its rows is drawn by its Edge, fanned, once a parallel edge joins it", async () => {
+        const element = await mounted("batched", "3d", FIXED_3D);
+        await element.session.styles.add({
+            name: "curves",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.arrowHead": "none", "edge.curvature": true },
+        });
+        await operationQueueOf(element.graph).waitForCompletion();
+        await element.waitForStableFrame();
+        const lines = element.graph.getEdgeRowLines();
+        const manager = element.graph.getDataManager();
+        const [first] = dataManagerInternals.incidentEdgeIds(manager, 0);
+        const row = lines?.rows().find((at) => dataManagerInternals.unbuiltEdgeId(manager, at) === first) ?? -1;
+        assert.isTrue(lines?.isCurve(row), "edge 0-1 is a curve drawn from its rows");
+        const before = built(element).edges;
+
+        await element.session.data.addEdges([{ src: 1, dst: 0 }]);
+        await operationQueueOf(element.graph).waitForCompletion();
+        await element.waitForStableFrame();
+
+        assert.isFalse(lines?.isCurve(row), "the pair fans: no lone curve is drawn from its rows");
+        assert.strictEqual(built(element).edges, before + 2, "both edges of the pair are drawn by their Edge");
+        assert.strictEqual(lines?.shownCurveRows().length, EDGES.length - 1, "every other curve is still a row's");
+    });
+
     it("getEdges builds each Edge as it is read, in the order getEdgeIds lists the ids", async () => {
         const element = await mounted("batched", "3d", FIXED_3D);
         const edges = element.graph.getEdges();

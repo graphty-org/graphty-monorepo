@@ -4967,8 +4967,19 @@ export class UpdateManager implements Manager {
             return false;
         }
 
-        for (const { edges } of joined) {
+        const lines = this.graphContext.getEdgeRowLines?.() ?? null;
+        const painter = this.graphContext.getStylePainter?.();
+        for (const { edges, rows } of joined) {
             this.edgesToPlace.push(...edges);
+            // a curve drawn with no `Edge` is a lone curve: one whose pair now holds more fans out of it, so it is
+            // painted again, and its `Edge` draws it (`EdgeRowLines.curveRow`)
+            if (edges.length + rows.length > 1) {
+                for (const row of rows) {
+                    if (lines?.isCurve(row) === true) {
+                        painter?.queue("edge", row);
+                    }
+                }
+            }
         }
 
         return true;

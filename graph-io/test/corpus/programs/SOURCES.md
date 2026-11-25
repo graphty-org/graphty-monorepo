@@ -8,7 +8,9 @@ a byte-for-byte copy of a file in graph-io's test corpus (the path given under "
 `graph-io/test/corpus/programs/samples.json` lists them with their counts.
 
 The licenses below are the licenses of the files. Files under GPL, LGPL, EPL or CDDL are redistributed unchanged,
-under their own license, with their source named; each license's full text is at the address given.
+under their own license, with their source named; each of those licenses' full text is in `licenses/`, beside the
+app's copies of the files (`graphty/public/samples/programs/licenses/`). The CDDL text there has its typographic
+quotes written as plain quotes and its section sign as "Section"; every other text is as its publisher gives it.
 
 ## yEd -- yed.graphml
 
@@ -39,18 +41,22 @@ under their own license, with their source named; each license's full text is at
 
 ## Cytoscape -- cytoscape.cys
 
-- What it is: the "Import & Save" session that also ships with the Cytoscape installer. graphty opens its first
-  network, Malignant Melanoma: 30 nodes in 4 shapes and 4 fills, 137 edges, solid and dashed, with arrows.
-- Source: https://raw.githubusercontent.com/cytoscape/py4cytoscape/47b60d5563d2dec36cb521a842fcc957d55d896c/tests/data/Import%20%26%20Save.cys
+- What it is: the "Import & Save" sample session that ships with Cytoscape. graphty opens its first network,
+  Malignant Melanoma: 30 nodes in 4 shapes and 4 fills, 137 edges, solid and dashed, with arrows. The session also
+  holds a picture of NDEx's web page, as Cytoscape ships it.
+- Source: the Cytoscape 3.10.5 distribution, `sampleData/sessions/Import & Save.cys`. The same bytes are in
+  py4cytoscape's tests:
+  https://raw.githubusercontent.com/cytoscape/py4cytoscape/47b60d5563d2dec36cb521a842fcc957d55d896c/tests/data/Import%20%26%20Save.cys
 - Test copy: graph-io/test/corpus/styles/cys/fidelity/import-and-save.cys
-- License: MIT. Copyright (c) 2018-2020 The Cytoscape Consortium. The MIT permission notice above, with this
-  copyright line, applies.
+- License: LGPL 2.1, the license of the Cytoscape distribution it ships in (`licenses/LGPL-2.1.txt`). Copyright
+  The Cytoscape Consortium. It is redistributed under the distribution's license, not under the MIT license of the
+  py4cytoscape repository that also holds a copy.
 
 ## Cytoscape (XGMML) -- cytoscape.xgmml
 
 - What it is: the network of Cytoscape's Basic Data Visualization tutorial. 331 nodes (rectangles, ellipses, round
   rectangles) colored by expression, 362 edges, stored positions.
-- Source: https://github.com/cytoscape/cytoscape-tutorials/blob/gh-pages/protocols/data/BasicDataVizDemo.xgmml
+- Source: https://github.com/cytoscape/cytoscape-tutorials/blob/877ad003322ba36ccd46b1e4b64be03fc30ebb12/protocols/data/BasicDataVizDemo.xgmml
 - Test copy: graph-io/test/corpus/styles/xgmml/BasicDataVizDemo.xgmml.gz (gzipped)
 - License: CC0 1.0 Universal.
 
@@ -85,9 +91,11 @@ under their own license, with their source named; each license's full text is at
 
 ## Cytoscape.js -- cytoscape-js.json
 
-- What it is: Cytoscape.js's GeneMANIA export demo, its data.json with the stylesheet from its code.js. 31 genes sized
-  by score, 255 edges colored by interaction type.
-- Source: https://github.com/cytoscape/cytoscape.js/tree/master/documentation/demos/genemania-export
+- What it is: Cytoscape.js's GeneMANIA export demo. 31 genes sized by score, 255 edges colored by interaction type.
+- Changed: this file is our merge of two of the demo's files, not a file Cytoscape.js wrote: the `elements` of its
+  data.json, unchanged, with the stylesheet its code.js passes to Cytoscape.js written in as `style`.
+- Source: https://github.com/cytoscape/cytoscape.js/tree/48115e358d4d406451d0a9aed1b40fb7768f2a83/documentation/demos/genemania-export
+  (data.json and code.js)
 - Test copy: graph-io/test/fidelity/samples/cyjs-genemania.json
 - License: MIT. Copyright (c) 2016-2026, The Cytoscape Consortium. The MIT permission notice above, with this
   copyright line, applies.
@@ -96,11 +104,10 @@ under their own license, with their source named; each license's full text is at
 
 - What it is: Les Miserables, the welcome-screen sample that ships with Gephi (written by Gephi 0.8.1). 77 nodes in 9
   colors and 18 sizes, stored positions, 254 edges.
-- Source: https://github.com/gephi/gephi/blob/master/modules/WelcomeScreen/src/main/resources/org/gephi/desktop/welcome/samples/Les%20Miserables.gexf
-  (downloaded 2026-11-24)
+- Source: https://github.com/gephi/gephi/blob/eee9b3920b489c994062ee826c0acd3fbe9134ca/modules/WelcomeScreen/src/main/resources/org/gephi/desktop/welcome/samples/Les%20Miserables.gexf
 - Test copy: graph-io/test/corpus/programs/gephi__Les-Miserables.gexf
-- License: Gephi's dual license, CDDL 1.0 or GPL 3.0 (https://github.com/gephi/gephi/blob/master/LICENSE.md).
-  Copyright 2008-2011 Gephi Consortium.
+- License: Gephi's dual license, CDDL 1.0 or GPL 3.0 (https://github.com/gephi/gephi/blob/master/LICENSE.md;
+  `licenses/CDDL-1.0.txt`, `licenses/GPL-3.0.txt`). Copyright 2008-2011 Gephi Consortium.
 
 ## Graphviz -- graphviz.gv
 
@@ -108,8 +115,7 @@ under their own license, with their source named; each license's full text is at
   fills and 13 edge colors; Graphviz lays it out.
 - Source: https://gitlab.com/graphviz/graphviz.gitlab.io/-/raw/13a10865ac7eb412d8d532056bacd211723eb037/content/en/Gallery/directed/Linux_kernel_diagram.gv.txt
 - Test copy: graph-io/test/corpus/styles/dot/fidelity/real-linux-kernel.gv
-- License: Eclipse Public License 1.0, the LICENSE of graphviz.gitlab.io at that commit
-  (https://www.eclipse.org/legal/epl-v10.html).
+- License: Eclipse Public License 1.0, the LICENSE of graphviz.gitlab.io at that commit (`licenses/EPL-1.0.txt`).
 
 ## OGDF -- ogdf.gml
 
@@ -117,8 +123,8 @@ under their own license, with their source named; each license's full text is at
   labels in black and white, 57 solid and dotted edges; laid out by graphty.
 - Source: https://raw.githubusercontent.com/ogdf/ogdf/1a40505ac00677a58ab5ce532e1dcc3bd63116e5/doc/examples/layout/ERDiagram.gml
 - Test copy: graph-io/test/corpus/programs/ogdf__ERDiagram.gml
-- License: GPL 2.0 or GPL 3.0, OGDF's LICENSE.txt (https://github.com/ogdf/ogdf/blob/master/LICENSE.txt).
-  Copyright (C) the OGDF authors.
+- License: GPL 2.0 or GPL 3.0, OGDF's LICENSE.txt (https://github.com/ogdf/ogdf/blob/master/LICENSE.txt;
+  `licenses/GPL-2.0.txt`, `licenses/GPL-3.0.txt`). Copyright (C) the OGDF authors.
 
 ## Pajek -- pajek.net
 
@@ -127,6 +133,7 @@ under their own license, with their source named; each license's full text is at
 - Source: https://github.com/graphstream/gs-core/blob/950b87280075f92a85b564b47ce6522ced5ba53a/src-test/org/graphstream/stream/file/pajek/test/B.NET
 - Test copy: graph-io/test/corpus/styles/pajek/graphstream_gs-core__B.net
 - License: LGPL 3.0 or CeCILL-C, GraphStream's COPYING (https://github.com/graphstream/gs-core/blob/master/COPYING).
+  Redistributed under LGPL 3.0 (`licenses/LGPL-3.0.txt`, with the GPL 3.0 it builds on, `licenses/GPL-3.0.txt`).
 
 ## Neo4j -- neo4j-movies.csv
 

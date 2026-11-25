@@ -33,7 +33,7 @@
         "edges": 137,
         "styled": true,
         "source": "https://raw.githubusercontent.com/cytoscape/py4cytoscape/47b60d5563d2dec36cb521a842fcc957d55d896c/tests/data/Import%20%26%20Save.cys",
-        "license": "MIT"
+        "license": "LGPL-2.1"
     },
     {
         "id": "cytoscape-xgmml",
@@ -44,7 +44,7 @@
         "nodes": 331,
         "edges": 362,
         "styled": true,
-        "source": "https://github.com/cytoscape/cytoscape-tutorials/blob/gh-pages/protocols/data/BasicDataVizDemo.xgmml",
+        "source": "https://github.com/cytoscape/cytoscape-tutorials/blob/877ad003322ba36ccd46b1e4b64be03fc30ebb12/protocols/data/BasicDataVizDemo.xgmml",
         "license": "CC0-1.0"
     },
     {
@@ -80,7 +80,7 @@
         "nodes": 31,
         "edges": 255,
         "styled": true,
-        "source": "https://github.com/cytoscape/cytoscape.js/tree/master/documentation/demos/genemania-export",
+        "source": "https://github.com/cytoscape/cytoscape.js/tree/48115e358d4d406451d0a9aed1b40fb7768f2a83/documentation/demos/genemania-export",
         "license": "MIT"
     },
     {
@@ -92,7 +92,7 @@
         "nodes": 77,
         "edges": 254,
         "styled": true,
-        "source": "https://github.com/gephi/gephi/blob/master/modules/WelcomeScreen/src/main/resources/org/gephi/desktop/welcome/samples/Les%20Miserables.gexf",
+        "source": "https://github.com/gephi/gephi/blob/eee9b3920b489c994062ee826c0acd3fbe9134ca/modules/WelcomeScreen/src/main/resources/org/gephi/desktop/welcome/samples/Les%20Miserables.gexf",
         "license": "CDDL-1.0 OR GPL-3.0"
     },
     {

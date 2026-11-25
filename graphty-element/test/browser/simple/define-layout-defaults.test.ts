@@ -348,7 +348,7 @@ describe("defineLayout's defaults on a rendered graph", () => {
         let signal: AbortSignal | undefined;
         let outcome: unknown = "pending";
         defineLayout({
-            id: "test-cancelled",
+            id: "test-canceled",
             async place(view, context) {
                 runs++;
                 if (runs > 1) {
@@ -367,7 +367,7 @@ describe("defineLayout's defaults on a rendered graph", () => {
             },
         });
 
-        await graph.setLayout("test-cancelled");
+        await graph.setLayout("test-canceled");
         await settled("the first run");
         await graph.addNodes([{ id: "f" }]);
         await until("a second run to start", () => signal !== undefined);

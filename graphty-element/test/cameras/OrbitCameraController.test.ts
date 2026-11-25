@@ -2,11 +2,13 @@ import { MeshBuilder, NullEngine, Scene, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
 import {
+    centeringWork,
     type FramingSpot,
     OrbitCameraController,
     type OrbitConfig,
     turningFitDistance,
 } from "../../src/cameras/OrbitCameraController";
+import { assertScalesLinearly } from "../helpers/cost";
 
 /**
  * Mock canvas element for NullEngine testing.
@@ -362,6 +364,85 @@ describe("OrbitCameraController", () => {
             assert.approximately(controller.pivot.position.x, 5, 0.0001);
             assert.approximately(controller.pivot.position.y, 5, 0.0001);
             assert.approximately(controller.pivot.position.z, 5, 0.0001);
+        });
+
+        test("a canvas made shorter, with the fit still set by its height, leaves the camera where it was", () => {
+            // Deeper on the right, so the centered pivot sits off the box's center; taller than
+            // wide, so the height decides the distance either way.
+            const spots: FramingSpot[] = [
+                { pos: new Vector3(-3, 9, 0), half: 0.5 },
+                { pos: new Vector3(3.7, -9, 6), half: 0.5 },
+                { pos: new Vector3(1.3, 2, -4.2), half: 0.5 },
+            ];
+            const min = new Vector3(-3.5, -9.5, -4.7);
+            const max = new Vector3(4.2, 9.5, 6.5);
+            const height = vi.spyOn(engine, "getRenderHeight").mockReturnValue(600);
+            vi.spyOn(engine, "getRenderWidth").mockReturnValue(800);
+            controller.zoomToBoundingBox(min, max, spots);
+            const pivot = controller.pivot.position.clone();
+            const distance = controller.cameraDistance;
+            assert.notEqual(pivot.x, (min.x + max.x) / 2, "the drawing was centered off the box's center");
+
+            for (const shorter of [581, 523, 497]) {
+                height.mockReturnValue(shorter);
+                controller.zoomToBoundingBox(min, max, spots);
+
+                assert.strictEqual(controller.cameraDistance, distance);
+                assert.deepEqual(controller.pivot.position.asArray(), pivot.asArray(), `at ${String(shorter)} px`);
+            }
+        });
+
+        describe("centering a fit of many nodes (issue #9420)", () => {
+            /**
+             * Spots scattered through a ball of radius 50 by a seeded generator, with the box around them.
+             * @param count - How many spots.
+             * @returns The spots and the box.
+             */
+            function ball(count: number): { spots: FramingSpot[]; min: Vector3; max: Vector3 } {
+                let seed = 9420;
+                const random = (): number => {
+                    seed = (seed * 1_103_515_245 + 12_345) % 2_147_483_648;
+                    return seed / 2_147_483_648;
+                };
+                const spots: FramingSpot[] = [];
+                const min = new Vector3(Infinity, Infinity, Infinity);
+                const max = new Vector3(-Infinity, -Infinity, -Infinity);
+                while (spots.length < count) {
+                    const pos = new Vector3(random() * 100 - 50, random() * 100 - 50, random() * 100 - 50);
+                    if (pos.length() <= 50) {
+                        spots.push({ pos, half: 0.5 });
+                        min.minimizeInPlace(pos.subtractFromFloats(0.5, 0.5, 0.5));
+                        max.maximizeInPlace(pos.add(new Vector3(0.5, 0.5, 0.5)));
+                    }
+                }
+
+                return { spots, min, max };
+            }
+
+            test("weighs about as many corners whatever the node count, not all of them every halving", async () => {
+                await assertScalesLinearly(
+                    (count) => {
+                        const { spots, min, max } = ball(count);
+                        centeringWork.corners = 0;
+                        controller.zoomToBoundingBox(min, max, spots);
+                        return centeringWork.corners;
+                    },
+                    { sizes: [2_000, 8_000], growth: "constant", counter: "corners weighed while centering" },
+                );
+            });
+
+            test("nodes well inside the others change the fit not at all", () => {
+                const { spots, min, max } = ball(500);
+                controller.zoomToBoundingBox(min, max, spots);
+                const pivot = controller.pivot.position.asArray();
+                const distance = controller.cameraDistance;
+
+                const inner = ball(2_000).spots.map(({ pos, half }) => ({ pos: pos.scale(0.2), half }));
+                controller.zoomToBoundingBox(min, max, [...spots, ...inner]);
+
+                assert.strictEqual(controller.cameraDistance, distance);
+                assert.deepEqual(controller.pivot.position.asArray(), pivot);
+            });
         });
 
         test("should adjust camera distance based on bounding box size", () => {

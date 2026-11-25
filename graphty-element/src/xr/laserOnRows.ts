@@ -1,5 +1,3 @@
-import "@babylonjs/core/Meshes/instancedMesh.js";
-
 import type { InstancedMesh } from "@babylonjs/core";
 import { Ray } from "@babylonjs/core/Culling/ray.js";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
@@ -7,7 +5,7 @@ import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import type { Scene } from "@babylonjs/core/scene.js";
 import type { WebXRDefaultExperience } from "@babylonjs/core/XR/webXRDefaultExperience.js";
 
-import { rowScanOf, type ScannedRow } from "../render/PickService";
+import { rowScanOf, rowStandIn, type ScannedRow } from "../render/PickService";
 
 /**
  * Let Babylon's XR laser land on rows a batch draws, which have no mesh.
@@ -47,23 +45,7 @@ export function laserOnRows(scene: Scene, helper: WebXRDefaultExperience): () =>
                     continue;
                 }
 
-                let standIn = standIns.get(controller.uniqueId);
-                if (standIn?.sourceMesh !== source) {
-                    standIn?.dispose();
-                    standIn = source.createInstance(anchor.name);
-                    // An instance starts at its source's place; the anchor is the whole placement.
-                    standIn.position.setAll(0);
-                    standIn.rotationQuaternion = null;
-                    standIn.rotation.setAll(0);
-                    standIn.scaling.setAll(1);
-                    standIn.enablePointerMoveEvents = true;
-                    standIns.set(controller.uniqueId, standIn);
-                }
-
-                standIn.name = anchor.name;
-                standIn.metadata = anchor.metadata as unknown;
-                standIn.parent = anchor;
-                standIn.setEnabled(true);
+                standIns.set(controller.uniqueId, rowStandIn(standIns.get(controller.uniqueId), source, anchor));
             }
         },
         undefined,

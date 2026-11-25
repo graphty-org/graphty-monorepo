@@ -37,8 +37,40 @@ export interface MatchValue {
     readonly count2: number;
 }
 
+/** How the keys compare, and which steps side 1 is built by. */
+interface CountOptions extends MatchOptions {
+    /** Build side 1 with only the steps before this place. */
+    readonly before?: number;
+}
+
+/** The value with only the steps before a place, one per value and place so its build is kept. */
+const truncated = new WeakMap<SourceSteps, Map<number, SourceSteps>>();
+
+/**
+ * The value as the steps before a place build it.
+ * @param value - The value.
+ * @param before - The place; absent keeps every step.
+ * @returns The value.
+ */
+function upTo(value: SourceSteps, before: number | undefined): SourceSteps {
+    if (before === undefined || before >= value.steps.length) {
+        return value;
+    }
+    let held = truncated.get(value);
+    if (held === undefined) {
+        held = new Map();
+        truncated.set(value, held);
+    }
+    let out = held.get(before);
+    if (out === undefined) {
+        out = { ...value, steps: value.steps.slice(0, Math.max(0, before)) };
+        held.set(before, out);
+    }
+    return out;
+}
+
 /** Which values the overlap list keeps, and which page of them. */
-export interface MatchValuesOptions extends MatchOptions {
+export interface MatchValuesOptions extends CountOptions {
     readonly only?: "matched" | "only1" | "only2";
     readonly offset?: number;
     readonly limit?: number;
@@ -289,14 +321,14 @@ function numbersOnly(a: Hashed, b: Hashed): number {
  * @param value - The sources and steps.
  * @param copies - The rows as read.
  * @param pair - The two sides.
- * @param o - Whether case and spaces count.
+ * @param o - Whether case and spaces count, and the place side 1 is built before.
  * @returns The counts.
  * @throws A `GraphtyError` with `E_LOAD_UNKNOWN` for an unknown source, or `E_AMBIGUOUS_ID` when
  *   `into` names no one end of an edge source.
  */
-export function matchCounts(value: SourceSteps, copies: Copies, pair: MatchPair, o: MatchOptions = {}): MatchCounts {
+export function matchCounts(value: SourceSteps, copies: Copies, pair: MatchPair, o: CountOptions = {}): MatchCounts {
     const ways = waysOf(o);
-    const { one, two } = sides(value, copies, pair);
+    const { one, two } = sides(upTo(value, o.before), copies, pair);
     const [a, aCase, aSpaces] = hash(one, ways);
     const [b, bCase, bSpaces] = hash(two, ways);
     const matched = both(a, b);
@@ -337,7 +369,7 @@ export function matchValues(
 ): { readonly total: number; readonly values: readonly MatchValue[] } {
     const asked = { ignoreCase: o.ignoreCase === true, ignoreSpaces: o.ignoreSpaces === true };
     const ways: Ways = { asked, caseOff: null, spacesOff: null };
-    const { one, two } = sides(value, copies, pair);
+    const { one, two } = sides(upTo(value, o.before), copies, pair);
     const [a] = hash(one, ways);
     const [b] = hash(two, ways);
     const keep = (k: string): boolean => {
@@ -364,4 +396,68 @@ export function matchValues(
     all.sort((p, q) => q.count1 + q.count2 - (p.count1 + p.count2));
     const offset = Math.max(0, o.offset ?? 0);
     return { total: all.length, values: all.slice(offset, offset + Math.max(0, o.limit ?? all.length)) };
+}
+
+/** One join `suggestMatches` proposes. */
+export interface MatchSuggestion {
+    readonly result: "merge" | "connect";
+    readonly matches: readonly MatchPair[];
+    readonly confident: boolean;
+}
+
+/** The share of a field's values that must meet to call a suggestion confident. */
+const CONFIDENT_SHARE = 0.8;
+
+/**
+ * The joins a source most likely makes onto the graph, best first: each node column of the source
+ * against the keys of each id space other than its own, ranked by the share of its values that
+ * meet. A column whose values are the space's keys merges; any other connects.
+ * @param value - The sources and steps.
+ * @param copies - The rows as read.
+ * @param source - The source.
+ * @param columns - The source's node columns.
+ * @param spaces - The id spaces with nodes, and the source's own space.
+ * @param spaces.all - Every space holding nodes.
+ * @param spaces.own - The space the source's rows land in, which it never joins onto.
+ * @param key - The source's key column, if any.
+ * @returns The suggestions; none when no value meets.
+ */
+export function suggestMatches(
+    value: SourceSteps,
+    copies: Copies,
+    source: string,
+    columns: readonly string[],
+    spaces: { readonly all: readonly string[]; readonly own: string | undefined },
+    key: string | undefined,
+): MatchSuggestion[] {
+    const out: { share: number; suggestion: MatchSuggestion }[] = [];
+    for (const space of spaces.all) {
+        if (space === spaces.own) {
+            continue;
+        }
+        for (const field of columns) {
+            const pair: MatchPair = { from: { source, field }, into: { space } };
+            let counts: MatchCounts;
+            try {
+                counts = matchCounts(value, copies, pair);
+            } catch {
+                continue;
+            }
+            const held = counts.matched + counts.only2;
+            if (counts.matched === 0 || held === 0) {
+                continue;
+            }
+            const share = counts.matched / held;
+            out.push({
+                share,
+                suggestion: Object.freeze({
+                    result: field === key ? "merge" : "connect",
+                    matches: Object.freeze([Object.freeze(pair)]),
+                    confident: share >= CONFIDENT_SHARE,
+                }),
+            });
+        }
+    }
+    out.sort((a, b) => b.share - a.share);
+    return out.map((each) => each.suggestion);
 }

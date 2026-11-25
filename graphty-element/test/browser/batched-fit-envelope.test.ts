@@ -1,7 +1,8 @@
 /**
  * @file Under renderPath "batched", the zoom-to-fit a running layout takes every step frames the
  * box the layout published (`LayoutEngine.publishedBounds`) instead of walking every row: no row's
- * world matrix or bounding box is computed for it. Under "objects" the walk is unchanged.
+ * world matrix or bounding box is computed for it. Under "objects" the walk is unchanged. A graph of up to 1,000 nodes
+ * is walked on both paths (test/render-parity/reframe-in-motion.test.ts), so the fixture is larger.
  */
 
 import "../../src/graphty-element";
@@ -23,11 +24,11 @@ afterEach(() => {
     }
 });
 
-const NODES = Array.from({ length: 200 }, (_, id) => ({ id }));
+const NODES = Array.from({ length: 1200 }, (_, id) => ({ id }));
 const EDGES = NODES.slice(1).map(({ id }) => ({ source: id - 1, target: id }));
 
 /**
- * A graph of 200 nodes on a chain, on one render path, not yet laid out.
+ * A graph of 1,200 nodes on a chain, on one render path, not yet laid out.
  * @param path - The render path.
  * @returns The element.
  */

@@ -143,11 +143,11 @@ import { resolutionBehind } from "../scope/ScopeApi";
 import { sealedSet } from "../sealed";
 import type { Resolution } from "../sets/resolve";
 import type { CodedFact, ColumnRef } from "../shared";
-import type { HistoryCause } from "../types";
+import type { HistoryCause, SourceElementRef } from "../types";
 import { valueLabelsAt } from "../valueLabels";
 import { type HiddenNotDrawn, hiddenNotDrawn } from "../visibility/VisibilityApi";
 import { beneathAuthored, placementLayers } from "./autoApply";
-import { branchLayers, isStateMark } from "./branchesView";
+import { branchLayers, draftLayers, isStateMark } from "./branchesView";
 import { carriedFor, checkCarried, holdCarried } from "./carried";
 import {
     channelDescriptor,
@@ -528,6 +528,62 @@ export interface BranchesView {
 }
 
 /**
+ * What `styles.showDraft` draws a source draft's join preview in: one color for what its commit
+ * would merge, one for what it would add.
+ * Experimental: may change or be removed in a minor release.
+ * @beta
+ */
+export interface DraftView {
+    /** The ring's color, on each node the commit would merge into one already in the graph. */
+    readonly merged: string;
+    /** The dashed border's color on each node the commit would add, and each edge it would add. */
+    readonly new: string;
+    /**
+     * A dotted border's color on each node of a space a step joins into that no row of the step
+     * reached. Absent, those nodes keep the base look.
+     */
+    readonly untouched?: string;
+    /** `"faint"` draws every element the view does not mark faint; absent or `"plain"`, at the base look. */
+    readonly rest?: "faint" | "plain";
+    /**
+     * Elements drawn at full strength, the rest faint: one step's (by its place in `draft.steps()`)
+     * or a list of element references. Read when the view is shown: show it again after the draft
+     * changes.
+     */
+    readonly mark?:
+        | {
+              /** The step's place in `draft.steps()`. */
+              readonly step: number;
+          }
+        | {
+              /** The elements to mark. */
+              readonly refs: readonly SourceElementRef[];
+          };
+    /**
+     * Colors by step instead of by what the commit does: each listed step's merged nodes get a ring,
+     * its new nodes and edges a dashed border, and its untouched nodes a dotted border, all in the
+     * step's color; `merged`, `new` and `untouched` then draw only what no listed step drew. Read
+     * when the view is shown: show it again after the draft changes.
+     */
+    readonly steps?: readonly {
+        /** The step's place in `draft.steps()`. */
+        readonly step: number;
+        /** The step's color, any CSS color. */
+        readonly color: string;
+    }[];
+}
+
+/**
+ * Some counts of a draft's step, element references, or the draft's untouched nodes, whose session
+ * ids a draft view reads.
+ * @internal
+ */
+export type DraftIdsQuery =
+    | { readonly refs: readonly SourceElementRef[] }
+    | { readonly step: number; readonly buckets: readonly string[] }
+    | { readonly untouched: true };
+
+/**
  * The style stack, the verbs that change it, and the three questions a reader asks of it.
  *
  * Everything on this surface addresses a layer by its id. Nothing on it takes an index, and
@@ -550,6 +606,29 @@ export interface StylesApi {
      * @beta
      */
     showBranches(view: BranchesView): { end(): void; readonly notDrawn: readonly HiddenNotDrawn[] };
+    /**
+     * Draw a displayed source draft's join preview (`draft.display(true)`, under the `source-steps`
+     * experiment): every layer of the stack is suspended (kept, listed, and not an undo step), as a
+     * branches view suspends it; a ring is drawn on each node the commit would merge, a dashed
+     * border on each node it would add, and each edge it would add is drawn dashed, read from
+     * `graphty.draft`. The selection ring and the hover mark stay. It shares the one view with
+     * `showBranches`: either call replaces the other's view, whose `end()` then does nothing. Not
+     * a layer, not saved, and not a branches view (`showingBranches` stays false).
+     * Experimental: may change or be removed in a minor release.
+     * @param view - The colors.
+     * @returns Ends the view, the stack's picture back in the same repaint.
+     * @beta
+     */
+    showDraft(view: DraftView): {
+        /** Ends the view, the stack's picture back in the same repaint. */
+        end(): void;
+    };
+    /**
+     * The draft view drawn now, as it was given, or null: what a key beside the canvas describes.
+     * Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    readonly shownDraft: DraftView | null;
     /**
      * Whether a branches view is drawn now; `style:branches-shown-changed` tells each change.
      * Experimental: may change or be removed in a minor release.
@@ -1146,7 +1225,6 @@ export interface StylesApi {
      * a filter hides.
      * @param id - The layer.
      * @returns The count.
-     * @experimental assistant
      */
     drawnCount(id: LayerId): number;
     /**
@@ -1763,6 +1841,13 @@ export interface StylesSources {
      */
     readonly holdCondition?: (id: string | null, all?: boolean) => void;
     /**
+     * The session ids of some elements of the drawn source draft, which `showDraft` marks and
+     * colors by step; null while no draft is drawn.
+     */
+    readonly draftIds?: (
+        query: DraftIdsQuery,
+    ) => { readonly nodes: readonly NodeId[]; readonly edges: readonly EdgeId[] } | null;
+    /**
      * A number that moves whenever the data or the run results change, which is half of what
      * {@link StyleCounts.revision} is made of. Absent, only style changes move it.
      */
@@ -1931,6 +2016,9 @@ const NOTHING_PAINTED: RepaintReport = Object.freeze({ nodes: 0, edges: 0 });
 
 /** What every folder id starts with, which no layer id can (a layer id has no colon). */
 const FOLDER = "folder:";
+
+/** A saved layer or folder id a document may give back: the form {@link mintLayerId} writes. */
+const SAVED_ID = /^[a-z][a-z0-9_-]*$/;
 
 /** The tree a consumer reads, per stack, so the same array comes back until the stack changes. */
 const treeCache = new WeakMap<readonly CompiledLayer[], readonly StyleRow[]>();
@@ -2268,7 +2356,12 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     };
 
     /** The branches view drawn now, and the layers it draws. */
-    let branchesShown: { readonly layers: readonly CompiledLayer[]; readonly view: BranchesView } | null = null;
+    // A draft view (`showDraft`) is held here too, with no branches view to tell.
+    let branchesShown: {
+        readonly layers: readonly CompiledLayer[];
+        readonly view: BranchesView | null;
+        readonly draft?: DraftView;
+    } | null = null;
     /** One suspended stand-in per layer, so a repaint sees the same object each time. */
     const suspended = new WeakMap<CompiledLayer, CompiledLayer>();
 
@@ -2423,6 +2516,23 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
     /** The last bindings each layer was painted with, by its first version, for {@link steadyEncodingOf}. */
     const lastPainted = new WeakMap<CompiledLayer, readonly PreparedBinding[]>();
+    /**
+     * The layer versions a finished repaint has passed over. A version not in it was written after
+     * the last pass, and its repaint is still to come (issue #9981).
+     */
+    const repainted = new WeakSet<CompiledLayer>();
+    /**
+     * Note the layer versions a pass has painted; a failed pass painted none of them.
+     * @param stack - The stack the pass painted.
+     * @param failure - What the pass threw, or null.
+     */
+    const markRepainted = (stack: readonly CompiledLayer[], failure: unknown): void => {
+        if (failure === null) {
+            for (const entry of stack) {
+                repainted.add(entry);
+            }
+        }
+    };
 
     /**
      * The bindings one layer was painted from, by the id its readers know it by.
@@ -2448,10 +2558,12 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             return prepared;
         }
         // A layer edited while a branches view suspends it is not painted until the view ends and
-        // its repaint lands, so until then the stack's readings (counts, agreement, the legend)
-        // read what it last painted, never "nothing" -- which would read it as covered by a layer
-        // below on every element it matches.
-        return branchesShown === null && viewPending === 0 ? prepared : (lastPainted.get(versionsOf(own)) ?? prepared);
+        // its repaint lands, and nor is one edited since the last pass (an edit that records an
+        // undo step tells `history:changed` before its repaint, issue #9981). Until then the
+        // stack's readings (counts, agreement, the legend) read what it last painted, never
+        // "nothing" -- which would read it as covered by a layer below on every element it matches.
+        const steady = branchesShown === null && viewPending === 0 && repainted.has(own);
+        return steady ? prepared : (lastPainted.get(versionsOf(own)) ?? prepared);
     };
 
     /**
@@ -2842,6 +2954,37 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
             return id;
         };
+    };
+
+    /**
+     * The ids a document's layers get: each one's saved id when it is a legible id no layer in the
+     * session (nor an earlier layer of the document) holds, else one minted from its name. The
+     * saved ids are claimed first, so a minted id never takes one a later layer saved.
+     * @param document - The document.
+     * @returns The ids, by place.
+     */
+    const documentIds = (document: StyleDocument): LayerId[] => {
+        const taken = new Set(byId().keys());
+        const kept = document.layers.map((_spec, index) => {
+            const saved = document.ids?.[index];
+            if (typeof saved !== "string" || !SAVED_ID.test(saved) || taken.has(saved)) {
+                return undefined;
+            }
+
+            taken.add(saved);
+            return saved;
+        });
+
+        return document.layers.map((spec, index) => {
+            const own = kept[index];
+            if (own !== undefined) {
+                return own;
+            }
+
+            const id = mintLayerId(typeof spec.name === "string" ? spec.name : "", taken);
+            taken.add(id);
+            return id;
+        });
     };
 
     /**
@@ -3542,11 +3685,10 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         checkDocument(document);
         const index = templateIndex(at);
 
-        const id = minter();
         const imported: ImportedLayer[] = [];
         const unresolved = new Set<Path>();
         const warnings: CodedFact<GraphtyWarningCode>[] = [];
-        const ids = document.layers.map((spec) => id(spec.name));
+        const ids = documentIds(document);
         const rowKeys = documentRowKeys(document.layers, ids);
 
         for (const [index, saved] of document.layers.entries()) {
@@ -3723,8 +3865,6 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                       selection: config?.selectionStyle ?? DEFAULT_SELECTION_STYLE,
                       ...(editableBase() ? { everything: { ...baseValues("node"), ...baseValues("edge") } } : {}),
                       ...(config?.pinnedStyle === undefined ? {} : { pinned: config.pinnedStyle }),
-                      // Only under the source-steps experiment: with it off the rows are today's.
-                      ...(dispatcher.services.sourceSteps?.() === true ? { draft: true } : {}),
                   },
         );
         let stack = current();
@@ -3870,10 +4010,11 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * @param rows - The rows whose folder ids are taken.
      * @returns A function that mints one free folder id per call.
      */
-    const folderMinter = (rows: Rows): ((name: string) => StyleRowId) => {
+    const folderMinter = (rows: Rows): ((name: string, saved?: string) => StyleRowId) => {
         const taken = new Set(folderIdsOf(rows).map((id) => id.slice(FOLDER.length)));
-        return (name: string): StyleRowId => {
-            const id = mintLayerId(name, taken);
+        return (name: string, saved?: string): StyleRowId => {
+            const own = typeof saved === "string" && saved.startsWith(FOLDER) ? saved.slice(FOLDER.length) : "";
+            const id = SAVED_ID.test(own) && !taken.has(own) ? own : mintLayerId(name, taken);
             taken.add(id);
             return `${FOLDER}${id}`;
         };
@@ -4443,6 +4584,8 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             }
         }
 
+        markRepainted(target.styles, failure);
+
         lastPass = {
             reason: request.reason,
             layers: request.edits.map((each) => (each.next ?? each.previous)?.layer.id ?? ""),
@@ -4668,12 +4811,47 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             };
         },
 
+        showDraft(view: DraftView): {
+            /** Ends the view, the stack's picture back in the same repaint. */
+            end(): void;
+        } {
+            const layers = draftLayers(view, current(), check, sources.draftIds);
+            const replaced = branchesShown?.view ?? null;
+            const before = painting(current());
+            const shown = { layers, view: null, draft: Object.freeze({ ...view }) };
+            branchesShown = shown;
+            shownKeys = [];
+            if (replaced !== null) {
+                sources.holdCondition?.(null);
+            }
+            repaintBetween(before, painting(current()));
+            if (replaced !== null) {
+                sources.onBranchesShown?.(false);
+            }
+
+            return {
+                end(): void {
+                    if (branchesShown !== shown) {
+                        return;
+                    }
+
+                    const drawn = painting(current());
+                    branchesShown = null;
+                    repaintBetween(drawn, painting(current()));
+                },
+            };
+        },
+
         get showingBranches(): boolean {
-            return branchesShown !== null;
+            return (branchesShown?.view ?? null) !== null;
         },
 
         get shownBranches(): BranchesView | null {
             return branchesShown?.view ?? null;
+        },
+
+        get shownDraft(): DraftView | null {
+            return branchesShown?.draft ?? null;
         },
 
         compiled(): readonly CompiledLayer[] {
@@ -5576,12 +5754,13 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             const problems = [...named]
                 .filter((id) => !dispatcher.state.shaders.has(id))
                 .map((id): ShaderProblem => Object.freeze({ code: "shader.not-saved", params: { id } }));
-            // Saved by place, since an opened document mints new layer ids.
+            // Rows name layers by place; each layer's id travels beside it in `ids`.
             const tree = documentRows(rowsOf(current()), (key) => mine.findIndex((entry) => entry.layer.id === key));
 
             return Object.freeze({
                 version: DOCUMENT_VERSION,
                 layers: Object.freeze(layers),
+                ids: Object.freeze(mine.map((entry) => entry.layer.id)),
                 // Every palette and label look a layer names, built-ins included, so a later build
                 // that no longer ships one, or ships it changed, paints what this one did.
                 ...(carried.palettes.length === 0 ? {} : { palettes: Object.freeze(carried.palettes) }),
@@ -5593,7 +5772,9 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         },
 
         toFile(): StyleFileDocument {
-            return Object.freeze({ kind: "graphty-style", ...api.toDocument() });
+            // A style file is a look to share, not this session's work: its layers get new ids where it opens.
+            const { ids: _ids, ...document } = api.toDocument();
+            return Object.freeze({ kind: "graphty-style", ...document });
         },
     };
 

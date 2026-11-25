@@ -217,25 +217,6 @@ export function notReadWords(name: string, error: unknown, verb: "opened" | "add
     return errorWords(`${name} could not be ${verb}`, error);
 }
 
-/** Why a data source cannot be kept as a reference, by graphty-element's reason (`W_SOURCE_NO_PATH`). */
-const NO_PATH_WORDS: Readonly<Record<string, string>> = {
-    file: "Local file",
-    inline: "Pasted rows",
-    join: "Joined table",
-    "secret-url": "Private address",
-    "relative-url": "Not a web address",
-    "no-seed": "No seed",
-};
-
-/**
- * Why a data source cannot be kept as a reference, as a short label beside its choice.
- * @param reason - graphty-element's reason (an open union).
- * @returns the label; an unknown reason shows as itself.
- */
-export function noPathWords(reason: string): string {
-    return NO_PATH_WORDS[reason] ?? reason;
-}
-
 /** Why a reference could not be read again, by graphty-element's reason (`W_SOURCE_UNAVAILABLE`). */
 const UNAVAILABLE_WORDS: Readonly<Record<string, string>> = {
     "not-found": "not found",

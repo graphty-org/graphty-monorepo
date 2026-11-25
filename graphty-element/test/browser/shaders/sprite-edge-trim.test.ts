@@ -51,7 +51,14 @@ async function lineStarts(renderPath: "objects" | "batched"): Promise<{ plain: n
     const start = (): number => {
         const edge = edgeBetween(graph as Graph, "A", "B");
         const { lineBatch, lineSlots } = edge as unknown as EdgeLines;
-        assert(lineBatch, "the edge draws its line from a batch");
+        if (lineBatch === null) {
+            // on the batched path an arrowed line between round nodes is pulled from the row table: read where it
+            // is drawn, its source end half its length before its middle along x
+            const line = edge?.drawnLine;
+            assert(line, "the edge draws its line");
+            return line.center.x - line.length / 2;
+        }
+
         return lineBatch.endsOf(lineSlots[0])[0].x;
     };
     const plain = start();

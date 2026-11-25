@@ -45,6 +45,7 @@ import type { ExportGraphOptions, ExportResult } from "./data/export";
 import type { GraphtyWarningCode } from "./errors/codes";
 import { isGraphtyError } from "./errors/GraphtyError";
 import {
+    type EdgeEventDetail,
     type GraphEvent,
     type GraphtyForwardedEventMap,
     isDomForwardableEvent,
@@ -1128,6 +1129,17 @@ export class Graphty extends LitElement {
                 }),
             );
         });
+        this.#graph.eventManager.onEdgeEvent.add((event) => {
+            if (event.type !== "edge-hover") {
+                return;
+            }
+
+            const detail: EdgeEventDetail = {
+                edgeId: event.edgeId,
+                ...(event.tooltip === undefined ? {} : { tooltip: event.tooltip }),
+            };
+            this.dispatchEvent(new CustomEvent("graphty-edge-hover", { detail, bubbles: true, composed: true }));
+        });
 
         // Note: Property setters now forward to Graph methods automatically,
         // so we don't need to check changedProperties here. The setters have
@@ -1592,7 +1604,7 @@ export class Graphty extends LitElement {
     #featuresValue: readonly string[] | undefined;
 
     /**
-     * The experiments to switch on, space separated (`features="assistant location-map"`); `all`
+     * The experiments to switch on, space separated (`features="file-styles source-steps"`); `all`
      * switches on every one this build declares. Absent takes the page default
      * (`setDefaultFeatures`). Read once, when the element first renders; see `enabledFeatures`.
      * Features marked `@experimental` may change or disappear in a minor release.
@@ -1884,6 +1896,8 @@ export class Graphty extends LitElement {
             camera: {
                 get: () => this.#graph.getCameraState(),
                 set: (state) => this.#graph.setCameraState(state, { animate: false }),
+                tour: () => this.#graph.tourPlace(),
+                resumeTour: (name, stop) => this.#graph.resumeTour(name, stop),
             },
             reloadPage: async () => {
                 if (pristine !== undefined) {
@@ -2697,7 +2711,7 @@ export class Graphty extends LitElement {
         const queueTurn = (): Promise<void> =>
             operationQueueOf(this.#graph).queueOperationAsync("data-add", (context) => {
                 if (context.signal.aborted) {
-                    throw new Error("Operation cancelled");
+                    throw new Error("Operation canceled");
                 }
             });
         // An edit, not a load: inside a transaction it dispatches at once.
@@ -4762,8 +4776,8 @@ export class Graphty extends LitElement {
      *
      * // Cancel after 2 seconds
      * setTimeout(() => {
-     *   const wasCancelled = el.cancelAnimationCapture();
-     *   console.log('Cancelled:', wasCancelled);
+     *   const wasCanceled = el.cancelAnimationCapture();
+     *   console.log('Canceled:', wasCanceled);
      * }, 2000);
      *
      * // Handle the cancellation
@@ -4771,7 +4785,7 @@ export class Graphty extends LitElement {
      *   await capturePromise;
      * } catch (error) {
      *   if (isGraphtyError(error) && error.code === 'E_CANCELED') {
-     *     console.log('Capture was cancelled by user');
+     *     console.log('Capture was canceled by user');
      *   }
      * }
      * ```
@@ -4818,7 +4832,7 @@ export class Graphty extends LitElement {
      * camera is. Every stop is checked before the camera moves. Auto-rotate and following the
      * selection wait while a tour plays.
      *
-     * It always resolves, with how it ended: `"finished"`; `"cancelled"` by `signal` or
+     * It always resolves, with how it ended: `"finished"`; `"canceled"` by `signal` or
      * `cancelCameraAnimation()`; `"interrupted"` by the reader's drag, pinch, wheel, camera key or
      * press on the canvas (the camera stays where the reader left it); `"replaced"` by another
      * tour, a recording, `setCameraState`, `applyCameraView` or a screenshot with a `camera`; or
@@ -4829,7 +4843,7 @@ export class Graphty extends LitElement {
      * @param options.easing - The easing of each flight; wins over the tour's own. Default `"easeInOut"`.
      * @param options.restoreCamera - Put the camera back where it was when the tour finishes.
      *     Default false.
-     * @param options.signal - Ends the tour as `"cancelled"` when it aborts.
+     * @param options.signal - Ends the tour as `"canceled"` when it aborts.
      * @returns How the tour ended.
      * @throws A `GraphtyError` with the problem `planTour` reports: `E_BAD_COMMAND`
      *     `{ missing, available }` for an unknown tour name or `{ reason: "no-stops" }`,
@@ -5658,10 +5672,15 @@ export class Graphty extends LitElement {
      * @since 2.0.0
      */
     get pinnedNodes(): ReadonlySet<string | number> {
+        // From the pin column `Node.isPinned` reads, by row: walking the nodes built a `Node` for
+        // every row stored with none on renderPath "batched" (issue #10023).
+        const manager = this.#graph.getDataManager();
+        const { positions } = manager;
         const pinned = new Set<string | number>();
-        for (const node of this.#graph.getDataManager().nodes.values()) {
-            if (node.isPinned()) {
-                pinned.add(node.id);
+        for (let row = 0; row < positions.count; row++) {
+            const id = positions.isPinned(row) ? manager.nodeIdAtRow(row) : undefined;
+            if (id !== undefined) {
+                pinned.add(id);
             }
         }
 
@@ -5722,6 +5741,10 @@ export class Graphty extends LitElement {
 
     /**
      * Get all edges in the graph. `session.data.edges()` lists the same edges as plain records.
+     *
+     * On the `"batched"` render path an edge's `Edge` is built when its element of the array is
+     * first read: the call and `length` stay cheap, but walking the whole array builds every `Edge`.
+     * Walk {@link getEdgeIds} instead to enumerate a large graph.
      * @returns Array of all edges
      * @since 3.40.0
      * @example
@@ -5732,6 +5755,21 @@ export class Graphty extends LitElement {
      */
     getEdges(): import("./Edge").Edge[] {
         return this.#graph.getEdges();
+    }
+
+    /**
+     * Get the id of every edge, building no `Edge` object: the way to enumerate the edges of a
+     * large graph on the `"batched"` render path, where walking all of {@link getEdges} builds an
+     * `Edge` for every row.
+     * @returns The ids, in the order `getEdges()` returns the edges.
+     * @since 3.40.0
+     * @example
+     * ```typescript
+     * console.log('Edges:', element.getEdgeIds().length);
+     * ```
+     */
+    getEdgeIds(): string[] {
+        return this.#graph.getEdgeIds();
     }
 
     /**
@@ -6947,7 +6985,7 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Stop speaking an answer at once (`ai-speech-end` `{ code: "AI_CANCELLED" }`).
+     * Stop speaking an answer at once (`ai-speech-end` `{ code: "AI_CANCELED" }`).
      * @since 4.0.0
      */
     stopAiSpeech(): void {
@@ -6956,7 +6994,7 @@ export class Graphty extends LitElement {
 
     /**
      * End a live conversation (`voice.mode: "live"`): its connection closes, a held press ends with
-     * `AI_CANCELLED`, and the next press opens another, with the conversation as saved. Does
+     * `AI_CANCELED`, and the next press opens another, with the conversation as saved. Does
      * nothing when none is open.
      * @since 4.0.0
      */
@@ -7027,7 +7065,6 @@ export class Graphty extends LitElement {
      * @param id - Its id.
      * @param name - The name, trimmed; null or "" clears it.
      * @returns When it is saved; rejects when the store cannot save it.
-     * @experimental assistant
      * @example
      * ```ts
      * await element.renameAiConversation(id, "Color by department");
@@ -7057,7 +7094,6 @@ export class Graphty extends LitElement {
      * @param options.provider - One provider's key; every provider's when absent.
      * @param options.prefix - `keyPersistence.prefix`, with no assistant enabled.
      * @returns When they are forgotten.
-     * @experimental assistant
      */
     async forgetAiKeys(options?: Parameters<Graph["forgetAiKeys"]>[0]): Promise<void> {
         return this.#graph.forgetAiKeys(options);
@@ -7426,6 +7462,10 @@ export class Graphty extends LitElement {
      * a property of something already in the Babylon.js scene (through `graph.scene`, a material's
      * color, say): during the layout that waits for its next landing. Use `"objects"` if it must
      * show at once.
+     *
+     * `"batched"` needs WebGL2 or WebGPU. On a WebGL1 context every node is drawn as an object, as
+     * under `"objects"`: `rowCounts.batchedNodes` stays 0, and `limits` are not in force
+     * (`W_LIMITS_IGNORED`).
      * @returns The path asked for.
      * @example
      * ```html
@@ -7591,6 +7631,11 @@ export class Graphty extends LitElement {
      * may be drawn as objects of their own, for a look no batch draws (a border, an arrow head).
      * Past either, later rows draw as plain bodies and plain lines, and `limits-warning` says so
      * with `W_OBJECT_CAP` (`{ of, wanted, cap }`).
+     *
+     * `fullDetailTriangleBudget` (default 1,000,000, honored on both render paths) is how many
+     * triangles the nodes may draw at full detail, each node counted as the default shape's 320.
+     * Past it a node no style layer gives a `node.meshDetail` is drawn `"low"`; a layer that sets
+     * one keeps it. Raise it for full detail on a larger graph on a fast GPU, lower it for a slow one.
      * @returns The limits asked for.
      * @experimental cosmograph
      * @example
@@ -7880,6 +7925,8 @@ declare global {
         "graphty-node-drag-start": CustomEvent<NodeEventDetail>;
         /** Emitted when a dragged node is let go, with the node's id. */
         "graphty-node-drag-end": CustomEvent<NodeEventDetail>;
+        /** Emitted when the pointer moves onto an edge, with the edge's id and its tooltip's words. */
+        "graphty-edge-hover": CustomEvent<EdgeEventDetail>;
         /** Emitted when how many node labels are drawn, or hidden and why, changes. */
         "graphty-label-change": CustomEvent<NodeLabelCounts>;
         /** Emitted once the element has started, with the experiments it switched on and the ids it did not recognize. */

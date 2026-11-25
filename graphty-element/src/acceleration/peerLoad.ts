@@ -118,7 +118,12 @@ function exportOf(namespace: unknown, name: string): unknown {
 
 /** What the factory needs from the two loaded modules. */
 export interface LoadedPeer {
-    readonly root: { readonly EXACT_MAX_NODES: number };
+    readonly root: {
+        readonly EXACT_MAX_NODES: number;
+        /** Optional: without both, the device is never measured and keeps the shipped ceiling. */
+        readonly calibrateLayout?: (...args: never[]) => unknown;
+        readonly createAccelerator?: (...args: never[]) => unknown;
+    };
     readonly acquireAccelerator: (...args: never[]) => unknown;
     /** Optional: without it the accelerator never shares the renderer's device. */
     readonly summarizeAdapter?: (...args: never[]) => unknown;
@@ -151,8 +156,18 @@ export function checkPeerExports(root: unknown, browser: unknown): LoadedPeer {
     }
 
     const summarizeAdapter = exportOf(browser, "summarizeAdapter");
+    const calibrateLayout = exportOf(root, "calibrateLayout");
+    const createAccelerator = exportOf(root, "createAccelerator");
     return {
-        root: { EXACT_MAX_NODES: exactMaxNodes },
+        root: {
+            EXACT_MAX_NODES: exactMaxNodes,
+            ...(typeof calibrateLayout === "function" && typeof createAccelerator === "function"
+                ? {
+                      calibrateLayout: calibrateLayout as (...args: never[]) => unknown,
+                      createAccelerator: createAccelerator as (...args: never[]) => unknown,
+                  }
+                : {}),
+        },
         acquireAccelerator: acquireAccelerator as LoadedPeer["acquireAccelerator"],
         ...(typeof summarizeAdapter === "function"
             ? { summarizeAdapter: summarizeAdapter as NonNullable<LoadedPeer["summarizeAdapter"]> }

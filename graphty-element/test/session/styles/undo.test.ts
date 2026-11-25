@@ -240,7 +240,7 @@ describe("a style verb's run", () => {
         assert.isFalse(session.canUndo);
     });
 
-    it("keeps the edit and its step when cancelled after the call", async () => {
+    it("keeps the edit and its step when canceled after the call", async () => {
         const { session } = clocked();
 
         const run = session.styles.add(RED);

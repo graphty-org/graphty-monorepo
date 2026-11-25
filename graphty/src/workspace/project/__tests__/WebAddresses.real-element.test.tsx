@@ -25,9 +25,7 @@ import { clearRecent } from "../recent";
 
 // These tests drive the Style panel the app shows with file styles off; the panel by part of the
 // drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
-// They save through the name-only Save as; version 2 save files replace it, tested in
-// SaveFilesV2.real-element.test.tsx.
-withoutFeatures(["file-styles", "save-files-v2"]);
+withoutFeatures(["file-styles"]);
 
 const MODEL = "https://models.example.com/kit/panel.glb";
 const PICTURE = "https://pictures.example.com/dot.png";
@@ -343,12 +341,12 @@ describe("web addresses in the Style tab, with node models", () => {
 
         await userEvent.keyboard("{Control>}{Shift>}s{/Shift}{/Control}");
         const again = await screen.findByRole("dialog", { name: "Save Models as" });
-        assert.equal(store.get().project?.name, "Models", "the cancelled save's name is taken back");
+        assert.equal(store.get().project?.name, "Models", "the canceled save's name is taken back");
         await userEvent.click(within(again).getByRole("button", { name: "Save" }));
         const asked = await screen.findByRole("dialog", { name: "Save files from the web" });
         assert.isTrue(
             within(asked).getByLabelText<HTMLInputElement>("Embed model").checked,
-            "the cancelled question's answer is not carried over",
+            "the canceled question's answer is not carried over",
         );
         await userEvent.click(within(asked).getByRole("button", { name: "Save" }));
         await waitFor(() => {

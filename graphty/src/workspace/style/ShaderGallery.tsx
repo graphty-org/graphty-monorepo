@@ -27,6 +27,8 @@ export interface OptionTile {
     /** What a pick hands back: the option's key in its section's "+". */
     readonly key: string;
     readonly label: string;
+    /** What it says it is ("Effects option"); absent, the tab's words. */
+    readonly where?: string;
 }
 
 /**
@@ -409,8 +411,8 @@ export function ShaderGallery({
                         key={option.key}
                         id={`option:${option.key}`}
                         name={option.label}
-                        second={tab === "background" ? undefined : OPTION_TILE_WORDS[tab]}
-                        description={tab === "background" ? undefined : OPTION_TILE_WORDS[tab]}
+                        second={tab === "background" ? undefined : (option.where ?? OPTION_TILE_WORDS[tab])}
+                        description={tab === "background" ? undefined : (option.where ?? OPTION_TILE_WORDS[tab])}
                         marked={false}
                         stop={tabStop === `option:${option.key}`}
                         onPick={pick}

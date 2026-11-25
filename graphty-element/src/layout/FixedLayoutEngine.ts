@@ -7,7 +7,7 @@ import type { Node } from "../Node";
 import { GRAPHVIZ_TIME_BUDGET_MS } from "./graphviz/engines";
 import { POINTS_PER_UNIT } from "./graphviz/toDot";
 import type { LaidRoute } from "./GraphvizLayoutEngine";
-import { type EdgePosition, SimpleLayoutConfig } from "./LayoutEngine";
+import { edgeEndsFollowNodes, type EdgePosition, SimpleLayoutConfig } from "./LayoutEngine";
 import { SnapshotLayoutEngine, type SnapshotLayoutInput } from "./SnapshotLayoutEngine";
 
 /**
@@ -111,6 +111,10 @@ export class FixedLayout extends SnapshotLayoutEngine {
     #spreadOpen = false;
     /** Whether the next run places every node from its data again, as the first run did. */
     #reseed = false;
+    /** Whether this engine took over from another fixed engine, so its first run keeps the array too. */
+    #continued = false;
+    /** Whether that first run takes each node's depth from its data again: a switch from 2D, which drew it flat. */
+    #depthFromData = false;
     /** Always three: a node's data carries a z, and a 2D view draws it flat. */
     protected readonly dimensions = 3;
 
@@ -141,6 +145,23 @@ export class FixedLayout extends SnapshotLayoutEngine {
             const scale = this.config.scale * this.spread;
             n.setMeshPosition((position.x ?? 0) * scale, (position.y ?? 0) * scale, (position.z ?? 0) * scale);
         }
+    }
+
+    /**
+     * Take over from the fixed engine this one replaces on a 2D/3D switch: its first run keeps
+     * every placed node where it is drawn, as a later run would, and the spread stays the one the
+     * data was drawn with. Without this, a switch put every node moved by `positions.set` or a
+     * drag back at its data position in one frame (#9637). Coming from 2D, which put every node on
+     * the plane, a node with a data position gets its data's depth back.
+     * ponytail: a depth set by `positions.set` in 3D is lost through 2D, as on every other layout.
+     * @param previous - the engine built for the other dimension
+     * @param fromFlat - whether the previous engine drew in 2D
+     */
+    continueFrom(previous: FixedLayout, fromFlat: boolean): void {
+        this.spread = previous.spread;
+        this.#spreadOpen = previous.#spreadOpen;
+        this.#continued = true;
+        this.#depthFromData = fromFlat;
     }
 
     /**
@@ -232,7 +253,7 @@ export class FixedLayout extends SnapshotLayoutEngine {
      * @returns the coordinates
      */
     private place(input: SnapshotLayoutInput): F32 {
-        const seeds = input.firstRun || this.#reseed ? this.seeds(input) : null;
+        const seeds = (input.firstRun && !this.#continued) || this.#reseed ? this.seeds(input) : null;
         this.#reseed = false;
 
         const { initial } = input;
@@ -261,7 +282,33 @@ export class FixedLayout extends SnapshotLayoutEngine {
             this.placeNewcomers(input, positions);
         }
 
+        if (this.#depthFromData) {
+            this.#depthFromData = false;
+            this.depthFromData(input, positions);
+        }
+
+        // A 2D view draws every node on the plane, on every run: a data Z kept here was drawn by the objects
+        // path but flattened by the batched row table, so the two paths drew different pictures (issue #10039).
+        if (this.config.dim === 2) {
+            flatten(positions);
+        }
+
         return positions;
+    }
+
+    /**
+     * Give every placed node with a data position its data's depth, keeping its X and Y.
+     * @param input - the graph and its data positions
+     * @param positions - the coordinates, written in place
+     */
+    private depthFromData(input: SnapshotLayoutInput, positions: F32): void {
+        const data = input.dataPositions();
+        const factor = this.config.scale * this.spread;
+        for (let i = 2; i < positions.length; i += 3) {
+            if (!Number.isNaN(data[i]) && !Number.isNaN(input.initial[i - 2])) {
+                positions[i] = data[i] * factor;
+            }
+        }
     }
 
     /**
@@ -353,3 +400,15 @@ function median(values: number[]): number | undefined {
     values.sort((a, b) => a - b);
     return values[values.length >> 1];
 }
+
+/**
+ * Put every row on the Z = 0 plane, keeping its X and Y.
+ * @param positions - three coordinates per row, written in place
+ */
+function flatten(positions: F32): void {
+    for (let i = 2; i < positions.length; i += 3) {
+        positions[i] = 0;
+    }
+}
+
+edgeEndsFollowNodes(FixedLayout);

@@ -453,6 +453,9 @@ export function RowStyle({
                   ctx.layers,
                   // Its revision moves with every repaint, whatever it painted.
                   ctx.layers.map((layer) => ({ ...session.styles.counts(layer.id), revision: undefined })),
+                  // What a bound field draws: a repaint can change it while the counts stay put (a
+                  // fixed color bound to Degree paints the same nodes, #9981).
+                  ctx.layers.map((layer) => session.styles.legendOf(layer.id)),
                   channelsFor(side).map(({ channel }) => [beneath(channel), hiddenBy?.(channel)]),
                   colors,
                   dataVersion,
@@ -615,7 +618,8 @@ function KindSwitch({
         state.of > 1 && state.on > 0 && !all
             ? `Style ${words.many}, on in ${String(state.on)} of ${String(state.of)} layers`
             : `Style ${words.many}`;
-    const fixed = only && all && state.of === 1;
+    // Every layer styles this kind and none the other: a layer keeps its only kind, so none can drop it.
+    const fixed = only && all;
     const other = KIND_WORDS[side === "node" ? "edge" : "node"].many;
     // Why it cannot be cleared, in its tooltip and its description, not as lines on the panel.
     const reason = fixed ? `Stays on: style ${other} first to stop styling ${words.many}` : undefined;

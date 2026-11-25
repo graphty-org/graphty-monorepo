@@ -522,8 +522,10 @@ describe("a label fixed on screen for some nodes", () => {
 });
 
 describe("a tooltip on an edge", () => {
-    it("is not noted when its rule selects no edge", () => {
-        const out = translate([everyOne("edge", { tooltip: "hi" }, { where: { eq: [{ data: "missing" }, 1] } })]);
+    it("is drawn, through the edge.tooltip channel", () => {
+        const out = translate([everyOne("edge", { tooltip: "hi" })]);
+        const set = Object.assign({}, ...out.layers.map(({ spec }) => spec.set ?? {})) as Record<string, unknown>;
+        assert.equal(set["edge.tooltip"], "hi");
         assert.isFalse(notesOf(out, "W_STYLE_NOT_DRAWN").has("edge:tooltip"));
     });
 });

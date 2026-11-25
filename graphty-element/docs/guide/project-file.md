@@ -316,11 +316,10 @@ anything and without asking about unsaved changes. That step sets `dirty`, like 
 
 A recipe is what you did to the data -- its filters, sets, algorithm runs and layout -- and how it
 is drawn, written as one file that names columns and never a node or an edge, so it can be applied
-to other data with the same columns. Recipes need the `save-files-v2` experiment.
+to other data with the same columns.
 
 ```html
-<graphty-element id="first" features="save-files-v2"></graphty-element>
-<graphty-element id="second" features="save-files-v2"></graphty-element>
+<graphty-element id="first"></graphty-element> <graphty-element id="second"></graphty-element>
 ```
 
 ```typescript

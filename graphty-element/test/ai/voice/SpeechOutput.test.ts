@@ -28,14 +28,14 @@ describe("browser speech", () => {
         assert.strictEqual((await spoken).code, "AI_COMPLETED");
     });
 
-    it("cancel ends AI_CANCELLED, and a new speak cuts off the old one", async () => {
+    it("cancel ends AI_CANCELED, and a new speak cuts off the old one", async () => {
         const fake = installFakeSpeech();
         const output = createSpeechOutput("browser", { language: "en-US" });
         const first = output.speak("one");
         const second = output.speak("two");
-        assert.strictEqual((await first).code, "AI_CANCELLED");
+        assert.strictEqual((await first).code, "AI_CANCELED");
         output.cancel();
-        assert.strictEqual((await second).code, "AI_CANCELLED");
+        assert.strictEqual((await second).code, "AI_CANCELED");
         assert.strictEqual(fake.utterances.length, 2);
     });
 
@@ -88,7 +88,7 @@ describe("provider speech", () => {
         const spoken = output.speak("Done.");
         await flushMicrotasks();
         output.cancel();
-        assert.strictEqual((await spoken).code, "AI_CANCELLED");
+        assert.strictEqual((await spoken).code, "AI_CANCELED");
         assert.isTrue(fake.audios[0]?.paused);
         assert.strictEqual(revoke.mock.calls.length, 1);
     });

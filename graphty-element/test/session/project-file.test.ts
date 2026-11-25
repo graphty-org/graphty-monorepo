@@ -626,6 +626,32 @@ describe("the project file", () => {
             assert.isTrue(session.project.dirty);
             session.dispose();
         });
+
+        it("is one again after a change and a cleared history, until a save", async () => {
+            const { session } = withDegree().harness;
+            await session.config.set({ name: "Set up first" });
+            session.history.clear();
+            assert.isFalse(session.project.dirty, "what a cleared new session holds is not unsaved");
+            await load(session);
+            assert.isFalse(session.project.dirty, "the import is the baseline");
+            await session.undo();
+            assert.isTrue(session.project.dirty, "undoing past the baseline");
+
+            const saved = withDegree().harness.session;
+            await saved.project.save();
+            await saved.config.set({ name: "Changed" });
+            saved.history.clear();
+            await load(saved);
+            assert.isTrue(saved.project.dirty, "a saved session never starts again");
+
+            const kept = withDegree().harness.session;
+            await kept.project.save({ markSaved: false });
+            await load(kept);
+            assert.isFalse(kept.project.dirty, "a save never marked written is not a save");
+            for (const each of [session, saved, kept]) {
+                each.dispose();
+            }
+        });
     });
 
     it("ignores a save marked after a project was opened over it", async () => {
@@ -823,7 +849,7 @@ describe("the project file", () => {
         assert.strictEqual(await refusal(session, "{ not json"), "E_PARSE_FAILED");
         assert.strictEqual(await refusal(session, "<not a graph>"), "E_UNKNOWN_FORMAT");
         assert.strictEqual(
-            // A version no reader takes: version 2 is read with the save-files-v2 experiment on.
+            // A version no reader takes.
             await refusal(session, '{ "kind": "graphty-document", "version": 99, "members": [] }'),
             "E_UNSUPPORTED_VERSION",
         );

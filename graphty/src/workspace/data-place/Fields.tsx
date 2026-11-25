@@ -373,6 +373,7 @@ function addOption(
  */
 function useFocusPlus(): [React.RefObject<HTMLDivElement | null>, () => void] {
     const group = useRef<HTMLDivElement>(null);
+    // on reload: fresh: request: a one-time ask to focus a group's "+", cleared once it has
     const [asked, setAsked] = useState(0);
     useEffect(() => {
         if (asked > 0) {
@@ -965,7 +966,9 @@ export function Fields({
     useSessionEvents(session, TIME_FIELD_EVENTS);
     // The groups the reader opened or closed; a group they never touched is open only while its load
     // is selected. A new pick forgets the reader's choice for that group, so it opens.
+    // on reload: fresh: pointer: groups folded for a look, which a new pick forgets too
     const [opened, setOpened] = useState<Readonly<Record<string, boolean>>>({});
+    // on reload: fresh: derived: the pick the folds belong to, rebuilt from the kept selection
     const [openedFor, setOpenedFor] = useState(selected?.key);
     if (openedFor !== selected?.key) {
         setOpenedFor(selected?.key);

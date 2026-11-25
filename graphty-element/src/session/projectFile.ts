@@ -37,7 +37,6 @@ import {
 import { otherIdSpelling } from "../data/nodeIdSpelling";
 import { type GraphtyErrorCode, type GraphtyWarningCode } from "../errors/codes";
 import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
-import { featureOff } from "../features/resolve";
 import { ANNOTATIONS_VALUE, drawnAnnotationsOf } from "./annotations";
 import type { AssetsApiInternal } from "./assets/AssetsApi";
 import {
@@ -53,7 +52,7 @@ import { COLUMNS_VALUE, type ColumnSettings } from "./commands/data";
 import { shaderIdsIn } from "./commands/shaderCopies";
 import { type CameraService, startingCamerasOf } from "./commands/view";
 import type { SessionData } from "./data";
-// The rest of document2/ (the save-files-v2 experiment) is imported on demand from
+// The rest of document2/ is imported on demand from
 // document2/onDemand.ts where a version 2 file is saved or opened, so it stays out of the main entry.
 import { DTYPES, newDocumentId } from "./document2/basics";
 import type { ProjectFileHandle } from "./document2/codecs/fileHandles";
@@ -85,6 +84,7 @@ import { isProvenance, type Provenance } from "./sources/provenance";
 import { fillReferences, type LeaveOut, planLeaveOut, REF_KEY, unreadLoads } from "./sources/references";
 import { EMPTY_STEPS } from "./sources/steps/project";
 import { computeFingerprint } from "./statistics";
+import { upgradeStorePaths } from "./storePaths";
 import { oldLookColumns, rewriteOldPaths } from "./styles/fileStyles/oldLooks";
 import type {
     DataSourceInput,
@@ -227,33 +227,24 @@ export interface ProjectSaveOptions {
     readonly assets?: Readonly<Record<string, AssetStorage>>;
     /**
      * The file format: `1` (the default) or `2`, the version 2 format of `spec/README.md` in the
-     * package. `2` needs the `save-files-v2` experiment, and is refused with `E_FEATURE_OFF`
-     * without it. EXPERIMENTAL: version 2 may change until it is released.
+     * package.
      * @since 3.40.0
-     * @experimental save-files-v2
-     * @beta
      */
     readonly format?: 1 | 2;
     /**
      * Version 2 only: the sections to write. Default every section but `results`.
      * @since 3.40.0
-     * @experimental save-files-v2
-     * @beta
      */
     readonly sections?: readonly DocumentSection[];
     /**
      * Version 2 only: `"full"` (the default) writes a full file holding the sections;
      * `"section"` writes the one section in `sections` as a section file.
      * @since 3.40.0
-     * @experimental save-files-v2
-     * @beta
      */
     readonly form?: "full" | "section";
     /**
      * Version 2 only: also write the results section. Default false: opening reruns the runs.
      * @since 3.40.0
-     * @experimental save-files-v2
-     * @beta
      */
     readonly results?: boolean;
     /**
@@ -272,8 +263,6 @@ export interface ProjectSaveOptions {
      * const { text } = await session.project.save({ format: 2, embed: { [source.key]: "referenced" } });
      * ```
      * @since 3.40.0
-     * @experimental save-files-v2
-     * @beta
      */
     readonly embed?: Readonly<Record<string, SourceStorage>>;
     /**
@@ -282,8 +271,6 @@ export interface ProjectSaveOptions {
      * resolves it against its `location` option. A path that is absolute or climbs above that
      * folder, or a key that names no source, is refused with `E_OPTION_RANGE`.
      * @since 3.40.0
-     * @experimental save-files-v2
-     * @beta
      */
     readonly paths?: Readonly<Record<string, string>>;
     /**
@@ -302,8 +289,6 @@ export interface ProjectSaveOptions {
      * await session.project.save({ format: 2, embed: { [source.key]: "referenced" }, handles: { [source.key]: handle } });
      * ```
      * @since 3.40.0
-     * @experimental save-files-v2
-     * @beta
      */
     readonly handles?: Readonly<Record<string, ProjectFileHandle>>;
     /**
@@ -313,16 +298,12 @@ export interface ProjectSaveOptions {
      * copy stays a copy, a held one is written with no path, so reopening lists it as needing a
      * file. Absent, no path read is written: each loses its path the same way.
      * @since 3.40.0
-     * @experimental save-files-v2
-     * @beta
      */
     readonly location?: string;
     /**
      * Version 2 only: write the recipe from the session's state even when the session holds a
      * recipe opened from a file, which is otherwise written back as read. Default false.
      * @since 3.40.0
-     * @experimental save-files-v2
-     * @beta
      */
     readonly rewriteRecipe?: boolean;
 }
@@ -432,19 +413,14 @@ export interface ProjectOpenOptions {
         readonly fileBytes?: number;
     };
     /**
-     * Version 2 only (`save-files-v2` experiment): the sections of a full file to load. Default
-     * all. EXPERIMENTAL.
+     * Version 2 only: the sections of a full file to load. Default all.
      * @since 3.40.0
-     * @experimental save-files-v2
-     * @beta
      */
     readonly sections?: readonly DocumentSection[];
     /**
      * Version 2 only: whether layouts and algorithms run again on open. Default true; false
      * restores the saved results instead. EXPERIMENTAL.
      * @since 3.40.0
-     * @experimental save-files-v2
-     * @beta
      */
     readonly rerun?: boolean;
     /**
@@ -452,16 +428,12 @@ export interface ProjectOpenOptions {
      * or its saved results are restored (false), over `rerun`. A run its file marks not replayable
      * never reruns. `project.inspect` lists the runs. EXPERIMENTAL.
      * @since 3.40.0
-     * @experimental save-files-v2
-     * @beta
      */
     readonly runs?: Readonly<Record<string, boolean>>;
     /**
      * Version 2 only: whether a data section replaces the open data (`"replace"`, the default,
      * opening a project) or is added as another source (`"add"`). EXPERIMENTAL.
      * @since 3.40.0
-     * @experimental save-files-v2
-     * @beta
      */
     readonly dataMode?: "replace" | "add";
     /**
@@ -469,8 +441,6 @@ export interface ProjectOpenOptions {
      * references by key. Default false: it is reported as `W_DATA_MISMATCH` and not loaded.
      * EXPERIMENTAL.
      * @since 3.40.0
-     * @experimental save-files-v2
-     * @beta
      */
     readonly bindOtherData?: boolean;
     /**
@@ -481,8 +451,6 @@ export interface ProjectOpenOptions {
      * mapped column. A name mapped to anything but non-empty text is refused with
      * `E_OPTION_RANGE` (`details.option` `"columns"`). EXPERIMENTAL.
      * @since 3.40.0
-     * @experimental save-files-v2
-     * @beta
      */
     readonly columns?: {
         /** Node columns: each name a style section reads, mapped to the open data's column. */
@@ -491,11 +459,9 @@ export interface ProjectOpenOptions {
         readonly edge?: Readonly<Record<string, string>>;
     };
     /**
-     * With the `save-files-v2` experiment on: open a version 1 file through its migration to
-     * version 2. Default false: a version 1 file is read as before. EXPERIMENTAL.
+     * Open a version 1 file through its migration to version 2. Default false: a version 1 file is
+     * read as before.
      * @since 3.40.0
-     * @experimental save-files-v2
-     * @beta
      */
     readonly migrate?: boolean;
     /**
@@ -503,8 +469,6 @@ export interface ProjectOpenOptions {
      * runs and layout, in order -- instead of only keeping it for the next save. Default false.
      * `session.recipes.apply` opens a recipe this way.
      * @since 3.40.0
-     * @experimental save-files-v2
-     * @beta
      */
     readonly applyRecipe?: boolean;
     /**
@@ -513,8 +477,6 @@ export interface ProjectOpenOptions {
      * address supplies nothing and is reported `W_SOURCE_UNAVAILABLE` (`reason: "needs-file"`).
      * EXPERIMENTAL.
      * @since 3.40.0
-     * @experimental save-files-v2
-     * @beta
      */
     readonly location?: string;
     /**
@@ -526,24 +488,18 @@ export interface ProjectOpenOptions {
      * read no further than `limits.fileBytes` (`reason: "too-large"`). A source whose bytes changed
      * since the save is held too (`reason: "copy-changed"`), never rebuilt on open. EXPERIMENTAL.
      * @since 3.40.0
-     * @experimental save-files-v2
-     * @beta
      */
     readonly fetchSources?: boolean;
     /**
      * Version 2 only: files the reader picked for referenced sources, by source id, read in place
      * of fetching them. EXPERIMENTAL.
      * @since 3.40.0
-     * @experimental save-files-v2
-     * @beta
      */
     readonly files?: Readonly<Record<string, Blob>>;
     /**
      * Version 2 only: aborts reading the referenced sources again; the open then rejects with
      * the signal's reason and changes nothing. EXPERIMENTAL.
      * @since 3.40.0
-     * @experimental save-files-v2
-     * @beta
      */
     readonly signal?: AbortSignal;
 }
@@ -603,7 +559,9 @@ export interface ProjectApi {
      * that point makes it false again. The selection and the extensions never set it. The first
      * `data.import` into a new session -- one with no history that was never saved or opened --
      * is the starting point, so a graph read from a file or a sample is not an unsaved change;
-     * undoing that import sets it. Any later import sets it, like any other change.
+     * undoing that import sets it. Any later import sets it, like any other change. Until the
+     * session is saved or opened, `history.clear()` while it holds no graph makes it new again:
+     * what it held is not an unsaved change, and the next import is the starting point.
      */
     readonly dirty: boolean;
     /**
@@ -671,8 +629,7 @@ export interface ProjectApi {
      */
     open(source: ProjectSource, options?: ProjectOpenOptions): Promise<ProjectOpenReport>;
     /**
-     * What a version 2 save of the session would write, asked before saving (the `save-files-v2`
-     * experiment): each section with what it holds, whether a save writes it by default, whether
+     * What a version 2 save of the session would write, asked before saving: each section with what it holds, whether a save writes it by default, whether
      * it is held, and each source with how a save keeps it and whether it can be referenced; and
      * whether a save with the `sections` and `form` given is the project or a copy. Changes nothing.
      * @param options - The save's `sections` and `form` (for `project`) and the `paths` the host
@@ -686,14 +643,12 @@ export interface ProjectApi {
      * await session.project.save({ format: 2, sections: sections.filter((s) => s.saved).map((s) => s.section), embed });
      * ```
      * @since 3.40.0
-     * @experimental save-files-v2
-     * @beta
      */
     describe(
         options?: Pick<ProjectSaveOptions, "sections" | "form" | "paths" | "handles" | "location">,
     ): Promise<ProjectSaveFacts>;
     /**
-     * Read a version 2 file without opening it (the `save-files-v2` experiment): its sections,
+     * Read a version 2 file without opening it: its sections,
      * held ones and what each bound one binds to, the runs an open would start, and the sources it
      * names. What to ask the reader before `open`.
      * @param source - The file, its bytes, or its text.
@@ -704,8 +659,6 @@ export interface ProjectApi {
      * @throws A `GraphtyError` (as a rejection) with `E_FEATURE_OFF` without the experiment, and
      *     what `open` throws for a file too large or malformed.
      * @since 3.40.0
-     * @experimental save-files-v2
-     * @beta
      */
     inspect(
         source: ProjectSource,
@@ -1694,15 +1647,7 @@ function documentOf(value: Record<string, unknown>): Record<string, unknown> {
             code: "E_UNSUPPORTED_VERSION",
             message: `This graphty document is version ${String(version)}; this graphty-element reads version ${String(VERSION)}.`,
             source: "data",
-            // A version 2 file is read with the `save-files-v2` experiment on: said, so an
-            // application can offer it.
-            // @experimental save-files-v2
-            details: {
-                kind: DOCUMENT_KIND,
-                found: version,
-                reads: [VERSION],
-                ...(version === 2 ? { feature: "save-files-v2" } : {}),
-            },
+            details: { kind: DOCUMENT_KIND, found: version, reads: [VERSION] },
         });
     }
 
@@ -1798,8 +1743,11 @@ function readParsed(value: unknown): ReadDocument {
                 return;
             }
 
-            members.set(kind as MemberKind, [...held, member]);
-            positions.set(member, index);
+            // A path at an older address (`graphty.notes.count`) is read at its current one. Not the
+            // data's: a column may carry any name.
+            const read = kind === "graphty-data" ? member : upgradeStorePaths(member);
+            members.set(kind as MemberKind, [...held, read]);
+            positions.set(read, index);
         }
     });
     return {
@@ -1867,7 +1815,7 @@ function leftOutOfVersion2(
 }
 
 /**
- * A file as a version 2 document, when it is one (the `save-files-v2` experiment): within the
+ * A file as a version 2 document, when it is one: within the
  * depth limit, and either version 2 already or, when asked, a version 1 file its migration reads.
  * @param text - The file's text.
  * @param migrate - Whether to migrate a version 1 file (`ProjectOpenOptions.migrate`).
@@ -2807,8 +2755,11 @@ async function readProject(
             key === "set" && typeof held === "string" ? (setIds.get(held) ?? held) : held,
         ) as T;
     type SavedSet = { id: string; name: string; definition: unknown };
+    // An older timed file's "ghosted" meant the window, as its layers are told (`outsideWindowLayers`).
+    const oldGhosted = savedBeforeOutsideWindow(tx, state.visibility as Readonly<Record<string, unknown>> | undefined);
     const createSet = (set: SavedSet): void => {
-        setIds.set(set.id, tx.sets.create(remap(set.definition) as SetDefinitionInput, { name: set.name }));
+        const definition = remap(ghostedSetOutside(set.definition, oldGhosted));
+        setIds.set(set.id, tx.sets.create(definition as SetDefinitionInput, { name: set.name }));
     };
     // A set that reads a result cannot be made until its run is back; it is tried again after them.
     const waiting = ((state.sets ?? []) as SavedSet[]).filter((set) => {
@@ -2872,16 +2823,15 @@ async function readProject(
     // After the runs, whose results a computed column may read; before what may read it.
     await readDerived(opening, state.derived);
 
+    // A set the session refuses (a kept set reading a live state, say) is left out, and the reader
+    // is told its id and the refusal's reason; the rest of the project opens.
     for (const set of waiting) {
-        await attempt(
-            opening,
-            "sets",
-            () => {
-                createSet(set);
-                return Promise.resolve();
-            },
-            set.id,
-        );
+        try {
+            createSet(set);
+            opening.restored.add("sets");
+        } catch (error) {
+            problems.push(setRefused(set.id, error));
+        }
     }
 
     // The collapses, made again once the runs they group by are back, inside the open's own step.
@@ -3074,19 +3024,12 @@ async function outsideWindowLayers(
     tx: TransactionScope,
     visibility: Readonly<Record<string, unknown>> | undefined,
 ): Promise<void> {
-    const playback = visibility?.playback;
-    // Saved since, or never played: its layers stay as saved. A file saved with the timeline off
-    // holds no playback and no window of instants (`windowRaw` marked one of values), and its
-    // "ghosted" meant a held filter condition, never the window.
-    const played =
-        (playback !== undefined && playback !== null) ||
-        (visibility?.window !== undefined && visibility.window !== null && visibility.windowRaw !== true);
-    if (visibility?.outsideByLayers === true || !played || tx.time.field === null) {
+    if (!savedBeforeOutsideWindow(tx, visibility)) {
         return;
     }
 
+    const playback = visibility?.playback;
     await ghostedLayersOutside(tx);
-    ghostedSetsOutside(tx);
 
     // Saved before the drawing lived in the layers, when what lay outside was hidden unless the
     // playback said "ghost": the layers selecting it are written to draw it that way.
@@ -3109,19 +3052,54 @@ async function ghostedLayersOutside(tx: TransactionScope): Promise<void> {
 }
 
 /**
- * Rewrite every rule set reading `"ghosted"` to read `"outsideWindow"`.
- * @param tx - The transaction.
+ * Whether a file is a timed one saved before what lies outside the time window had a state of its
+ * own: no `outsideByLayers` mark (every save writes it), a time field, and a playback or a window
+ * saved. A file saved with the timeline off holds no playback and no window of instants
+ * (`windowRaw` marked one of values), and its `"ghosted"` meant a held filter condition.
+ * @param tx - The transaction, its settings read.
+ * @param visibility - The session member's `visibility`.
+ * @returns True when it is.
  */
-function ghostedSetsOutside(tx: TransactionScope): void {
-    for (const set of tx.sets.list()) {
-        const { definition } = set;
-        if (definition.kind === "rule" && typeof definition.where === "object") {
-            const where = ghostedLeavesOutside(definition.where);
-            if (where !== definition.where) {
-                tx.sets.redefine(set.id, { ...definition, where });
-            }
-        }
+function savedBeforeOutsideWindow(
+    tx: TransactionScope,
+    visibility: Readonly<Record<string, unknown>> | undefined,
+): boolean {
+    const playback = visibility?.playback;
+    const played =
+        (playback !== undefined && playback !== null) ||
+        (visibility?.window !== undefined && visibility.window !== null && visibility.windowRaw !== true);
+    return visibility?.outsideByLayers !== true && played && tx.time.field !== null;
+}
+
+/**
+ * A saved set's definition with what its rule read as `"ghosted"` reading `"outsideWindow"`, for
+ * a file {@link savedBeforeOutsideWindow}; read before the set is made, so it is checked as rewritten.
+ * @param definition - The saved definition.
+ * @param older - Whether the file is one.
+ * @returns It rewritten, or the same value when it reads no `"ghosted"` or the file is not one.
+ */
+function ghostedSetOutside(definition: unknown, older: boolean): unknown {
+    if (!older || !isObject(definition) || definition.kind !== "rule" || !isObject(definition.where)) {
+        return definition;
     }
+
+    const where = ghostedLeavesOutside(definition.where as unknown as RuleTree);
+    return where === definition.where ? definition : { ...definition, where };
+}
+
+/**
+ * The problem an open reports for a saved set the session refuses: its code, the set's id and,
+ * when the refusal gives one, its reason (`"live-selection"` for a kept set reading a live state).
+ * @param id - The saved set's id.
+ * @param error - What the session threw.
+ * @returns The problem.
+ */
+function setRefused(id: string, error: unknown): ProjectProblem {
+    const reason = isGraphtyError(error) ? error.details.reason : undefined;
+    return {
+        code: isGraphtyError(error) ? error.code : "E_INTERNAL",
+        params: { slice: "sets", id, ...(typeof reason === "string" ? { reason } : {}) },
+    };
 }
 
 /**
@@ -3485,7 +3463,7 @@ export { DOCUMENT_SECTIONS } from "./document2/types";
  * for a project with no name. Opening a file with that name gives a named project its name back.
  * A version 2 section file (`save({ format: 2, form: "section" })`) is `<name>.graphty-<section>.json`.
  * @param name - The project's name, such as `session.project.name`; blank or null for none.
- * @param options - `section`: the one section of a version 2 section file (`save-files-v2`).
+ * @param options - `section`: the one section of a version 2 section file.
  * @param options.section - The section.
  * @returns The file name.
  */
@@ -3644,6 +3622,10 @@ export function projectOf(
     // (alone, or in a transaction with what the load sets up) is its baseline: a graph read from a
     // sample or a file is not an unsaved change. Undoing past it is.
     let fresh = true;
+    // Whether the project was ever saved or opened: until then, clearing the history of a session
+    // that holds no graph makes it new again, so the next first import is its baseline (an
+    // application's own setup steps before a load, cleared, do not make the load an unsaved change).
+    let settled = false;
     const isFirstImport = (): boolean => {
         const { history } = dispatcher;
         const first = history.stepAt(0);
@@ -3654,14 +3636,24 @@ export function projectOf(
             first !== undefined &&
             first.ops.includes("data.import") &&
             (point.step === null || point.step === first.id) &&
-            !point.lost &&
-            waiting.size === 0
+            !point.lost
         );
     };
 
     session.on("history:changed", ({ reason }) => {
         if (reason === "pending" && fresh) {
             // Still loading: the step it records decides.
+            return;
+        }
+
+        // A load that starts the history clears it too, holding its graph: that load is the baseline.
+        // Read from the records, never by freezing a snapshot: a clear of the data clears the history,
+        // and a snapshot frozen of the emptied store is one an accelerator would be told to release.
+        if (reason === "clear" && !settled && dispatcher.state.graph.nodes.size === 0) {
+            fresh = true;
+            point = { step: null, lost: false, seq: ++seq };
+            top = topNow();
+            tell();
             return;
         }
 
@@ -3803,6 +3795,7 @@ export function projectOf(
         // Its restored source loads on the hosts remembered for it run now.
         projectChanged?.();
         fresh = false;
+        settled = true;
         // Saved at the baseline: anything the reader did while it opened is a change.
         adopt({ ...pointNow(), step: null });
     };
@@ -3826,6 +3819,7 @@ export function projectOf(
             data === undefined || session.data.nodes({ scope: "graph" }).length > 0 ? undefined : nodeLinkOf(data);
         await restoreAssetsOf(session, doc, problems);
         fresh = false;
+        settled = true;
         await session.transaction(
             "Open document",
             async (tx) => {
@@ -3898,13 +3892,16 @@ export function projectOf(
             return saved;
         }
 
-        fresh = false;
         if (options.markSaved === false) {
+            // Not saved until it is marked (a copy the element keeps for itself never is), so the
+            // first import after it can still be where the project starts.
             const waited = pointNow();
             waiting.add(waited);
             pointOf.set(saved, waited);
             rememberOf.set(saved, remember);
         } else {
+            fresh = false;
+            settled = true;
             adopt(pointNow());
             remember();
         }
@@ -3924,7 +3921,7 @@ export function projectOf(
     };
 
     /**
-     * Save the session as a version 2 document (the `save-files-v2` experiment).
+     * Save the session as a version 2 document.
      * @param options - The save's options.
      * @returns The file and its report.
      */
@@ -3943,6 +3940,7 @@ export function projectOf(
                 ...(options.rewriteRecipe === undefined ? {} : { rewriteRecipe: options.rewriteRecipe }),
                 ...(options.handles === undefined ? {} : { handles: options.handles }),
                 ...(options.location === undefined ? {} : { location: options.location }),
+                ...(options.assets === undefined ? {} : { assets: options.assets }),
                 extensions,
             },
             isDerived,
@@ -3959,7 +3957,7 @@ export function projectOf(
     };
 
     /**
-     * Open a version 2 document over the session (the `save-files-v2` experiment): a data section
+     * Open a version 2 document over the session: a data section
      * in replace mode opens a project, with a fresh history; anything else is one undoable step.
      * @param value - The parsed file.
      * @param options - The open's options.
@@ -4030,6 +4028,7 @@ export function projectOf(
             },
         );
         fresh = false;
+        settled = true;
         if (outcome.replaced) {
             // Saved at the baseline: anything the reader did while it opened is a change.
             adopt({ ...pointNow(), step: null });
@@ -4080,10 +4079,6 @@ export function projectOf(
             return assetChoices(session);
         },
         async describe(options = {}) {
-            if (!session.features.has("save-files-v2")) {
-                throw featureOff("save-files-v2", "project.describe");
-            }
-
             const { describeSave, SECTION_CODECS } = await import("./document2/onDemand");
             return describeSave(session, SECTION_CODECS, isDerived, {
                 ...(options.sections === undefined ? {} : { sections: options.sections }),
@@ -4094,10 +4089,6 @@ export function projectOf(
             });
         },
         async inspect(source, options = {}) {
-            if (!session.features.has("save-files-v2")) {
-                throw featureOff("save-files-v2", "project.inspect");
-            }
-
             checkColumns(options.columns);
             const text = await textOf(source, options.limits?.fileBytes ?? DEFAULT_FILE_BYTES);
             const read = await version2Of(text, options.migrate === true);
@@ -4130,10 +4121,6 @@ export function projectOf(
             }
 
             if (options.format === 2) {
-                if (!session.features.has("save-files-v2")) {
-                    return Promise.reject(featureOff("save-files-v2", "project.save"));
-                }
-
                 return committedOnly(() => saveVersion2(options));
             }
 
@@ -4164,6 +4151,8 @@ export function projectOf(
             rememberOf.delete(saved);
             const waited = pointOf.get(saved);
             if (waited !== undefined && waiting.has(waited)) {
+                fresh = false;
+                settled = true;
                 adopt(waited);
             }
         },
@@ -4178,11 +4167,9 @@ export function projectOf(
             let version2: { readonly value: Record<string, unknown>; readonly problems: DocumentProblem[] } | undefined;
             try {
                 text = await textOf(source, options.limits?.fileBytes ?? DEFAULT_FILE_BYTES);
-                // With the experiment on, a version 2 file (or, asked to, a migrated version 1
-                // file) opens through the version 2 codecs; every other file reads as before.
-                const read = session.features.has("save-files-v2")
-                    ? await version2Of(text, options.migrate === true)
-                    : undefined;
+                // A version 2 file (or, asked to, a migrated version 1 file) opens through the
+                // version 2 codecs; every other file reads as before.
+                const read = await version2Of(text, options.migrate === true);
                 version2 = read !== undefined && "value" in read ? read : undefined;
                 const parsed = read !== undefined && "parsed" in read ? read.parsed : undefined;
                 doc = version2 === undefined ? graphtyDocumentOf(text, parsed) : undefined;

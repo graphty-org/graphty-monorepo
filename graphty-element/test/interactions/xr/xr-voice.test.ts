@@ -88,9 +88,14 @@ function liveTracks(): number {
  * point.
  * @param voice - The assistant's `voice`.
  * @param handTracking - Whether the element tracks hands.
+ * @param path - A render path set before the nodes load; the default when absent.
  */
-async function mount(voice: AiVoiceOptions, handTracking = false): Promise<void> {
+async function mount(voice: AiVoiceOptions, handTracking = false, path?: "objects" | "batched"): Promise<void> {
     element = document.createElement("graphty-element");
+    if (path !== undefined) {
+        element.renderPath = path;
+    }
+
     element.style.cssText = "display:block;width:400px;height:300px";
     element.xr = { enabled: true, ui: { enabled: true }, input: { handTracking } };
     document.body.append(element);
@@ -226,25 +231,31 @@ describe("talking in VR with the controllers", () => {
         await element.setViewMode("3d");
     });
 
-    test("the controller ray over a node while B is held names it in the message", async () => {
-        await mount({ input: "browser", output: "off" });
-        await enterVR();
-        await nodeOnRightRay("p");
+    test.each(["objects", "batched"] as const)(
+        "the controller ray over a node while B is held names it in the message, %s path",
+        async (path) => {
+            await mount({ input: "browser", output: "off" }, false, path);
+            await enterVR();
+            await nodeOnRightRay("p");
+            if (path === "batched") {
+                assert.equal(element.graph.rowCounts.batchedNodes, 3, "a batch draws the node pointed at");
+            }
 
-        await button("right", "b-button", true);
-        await vi.waitFor(() => {
-            assert.strictEqual(voiceStarts, 1);
-        });
-        await button("right", "b-button", false);
-        await vi.waitFor(() => {
-            assert.strictEqual(finished, 1, "the spoken message did not end");
-        });
+            await button("right", "b-button", true);
+            await vi.waitFor(() => {
+                assert.strictEqual(voiceStarts, 1);
+            });
+            await button("right", "b-button", false);
+            await vi.waitFor(() => {
+                assert.strictEqual(finished, 1, "the spoken message did not end");
+            });
 
-        const facts = await savedFacts();
-        assert.lengthOf(facts, 1, "one facts part, on the spoken message");
-        assert.include(facts[0], 'Pointed at, in order: "p".');
-        await element.setViewMode("3d");
-    });
+            const facts = await savedFacts();
+            assert.lengthOf(facts, 1, "one facts part, on the spoken message");
+            assert.include(facts[0], 'Pointed at, in order: "p".');
+            await element.setViewMode("3d");
+        },
+    );
 
     describe("a held change", () => {
         /**
@@ -356,7 +367,7 @@ describe("the microphone", () => {
         await element.setViewMode("3d");
         await vi.waitFor(() => {
             assert.strictEqual(liveTracks(), 0, "leaving XR left the microphone open");
-            assert.deepEqual(voiceEnds, ["AI_CANCELLED"]);
+            assert.deepEqual(voiceEnds, ["AI_CANCELED"]);
         });
         assert.strictEqual(finished, 0, "leaving XR sent the utterance");
     });

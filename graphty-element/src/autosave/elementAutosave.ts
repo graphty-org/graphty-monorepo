@@ -352,6 +352,13 @@ const LEAVING_ITEM = "graphty-autosave:leaving:";
 const CAMERA_ITEM = "graphty-autosave:camera:";
 
 /**
+ * The stash name the camera is also kept under, with the work: a browser that ends a background
+ * tab can load it again with its session storage emptied (Safari), and the tab's own entry then
+ * still holds it.
+ */
+const CAMERA_STASH = "org.graphty.element.camera";
+
+/**
  * The entry a page of this tab left behind, if one really left; the mark is used up. A duplicated
  * tab's copy of the mark can only name a lock its original still holds, and waits out the timer.
  * @param env - The page.
@@ -447,18 +454,24 @@ function sessionLost(env: AutosaveEnvironment): boolean {
     return lost;
 }
 
-/** The keys whose lost note each page load has looked for (once each: a later mount never adopts). */
-const lostLookedBy = new WeakMap<AutosaveEnvironment, Set<string>>();
+/** An adoption of a lost note, as {@link adoptLostOwn} answers it. */
+type LostOwnAdoption = Promise<{ id: string; by: LostOwnRule } | null>;
+
+/**
+ * The keys whose lost note each page load has looked for, with what the look found: once each, so
+ * a later mount never adopts, and a lookup made while the look runs gets the same answer (issue #9646).
+ */
+const lostLookedBy = new WeakMap<AutosaveEnvironment, Map<string, LostOwnAdoption>>();
 
 /**
  * The keys this page load has looked for its lost note.
  * @param env - The page.
- * @returns Its set.
+ * @returns Its map.
  */
-function lostLooked(env: AutosaveEnvironment): Set<string> {
+function lostLooked(env: AutosaveEnvironment): Map<string, LostOwnAdoption> {
     let looked = lostLookedBy.get(env);
     if (looked === undefined) {
-        looked = new Set();
+        looked = new Map();
         lostLookedBy.set(env, looked);
     }
 
@@ -537,13 +550,36 @@ async function adoptLostOwn(
     key: string,
     metas: readonly AutosaveEntryMeta[],
     leaving: string | null,
-): Promise<{ id: string; by: LostOwnRule } | null> {
+): LostOwnAdoption {
     const looked = lostLooked(env);
-    if (looked.has(key) || !sessionLost(env)) {
+    const earlier = looked.get(key);
+    if (earlier !== undefined) {
+        return earlier;
+    }
+
+    if (!sessionLost(env)) {
         return null;
     }
 
-    looked.add(key);
+    const adoption = adoptLost(env, key, metas, leaving);
+    looked.set(key, adoption);
+    return adoption;
+}
+
+/**
+ * The look {@link adoptLostOwn} makes once per page load and key.
+ * @param env - The page.
+ * @param key - The key.
+ * @param metas - The key's entries.
+ * @param leaving - The entry the page this load replaces left marked.
+ * @returns The entry and the rule that found it, or null.
+ */
+async function adoptLost(
+    env: AutosaveEnvironment,
+    key: string,
+    metas: readonly AutosaveEntryMeta[],
+    leaving: string | null,
+): LostOwnAdoption {
     const open = metas.filter((meta) => meta.ended !== "replaced");
     const record = tabRecord(env);
     let found: AutosaveEntryMeta | undefined;
@@ -606,6 +642,22 @@ export interface AutosaveCamera {
      * @returns Settles once it is placed.
      */
     set(state: CameraState): Promise<void>;
+    /** @returns The saved tour playing now and its stop, or null. */
+    tour(): { name: string; stop: number } | null;
+    /**
+     * Play a saved tour on from a stop.
+     * @param name - The saved tour's name.
+     * @param stop - The stop.
+     * @returns Settles once the tour ends.
+     */
+    resumeTour(name: string, stop: number): Promise<unknown>;
+}
+
+/** Where the camera was, and the tour playing then, as `keepCamera` keeps them. */
+interface KeptCamera {
+    readonly entry: string;
+    readonly state: CameraState;
+    readonly tour?: { readonly name: string; readonly stop: number } | null;
 }
 
 /**
@@ -691,6 +743,8 @@ export class ElementAutosave {
     #departed = false;
     #reloadPage: () => Promise<void> = () => Promise.resolve();
     #camera: AutosaveCamera | undefined;
+    /** This tab's own entries when autosave started (the one it names, and the one before). */
+    #owns: readonly string[] = [];
 
     /** The API the element hands out as `autosaver`. */
     readonly api: AutosaveApi;
@@ -910,6 +964,7 @@ export class ElementAutosave {
         const before = readOwnBefore(this.#env, key);
         const own = this.#readOwn(key) ?? (before === null ? await this.#adoptLost(store, key) : null);
         await this.#waitForOwns(key, [own, before]);
+        this.#owns = [own, before].filter((id): id is string => id !== null);
 
         saver.setFacts(await this.#gatherFacts(), true);
         const recover: RecoverOptions = {
@@ -952,6 +1007,9 @@ export class ElementAutosave {
 
         // Every change made so far is the page's setup, not the reader's new work.
         this.#startRevision = saver.status.revision;
+        if (restored === null) {
+            saver.endSetup();
+        }
         this.#finish(restored);
         this.#checkAtRisk(saver.status);
     }
@@ -1031,6 +1089,8 @@ export class ElementAutosave {
             return;
         }
 
+        // A remount in this tab (a page that swaps its element) puts the camera back as a reload does.
+        this.#keepCamera(saver);
         const done = saver.depart().then(
             () => this.#store?.close?.(),
             () => this.#store?.close?.(),
@@ -1388,12 +1448,46 @@ export class ElementAutosave {
             return;
         }
 
+        let kept: KeptCamera;
         try {
-            const item = JSON.stringify({ entry: saver.entryId, state: this.#camera.get() });
-            this.#env.sessionStorage()?.setItem(CAMERA_ITEM + saver.key, item);
+            kept = { entry: saver.entryId, state: this.#camera.get(), tour: this.#camera.tour() };
         } catch {
-            // No session storage here, or no camera yet: the graph is framed as on any load.
+            // No camera yet: the graph is framed as on any load.
+            return;
         }
+
+        if (saver.started) {
+            // Never starts an entry by itself: work with no change of the reader's has none to keep.
+            saver.stash(CAMERA_STASH, kept);
+        }
+
+        try {
+            this.#env.sessionStorage()?.setItem(CAMERA_ITEM + saver.key, JSON.stringify(kept));
+        } catch {
+            // No session storage here: the camera comes back from the work's own entry.
+        }
+    }
+
+    /**
+     * The camera kept for an entry: this tab's session storage, else, for this tab's own entry,
+     * the copy kept with the work.
+     * @param saver - The writer, holding the restored entry's stash.
+     * @param entry - The restored entry.
+     * @returns What was kept, or null.
+     */
+    #keptCamera(saver: Autosaver, entry: string): KeptCamera | null {
+        try {
+            const text = this.#env.sessionStorage()?.getItem(CAMERA_ITEM + saver.key) ?? null;
+            const kept = text === null ? null : (JSON.parse(text) as KeptCamera);
+            if (kept?.entry === entry) {
+                return kept;
+            }
+        } catch {
+            // Nothing readable in session storage: the copy kept with the work is read below.
+        }
+
+        // Only this tab's own work: work opened in another tab is framed as usual.
+        return this.#owns.includes(entry) ? ((saver.stashed(CAMERA_STASH) as KeptCamera | undefined) ?? null) : null;
     }
 
     /**
@@ -1402,20 +1496,21 @@ export class ElementAutosave {
      */
     #placeCamera(entry: string): void {
         const camera = this.#camera;
-        const key = this.#saver?.key;
-        if (this.#options.keepCamera !== true || camera === undefined || key === undefined) {
+        const saver = this.#saver;
+        if (this.#options.keepCamera !== true || camera === undefined || saver === null) {
             return;
         }
 
-        try {
-            const text = this.#env.sessionStorage()?.getItem(CAMERA_ITEM + key) ?? null;
-            const kept = text === null ? null : (JSON.parse(text) as { entry: string; state: CameraState });
-            if (kept?.entry === entry) {
-                void camera.set(kept.state).catch(() => undefined);
-            }
-        } catch {
-            // Nothing readable kept: the graph is framed as on any load.
+        const kept = this.#keptCamera(saver, entry);
+        if (kept === null) {
+            return;
         }
+
+        const { tour } = kept;
+        void camera
+            .set(kept.state)
+            .then(() => (tour === undefined || tour === null ? undefined : camera.resumeTour(tour.name, tour.stop)))
+            .catch(() => undefined);
     }
 
     /**
@@ -1567,6 +1662,15 @@ export function listAutosavesIn(
             const before = readOwnBefore(env, key);
             const leaving = takeLeaving(env, key);
             const waited = noted !== null && leaving === noted;
+            // Before the list: an element of this page that was just removed (a remount, such as a
+            // development hot swap) may still be writing this entry's final commit and holding its
+            // lock, which would read as another tab's (issue #9973).
+            const here = noted === null ? undefined : departing.get(noted);
+            if (noted !== null && here !== undefined) {
+                await here;
+                await env.locks.wait(lockName(key, noted));
+            }
+
             // Before the list: the page that left may still be writing this entry's final commit.
             if (waited) {
                 await env.locks.own?.(lockName(key, noted), LEAVING_WAIT_MS);

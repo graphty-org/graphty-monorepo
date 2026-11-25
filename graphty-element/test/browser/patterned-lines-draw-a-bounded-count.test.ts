@@ -28,12 +28,13 @@ describe("patterned lines draw a bounded count of pieces", () => {
     });
 
     /**
-     * The pieces the scene draws for edge lines: every pattern element's thin instance, and every patterned joined line's slot.
+     * The pieces the scene draws for edge lines: every pattern element's thin instance, and every patterned joined line's
+     * slot, or on the `"batched"` path every line pulled from the row table, one piece each.
      * @returns The pattern elements and the joined line slots.
      */
     function piecesDrawn(): { elements: number; joined: number } {
         let elements = 0;
-        let joined = 0;
+        let joined = graph.rowCounts.pulledEdges;
         for (const mesh of graph.scene.meshes) {
             if (!(mesh instanceof Mesh)) {
                 continue;

@@ -180,9 +180,12 @@ export interface AccelerationStatus {
     readonly backend?: "webgpu" | (string & {});
     readonly code?: AccelerationErrorCode;
     readonly device?: string;
+    readonly exactMaxNodes?: number;
+    readonly exactMaxNodesBasis?: ExactMaxNodesBasis;
     readonly params?: Readonly<Record<string, CodedFactParam>>;
     readonly policy: AccelerationPolicy;
     readonly reason?: string;
+    readonly recovering?: true;
     readonly state: AccelerationState;
     readonly vendor?: string;
 }
@@ -192,6 +195,12 @@ export interface AcceleratorDeviceInfo {
     readonly architecture: string;
     readonly description: string;
     readonly vendor: string;
+}
+
+// @public
+export interface AcceleratorExactMaxNodes {
+    readonly basis: ExactMaxNodesBasis;
+    readonly value: number;
 }
 
 // @public
@@ -273,7 +282,6 @@ abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<str
     static readonly loadedWeightByDefault: boolean;
     // @internal
     mixedDirection(): boolean | null;
-    // (undocumented)
     static namespace: string;
     get namespace(): string;
     protected nodeIndex(snapshot: GraphSnapshot, option: string, id: NodeId): number;
@@ -288,12 +296,10 @@ abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<str
     reachedAccelerator: GraphAccelerator | null;
     static register<T extends AlgorithmClass>(cls: T, options?: RegisterOptions): T;
     protected resolveOptions(options?: Partial<TOptions>): TOptions;
-    // (undocumented)
     abstract run(g: AlgorithmHost): Promise<void>;
     protected get schemaOptions(): TOptions;
     protected _schemaOptions: TOptions;
     static scopeInput?: ScopeInputDeclaration;
-    // (undocumented)
     static type: string;
     get type(): string;
     // @internal
@@ -335,13 +341,7 @@ export const AlgorithmOnLoad: z.ZodUnion<readonly [z.ZodString, z.ZodObject<{
 export type AlgorithmOnLoad = z.infer<typeof AlgorithmOnLoad>;
 
 // @public
-export const AnimationCanceledError: typeof AnimationCancelledError;
-
-// @public
-export type AnimationCanceledError = AnimationCancelledError;
-
-// @public
-export class AnimationCancelledError extends GraphtyError {
+export class AnimationCanceledError extends GraphtyError {
     constructor();
     readonly name: string;
 }
@@ -499,15 +499,14 @@ export { AwsCredentials }
 
 // @public
 export interface BaseDataSourceConfig {
-    // (undocumented)
     chunkSize?: number;
     data?: SourceData;
-    // (undocumented)
     errorLimit?: number;
     file?: File;
     graphIndex?: number;
     graphName?: string;
     layout?: "recommended" | "placed" | "keep";
+    pins?: "data" | "keep";
     styles?: "file" | "none";
     url?: string;
 }
@@ -873,6 +872,12 @@ export class DataManager implements Manager {
         loading(active: boolean): void;
         removing(nodes: readonly NodeIdType[], edges: readonly EdgeId[]): void;
     }): void;
+    // @internal
+    builtEdgesOfPairs(pairs: Iterable<readonly [NodeIdType, NodeIdType]>, freeze: boolean): {
+        readonly a: NodeIdType;
+        readonly b: NodeIdType;
+        readonly edges: Edge[];
+    }[] | null;
     clear(): void;
     get directed(): boolean;
     get directionSettledBy(): DirectionProvenance;
@@ -884,6 +889,8 @@ export class DataManager implements Manager {
     edgeDirected(row: number): boolean;
     get edges(): ReadonlyMap<string, Edge>;
     get edgesByIndex(): readonly (Edge | undefined)[];
+    // @internal
+    edgeSetChangesSince(version: number): readonly (readonly [NodeIdType, NodeIdType])[] | null;
     edgeVersion: number;
     getEdge(edgeId: string): Edge | undefined;
     getEdgesBetween(srcNodeId: NodeIdType, dstNodeId: NodeIdType): readonly Edge[];
@@ -924,6 +931,8 @@ export class DataManager implements Manager {
     notePaintDrawn(): void;
     // @internal
     notePainted(dirty: ReadonlySet<string> | null): void;
+    // @internal
+    notePaintQueued(): void;
     get positions(): ReadonlyElementPositions;
     get rankSets(): readonly RankSet[];
     reconcile(slice: GraphSlice, dirty: ReadonlySet<string>, cause: HistoryCause): {
@@ -975,11 +984,9 @@ export abstract class DataSource {
     protected declareRequestedLayout(layout: RequestedLayout | null): void;
     // @beta
     protected declareTime(field: TimeField): void;
-    // (undocumented)
     static readonly DEFAULT_CHUNK_SIZE = 1000;
     static descriptor?: FormatDescriptor;
     static detect?: (sample: string) => boolean;
-    // (undocumented)
     edgeSchema: z.core.$ZodObject | null;
     // (undocumented)
     protected errorAggregator: ErrorAggregator;
@@ -1005,25 +1012,20 @@ export abstract class DataSource {
     static getRegisteredTypes(): string[];
     protected graphChoice(): GraphChoiceOptions;
     static listGraphs?: GraphLister;
-    // (undocumented)
     nodeSchema: z.core.$ZodObject | null;
     static register<T extends DataSourceClass>(cls: T, options?: RegisterOptions): T;
     get requestedLayout(): RequestedLayout | null;
     protected resolveOptions(passed: object): Record<string, unknown>;
-    // (undocumented)
     abstract sourceFetchData(): AsyncGenerator<DataSourceChunk, void, unknown>;
     static toRecord(fields: Readonly<Record<string, unknown>>): AdHocData;
     static toRecords(records: readonly Readonly<Record<string, unknown>>[]): AdHocData[];
-    // (undocumented)
     static readonly type: string;
     get type(): string;
 }
 
-// @public (undocumented)
+// @public
 export interface DataSourceChunk {
-    // (undocumented)
     edges: AdHocData[];
-    // (undocumented)
     nodes: AdHocData[];
 }
 
@@ -1033,7 +1035,7 @@ export const DEFAULT_LIGHTING: Lighting;
 // @public
 export const DEFAULT_VIEW_MODE: ViewMode;
 
-// @public (undocumented)
+// @public
 export const defaultEdgeStyle: EdgeStyleConfig;
 
 // @public
@@ -1062,32 +1064,32 @@ export function defineShader(definition: ShaderDefinition, options?: RegisterOpt
 
 export { defineSource }
 
-// @beta
+// @public
 export const DOCUMENT_SECTIONS: readonly DocumentSection[];
 
-// @beta
+// @public
 export interface DocumentBindFacts {
     readonly file: boolean;
     readonly open: boolean;
 }
 
-// @beta
-export type DocumentCode = "E_UNKNOWN_COMMAND" | "W_SCHEMA_MISMATCH" | "W_SECTION_KEPT" | "W_EXTENSION_REQUIRED" | "W_SECTION_UPGRADED" | "W_ELEMENT_NAMING_LEFT_OUT" | "W_SOURCE_NO_PATH" | "W_SOURCE_UNAVAILABLE" | "W_SOURCE_EMBEDDED" | "W_OPTION_NOT_SAVED" | "W_REFERENCE_UNBOUND" | "W_DATA_CHANGED" | "W_DATA_MISMATCH" | "W_JOIN_HISTORY_DIFFERS" | "W_CAMERA_CONTROLLER_UNKNOWN" | "W_RUN_NOT_RUN" | "W_RESULTS_DIFFER" | "W_ENGINE_CHANGED" | "W_EDGE_MATCH_AMBIGUOUS" | "W_SOURCE_UNKEYED" | "W_NODE_NAMED_ONLY" | "W_EDGE_END_MISSING" | "W_KEY_EMPTY" | "W_ROLES_DIFFER" | "W_CLASH_RULE_TYPE" | "W_COLUMN_WIDENED" | "W_MEMBER_LEFT_OUT" | "W_RECIPE_NOT_APPLIED" | "W_LAYOUT_ENGINE_UNAVAILABLE" | "W_LAYOUT_OPTION_NOT_APPLIED" | "W_NAME_UPGRADED";
+// @public
+export type DocumentCode = "E_UNKNOWN_COMMAND" | "W_SCHEMA_MISMATCH" | "W_SECTION_KEPT" | "W_EXTENSION_REQUIRED" | "W_SECTION_UPGRADED" | "W_ELEMENT_NAMING_LEFT_OUT" | "W_SOURCE_NO_PATH" | "W_SOURCE_UNAVAILABLE" | "W_SOURCE_EMBEDDED" | "W_OPTION_NOT_SAVED" | "W_REFERENCE_UNBOUND" | "W_DATA_CHANGED" | "W_DATA_MISMATCH" | "W_JOIN_HISTORY_DIFFERS" | "W_CAMERA_CONTROLLER_UNKNOWN" | "W_RUN_NOT_RUN" | "W_RESULTS_DIFFER" | "W_ENGINE_CHANGED" | "W_EDGE_MATCH_AMBIGUOUS" | "W_SOURCE_UNKEYED" | "W_NODE_NAMED_ONLY" | "W_EDGE_END_MISSING" | "W_KEY_EMPTY" | "W_ROLES_DIFFER" | "W_CLASH_RULE_TYPE" | "W_COLUMN_WIDENED" | "W_MEMBER_LEFT_OUT" | "W_RECIPE_NOT_APPLIED" | "W_LAYOUT_ENGINE_UNAVAILABLE" | "W_LAYOUT_OPTION_NOT_APPLIED" | "W_NAME_UPGRADED" | "W_LAYER_ID_CHANGED";
 
-// @beta
+// @public
 export interface DocumentHeldFacts {
     readonly reads: number | null;
     readonly reason: DocumentHeldReason;
     readonly version: number | null;
 }
 
-// @beta
+// @public
 export type DocumentHeldReason = "version" | "extension" | "data" | "kind" | "unknown" | "malformed" | "graphs" | "add";
 
-// @beta
+// @public
 export type DocumentSection = "data" | "style" | "recipe" | "settings" | "results" | "notes" | "view";
 
-// @beta
+// @public
 export interface DocumentSectionAbout {
     readonly authors?: readonly {
         readonly name: string;
@@ -1100,7 +1102,7 @@ export interface DocumentSectionAbout {
     readonly modified?: string;
 }
 
-// @beta
+// @public
 export interface DocumentSectionFacts {
     readonly counts: Readonly<Record<string, number>>;
     readonly held?: DocumentHeldFacts;
@@ -1108,7 +1110,7 @@ export interface DocumentSectionFacts {
     readonly section: DocumentSection;
 }
 
-// @beta
+// @public
 export interface DocumentSectionNeed {
     readonly found?: boolean;
     readonly kind: "column" | "type" | "source" | "result";
@@ -1173,6 +1175,7 @@ export class Edge {
     }[];
     // @internal
     get drawnGradient(): readonly string[];
+    get drawnHeadPosition(): Vector3 | null;
     get drawnLine(): {
         name: string;
         length: number;
@@ -1217,6 +1220,8 @@ export class Edge {
     parentGraph: Graph | GraphContext;
     // (undocumented)
     ray: Ray;
+    // @internal
+    redrawPulledOffEnds(): boolean;
     // @internal
     refreshFonts(families: ReadonlySet<string>): boolean;
     // @internal
@@ -1290,7 +1295,13 @@ export interface EdgeAddEvent {
 export type EdgeCapEnd = "arrowHead" | "arrowTail" | "arrowMiddleHead" | "arrowMiddleTail";
 
 // @public
-export type EdgeEvent = EdgeGenericEvent | EdgeAddEvent;
+export type EdgeEvent = EdgeGenericEvent | EdgeAddEvent | EdgeHoverEvent;
+
+// @public
+export interface EdgeEventDetail {
+    edgeId: EdgeId;
+    tooltip?: string;
+}
 
 // @public
 export type EdgeEventType = EdgeEvent["type"];
@@ -1299,6 +1310,13 @@ export type EdgeEventType = EdgeEvent["type"];
 export interface EdgeGenericEvent {
     edge: Edge;
     type: "edge-update-after" | "edge-update-before";
+}
+
+// @public
+export interface EdgeHoverEvent {
+    edgeId: EdgeId;
+    tooltip?: string;
+    type: "edge-hover";
 }
 
 // @public
@@ -1415,6 +1433,7 @@ export const EdgeStyle: z.ZodObject<{
             wrapWidth: z.ZodOptional<z.ZodNumber>;
             wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
             wrapSkipEndSpace: z.ZodOptional<z.ZodBoolean>;
+            wrapUnkerned: z.ZodOptional<z.ZodBoolean>;
             wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
             wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
             wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
@@ -1717,6 +1736,7 @@ export const EdgeStyle: z.ZodObject<{
             wrapWidth: z.ZodOptional<z.ZodNumber>;
             wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
             wrapSkipEndSpace: z.ZodOptional<z.ZodBoolean>;
+            wrapUnkerned: z.ZodOptional<z.ZodBoolean>;
             wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
             wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
             wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
@@ -2124,6 +2144,7 @@ export const EdgeStyle: z.ZodObject<{
             bezier: "bezier";
             corners: "corners";
             midpoints: "midpoints";
+            "midpoints-headroom": "midpoints-headroom";
             arc: "arc";
         }>>;
         arcRadius: z.ZodOptional<z.ZodNumber>;
@@ -2183,6 +2204,7 @@ export const EdgeStyle: z.ZodObject<{
         wrapWidth: z.ZodOptional<z.ZodNumber>;
         wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
         wrapSkipEndSpace: z.ZodOptional<z.ZodBoolean>;
+        wrapUnkerned: z.ZodOptional<z.ZodBoolean>;
         wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
         wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
         wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
@@ -2431,6 +2453,7 @@ export const EdgeStyle: z.ZodObject<{
         wrapWidth: z.ZodOptional<z.ZodNumber>;
         wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
         wrapSkipEndSpace: z.ZodOptional<z.ZodBoolean>;
+        wrapUnkerned: z.ZodOptional<z.ZodBoolean>;
         wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
         wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
         wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
@@ -2648,6 +2671,255 @@ export const EdgeStyle: z.ZodObject<{
         overflowSuffix: z.ZodOptional<z.ZodDefault<z.ZodString>>;
         closeButton: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
     }, z.core.$strict>>;
+    tooltip: z.ZodOptional<z.ZodPrefault<z.ZodObject<{
+        enabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+        textPath: z.ZodOptional<z.ZodString>;
+        location: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
+            top: "top";
+            "top-right": "top-right";
+            "top-left": "top-left";
+            left: "left";
+            center: "center";
+            right: "right";
+            bottom: "bottom";
+            "bottom-left": "bottom-left";
+            "bottom-right": "bottom-right";
+            "inside-top": "inside-top";
+            "inside-bottom": "inside-bottom";
+            "inside-left": "inside-left";
+            "inside-right": "inside-right";
+            "inside-top-left": "inside-top-left";
+            "inside-top-right": "inside-top-right";
+            "inside-bottom-left": "inside-bottom-left";
+            "inside-bottom-right": "inside-bottom-right";
+            automatic: "automatic";
+        }>>>;
+        text: z.ZodOptional<z.ZodString>;
+        font: z.ZodOptional<z.ZodDefault<z.ZodString>>;
+        fontSize: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        size: z.ZodOptional<z.ZodNumber>;
+        letterSize: z.ZodOptional<z.ZodNumber>;
+        wrapWidth: z.ZodOptional<z.ZodNumber>;
+        wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
+        wrapSkipEndSpace: z.ZodOptional<z.ZodBoolean>;
+        wrapUnkerned: z.ZodOptional<z.ZodBoolean>;
+        wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
+        wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
+        wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
+        maxLines: z.ZodOptional<z.ZodNumber>;
+        maxLinesEllipsis: z.ZodOptional<z.ZodBoolean>;
+        keepBlankLines: z.ZodOptional<z.ZodBoolean>;
+        runAlign: z.ZodOptional<z.ZodEnum<{
+            baseline: "baseline";
+            hanging: "hanging";
+            middle: "middle";
+        }>>;
+        rotation: z.ZodOptional<z.ZodNumber>;
+        fontWeight: z.ZodOptional<z.ZodDefault<z.ZodString>>;
+        fontStyle: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
+            normal: "normal";
+            italic: "italic";
+        }>>>;
+        lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        lineBox: z.ZodOptional<z.ZodEnum<{
+            font: "font";
+            size: "size";
+            glyphs: "glyphs";
+        }>>;
+        borderAlign: z.ZodOptional<z.ZodEnum<{
+            center: "center";
+            outside: "outside";
+        }>>;
+        borderStyle: z.ZodOptional<z.ZodEnum<{
+            readonly solid: "solid";
+            readonly double: "double";
+        }>>;
+        backgroundShape: z.ZodOptional<z.ZodEnum<{
+            rectangle: "rectangle";
+            circle: "circle";
+        }>>;
+        image: z.ZodOptional<z.ZodString>;
+        imageWidth: z.ZodOptional<z.ZodNumber>;
+        imageHeight: z.ZodOptional<z.ZodNumber>;
+        imageOffsetX: z.ZodOptional<z.ZodNumber>;
+        imageOffsetY: z.ZodOptional<z.ZodNumber>;
+        minScreenSize: z.ZodOptional<z.ZodNumber>;
+        declutter: z.ZodOptional<z.ZodEnum<{
+            size: "size";
+            degree: "degree";
+        }>>;
+        minNodeScreenSize: z.ZodOptional<z.ZodNumber>;
+        textColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+        textOpacity: z.ZodOptional<z.ZodNumber>;
+        backgroundColor: z.ZodOptional<z.ZodUnion<[z.ZodDiscriminatedUnion<[z.ZodObject<{
+            colorType: z.ZodLiteral<"solid">;
+            value: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
+            opacity: z.ZodOptional<z.ZodNumber>;
+        }, z.core.$strict>, z.ZodObject<{
+            colorType: z.ZodLiteral<"gradient">;
+            direction: z.ZodNumber;
+            colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+            stops: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
+            opacity: z.ZodOptional<z.ZodNumber>;
+        }, z.core.$strict>, z.ZodObject<{
+            colorType: z.ZodLiteral<"radial-gradient">;
+            colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+            stops: z.ZodOptional<z.ZodArray<z.ZodNumber>>;
+            centerX: z.ZodOptional<z.ZodNumber>;
+            centerY: z.ZodOptional<z.ZodNumber>;
+            radius: z.ZodOptional<z.ZodNumber>;
+            opacity: z.ZodOptional<z.ZodNumber>;
+        }, z.core.$strict>], "colorType">, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
+        backgroundOpacity: z.ZodOptional<z.ZodNumber>;
+        borderWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        borderColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+        borderOpacity: z.ZodOptional<z.ZodNumber>;
+        borders: z.ZodOptional<z.ZodArray<z.ZodObject<{
+            width: z.ZodNumber;
+            color: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
+            spacing: z.ZodNumber;
+        }, z.core.$strict>>>;
+        table: z.ZodOptional<z.ZodString>;
+        marginTop: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        marginBottom: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        marginLeft: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        marginRight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        textAlign: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
+            left: "left";
+            center: "center";
+            right: "right";
+        }>>>;
+        cornerRadius: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        autoSize: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+        resolution: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        billboardMode: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        position: z.ZodOptional<z.ZodObject<{
+            x: z.ZodNumber;
+            y: z.ZodNumber;
+            z: z.ZodNumber;
+        }, z.core.$strict>>;
+        attachPosition: z.ZodOptional<z.ZodEnum<{
+            top: "top";
+            "top-right": "top-right";
+            "top-left": "top-left";
+            left: "left";
+            center: "center";
+            right: "right";
+            bottom: "bottom";
+            "bottom-left": "bottom-left";
+            "bottom-right": "bottom-right";
+            "inside-top": "inside-top";
+            "inside-bottom": "inside-bottom";
+            "inside-left": "inside-left";
+            "inside-right": "inside-right";
+            "inside-top-left": "inside-top-left";
+            "inside-top-right": "inside-top-right";
+            "inside-bottom-left": "inside-bottom-left";
+            "inside-bottom-right": "inside-bottom-right";
+        }>>;
+        attachOffset: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        offsetX: z.ZodOptional<z.ZodNumber>;
+        offsetY: z.ZodOptional<z.ZodNumber>;
+        shiftX: z.ZodOptional<z.ZodNumber>;
+        shiftY: z.ZodOptional<z.ZodNumber>;
+        shiftOf: z.ZodOptional<z.ZodEnum<{
+            box: "box";
+            words: "words";
+        }>>;
+        gapOf: z.ZodOptional<z.ZodEnum<{
+            box: "box";
+            words: "words";
+        }>>;
+        box: z.ZodOptional<z.ZodEnum<{
+            words: "words";
+            "words-at-side": "words-at-side";
+            "target-width": "target-width";
+        }>>;
+        sizeMode: z.ZodOptional<z.ZodEnum<{
+            world: "world";
+            screen: "screen";
+        }>>;
+        keepInView: z.ZodOptional<z.ZodBoolean>;
+        depthFadeEnabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+        depthFadeNear: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        depthFadeFar: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        onTop: z.ZodOptional<z.ZodBoolean>;
+        pickable: z.ZodOptional<z.ZodBoolean>;
+        textOutline: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+        textOutlineWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        textOutlineColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+        textOutlineOpacity: z.ZodOptional<z.ZodNumber>;
+        textOutlineJoin: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
+            round: "round";
+            bevel: "bevel";
+            miter: "miter";
+        }>>>;
+        textShadow: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+        textShadowColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+        textShadowBlur: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        textShadowOffsetX: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        textShadowOffsetY: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        backgroundPadding: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        boxPadding: z.ZodOptional<z.ZodNumber>;
+        panelShadow: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+        panelShadowColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+        panelShadowBlur: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        panelShadowOffsetX: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        panelShadowOffsetY: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        backgroundGradient: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+        backgroundGradientType: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
+            linear: "linear";
+            radial: "radial";
+        }>>>;
+        backgroundGradientColors: z.ZodOptional<z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+        backgroundGradientDirection: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
+            vertical: "vertical";
+            horizontal: "horizontal";
+            diagonal: "diagonal";
+        }>>>;
+        pointer: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+        pointerDirection: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
+            top: "top";
+            left: "left";
+            right: "right";
+            bottom: "bottom";
+            auto: "auto";
+        }>>>;
+        pointerWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        pointerHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        pointerOffset: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        pointerCurve: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+        animation: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
+            none: "none";
+            fill: "fill";
+            pulse: "pulse";
+            bounce: "bounce";
+            shake: "shake";
+            glow: "glow";
+        }>>>;
+        animationSpeed: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        badge: z.ZodOptional<z.ZodEnum<{
+            notification: "notification";
+            label: "label";
+            "label-success": "label-success";
+            "label-warning": "label-warning";
+            "label-danger": "label-danger";
+            count: "count";
+            icon: "icon";
+            progress: "progress";
+            dot: "dot";
+        }>>;
+        icon: z.ZodOptional<z.ZodString>;
+        iconPosition: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
+            left: "left";
+            right: "right";
+        }>>>;
+        progress: z.ZodOptional<z.ZodNumber>;
+        smartOverflow: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+        maxNumber: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        overflowSuffix: z.ZodOptional<z.ZodDefault<z.ZodString>>;
+        closeButton: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
+    }, z.core.$strict>>>;
     band: z.ZodOptional<z.ZodObject<{
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         scale: z.ZodOptional<z.ZodNumber>;
@@ -2656,7 +2928,7 @@ export const EdgeStyle: z.ZodObject<{
     visible: z.ZodOptional<z.ZodBoolean>;
 }, z.core.$strict>;
 
-// @public (undocumented)
+// @public
 export type EdgeStyleConfig = z.infer<typeof EdgeStyle>;
 
 // @public
@@ -2738,6 +3010,7 @@ export class EventManager implements Manager {
     init(): Promise<void>;
     listenerCount(): number;
     once(type: EventType, callback: EventCallbackType): symbol;
+    get onEdgeEvent(): Observable<EdgeEvent>;
     get onGraphError(): Observable<GraphErrorEvent>;
     get onGraphEvent(): Observable<GraphEvent>;
     get onNodeEvent(): Observable<NodeEvent>;
@@ -2748,6 +3021,9 @@ export class EventManager implements Manager {
 
 // @public
 export type EventType = GraphEventType | NodeEventType | EdgeEventType | AiEventType;
+
+// @public
+export type ExactMaxNodesBasis = "measured" | "default" | "configured";
 
 // @public
 export interface ExpandBehavior {
@@ -2808,7 +3084,7 @@ export type ExportScope = RuleTree | "all" | "shown" | "selection" | {
 export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 
 // @public
-export type FeatureId = "assistant" | "data-management" | "location-map" | "cosmograph" | "file-styles" | "source-steps" | "source-references" | "save-files-v2";
+export type FeatureId = "data-management" | "location-map" | "cosmograph" | "file-styles" | "source-steps" | "source-references";
 
 // @public
 export interface FigureOptions {
@@ -2839,6 +3115,7 @@ export interface FileLoadOptions {
     graphName?: string;
     layout?: "recommended" | "placed" | "keep";
     nodeIdPath?: string;
+    pins?: "data" | "keep";
     replace?: boolean;
     signal?: AbortSignal;
     styleOptions?: FileStyleOptions;
@@ -3113,6 +3390,7 @@ export class Graph implements GraphContext {
     // @internal
     getDrawnTarget(): DrawnTarget | null;
     getEdgeCount(): number;
+    getEdgeIds(): string[];
     // @internal
     getEdgeIdTarget(): EdgeIdTarget | null;
     // @internal
@@ -3249,6 +3527,10 @@ export class Graph implements GraphContext {
         extent?: CameraViewExtent;
     }): CameraState;
     restartRenderer(): Promise<void>;
+    // @internal
+    resumeTour(name: string, stop: number): Promise<{
+        reason: TourEndReason;
+    }>;
     retryLastAiCommand(): Promise<ExecutionResult>;
     get rowCounts(): RowCounts;
     run(algorithm: AlgorithmKey, params?: Record<string, unknown>, options?: StartOptions): Run;
@@ -3338,6 +3620,11 @@ export class Graph implements GraphContext {
     stopInputRecording(): RecordedInputEvent[];
     stopVoiceInput(): void;
     get styles(): Styles;
+    // @internal
+    tourPlace(): {
+        name: string;
+        stop: number;
+    } | null;
     update(frameMs?: number): void;
     updateEdges(updates: {
         id: string;
@@ -3376,8 +3663,10 @@ export class Graph implements GraphContext {
 export interface GraphAccelerator {
     [algorithmOrLayout: string]: unknown;
     readonly backend: "webgpu" | (string & {});
+    calibrate?(): Promise<void>;
     readonly device?: AcceleratorDeviceInfo;
     dispose?(): void;
+    readonly exactMaxNodes?: AcceleratorExactMaxNodes;
     readonly lost?: Promise<{
         reason: string;
     }>;
@@ -3496,7 +3785,7 @@ export interface GraphErrorEvent {
 }
 
 // @public
-export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | OverviewChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | LayoutUpdatedEvent | LayoutWarningEvent | LimitsWarningEvent | BasemapStatusEvent | RenderLostEvent | RenderRestoredEvent | OperationCanceledEvent | OperationCancelledEvent | StatsUpdateEvent | InputEnabledChangedEvent | InputBookkeepingEvent | ReducedMotionChangedEvent | AnimationProgressEvent | TourProgressEvent | TourEndedEvent | ViewsChangedEvent | XRSessionStartedEvent | XRSessionEndedEvent | XRMenuSelectEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
+export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | OverviewChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | LayoutUpdatedEvent | LayoutWarningEvent | LimitsWarningEvent | BasemapStatusEvent | RenderLostEvent | RenderRestoredEvent | RenderWarningEvent | OperationCanceledEvent | StatsUpdateEvent | InputEnabledChangedEvent | InputBookkeepingEvent | ReducedMotionChangedEvent | AnimationProgressEvent | TourProgressEvent | TourEndedEvent | ViewsChangedEvent | XRSessionStartedEvent | XRSessionEndedEvent | XRMenuSelectEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
 
 // @public
 export type GraphEventType = GraphEvent["type"];
@@ -3505,7 +3794,7 @@ export type GraphEventType = GraphEvent["type"];
 export interface GraphGenericEvent {
     // (undocumented)
     [key: string]: unknown;
-    type: "render-initialized" | "manager-initialized" | "lifecycle-initialized" | "lifecycle-disposed" | "skybox-loaded" | "skybox-failed" | "operation-queue-active" | "operation-queue-idle" | "operation-batch-complete" | "operation-start" | "operation-complete" | "operation-progress" | "layout-progress" | "operation-obsoleted" | "animation-canceled" | "animation-cancelled" | "screenshot-enhancing" | "screenshot-ready" | "zoom-to-fit-complete" | "graph-frame-stable" | "graph-first-frame";
+    type: "render-initialized" | "manager-initialized" | "lifecycle-initialized" | "lifecycle-disposed" | "skybox-loaded" | "skybox-failed" | "operation-queue-active" | "operation-queue-idle" | "operation-batch-complete" | "operation-start" | "operation-complete" | "operation-progress" | "layout-progress" | "operation-obsoleted" | "animation-canceled" | "screenshot-enhancing" | "screenshot-ready" | "zoom-to-fit-complete" | "graph-frame-stable" | "graph-first-frame";
 }
 
 // @public
@@ -3700,6 +3989,7 @@ export class Graphty extends LitElement {
     };
     getDataManager(): DataManager;
     getEdgeCount(): number;
+    getEdgeIds(): string[];
     getEdges(): Edge[];
     getEventManager(): EventManager;
     getLayoutManager(): LayoutManager;
@@ -4107,7 +4397,7 @@ export type GraphtyErrorCode =
 * A timeline call needs a time field and none is designated: `session.time.window`, `play`,
 * `stepBy` or `seek` with no attribute given. The caller designates one with
 * `session.time.setField` (or the `node-time-path` / `edge-time-path` attributes).
-* @beta
+* Beta: may change in a minor release.
 */
 | "E_NO_TIME_FIELD"
 /**
@@ -4136,20 +4426,20 @@ export type GraphtyErrorCode =
 /**
 * A layer names a shader the catalog does not list, in a use on `node.shaders` or
 * `edge.shaders` or a parameter's address. `details.candidates` lists the ids that list takes.
-* @since 3.36.0
+* Since 3.36.0.
 */
 | "E_UNKNOWN_SHADER"
 /**
 * A layer names a shader where it cannot draw: an edge shader on `node.shaders`
 * (`shader.target-mismatch`), or a use at a place the shader does not allow
 * (`shader.place-unsupported`); the refused problem's `fact` carries the code.
-* @since 3.36.0
+* Since 3.36.0.
 */
 | "E_SHADER_KIND"
 /**
 * A layer sets or binds a parameter the shader does not declare, or binds one per element
 * that it does not declare `varies`. `details.candidates` lists the declared parameters.
-* @since 3.36.0
+* Since 3.36.0.
 */
 | "E_UNKNOWN_SHADER_PARAM"
 /**
@@ -4202,7 +4492,7 @@ export type GraphtyErrorCode =
 * A graph was constructed with the id of a page element that the document does not hold, so
 * there is nowhere to draw. `details.id` carries the id. The caller creates the element first,
 * or passes the element itself.
-* @since 3.40.0
+* Since 3.40.0.
 */
 | "E_HOST_NOT_FOUND"
 /**
@@ -4548,11 +4838,12 @@ export type GraphtyErrorCode =
 */
 | "E_NO_WEBGL"
 /**
-* A shader could not be built for WebGPU, usually because a name or a built-in in it is legal
-* GLSL that WGSL or the compilers in between do not take. A refused shader never draws and can
-* lose every frame it is part of, so `rendererStatus.drawing` turns false. `details.stage` names the step that gave up (`"compiler"`,
-* `"translator"` or `"device"`) and `details.messages` carry what it said, which the translator
-* leaves empty. Reported as `graph-error`.
+* A shader could not be built, under WebGPU usually because a name or a built-in in it is legal
+* GLSL that WGSL or the compilers in between do not take; under WebGL because the driver's
+* compiler refused it. A refused shader never draws and can lose every frame it is part of, so
+* `rendererStatus.drawing` turns false. `details.stage` names the step that gave up
+* (`"compiler"`, `"translator"` or `"device"`) and `details.messages` carry what it said,
+* which the translator leaves empty. Reported as `graph-error`.
 */
 | "E_SHADER_REFUSED"
 /**
@@ -4563,6 +4854,13 @@ export type GraphtyErrorCode =
 * stays in 3D and the next attempt starts clean. Recoverable: asking again can succeed.
 */
 | "E_XR_SESSION_FAILED"
+/**
+* Something run for one frame of an immersive session threw: Babylon.js's own XR input, or
+* code observing the frame. The session keeps drawing; the step that threw is skipped for that
+* frame. `details.mode` is `"vr"` or `"ar"` and `cause` carries what was thrown. Reported once
+* per session for each distinct message, as `graph-error` (context `"xr"`), never thrown.
+*/
+| "E_XR_FRAME_FAILED"
 /**
 * A feature the caller asked for needs an optional peer package that is not installed.
 * `details.package` names the package to install and `details.feature` the feature that
@@ -4803,14 +5101,14 @@ export type GraphtyErrorCode =
 * stopped for a reason of its own carries `details.reason`: `"hidden"` (the tab went to the
 * background, so no frames were drawn), `"resized"` (the canvas changed size), or how the tour
 * it recorded ended early: `"interrupted"`, `"replaced"` or `"mode-changed"`. Retrying may work.
-* @since 3.40.0
+* Since 3.40.0.
 */
 | "E_CAPTURE_FAILED"
 /**
 * A screenshot waited for the layout to stop moving and it was still moving when the wait ran
 * out. `details.timeoutMs` is the wait. The caller captures again later, raises
 * `timing.settleTimeoutMs`, or captures without waiting (`timing.waitForSettle: false`).
-* @since 3.40.0
+* Since 3.40.0.
 */
 | "E_NOT_SETTLED"
 /**
@@ -4871,7 +5169,7 @@ export type GraphtyErrorCode =
 /**
 * A recording (`captureAnimation`) was canceled: its `signal` aborted, or
 * `cancelAnimationCapture()` or `cancelCameraAnimation()` was called. No file is made. Thrown as
-* an `AnimationCancelledError`, a `GraphtyError` with this code. Added in 3.58.0.
+* an `AnimationCanceledError`, a `GraphtyError` with this code. Added in 3.58.0.
 */
 | "E_CANCELED" | "E_INTERNAL";
 
@@ -5101,22 +5399,36 @@ export type GraphtyWarningCode =
 * A saved filter condition this reader cannot read (an effect it does not know, or a malformed
 * condition) was skipped; the rest were read, and what the file hides was read from its
 * filter steps. `params.slice` is `"visibility"`, `params.id` the condition's id when it has one.
-* @since 3.32.0
+* Since 3.32.0.
 */
 | "W_FILTER_CONDITION_SKIPPED"
 /**
 * A project's filter conditions are of a version this reader does not know, or are not a
 * list: they were read from the file's filter steps instead. `params.slice` is `"visibility"`,
 * `params.version` the version found.
-* @since 3.32.0
+* Since 3.32.0.
 */
 | "W_FILTER_CONDITIONS_UNREADABLE"
 /**
 * A project's filter steps and the keep and exclude filter conditions it also holds disagree
 * (a tool edited only one of them): the conditions were read. `params.slice` is `"visibility"`.
-* @since 3.32.0
+* Since 3.32.0.
 */
 | "W_FILTER_STEPS_DIFFER"
+/**
+* A filter draft autosave kept could not be opened again after a restore (the condition it
+* edited is gone, or its new condition's id is taken), so it was dropped. In an autosave
+* restore's report; `params.id` is the condition's id.
+* Since 3.40.0.
+*/
+| "W_FILTER_DRAFT_DROPPED"
+/**
+* The draft of the sources and steps autosave kept could not be opened again after a restore
+* (the source-steps experiment is off, or the rows it read are gone), so it was dropped. In an
+* autosave restore's report; no params.
+* Since 3.40.0.
+*/
+| "W_SOURCE_DRAFT_DROPPED"
 /**
 * A style layer's `{ match: "ids" }` selector names ids no element of the layer's target answers
 * to, by either spelling of an integer id, so they paint nothing. `params.target` is `"node"` or
@@ -5132,7 +5444,7 @@ export type GraphtyWarningCode =
 /**
 * The element's `limits` were set, or are held, while `render-path` is `"objects"`, where the
 * shipped ceilings stand: they are honored only under `"batched"`. `params.renderPath`.
-* @experimental cosmograph
+* Experimental: may change in a minor release.
 */
 | "W_LIMITS_IGNORED"
 /**
@@ -5140,9 +5452,17 @@ export type GraphtyWarningCode =
 * than `limits.objectRows` allows, on `render-path="batched"`: the rows past it are drawn as
 * plain bodies and plain lines. `params.of` is `"nodes"` or `"edges"`, `params.wanted` how
 * many asked, `params.cap` the budget.
-* @experimental cosmograph
+* Experimental: may change in a minor release.
 */
 | "W_OBJECT_CAP"
+/**
+* The installed Babylon.js words a line of its shaders differently from the one
+* render-path="batched" edits, so the edit was not made: batched rows still draw, with Babylon's
+* own line (a node's shading may differ a little from the same node drawn as an object).
+* `params.renderer` is `"webgl"` or `"webgpu"`, `params.patterns` the edits that matched
+* nothing. Reported as `render-warning`.
+*/
+| "W_SHADER_EDIT_MISSED"
 /**
 * A style layer binds a whole label style channel (`node.labelStyle`) to a path. No scale
 * produces a whole label style, so the binding paints nothing. `params.channel` is the channel,
@@ -5578,6 +5898,8 @@ export abstract class LayoutEngine {
     protected config?: Record<string, unknown>;
     static descriptor?: AuthoredLayoutDescriptor;
     dispose(): void;
+    // @internal
+    get edgeCount(): number;
     protected edgeProblems(drawn: ReadonlyMap<string, Edge>): string[];
     abstract get edges(): Iterable<Edge>;
     protected get followerGroups(): ReadonlyMap<number, readonly number[]>;
@@ -5685,6 +6007,8 @@ export abstract class LayoutEngine {
 // @public
 export class LayoutManager implements Manager {
     constructor(eventManager: EventManager, dataManager: DataManager, styles: Styles);
+    // @internal
+    answered(): Promise<void>;
     get building(): boolean;
     checkMotion(): void;
     // @internal
@@ -5714,7 +6038,7 @@ export class LayoutManager implements Manager {
     get isSettled(): boolean;
     get layoutEngine(): LayoutEngine | undefined;
     get layoutType(): string | undefined;
-    loadArrangement(restoring: boolean, wrote?: boolean, byReader?: boolean): void;
+    loadArrangement(restoring: boolean, wrote?: boolean, byReader?: boolean): boolean;
     get motion(): LayoutMotion;
     get nodes(): Iterable<Node_2>;
     onMotion: ((motion: LayoutMotion) => void) | null;
@@ -5722,6 +6046,8 @@ export class LayoutManager implements Manager {
     placeGroups(): void;
     // @internal
     get preStepsInFlight(): boolean;
+    // @internal
+    publishOrReport(): boolean;
     reducedMotion: boolean;
     // @internal
     releaseDetachedScope(): void;
@@ -5784,6 +6110,7 @@ export const LIGHTING_VALUES: readonly ["studio", "headlight", "matte", "flat"];
 // @public
 export interface Limits {
     edgesDrawn: number;
+    fullDetailTriangleBudget: number;
     graphMemoryBudgetBytes: number;
     largeGraphThreshold: number;
     objectEdges: number;
@@ -5984,6 +6311,8 @@ class Node_2 implements ModelUser {
         z: number;
     }>;
     // @internal
+    get drawnHeld(): boolean;
+    // @internal
     get drawnInBatch(): boolean;
     // @internal
     get drawnInstanceColor(): Rgba | null;
@@ -6034,9 +6363,9 @@ class Node_2 implements ModelUser {
     get groupDrawnForAnotherCamera(): boolean;
     // @internal
     get groupSizing(): NodeStyleConfig["group"];
-    hideTooltip(): void;
     // @internal
-    holdOffBatch(): void;
+    get hiddenByStyle(): boolean;
+    hideTooltip(): void;
     readonly id: NodeIdType;
     // @internal
     imageDrawn(): BaseTexture | null;
@@ -6821,6 +7150,7 @@ export const NodeStyle: z.ZodObject<{
         wrapWidth: z.ZodOptional<z.ZodNumber>;
         wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
         wrapSkipEndSpace: z.ZodOptional<z.ZodBoolean>;
+        wrapUnkerned: z.ZodOptional<z.ZodBoolean>;
         wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
         wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
         wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
@@ -7069,6 +7399,7 @@ export const NodeStyle: z.ZodObject<{
         wrapWidth: z.ZodOptional<z.ZodNumber>;
         wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
         wrapSkipEndSpace: z.ZodOptional<z.ZodBoolean>;
+        wrapUnkerned: z.ZodOptional<z.ZodBoolean>;
         wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
         wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
         wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
@@ -7317,6 +7648,7 @@ export const NodeStyle: z.ZodObject<{
         wrapWidth: z.ZodOptional<z.ZodNumber>;
         wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
         wrapSkipEndSpace: z.ZodOptional<z.ZodBoolean>;
+        wrapUnkerned: z.ZodOptional<z.ZodBoolean>;
         wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
         wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
         wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
@@ -7643,6 +7975,7 @@ export interface NotesApi {
     list(options?: NoteListOptions): readonly Note[];
     mergeDocument(document: unknown, options?: NoteMergeOptions): NotesReport;
     remove(id: NoteId): void;
+    savedTarget(target: NoteTargetInput): NoteTarget | undefined;
     status(id: NoteId): NoteStatus;
     // (undocumented)
     tags(): readonly string[];
@@ -7724,13 +8057,6 @@ export interface OperationCanceledEvent {
     code: "queue-cleared" | "canceled";
     id: string;
     type: "operation-canceled";
-}
-
-// @public @deprecated
-export interface OperationCancelledEvent {
-    code: "queue-cleared" | "cancelled";
-    id: string;
-    type: "operation-cancelled";
 }
 
 // @public
@@ -7919,7 +8245,7 @@ export interface ProgressChange {
         readonly details: Readonly<Record<string, unknown>>;
     };
     readonly fraction: number | null;
-    readonly outcome?: "succeeded" | "failed" | "cancelled";
+    readonly outcome?: "succeeded" | "failed" | "canceled";
     readonly phase: "progress" | "end";
     readonly run?: RunId;
     readonly source?: {
@@ -7940,11 +8266,9 @@ export const PROJECT_FILE: Readonly<{
 // @public
 export interface ProjectApi {
     assetChoices(): ProjectAssetChoice[];
-    // @beta
     describe(options?: Pick<ProjectSaveOptions, "sections" | "form" | "paths" | "handles" | "location">): Promise<ProjectSaveFacts>;
     readonly dirty: boolean;
     readonly id: string;
-    // @beta
     inspect(source: ProjectSource, options?: Pick<ProjectOpenOptions, "migrate" | "limits" | "sections" | "dataMode" | "columns">): Promise<ProjectFileFacts | undefined>;
     markSaved(saved: SavedProject): void;
     readonly name: string | null;
@@ -7964,7 +8288,7 @@ export interface ProjectAssetChoice {
     readonly urlRefused?: CodedFact<"W_MODEL_NOT_KEPT_BY_URL">;
 }
 
-// @beta
+// @public
 export interface ProjectFileFacts {
     readonly form: "full" | "section";
     readonly name: string | null;
@@ -7974,7 +8298,7 @@ export interface ProjectFileFacts {
     readonly sources: readonly ProjectFileSource[];
 }
 
-// @beta
+// @public
 export interface ProjectFileHandle {
     getFile(): Promise<Blob>;
     readonly name: string;
@@ -7991,7 +8315,7 @@ export function projectFileName(name: string | null | undefined, options?: {
     readonly section?: DocumentSection;
 }): string;
 
-// @beta
+// @public
 export interface ProjectFileRun {
     readonly algorithm?: string;
     readonly id: string;
@@ -8000,7 +8324,7 @@ export interface ProjectFileRun {
     readonly restorable: boolean;
 }
 
-// @beta
+// @public
 export interface ProjectFileSection extends DocumentSectionFacts {
     readonly about: DocumentSectionAbout;
     readonly binding?: SectionBinding;
@@ -8009,7 +8333,7 @@ export interface ProjectFileSection extends DocumentSectionFacts {
     readonly version: number | null;
 }
 
-// @beta
+// @public
 export interface ProjectFileSource {
     readonly id: string;
     readonly kind: ProjectSourceKind;
@@ -8021,44 +8345,32 @@ export interface ProjectFileSource {
 
 // @public
 export interface ProjectOpenOptions {
-    // @beta
     readonly applyRecipe?: boolean;
-    // @beta
     readonly bindOtherData?: boolean;
-    // @beta
     readonly columns?: {
         readonly node?: Readonly<Record<string, string>>;
         readonly edge?: Readonly<Record<string, string>>;
     };
-    // @beta
     readonly dataMode?: "replace" | "add";
     readonly discard?: boolean;
     readonly draft?: {
         readonly onto?: "graph";
         readonly guess?: "names" | "values";
     };
-    // @beta
     readonly fetchSources?: boolean;
     readonly fileName?: string;
-    // @beta
     readonly files?: Readonly<Record<string, Blob>>;
     readonly history?: "step" | "start";
     // (undocumented)
     readonly limits?: {
         readonly fileBytes?: number;
     };
-    // @beta
     readonly location?: string;
-    // @beta
     readonly migrate?: boolean;
     readonly ownWork?: boolean;
-    // @beta
     readonly rerun?: boolean;
-    // @beta
     readonly runs?: Readonly<Record<string, boolean>>;
-    // @beta
     readonly sections?: readonly DocumentSection[];
-    // @beta
     readonly signal?: AbortSignal;
 }
 
@@ -8075,7 +8387,7 @@ export interface ProjectOpenReport {
 // @public
 export type ProjectProblem = CodedFact<GraphtyErrorCode | GraphtyWarningCode | DocumentCode | "shader.unknown" | "shader.not-saved">;
 
-// @beta
+// @public
 export interface ProjectSaveFacts {
     readonly project: boolean;
     readonly sections: readonly ProjectSaveSection[];
@@ -8085,26 +8397,17 @@ export interface ProjectSaveFacts {
 // @public
 export interface ProjectSaveOptions {
     readonly assets?: Readonly<Record<string, AssetStorage>>;
-    // @beta
     readonly embed?: Readonly<Record<string, SourceStorage>>;
     readonly extensions?: Readonly<Record<string, unknown>>;
-    // @beta
     readonly form?: "full" | "section";
-    // @beta
     readonly format?: 1 | 2;
-    // @beta
     readonly handles?: Readonly<Record<string, ProjectFileHandle>>;
     readonly leaveOut?: readonly ("graphty-style" | "graphty-notes" | "graphty-view-state")[];
-    // @beta
     readonly location?: string;
     readonly markSaved?: boolean;
-    // @beta
     readonly paths?: Readonly<Record<string, string>>;
-    // @beta
     readonly results?: boolean;
-    // @beta
     readonly rewriteRecipe?: boolean;
-    // @beta
     readonly sections?: readonly DocumentSection[];
 }
 
@@ -8115,7 +8418,7 @@ export interface ProjectSaveReport {
     readonly written: readonly string[];
 }
 
-// @beta
+// @public
 export interface ProjectSaveSection extends DocumentSectionFacts {
     readonly required: boolean;
     readonly saved: boolean;
@@ -8124,7 +8427,7 @@ export interface ProjectSaveSection extends DocumentSectionFacts {
 // @public
 export type ProjectSource = Blob | Uint8Array | string;
 
-// @beta
+// @public
 export interface ProjectSourceChoice {
     readonly edges: number;
     readonly format?: string;
@@ -8139,7 +8442,7 @@ export interface ProjectSourceChoice {
     readonly storage: SourceStorage;
 }
 
-// @beta
+// @public
 export type ProjectSourceKind = "file" | "url" | "network" | "sample" | "derived" | "reader";
 
 // @public
@@ -8175,7 +8478,7 @@ export interface QueueableOptions {
     skipQueue?: boolean;
 }
 
-// @beta
+// @public
 export interface RecipesApi {
     apply(recipe: ProjectSource): Promise<ProjectOpenReport>;
     export(): Promise<SavedProject>;
@@ -8272,6 +8575,7 @@ export class RenderManager implements Manager {
     init(): Promise<void>;
     // @internal
     pickGroupOutline(x: number, y: number): GroupOutlinePick | null;
+    relightBatches(): void;
     requestFrame(): void;
     // @internal
     resize(): void;
@@ -8321,6 +8625,13 @@ export interface RenderRestoredEvent {
     type: "render-restored";
 }
 
+// @public
+export interface RenderWarningEvent {
+    code: GraphtyWarningCode;
+    params: Readonly<Record<string, unknown>>;
+    type: "render-warning";
+}
+
 export { ReplayFetch }
 
 export { replayFetch }
@@ -8367,6 +8678,7 @@ export const RichTextStyle: z.ZodObject<{
     wrapWidth: z.ZodOptional<z.ZodNumber>;
     wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
     wrapSkipEndSpace: z.ZodOptional<z.ZodBoolean>;
+    wrapUnkerned: z.ZodOptional<z.ZodBoolean>;
     wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
     wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
     wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
@@ -8722,7 +9034,7 @@ export interface ScreenshotResult {
 // @public
 export type ScreenshotWarningCode = "W_LARGE_CAPTURE" | "W_HIGH_MEMORY";
 
-// @beta
+// @public
 export type SectionBinding = "loads" | "held" | "other-data";
 
 // @public
@@ -8916,7 +9228,7 @@ export { SourceDescriptor }
 
 export { SourceEdgeRecord }
 
-// @beta
+// @public
 export type SourceEmbeddedReason = "edited" | "bytes" | "rows" | "mapping" | "kind" | "options";
 
 export { sourceEndpoint }
@@ -9109,10 +9421,10 @@ export type SourceSettings = Pick<SourceLoadRecord, "source" | "endpoint" | "con
     readonly limits?: SourceLimitOptions;
 };
 
-// @beta
+// @public
 export type SourceStorage = "embedded" | "referenced";
 
-// @beta
+// @public
 export type SourceUnavailableReason = "not-found" | "needs-file" | "read" | "too-large" | "needs-permission" | "copy-changed" | "kind" | "copy-form" | "options" | "ledger";
 
 export { SourceValidators }
@@ -9265,7 +9577,7 @@ export interface TourEndedEvent {
 }
 
 // @public
-export type TourEndReason = "finished" | "cancelled" | "interrupted" | "replaced" | "mode-changed";
+export type TourEndReason = "finished" | "canceled" | "interrupted" | "replaced" | "mode-changed";
 
 // @public
 export type TourInput = string | Tour | readonly (ViewWaypoint | CameraWaypoint | TourPause)[];
@@ -9313,6 +9625,8 @@ export class UpdateManager implements Manager {
     adoptBuiltEdge(edge: Edge): void;
     // @internal
     adoptBuiltNode(node: Node_2): void;
+    // @internal
+    annotationMeshes: (() => readonly Mesh[]) | null;
     autoTurning: boolean;
     get awaitsLanding(): boolean;
     bindViewMasks(masks: ViewMasks | null): void;
@@ -9346,6 +9660,8 @@ export class UpdateManager implements Manager {
     } | null;
     get graphIsDrawn(): boolean;
     holdSelectionFollow(following?: readonly Node_2[]): void;
+    // @internal
+    holdsMesh(node: Node_2): void;
     init(): Promise<void>;
     invalidateViewMasks(): void;
     isZoomToFitEnabled(): boolean;
@@ -9357,11 +9673,21 @@ export class UpdateManager implements Manager {
     meshesShownOrHidden(): void;
     // @internal
     nodeRowSelected(row: number): boolean;
+    // @internal
+    nodeRowsMoved(remap: ArrayLike<number>): void;
+    // @internal
+    noteEndsChanged(row: number): void;
     nothingIsOwed(): boolean;
     onceNothingIsOwed(callback: () => void): () => void;
     operationsPending: (() => boolean) | null;
     readonly pending: PendingWork;
     picturesLoading: (() => boolean) | null;
+    // @internal
+    placeBuiltNode(node: Node_2): void;
+    // @internal
+    placeEdgesOfNode(node: Node_2): void;
+    // @internal
+    placeEdgesOfRow(row: number): void;
     // @internal
     plainLabelRows(): {
         row: number;
@@ -9374,6 +9700,8 @@ export class UpdateManager implements Manager {
     // @internal
     repaintNodes(nodes: readonly Node_2[]): void;
     static readonly RETRIM_COUNTER = "edges.retrimmedForNodeScale";
+    // @internal
+    rowHiddenByStyle(row: number): boolean;
     // @internal
     rowsRenumbered(): void;
     saveFraming(): () => void;

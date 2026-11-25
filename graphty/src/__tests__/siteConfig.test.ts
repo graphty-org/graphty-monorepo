@@ -47,10 +47,10 @@ describe("site.json analytics", () => {
         it(`drops only the analytics block for ${why}`, async () => {
             const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
             const config = await loadSiteConfig(
-                siteFile({ site: "nightly", features: ["assistant"], datasets: "https://d.example/", analytics }),
+                siteFile({ site: "nightly", features: ["cosmograph"], datasets: "https://d.example/", analytics }),
             );
             assert.strictEqual(config.site, "nightly");
-            assert.include(config.features, "assistant");
+            assert.include(config.features, "cosmograph");
             assert.strictEqual(config.datasets, "https://d.example/");
             assert.isUndefined(config.analytics);
             assert.equal(warn.mock.calls.length, 1);

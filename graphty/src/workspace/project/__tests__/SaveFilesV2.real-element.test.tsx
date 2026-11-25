@@ -1,10 +1,9 @@
 /**
- * Version 2 save files (the "save-files-v2" experiment) on the REAL graphty-element: Save as asks
+ * Version 2 save files on the REAL graphty-element: Save as asks
  * for a preset, sections, copy or reference and the file's form; the whole project is kept in this
  * browser and every other choice downloads as a copy; opening a version 2 file asks which sections
  * to load first, warns of a held section, and holds a referenced source that changed until the
- * reader clicks Refresh. With the
- * experiment off, Save as is the name-only dialog it was.
+ * reader clicks Refresh.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -15,7 +14,6 @@ import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { commands, userEvent } from "vitest/browser";
 
 import { watchDownloads } from "../../../test/downloads";
-import { withFeatures } from "../../../test/features";
 import { openBy } from "../../../test/open";
 import { pickSample } from "../../../test/samples-dialog";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
@@ -93,9 +91,7 @@ afterEach(() => {
     vi.restoreAllMocks();
 });
 
-describe("version 2 save files, experiment on", () => {
-    withFeatures(["save-files-v2"]);
-
+describe("version 2 save files", () => {
     it("saves with each preset: the whole project in this browser, the rest as copies that reopen", async () => {
         const downloads = watchDownloads();
         const { store, session } = await openSample();
@@ -103,17 +99,17 @@ describe("version 2 save files, experiment on", () => {
         // What each section holds, from the element's counts.
         assert.isNotNull(within(dialog).getByText(/15 nodes/));
 
-        // Everything: the whole project, kept in this browser as a version 2 file.
+        // Everything: the whole project, kept in this browser as a version 1 file, which keeps all
+        // of it (version 2 files do not hold everything yet).
         assert.strictEqual(within(dialog).getByLabelText<HTMLInputElement>("Preset").value, "Everything");
         await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
         await waitFor(() => {
             assert.equal(store.get().notice?.message, `Saved ${SAMPLE} in this browser.`);
         });
         const [stored] = await browserProjects.list();
-        assert.include(stored.report?.written ?? [], "results");
         assert.isFalse(session.project.dirty);
         const file = await browserProjects.get(stored.id);
-        assert.strictEqual((JSON.parse((await file?.text()) ?? "{}") as { version?: number }).version, 2);
+        assert.strictEqual((JSON.parse((await file?.text()) ?? "{}") as { version?: number }).version, 1);
         store.set({ dialog: null });
 
         // Each other preset downloads a copy holding exactly its sections.
@@ -209,7 +205,7 @@ describe("version 2 save files, experiment on", () => {
         });
     });
 
-    it("downloads a version 2 local copy, and reopens the project kept in this browser whole", async () => {
+    it("downloads a whole-project local copy as version 1, and reopens the project kept in this browser whole", async () => {
         const downloads = watchDownloads();
         const { store } = await openSample();
         const dialog = await openSaveAs();
@@ -225,9 +221,8 @@ describe("version 2 save files, experiment on", () => {
         await waitFor(() => {
             assert.equal(downloads.at(-1)?.name, `${SAMPLE}.graphty.json`);
         });
-        const copy = JSON.parse(await downloads[0].blob.text()) as { version?: number; sections?: object };
-        assert.strictEqual(copy.version, 2);
-        assert.includeMembers(Object.keys(copy.sections ?? {}), ["data", "style", "recipe", "settings", "view"]);
+        const copy = JSON.parse(await downloads[0].blob.text()) as { version?: number };
+        assert.strictEqual(copy.version, 1, "as Save keeps it: nothing a version 2 file cannot hold yet is lost");
 
         await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Back to start" }));
@@ -302,8 +297,6 @@ describe("version 2 save files, experiment on", () => {
 });
 
 describe("version 2 save files, a style file on other data", () => {
-    withFeatures(["save-files-v2"]);
-
     it("maps the style file's column to the open data's before adding it", async () => {
         const { session } = await openSample();
         const payments = "source,target,amount\nAva,Ben,900\nBen,Cara,20\n";
@@ -344,18 +337,5 @@ describe("version 2 save files, a style file on other data", () => {
             const layer = session.styles.list().find((each) => each.name === "Big payments");
             assert.deepEqual(layer?.selector, { match: "expression", where: "data.amount_usd > `500`" });
         });
-    });
-});
-
-describe("version 2 save files, experiment off", () => {
-    withFeatures([]);
-
-    it("keeps Save as the name-only dialog", async () => {
-        await openSample();
-        await userEvent.keyboard("{Shift>}{Control>}s{/Control}{/Shift}");
-        const dialog = await screen.findByRole("dialog", { name: `Save ${SAMPLE} as` });
-        assert.lengthOf(within(dialog).getAllByRole("textbox"), 1);
-        assert.isNull(within(dialog).queryByRole("checkbox"));
-        assert.isNull(within(dialog).queryByText("Preset"));
     });
 });

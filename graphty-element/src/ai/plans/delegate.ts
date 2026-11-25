@@ -531,7 +531,7 @@ function helperFailure(
     const { sink } = parent;
     // A cancel or an undo ends the whole message, helpers and all.
     if (parent.abort.signal.aborted) {
-        sink.emit({ type: "ai-agent-end", agent: role.name, code: "AI_CANCELLED", params: {}, usage });
+        sink.emit({ type: "ai-agent-end", agent: role.name, code: "AI_CANCELED", params: {}, usage });
         throw error;
     }
 

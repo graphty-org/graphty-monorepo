@@ -26,6 +26,7 @@ import type { GraphtyErrorCode } from "../errors/codes";
 import type { EstimateRefusalCode } from "../session/cost/estimate";
 import type { CodedFact } from "../session/shared";
 import type { ChannelDescriptor } from "../session/styles/channels";
+import type { StyleRowId } from "../session/styles/tree";
 import type { TransitionDescriptor } from "../transitions/registry";
 import type { ChannelValueDescriptor } from "./channelValues";
 import type { LabelLookDescriptor } from "./label-looks";
@@ -762,7 +763,7 @@ export interface OptionUnsupported {
 /**
  * Every property a layer can paint.
  *
- * The label channels `labelColor`, `labelSize`, `labelLetterSize`, `labelFont`, `labelWeight`, `labelItalic`, `labelWrapWidth`, `labelWrapTrailingSpace`, `labelWrapSkipEndSpace`, `labelWrapEllipsis`, `labelWrapAnywhere`, `labelWrapSpaceCount`, `labelMaxLines`, `labelMaxLinesEllipsis`, `labelMinScreenSize`, `labelOnTop`, `labelRotation`, `labelBackground`, `labelOutline`, `labelOutlineWidth`, `labelBorder`, `labelBorderWidth`, `labelOpacity`, `labelBackgroundOpacity`, `labelOutlineOpacity`, `labelBorderOpacity`, `labelPadding`, `labelCornerRadius`, `labelLineHeight`, `labelLineBox`, `labelBorderAlign`, `labelBorderStyle`, `labelBackgroundShape`, `labelImage`, `labelImageWidth`, `labelImageHeight`, `labelImageOffsetX`, `labelImageOffsetY`, `labelOffsetX`, `labelOffsetY`, `labelShiftX`, `labelShiftY`, `labelShiftOf` and `labelGapOf` are
+ * The label channels `labelColor`, `labelSize`, `labelLetterSize`, `labelFont`, `labelWeight`, `labelItalic`, `labelWrapWidth`, `labelWrapTrailingSpace`, `labelWrapSkipEndSpace`, `labelWrapUnkerned`, `labelWrapEllipsis`, `labelWrapAnywhere`, `labelWrapSpaceCount`, `labelMaxLines`, `labelMaxLinesEllipsis`, `labelMinScreenSize`, `labelOnTop`, `labelRotation`, `labelBackground`, `labelOutline`, `labelOutlineWidth`, `labelBorder`, `labelBorderWidth`, `labelOpacity`, `labelBackgroundOpacity`, `labelOutlineOpacity`, `labelBorderOpacity`, `labelPadding`, `labelCornerRadius`, `labelLineHeight`, `labelLineBox`, `labelBorderAlign`, `labelBorderStyle`, `labelBackgroundShape`, `labelImage`, `labelImageWidth`, `labelImageHeight`, `labelImageOffsetX`, `labelImageOffsetY`, `labelOffsetX`, `labelOffsetY`, `labelShiftX`, `labelShiftY`, `labelShiftOf` and `labelGapOf` are
  * single fields of the label style, so they can be bound to a column (`encode`) where the whole
  * `labelStyle` can only be set. They land in the same label style the `labelStyle` channel
  * writes, field by field, the higher layer winning each field.
@@ -788,6 +789,7 @@ export type Channel =
     | "node.labelWrapWidth"
     | "node.labelWrapTrailingSpace"
     | "node.labelWrapSkipEndSpace"
+    | "node.labelWrapUnkerned"
     | "node.labelWrapEllipsis"
     | "node.labelWrapAnywhere"
     | "node.labelWrapSpaceCount"
@@ -1111,6 +1113,8 @@ export type Channel =
     | "edge.animationSpeed"
     | "edge.label"
     | "edge.labelStyle"
+    | "edge.tooltip"
+    | "edge.tooltipStyle"
     | "edge.labelColor"
     | "edge.labelSize"
     | "edge.labelLetterSize"
@@ -1123,6 +1127,9 @@ export type Channel =
     | "node.tooltipBackground"
     | "edge.visible"
     | "edge.labelBackground"
+    | "edge.tooltipSize"
+    | "edge.tooltipColor"
+    | "edge.tooltipBackground"
     | "edge.arrowHeadTextBackground"
     | "edge.arrowTailTextBackground"
     | "node.shaders"
@@ -1133,6 +1140,7 @@ export type Channel =
     | "edge.labelWrapWidth"
     | "edge.labelWrapTrailingSpace"
     | "edge.labelWrapSkipEndSpace"
+    | "edge.labelWrapUnkerned"
     | "edge.labelWrapEllipsis"
     | "edge.labelWrapAnywhere"
     | "edge.labelWrapSpaceCount"
@@ -1333,9 +1341,9 @@ export interface BindingStop {
  * built from several values.
  *
  * The `template` form is accepted only by the text channels (`node.label`, `edge.label`,
- * `node.tooltip`). Each string is one line. `{path}` reads a value with the same path dialect as
+ * `node.tooltip`, `edge.tooltip`). Each string is one line. `{path}` reads a value with the same path dialect as
  * `by`; `{path|count}` is the number of distinct values of that path over the graph's nodes (its
- * edges, for `edge.label`); `{path|rank}` is this element's value's 1-based place among those values, sorted. A line with
+ * edges, for `edge.label` and `edge.tooltip`); `{path|rank}` is this element's value's 1-based place among those values, sorted. A line with
  * any value missing is left out, and every substituted value is escaped so data cannot inject
  * label markup. The consumer writes every word: the element adds none.
  */
@@ -1740,6 +1748,15 @@ export interface StyleDocument {
     /** The layers, bottom first. */
     layers: readonly LayerSpec[];
     /**
+     * The id each layer had in the session that wrote it, by its place in `layers`. Applying the
+     * document gives a layer this id again when no layer in the session already has it, and mints a
+     * new one from the layer's name otherwise, so an application that holds a layer by id (the
+     * reader's pick, an open editor) still finds it after the work is opened again. Absent, or a
+     * place left empty, mints every id from the name.
+     * @since 3.40.0
+     */
+    ids?: readonly (LayerId | undefined)[];
+    /**
      * Every palette a layer names, built-ins included, as the writing build painted it. A layer's
      * palette name resolves here before the reader's own catalog, so a file opens with the same
      * colors on a build that no longer ships a palette, or ships it changed. A document written
@@ -1790,6 +1807,12 @@ export type StyleDocumentRow = (
     | {
           /** The folder's name. */
           folder: string;
+          /**
+           * The folder's id in the session that wrote it: applying the document keeps it when it is
+           * free, as {@link StyleDocument.ids} keeps a layer's.
+           * @since 3.40.0
+           */
+          id?: StyleRowId;
           /** The folder's rows, bottom first. */
           children: readonly StyleDocumentRow[];
       }
@@ -2257,7 +2280,8 @@ export interface FunctionDescriptor {
  * What a column does for the graph, beyond holding values: the node ids were read from it
  * (`"key"`), nodes are named by it (`"label"`), edge weights were read from it (`"weight"`),
  * edge endpoints (`"source"`, `"target"`), times (`"time"`) or the file's own edge ids
- * (`"edgeId"`), or node locations are read from it, one column per kind (`"latitude"`,
+ * (`"edgeId"`), each element's kind -- person, account, device -- is read from it (`"kind"`), or
+ * node locations are read from it, one column per kind (`"latitude"`,
  * `"longitude"`, `"coordinates"`, `"country"`, `"region"`, `"city"`), or node positions are read from
  * it (`"x"`, `"y"`, `"z"`).
  *
@@ -2271,6 +2295,7 @@ export type AttributeRole =
     | "target"
     | "time"
     | "edgeId"
+    | "kind"
     | "latitude"
     | "longitude"
     | "coordinates"
@@ -2665,7 +2690,13 @@ export type Scope =
  * {@link EdgeId}. Every getter returns the canonical {@link Scope}, with stable members.
  */
 export type ScopeInput =
-    | Exclude<Scope, { define: unknown }>
+    | Exclude<
+          Scope,
+          {
+              /** Leaves out the stored inline form, which this type replaces. */
+              define: unknown;
+          }
+      >
     | {
           /** A set definition, inline, whose edges may be named by session edge id. */
           define: SetDefinitionInput;
@@ -3196,10 +3227,46 @@ export interface BySizeLeaf {
  * @beta
  */
 export type MeasureTest =
-    | Omit<Extract<RuleTree, { kind: "range" }>, "attribute" | "nodes">
-    | Omit<Extract<RuleTree, { kind: "threshold" }>, "path">
-    | Omit<Extract<RuleTree, { kind: "categories" }>, "attribute" | "nodes">
-    | Omit<Extract<RuleTree, { kind: "text" }>, "reads" | "nodes">
+    | Omit<
+          Extract<
+              RuleTree,
+              {
+                  /** Picks the rule tree leaf of this kind. */
+                  kind: "range";
+              }
+          >,
+          "attribute" | "nodes"
+      >
+    | Omit<
+          Extract<
+              RuleTree,
+              {
+                  /** Picks the rule tree leaf of this kind. */
+                  kind: "threshold";
+              }
+          >,
+          "path"
+      >
+    | Omit<
+          Extract<
+              RuleTree,
+              {
+                  /** Picks the rule tree leaf of this kind. */
+                  kind: "categories";
+              }
+          >,
+          "attribute" | "nodes"
+      >
+    | Omit<
+          Extract<
+              RuleTree,
+              {
+                  /** Picks the rule tree leaf of this kind. */
+                  kind: "text";
+              }
+          >,
+          "reads" | "nodes"
+      >
     | Omit<BySizeLeaf, "path">
     | Omit<SameValueLeaf, "path">;
 
@@ -3474,7 +3541,13 @@ export type SetDefinitionInput =
           /** Which edges come with its nodes; `clipped` is stored as `listed`. */
           readonly reading: EdgeReading;
       }
-    | Extract<SetDefinition, { kind: "rule" }>
+    | Extract<
+          SetDefinition,
+          {
+              /** Picks the rule form out of the set definition forms. */
+              kind: "rule";
+          }
+      >
     | {
           /** A walk, in order. */
           readonly kind: "path";

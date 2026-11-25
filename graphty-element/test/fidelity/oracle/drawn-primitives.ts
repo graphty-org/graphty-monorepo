@@ -405,6 +405,26 @@ const FILLED_OPEN_NAMES: readonly string[] = ["half-open"];
 const STROKED_NAMES: readonly string[] = ["curve", "half-barb", "slash"];
 
 /**
+ * A path carried on to where its line itself ends, when the line runs on past the path's end (past its cap's tip).
+ * @param path - the edge's path, source end first
+ * @param lineEnd - where the line itself ends at that end
+ * @param end - which end
+ * @returns the path, its end moved out to the line's where that lies beyond it
+ */
+function toLineEnd(path: readonly Pt[], lineEnd: Pt, end: "source" | "target"): Pt[] {
+    const pts = end === "target" ? [...path] : [...path].reverse();
+    const [last, back] = [pts.at(-1), pts.at(-2)];
+    if (last === undefined || back === undefined) {
+        return [...path];
+    }
+    const past = (lineEnd[0] - last[0]) * (last[0] - back[0]) + (lineEnd[1] - last[1]) * (last[1] - back[1]);
+    if (past > 0) {
+        pts[pts.length - 1] = lineEnd;
+    }
+    return end === "target" ? pts : pts.reverse();
+}
+
+/**
  * A path whose end at an open half circle is moved back to the arc's back, where the line meets the stroke.
  * @param path - the edge's path, source end first, ending at the cap's mouth
  * @param outline - the arc's points
@@ -916,9 +936,16 @@ export function drawnPrimitives(
                           color: borderColor,
                           opacity: own?.opacity ?? 1,
                           width: borderWidth,
-                          dash: null,
-                          // the style the ring was built in: the scene folds a double border into "other"
-                          dashClass: LINE_CLASS[own?.style ?? n.border.style] ?? "other",
+                          dash: dashed(own?.style ?? n.border.style, null, own?.dashPx ?? null),
+                          // the style the ring was built in (the scene folds a double border into "other"), and a ring
+                          // cut into dashes or dots by the pieces it drew
+                          dashClass: drawnLineClass(
+                              own?.style ?? n.border.style,
+                              null,
+                              own?.dashPx ?? null,
+                              borderWidth,
+                              undefined,
+                          ),
                           ...(own?.screen === true ? { screen: true } : {}),
                           ...(waved === null ? {} : { line: waved }),
                       }
@@ -977,6 +1004,12 @@ export function drawnPrimitives(
             // an open half circle's mouth faces the node (Cytoscape's OPEN_HALF_CIRCLE); a curve straddles the line's end
             const openArc = c.name.includes("open-half-circle") && (c.gap ?? 0) > 0;
             points = openArc ? backToArc(points, c.outline, end) : extendToTip(points, c.outline, end);
+        }
+        // a line drawn on past its cap's tip toward the node carries the route on to its own end, as the oracle's
+        // reader ends a route at its ink (a sine wave's first period is centered on the line's start, so half a period
+        // runs on past a half barb's tip: Cytoscape desktop's SINEWAVE under HALF_TOP, cx-syn-mappings 309 -> 312, #9953)
+        if (d.lineEnds !== undefined) {
+            points = toLineEnd(toLineEnd(points, d.lineEnds[0], "source"), d.lineEnds[1], "target");
         }
         const gradient = edgeGradientOf(d.gradient, d.points);
         // by the pattern graphty drew (the scene folds a dash-dot, a zigzag and a sine wave into "other"), a dashed or
@@ -1040,8 +1073,14 @@ export function drawnPrimitives(
                           color: n.border.color,
                           opacity: d?.border?.opacity ?? 1,
                           width: n.border.width,
-                          dash: null,
-                          dashClass: LINE_CLASS[d?.border?.style ?? n.border.style] ?? "other",
+                          dash: dashed(d?.border?.style ?? n.border.style, null, d?.border?.dashPx ?? null),
+                          dashClass: drawnLineClass(
+                              d?.border?.style ?? n.border.style,
+                              null,
+                              d?.border?.dashPx ?? null,
+                              n.border.width,
+                              undefined,
+                          ),
                       }
                     : null,
             label: g.label !== null && d?.label ? textOf(d.label) : null,

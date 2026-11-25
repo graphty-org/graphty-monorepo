@@ -65,6 +65,14 @@ export class EventManager implements Manager {
     }
 
     /**
+     * Gets the edge event observable, which the element forwards a hover from to the DOM.
+     * @returns Observable for edge events
+     */
+    get onEdgeEvent(): Observable<EdgeEvent> {
+        return this.edgeObservable;
+    }
+
+    /**
      * Gets the graph error observable for direct subscription
      * @returns Observable for graph error events
      */
@@ -507,7 +515,6 @@ export class EventManager implements Manager {
             case "operation-obsoleted":
             case "animation-progress":
             case "animation-canceled":
-            case "animation-cancelled":
             case "screenshot-enhancing":
             case "screenshot-ready":
             case "style-changed":
@@ -529,8 +536,8 @@ export class EventManager implements Manager {
             case "basemap-status":
             case "render-lost":
             case "render-restored":
+            case "render-warning":
             case "operation-canceled":
-            case "operation-cancelled":
             case "stats-update":
             case "input-enabled-changed":
             case "input-initialized":
@@ -564,7 +571,6 @@ export class EventManager implements Manager {
             case "ai-command-complete":
             case "ai-command-error":
             case "ai-command-canceled":
-            case "ai-command-cancelled":
             case "ai-stream-chunk":
             case "ai-stream-tool-call":
             case "ai-stream-tool-result":
@@ -613,7 +619,8 @@ export class EventManager implements Manager {
 
             case "edge-update-after":
             case "edge-update-before":
-            case "edge-add-before": {
+            case "edge-add-before":
+            case "edge-hover": {
                 const observer = this.edgeObservable.add((event) => {
                     if (event.type === type) {
                         callback(event);

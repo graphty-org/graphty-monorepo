@@ -264,7 +264,8 @@ export function explicitWeights(snapshot: GraphSnapshot): ExplicitWeights {
  * The weight of every edge, in edge order (`weights[e]` is edge `e`'s weight), exactly as the file
  * wrote it, or null for a graph without weights. `snapshot.edgeList().weights` holds the same
  * weights as 32-bit floats, in which 0.1 reads back as 0.10000000149011612; this reads the exact
- * values the import also kept. An edge without a weight of its own has the weight 1.
+ * values the import also kept. An edge without a weight of its own has the weight 1. The same as
+ * `snapshot.edgeWeights()`.
  * @example
  * ```ts
  * const { snapshot } = await importGraph("source,target,weight\na,b,0.1\n", { format: "csv" });
@@ -275,19 +276,5 @@ export function explicitWeights(snapshot: GraphSnapshot): ExplicitWeights {
  * @category Loading
  */
 export function edgeWeights(snapshot: GraphSnapshot): Float64Array | null {
-    const { weights } = snapshot.edgeList();
-    if (weights === null) {
-        return null;
-    }
-    const out = Float64Array.from(weights);
-    const exact = snapshot.edges.byRole("weight");
-    if (exact !== null) {
-        for (let e = 0; e < out.length; e++) {
-            const v = exact.value(e);
-            if (typeof v === "number") {
-                out[e] = v;
-            }
-        }
-    }
-    return out;
+    return snapshot.edgeWeights();
 }

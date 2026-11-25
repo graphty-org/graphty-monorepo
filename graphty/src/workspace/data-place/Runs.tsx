@@ -159,6 +159,7 @@ function ResultRow({
     run,
     inspected,
 }: Readonly<{ session: GraphSession; store: WorkspaceStore; run: Run; inspected: boolean }>): React.JSX.Element {
+    // on reload: fresh: in flight: a remove waiting on its confirmation, which a reload does not reopen
     const [asking, setAsking] = useState(false);
     const pins = useWorkspaceState((state) => state.reportPins);
     const name = runName(session, run);

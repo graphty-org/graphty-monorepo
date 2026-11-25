@@ -106,6 +106,7 @@ describe("XRInputHandler", () => {
         baseExperience: {
             sessionManager: {
                 scene: Scene;
+                onXRFrameObservable: { add: ReturnType<typeof vi.fn>; remove: ReturnType<typeof vi.fn> };
             };
             featuresManager: {
                 getEnabledFeature: ReturnType<typeof vi.fn>;
@@ -155,6 +156,7 @@ describe("XRInputHandler", () => {
             baseExperience: {
                 sessionManager: {
                     scene,
+                    onXRFrameObservable: { add: vi.fn(), remove: vi.fn() },
                 },
                 featuresManager: {
                     getEnabledFeature: vi.fn().mockReturnValue(null),

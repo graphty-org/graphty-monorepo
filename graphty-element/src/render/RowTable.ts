@@ -19,6 +19,7 @@ import type { ElementPositions } from "../data/positions";
 import type { Xyz } from "../meshes/edgeRoute";
 import {
     ROW_EXTENT_ELLIPSE,
+    ROW_EXTENT_HIDDEN_PLACED,
     ROW_EXTENT_ROUND,
     ROW_EXTENT_SCREEN_BORDER,
     ROW_EXTENT_SEEN_THROUGH,
@@ -103,6 +104,17 @@ export interface RowExtent {
      * screen pixels, whose reach changes with the zoom.
      */
     border: number;
+}
+
+/**
+ * A row's measure as the CPU took it, when the row table's 32-bit copy is that measure rounded: the object path
+ * works in the doubles it measured, and a last bit of difference moves a trimmed edge end by a pixel (#6287).
+ * @param stored - What the row table holds.
+ * @param measured - What the row measured when it was written, or null.
+ * @returns The measure, or what the table holds when it holds something else (a shrink part of the way).
+ */
+export function exactOf(stored: number, measured: number | null): number {
+    return measured !== null && Math.fround(measured) === stored ? measured : stored;
 }
 
 /** One float texture and the CPU copy it is uploaded from. */
@@ -269,9 +281,34 @@ class RowTexture {
  * @param perRow - Values a row.
  * @param remap - Old row to new row or INVALID_INDEX, or null to keep every row where it is.
  */
+/** How many turned rows {@link RowTable.takeTurned} lists before it says "every row". */
+const MAX_TURNED = 4096;
+
+/**
+ * Renumber the turned rows through a freeze's remap, dropping removed ones.
+ * @param turned - The rows, or null for every row.
+ * @param remap - The remap, or null when no row moved.
+ * @returns The renumbered rows.
+ */
+function followTurned(turned: Set<number> | null, remap: U32 | null): Set<number> | null {
+    if (turned === null || remap === null || turned.size === 0) {
+        return turned;
+    }
+
+    const moved = new Set<number>();
+    for (const row of turned) {
+        const to = remap[row] ?? INVALID_INDEX;
+        if (to !== INVALID_INDEX) {
+            moved.add(to);
+        }
+    }
+
+    return moved;
+}
+
 function moveRows(
-    from: Float32Array | Uint8Array,
-    to: Float32Array | Uint8Array,
+    from: Float64Array | Float32Array | Uint8Array,
+    to: Float64Array | Float32Array | Uint8Array,
     perRow: number,
     remap: U32 | null,
 ): void {
@@ -290,6 +327,16 @@ function moveRows(
         }
     }
 }
+
+/** The extent flags a head pulled from the row table reads: round, and a border in scene units (`RowTable.isRound`). */
+const HEAD_FLAGS = ROW_EXTENT_ROUND | ROW_EXTENT_SCREEN_BORDER;
+
+/**
+ * The extent flags whose change asks for the lines pulled onto a row to be checked again ({@link RowTable.roundWrites}):
+ * a head's, and whether the row is seen through, which a straight line drawn from a curve batch does not follow
+ * (`EdgeRowLines.rowsOffEnds`).
+ */
+const TURN_FLAGS = HEAD_FLAGS | ROW_EXTENT_SEEN_THROUGH;
 
 /**
  * The row tables of one graph. `rowPosition` holds what is drawn, which is usually the lane row
@@ -314,6 +361,73 @@ export class RowTable {
      * row was moved but by its own `Node`, so a row with no `Node` is where it was.
      */
     unplacedMoves = 0;
+    /**
+     * The float64 place of each row held off its lane, three a row ({@link RowTable.restingPlaceOf}); null until a row
+     * is first held, so a table whose rows all stand on their lane keeps none.
+     */
+    private heldExact: Float64Array | null = null;
+    /** Whether the repack under way wrote a row a value it did not hold. */
+    private repackChanged = false;
+    /**
+     * Counts every write that changed where or how a row is drawn: a row's place or w (a hide, a shrink), its extent
+     * (its scale, radius, border or shape), a landing put on the card, a freeze or a clear. A write of the value a row
+     * already holds is not counted, so a move held at its pose, which writes every row with the same value each frame,
+     * leaves the rows at rest. Unchanged, what was placed from the rows at rest still stands (`restPlacement.ts`).
+     */
+    drawnWrites = 0;
+
+    /**
+     * Counts every row whose outline turned round or stopped being round, whose border turned to or from screen
+     * pixels, or which turned seen through or opaque: a head pulled from the row table stands only on round rows, and
+     * a straight line in a curve batch only between opaque ones (`EdgeRowLines`), so a change asks for the edges on it
+     * to be painted again.
+     */
+    roundWrites = 0;
+
+    /**
+     * The node rows counted in {@link roundWrites} since {@link RowTable.takeTurned}, or null for "every row": past
+     * {@link MAX_TURNED} of them, or after the dataset was cleared.
+     */
+    private turned: Set<number> | null = new Set();
+
+    /**
+     * The node rows whose outline turned since the last call ({@link roundWrites}), which the edges pulled onto them
+     * are checked against again.
+     * @returns The rows, or null for every row.
+     */
+    takeTurned(): ReadonlySet<number> | null {
+        const { turned } = this;
+        this.turned = new Set();
+        return turned;
+    }
+
+    /**
+     * Keep a row held off its lane at its float64 place ({@link heldExact}), counting a move of it in
+     * {@link drawnWrites} even below a float32 step: the CPU stands its pieces there at rest.
+     * @param row - The row.
+     * @param x - Its x.
+     * @param y - Its y.
+     * @param z - Its z.
+     */
+    private holdExact(row: number, x: number, y: number, z: number): void {
+        const rows = this.positions.floats.length / POSITION_FLOATS;
+        if (this.heldExact === null || this.heldExact.length < rows * 3) {
+            const grown = new Float64Array(rows * 3);
+            grown.set(this.heldExact ?? []);
+            this.heldExact = grown;
+        }
+
+        const exact = this.heldExact;
+        if (exact[row * 3] !== x || exact[row * 3 + 1] !== y || exact[row * 3 + 2] !== z) {
+            // the place the CPU stands it at rest moved, if by less than a float32 step
+            this.drawnWrites++;
+        }
+
+        exact[row * 3] = x;
+        exact[row * 3 + 1] = y;
+        exact[row * 3 + 2] = z;
+    }
+
     /** Calls that sent the `rowPosition` texture to the card. */
     positionUploads = 0;
     /** Landings sent to the `rowPosition` texture as the layout's readback brought them, with no row written. */
@@ -358,6 +472,8 @@ export class RowTable {
     private outlineSides = 0;
     private flags: Uint8Array<ArrayBuffer>;
     private laneChanges = -1;
+    /** The lane's `changes` at a freeze that moved no row ({@link RowTable.replaced}), or -1. */
+    private keptChanges = -1;
     /** How many of the first {@link RowTable.rows} rows are hidden. */
     private hiddenCount = 0;
     /** The widest half extent {@link RowTable.measure} has written since the last clear. */
@@ -407,6 +523,15 @@ export class RowTable {
      */
     get widestHalf(): number {
         return this.widest;
+    }
+
+    /**
+     * {@link RowTable.moves} once the CPU copy is up to what the layout last published.
+     * @returns The count.
+     */
+    settledMoves(): number {
+        this.catchUp();
+        return this.moves;
     }
 
     /**
@@ -534,6 +659,7 @@ export class RowTable {
         // The rows are drawn somewhere new, whether or not the lane follows them this frame.
         this.moves++;
         this.unplacedMoves++;
+        this.drawnWrites++;
         this.copies++;
         return true;
     }
@@ -556,6 +682,7 @@ export class RowTable {
         this.copiedAt = this.lane().changes;
         this.moves++;
         this.unplacedMoves++;
+        this.drawnWrites++;
         this.landedUploads++;
         this.uploads++;
         this.uploadedBytes += bytes;
@@ -569,6 +696,7 @@ export class RowTable {
      */
     resend(row: number): void {
         if (row < this.rows) {
+            this.drawnWrites++;
             this.positions.touch(row);
         }
     }
@@ -631,6 +759,100 @@ export class RowTable {
     }
 
     /**
+     * Whether a row's outline is round, with its border in scene units, as {@link RowTable.extentOf} reads it, with
+     * nothing allocated: what a head pulled from the row table stands on (a border drawn in screen pixels reaches as
+     * far as the zoom says).
+     * @param row - The row.
+     * @returns True when it is.
+     */
+    isRound(row: number): boolean {
+        return ((this.extents.floats[row * EXTENT_FLOATS + 3] ?? 0) & HEAD_FLAGS) === ROW_EXTENT_ROUND;
+    }
+
+    /**
+     * {@link RowTable.extentOf}'s scale, round radius and border, written into `out`, with nothing allocated: what a
+     * rest placement reads of every row (`restPlacement.ts`).
+     * @param row - The row.
+     * @param out - Written with its scale, its radius and its border, in that order.
+     * @returns False for a row that is not round, `out` then unwritten.
+     */
+    roundExtentOf(row: number, out: Float64Array): boolean {
+        const { floats } = this.extents;
+        const base = row * EXTENT_FLOATS;
+        const code = floats[base + 3] ?? 0;
+        if ((code & HEAD_FLAGS) !== ROW_EXTENT_ROUND) {
+            return false;
+        }
+
+        const flags = this.flags[row] ?? 0;
+        const part =
+            (flags & SHRUNK) !== 0 && (flags & HIDDEN) === 0 ? this.positions.floats[row * POSITION_FLOATS + 3] : 1;
+        out[0] = (floats[base] ?? 0) * (part ?? 1);
+        out[1] = (floats[base + 1] ?? 0) * (part ?? 1);
+        out[2] = (code & ROW_EXTENT_SCREEN_BORDER) === 0 ? (floats[base + 2] ?? 0) * (part ?? 1) : 0;
+        return true;
+    }
+
+    /**
+     * Where every row is drawn while the rows rest: x, y, z and w a row, the CPU copy as the card last had it, with no
+     * catch-up from the lane, which a frame that moved nothing has nothing to bring up to date (`restPlacement.ts`).
+     * @returns The floats; read them, never write them.
+     */
+    get restingPositions(): Float32Array<ArrayBuffer> {
+        return this.positions.floats;
+    }
+
+    /**
+     * Where a row is drawn while the rows rest, x, y and z, to the full precision its place was given in: a row held
+     * off its lane ({@link RowTable.place}, a layout transition's pose) at its node's own float64 place, which
+     * `rowPosition` keeps only to 32 bits, so what the CPU places at rest from it is what the objects path places
+     * from the node; any other row as the lane, and the card, hold it.
+     * @param row - The row.
+     * @param out - Written with x, y and z from `at`.
+     * @param at - Where in `out`.
+     */
+    restingPlaceOf(row: number, out: Float64Array, at: number): void {
+        const exact = this.heldExact;
+        if (exact !== null && ((this.flags[row] ?? 0) & HELD) !== 0) {
+            out[at] = exact[row * 3];
+            out[at + 1] = exact[row * 3 + 1];
+            out[at + 2] = exact[row * 3 + 2];
+            return;
+        }
+
+        const { floats } = this.positions;
+        out[at] = floats[row * POSITION_FLOATS];
+        out[at + 1] = floats[row * POSITION_FLOATS + 1];
+        out[at + 2] = floats[row * POSITION_FLOATS + 2];
+    }
+
+    /**
+     * Whether a row's body is drawn translucent, so a line leaves it at its outline (`ROW_EXTENT_SEEN_THROUGH`).
+     * @param row - The row.
+     * @returns True when it is.
+     */
+    seenThrough(row: number): boolean {
+        return ((this.extents.floats[row * EXTENT_FLOATS + 3] ?? 0) & ROW_EXTENT_SEEN_THROUGH) !== 0;
+    }
+
+    /**
+     * {@link RowTable.extentOf} in the doubles a row's own measure gives, where the table holds them rounded: a row
+     * drawn with no `Node` trims its edges from these, as a `Node` does from its own (#6287).
+     * @param row - The row and its measure.
+     * @returns Its extent.
+     */
+    exactExtentOf(row: RowMeasure): RowExtent {
+        const stored = this.extentOf(row.index);
+        const { round, half } = stored;
+        const measured = row.drawnHalfExtents;
+        return {
+            ...stored,
+            round: round === null ? null : exactOf(round, row.roundRadius),
+            half: { x: exactOf(half.x, measured.x), y: exactOf(half.y, measured.y), z: exactOf(half.z, measured.z) },
+        };
+    }
+
+    /**
      * Where the coordinate lane puts a row, as the repack draws it: flat in 2D.
      * @param row - The row.
      * @param out - Written with the place.
@@ -668,24 +890,29 @@ export class RowTable {
             laneRows.read(row, lane);
         }
 
-        const atLane =
-            Math.fround(x) === lane.x && Math.fround(y) === lane.y && Math.fround(z) === (this.twoD ? 0 : lane.z);
+        // Flat by the view the frame draws, not the one the table last followed: a node a 2D engine's first walk
+        // puts at its Z, before the table turned 2D, is held there, as the objects path draws it, and not flattened
+        // by the repack that turns the table.
+        const twoD = (this.scene.metadata as GraphSceneMetadata | null)?.twoD === true;
+        const atLane = Math.fround(x) === lane.x && Math.fround(y) === lane.y && Math.fround(z) === (twoD ? 0 : lane.z);
         const flags = this.flags[row] ?? 0;
-        this.flags[row] = atLane ? flags & ~HELD : flags | HELD;
+        const next = atLane ? flags & ~HELD : flags | HELD;
+        this.flags[row] = next;
+        // a held row has a place
+        this.markHiddenPlaced(row, (next & HIDDEN) !== 0);
         // A node that follows its lane row each frame (a labeled one) changes nothing a skip walk reads.
-        this.ownRowWrites += this.flags[row] === flags ? 0 : 1;
-        this.moves++;
+        this.ownRowWrites += next === flags ? 0 : 1;
         const base = row * POSITION_FLOATS;
         const { floats } = this.positions;
+        const unchanged = this.countPlace(base, flags, next, atLane, x, y, z);
         const { bounds } = this;
-        // The row as it stood: one put again where it already was (a pinned labeled node, each frame) is unchanged.
-        const unchanged =
-            floats[base] === Math.fround(x) &&
-            floats[base + 1] === Math.fround(y) &&
-            floats[base + 2] === Math.fround(z);
         floats[base] = bounds[base] = x;
         floats[base + 1] = bounds[base + 1] = y;
         floats[base + 2] = bounds[base + 2] = z;
+        if (!atLane) {
+            this.holdExact(row, x, y, z);
+        }
+
         // ...so a node put exactly where the card already draws it sends nothing: either where the owed landing
         // puts it (the layout copied it in), or where it already was and was sent (a row the landing leaves, as a
         // pinned one). A labeled node costs its own row each frame, and no texture line goes up to be caught up.
@@ -699,13 +926,55 @@ export class RowTable {
         ) {
             return;
         }
-
         if ((flags & (HIDDEN | SHRUNK)) === 0) {
             this.writeW(row, 1);
         } else {
             this.positions.touch(row);
             this.mirror(row);
         }
+    }
+
+    /**
+     * Count what a {@link RowTable.place} write changes, before it is written.
+     * @param base - The row's first float.
+     * @param flags - The row's flags before the write.
+     * @param next - Its flags after it.
+     * @param atLane - Whether the write puts it where its lane row is.
+     * @param x - Drawn x.
+     * @param y - Drawn y.
+     * @param z - Drawn z.
+     * @returns Whether the row stays where it stood.
+     */
+    private countPlace(
+        base: number,
+        flags: number,
+        next: number,
+        atLane: boolean,
+        x: number,
+        y: number,
+        z: number,
+    ): boolean {
+        const { floats } = this.positions;
+        // The row as it stood: one put again where it already was (a pinned labeled node, each frame) is unchanged.
+        const unchanged =
+            floats[base] === Math.fround(x) &&
+            floats[base + 1] === Math.fround(y) &&
+            floats[base + 2] === Math.fround(z);
+        // A write that leaves the row where it is drawn moves nothing: a node built lazily for its row (a
+        // selection, a hover) places it again where it already is, and must not tell the edge ID target, the
+        // nodes that follow the rows or the update loop that rows moved. Drawn where the lane says unless held,
+        // and where the floats say when held.
+        const unmoved =
+            next === flags && (atLane || unchanged) && ((flags & (HIDDEN | SHRUNK)) !== 0 || floats[base + 3] === 1);
+        if (!unmoved) {
+            this.moves++;
+        }
+
+        if (!unchanged) {
+            this.drawnWrites++;
+        }
+
+        return unchanged;
     }
 
     /**
@@ -742,12 +1011,14 @@ export class RowTable {
         }
 
         this.flags[row] = hidden ? flags | HIDDEN : flags & ~HIDDEN;
+        const placed = (flags & HELD) !== 0 || this.lane().isPlaced(row);
+        this.markHiddenPlaced(row, hidden && placed);
         if (!hidden && (flags & (HIDDEN | SHRUNK)) === SHRUNK) {
             // Still drawn, part of the way through a shrink: its W is the shrink's.
             return;
         }
 
-        this.writeW(row, !hidden && ((flags & HELD) !== 0 || this.lane().isPlaced(row)) ? 1 : 0);
+        this.writeW(row, !hidden && placed ? 1 : 0);
     }
 
     /**
@@ -759,6 +1030,7 @@ export class RowTable {
             this.hiddenCount += ((this.flags[row] ?? 0) & HIDDEN) === 0 ? 1 : 0;
             this.ownRowWrites++;
             this.flags[row] = HIDDEN;
+            this.markHiddenPlaced(row, false);
             this.writeW(row, 0);
         }
     }
@@ -783,24 +1055,34 @@ export class RowTable {
             (round === null ? 0 : ROW_EXTENT_ROUND) |
             (node.shapeType === "ellipse" ? ROW_EXTENT_ELLIPSE : 0) |
             (node.paintedOpacity < 1 ? ROW_EXTENT_SEEN_THROUGH : 0) |
-            (node.screenBorder === true ? ROW_EXTENT_SCREEN_BORDER : 0);
-        this.extents.floats.set(
-            [
-                node.drawnScale,
-                round ?? 0,
-                node.borderReach,
-                extentFlags,
-                half.x,
-                half.y,
-                half.z,
-                node.drawnBoundingRadius,
-                outline.x,
-                outline.y,
-                outline.z,
-                (extentFlags & ROW_EXTENT_SEEN_THROUGH) === 0 ? 0 : this.outlineCode(node.reachOutline),
-            ],
-            base,
-        );
+            (node.screenBorder === true ? ROW_EXTENT_SCREEN_BORDER : 0) |
+            // not a measure: hide and place keep it
+            ((this.extents.floats[base + 3] ?? 0) & ROW_EXTENT_HIDDEN_PLACED);
+        if (((this.extents.floats[base + 3] ?? 0) & TURN_FLAGS) !== (extentFlags & TURN_FLAGS)) {
+            this.roundWrites++;
+            this.turned = this.turned === null || this.turned.size >= MAX_TURNED ? null : this.turned.add(row);
+        }
+
+        const extent = [
+            node.drawnScale,
+            round ?? 0,
+            node.borderReach,
+            extentFlags,
+            half.x,
+            half.y,
+            half.z,
+            node.drawnBoundingRadius,
+            outline.x,
+            outline.y,
+            outline.z,
+            (extentFlags & ROW_EXTENT_SEEN_THROUGH) === 0 ? 0 : this.outlineCode(node.reachOutline),
+        ];
+        const { floats } = this.extents;
+        if (extent.some((value, i) => floats[base + i] !== Math.fround(value))) {
+            this.drawnWrites++;
+        }
+
+        floats.set(extent, base);
         this.flags[row] = flags | KNOWN;
         this.extents.touch(row);
         this.writeW(row, this.positions.floats[row * POSITION_FLOATS + 3] ?? 0);
@@ -851,8 +1133,20 @@ export class RowTable {
      */
     replaced(remap: U32 | null, nodes: Iterable<Node>): void {
         const lane = this.lane();
-        this.moves++;
-        this.unplacedMoves++;
+        // A freeze that only renumbered or appended rows, with no coordinate written since the last
+        // pack, draws every row where it was: the rows follow the remap and an appended row is new,
+        // not moved. Counted as a move, it made the next frame place every edge again (issue #9164).
+        const kept =
+            lane.changes === this.laneChanges &&
+            this.twoD === ((this.scene.metadata as GraphSceneMetadata | null)?.twoD === true);
+        if (!kept) {
+            this.moves++;
+            this.unplacedMoves++;
+            this.drawnWrites++;
+        }
+
+        this.keptChanges = kept ? lane.changes : -1;
+        this.turned = followTurned(this.turned, remap);
         this.ownRowWrites++;
         this.positions.follow(remap, lane.capacity);
         this.extents.follow(remap, lane.capacity);
@@ -864,10 +1158,28 @@ export class RowTable {
             const flags = new Uint8Array(length / POSITION_FLOATS);
             moveRows(this.flags, flags, 1, remap);
             this.flags = flags;
+            if (this.heldExact !== null) {
+                const exact = new Float64Array((length / POSITION_FLOATS) * 3);
+                moveRows(this.heldExact, exact, 3, remap);
+                this.heldExact = exact;
+            }
         }
 
         this.rows = lane.count;
         this.laneChanges = -1;
+        this.measureUnknown(nodes, lane);
+        this.hiddenCount = 0;
+        for (let row = 0; row < this.rows; row++) {
+            this.hiddenCount += ((this.flags[row] ?? 0) & HIDDEN) === 0 ? 0 : 1;
+        }
+    }
+
+    /**
+     * Measure and place again each built node whose row the table no longer knows, after a freeze.
+     * @param nodes - The built nodes.
+     * @param lane - The lane the rows are read from.
+     */
+    private measureUnknown(nodes: Iterable<Node>, lane: ElementPositions): void {
         for (const node of nodes) {
             const row = node.index;
             if (row < this.rows && ((this.flags[row] ?? 0) & KNOWN) === 0) {
@@ -880,17 +1192,14 @@ export class RowTable {
                 }
             }
         }
-
-        this.hiddenCount = 0;
-        for (let row = 0; row < this.rows; row++) {
-            this.hiddenCount += ((this.flags[row] ?? 0) & HIDDEN) === 0 ? 0 : 1;
-        }
     }
 
     /** Forget every row: the dataset was cleared. */
     cleared(): void {
+        this.turned = null;
         this.moves++;
         this.unplacedMoves++;
+        this.drawnWrites++;
         this.ownRowWrites++;
         this.flags.fill(0);
         this.hiddenCount = 0;
@@ -902,28 +1211,21 @@ export class RowTable {
     /** Bring the tables up to the lane and send what changed. Runs before every frame. */
     flush(): void {
         const lane = this.lane();
+        // Babylon gives a texture back as it was made after a lost context, so every row goes
+        // up again; the same rule as the batches on this roster.
+        const whole = batchUploadFrames.isRestoring(this.scene);
         // Rows go up in whole texture lines from the CPU copy, so a publish the lane owes is written
-        // first, or the line would carry the rest of its rows back to an older landing.
-        if (this.positions.dirty && !this.catchUpLines(lane)) {
+        // first, or the line would carry the rest of its rows back to an older landing. A restore
+        // sends every row, so the whole owed publish is written: the landing the texture held is gone.
+        if (whole || (this.positions.dirty && !this.catchUpLines(lane))) {
             lane.settle();
         }
 
         const twoD = (this.scene.metadata as GraphSceneMetadata | null)?.twoD === true;
         if (lane.changes !== this.laneChanges || twoD !== this.twoD) {
-            this.twoD = twoD;
-            this.laneChanges = lane.changes;
-            this.moves++;
-            // a lane change that left every repacked row where it was (a drag's own row, written by place) moves none
-            if (this.repack(lane.view(Math.min(this.rows, lane.count)), this.copiedAt !== lane.changes)) {
-                this.unplacedMoves++;
-            }
-
-            this.copiedAt = -1;
+            this.followLane(lane, twoD);
         }
 
-        // Babylon gives a texture back as it was made after a lost context, so every row goes
-        // up again; the same rule as the batches on this roster.
-        const whole = batchUploadFrames.isRestoring(this.scene);
         for (const table of [this.positions, this.extents, this.outlines]) {
             const bytes = table.upload(whole);
             if (bytes > 0) {
@@ -932,6 +1234,30 @@ export class RowTable {
                 this.positionUploads += table === this.positions ? 1 : 0;
             }
         }
+    }
+
+    /**
+     * Repack the rows after the lane changed or the view turned between 2D and 3D, counting what moved.
+     * @param lane - The lane.
+     * @param twoD - Whether the view is 2D now.
+     */
+    private followLane(lane: ElementPositions, twoD: boolean): void {
+        this.drawnWrites += twoD === this.twoD ? 0 : 1;
+        // The repack a freeze asked for moves no row when no coordinate was written since.
+        const kept = this.keptChanges === lane.changes && twoD === this.twoD;
+        this.keptChanges = -1;
+        this.twoD = twoD;
+        this.laneChanges = lane.changes;
+        if (!kept) {
+            this.moves++;
+        }
+
+        // a lane change that left every repacked row where it was (a drag's own row, written by place) moves none
+        if (this.repack(lane.view(Math.min(this.rows, lane.count)), this.copiedAt !== lane.changes) && !kept) {
+            this.unplacedMoves++;
+        }
+
+        this.copiedAt = -1;
     }
 
     /**
@@ -1009,11 +1335,14 @@ export class RowTable {
         const rows = lane.length / 3;
         this.repackedRows += rows;
         let moved = false;
+        this.repackChanged = false;
         for (let row = 0; row < rows; row++) {
             if (((flags[row] ?? 0) & (HELD | SHRUNK)) === 0) {
                 moved = this.repackRow(row, lane) || moved;
             }
         }
+
+        this.drawnWrites += this.repackChanged ? 1 : 0;
 
         if (rows > 0 && send) {
             this.positions.touch(0, rows - 1);
@@ -1046,12 +1375,17 @@ export class RowTable {
         const { floats } = this.positions;
         const { bounds } = this;
         const placed = Number.isFinite(x);
-        const w = placed && ((this.flags[row] ?? 0) & HIDDEN) === 0 ? 1 : 0;
+        const hidden = ((this.flags[row] ?? 0) & HIDDEN) !== 0;
+        const w = placed && !hidden ? 1 : 0;
+        this.markHiddenPlaced(row, placed && hidden);
         const nx = placed ? x : 0;
         const ny = placed ? y : 0;
         const nz = placed && !this.twoD ? z : 0;
         const shownBefore = floats[to + 3];
         const moved = floats[to] !== nx || floats[to + 1] !== ny || floats[to + 2] !== nz || shownBefore !== w;
+        if (moved) {
+            this.repackChanged = true;
+        }
         floats[to] = bounds[to] = nx;
         floats[to + 1] = bounds[to + 1] = ny;
         floats[to + 2] = bounds[to + 2] = nz;
@@ -1067,8 +1401,28 @@ export class RowTable {
         return moved;
     }
 
+    /**
+     * Say whether a row is hidden with a place (`ROW_EXTENT_HIDDEN_PLACED`): its w is 0 either way, and the edge
+     * programs still draw its lines and caps to its center, as the objects path does, but none to a row with no place.
+     * @param row - The row.
+     * @param on - True when it is hidden and placed.
+     */
+    private markHiddenPlaced(row: number, on: boolean): void {
+        const at = row * EXTENT_FLOATS + 3;
+        const { floats } = this.extents;
+        const flags = floats[at] ?? 0;
+        if (((flags & ROW_EXTENT_HIDDEN_PLACED) !== 0) !== on) {
+            floats[at] = on ? flags | ROW_EXTENT_HIDDEN_PLACED : flags & ~ROW_EXTENT_HIDDEN_PLACED;
+            this.extents.touch(row);
+        }
+    }
+
     private writeW(row: number, w: number): void {
         const base = row * POSITION_FLOATS;
+        if (this.positions.floats[base + 3] !== Math.fround(w)) {
+            this.drawnWrites++;
+        }
+
         this.positions.floats[base + 3] = w;
         this.bounds[base + 3] = (this.extents.floats[row * EXTENT_FLOATS + EXTENT_BOUNDING_RADIUS] ?? 0) * w;
         this.positions.touch(row);

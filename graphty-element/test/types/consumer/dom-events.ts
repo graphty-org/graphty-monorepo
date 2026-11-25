@@ -160,11 +160,6 @@ export function listenToEveryForwardedEvent(element: Graphty, log: (...values: u
         const known: "queue-cleared" | "canceled" = code;
         log(id, known);
     });
-    element.addEventListener("operation-cancelled", (e) => {
-        const { id, code } = e.detail;
-        const known: "queue-cleared" | "cancelled" = code;
-        log(id, known);
-    });
     element.addEventListener("stats-update", (e) => {
         const { totalUpdates, stats } = e.detail;
         log(totalUpdates, stats.numNodes, stats.meshCacheHits);
@@ -220,7 +215,6 @@ export function listenToEveryForwardedEvent(element: Graphty, log: (...values: u
     // The rest carry a type and whatever the emitter added; each is still a typed CustomEvent.
     const rest = [
         "ai-command-canceled",
-        "ai-command-cancelled",
         "ai-stream-tool-call",
         "ai-voice-start",
         "ai-voice-transcript",
@@ -241,7 +235,6 @@ export function listenToEveryForwardedEvent(element: Graphty, log: (...values: u
         "operation-obsoleted",
         "animation-progress",
         "animation-canceled",
-        "animation-cancelled",
         "screenshot-enhancing",
         "screenshot-ready",
         "zoom-to-fit-complete",

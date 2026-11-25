@@ -4,7 +4,7 @@
  * Another command's rollback -- a queued layout that a `setLayout` overtook -- restores the
  * arrangement through the `arrangement` hook. Whether that landed before or after the new build
  * began depended on microtask ordering, and landing after made the `setLayout` reject with
- * "The layout was cancelled or replaced before it finished building." Here the build is held in
+ * "The layout was canceled or replaced before it finished building." Here the build is held in
  * its engine's `init()` while the restore lands, so the ordering that failed is the one tested.
  */
 import "../../src/layout";
@@ -101,7 +101,7 @@ describe("a layout build an arrangement restore lands on", () => {
         assert.instanceOf(manager.layoutEngine, HeldEngine, "the layout asked for is the one built");
     });
 
-    it("still stops when its own command is cancelled", async () => {
+    it("still stops when its own command is canceled", async () => {
         const manager = createManager();
         const held = holdInit();
         const controller = new AbortController();

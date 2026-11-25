@@ -765,6 +765,19 @@ function countOf(resolution: Resolution, kind: string | undefined): ScopeCount {
 }
 
 /**
+ * Run synchronous work for a Promise-returning method, so a refusal rejects rather than throws.
+ * @param work - The work.
+ * @returns Its value, or its refusal as a rejection.
+ */
+function settled<T>(work: () => T): Promise<T> {
+    try {
+        return Promise.resolve(work());
+    } catch (error) {
+        return Promise.reject(error);
+    }
+}
+
+/**
  * Build the scope resolver one session uses.
  *
  * Each specification is resolved through the session's resolution cache
@@ -1218,6 +1231,60 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
         },
     });
 
+    /**
+     * Count a scope now, for `count`.
+     * @param input - The scope.
+     * @param options - The count's options.
+     * @returns The counts.
+     * @throws A `GraphtyError` with `E_OPTION_RANGE` for a bad sample, or the scope's refusal.
+     */
+    const countNow = (input: ScopeInput, options: ScopeCountOptions): ScopeCount => {
+        const spec = scopeOf(input);
+        const sample = options.sample ?? DEFAULT_SCOPE_SAMPLE;
+
+        if (!Number.isInteger(sample) || sample <= 0) {
+            throw new GraphtyError({
+                code: "E_OPTION_RANGE",
+                message: `A scope count's sample must be a positive integer, not ${String(sample)}.`,
+                source: "run",
+                details: { sample },
+            });
+        }
+
+        // A kept set is counted from its resolution, which says what it names that is gone. A
+        // removed set counts from its kept record; one whose record was dropped, or whose
+        // definition cannot be evaluated, counts nothing rather than throwing, so a panel
+        // counting every row never throws; an id never issued refuses.
+        if (typeof spec === "object" && "set" in spec) {
+            const record = kept.get(spec.set);
+            if (record !== undefined) {
+                return countOf(resolveSet(record, context()), record.definition.kind);
+            }
+
+            if (kept.register().has(spec.set) && kept.tombstone(spec.set)?.record === undefined) {
+                return { nodes: 0, edges: 0, exact: true };
+            }
+        }
+
+        const graph = sources.snapshot();
+
+        // The whole graph is two numbers the snapshot already holds, and a session with
+        // nothing hidden reaches the same two numbers through "visible".
+        if (spec === "graph" || (spec === "visible" && sources.visibility === undefined)) {
+            return { nodes: graph.nodeCount, edges: graph.edgeCount, exact: true };
+        }
+
+        if (options.approximate === true) {
+            return estimateEdges(spec, graph, sample);
+        }
+
+        const { resolution } = membershipOf(spec);
+        const counted = countOf(resolution, undefined);
+        const issues = noEdgeIssues(spec, counted.nodes);
+
+        return issues === undefined ? counted : { ...counted, issues };
+    };
+
     return {
         resolveNow,
 
@@ -1354,54 +1421,11 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
         },
 
         resolve(input: ScopeInput): Promise<ResolvedScope> {
-            return Promise.resolve(resolveNow(scopeOf(input)));
+            return settled(() => resolveNow(scopeOf(input)));
         },
 
         count(input: ScopeInput, options: ScopeCountOptions = {}): Promise<ScopeCount> {
-            const spec = scopeOf(input);
-            const sample = options.sample ?? DEFAULT_SCOPE_SAMPLE;
-
-            if (!Number.isInteger(sample) || sample <= 0) {
-                throw new GraphtyError({
-                    code: "E_OPTION_RANGE",
-                    message: `A scope count's sample must be a positive integer, not ${String(sample)}.`,
-                    source: "run",
-                    details: { sample },
-                });
-            }
-
-            // A kept set is counted from its resolution, which says what it names that is gone. A
-            // removed set counts from its kept record; one whose record was dropped, or whose
-            // definition cannot be evaluated, counts nothing rather than throwing, so a panel
-            // counting every row never throws; an id never issued refuses.
-            if (typeof spec === "object" && "set" in spec) {
-                const record = kept.get(spec.set);
-                if (record !== undefined) {
-                    return Promise.resolve(countOf(resolveSet(record, context()), record.definition.kind));
-                }
-
-                if (kept.register().has(spec.set) && kept.tombstone(spec.set)?.record === undefined) {
-                    return Promise.resolve({ nodes: 0, edges: 0, exact: true });
-                }
-            }
-
-            const graph = sources.snapshot();
-
-            // The whole graph is two numbers the snapshot already holds, and a session with
-            // nothing hidden reaches the same two numbers through "visible".
-            if (spec === "graph" || (spec === "visible" && sources.visibility === undefined)) {
-                return Promise.resolve({ nodes: graph.nodeCount, edges: graph.edgeCount, exact: true });
-            }
-
-            if (options.approximate === true) {
-                return Promise.resolve(estimateEdges(spec, graph, sample));
-            }
-
-            const { resolution } = membershipOf(spec);
-            const counted = countOf(resolution, undefined);
-            const issues = noEdgeIssues(spec, counted.nodes);
-
-            return Promise.resolve(issues === undefined ? counted : { ...counted, issues });
+            return settled(() => countNow(input, options));
         },
 
         save(name: string, spec: Scope): ScopeId {

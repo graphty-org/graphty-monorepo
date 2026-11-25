@@ -22,7 +22,7 @@ class ManualQueue {
 
     readonly progress: { percent?: number; phase?: string; message?: string }[] = [];
 
-    cancelled = 0;
+    canceled = 0;
 
     enqueue = (body: RunBody): RunTicket => {
         const index = this.bodies.length;
@@ -31,7 +31,7 @@ class ManualQueue {
 
         return {
             cancel: () => {
-                this.cancelled += 1;
+                this.canceled += 1;
                 this.controllers[index].abort(new DOMException("Operation canceled.", "AbortError"));
             },
         };
@@ -94,12 +94,12 @@ function makeRun(
 }
 
 describe("a run before it starts", () => {
-    it("is queued, indeterminate, cancellable and has no result", () => {
+    it("is queued, indeterminate, cancelable and has no result", () => {
         const { run } = makeRun(finishAtOnce);
 
         assert.strictEqual(run.status, "queued");
         assert.strictEqual(run.determinate, false);
-        assert.strictEqual(run.cancellable, true);
+        assert.strictEqual(run.cancelable, true);
         assert.strictEqual(run.startedAt, null);
         assert.strictEqual(run.durationMs, null);
         assert.strictEqual(run.result, undefined);
@@ -131,7 +131,7 @@ describe("a run that finishes", () => {
         assert.strictEqual(run.result, result);
         assert.isNotNull(run.startedAt);
         assert.isNotNull(run.durationMs);
-        assert.strictEqual(run.cancellable, false);
+        assert.strictEqual(run.cancelable, false);
         assert.strictEqual(run.partial, false);
     });
 
@@ -227,7 +227,7 @@ describe("progress", () => {
     });
 });
 
-describe("cancelling", () => {
+describe("canceling", () => {
     it("rejects with a DOMException named AbortError", async () => {
         const { run } = makeRun(finishAtOnce);
 
@@ -236,7 +236,7 @@ describe("cancelling", () => {
 
         try {
             await run;
-            assert.fail("a cancelled run must not resolve");
+            assert.fail("a canceled run must not resolve");
         } catch (error) {
             assert.instanceOf(error, DOMException);
             assert.strictEqual(error.name, "AbortError");
@@ -244,7 +244,7 @@ describe("cancelling", () => {
         }
 
         assert.strictEqual(run.status, "canceled");
-        assert.strictEqual(run.cancellable, false);
+        assert.strictEqual(run.cancelable, false);
     });
 
     it("tells the queue to drop the operation", () => {
@@ -253,7 +253,7 @@ describe("cancelling", () => {
         run.start();
         run.cancel();
 
-        assert.strictEqual(queue.cancelled, 1);
+        assert.strictEqual(queue.canceled, 1);
     });
 
     it("aborts the work's own signal, so a running algorithm stops", async () => {
@@ -328,6 +328,86 @@ describe("cancelling", () => {
         run.start();
 
         assert.strictEqual(queue.bodies.length, 0);
+        await assertRejectsWithAbort(run);
+    });
+});
+
+describe("the caller's abort reason", () => {
+    it("becomes the AbortError's message when it is text", async () => {
+        const controller = new AbortController();
+        const { run } = makeRun(finishAtOnce, { signal: controller.signal });
+
+        run.start();
+        controller.abort("the reader closed the panel");
+
+        try {
+            await run;
+            assert.fail("an aborted run must not resolve");
+        } catch (error) {
+            assert.instanceOf(error, DOMException);
+            assert.strictEqual(error.name, "AbortError");
+            assert.strictEqual(error.message, "the reader closed the panel");
+        }
+        assert.strictEqual(run.status, "canceled");
+    });
+
+    it("gives way to a message naming the run when it is empty text or not text at all", async () => {
+        for (const reason of ["", { why: "closed" }]) {
+            const controller = new AbortController();
+            const { run } = makeRun(finishAtOnce, { signal: controller.signal });
+
+            run.start();
+            controller.abort(reason);
+
+            try {
+                await run;
+                assert.fail("an aborted run must not resolve");
+            } catch (error) {
+                assert.instanceOf(error, DOMException);
+                assert.strictEqual(error.name, "AbortError");
+                assert.strictEqual(error.message, 'Run "degree_test" was aborted.');
+            }
+        }
+    });
+});
+
+describe("the queue's side of a run", () => {
+    it("takes a run's work once, however often it is started", () => {
+        const { run, queue } = makeRun(finishAtOnce);
+
+        run.start();
+        run.start();
+
+        assert.strictEqual(queue.bodies.length, 1);
+    });
+
+    it("never runs the work of a run canceled while it waited, even when the queue calls it", async () => {
+        const executor = vi.fn(finishAtOnce);
+        const { run, queue } = makeRun(executor);
+
+        run.start();
+        run.cancel();
+        await queue.runLatest();
+
+        assert.strictEqual(executor.mock.calls.length, 0);
+        assert.strictEqual(run.status, "canceled");
+        await assertRejectsWithAbort(run);
+    });
+
+    it("hands the work an aborted signal when the queue dropped it before its turn", async () => {
+        let sawAborted: boolean | undefined;
+        const { run, queue } = makeRun((context) => {
+            sawAborted = context.signal.aborted;
+
+            return Promise.reject(new DOMException("stopped", "AbortError"));
+        });
+
+        run.start();
+        queue.controllers[0].abort(new DOMException("Operation canceled.", "AbortError"));
+        await queue.runLatest();
+
+        assert.isTrue(sawAborted, "the work can stop before doing anything");
+        assert.strictEqual(run.status, "canceled");
         await assertRejectsWithAbort(run);
     });
 });

@@ -2,7 +2,7 @@
 # Runs a command that drives a browser (a vitest browser or Storybook project, a Playwright script, a
 # screenshot capture) in one of the machine's shared browser slots, waiting until one is free.
 # On 2026-10-01, 23 browsers at once filled the swap; every browser-driving command on this machine
-# goes through these slots: the pre-push gate's browser shards (tools/prepush-tests.mjs), the screenshot
+# goes through these slots: the screenshot
 # previews (tools/visual-preview.sh) and the design studio's sessions (design/ui/studio/tool/with-browser.sh,
 # a wrapper that waits through this script, with BROWSER_SLOTS above 4 for its GPU-drawn sessions).
 #
@@ -35,8 +35,7 @@
 # Low-lane commands take their slot in the order they began to wait, by the same rule but with tickets of their
 # own (<slot dir>/.low-<epoch ns>-<pid>), so a command that looks more often cannot keep the slot from the others.
 #
-# The high lane: with BROWSER_SLOT_PRIORITY=high (the cut's screenshot preview, which the owner reviews before
-# a ship: tools/visual-preview.sh sets it) the command takes the next free slot,
+# The high lane: with BROWSER_SLOT_PRIORITY=high (a run someone is waiting on) the command takes the next free slot,
 # ahead of every other waiter: while it waits it leaves a mark
 # (<slot dir>/.high-<pid>), and no command outside the high lane takes a slot while a live mark exists. It
 # never takes a slot from a command that holds one.

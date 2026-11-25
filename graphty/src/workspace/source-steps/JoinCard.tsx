@@ -1,7 +1,7 @@
 import "./source-steps.css";
 
 import { ComboInput, SegmentedControl } from "@graphty/compact-mantine";
-import type { GraphSession, SourceColumnProfile } from "@graphty/graphty-element/session";
+import { DEFAULT_BRANCH_PALETTE, type GraphSession, type SourceColumnProfile } from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Group, Kbd, Radio, Select, Stack, Switch, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef } from "react";
 
@@ -15,6 +15,7 @@ import { useWorkspace } from "../state/WorkspaceContext";
 import { cancelCard, commitCard } from "./actions";
 import { CancelButton } from "./CancelButton";
 import {
+    edgeTypeChoices,
     field1Profile,
     field2Profile,
     holdsNodes,
@@ -77,7 +78,7 @@ function Samples({
  * @param props.onPick - takes a pick
  * @returns the select
  */
-function Pick({
+export function Pick({
     name,
     data,
     value,
@@ -294,10 +295,7 @@ function Act({ session, card }: Readonly<{ session: GraphSession; card: JoinCard
     const { store } = useWorkspace();
     const source = card.field2?.source;
     const needsNodes = source !== undefined && !holdsNodes(session, source);
-    const edgeTypes = session.data
-        .types()
-        .filter((type) => type.kind === "edge")
-        .map((type) => ({ value: type.name }));
+    const edgeTypes = edgeTypeChoices(session);
     return (
         <Stack gap={4}>
             <Radio.Group
@@ -387,6 +385,19 @@ export function JoinCard({
     );
     const swap = swapped(session, card);
     const previewing = card.preview !== null;
+    // The join preview, drawn by graphty-element while the draft is drawn: Commit, Esc and closing
+    // the card take it off. In the selection branches' first two colors: merged, then new.
+    const drawn = previewing && openDraft(session)?.displayed === true;
+    useEffect(() => {
+        if (!drawn) {
+            return undefined;
+        }
+        const [merged, added] = session.scope.options.branchPalette ?? DEFAULT_BRANCH_PALETTE;
+        const view = session.styles.showDraft({ merged, new: added });
+        return () => {
+            view.end();
+        };
+    }, [drawn, session]);
     // Editing a committed step, the card names it, so the reader knows which step is open.
     const edited = card.editing === null ? undefined : session.data.steps()[card.editing];
     const editedSource =

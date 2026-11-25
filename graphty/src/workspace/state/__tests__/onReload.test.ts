@@ -6,6 +6,7 @@
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import { afterEach, assert, describe, it } from "vitest";
 
+import freshKinds from "../fresh-kinds.json";
 import {
     createWorkspaceStore,
     keepPlace,
@@ -21,6 +22,12 @@ import {
 /** The session storage item this tab's screen state is saved under. */
 const ITEM = "app.graphty.workspace.place";
 
+/**
+ * The most fields a reload may still lose that the reader made, each `gap #<issue>`: a ratchet,
+ * lowered when a gap is fixed and never raised.
+ */
+const MAX_GAPS = 1;
+
 /** What is saved beside the kept fields, about the project. */
 const PROJECT_FIELDS = ["name", "blank", "opened", "entry"];
 
@@ -29,12 +36,38 @@ describe("what a reload of this tab puts back", () => {
         sessionStorage.removeItem(ITEM);
     });
 
-    it("classifies every field of the state, each fresh one with a reason", () => {
+    it("classifies every field of the state, each fresh one as a kind of state allowed to start fresh", () => {
         assert.sameMembers(Object.keys(ON_RELOAD), Object.keys(createWorkspaceStore().get()));
-        for (const [field, rule] of Object.entries(ON_RELOAD)) {
-            assert.match(rule, /^(kept|(this tab|fresh): \S.{5,})$/, field);
+        const kinds = Object.keys(freshKinds);
+        for (const [field, rule] of Object.entries(ON_RELOAD as Record<string, string>)) {
+            assert.match(
+                rule,
+                /^(kept|kept: element-id|this tab: \S.{5,}|fresh: [a-z ]+: \S.{5,}|gap #\d+: \S.{5,})$/,
+                field,
+            );
+            const fresh = /^fresh: ([a-z ]+): /.exec(rule);
+            if (fresh !== null) {
+                assert.include(kinds, fresh[1], `${field}: "fresh" names a kind from fresh-kinds.json`);
+            }
         }
         assert.includeMembers([...KEPT_FIELDS], ["timelineOpen", "dockOpen", "dockMaximized", "dockTab", "place"]);
+    });
+
+    it("loses no more of the reader's state than the gaps on record, and never more than before", () => {
+        const gaps = Object.entries(ON_RELOAD as Record<string, string>).filter(([, rule]) => rule.startsWith("gap #"));
+        assert.isAtMost(gaps.length, MAX_GAPS, gaps.map(([field]) => field).join(", "));
+    });
+
+    it("keeps the open selection workspace (issue #9655)", () => {
+        assert.strictEqual(ON_RELOAD.selectionWorkspace, "kept: element-id");
+    });
+
+    it("labels every kept field that holds a graphty-element id, so a restore checks it still names something (issue #9973)", () => {
+        const ids = Object.entries(ON_RELOAD as Record<string, string>)
+            .filter(([, rule]) => rule === "kept: element-id")
+            .map(([field]) => field);
+        assert.includeMembers(ids, ["styleRow", "inspected", "renamingRow", "selectionWorkspace"]);
+        assert.includeMembers([...STASHED_FIELDS], ids);
     });
 
     it("saves exactly the kept fields while a project is open, and forgets them once none is", () => {

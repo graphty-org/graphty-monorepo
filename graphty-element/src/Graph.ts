@@ -16,7 +16,7 @@ import { Engine } from "@babylonjs/core/Engines/engine.js";
 import { NullEngine } from "@babylonjs/core/Engines/nullEngine.js";
 import { WebGPUEngine } from "@babylonjs/core/Engines/webgpuEngine.js";
 import { PointerEventTypes } from "@babylonjs/core/Events/pointerEvents.js";
-import { type Matrix, Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { Matrix, Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
 import type { SubMesh } from "@babylonjs/core/Meshes/subMesh.js";
 import { Observable } from "@babylonjs/core/Misc/observable.js";
@@ -25,6 +25,8 @@ import { Scene } from "@babylonjs/core/scene.js";
 import type { WebXRDefaultExperience } from "@babylonjs/core/XR/webXRDefaultExperience.js";
 import { WebXRState } from "@babylonjs/core/XR/webXRTypes.js";
 import type { GraphSnapshot } from "@graphty/graph-format";
+import cloneDeep from "lodash/cloneDeep.js";
+import isEqual from "lodash/isEqual.js";
 
 import { ACCELERATION_POLICY_DEFAULT, AccelerationController } from "./acceleration";
 import { VoiceInputAdapter } from "./ai/input/VoiceInputAdapter";
@@ -41,7 +43,24 @@ import type { GraphSceneMetadata } from "./types/sceneMetadata";
 
 const graphLogger: Logger = GraphtyLogger.getLogger(["graphty", "graph"]);
 
+/**
+ * Whether an engine draws on a WebGL1 context, which compiles no GLSL ES 3.00 shader.
+ * @param engine - The engine.
+ * @returns True for WebGL1; false for WebGL2, WebGPU and NullEngine.
+ */
+function isWebGL1(engine: AbstractEngine): boolean {
+    return engine instanceof Engine && !(engine instanceof NullEngine) && engine.webGLVersion < 2;
+}
+
 /** One {@link Graph.waitForStableFrame} call: whether it gave up, and how to stop its current round. */
+/** The parts of a click's pointer event that decide what it does to the selection. */
+interface ClickModifiers {
+    button?: number;
+    shiftKey?: boolean;
+    ctrlKey?: boolean;
+    metaKey?: boolean;
+}
+
 interface StableFrameWait {
     gaveUp: boolean;
     stop: (() => void) | undefined;
@@ -161,6 +180,7 @@ import {
 import { type AlgorithmOnLoad, DataConfig } from "./config/DataConfig";
 import { RenderSettingsOpts } from "./config/GraphBehavior";
 import { DEFAULT_LIGHTING, isLighting, type Lighting, LIGHTING_VALUES } from "./config/Lighting";
+import { drawnText, labelTextOf, richTextLabelOptions, type RichTextStyleType } from "./config/RichTextStyle";
 import { type PartialXRConfig, xrConfigSchema } from "./config/xr-config-schema";
 import { type ExportGraphOptions, type ExportResult, exportSession } from "./data/export";
 import { WRITABLE_LANE, writableLane } from "./data/lane";
@@ -176,6 +196,7 @@ import {
     type ReducedMotionChangedEvent,
     type RenderLostEvent,
     type RenderRestoredEvent,
+    type RenderWarningEvent,
     type TourEndedEvent,
     type TourProgressEvent,
     type XRMenuSelectEvent,
@@ -234,9 +255,9 @@ import {
 import { bootstrapEdgePaint, bootstrapNodePaint } from "./managers/StylePainter";
 import { columnCenter, type ColumnFraming } from "./managers/UpdateManager";
 import { AnnotationMeshes } from "./meshes/AnnotationMeshes";
-import { arrowCapMeshes } from "./meshes/ArrowCapBatch";
+import { arrowCapMeshes, pulledCapHosts } from "./meshes/ArrowCapBatch";
 import { edgeDrawPlace } from "./meshes/EdgeLineBatch";
-import { EdgeRowLines } from "./meshes/EdgeRowLines";
+import { EdgeRowLines, pulledLineSortsWith } from "./meshes/EdgeRowLines";
 import { payLabelAnimations } from "./meshes/labelAnimationDebt";
 import { closeRectOnScreen, hasCloseLabels, inRect, isCloseLabel } from "./meshes/labelClose";
 import { labelFontsLoading, watchFontLoads } from "./meshes/labelFonts";
@@ -263,6 +284,8 @@ import {
 } from "./meshes/NodeThumbnail";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { type Antialias, type LeanLines, pulledEdgesDefault } from "./meshes/PulledLineBatch";
+import { RichTextLabel } from "./meshes/RichTextLabel";
+import { onRewriteMissed } from "./meshes/RowPullPlugin";
 import { loadChunk, loadModel, ModelLoadFailure } from "./models/loadModel";
 import { type ModelTemplate, optionsOf } from "./models/ModelCache";
 import { TextureCache } from "./models/TextureCache";
@@ -272,15 +295,17 @@ import { EdgeIdTarget } from "./render/EdgeIdTarget";
 import { NodeIdTarget } from "./render/NodeIdTarget";
 import {
     type CanvasPoint,
+    clickEdgeAt,
     hoverEdgeAt,
     insidePolygon,
     openRowScan,
     pickAsDrawn,
     pickCloseLabel,
-    pickEdgeId,
     pickNodeId,
     pickWorldPoint,
+    pressEdgeAt,
     regionWork,
+    type RowLinePicks,
     rowScanOf,
     screenProjector,
     useEdgeIdTarget,
@@ -320,11 +345,12 @@ import {
     workingGraphOfSession,
 } from "./session/GraphSession";
 import { ISSUES_VALUE } from "./session/issues";
-import { DEFAULT_LIMITS, type LimitsOption, RenderLimits } from "./session/limits";
+import { DEFAULT_LIMITS, fullDetailOverBudget, type LimitsOption, RenderLimits } from "./session/limits";
 import { loadLineOf, type LoadTurn } from "./session/loadLine";
 import type { SessionCommand } from "./session/planning";
 import {
     cancelReasonOf,
+    type Dispatcher,
     type DispatchFunction,
     queueScheduler,
     type TransactionOptions as DispatcherTransactionOptions,
@@ -483,6 +509,8 @@ const KEYS_THAT_DRAW_NOTHING: Readonly<Partial<Record<string, ReadonlySet<string
         "data.knownFields.edgeTimeParseZone",
         "data.knownFields.edgeTimeEndPath",
         "data.knownFields.edgeTimeSpellsPath",
+        "data.knownFields.nodeKindPath",
+        "data.knownFields.edgeKindPath",
     ]),
     graph: new Set(
         [ISSUES_VALUE, SOURCE_VALUE, SOURCES_VALUE, PROVENANCE_VALUE, COLUMNS_VALUE].map((name) => `v:${name}`),
@@ -768,6 +796,12 @@ export interface FileLoadOptions {
      */
     layout?: "recommended" | "placed" | "keep";
     /**
+     * `"data"` also pins every node the file marks fixed (a Graphviz `pos="x,y!"` or `pin=true`, a
+     * Cytoscape.js `"locked": true`), so a layout keeps them where the file put them and lays out
+     * the rest. `"keep"` (the default) pins nothing.
+     */
+    pins?: "data" | "keep";
+    /**
      * Cancels the load, its read or fetch included: it rejects with the signal's reason (an
      * `AbortError` by default) and adds nothing, leaving the graph as it was.
      */
@@ -861,6 +895,21 @@ function presentOnly<T extends Record<string, unknown>>(options: T): Partial<{ [
     ) as Partial<{
         [K in keyof T]: NonNullable<T[K]>;
     }>;
+}
+
+/** An edge under the pointer, and its tooltip with what it was drawn from (`Graph.#hoveredEdge`). */
+interface EdgeHover {
+    id: EdgeId;
+    /** How far along the edge the pointer met it: 0 at the first end, 1 at the second. */
+    along: number;
+    /** From that point on the straight run between the ends to where the pointer met the line (a curve's bulge). */
+    offset: Vector3;
+    camera: Camera | null;
+    block: RichTextStyleType | undefined;
+    words: string | undefined;
+    /** The point the tooltip hangs from, moved in place as the edge moves. */
+    anchor: Vector3;
+    tooltip: RichTextLabel | undefined;
 }
 
 /**
@@ -1087,6 +1136,8 @@ export class Graph implements GraphContext {
     #renderPath: RenderPath = renderPathDefault.value;
     /** The ceilings asked for through `limits`, and those in force on this render path. */
     readonly #limits = new RenderLimits(this.#renderPath === "batched");
+    /** Whether the log was told that WebGL1 draws `"batched"` as objects; see `#batchesDraw`. */
+    #warnedWebGL1 = false;
     /** The node batches, once the renderer is open on the `"batched"` path. */
     #nodeBatches: NodeBatches | null = null;
     /** Edge rows drawn with no `Edge`, on the `"batched"` path (`EdgeRowLines`). */
@@ -1107,8 +1158,16 @@ export class Graph implements GraphContext {
 
     /** The running pass repainted the whole graph, so it needs a frame whatever keys it wrote. */
     #passRepainted = false;
-    /** Whether the last whole-graph paint drew a graph past `largeGraphThreshold` (low node detail). */
+    /** Whether the last whole-graph paint drew a graph past `fullDetailTriangleBudget` (low node detail). */
     #paintedLarge = false;
+
+    /**
+     * Whether the graph's nodes at full detail would draw past `fullDetailTriangleBudget`.
+     * @returns True when a node no layer gives a detail is drawn low.
+     */
+    #overDetailBudget(): boolean {
+        return fullDetailOverBudget(this.dataManager.nodes.size, this.#limits.effective.fullDetailTriangleBudget);
+    }
 
     /** Aborted by `shutdown()`, so no whole-graph repaint runs against a torn-down graph. */
     readonly #teardown = new AbortController();
@@ -1177,7 +1236,14 @@ export class Graph implements GraphContext {
      * Asked each frame, so a live path change takes effect on the next one.
      * @returns True under renderPath "batched".
      */
-    readonly #batchedFrames = (): boolean => this.#renderPath === "batched";
+    readonly #batchedFrames = (): boolean => this.#batchesDraw();
+    /**
+     * Whether rows are drawn in batches: under renderPath "batched", on an engine that compiles
+     * their GLSL ES 3.00 shaders. A WebGL1 context does not, so there every row is drawn as an
+     * object, as `rowCounts` says (#10022). Asked each time, so it follows the engine WebGPU replaces.
+     * @returns True while batches draw.
+     */
+    readonly #batchesDraw = (): boolean => this.#renderPath === "batched" && !isWebGL1(this.engine);
     /**
      * Whether the render loop multisamples only the frame a still scene rests on: `antialias` is
      * `"at-rest"`. Asked each frame, so a change takes effect on the next one.
@@ -1227,6 +1293,11 @@ export class Graph implements GraphContext {
      * it is why every data question this class answers is forwarded rather than computed.
      */
     private readonly session: ElementSession;
+    /**
+     * The session's dispatcher once looked up: {@link Graph.is2D} and the configuration document are read for every
+     * edge placed, every frame a layout moves (issue #9420), and a weak map lookup each time showed in the profile.
+     */
+    #dispatcher: Dispatcher | undefined;
     /** The queue loads, layouts, runs and style passes take their turn in; see {@link operationQueueOf}. */
     private readonly operationQueue: OperationQueueManager;
 
@@ -1327,7 +1398,7 @@ export class Graph implements GraphContext {
             () => this.session.config.minMarkSize,
             // eslint-disable-next-line unicorn/no-array-callback-reference -- the session's find, not Array.find
             (model) => this.session.assets.find(model)?.defaults,
-            () => this.dataManager.nodes.size > DEFAULT_LIMITS.largeGraphThreshold,
+            () => this.#overDetailBudget(),
             () => this.#darkScheme,
         );
 
@@ -1370,6 +1441,10 @@ export class Graph implements GraphContext {
             antialiasAtRest: this.#antialiasAtRest,
             preserveDrawingBuffer: this.preserveDrawingBuffer,
         });
+        // A shader WebGL refuses is reported as WebGPU's are; WebGPU's own engine is watched once it opens.
+        if (!(this.renderManager.engine instanceof NullEngine)) {
+            this.watchShaderCompiles(this.renderManager.engine);
+        }
 
         this.basemapManager = new BasemapManager(
             () => this.scene,
@@ -1400,7 +1475,7 @@ export class Graph implements GraphContext {
         this.dataManager = new DataManager(this.eventManager, this.styles);
         this.dataManager.renderLimits = {
             ceilings: () => this.#limits.overrides,
-            batched: () => this.#renderPath === "batched",
+            batched: this.#batchesDraw,
             objectRows: () => this.#limits.effective.objectRows,
             objectEdges: () => this.#limits.effective.objectEdges,
             objectCap: (of, wanted, cap) => {
@@ -1466,7 +1541,7 @@ export class Graph implements GraphContext {
                 // Late-bound on purpose: a change of renderer replaces the render manager.
                 renderedFrame: () => this.renderManager.frameDrawn(),
                 // Under "batched" only, the repaint fills a uniform dirty set's mesh keys at once.
-                batched: () => this.#renderPath === "batched",
+                batched: this.#batchesDraw,
                 nodeSizeSpace: () => this.styles.config.behavior.node.sizeSpace,
                 darkScheme: () => this.#darkScheme,
                 layoutHidden: () => this.#layoutHidden,
@@ -1569,7 +1644,7 @@ export class Graph implements GraphContext {
                 this.layoutManager.running = false;
             },
             loadArrangement: (restoring, wrote, byReader) => {
-                this.layoutManager.loadArrangement(restoring, wrote, byReader);
+                const loaded = this.layoutManager.loadArrangement(restoring, wrote, byReader);
                 if (restoring) {
                     this.layoutManager.running = false;
                 }
@@ -1577,8 +1652,11 @@ export class Graph implements GraphContext {
                 // The edges are redrawn only when coordinates were written: a redraw re-fits
                 // every edge's arrowheads, and a graph step undone with nothing to place -- a
                 // removal, whose rows come back where they were -- would pay for all of them to
-                // move none.
-                this.updateManager.redrawArrangement(wrote);
+                // move none. The nodes are redrawn only when the engine took the lane again: with
+                // nothing moved, an undo of one value would walk every node (issue #9164).
+                if (loaded || wrote) {
+                    this.updateManager.redrawArrangement(wrote);
+                }
             },
             pin: (id, pinned) => {
                 const node = this.getNode(id);
@@ -1780,6 +1858,7 @@ export class Graph implements GraphContext {
                 const engine = this.layoutManager.layoutEngine;
                 return engine instanceof SimulationLayoutEngine ? engine.accelerator : "cpu";
             },
+            answered: () => this.layoutManager.answered(),
         };
         lane.register("layout", async (_rendered, target) => {
             const choice = target.layout ?? DEFAULT_LAYOUT;
@@ -1815,10 +1894,18 @@ export class Graph implements GraphContext {
                 this.#resident = event.next;
                 this.#rowTable?.replaced(event.report.nodeRemap, dataManagerInternals.builtNodes(this.dataManager));
                 this.#nodeBatches?.rowsMoved(event.report.nodeRemap);
+                this.stylePainter.rowsMoved(event.report.nodeRemap, event.report.edgeRemap, {
+                    nodes: event.next.nodeCount,
+                    edges: event.next.edgeCount,
+                });
                 this.#edgeRowLines?.rowsMoved(event.report.nodeRemap, event.report.edgeRemap);
                 // a pulled line is drawn from the row table, so there are none without one
                 if (event.report.nodeRemap !== null && this.#rowTable) {
                     this.updateManager.rowsRenumbered();
+                }
+
+                if (event.report.nodeRemap !== null) {
+                    this.updateManager.nodeRowsMoved(event.report.nodeRemap);
                 }
                 // The derived inputs of scoped runs are over the snapshot that has gone: released
                 // now unless a run still holds one, and then when it lets go.
@@ -1865,6 +1952,7 @@ export class Graph implements GraphContext {
         this.updateManager.fitAnnotations = () => {
             this.#annotations?.refit();
         };
+        this.updateManager.annotationMeshes = () => this.#annotations?.placedMeshes ?? [];
         this.updateManager.picturesLoading = () =>
             this.#annotations?.isLoading === true || this.renderManager.shaderPicturePending();
         // Late-bound: a change of renderer replaces the render manager.
@@ -2294,7 +2382,7 @@ export class Graph implements GraphContext {
         this.#teardown.abort(new DOMException("The graph was disposed.", "AbortError"));
 
         // A tour's holds and an untimed recording count drawn frames, which stop now: end both.
-        this.#endTour("cancelled");
+        this.#endTour("canceled");
         this.cancelAnimationCapture();
 
         // XR listens on the page's navigator.xr, which outlives this graph: a listener left there
@@ -2573,7 +2661,16 @@ export class Graph implements GraphContext {
      * @returns The status once {@link Graph.init} has chosen; null before.
      */
     get rendererStatus(): RendererStatus | null {
-        return this.#rendererStatus;
+        const status = this.#rendererStatus;
+        // Where the attached accelerator really runs, which can differ from what the renderer offered it: one
+        // probed before a renderer was on its way opened its own device (issue #9986).
+        const shared = this.acceleration.sharesRendererDevice;
+        if (status === null || shared === undefined) {
+            return status;
+        }
+
+        const layoutDevice = shared ? "shared" : "separate";
+        return status.layoutDevice === layoutDevice ? status : { ...status, layoutDevice };
     }
 
     /**
@@ -2850,18 +2947,25 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Reports a shader the GLSL compiler stops on. Babylon.js 9 hands the effect a rejection of its
-     * async compile as it would a synchronous failure, so everything listening to the effect hears
-     * as it does under WebGL; this reports it. An effect with its own `onError` is the shader
-     * check's, which has its own report. (Babylon 8 dropped the rejection, and this wrapped the
-     * engine's compile to tell the effect.)
+     * Reports a shader the GLSL compiler stops on, under WebGL and WebGPU alike: a refused shader
+     * never draws, and nothing else says so (#10022). Babylon.js 9 hands a WebGPU effect a rejection
+     * of its async compile as it would a synchronous failure, so everything listening to the effect
+     * hears as it does under WebGL. An effect with its own `onError` is the shader check's, which
+     * has its own report. A batch shader one of `RowPullPlugin`'s edits missed still draws, so it is
+     * a `render-warning` with `W_SHADER_EDIT_MISSED` (#10025), and drawing is left alone.
      * @param engine - The engine that compiles the graph's shaders.
      */
-    private watchShaderCompiles(engine: WebGPUEngine): void {
+    private watchShaderCompiles(engine: AbstractEngine): void {
         engine.onEffectErrorObservable.add(({ effect, errors }) => {
             if (!effect.onError) {
                 this.reportRefusedShader("compiler", [errors]);
             }
+        });
+        onRewriteMissed(engine, (patterns) => {
+            this.eventManager.emit("render-warning", {
+                code: "W_SHADER_EDIT_MISSED",
+                params: { renderer: engine.isWebGPU ? "webgpu" : "webgl", patterns },
+            } satisfies Omit<RenderWarningEvent, "type">);
         });
     }
 
@@ -2877,7 +2981,7 @@ export class Graph implements GraphContext {
 
         const error = new GraphtyError({
             code: "E_SHADER_REFUSED",
-            message: `the WebGPU ${stage} refused a shader, so it is not drawn: ${messages.join("; ")}`,
+            message: `the ${this.engine.isWebGPU ? "WebGPU" : "WebGL"} ${stage} refused a shader, so it is not drawn: ${messages.join("; ")}`,
             source: "view",
             recoverable: false,
             details: { stage, messages },
@@ -2945,6 +3049,9 @@ export class Graph implements GraphContext {
             setDrawing(true);
             this.settleRestart(null);
             this.eventManager.emit("render-restored", { renderer } satisfies Omit<RenderRestoredEvent, "type">);
+            // The renderer has a working device again, so the GPU is back: the moment to try once more an
+            // accelerator whose reattach failed while it was gone (issue #9987).
+            this.acceleration.deviceAvailable();
         });
         const { signal } = this.#teardown;
         // The browser tried to give a WebGL context back and could not make one.
@@ -3129,6 +3236,14 @@ export class Graph implements GraphContext {
         });
         // No frame is drawn while an element built from the defaults waits for its style.
         this.renderManager.drawHeld = (): boolean => this.dataManager.drawHeld;
+        // A consumer's own light reaches the nodes a batch draws, as it reaches the objects path's.
+        const relight = (): void => {
+            this.renderManager.relightBatches();
+            // A frozen list of what is drawn skips each mesh's material check (#9246).
+            this.updateManager.thawActiveMeshes();
+        };
+        this.scene.onNewLightAddedObservable.add(relight);
+        this.scene.onLightRemovedObservable.add(relight);
     }
 
     /**
@@ -3696,6 +3811,15 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * The session's dispatcher, looked up once (see `#dispatcher`).
+     * @returns The dispatcher.
+     */
+    private dispatcher(): Dispatcher {
+        this.#dispatcher ??= dispatcherOf(this.session);
+        return this.#dispatcher;
+    }
+
+    /**
      * The configuration document `styles.config` reads: frozen, merged from the project settings
      * and the view settings, and rebuilt only when one of them has changed since the last read,
      * so two reads with no change between them return the same object.
@@ -3709,7 +3833,7 @@ export class Graph implements GraphContext {
             return this.mergeConfig(DEFAULT_PROJECT, DEFAULT_LAYOUT);
         }
 
-        const dispatcher = dispatcherOf(session);
+        const dispatcher = this.dispatcher();
         const writes = dispatcher.lane.writes("config");
         const layout = dispatcher.lane.writes("layout");
         let cache = this.configCache;
@@ -3975,6 +4099,7 @@ export class Graph implements GraphContext {
                     graphIndex,
                     graphName,
                     layout: options?.layout,
+                    pins: options?.pins,
                     styles,
                     styleOptions,
                 }),
@@ -4192,7 +4317,7 @@ export class Graph implements GraphContext {
                     "data-add",
                     (context) => {
                         if (context.signal.aborted) {
-                            throw new Error("Operation cancelled");
+                            throw new Error("Operation canceled");
                         }
 
                         inTurn();
@@ -4896,7 +5021,7 @@ export class Graph implements GraphContext {
             "camera-update",
             (context) => {
                 if (context.signal.aborted) {
-                    throw new Error("Operation cancelled");
+                    throw new Error("Operation canceled");
                 }
 
                 this.camera.activateCamera(mode);
@@ -4937,7 +5062,7 @@ export class Graph implements GraphContext {
             "render-update",
             (context) => {
                 if (context.signal.aborted) {
-                    throw new Error("Operation cancelled");
+                    throw new Error("Operation canceled");
                 }
 
                 apply();
@@ -5237,13 +5362,16 @@ export class Graph implements GraphContext {
         // so a run of queued adds repaints once, not once per add. Everything else -- undo,
         // redo, a rollback, an edit, a session verb -- is painted here, in its own pass.
         if (paintsWhole) {
-            // A forward add over a picture that is current names what it changed; undo, redo
-            // and a paint an earlier write left owed have no such list.
+            // An edit, an undo or a redo over a picture that is current names what it changed, as
+            // each touches the keys of the rows it moved; a restore, a rollback and a paint an
+            // earlier write left owed have no such list. The hook still paints the whole graph when
+            // the rows moved in a way it cannot follow (issue #9164).
             // Crossing `largeGraphThreshold` changes every node's detail, not only the rows it touched.
-            const large = this.dataManager.nodes.size > DEFAULT_LIMITS.largeGraphThreshold;
+            const large = this.#overDetailBudget();
             const flipped = large !== this.#paintedLarge;
             this.#paintedLarge = large;
-            const changed = cause === "command" && !dispatcher.paintOwed && !flipped ? dirty : null;
+            const listed = cause === "command" || cause === "undo" || cause === "redo";
+            const changed = listed && !dispatcher.paintOwed && !flipped ? dirty : null;
             dispatcher.paintOwed = false;
             this.#passRepainted = true;
             await repaintGraphPass(this.session, changed, () => this.repaintFromSession());
@@ -5440,8 +5568,8 @@ export class Graph implements GraphContext {
         }
 
         this.#renderPath = path;
-        this.#limits.honor(path === "batched");
-        if (path === "objects") {
+        this.#limits.honor(this.#batchesDraw());
+        if (!this.#batchesDraw()) {
             this.#warnLimitsIgnored();
         }
 
@@ -5469,6 +5597,12 @@ export class Graph implements GraphContext {
         this.#warnLimitsIgnored();
         // A row drawn plain past an object budget is painted again, so a raised budget gives it its object.
         this.updateManager.limitsChanged();
+        // A budget that moves the graph across it changes every node's detail.
+        if (this.#overDetailBudget() !== this.#paintedLarge) {
+            this.#paintedLarge = !this.#paintedLarge;
+            void this.repaintFromSession();
+        }
+
         this.renderManager.requestFrame();
     }
 
@@ -5546,7 +5680,22 @@ export class Graph implements GraphContext {
 
     /** Open or close the batches to match the path. Proxies stay, so neither way rebuilds a row. */
     #applyRenderPath(): void {
-        const batched = this.#renderPath === "batched" && !(this.engine instanceof NullEngine);
+        const batched = this.#batchesDraw() && !(this.engine instanceof NullEngine);
+        // On WebGL1 the ceilings asked for are not in force: every row is an object there. Said only
+        // when that is news: `setRenderPath` and `setLimits` already said it for a path they set aside.
+        const wasIgnored = this.#limits.ignored;
+        this.#limits.honor(this.#batchesDraw());
+        if (!wasIgnored) {
+            this.#warnLimitsIgnored();
+        }
+
+        if (this.#renderPath === "batched" && isWebGL1(this.engine) && !this.#warnedWebGL1) {
+            this.#warnedWebGL1 = true;
+            graphLogger.warn('renderPath "batched" needs WebGL2 or WebGPU: every row is drawn as an object', {
+                renderPath: "objects",
+            });
+        }
+
         // Pulled edges read node places from the row table (`PulledLineBatch`).
         if (pulledEdgesDefault.value && !(this.engine instanceof NullEngine)) {
             this.openRowTable();
@@ -5554,6 +5703,19 @@ export class Graph implements GraphContext {
 
         if (batched && this.#nodeBatches === null) {
             const places = this.openRowTable();
+            // the scene's cap batches draw arrowheads pulled from the row table too (`ArrowCapBatch.setPulled`)
+            pulledCapHosts.set(this.scene, {
+                rows: places,
+                settled: () => !this.isRunning() || this.layoutManager.layoutEngine?.isSettled !== false,
+                placedCaps: (count) => {
+                    // one count an arrowhead placed and its edge's ends found, as an object edge counts its own
+                    for (const counter of [this.statsManager.arrowCapUpdate, this.statsManager.intersectCalc]) {
+                        for (let at = 0; at < count; at++) {
+                            counter.fetchNewFrame();
+                        }
+                    }
+                },
+            });
             this.#nodeBatches = new NodeBatches(
                 {
                     cache: this.dataManager.meshCache,
@@ -5589,19 +5751,19 @@ export class Graph implements GraphContext {
 
                         this.renderManager.requestFrame();
                     },
-                    resized: () => {
+                    resized: (row) => {
+                        // a `Node` resized has its edges measured again (`remeasureEdgesOf`); a row has no `Node` to say so (#9857)
+                        this.updateManager.placeEdgesOfRow(row);
                         if (this.layoutManager.layoutEngine?.wakeForResize() === true) {
                             this.layoutManager.running = true;
                         }
                     },
+                    edgeEndsChanged: (row) => {
+                        this.updateManager.placeEdgesOfRow(row);
+                    },
                 },
                 this.scene,
             );
-            // A node whose mesh was read on the objects path shares its look's source, which the batch hides.
-            for (const node of dataManagerInternals.builtNodes(this.dataManager)) {
-                node.holdOffBatch();
-            }
-
             this.#edgeRowLines = new EdgeRowLines({
                 scene: this.scene,
                 cache: this.dataManager.meshCache,
@@ -5610,6 +5772,7 @@ export class Graph implements GraphContext {
                 requestFrame: () => {
                     this.renderManager.requestFrame();
                 },
+                settled: () => !this.isRunning() || this.layoutManager.layoutEngine?.isSettled !== false,
             });
             const batches = this.#nodeBatches;
             const target = new NodeIdTarget(this.scene, {
@@ -5628,13 +5791,16 @@ export class Graph implements GraphContext {
             this.#edgeIds = new EdgeIdTarget(this.scene, {
                 positionTexture: () => places.positionTexture,
                 edges: () => this.builtEdges(),
+                rowLines: () => this.#edgeRowLines,
                 root: () => this.scene.getTransformNodeByName("graph-root"),
+                moves: (settle) => (settle ? places.settledMoves() : places.moves),
                 requestFrame: () => {
                     this.renderManager.requestFrame();
                 },
             });
             useEdgeIdTarget(this.scene, this.#edgeIds);
         } else if (!batched && this.#nodeBatches !== null) {
+            pulledCapHosts.delete(this.scene);
             useEdgeIdTarget(this.scene, null);
             this.#edgeIds?.dispose();
             this.#edgeIds = null;
@@ -5645,6 +5811,7 @@ export class Graph implements GraphContext {
             this.#edgeRowLines = null;
             this.#nodeBatches.dispose();
             this.#nodeBatches = null;
+            // the Nodes built under batches (a read, a hover) draw in row order with the rest (`drawInRowOrder`)
         }
 
         // Plain edges are pulled on "batched" (`Edge.pullsLine`): repaint them when that changes.
@@ -5744,7 +5911,7 @@ export class Graph implements GraphContext {
     getDrawnTarget(): DrawnTarget | null {
         const { engine } = this;
         const table = this.#rowTable;
-        if (this.#renderPath !== "batched" || table === null) {
+        if (!this.#batchesDraw() || table === null) {
             return null;
         }
 
@@ -5985,8 +6152,8 @@ export class Graph implements GraphContext {
         // Their shared action manager is made here too, so it belongs to the scene from the start.
         // Under "batched" it waits for the first object row's mesh: until a mesh has an action,
         // Babylon runs no pick on a move (design/rendering/row-renderer.md 4.4).
-        nodePointerRosterOf(this.scene);
-        if (this.#renderPath !== "batched") {
+        const nodeRoster = nodePointerRosterOf(this.scene);
+        if (!this.#batchesDraw()) {
             nodeActionManagerOf(this.scene);
         }
 
@@ -5998,17 +6165,28 @@ export class Graph implements GraphContext {
         // The newest move whose answer was heard: an older read landing later is dropped, but a
         // pointer that keeps moving still hears each read one late, instead of never (#8016).
         let edgeHoverHeard = 0;
+        // The pointer leaving the canvas ends an edge hover; a read still under way for an earlier move is dropped.
+        const leaveEdge = (): void => {
+            edgeHoverHeard = edgeHoverMoves;
+            this.#hoverEdge(undefined, 0, 0);
+        };
         this.scene.onPointerObservable.add((pointerInfo) => {
             const move = ++edgeHoverMoves;
             const canvas = this.scene.getEngine().getInputElement();
             const { buttons } = pointerInfo.event as { buttons?: number };
+            const { pointerX: x, pointerY: y } = this.scene;
+            // Whether a node is under the pointer is read from what Babylon picked (a mesh with pointer
+            // actions) and from the nodes' own hover (a batched row), never from the cursor: a consumer
+            // may handle cursors itself (`doNotHandleCursors`) or give nodes the default cursor.
             if (
                 !canvas ||
-                this.scene.doNotHandleCursors ||
                 (buttons ?? 0) !== 0 ||
-                canvas.style.cursor === this.scene.hoverCursor ||
+                nodeRoster.overId !== undefined ||
+                this.scene.meshUnderPointer?._getActionManagerForTrigger()?.hasPointerTriggers === true ||
                 (this.scene.metadata as GraphSceneMetadata | null)?.xrHelper?.baseExperience?.state === WebXRState.IN_XR
             ) {
+                // Over a node, in a drag or in XR: no edge is hovered.
+                leaveEdge();
                 return;
             }
 
@@ -6018,16 +6196,23 @@ export class Graph implements GraphContext {
                 }
 
                 edgeHoverHeard = move;
-                if (edgeId !== undefined) {
+                if (edgeId !== undefined && !this.scene.doNotHandleCursors) {
                     canvas.style.cursor = this.scene.hoverCursor;
                 }
+
+                if (edgeId !== undefined) {
+                    canvas.addEventListener("pointerleave", leaveEdge);
+                }
+
+                this.#hoverEdge(edgeId, x, y);
             };
             const edgeId = hoverEdgeAt(
                 this.scene,
                 () => this.builtEdges(),
-                this.scene.pointerX,
-                this.scene.pointerY,
+                x,
+                y,
                 (point) => this.worldToScreen(point),
+                this.rowLinePicks(),
             );
             if (edgeId instanceof Promise) {
                 void edgeId.then(over);
@@ -6035,6 +6220,11 @@ export class Graph implements GraphContext {
                 over(edgeId);
             }
         }, PointerEventTypes.POINTERMOVE);
+
+        // A hovered edge's tooltip is kept true while the pointer is still (removed edge, restyle, layout, camera).
+        this.scene.onBeforeRenderObservable.add(() => {
+            this.#syncHoveredEdge();
+        });
 
         // The pointer cursor over a close button, put back when the pointer leaves it. Only the
         // cursor this set is put back, so nothing else's cursor is touched.
@@ -6056,16 +6246,203 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * The edge the pointer is over: how far along it the pointer met it, and the tooltip drawn for it
+     * when a style layer gave it one, with what it was drawn from so a change to any of it is seen.
+     */
+    #hoveredEdge: EdgeHover | undefined;
+
+    /**
+     * The pointer is over an edge, or over none. Arriving at an edge emits `edge-hover` and draws the
+     * edge's tooltip (`edge.tooltip`) where the pointer met the line; leaving it takes the tooltip down.
+     * The same on both render paths: an edge drawn with no `Edge` is read from its row and none is built.
+     * @param edgeId - The edge, or undefined for none.
+     * @param x - The pointer's x on the canvas, in CSS pixels.
+     * @param y - The pointer's y on the canvas, in CSS pixels.
+     */
+    #hoverEdge(edgeId: EdgeId | undefined, x: number, y: number): void {
+        if (edgeId === this.#hoveredEdge?.id) {
+            return;
+        }
+
+        this.#hoveredEdge?.tooltip?.dispose();
+        this.#hoveredEdge = undefined;
+        if (edgeId === undefined) {
+            return;
+        }
+
+        const at = dataManagerInternals.edgeRowOf(this.dataManager, edgeId);
+        const hovered: EdgeHover = {
+            id: edgeId,
+            ...(at === undefined ? { along: 0.5, offset: Vector3.Zero() } : this.#whereOnEdge(at.ends, x, y)),
+            camera: null,
+            block: undefined,
+            words: undefined,
+            anchor: Vector3.Zero(),
+            tooltip: undefined,
+        };
+        this.#hoveredEdge = hovered;
+        if (at !== undefined) {
+            this.#drawEdgeTooltip(hovered, at.row, at.ends);
+        }
+
+        this.eventManager.emitEdgeEvent("edge-hover", {
+            edgeId,
+            ...(hovered.tooltip === undefined ? {} : { tooltip: hovered.words }),
+        });
+    }
+
+    /**
+     * Keep the hovered edge's tooltip true while the pointer is still: it goes when the edge does, is
+     * drawn again when its words, its style or the camera change, and follows the edge as a layout
+     * moves it. Runs before each frame, and costs nothing while no edge is hovered.
+     */
+    #syncHoveredEdge(): void {
+        const hovered = this.#hoveredEdge;
+        if (hovered === undefined) {
+            return;
+        }
+
+        const at = dataManagerInternals.edgeRowOf(this.dataManager, hovered.id);
+        if (at === undefined) {
+            this.#hoverEdge(undefined, 0, 0);
+            return;
+        }
+
+        const { block, words } = this.#edgeTooltipWanted(hovered.id, at.row);
+        if (hovered.camera !== this.scene.activeCamera || words !== hovered.words || !isEqual(block, hovered.block)) {
+            hovered.tooltip?.dispose();
+            hovered.tooltip = undefined;
+            this.#drawEdgeTooltip(hovered, at.row, at.ends);
+            return;
+        }
+
+        const point = hovered.tooltip && this.#pointOnEdge(at.ends, hovered);
+        if (hovered.tooltip && point && !point.equalsWithEpsilon(hovered.anchor)) {
+            hovered.anchor.copyFrom(point);
+            hovered.tooltip.reattach();
+        }
+    }
+
+    /**
+     * What an edge's tooltip says and how it looks, as the style stack resolves it now.
+     * @param edgeId - The edge.
+     * @param row - The edge's row.
+     * @returns The block (a copy of its own) and the words, each undefined when there is no tooltip.
+     */
+    #edgeTooltipWanted(
+        edgeId: EdgeId,
+        row: number,
+    ): { block: RichTextStyleType | undefined; words: string | undefined } {
+        const block = this.stylePainter.owns ? drawnText(this.stylePainter.edgePaint(row)?.style.tooltip) : undefined;
+        if (block === undefined) {
+            return { block: undefined, words: undefined };
+        }
+
+        const data = dataManagerInternals.builtEdges(this.dataManager).get(edgeId)?.data;
+        const words = labelTextOf(data, block);
+        // CLONED: the block belongs to a paint the painter rebuilds on every call (Node.syncTooltip).
+        return { block: cloneDeep(block), words: words === "" ? undefined : words };
+    }
+
+    /**
+     * Draw the hovered edge's tooltip as the style stack resolves it now, on the edge where the pointer met it.
+     * @param hovered - The hover, whose camera, block, words, anchor and tooltip this sets.
+     * @param row - The edge's row.
+     * @param ends - The rows of the edge's two nodes.
+     */
+    #drawEdgeTooltip(hovered: EdgeHover, row: number, ends: readonly [number, number]): void {
+        const { block, words } = this.#edgeTooltipWanted(hovered.id, row);
+        hovered.camera = this.scene.activeCamera;
+        hovered.block = block;
+        hovered.words = words;
+        const point = this.#pointOnEdge(ends, hovered);
+        if (block === undefined || words === undefined || point === undefined) {
+            return;
+        }
+
+        hovered.anchor.copyFrom(point);
+        const location = block.location ?? "top-right";
+        const label = new RichTextLabel(this.scene, {
+            ...richTextLabelOptions(block, {
+                text: words,
+                attachTo: hovered.anchor,
+                attachPosition: location === "automatic" ? "top" : location,
+                attachOffset: block.attachOffset ?? 0,
+            }),
+            onTop: true,
+        });
+        // Under the pointer: it must not take the pointer from the edge or a node beneath it.
+        if (label.labelMesh) {
+            label.labelMesh.isPickable = false;
+        }
+
+        hovered.tooltip = label;
+    }
+
+    /**
+     * Where on an edge the pointer meets it: the point under the pointer at the depth of the edge's middle
+     * (on screen, where the pointer met the line), as how far along the edge it is and how far off the
+     * straight run between the ends, so the point can follow the edge as it moves.
+     * @param ends - The rows of the edge's two nodes.
+     * @param x - The pointer's x on the canvas, in CSS pixels.
+     * @param y - The pointer's y on the canvas, in CSS pixels.
+     * @returns 0 at the first end and 1 at the second, and the offset; the middle when the ends are not drawn.
+     */
+    #whereOnEdge(ends: readonly [number, number], x: number, y: number): { along: number; offset: Vector3 } {
+        const camera = this.scene.activeCamera;
+        const [a, b] = ends.map((row) => this.#rowWorldCentre(row));
+        if (!camera || a === undefined || b === undefined) {
+            return { along: 0.5, offset: Vector3.Zero() };
+        }
+
+        const ray = this.scene.createPickingRay(x, y, Matrix.Identity(), camera);
+        const middle = a.add(b).scaleInPlace(0.5);
+        const point = ray.origin.add(ray.direction.scale(Vector3.Dot(middle.subtract(ray.origin), ray.direction)));
+        const line = b.subtract(a);
+        const length2 = line.lengthSquared();
+        const along = length2 === 0 ? 0.5 : Math.min(1, Math.max(0, Vector3.Dot(point.subtract(a), line) / length2));
+        return { along, offset: point.subtract(Vector3.Lerp(a, b, along)) };
+    }
+
+    /**
+     * The point on an edge where the pointer met it, where the edge's ends are drawn now.
+     * @param ends - The rows of the edge's two nodes.
+     * @param where - How far along the edge, and how far off its straight run.
+     * @param where.along - 0 at the first end, 1 at the second.
+     * @param where.offset - Off the straight run between the ends.
+     * @returns The point, or undefined when the edge's ends are not drawn.
+     */
+    #pointOnEdge(ends: readonly [number, number], where: { along: number; offset: Vector3 }): Vector3 | undefined {
+        const [a, b] = ends.map((row) => this.#rowWorldCentre(row));
+        return a === undefined || b === undefined
+            ? undefined
+            : Vector3.Lerp(a, b, where.along).addInPlace(where.offset);
+    }
+
+    /**
+     * Where a node row is drawn in the world, building no `Node` for a row a batch draws.
+     * @param row - The node's row.
+     * @returns The center, or undefined when the row is not drawn.
+     */
+    #rowWorldCentre(row: number): Vector3 | undefined {
+        const node = dataManagerInternals.builtNodeAtRow(this.dataManager, row);
+        if (node !== undefined) {
+            node.drawnWorldMatrix(true);
+            return node.drawnWorldPosition.clone();
+        }
+
+        return this.#columnSpots([row]).next().value?.centre;
+    }
+
+    /**
      * A click on the canvas. A click on a node is the node's own handler's. On a label with a
      * close button it deselects only on the x, and anywhere else on that label does nothing. On
-     * an edge it selects the edge (Shift adds it); on empty canvas it clears the selection. A
+     * an edge it selects the edge (Shift adds it; Ctrl or Cmd adds it or takes it out); on empty canvas it clears the selection. A
      * right-click asks for a menu about the selection, so it keeps a selection that holds its
      * edge, and on empty canvas it clears nothing.
-     * @param event - The pointer event: which button, and whether Shift was held.
-     * @param event.button - The mouse button; 2 is the secondary one.
-     * @param event.shiftKey - Whether Shift was held.
+     * @param event - The pointer event: which button, and which modifier keys were held.
      */
-    private handleBackgroundClick(event: { button?: number; shiftKey?: boolean }): void {
+    private handleBackgroundClick(event: ClickModifiers): void {
         const { pointerX: x, pointerY: y } = this.scene;
         if (this.handledOnCloseLabel(x, y)) {
             return;
@@ -6075,7 +6452,32 @@ export class Graph implements GraphContext {
             return;
         }
 
-        const edgeId = this.pickEdgeId(x, y);
+        // On the "batched" path on WebGPU the edge can be known only once the edge ID target is read back.
+        const edgeId = clickEdgeAt(
+            this.scene,
+            () => this.builtEdges(),
+            x,
+            y,
+            (point) => this.worldToScreen(point),
+            this.rowLinePicks(),
+        );
+        if (edgeId instanceof Promise) {
+            void edgeId.then((id) => {
+                this.clickAt(id, x, y, event);
+            });
+        } else {
+            this.clickAt(edgeId, x, y, event);
+        }
+    }
+
+    /**
+     * The rest of {@link handleBackgroundClick}, once the edge under the click is known.
+     * @param edgeId - The edge, or undefined for none.
+     * @param x - The pointer's x on the canvas.
+     * @param y - The pointer's y on the canvas.
+     * @param event - The pointer event.
+     */
+    private clickAt(edgeId: EdgeId | undefined, x: number, y: number, event: ClickModifiers): void {
         const secondary = event.button === 2;
         if (edgeId === undefined) {
             const outline = this.renderManager.pickGroupOutline(x, y);
@@ -6089,8 +6491,13 @@ export class Graph implements GraphContext {
         }
 
         if (!(secondary && this.session.selection.edges.includes(edgeId))) {
-            const add = event.shiftKey === true;
-            this.session.selection.applyNow({ edges: [edgeId] }, add ? "add" : "replace", "user");
+            let op: "toggle" | "add" | "replace" = "replace";
+            if (event.ctrlKey === true || event.metaKey === true) {
+                op = "toggle";
+            } else if (event.shiftKey === true) {
+                op = "add";
+            }
+            this.session.selection.applyNow({ edges: [edgeId] }, op, "user");
         }
         this.session.elementClick({ edge: edgeId });
     }
@@ -6202,7 +6609,7 @@ export class Graph implements GraphContext {
      * @returns "2d" or "3d".
      */
     private dimension(): "2d" | "3d" {
-        return (dispatcherOf(this.session).state.layout ?? DEFAULT_LAYOUT).dimension;
+        return (this.dispatcher().state.layout ?? DEFAULT_LAYOUT).dimension;
     }
 
     /**
@@ -6489,7 +6896,17 @@ export class Graph implements GraphContext {
             (then: (a: SubMesh, b: SubMesh) => number) =>
             (a: SubMesh, b: SubMesh): number =>
                 rank(a.getMesh()) - rank(b.getMesh()) || lineOrder(a.getMesh(), b.getMesh()) || then(a, b);
-        const opaque = byRank((a, b) => RenderingGroup.PainterSortCompare(a, b));
+        // a 2D pulled line batch draws where the line batch of its width does (`pulledLineSortsWith`), just after it
+        const painter = (a: SubMesh, b: SubMesh): number => {
+            const [ma, mb] = [a.getMesh(), b.getMesh()];
+            const [pa, pb] = [pulledLineSortsWith.get(ma) ?? ma, pulledLineSortsWith.get(mb) ?? mb];
+            if (pa === pb) {
+                return Number(pa !== ma) - Number(pb !== mb);
+            }
+
+            return pa.material && pb.material ? pa.material.uniqueId - pb.material.uniqueId : pa.uniqueId - pb.uniqueId;
+        };
+        const opaque = byRank(painter);
         this.scene.setRenderingOrder(
             0,
             opaque,
@@ -7080,12 +7497,20 @@ export class Graph implements GraphContext {
         // The cache took every row's source with it: each row drawn with no `Node` is painted
         // again onto the new dimension's source at the next frame.
         const painter = this.getStylePainter();
-        for (const row of dataManagerInternals.unbuiltRows(this.dataManager)) {
+        const unbuilt = dataManagerInternals.unbuiltRows(this.dataManager);
+        for (const row of unbuilt) {
             painter.queue("node", row);
         }
 
         for (const row of lineRows) {
             painter.queue("edge", row);
+        }
+
+        // No frame draws until every row queued here is drawn on its new source: a frame drawn part
+        // way, when the repaint is split across frames, showed every edge and a few nodes (#9866).
+        // Only the batched path has such rows; every `Node` and `Edge` was drawn again above.
+        if (unbuilt.length > 0 || lineRows.length > 0) {
+            this.dataManager.notePaintQueued();
         }
 
         this.updateManager.meshesAdded();
@@ -7678,7 +8103,33 @@ export class Graph implements GraphContext {
     }
 
     private pickEdgeId(x: number, y: number): EdgeId | undefined {
-        return pickEdgeId(this.scene, this.builtEdges(), x, y, (point) => this.worldToScreen(point));
+        return pressEdgeAt(
+            this.scene,
+            () => this.builtEdges(),
+            x,
+            y,
+            (point) => this.worldToScreen(point),
+            this.rowLinePicks(),
+        );
+    }
+
+    /**
+     * The edges drawn with no `Edge` on the `"batched"` path, as an edge pick measures them: a pick names such an
+     * edge by its id and builds no `Edge` for it.
+     * @returns Them, or null off the `"batched"` path.
+     */
+    private rowLinePicks(): RowLinePicks | null {
+        const lines = this.#edgeRowLines;
+        if (lines === null) {
+            return null;
+        }
+
+        return {
+            forEachShown: (visit, only) => {
+                lines.forEachShown(visit, only);
+            },
+            idOf: (row) => dataManagerInternals.unbuiltEdgeId(this.dataManager, row),
+        };
     }
 
     /**
@@ -8387,6 +8838,9 @@ export class Graph implements GraphContext {
                 this.renderManager.requestFrame();
             },
             () => this.session.styles.legend(),
+            () => {
+                this.renderManager.drawNow();
+            },
         );
         // Under antialias "at-rest" a screenshot is the multisampled picture, moving or not.
         const release = this.renderManager.holdSmooth();
@@ -8442,7 +8896,7 @@ export class Graph implements GraphContext {
      *     option }` for a still recording (or the `string[]` tour form) without `duration`, or
      *     `cameraMode: "animated"` without a tour; `{ reason: "no-stops" }` for an empty tour; the
      *     problem `planTour` reports for a tour that cannot be played; `E_UNSUPPORTED`
-     *     `{ reason: "xr", mode }` while immersive; `E_CANCELED` (an `AnimationCancelledError`) when
+     *     `{ reason: "xr", mode }` while immersive; `E_CANCELED` (an `AnimationCanceledError`) when
      *     canceled; `E_CAPTURE_FAILED` `{ media: "video", reason }` when the tab is hidden
      *     (`"hidden"`), the canvas changes size (`"resized"`), or the tour ends early
      *     (`"interrupted"`, `"replaced"`, `"mode-changed"`).
@@ -8470,7 +8924,7 @@ export class Graph implements GraphContext {
         }
         const flown = tourInput === null ? undefined : this.#checkedTour(tourInput);
 
-        const { AnimationCancelledError, MediaRecorderCapture, holdCameraForCapture } =
+        const { AnimationCanceledError, MediaRecorderCapture, holdCameraForCapture } =
             await import("./video/MediaRecorderCapture.js");
 
         // A frame reaches the recorder once the engine has ended it: WebGPU submits the frame's
@@ -8495,7 +8949,7 @@ export class Graph implements GraphContext {
 
         const { signal } = options;
         if (signal?.aborted === true) {
-            throw new AnimationCancelledError();
+            throw new AnimationCanceledError();
         }
 
         // Store reference for cancellation
@@ -8561,9 +9015,8 @@ export class Graph implements GraphContext {
         const handle = this.#beginTour(flown.name, flown.states.length);
         handle.onEnd = (reason) => {
             // A cancel that ends the tour (cancelCameraAnimation) is announced as any other.
-            if (reason !== "finished" && capture.fail(reason) && reason === "cancelled") {
+            if (reason !== "finished" && capture.fail(reason) && reason === "canceled") {
                 this.eventManager.emit("animation-canceled", {});
-                this.eventManager.emit("animation-cancelled", {});
             }
         };
         const timed = options.duration !== undefined;
@@ -8621,7 +9074,7 @@ export class Graph implements GraphContext {
                 }
             }
             // A recording that ended before its tour (a shorter duration, a failure) cancels it.
-            this.#finishTour(handle, tourFinished ? "finished" : "cancelled");
+            this.#finishTour(handle, tourFinished ? "finished" : "canceled");
             await flight;
         }
     }
@@ -8720,6 +9173,8 @@ export class Graph implements GraphContext {
         const tour: TourHandle = {
             name,
             stops,
+            stop: 0,
+            played: false,
             ended: false,
             reason: undefined,
             wake: undefined,
@@ -8832,6 +9287,7 @@ export class Graph implements GraphContext {
      */
     async #flyTour(tour: TourHandle, flown: FlownTour, easing: EasingName, authored = false): Promise<void> {
         const progress = (stop: number, phase: TourProgressEvent["phase"]): void => {
+            tour.stop = stop;
             const view = flown.views[stop];
             this.eventManager.emit("tour-progress", {
                 tour: tour.name,
@@ -8842,7 +9298,9 @@ export class Graph implements GraphContext {
             } satisfies Omit<TourProgressEvent, "type">);
         };
 
-        for (const [index, state] of flown.states.entries()) {
+        // From the stop it starts at: the first unless a reload plays it on (`resumeTour`).
+        for (let index = tour.stop; index < flown.states.length; index++) {
+            const state = flown.states[index];
             const { duration, hold } = flown.plan.stops[index];
             if (tour.ended) {
                 return;
@@ -8913,7 +9371,7 @@ export class Graph implements GraphContext {
      * flight is a cut held for the flight's time. Auto-rotate and the glide to the selection wait
      * while it plays.
      *
-     * It ends `"finished"` after the last hold, `"cancelled"` on `signal` or
+     * It ends `"finished"` after the last hold, `"canceled"` on `signal` or
      * `cancelCameraAnimation()`, `"interrupted"` when the reader moves the camera or presses the
      * canvas, `"replaced"` when another tour, a recording, `setCameraState`, `applyCameraView`, the
      * `view.camera` op or a screenshot with a `camera` moves the camera, and `"mode-changed"`
@@ -8925,7 +9383,7 @@ export class Graph implements GraphContext {
      * @param options.easing - The easing of each flight; wins over the tour's own. Default `"easeInOut"`.
      * @param options.restoreCamera - Put the camera back where it was when the tour finishes
      *     (only on `"finished"`). Default false.
-     * @param options.signal - Ends the tour as `"cancelled"` when it aborts.
+     * @param options.signal - Ends the tour as `"canceled"` when it aborts.
      * @returns How the tour ended; it resolves however it ends.
      * @throws A `GraphtyError` with the problem `planTour` reports: `E_BAD_COMMAND`
      *     `{ missing, available }` for a tour name nothing is saved under, `{ reason: "no-stops" }`
@@ -8945,16 +9403,48 @@ export class Graph implements GraphContext {
         tour: TourInput,
         options?: { easing?: EasingName; restoreCamera?: boolean; signal?: AbortSignal },
     ): Promise<{ /** How the tour ended. */ reason: TourEndReason }> {
+        return this.#playTour(tour, options, 0);
+    }
+
+    /**
+     * Where the tour playing now is, for autosave's `keepCamera`: a saved tour's name and the stop
+     * it is at; null when no tour plays, or it was given inline or is being recorded.
+     * @returns The tour's name and stop, or null.
+     * @internal
+     */
+    tourPlace(): { name: string; stop: number } | null {
+        const tour = this.#tour;
+        return tour?.played === true && tour.name !== null ? { name: tour.name, stop: tour.stop } : null;
+    }
+
+    /**
+     * Play a saved tour on from one of its stops, for autosave's `keepCamera` after a reload.
+     * @param name - The saved tour's name.
+     * @param stop - The stop to play on from.
+     * @returns How the tour ended.
+     * @internal
+     */
+    async resumeTour(name: string, stop: number): Promise<{ reason: TourEndReason }> {
+        return this.#playTour(name, undefined, stop);
+    }
+
+    async #playTour(
+        tour: TourInput,
+        options: { easing?: EasingName; restoreCamera?: boolean; signal?: AbortSignal } | undefined,
+        from: number,
+    ): Promise<{ reason: TourEndReason }> {
         const flown = this.#checkedTour(tour);
         const { signal } = options ?? {};
         if (signal?.aborted === true) {
-            return { reason: "cancelled" };
+            return { reason: "canceled" };
         }
 
         const before = options?.restoreCamera === true ? this.getCameraState() : undefined;
         const handle = this.#beginTour(flown.name, flown.states.length);
+        handle.played = true;
+        handle.stop = from;
         const onAbort = (): void => {
-            this.#finishTour(handle, "cancelled");
+            this.#finishTour(handle, "canceled");
         };
         signal?.addEventListener("abort", onAbort, { once: true });
         const releaseFrames = animatesEveryFrame(this.scene);
@@ -9022,16 +9512,16 @@ export class Graph implements GraphContext {
      *
      * // Cancel it after 2 seconds
      * setTimeout(() => {
-     *   const wasCancelled = graph.cancelAnimationCapture();
-     *   console.log('Cancelled:', wasCancelled);
+     *   const wasCanceled = graph.cancelAnimationCapture();
+     *   console.log('Canceled:', wasCanceled);
      * }, 2000);
      *
-     * // The promise will reject with E_CANCELED (an AnimationCancelledError)
+     * // The promise will reject with E_CANCELED (an AnimationCanceledError)
      * try {
      *   await capturePromise;
      * } catch (error) {
      *   if (isGraphtyError(error) && error.code === 'E_CANCELED') {
-     *     console.log('Capture was cancelled');
+     *     console.log('Capture was canceled');
      *   }
      * }
      * ```
@@ -9041,15 +9531,13 @@ export class Graph implements GraphContext {
             return false;
         }
 
-        const cancelled = this.activeCapture.cancel();
+        const canceled = this.activeCapture.cancel();
 
-        // `animation-cancelled` is the deprecated British name, still sent until the next major.
-        if (cancelled) {
+        if (canceled) {
             this.eventManager.emit("animation-canceled", {});
-            this.eventManager.emit("animation-cancelled", {});
         }
 
-        return cancelled;
+        return canceled;
     }
 
     /**
@@ -9083,7 +9571,7 @@ export class Graph implements GraphContext {
      */
     cancelCameraAnimation(): boolean {
         const moves = this.operationQueue.cancelByCategory("camera-update");
-        return this.#endTour("cancelled") || moves > 0;
+        return this.#endTour("canceled") || moves > 0;
     }
 
     /**
@@ -9232,6 +9720,11 @@ export class Graph implements GraphContext {
      * reads `position`, `target`, `alpha`, `beta`, `radius`, `pivotRotation`, `cameraDistance` and
      * `fov`). `{}` fits both and changes nothing. A named view resolves first and is judged as the
      * state it resolves to.
+     *
+     * A 2D `zoom` never depends on the data: the same zoom draws the same half-width however the
+     * graph grows. The camera stays where it is placed until the next node add, load or layout
+     * change, which the element frames again on its own while auto-framing is on (see
+     * {@link setAutoFrame}); a caller that drives the camera while the data grows turns it off.
      * @param state - Camera state or preset name to apply
      * @param options - Optional animation configuration
      * @returns Settles once the camera has arrived.
@@ -9326,7 +9819,7 @@ export class Graph implements GraphContext {
             "camera-update",
             async (context) => {
                 if (context.signal.aborted) {
-                    throw new Error("Operation cancelled");
+                    throw new Error("Operation canceled");
                 }
 
                 // Animated transitions
@@ -9344,7 +9837,7 @@ export class Graph implements GraphContext {
                     }
                 } catch (error) {
                     // Check if error is due to cancellation
-                    if (error instanceof Error && error.message === "Operation cancelled") {
+                    if (error instanceof Error && error.message === "Operation canceled") {
                         throw error; // Re-throw cancellation
                     }
 
@@ -10890,10 +11383,25 @@ export class Graph implements GraphContext {
 
     /**
      * Get all edges, in the order the edge pick walks them.
+     *
+     * On the `"batched"` render path most edges are drawn from row tables with no `Edge` object.
+     * As with {@link Graph.getNodes}, the array builds an edge's `Edge` only when that element is
+     * first read: the call and `length` stay cheap, and walking the whole array builds every `Edge`.
+     * To enumerate the edges of a large graph, walk {@link Graph.getEdgeIds}.
      * @returns Array of all edge instances
      */
     getEdges(): Edge[] {
-        return Array.from(this.dataManager.edges.values());
+        return dataManagerInternals.edgeList(this.dataManager);
+    }
+
+    /**
+     * Get the id of every edge, building no `Edge` object, in the order {@link Graph.getEdges}
+     * returns the edges.
+     * @returns The ids.
+     * @since 3.40.0
+     */
+    getEdgeIds(): string[] {
+        return [...this.dataManager.edges.keys()];
     }
 
     /**
@@ -11145,7 +11653,7 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Stop speaking an answer at once (`ai-speech-end` `{ code: "AI_CANCELLED" }`).
+     * Stop speaking an answer at once (`ai-speech-end` `{ code: "AI_CANCELED" }`).
      * @since 4.0.0
      */
     stopAiSpeech(): void {
@@ -11154,7 +11662,7 @@ export class Graph implements GraphContext {
 
     /**
      * End a live conversation (`voice.mode: "live"`): its connection closes, a held press ends with
-     * `AI_CANCELLED`, and the next press opens another. Does nothing when none is open.
+     * `AI_CANCELED`, and the next press opens another. Does nothing when none is open.
      * @since 4.0.0
      */
     endAiLive(): void {
@@ -11230,7 +11738,6 @@ export class Graph implements GraphContext {
      * Name a saved conversation, or clear its name so it is known by its first words again.
      * @param id - Its id.
      * @param name - The name, trimmed; null or "" clears it.
-     * @experimental assistant
      */
     async renameAiConversation(id: string, name: string | null): Promise<void> {
         await this.aiManager?.renameConversation(id, name);
@@ -11448,7 +11955,6 @@ export class Graph implements GraphContext {
      * @param options - Which keys.
      * @param options.provider - One provider's key; every provider's when absent.
      * @param options.prefix - `keyPersistence.prefix`, with no assistant enabled.
-     * @experimental assistant
      */
     async forgetAiKeys(
         options: { readonly provider?: import("./ai/providers").ProviderType; readonly prefix?: string } = {},
@@ -11688,6 +12194,9 @@ export class Graph implements GraphContext {
             // for `view.immersive` with `null` (`xrSessionEnded`).
             onSessionEnded: ({ mode, cause }) => {
                 this.xrSessionEnded(mode === "immersive-vr" ? "vr" : "ar", cause);
+            },
+            onFrameError: (error) => {
+                this.eventManager.emitGraphError(this, error, "xr", error.details);
             },
         };
     }
@@ -11991,6 +12500,10 @@ interface TourHandle {
     readonly name: string | null;
     /** How many stops it has. */
     readonly stops: number;
+    /** The stop it is at; before it flies, the stop it starts from. */
+    stop: number;
+    /** Played by `playTour`, so a reload can play it on; a recording's tour is not. */
+    played: boolean;
     ended: boolean;
     reason: TourEndReason | undefined;
     /** Ends the hold the tour waits in, at once. */

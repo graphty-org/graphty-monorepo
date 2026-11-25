@@ -12,7 +12,6 @@ import {
     type AiResultCode,
     type AiResultParams,
 } from "../catalog/ai";
-import { GraphtyError } from "../errors";
 import type { AiApprovalRequest, AiEvent, AiQuestionRequest } from "../events";
 import { GraphtyLogger, type Logger } from "../logging";
 import { dispatcherOf } from "../session/dispatchers";
@@ -584,9 +583,7 @@ export interface AiCommandOptions {
      * something: once it is empty the message is about the whole graph for the rest of its run,
      * an answer included. `"graph"` is the whole graph, whatever is selected. Absent, as ever: the model is told how much is selected. The reader's
      * message then reports it (`AiConversationMessage.scope`). Needs `toolset: "generated"`
-     * (otherwise `AI_CONFIG_INVALID`) and the `assistant` experiment (otherwise it rejects with
-     * `E_FEATURE_OFF`).
-     * @experimental assistant
+     * (otherwise `AI_CONFIG_INVALID`).
      */
     readonly scope?: "selection" | "graph";
 }
@@ -750,7 +747,7 @@ export class AiController {
     private lastInput: string | null = null;
     private lastError: Error | null = null;
     /** The messages `cancel()` ended, so their results say canceled, not undone. */
-    private readonly cancelled = new WeakSet<AbortController>();
+    private readonly canceled = new WeakSet<AbortController>();
     /** Who hears that an open live connection no longer knows the conversation. */
     private readonly liveWatchers = new Set<() => void>();
     /** Batches held for approval, by request id, until an event ends each. */
@@ -941,12 +938,12 @@ export class AiController {
     }
 
     /**
-     * What a canceled message ends with: `AI_DISPOSED` once `dispose` ended it under the `assistant`
-     * experiment, so an application that mounts a fresh element can tell that from the reader's Stop.
+     * What a canceled message ends with: `AI_DISPOSED` once `dispose` ended it, so an application
+     * that mounts a fresh element can tell that from the reader's Stop.
      * @returns The code.
      */
-    private get cancelCode(): "AI_CANCELLED" | "AI_DISPOSED" {
-        return this.disposed && this.graph.getSession().features.has("assistant") ? "AI_DISPOSED" : "AI_CANCELLED";
+    private get cancelCode(): "AI_CANCELED" | "AI_DISPOSED" {
+        return this.disposed ? "AI_DISPOSED" : "AI_CANCELED";
     }
 
     /**
@@ -1041,34 +1038,24 @@ export class AiController {
     }
 
     /**
-     * Whether messages record what they did: the generated tools, with the experiment on.
-     * @param session - The session.
+     * Whether messages record what they did: under the generated tools.
      * @returns True when they do.
      */
-    private recordsEvidence(session: GraphSession): boolean {
-        return this.toolset === "generated" && session.features.has("assistant");
+    private recordsEvidence(): boolean {
+        return this.toolset === "generated";
     }
 
     /**
      * What a message's scope holds now.
      * @param kind - The scope asked for.
      * @returns The scope, or null when the commands of the default toolset cannot be bound.
-     * @throws A `GraphtyError` coded `E_FEATURE_OFF` while the `assistant` experiment is off.
      */
     private readScope(kind: "selection" | "graph"): SentScope | null {
-        const session = this.graph.getSession();
-        if (!session.features.has("assistant")) {
-            throw new GraphtyError({
-                code: "E_FEATURE_OFF",
-                message: `A message's scope needs the "assistant" experiment.`,
-                source: "config",
-                details: { feature: "assistant", key: "scope" },
-            });
-        }
-
         if (this.toolset !== "generated") {
             return null;
         }
+
+        const session = this.graph.getSession();
 
         const shown = session.visibility.summary;
         if (kind === "graph") {
@@ -1285,7 +1272,7 @@ export class AiController {
                     via: options.via,
                     pointing: options.pointing,
                     scope: scope?.facts,
-                    provenance: this.recordsEvidence(session) ? message : undefined,
+                    provenance: this.recordsEvidence() ? message : undefined,
                 }),
             conversationId: this.current?.id,
             live,
@@ -1467,7 +1454,7 @@ export class AiController {
                 undo: { calls: 0 },
                 hostedUses: {},
                 totals: { ...(run.totals ?? { removeNodes: 0, removeEdges: 0, changedValues: 0 }) },
-                ...(this.recordsEvidence(session) ? { evidence: true } : {}),
+                ...(this.recordsEvidence() ? { evidence: true } : {}),
                 ...(binding === undefined ? {} : { binding }),
             },
             host: this.toolHost(emit, input),
@@ -1528,7 +1515,7 @@ export class AiController {
             result = { ...result, code: "AI_ROLLBACK_PARTIAL", params: { ...result.params, steps: remaining } };
         }
         // The batch's rollback aborts the message too, so only a cancel overrides the tool's code.
-        if (this.cancelled.has(run.abortController)) {
+        if (this.canceled.has(run.abortController)) {
             result = { ...result, ...this.cancelOutcome(run) };
         }
 
@@ -1769,7 +1756,7 @@ export class AiController {
      * @returns Canceled when `cancel()` ended it, undone otherwise.
      */
     private abortOutcome(run: MessageRun): Outcome {
-        return this.cancelled.has(run.abortController) ? this.cancelOutcome(run) : { code: "AI_UNDONE", params: {} };
+        return this.canceled.has(run.abortController) ? this.cancelOutcome(run) : { code: "AI_UNDONE", params: {} };
     }
 
     /**
@@ -2692,7 +2679,7 @@ When the user asks you to perform an action, use the appropriate tool. If no too
             }
         });
         const stopUndos = session.on("history:changed", () => {
-            if (this.recordsEvidence(session)) {
+            if (this.recordsEvidence()) {
                 void this.enqueue(() => this.noteUndone(session));
             }
         });
@@ -3217,7 +3204,7 @@ When the user asks you to perform an action, use the appropriate tool. If no too
     cancel(): void {
         // Every request and question still waiting ends too, its message with it.
         for (const id of [...this.approvals.keys(), ...this.questions.keys()]) {
-            const pending = this.closePending(id, { code: "AI_CANCELLED", params: {} });
+            const pending = this.closePending(id, { code: "AI_CANCELED", params: {} });
             void this.enqueue(() => this.saveClosed(pending));
         }
 
@@ -3226,11 +3213,9 @@ When the user asks you to perform an action, use the appropriate tool. If no too
                 continue;
             }
 
-            this.cancelled.add(abortController);
+            this.canceled.add(abortController);
             abortController.abort();
-            // `ai-command-cancelled` is the deprecated British name, still sent until the next major.
             this.emitAiEvent({ type: "ai-command-canceled", input, reason: "user" });
-            this.emitAiEvent({ type: "ai-command-cancelled", input, reason: "user" });
         }
     }
 

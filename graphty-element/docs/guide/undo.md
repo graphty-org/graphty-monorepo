@@ -113,7 +113,7 @@ for (const step of session.history.steps) {
 }
 session.history.position; // how many steps are applied; steps[position..] can be redone
 await session.history.restoreTo(session.history.steps[1].id); // jump; null jumps to the baseline
-// Take back an abandoned edit (a draft the reader cancelled): jump back and leave nothing to redo.
+// Take back an abandoned edit (a draft the reader canceled): jump back and leave nothing to redo.
 await session.history.restoreTo(before, { redo: "drop" });
 ```
 
@@ -271,7 +271,7 @@ A run or a load becomes a step when it finishes. Until then it is **pending**, l
 `session.history.pending`, and undo treats it as the newest thing to take back:
 
 - Undo while a run or load that started after the last step is still going **cancels it**, and
-  does not also undo the step. `undo()` resolves with `{ kind: "cancelled", pending }`.
+  does not also undo the step. `undo()` resolves with `{ kind: "canceled", pending }`.
 - Undo while an older run is still going undoes the step on top and leaves the run alone. When
   the run finishes it becomes the new top step, and the redo list is dropped.
 - Undo while a transaction is open aborts it and rolls it back.

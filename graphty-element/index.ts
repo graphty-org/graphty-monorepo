@@ -346,8 +346,10 @@ export type {
     DataLoadingProgressEvent,
     EdgeAddEvent,
     EdgeEvent,
+    EdgeEventDetail,
     EdgeEventType,
     EdgeGenericEvent,
+    EdgeHoverEvent,
     EventCallbackType,
     EventType,
     GraphDataAddedEvent,
@@ -385,12 +387,11 @@ export type {
     NodeGenericEvent,
     NodeHoverEvent,
     OperationCanceledEvent,
-    // eslint-disable-next-line @typescript-eslint/no-deprecated -- the British alias stays exported until the next major
-    OperationCancelledEvent,
     OverviewChangedEvent,
     ReducedMotionChangedEvent,
     RenderLostEvent,
     RenderRestoredEvent,
+    RenderWarningEvent,
     StatsUpdateEvent,
     StyleChangedEvent,
     TourEndedEvent,
@@ -470,7 +471,7 @@ export type { CapabilityCheck, ScreenshotWarningCode } from "./src/screenshot/ca
 // =============================================================================
 // Video capture exports
 // =============================================================================
-export { AnimationCanceledError, AnimationCancelledError } from "./src/video/MediaRecorderCapture";
+export { AnimationCanceledError } from "./src/video/MediaRecorderCapture";
 export type {
     AnimationOptions,
     AnimationResult,
@@ -541,11 +542,13 @@ export type {
     AccelerationState,
     AccelerationStatus,
     AcceleratorDeviceInfo,
+    AcceleratorExactMaxNodes,
     AcceleratorFactory,
     AcceleratorFactoryOptions,
     CalibrationRecord,
     Capabilities,
     CaptureCapability,
+    ExactMaxNodesBasis,
     GraphAccelerator,
     Limits,
     WorkerCapability,

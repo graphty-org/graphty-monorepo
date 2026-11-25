@@ -2092,7 +2092,7 @@ class Writer implements GraphWriter {
         const key = target === "node" ? id : String(id);
         const prior = map.get(key);
         // A node an edge made has a row and no record yet: the write gives it one.
-        if (prior === undefined && !(target === "node" && this.store.builder.hasNode(key))) {
+        if (prior === undefined && !(target === "node" && this.store.reads.hasNode(key))) {
             return false;
         }
 
@@ -2184,8 +2184,10 @@ class Writer implements GraphWriter {
 
     removeNodes(ids: readonly NodeId[]): Removed {
         const nodes = this.graph.slice.nodes as Map<NodeId, GraphRecord>;
-        const rowless = ids.filter((id) => nodes.has(id) && !(isStorableId(id) && this.store.builder.hasNode(id)));
-        const stored = ids.filter((id) => isStorableId(id) && this.store.builder.hasNode(id));
+        // Read without bringing a let-go builder back: removing ids the graph does not hold writes nothing.
+        const { reads } = this.store;
+        const rowless = ids.filter((id) => nodes.has(id) && !(isStorableId(id) && reads.hasNode(id)));
+        const stored = ids.filter((id) => isStorableId(id) && reads.hasNode(id));
         if (rowless.length === 0 && stored.length === 0) {
             return { nodes: [], edges: [] };
         }

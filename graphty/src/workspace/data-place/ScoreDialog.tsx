@@ -60,14 +60,18 @@ export function ScoreDialog(): React.JSX.Element | null {
     const scoreOn = useWorkspaceState((state) => state.scoreOn);
     const kind = scoreOn?.kind ?? "node";
     const [name, setName] = useState(NAME);
-    const [terms, setTerms] = useState<readonly ScoreTerm[]>([]);
+    // The metric rows the reader is building live in the kept `scoreOn`, so a reload reopens the
+    // dialog on them.
+    const terms = scoreOn?.terms ?? [];
+    const setTerms = (change: (all: readonly ScoreTerm[]) => readonly ScoreTerm[]): void => {
+        store.set({ scoreOn: { kind, terms: change(terms) } });
+    };
 
     useEffect(() => {
         if (opened && session !== null) {
             setName(freeName(session, kind));
-            setTerms(scoreOn?.terms ?? []);
         }
-    }, [opened, scoreOn, session, kind]);
+    }, [opened, session, kind]);
 
     if (session === null) {
         return null;

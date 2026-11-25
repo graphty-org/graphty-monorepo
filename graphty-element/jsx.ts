@@ -548,10 +548,6 @@ export interface GraphtyElementJSXProps {
      */
     "onai-command-canceled"?: (event: CustomEvent<EventOfType<"ai-command-canceled">>) => void;
     /**
-     * The British spelling of `ai-command-canceled`, emitted right after it with the same fields.
-     */
-    "onai-command-cancelled"?: (event: CustomEvent<EventOfType<"ai-command-cancelled">>) => void;
-    /**
      * Emitted when an AI command completes successfully
      */
     "onai-command-complete"?: (event: CustomEvent<EventOfType<"ai-command-complete">>) => void;
@@ -576,7 +572,7 @@ export interface GraphtyElementJSXProps {
      */
     "onai-hosted-tool-result"?: (event: CustomEvent<EventOfType<"ai-hosted-tool-result">>) => void;
     /**
-     * Something the assistant waited on the reader for ended: an approval was answered, superseded by a new message or a new conversation (`AI_APPROVAL_STALE` with `reason: "superseded"`), canceled (`AI_CANCELLED`) or undone (`AI_UNDONE`). Remove what was drawn for it.
+     * Something the assistant waited on the reader for ended: an approval was answered, superseded by a new message or a new conversation (`AI_APPROVAL_STALE` with `reason: "superseded"`), canceled (`AI_CANCELED`) or undone (`AI_UNDONE`). Remove what was drawn for it.
      */
     "onai-pending-resolved"?: (event: CustomEvent<EventOfType<"ai-pending-resolved">>) => void;
     /**
@@ -631,10 +627,6 @@ export interface GraphtyElementJSXProps {
      * The graph's lifecycle, operation, animation and screenshot events, which carry no declared fields beyond their name; any facts they carry are extra properties.
      */
     "onanimation-canceled"?: (event: CustomEvent<EventOfType<"animation-canceled">>) => void;
-    /**
-     * The graph's lifecycle, operation, animation and screenshot events, which carry no declared fields beyond their name; any facts they carry are extra properties.
-     */
-    "onanimation-cancelled"?: (event: CustomEvent<EventOfType<"animation-cancelled">>) => void;
     /**
      * Emitted while `captureAnimation` records: how far the recording has got, from 0 to 100. A tour recording follows the tour's own clock, so it reaches 100 only with the tour.
      */
@@ -719,6 +711,10 @@ export interface GraphtyElementJSXProps {
      * Emitted when `session.capabilities` changes, such as what acceleration is in use.
      */
     "ongraphty-capabilities-change"?: (event: GraphtyElementEventMap["graphty-capabilities-change"]) => void;
+    /**
+     * Emitted when the pointer moves onto an edge, with the edge's id and its tooltip's words.
+     */
+    "ongraphty-edge-hover"?: (event: GraphtyElementEventMap["graphty-edge-hover"]) => void;
     /**
      * Emitted once the element has started, with the experiments it switched on and the ids it did not recognize.
      */
@@ -900,10 +896,6 @@ export interface GraphtyElementJSXProps {
      */
     "onoperation-canceled"?: (event: CustomEvent<EventOfType<"operation-canceled">>) => void;
     /**
-     * The British spelling of `operation-canceled`: emitted right after it for every aborted operation, with `"cancelled"` where that one says `"canceled"`.
-     */
-    "onoperation-cancelled"?: (event: CustomEvent<EventOfType<"operation-cancelled">>) => void;
-    /**
      * The graph's lifecycle, operation, animation and screenshot events, which carry no declared fields beyond their name; any facts they carry are extra properties.
      */
     "onoperation-complete"?: (event: CustomEvent<EventOfType<"operation-complete">>) => void;
@@ -947,6 +939,10 @@ export interface GraphtyElementJSXProps {
      * Emitted when the graph is drawn again after `render-lost`: the device came back, by itself or through `restartRenderer()`, and every buffer, texture and shader was rebuilt from the graph held in memory. `rendererStatus.drawing` is true again.
      */
     "onrender-restored"?: (event: CustomEvent<EventOfType<"render-restored">>) => void;
+    /**
+     * Emitted when the graph is drawn, but not quite as it should be: the installed Babylon.js words a line of its shaders differently from the one render-path="batched" edits, so batched rows are shaded or placed by Babylon's own line instead (`W_SHADER_EDIT_MISSED`, `params.renderer`, `params.patterns`). `rendererStatus.drawing` is unchanged. A code and facts, never a sentence.
+     */
+    "onrender-warning"?: (event: CustomEvent<EventOfType<"render-warning">>) => void;
     /**
      * The graph's lifecycle, operation, animation and screenshot events, which carry no declared fields beyond their name; any facts they carry are extra properties.
      */

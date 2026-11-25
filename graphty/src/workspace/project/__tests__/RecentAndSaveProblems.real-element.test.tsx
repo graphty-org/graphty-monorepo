@@ -122,7 +122,7 @@ describe("Open recent in the main menu", () => {
         assert.equal(store.get().project?.name, "Florentine families");
     });
 
-    it("asks for a remembered file the browser keeps no handle to, and a cancelled picker changes nothing", async () => {
+    it("asks for a remembered file the browser keeps no handle to, and a canceled picker changes nothing", async () => {
         const { store } = await openSampleFromStart("Florentine families");
         await rememberRecent({ id: "lost", name: "Friends study", nodes: 3, at: Date.now() });
         const picker = vi.fn(() => Promise.reject(new DOMException("The user aborted a request.", "AbortError")));

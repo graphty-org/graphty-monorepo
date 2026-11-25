@@ -24,16 +24,29 @@
 import type { RunId } from "../catalog/types";
 import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
 import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
+import type { SessionData } from "../session/data";
 import { dispatcherOf } from "../session/dispatchers";
 import { loadLineOf, type LoadTurn, supersededError } from "../session/loadLine";
 import { onProjectBoundary } from "../session/project/boundary";
 import { markProjectUnsaved, onSourceRecords } from "../session/projectFile";
 import { ELEMENT_VERSION } from "../session/runs";
 import type { CodedFact } from "../session/shared";
+import { type SavedSourceDraft, sourceDraftHooks } from "../session/sourceDraftHooks";
 import { openingKeptWork } from "../session/sources/references";
 import type { GraphSession, ProjectSlice } from "../session/types";
+import { filterDraftHooks, reopenFilterDrafts, type SavedFilterDraft } from "../session/visibility/draftHooks";
 import { wholeGraph } from "../session/working/graphs";
-import { buildParts, EVERY_PART, type PartTag, PartTooLarge, reassemble, stashOf } from "./parts";
+import {
+    buildParts,
+    draftsOf,
+    EVERY_PART,
+    inputsOf,
+    type PartTag,
+    PartTooLarge,
+    reassemble,
+    sourceDraftOf,
+    stashOf,
+} from "./parts";
 import {
     canRead,
     changedSettings,
@@ -227,6 +240,8 @@ interface EntryState {
     readonly createdAt: string;
     /** Whether a change has been made to it; a fresh entry writes nothing. */
     started: boolean;
+    /** Whether a change of the graph itself was made to it: a page's setup changes settings only. */
+    graph: boolean;
     unwritten: Set<PartTag>;
     /** The run entries in the store, by id. */
     readonly runs: Map<RunId, unknown>;
@@ -518,6 +533,12 @@ export class Autosaver {
     /** The restored entry, until the first change or the first page load after the restore. */
     #absorb: AutosaveEntryMeta | null = null;
     #restored: AutosaveRestored | null = null;
+    /**
+     * The entry started by the page's own setup while autosave started, until a change of the
+     * reader's: a boundary drops it rather than keeping it as replaced work, since loading the page
+     * again sets it up again (issue #9978).
+     */
+    #setupOnly: EntryState | null = null;
 
     /**
      * Start writing a session's work. Nothing is written until the first change.
@@ -587,6 +608,21 @@ export class Autosaver {
                 this.#boundary();
             }),
             () => arrangement.sealed.delete(sealed),
+        );
+        // An open filter draft is the reader's unfinished edit: kept with the work, as the stash is.
+        const drafts = filterDraftHooks(session.visibility);
+        if (drafts !== undefined) {
+            const changed = (): void => {
+                this.#mark(["drafts"], false, false);
+            };
+            drafts.changed.add(changed);
+            this.#stops.push(() => drafts.changed.delete(changed));
+        }
+        // So is an open draft of the sources and steps.
+        this.#stops.push(
+            session.on("data:draft-changed", () => {
+                this.#mark(["drafts"], false, false);
+            }),
         );
         this.#told = JSON.stringify(this.status);
     }
@@ -891,7 +927,7 @@ export class Autosaver {
         }
 
         this.#absorb = null;
-        const replaces = this.#entry.started;
+        const replaces = this.#entry.started && this.#entry !== this.#setupOnly;
         // Ended here, before the load runs, whatever the load does to the graph.
         this.#boundary();
         this.#source = slot === "whole" ? { whole: digest } : { ...this.#source, [slot]: digest };
@@ -1571,6 +1607,9 @@ export class Autosaver {
         let untried: AutosaveEntryMeta;
         let text: string;
         let stash: Map<string, unknown>;
+        let drafts: SavedFilterDraft[];
+        let sourceDraft: SavedSourceDraft | null;
+        let inputs: ReturnType<typeof inputsOf>;
         let sizes: Map<string, number>;
         try {
             // A whole entry, so the write watchdog's allowance rather than the listing's.
@@ -1583,6 +1622,9 @@ export class Autosaver {
                 // Read through before anything is written: an unreadable entry stays as it is.
                 text = JSON.stringify(reassemble(entry.meta, entry.parts));
                 stash = stashOf(entry.parts);
+                drafts = draftsOf(entry.parts);
+                sourceDraft = sourceDraftOf(entry.parts);
+                inputs = inputsOf(entry.parts);
                 sizes = sizesAfter(new Map(), entry.parts);
             } catch {
                 return giveUp({ code: "E_BAD_DOCUMENT", params: { id: meta.id } });
@@ -1641,6 +1683,8 @@ export class Autosaver {
             this.#restoreTurn = null;
         }
 
+        // Each load this session read itself can be read again, as before the reload (issue #9848).
+        (this.#session.data as Partial<Pick<SessionData, "keepSavedInputs">>).keepSavedInputs?.(inputs);
         // The work comes back as it was: unsaved to a file if it was, and at its revision.
         if (current.dirty === true) {
             markProjectUnsaved(this.#session);
@@ -1651,16 +1695,56 @@ export class Autosaver {
         this.#stash.clear();
         stash.forEach((value, name) => this.#stash.set(name, value));
         this.#source = { ...sourcesOf(current.source) };
+        // An entry the page's setup started while the start read the kept work holds settings
+        // alone (a graph opened meanwhile would have won above): it is dropped, not left listed
+        // (issue #10003).
+        if (startup && this.#entry.started && !this.#entry.graph) {
+            this.#dropSetup(this.#entry);
+        }
+
         this.adopt(current);
         const entry = this.#entry;
         entry.release = release;
         entry.sizes = sizes;
-        try {
-            current = { ...current, restoreAttempts: 0 };
-            await this.#commitWithin([{ id: entry.id, expectedGen: entry.gen, meta: current, parts: {} }], "restore");
-            entry.gen += 1;
-        } catch {
-            // ponytail: the restore worked; an attempt left raised only costs a restore-failed report later.
+        current = { ...current, restoreAttempts: 0 };
+        const reset = current;
+        // In line with the writes, after any in flight: a write committed beside this one expected
+        // the generation this one replaces, was refused, and moved the reopened work to a new entry
+        // (issue #9978).
+        const resetting = (this.#pump ?? Promise.resolve()).then(async () => {
+            try {
+                await this.#commitWithin([{ id: entry.id, expectedGen: entry.gen, meta: reset, parts: {} }], "restore");
+                entry.gen += 1;
+            } catch {
+                // ponytail: the restore worked; an attempt left raised only costs a restore-failed report later.
+            }
+        });
+        this.#pump = resetting;
+        await resetting;
+        if (this.#pump === resetting) {
+            this.#pump = null;
+            if (this.#again) {
+                this.#again = false;
+                this.#kick();
+            }
+        }
+
+        // After the restore's own commit, so the drafts' write is an ordinary one of the restored entry.
+        const dropped = reopenFilterDrafts(this.#session.visibility, drafts);
+        const sourceDropped =
+            sourceDraft !== null &&
+            !(await (sourceDraftHooks(this.#session.data)
+                ?.reopen(sourceDraft)
+                .catch(() => false) ?? false));
+        if (dropped.length > 0 || sourceDropped) {
+            report = {
+                ...report,
+                problems: [
+                    ...report.problems,
+                    ...dropped.map((id) => ({ code: "W_FILTER_DRAFT_DROPPED" as const, params: { id } })),
+                    ...(sourceDropped ? [{ code: "W_SOURCE_DRAFT_DROPPED" as const, params: {} }] : []),
+                ],
+            };
         }
 
         this.#absorb = current;
@@ -1710,6 +1794,7 @@ export class Autosaver {
             gen: 0,
             createdAt: new Date(this.#clock.now()).toISOString(),
             started: false,
+            graph: false,
             unwritten: new Set(),
             runs: new Map(),
             assets: new Set(),
@@ -1811,6 +1896,10 @@ export class Autosaver {
             this.#absorb = null;
         }
 
+        if (counted || tags.includes("stash") || tags.includes("drafts")) {
+            this.#setupOnly = null;
+        }
+
         const entry = this.#entry;
         if (!entry.started) {
             // A new entry holds nothing yet, so its first write carries everything.
@@ -1818,6 +1907,10 @@ export class Autosaver {
             logger.info("entry started", { entry: entry.id });
             this.#onEntryStart?.(entry.id);
             EVERY_PART.forEach((tag) => entry.unwritten.add(tag));
+        }
+
+        if (counted && tags.includes("data")) {
+            entry.graph = true;
         }
 
         tags.forEach((tag) => entry.unwritten.add(tag));
@@ -1901,6 +1994,11 @@ export class Autosaver {
             return;
         }
 
+        if (entry === this.#setupOnly) {
+            this.#dropSetup(entry);
+            return;
+        }
+
         // Everything not known to be committed: what is unwritten, and what the write in flight
         // carries (it may yet fail). Built now, before the replacing change runs.
         const tags = new Set(entry.unwritten);
@@ -1919,6 +2017,35 @@ export class Autosaver {
         this.#endings.push({ entry, meta: this.#metaOf(entry, sizesAfter(entry.sizes, parts)), parts });
         this.#entry = this.#newEntry();
         this.#kick();
+    }
+
+    /**
+     * The autosave start is decided with nothing restored: an entry started so far with settings
+     * alone holds only the page's own setup, until a change of the reader's. One that a graph was
+     * opened into while the start ran (the reader picked a sample or a file) is the reader's work.
+     */
+    endSetup(): void {
+        this.#setupOnly = this.#entry.started && !this.#entry.graph ? this.#entry : null;
+    }
+
+    /**
+     * Leave an entry that holds only the page's setup without keeping it: no ending is written, and
+     * once the write in flight (which may be its own) settles, it is deleted.
+     * @param entry - The entry.
+     */
+    #dropSetup(entry: EntryState): void {
+        this.#setupOnly = null;
+        entry.unwritten.clear();
+        this.#entry = this.#newEntry();
+        logger.info("setup entry dropped", { entry: entry.id });
+        void this.settled()
+            .then(async () => {
+                entry.release?.();
+                entry.release = null;
+                await this.#store.remove(entry.id);
+            })
+            // ponytail: best effort; a setup entry left behind is clutter, never lost work.
+            .catch(() => undefined);
     }
 
     /**

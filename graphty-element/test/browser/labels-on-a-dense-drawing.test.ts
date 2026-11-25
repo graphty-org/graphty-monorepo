@@ -157,7 +157,7 @@ function onScreen(graph: Graph, left: number, right: number, top: number, bottom
 /**
  * Where every drawn label's words are on screen.
  * @param graph - The graph.
- * @returns The words' rectangles of the labels drawn and on screen.
+ * @returns The words' rectangles of the labels drawn whose words are on screen.
  */
 function drawnWords(graph: Graph): Rect[] {
     const rects: Rect[] = [];
@@ -186,18 +186,19 @@ function drawnWords(graph: Graph): Rect[] {
         const top = Math.min(...ys);
         const width = Math.max(...xs) - left;
         const height = Math.max(...ys) - top;
-        if (!onScreen(graph, left, left + width, top, top + height)) {
-            continue;
-        }
-
+        // The words, not the plane round them: words wholly off the canvas are not seen, whatever
+        // they would meet there.
         const text = label.textBounds;
-        rects.push({
+        const words = {
             id: String(node.id),
             left: left + text.left * width,
             right: left + text.right * width,
             top: top + text.top * height,
             bottom: top + text.bottom * height,
-        });
+        };
+        if (onScreen(graph, words.left, words.right, words.top, words.bottom)) {
+            rects.push(words);
+        }
     }
 
     return rects;

@@ -12,12 +12,16 @@
 // Installs scene.pick, scene.pickWithRay and scene.createPickingRay; see
 // test/packaging/babylon-side-effects.test.ts.
 import "@babylonjs/core/Culling/ray.js";
+// Installs Mesh.createInstance for the stand-in of a row a Babylon pick lands on.
+import "@babylonjs/core/Meshes/instancedMesh.js";
 
-import type { PickingInfo } from "@babylonjs/core";
+import type { InstancedMesh } from "@babylonjs/core";
 import type { Camera } from "@babylonjs/core/Cameras/camera.js";
+import { PickingInfo } from "@babylonjs/core/Collisions/pickingInfo.js";
 import { Ray } from "@babylonjs/core/Culling/ray.core.js";
 import { Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import type { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
 import type { Scene } from "@babylonjs/core/scene.js";
 import { INVALID_INDEX } from "@graphty/graph-format";
@@ -30,7 +34,7 @@ import { isCloseLabel } from "../meshes/labelClose";
 import { ON_TOP_RENDERING_GROUP } from "../meshes/RichTextLabel";
 import type { NodeIdType } from "../Node";
 import { pickAtLayout, transitionUnderWay } from "../transitions/LayoutTransitionRunner";
-import type { EdgeIdTarget } from "./EdgeIdTarget";
+import type { EdgeCandidates, EdgeIdTarget } from "./EdgeIdTarget";
 import { ID_NONE, ID_OBJECT, type IdDrawn, type IdPick, type NodeIdTarget } from "./NodeIdTarget";
 
 /**
@@ -43,7 +47,18 @@ export const pickWork = { meshPicks: 0, rowScans: 0 };
  * How many edges the exact edge test measured: `measured` on screen, each with a `worldToScreen`
  * per point, and `fromRows` with both ends read from the rows on the `"batched"` path.
  */
-export const edgePickWork = { measured: 0, fromRows: 0 };
+export const edgePickWork = { measured: 0, fromRows: 0, rowLines: 0 };
+
+/**
+ * The edges drawn with no `Edge` on the `"batched"` path (`EdgeRowLines`), as an edge pick reads them: each shown
+ * line's edge row and its two node rows, and the edge id of a row, with no object built per edge.
+ */
+export interface RowLinePicks {
+    /** Visit each shown line, or only those of `only`. */
+    forEachShown(visit: (row: number, source: number, target: number) => void, only?: readonly number[]): void;
+    /** The id of the edge a line draws, or undefined when the row no longer draws one. */
+    idOf(row: number): EdgeId | undefined;
+}
 
 /** How far from a drawn edge's line, in CSS pixels, a click still lands on the edge. */
 const EDGE_PICK_TOLERANCE_PX = 6;
@@ -254,14 +269,14 @@ function pickMeshes(
 ): { info: PickingInfo; onTop: boolean } {
     pickWork.meshPicks++;
     const ray = scene.createPickingRay(x, y, null, null);
-    const onTop = scene.pick(
+    const onTop = babylonPick(scene)(
         x,
         y,
         alongRay(scene, ray, (mesh) => mesh.renderingGroupId >= ON_TOP_RENDERING_GROUP && admit(mesh)),
     );
     return onTop.hit
         ? { info: onTop, onTop: true }
-        : { info: scene.pick(x, y, alongRay(scene, ray, admit)), onTop: false };
+        : { info: babylonPick(scene)(x, y, alongRay(scene, ray, admit)), onTop: false };
 }
 
 /**
@@ -295,7 +310,7 @@ export class RowScan {
     constructor(
         private readonly scene: Scene,
         private readonly table: ScannedTable,
-        private readonly nodeAt: (row: number) => ScannedRow | undefined,
+        readonly nodeAt: (row: number) => ScannedRow | undefined,
         private readonly root: TransformNode | null,
         private readonly shapeAt: (row: number) => RowShape | undefined = nodeAt,
     ) {}
@@ -313,6 +328,23 @@ export class RowScan {
             scene.createPickingRayToRef(x, y, world, rowRay, null, false);
             return rowRay;
         });
+    }
+
+    /**
+     * Whether a canvas point lands on one row's own shape, tested as {@link RowScan.shapeRayHit} tests
+     * each row, with no walk over the others.
+     * @param row - The row.
+     * @param x - X in CSS pixels.
+     * @param y - Y in CSS pixels.
+     * @returns Whether it does, or undefined for a row the scan leaves to Babylon's pick.
+     */
+    hitsRowAt(row: number, x: number, y: number): boolean | undefined {
+        const { scene, rowRay } = this;
+        const hit = this.narrow(row, this.root?.computeWorldMatrix() ?? this.identity, (world) => {
+            scene.createPickingRayToRef(x, y, world, rowRay, null, false);
+            return rowRay;
+        });
+        return hit === null ? undefined : hit.hit;
     }
 
     /**
@@ -384,16 +416,7 @@ export class RowScan {
         }
 
         regionWork.rows += this.table.rows;
-        const root = this.rootMatrix();
-        // Root, then view (for the depth) and view and projection (for the screen), as
-        // `screenProjector` and `pickEdgeAt` take them.
-        // The camera's matrices, not the scene's: the scene's are unset until its first frame.
-        const view = root.multiply(camera.getViewMatrix()).m;
-        const clip = root.multiply(camera.getViewMatrix().multiply(camera.getProjectionMatrix())).m;
-        const engine = this.scene.getEngine();
-        const css = engine.getHardwareScalingLevel();
-        const halfWidth = 0.5 * engine.getRenderWidth() * css;
-        const halfHeight = 0.5 * engine.getRenderHeight() * css;
+        const { view, clip, halfWidth, halfHeight } = this.toScreen(camera);
         const box = polygonBox(polygon);
         const { rowBounds: bounds, rows } = this.table;
         for (let row = 0, at = 0; row < rows; row++, at += 4) {
@@ -426,6 +449,96 @@ export class RowScan {
     }
 
     /**
+     * The row line nearest a point, within `best`, in one typed walk: each line runs between its two nodes'
+     * centers, as `PulledLineBatch` draws it, put on screen as {@link screenProjector} does. A line with an end
+     * behind the camera is skipped, as {@link pickEdgeAt} skips such an edge; of lines equally near, the last wins.
+     * @param px - X in CSS pixels.
+     * @param py - Y in CSS pixels.
+     * @param best - The farthest a line may be, in the same pixels.
+     * @param lines - The lines.
+     * @param only - Measure only these edge rows.
+     * @returns The edge row and its distance, or null when no line is that near.
+     */
+    nearestRowLine(
+        px: number,
+        py: number,
+        best: number,
+        lines: RowLinePicks,
+        only?: readonly number[],
+    ): { row: number; distance: number } | null {
+        const camera = this.scene.activeCamera;
+        if (!camera) {
+            return null;
+        }
+
+        const { view, clip, halfWidth, halfHeight } = this.toScreen(camera);
+        const { minZ } = camera;
+        const { rowBounds: bounds } = this.table;
+        let nearest = best;
+        let found = -1;
+        let measured = 0;
+        lines.forEachShown((row, source, target) => {
+            measured++;
+            const a = source * 4;
+            const b = target * 4;
+            const ax = bounds[a] ?? 0;
+            const ay = bounds[a + 1] ?? 0;
+            const az = bounds[a + 2] ?? 0;
+            const bx = bounds[b] ?? 0;
+            const by = bounds[b + 1] ?? 0;
+            const bz = bounds[b + 2] ?? 0;
+            if (
+                ax * view[2] + ay * view[6] + az * view[10] + view[14] < minZ ||
+                bx * view[2] + by * view[6] + bz * view[10] + view[14] < minZ
+            ) {
+                return;
+            }
+
+            const aw = ax * clip[3] + ay * clip[7] + az * clip[11] + clip[15];
+            const sax = ((ax * clip[0] + ay * clip[4] + az * clip[8] + clip[12]) / aw + 1) * halfWidth;
+            const say = (1 - (ax * clip[1] + ay * clip[5] + az * clip[9] + clip[13]) / aw) * halfHeight;
+            const bw = bx * clip[3] + by * clip[7] + bz * clip[11] + clip[15];
+            const sbx = ((bx * clip[0] + by * clip[4] + bz * clip[8] + clip[12]) / bw + 1) * halfWidth;
+            const sby = (1 - (bx * clip[1] + by * clip[5] + bz * clip[9] + clip[13]) / bw) * halfHeight;
+            const dx = sbx - sax;
+            const dy = sby - say;
+            const length2 = dx * dx + dy * dy;
+            const t = length2 === 0 ? 0 : Math.max(0, Math.min(1, ((px - sax) * dx + (py - say) * dy) / length2));
+            const distance = Math.hypot(px - (sax + t * dx), py - (say + t * dy));
+            if (distance <= nearest) {
+                nearest = distance;
+                found = row;
+            }
+        }, only);
+        edgePickWork.rowLines += measured;
+        return found === -1 ? null : { row: found, distance: nearest };
+    }
+
+    /**
+     * How a row's center goes to the screen now: root, then view (for the depth), and root, view and projection
+     * (for the screen), as `screenProjector` and `pickEdgeAt` take them, with half the canvas in CSS pixels. The
+     * camera's matrices, not the scene's: the scene's are unset until its first frame.
+     * @param camera - The scene's active camera.
+     * @returns The matrices' values and the half sizes.
+     */
+    private toScreen(camera: Camera): {
+        view: Matrix["m"];
+        clip: Matrix["m"];
+        halfWidth: number;
+        halfHeight: number;
+    } {
+        const root = this.rootMatrix();
+        const engine = this.scene.getEngine();
+        const css = engine.getHardwareScalingLevel();
+        return {
+            view: root.multiply(camera.getViewMatrix()).m,
+            clip: root.multiply(camera.getViewMatrix().multiply(camera.getProjectionMatrix())).m,
+            halfWidth: 0.5 * engine.getRenderWidth() * css,
+            halfHeight: 0.5 * engine.getRenderHeight() * css,
+        };
+    }
+
+    /**
      * What places every row in the world.
      * @returns The root's world matrix, or identity when rows are in the world.
      */
@@ -445,13 +558,25 @@ export class RowScan {
     }
 
     /**
+     * The world point at a canvas point, as {@link pickWorldPoint} answers it: Babylon's pick
+     * among the meshes the scan does not cover, and the nearer of that and the rows.
+     * @param x - X in CSS pixels.
+     * @param y - Y in CSS pixels.
+     * @returns The point, or null when nothing is there.
+     */
+    pointAt(x: number, y: number): Vector3 | null {
+        const info = this.scene.pick(x, y, (mesh) => drawnPickable(mesh) && !this.covers(mesh));
+        return this.nearer(info, this.shapeRayHit(x, y)).point;
+    }
+
+    /**
      * What a world ray lands on, as {@link pickRayAsDrawn} answers it.
      * @param ray - The ray.
      * @returns The mesh and point.
      */
     pickRay(ray: Ray): DrawnHit {
         const admit = (mesh: AbstractMesh): boolean => rayPickable(mesh) && !this.covers(mesh);
-        return this.nearer(this.scene.pickWithRay(ray, alongRay(this.scene, ray, admit)), this.rowRayHit(ray));
+        return this.nearer(babylonPickWithRay(this.scene)(ray, alongRay(this.scene, ray, admit)), this.rowRayHit(ray));
     }
 
     /**
@@ -694,6 +819,149 @@ export function rowScanOf(scene: Scene): RowScan | undefined {
     return rowScans.get(scene);
 }
 
+/**
+ * A scene's `pick` as Babylon defines it, under the wrapper {@link pickRowsInBabylon} puts on the scene: the element's
+ * own picks ask the scan for rows themselves.
+ * @param scene - The scene.
+ * @returns The pick, bound to the scene.
+ */
+function babylonPick(scene: Scene): Scene["pick"] {
+    return (Object.getPrototypeOf(scene) as Scene).pick.bind(scene);
+}
+
+/**
+ * A scene's `pickWithRay` as Babylon defines it; see {@link babylonPick}.
+ * @param scene - The scene.
+ * @returns The pick, bound to the scene.
+ */
+function babylonPickWithRay(scene: Scene): Scene["pickWithRay"] {
+    return (Object.getPrototypeOf(scene) as Scene).pickWithRay.bind(scene);
+}
+
+/** The scenes whose Babylon picks {@link pickRowsInBabylon} wrapped. */
+const pickingRows = new WeakSet<Scene>();
+
+/**
+ * Put an instance of a meshless row's source on the row's anchor, named and labeled as the row's mesh was, so a
+ * Babylon pick that sees only meshes can land on the row: the one it had, when it still draws that source.
+ * @param standIn - The stand-in put there before, if any.
+ * @param source - The row's source mesh.
+ * @param anchor - The row's anchor.
+ * @returns The stand-in, enabled.
+ */
+export function rowStandIn(
+    standIn: InstancedMesh | null | undefined,
+    source: Mesh,
+    anchor: TransformNode,
+): InstancedMesh {
+    if (standIn?.sourceMesh !== source || standIn.isDisposed()) {
+        standIn?.dispose();
+        standIn = source.createInstance(anchor.name);
+        // An instance starts at its source's place; the anchor is the whole placement.
+        standIn.position.setAll(0);
+        standIn.rotationQuaternion = null;
+        standIn.rotation.setAll(0);
+        standIn.scaling.setAll(1);
+        // Babylon's pointer predicates admit a mesh with no actions only with this set; a node's mesh has actions.
+        standIn.enablePointerMoveEvents = true;
+    }
+
+    standIn.name = anchor.name;
+    standIn.metadata = anchor.metadata as unknown;
+    standIn.parent = anchor;
+    standIn.setEnabled(true);
+    return standIn;
+}
+
+/**
+ * Let Babylon's own `scene.pick` and `scene.pickWithRay` find the rows a batch draws, which have no mesh of their own.
+ *
+ * On the `"objects"` path every node is a mesh, so those picks name it: a consumer's own pick, the `pickInfo` Babylon
+ * gives a pointer observer, and the action Babylon runs on the mesh it picked. On `"batched"` they saw through the
+ * nodes to whatever was behind, and a click on a node ran the action of a consumer's mesh behind it. Each is wrapped on
+ * the scene, while its graph draws batched: Babylon picks the meshes, the scan the rows, and when a row is nearer the
+ * answer names a stand-in for it -- an instance of the row's source on the row's anchor, with the name and metadata the
+ * node's own mesh would carry. The stand-in is enabled only while the pick's predicate is asked, so no frame draws it
+ * and no other pick finds it.
+ *
+ * Babylon's own pick on a pointer move (made with `scene.pointerMovePredicate`) is left to the meshes: hover reads the
+ * node ID target with no walk over the rows, and a scan on every move would undo that.
+ *
+ * ponytail: one stand-in per scene, so a `pickInfo` kept past a later pick that lands on another row names that row;
+ * one stand-in per picked row is the upgrade if a consumer needs to hold several. A move's `pickInfo` and Babylon's
+ * pointer-over mesh do not name a batched row; answering a move from the hover's one ID-target read is the upgrade.
+ * @param scene - The scene.
+ */
+function pickRowsInBabylon(scene: Scene): void {
+    if (pickingRows.has(scene)) {
+        return;
+    }
+
+    pickingRows.add(scene);
+    const pick = babylonPick(scene);
+    const pickWithRay = babylonPickWithRay(scene);
+    let standIn: InstancedMesh | null = null;
+    const answer = (
+        info: PickingInfo | null,
+        ray: Ray | null,
+        hit: RowHit | null,
+        scan: RowScan,
+        predicate: ((mesh: AbstractMesh, thinInstanceIndex: number) => boolean) | undefined,
+    ): PickingInfo | null => {
+        // A tie keeps Babylon's mesh: a row with a mesh of its own, or XR's own stand-in (`laserOnRows`).
+        if (hit === null || (info?.hit === true && info.distance <= hit.distance)) {
+            return info;
+        }
+
+        const node = scan.nodeAt(hit.row);
+        const source = node?.drawnSourceMesh;
+        if (node?.drawnPickMesh !== null || !(source instanceof Mesh)) {
+            return info;
+        }
+
+        standIn = rowStandIn(standIn, source, node.drawnAnchor);
+        const admitted = predicate
+            ? predicate(standIn, -1)
+            : standIn.isPickable && standIn.isVisible && standIn.isEnabled();
+        standIn.setEnabled(false);
+        if (!admitted) {
+            return info;
+        }
+
+        const result = new PickingInfo();
+        result.hit = true;
+        result.distance = hit.distance;
+        result.pickedPoint = hit.point;
+        result.pickedMesh = standIn;
+        result.ray = info?.ray ?? ray;
+        return result;
+    };
+    const batched = (): RowScan | undefined => (nodeIdTargets.has(scene) ? rowScans.get(scene) : undefined);
+
+    scene.pick = (...args) => {
+        const info = pick(...args);
+        const [x, y, predicate, , camera] = args;
+        const scan = batched();
+        // The scan's ray is the active camera's, as Babylon's is unless a pick names another camera.
+        const moving = predicate !== undefined && predicate === scene.pointerMovePredicate;
+        if (
+            scan === undefined ||
+            moving ||
+            (camera !== undefined && camera !== null && camera !== scene.activeCamera)
+        ) {
+            return info;
+        }
+
+        return answer(info, null, scan.shapeRayHit(x, y), scan, predicate) ?? info;
+    };
+    scene.pickWithRay = (...args) => {
+        const info = pickWithRay(...args);
+        const [ray, predicate] = args;
+        const scan = batched();
+        return scan === undefined ? info : answer(info, ray, scan.rowRayHit(ray), scan, predicate);
+    };
+}
+
 /** Each scene's node ID target, while its graph draws on the `"batched"` path. */
 const nodeIdTargets = new WeakMap<Scene, NodeIdReader>();
 
@@ -716,6 +984,7 @@ export function useNodeIdTarget(scene: Scene, reader: NodeIdReader | null): void
         nodeIdTargets.delete(scene);
     } else {
         nodeIdTargets.set(scene, reader);
+        pickRowsInBabylon(scene);
     }
 }
 
@@ -751,6 +1020,15 @@ export function hoverNodeId(scene: Scene, x: number, y: number): HoverPick | Pro
             return { id: pickNodeId(scene, x, y) };
         }
 
+        // The target draws a row smaller than a pixel larger than it is, and answers for a whole pixel, so a
+        // pointer up to about a pixel off a row's shape can read it there. A read answered from the frame on
+        // screen (WebGL: no `drawn`) is checked against the row's own shape, and a miss asks the pick a click
+        // asks, so hover never names a node where a click and elementAt find none (#9915). Only that row is
+        // tested; the walk happens only on a miss, along a node's rim.
+        if (texel >= 0 && drawn === undefined && rowScans.get(scene)?.hitsRowAt(texel, x, y) === false) {
+            return { id: pickNodeId(scene, x, y) };
+        }
+
         const id = texel === ID_NONE ? undefined : ids.nodeIdAt(texel);
         return id === undefined || drawn === undefined ? { id } : { id, drawn };
     };
@@ -770,7 +1048,7 @@ export function pickRayAsDrawn(scene: Scene, ray: Ray): DrawnHit {
         return scan.pickRay(ray);
     }
 
-    const info = scene.pickWithRay(ray, alongRay(scene, ray, rayPickable));
+    const info = babylonPickWithRay(scene)(ray, alongRay(scene, ray, rayPickable));
     return { mesh: info?.pickedMesh ?? null, point: info?.pickedPoint ?? null };
 }
 
@@ -783,7 +1061,7 @@ export function pickRayAsDrawn(scene: Scene, ray: Ray): DrawnHit {
  */
 export function pickCloseLabel(scene: Scene, x: number, y: number): AbstractMesh | null {
     const ray = scene.createPickingRay(x, y, null, null);
-    return scene.pick(x, y, alongRay(scene, ray, isCloseLabel)).pickedMesh;
+    return babylonPick(scene)(x, y, alongRay(scene, ray, isCloseLabel)).pickedMesh;
 }
 
 /**
@@ -794,7 +1072,9 @@ export function pickCloseLabel(scene: Scene, x: number, y: number): AbstractMesh
  * @returns The point, or null when nothing is there.
  */
 export function pickWorldPoint(scene: Scene, x: number, y: number): { x: number; y: number; z: number } | null {
-    const point = scene.pick(x, y).pickedPoint;
+    // A row drawn by a batch has no pickable mesh of its own, so the row scan answers it (issue #9861).
+    const scan = rowScans.get(scene);
+    const point = scan === undefined ? scene.pick(x, y).pickedPoint : scan.pointAt(x, y);
     return point === null ? null : { x: point.x, y: point.y, z: point.z };
 }
 
@@ -862,9 +1142,13 @@ export function screenProjector(
  * @param edges - The graph's edges.
  * @param x - X in CSS pixels from the canvas's left edge.
  * @param y - Y in CSS pixels from the canvas's top edge.
- * @param toScreen - A world point's place on screen, in render pixels.
+ * @param toScreen - A world point's place on screen, in CSS pixels (`Graph.worldToScreen`).
  * @param rowEnds - A straight edge's two ends read from the rows, or null to measure it with
  *   `toScreen` point by point; such ends go through one {@link screenProjector}.
+ * @param rowLines - The edges drawn with no `Edge`, measured after `edges` ({@link RowScan.nearestRowLine}).
+ * @param rowLines.scan - The scan that places their ends.
+ * @param rowLines.lines - The lines.
+ * @param rowLines.only - Measure only these edge rows.
  * @returns The edge's id, or `undefined` when no drawn edge is that close.
  */
 export function pickEdgeAt(
@@ -874,6 +1158,7 @@ export function pickEdgeAt(
     y: number,
     toScreen: (point: Vector3) => { x: number; y: number },
     rowEnds?: (edge: Edge) => readonly [Vector3, Vector3] | null,
+    rowLines?: { scan: RowScan; lines: RowLinePicks; only?: readonly number[] },
 ): EdgeId | undefined {
     const camera = scene.activeCamera;
     // Nothing is drawn before the first frame, and the scene's view matrix is unset until
@@ -882,12 +1167,12 @@ export function pickEdgeAt(
         return undefined;
     }
 
-    // worldToScreen answers in render pixels; Babylon's own picking divides CSS pixels by the
-    // hardware scaling level the same way.
-    const scaling = scene.getEngine().getHardwareScalingLevel();
-    const px = x / scaling;
-    const py = y / scaling;
-    let best = EDGE_PICK_TOLERANCE_PX / scaling;
+    // Everything here is in CSS pixels: the point, the tolerance, `toScreen` (`Graph.worldToScreen`),
+    // `screenProjector` and the row lines. Dividing by the hardware scaling level here lost every edge
+    // at a pixel ratio other than 1 (issue #9917).
+    const px = x;
+    const py = y;
+    let best = EDGE_PICK_TOLERANCE_PX;
     let found: EdgeId | undefined;
     const view = scene.getViewMatrix().m;
     const inFront = (p: Vector3): boolean => p.x * view[2] + p.y * view[6] + p.z * view[10] + view[14] >= camera.minZ;
@@ -929,19 +1214,24 @@ export function pickEdgeAt(
         }
     }
 
-    return found;
+    const line = rowLines?.scan.nearestRowLine(px, py, best, rowLines.lines, rowLines.only) ?? null;
+    const lineId = line === null ? undefined : rowLines?.lines.idOf(line.row);
+    return lineId ?? found;
 }
 
 /**
  * {@link pickEdgeAt}, with every straight edge between two batched rows measured from the row
  * table in one typed walk on the `"batched"` path: no `worldToScreen` and no new vector per edge.
  * The ends it reads are the ones `Node.drawnWorldPosition` answers, so the answer is the same.
- * Off the `"batched"` path it is {@link pickEdgeAt}.
+ * There the edges drawn with no `Edge` are measured too, from the rows. Off the `"batched"` path
+ * it is {@link pickEdgeAt}.
  * @param scene - The scene.
- * @param edges - The edges to measure.
+ * @param edges - The `Edge`s to measure.
  * @param x - X in CSS pixels.
  * @param y - Y in CSS pixels.
  * @param toScreen - A world point's place on screen, for the edges the rows cannot place.
+ * @param lines - The edges drawn with no `Edge`, or null when there are none.
+ * @param only - Measure only these of `lines`' edge rows; all of them when absent.
  * @returns The edge's id, or `undefined`.
  */
 export function pickEdgeId(
@@ -950,6 +1240,8 @@ export function pickEdgeId(
     x: number,
     y: number,
     toScreen: (point: Vector3) => { x: number; y: number },
+    lines: RowLinePicks | null = null,
+    only?: readonly number[],
 ): EdgeId | undefined {
     const scan = rowScanOf(scene);
     if (!edgeIdTargets.has(scene) || scan === undefined) {
@@ -958,18 +1250,26 @@ export function pickEdgeId(
 
     const root = scan.rootMatrix();
     const ends: [Vector3, Vector3] = [new Vector3(), new Vector3()];
-    return pickEdgeAt(scene, edges, x, y, toScreen, (edge) => {
-        // Rows, not Nodes: measuring every edge must build no Node for an end drawn without one (issue #9166).
-        const src = edge.batchEndRow("source");
-        const dst = src === INVALID_INDEX ? INVALID_INDEX : edge.batchEndRow("target");
-        if (dst === INVALID_INDEX || edge.drawnCurve !== null) {
-            return null;
-        }
+    return pickEdgeAt(
+        scene,
+        edges,
+        x,
+        y,
+        toScreen,
+        (edge) => {
+            // Rows, not Nodes: measuring every edge must build no Node for an end drawn without one (issue #9166).
+            const src = edge.batchEndRow("source");
+            const dst = src === INVALID_INDEX ? INVALID_INDEX : edge.batchEndRow("target");
+            if (dst === INVALID_INDEX || edge.drawnCurve !== null) {
+                return null;
+            }
 
-        scan.worldCenterToRef(src, root, ends[0]);
-        scan.worldCenterToRef(dst, root, ends[1]);
-        return ends;
-    });
+            scan.worldCenterToRef(src, root, ends[0]);
+            scan.worldCenterToRef(dst, root, ends[1]);
+            return ends;
+        },
+        lines === null ? undefined : { scan, lines, only },
+    );
 }
 
 /** Each scene's edge ID target, while its graph draws on the `"batched"` path. */
@@ -1000,7 +1300,8 @@ export function useEdgeIdTarget(scene: Scene, target: EdgeIdTarget | null): void
  * @param edges - The graph's edges, for the full walk.
  * @param x - X in CSS pixels.
  * @param y - Y in CSS pixels.
- * @param toScreen - A world point's place on screen, in render pixels.
+ * @param toScreen - A world point's place on screen, in CSS pixels (`Graph.worldToScreen`).
+ * @param lines - The edges drawn with no `Edge`, or null when there are none.
  * @returns The edge's id or `undefined`, now or once read.
  */
 export function hoverEdgeAt(
@@ -1009,15 +1310,91 @@ export function hoverEdgeAt(
     x: number,
     y: number,
     toScreen: (point: Vector3) => { x: number; y: number },
+    lines: RowLinePicks | null = null,
 ): EdgeId | undefined | Promise<EdgeId | undefined> {
-    const target = edgeIdTargets.get(scene);
-    // The window must hold every pixel within the tolerance of the pointer's pixel center.
-    const radius = Math.ceil(EDGE_PICK_TOLERANCE_PX / scene.getEngine().getHardwareScalingLevel()) + 1;
-    const near = target === undefined || transitionUnderWay(scene) ? null : target.candidates(x, y, radius);
+    const near = edgesNear(scene, x, y);
     if (near === null) {
-        return pickEdgeId(scene, edges(), x, y, toScreen);
+        return pickEdgeId(scene, edges(), x, y, toScreen, lines);
     }
 
-    const measure = (candidates: Edge[]): EdgeId | undefined => pickEdgeId(scene, candidates, x, y, toScreen);
-    return Array.isArray(near) ? measure(near) : near.then(measure);
+    const measure = (candidates: EdgeCandidates): EdgeId | undefined =>
+        pickEdgeId(scene, candidates.edges, x, y, toScreen, lines, candidates.rows);
+    return near instanceof Promise ? near.then(measure) : measure(near);
+}
+
+/**
+ * The drawn edge `elementAt` at a canvas point finds: {@link pickEdgeAt}'s answer, now. On the `"batched"` path it
+ * measures only the edges the edge ID target draws near the point, and those it cannot draw, as {@link hoverEdgeAt}
+ * does, so it costs the same at a million edges as at a thousand. WebGL reads the target now. WebGPU reads it back
+ * only asynchronously, so there it takes the edges near the point from the last read: the hover's window where the
+ * pointer rests, or else the newest whole read of the target, drawn from what is drawn now, from the picture on
+ * screen or from the one before it ({@link EdgeIdTarget.held}). A click does not use this, see {@link clickEdgeAt}.
+ * ponytail: an answer no read can give is one typed walk over every row line, with no object per line: the first
+ * `elementAt` on WebGPU (or the first after the target stopped whole reads, {@link EdgeIdTarget.held}), one right
+ * after the lines or the canvas changed and before a frame drew them, one from an older picture whose edges near the
+ * point are no longer under it, before the target is ready, or with no target. In a layout transition it walks too:
+ * there every pick answers at the layout's end, which `pickAtLayout` reaches by moving every moving node there and
+ * back, so the pick is a walk over the nodes whatever the edges cost. A CPU index of the lines if that matters.
+ * @param args - {@link hoverEdgeAt}'s: the scene, the graph's edges, x and y, toScreen and the row lines.
+ * @returns The edge's id, or `undefined`.
+ */
+export function pressEdgeAt(...args: Parameters<typeof hoverEdgeAt>): EdgeId | undefined {
+    const [scene, edges, x, y, toScreen, lines = null] = args;
+    const near = scene.getEngine().isWebGPU ? heldNear(scene, x, y, true) : edgesNear(scene, x, y);
+    if (near === null || near instanceof Promise) {
+        return pickEdgeId(scene, edges(), x, y, toScreen, lines);
+    }
+
+    const found = pickEdgeId(scene, near.edges, x, y, toScreen, lines, near.rows);
+    // A read of an older picture may miss the edge that moved under the point since: measure every edge then.
+    return found === undefined && near.stale === true ? pickEdgeId(scene, edges(), x, y, toScreen, lines) : found;
+}
+
+/**
+ * The drawn edge a click at a canvas point lands on. As {@link pressEdgeAt}, except that on WebGPU, where the last
+ * read does not answer for the point, it waits for the edge ID target's read instead of walking every line, as a
+ * hover does: a click on a graph whose layout is still moving its rows, or at a point the pointer never rested on,
+ * costs a window's read, not a walk over a million lines.
+ * @param args - {@link hoverEdgeAt}'s.
+ * @returns The edge's id or `undefined`, now or once read.
+ */
+export function clickEdgeAt(...args: Parameters<typeof hoverEdgeAt>): EdgeId | undefined | Promise<EdgeId | undefined> {
+    const [scene, , x, y, toScreen, lines = null] = args;
+    const near = scene.getEngine().isWebGPU ? heldNear(scene, x, y) : null;
+    return near === null ? hoverEdgeAt(...args) : pickEdgeId(scene, near.edges, x, y, toScreen, lines, near.rows);
+}
+
+/**
+ * The edges the edge ID target names within the pick tolerance of a canvas point.
+ * @param scene - The scene.
+ * @param x - X in CSS pixels.
+ * @param y - Y in CSS pixels.
+ * @returns They, now or once read; null with no target, during a layout transition, or before it can answer.
+ */
+function edgesNear(scene: Scene, x: number, y: number): EdgeCandidates | Promise<EdgeCandidates> | null {
+    const target = edgeIdTargets.get(scene);
+    return target === undefined || transitionUnderWay(scene) ? null : target.candidates(x, y, pickRadius(scene));
+}
+
+/**
+ * {@link edgesNear} from the last read only, for a press on WebGPU.
+ * @param scene - The scene.
+ * @param x - X in CSS pixels.
+ * @param y - Y in CSS pixels.
+ * @param whole - Also answer from the target's whole reads, as `elementAt` does ({@link EdgeIdTarget.held}).
+ * @returns The edges, or null when no read answers for the point now.
+ */
+function heldNear(scene: Scene, x: number, y: number, whole = false): EdgeCandidates | null {
+    const target = edgeIdTargets.get(scene);
+    return target === undefined || transitionUnderWay(scene) ? null : target.held(x, y, pickRadius(scene), whole);
+}
+
+/**
+ * The edge ID target window's half-width: it must hold every pixel within the tolerance of the pointer's pixel
+ * center.
+ * @param scene - The scene.
+ * @returns The half-width, in render pixels.
+ */
+function pickRadius(scene: Scene): number {
+    return Math.ceil(EDGE_PICK_TOLERANCE_PX / scene.getEngine().getHardwareScalingLevel()) + 1;
 }

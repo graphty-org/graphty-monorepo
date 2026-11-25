@@ -54,6 +54,10 @@ shipped.
 - `timeline`: the [Timeline](./timeline) is a normal feature. `session.time` and the time
   attributes work with no `features` set, and `features="timeline"` is accepted and changes
   nothing.
+- `assistant`: the [AI assistant](./ai-assistant) is a normal feature. A message's `scope`,
+  `session.selection.peek`, `voice.review` and what a message did (effects, targets, durations,
+  provenance) work with no `features` set, and `features="assistant"` is accepted and changes
+  nothing.
 
 ## The experiments in this build
 
@@ -248,7 +252,10 @@ shown and whether a pick decided it; `editStep(step, { clash })` changes a colum
 `pick` or `pickAll` decide cells. `draft.display(true)` draws the draft, where every element reads
 `graphty.draft` (`"merged"`, `"new"`, `"changed"`, `"removed"` or `"unchanged"`) for a style layer
 to show, and `draft.show("before" | "after")` switches between the graph as it is and as the
-commit would leave it. Each change fires `data:draft-changed` with a `reason` (`"opened"`,
+commit would leave it. `session.styles.showDraft({ merged, new })` draws the join preview in the
+two colors you pass: a ring on each node the commit would merge, a dashed border on each node it
+would add, and each edge it would add dashed. It suspends the style layers while it is drawn (they
+stay listed, and it is no undo step), is never saved, and its `end()` takes it off. Each change fires `data:draft-changed` with a `reason` (`"opened"`,
 `"changed"`, `"committed"`, `"discarded"`).
 
 While a draft is open every other data write and `session.undo()` / `redo()` are refused with
@@ -293,7 +300,7 @@ report.problems; // W_SOURCE_UNAVAILABLE or W_SOURCE_CHANGED with { source }, wh
   cannot be read opens with its rows held bare in their places (ids and edge ends, no values), so
   positions, runs, notes and edges that name them stay; the next save writes them and the
   reference back unchanged, and an open that can read it again fills them.
-- With `save-files-v2` too, a version 2 save keeps a load chosen as a reference referenced, and
+- A version 2 save keeps a load chosen as a reference referenced, and
   reports a load that cannot be one as `W_SOURCE_NO_PATH` with the same reason `copies()` gives. A
   version 2 file's referenced sources open kept as references; one that cannot be read opens held,
   with no elements, until `session.data.refresh(load.key)` reads it again.

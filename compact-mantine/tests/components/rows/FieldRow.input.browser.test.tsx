@@ -2,24 +2,14 @@
  * A field row forwards what the real mouse does on it: a Shift-click, a right click and a double
  * click, each made by the browser.
  */
-import { MantineProvider } from "@mantine/core";
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import { compactTheme } from "../../../src";
 import { FieldRow } from "../../../src/components/rows/FieldRow";
 import { PanelField } from "../../../src/components/rows/PanelField";
-
-/**
- * Render inside the compact theme, the way the package is consumed.
- * @param ui - The element under test
- * @returns The testing-library render result
- */
-function renderRow(ui: React.ReactElement): ReturnType<typeof render> {
-    return render(<MantineProvider theme={compactTheme}>{ui}</MantineProvider>);
-}
+import { renderCompact as renderRow } from "../../harness/render";
 
 /**
  * The pair the stories and the mockups both use: the smallest and the largest

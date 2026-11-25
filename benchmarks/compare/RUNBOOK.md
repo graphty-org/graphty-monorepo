@@ -3,6 +3,9 @@
 The performance matrix of both render paths, and its regression gate, use the same page and runner: see
 `PERF-MATRIX.md`.
 
+Whether a build still behaves as the one from before the renderer optimizations did (pictures, test outcomes, older
+tests, edges following their nodes frame by frame): `PARITY-VS-REFERENCE.md`.
+
 Measures one build of graphty-element against cosmos.gl 3.5.1 with the same harness as the baseline in
 `benchmarks/results/baseline/`. Everything below is run from `benchmarks/compare/` unless it says otherwise.
 
@@ -128,6 +131,23 @@ edges) beside `lean-s-few` and `lean-m-few`:
 
     BENCH_DEADLINE_S=190 ./matrix.sh lean-10-few 3
 
+Layout quality: the `quality-*` keys run only the load and then the force layout on a planted partition graph (100
+communities; 10k + 100k, 100k + 1M and 1M + 2M), copy the positions at 1, 5, 15 and 30 s and at the end (the layout
+settled, or `BENCH_QUALITY_CAP_S`, default 60, passed), and score every copy with `quality.js`: stress against hop
+distance, edge-length spread, neighborhood preservation, and community silhouette and purity. The screenshot of such a
+run is the final positions drawn by the page itself, one dot per node colored by community, so every library's picture
+is the same kind. `node --test quality.test.mjs` checks the scoring on drawings whose answer is known.
+
+    BENCH_DEADLINE_S=190 ./matrix.sh quality-cosmos-s 2
+    BENCH_DEADLINE_S=190 ./matrix.sh quality-lean-s 2
+
+cosmos.gl's simulation collapses on this machine's card above 4,096 points (`design/ui/framework/research/cosmos-gl.md`,
+section 8.8), so its quality is also scored on SwiftShader, stepped by hand with no frames drawn:
+`BENCH_ANGLE=swiftshader` launches WebGL on SwiftShader (the row is marked `software` and kept) and
+`BENCH_QUALITY_STEPS=<k>` steps the simulation up to k steps or until it ends, copying at steps 100, 500, 1000, 2000
+and 4000. At 10k a full run (5,000 steps) takes about 7 minutes; give it `BENCH_DEADLINE_S=900`.
+`BENCH_COSMOS_CONFIG='{"spaceSize":8192}'` merges extra settings into cosmos.gl's Graph config.
+
 `./matrix.sh list` prints every key. To see why a browser died, run the configuration once with
 `DEBUG=pw:browser` and without the `grep` of `matrix.sh`:
 
@@ -149,7 +169,7 @@ Then call `servherd_stop` with the name `cosmos-bench-<LABEL>`.
 
 `results.jsonl` has one line per run: `sha`, `source`, `dirty`, `renderPath` (absent when unset), `renderer`, `flags`, `loadavgBefore`, `loadavgAfter` (the one-minute load average as the row was written), `floor` (the
 cost of the measurement itself), `load`, `canvas`, `still`, `gpuFrame` (the GPU time of 60 still frames from `EXT_disjoint_timer_query_webgl2`, null without the extension and for cosmos.gl; a serial still frame below it means the stamps ran early), `orbit` (the moving frame), `drag` (a frame with one node moved, null for cosmos.gl), `memoryNoGc` (the JS heap and process RSS as the page holds them, before any forced collection), `memory` (the same after a forced collection), `hover`,
-`layoutFps` (with `landedBatches`, the GPU position batches that came back and were published during it; on an accelerated layout a row where none landed carries `refused` and `summarize.mjs` leaves it out, because a layout whose readback never lands does not move and its frames time a still scene), `hoverLayout` (the hover stage again, while the layout still runs), `layoutSteps` (on the accelerated path also `publish`, one `publishPositions()`, `stepUndrawn`, the step with the frame loop stopped, and `repackUpload`, one row table repack and upload finished on the card, with `rowsCopied`, the fewest rows a timed flush really changed, which should be close to `rows`), and `failure` when it ended early. The order of the stages is fixed: still, moving, drag,
+`layoutFps` (with `landedBatches`, the GPU position batches that came back and were published during it; on an accelerated layout a row where none landed carries `refused` and `summarize.mjs` leaves it out, because a layout whose readback never lands does not move and its frames time a still scene), `hoverLayout` (the hover stage again, while the layout still runs: each of its ten hovers picks its own target just before the pointer moves, and one that finds no node within 10 s is a `miss`, not a latency), `quality` (the layout quality stage: `start`, `snaps` with the scores at each mark and at the end, `settledMs`, `endMs`, `iterations`), `layoutSteps` (on the accelerated path also `publish`, one `publishPositions()`, `stepUndrawn`, the step with the frame loop stopped, and `repackUpload`, one row table repack and upload finished on the card, with `rowsCopied`, the fewest rows a timed flush really changed, which should be close to `rows`), and `failure` when it ended early. The order of the stages is fixed: still, moving, drag,
 memory, hover, layout frame, hover during the layout, layout steps. Hover comes before the layout so both libraries hover the same scene; the second hover measures the readback while the layout's work shares the GPU.
 
 Screenshots of the last run of each configuration are in `../results/<label>/shots/`, which git ignores.

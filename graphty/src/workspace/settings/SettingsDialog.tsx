@@ -17,7 +17,7 @@ import React, { useEffect, useRef, useState } from "react";
 
 import { siteFileStyles } from "../../siteConfig";
 import { AiProviderPage, type PageCommit } from "../assistant-door/AssistantPlace";
-import { AI_PROVIDER_SECTION, assistantOn } from "../assistant-door/commands";
+import { AI_PROVIDER_SECTION } from "../assistant-door/commands";
 import { providerDisclosure } from "../assistant-door/provider";
 import { fileStylesOn } from "../features";
 import { useAccelerationStatus } from "../frame/useAccelerationStatus";
@@ -45,9 +45,10 @@ const SECTIONS = [
     { id: "privacy", name: "Privacy" },
     { id: "accessibility", name: "Accessibility and input" },
     { id: "performance", name: "Performance" },
+    AI_PROVIDER_SECTION,
 ] as const;
 
-type SectionId = (typeof SECTIONS)[number]["id"] | typeof AI_PROVIDER_SECTION.id;
+type SectionId = (typeof SECTIONS)[number]["id"];
 
 /**
  * Your name: kept in this browser and written on the open project's author setting, which
@@ -182,7 +183,7 @@ function General(): React.JSX.Element {
 
 /**
  * Privacy: the usage data switch with the owner's words, and where the reader's data goes. With
- * the assistant experiment on and a provider saved, the provider is named and no line says otherwise.
+ * a provider saved, the provider is named and no line says otherwise.
  * @returns The section
  */
 function Privacy(): React.JSX.Element {
@@ -321,12 +322,11 @@ function Performance(): React.JSX.Element {
  * @returns The dialog
  */
 export function SettingsDialog(): React.JSX.Element {
-    const { store, element } = useWorkspace();
+    const { store } = useWorkspace();
     const dialog = useWorkspaceState((state) => state.dialog);
     const opened = dialog === "settings" || (dialog?.startsWith("settings:") ?? false);
     const asked = dialog?.split(":")[1];
-    const sections = assistantOn(element) === true ? [...SECTIONS, AI_PROVIDER_SECTION] : SECTIONS;
-    const section: SectionId = sections.find((s) => s.id === asked)?.id ?? "general";
+    const section: SectionId = SECTIONS.find((s) => s.id === asked)?.id ?? "general";
     const close = (): void => {
         store.set({ dialog: null });
     };
@@ -358,7 +358,7 @@ export function SettingsDialog(): React.JSX.Element {
 
     // Opened from the start page (no project open), it takes the page's look: start.css.
     const onStart = useWorkspaceState((state) => state.project === null);
-    const title = sections.find((s) => s.id === section)?.name ?? "";
+    const title = SECTIONS.find((s) => s.id === section)?.name ?? "";
     return (
         <Modal
             opened={opened}
@@ -375,7 +375,7 @@ export function SettingsDialog(): React.JSX.Element {
             <div className="ws-dialog-columns">
                 <PageList
                     label="Settings sections"
-                    items={sections}
+                    items={SECTIONS}
                     current={section}
                     onCurrentChange={(id) => {
                         store.set({ dialog: `settings:${id}` });

@@ -198,7 +198,7 @@ describe("glow strength per style", () => {
             ratio,
             RATIO_FLOOR,
             `A strength of 3 added ${String(ratio)}x what a strength of 0.3 added (placement ` +
-                `cancelled): two glowing styles are being drawn at one strength. ${JSON.stringify({ first, swapped })}`,
+                `canceled): two glowing styles are being drawn at one strength. ${JSON.stringify({ first, swapped })}`,
         );
     });
 

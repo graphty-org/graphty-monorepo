@@ -18,8 +18,6 @@ import {
     projectFileName,
     type ProjectOpenOptions,
     type ProjectSaveReport,
-    type SourceCopyChoice,
-    type SourceKey,
 } from "@graphty/graphty-element/session";
 
 import { count, graphSizeBucket } from "../../lib/analytics";
@@ -27,11 +25,11 @@ import { forgetKeptWork } from "../autosave/autosave";
 import type { CommandContext } from "../commands/registry";
 import { openDataPage } from "../data-page/request";
 import { sourceName } from "../data-place/words";
-import { saveFilesV2On, sourceReferencesOn } from "../features";
+import { sourceReferencesOn } from "../features";
 import { focusOpenedGraphLater } from "../frame/focus";
 import { runHeld, withHeldShaders } from "../settings/heldShaders";
 import { addSource, incomingFiles } from "../start/open";
-import { newProjectId, type Notice, openRun, type SettleOpen, type WorkspaceStore } from "../state/store";
+import { askingDialog, newProjectId, type Notice, openRun, type SettleOpen, type WorkspaceStore } from "../state/store";
 import { chipLine } from "../style/modelWords";
 import { locateFile, readHandle } from "./files";
 import { entryForHandle, forgetRecent, recentEntry, type RecentProject, refreshStored, rememberRecent } from "./recent";
@@ -41,8 +39,9 @@ import { notReadWords, referenceWords } from "./words";
 
 /** The dialog ids this package opens in the workspace's one dialog slot. */
 export const SAVE_AS_DIALOG = "save-as";
-export const DISCARD_DIALOG = "discard";
-export const KEEP_ASSETS_DIALOG = "keep-assets";
+// These two ask about an open or a save under way, which a reload ends: it does not reopen them.
+export const DISCARD_DIALOG = askingDialog("discard");
+export const KEEP_ASSETS_DIALOG = askingDialog("keep-assets");
 
 /** How to keep each model or picture a layer names by web address, by that address. */
 export type AssetChoices = Record<string, AssetStorage>;
@@ -344,7 +343,7 @@ export function saveProblemSentence(name: string, error: unknown): string {
  * @param ctx.session - the project's session.
  * @param target - the `browserProjects` id to write again, or null for a new record.
  * @param newName - the name Save as gives the project, or null to keep its name.
- * @param v2 - with version 2 files on, what the reader chose in Save as; null to save as last chosen.
+ * @param v2 - what the reader chose in Save as; null to save as last chosen.
  * @returns false when the reader canceled the question about files from the web.
  */
 async function writeProject(
@@ -363,28 +362,77 @@ async function writeProject(
     await nameTheProject(workspace, session, newName);
     const name = session.project.name ?? headerName(workspace);
     const state = fileState(workspace);
-    // With version 2 files on, the browser keeps a version 2 file: the sections and sources as
-    // the reader last chose them in Save as, else as graphty-element saves by default.
-    const on = saveFilesV2On(session);
-    const choices = on ? await stillNamed(session, v2 ?? state.v2) : null;
+    // The sources as the reader last chose them in Save as, else as the opened file kept them: a
+    // version 1 file, which keeps all of the project, unless only a version 2 file keeps a source
+    // by reference.
+    const choices = await stillNamed(session, v2 ?? state.v2);
+    const embed = choices?.embed ?? (await keptStorage(session));
+    const version2 = !(await version1Keeps(session, embed));
     const saved = await browserProjects.save(session, {
         ...(target === null ? {} : { id: target }),
         ...(Object.keys(assets).length === 0 ? {} : { assets }),
-        ...(on ? { format: 2 as const } : {}),
-        ...(on && choices !== null ? { sections: choices.sections, embed: choices.embed } : {}),
+        ...(version2 ? { format: 2 as const, embed, ...(choices === null ? {} : { sections: choices.sections }) } : {}),
     });
     count("project_saved", { kind: "browser", as: target === null ? "new" : "again" });
     state.target = saved.id;
-    if (on && v2 !== null) {
+    if (v2 !== null) {
         state.v2 = v2;
     }
     await refreshStored();
     workspace.set({ notice: { message: withLeftOut(session, `Saved ${name} in this browser.`, saved.report) } });
-    // Save as reports what the save left out; a later Save says only that it saved.
-    if (on && v2 !== null) {
+    // Save as reports what the save left out. A later Save reports only what a version 2 file no
+    // longer keeps of the project (W_MEMBER_LEFT_OUT: work version 2 files do not hold yet, such as
+    // renamed columns), so the reader learns before reopening loses it.
+    const lost = (saved.report?.leftOut ?? []).filter((fact) => fact.code === "W_MEMBER_LEFT_OUT");
+    if (v2 !== null) {
         await reportSave(workspace, session, `Saved ${name}`, saved.report);
+    } else if (lost.length > 0 && saved.report !== undefined) {
+        await reportSave(workspace, session, `Saved ${name}`, { ...saved.report, leftOut: lost });
     }
     return true;
+}
+
+/**
+ * Whether a whole-project save can be a version 1 file, which keeps all of the project (version 2
+ * files do not hold yet renamed columns, declarations, fixed issues or visibility steps). It can
+ * unless a source is kept by reference that a version 1 file cannot keep so: with source references
+ * on, each source's choice is handed to graphty-element (`data.setCopy`), which version 1 files
+ * keep, so the Data sources list marks it too; with them off, only a version 2 file references.
+ * @param session - the project's session.
+ * @param embed - copy or reference per source, as the reader chose in Save as or the open file kept.
+ * @returns true when a version 1 file keeps every choice.
+ */
+async function version1Keeps(session: GraphSession, embed: SaveV2Choices["embed"]): Promise<boolean> {
+    const referenced = Object.keys(embed).filter((id) => embed[id] === "referenced");
+    if (referenced.length === 0) {
+        return true;
+    }
+    if (!sourceReferencesOn(session)) {
+        return false;
+    }
+    const keys = new Map((await session.project.describe()).sources.map((source) => [source.id, source.key]));
+    for (const [id, storage] of Object.entries(embed)) {
+        const key = keys.get(id);
+        if (key !== undefined) {
+            session.data.setCopy(key, storage === "referenced" ? "reference" : "copy");
+        }
+    }
+    const kept = new Map(session.data.copies().map((entry) => [entry.source, entry.copy]));
+    return referenced.every((id) => {
+        const key = keys.get(id);
+        return key !== undefined && kept.get(key) === "reference";
+    });
+}
+
+/**
+ * How each source is kept when the reader has not chosen in Save as: as graphty-element says a
+ * save keeps it, so a reference the opened file held stays one.
+ * @param session - the project's session.
+ * @returns copy or reference per source record id.
+ */
+async function keptStorage(session: GraphSession): Promise<SaveV2Choices["embed"]> {
+    const { sources } = await session.project.describe();
+    return Object.fromEntries(sources.map((source) => [source.id, source.storage]));
 }
 
 /**
@@ -423,8 +471,8 @@ async function reportSave(
 }
 
 /**
- * Save as... with version 2 files on: a full file of every section the project needs is kept in
- * this browser as the project, as Save as keeps it; any other choice (some sections, or a section
+ * Save as...: a full file of every section the project needs is kept in this browser as the
+ * project (a version 1 file unless a source is kept by reference); any other choice (some sections, or a section
  * file) is a copy, downloaded under the name graphty-element gives it, and changes neither where
  * Save goes nor what is unsaved.
  * @param ctx - the command context.
@@ -489,15 +537,6 @@ export async function saveProject(ctx: CommandContext): Promise<void> {
 }
 
 /**
- * Save as...: names the project and keeps it in this browser as a new project.
- * @param ctx - the command context.
- * @param name - the name the reader gave.
- */
-export async function saveProjectAs(ctx: CommandContext, name: string): Promise<void> {
-    await saveAs(ctx, name, () => writeProject(ctx, null, name));
-}
-
-/**
  * Runs a Save as write, renaming the project back when it fails.
  * @param ctx - the command context.
  * @param name - the name the reader gave.
@@ -519,8 +558,7 @@ async function saveAs(ctx: CommandContext, name: string, write: () => Promise<bo
 }
 
 /**
- * Save local copy...: downloads the project file (with version 2 files on, a version 2 file as
- * Save writes it). A copy: where Save goes and what is unsaved do not change.
+ * Save local copy...: downloads the project file as Save writes it. A copy: where Save goes and what is unsaved do not change.
  * @param ctx - the command context.
  * @param ctx.workspace - the workspace store.
  * @param ctx.element - the element, which downloads.
@@ -537,12 +575,14 @@ export async function saveLocalCopy({ workspace, element, session }: CommandCont
             return;
         }
         const fileName = projectFileName(name);
-        if (session !== null && saveFilesV2On(session)) {
-            // A version 2 file, of the sections and sources as the reader last chose them in Save as.
-            const choices = await stillNamed(session, fileState(workspace).v2);
+        // As Save writes it: a version 2 file only when Save as kept a source by reference.
+        const choices = session === null ? null : await stillNamed(session, fileState(workspace).v2);
+        const embed = session === null ? {} : (choices?.embed ?? (await keptStorage(session)));
+        if (session !== null && !(await version1Keeps(session, embed))) {
             await element.downloadProject({
                 format: 2,
-                ...(choices === null ? {} : { sections: choices.sections, embed: choices.embed }),
+                embed,
+                ...(choices === null ? {} : { sections: choices.sections }),
                 ...(Object.keys(assets).length === 0 ? {} : { assets }),
                 fileName,
                 markSaved: false,
@@ -809,7 +849,7 @@ function heldNotice(workspace: WorkspaceStore, session: GraphSession, notice: No
 }
 
 /**
- * With version 2 files on, asks about a version 2 file from anywhere but the reader's own
+ * Asks about a version 2 file from anywhere but the reader's own
  * browser-kept projects before it opens (those open at once); the answer is kept on the pending
  * file, for an open again after Discard.
  * @param workspace - the workspace store.
@@ -818,7 +858,7 @@ function heldNotice(workspace: WorkspaceStore, session: GraphSession, notice: No
  * @returns false when the reader canceled.
  */
 async function askBeforeOpen(workspace: WorkspaceStore, session: GraphSession, pending: PendingFile): Promise<boolean> {
-    if (!saveFilesV2On(session) || pending.v2 !== undefined) {
+    if (pending.v2 !== undefined) {
         return true;
     }
     if (pending.storedId !== undefined) {
@@ -983,7 +1023,7 @@ export async function openPending(ctx: CommandContext): Promise<void> {
 }
 
 /** What happened when the reader clicked a Recent projects entry. */
-type RecentOutcome = "opened" | "missing" | "cancelled" | "failed";
+type RecentOutcome = "opened" | "missing" | "canceled" | "failed";
 
 /**
  * Runs a Recent projects step, turning a failure other than a cancel (a picker the browser
@@ -1045,13 +1085,13 @@ export function openRecent(ctx: CommandContext, entry: RecentProject): Promise<R
  * where the browser has one.
  * @param ctx - the command context.
  * @param entry - the entry.
- * @returns "cancelled" when the reader closed the picker.
+ * @returns "canceled" when the reader closed the picker.
  */
 export function locateRecent(ctx: CommandContext, entry: RecentProject): Promise<RecentOutcome> {
     return noticeFailure(ctx, entry, async () => {
         const located = await locateFile();
         if (located === undefined) {
-            return "cancelled";
+            return "canceled";
         }
         await openProjectFile(ctx, located.file, {
             ...(located.handle === undefined ? {} : { handle: located.handle }),
@@ -1073,22 +1113,4 @@ export async function removeRecent(entry: RecentProject): Promise<void> {
     }
     await browserProjects.remove(entry.id);
     await refreshStored();
-}
-
-/**
- * Hands the dialog's pending choices to graphty-element (`data.setCopy`), as its Save is pressed;
- * a source removed while the dialog was open is skipped.
- * @param session - the element's session, or null.
- * @param pending - the dialog's choices.
- */
-export function applyCopies(session: GraphSession | null, pending: ReadonlyMap<SourceKey, SourceCopyChoice>): void {
-    if (session === null || !sourceReferencesOn(session)) {
-        return;
-    }
-    const listed = new Set(session.data.sources().map((each) => each.key));
-    for (const [source, copy] of pending) {
-        if (listed.has(source)) {
-            session.data.setCopy(source, copy);
-        }
-    }
 }

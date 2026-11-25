@@ -848,11 +848,11 @@ function keyedByFloor<T extends NodePaint | EdgePaint>(paint: T, resolved: Resol
 const COARSE = new WeakSet<ResolvedStyle>();
 
 /**
- * A node's resolved style drawn at low detail on a large graph (`Limits.largeGraphThreshold`):
+ * A node's resolved style drawn at low detail on a large graph (`Limits.fullDetailTriangleBudget`):
  * a node no layer gives a `node.meshDetail` is drawn `"low"`. A layer that sets one, `"full"`
  * included, keeps it, which is how a consumer keeps full detail on a large graph.
  * @param resolved - Everything the stack painted the node, after {@link floored}.
- * @param large - Whether the graph holds more nodes than the threshold.
+ * @param large - Whether the graph's nodes at full detail would pass the triangle budget.
  * @returns The style to paint from.
  */
 function coarsened(resolved: ResolvedStyle, large: boolean): ResolvedStyle {
@@ -1182,6 +1182,27 @@ export class PendingRows {
     }
 
     /**
+     * Follow a freeze that renumbered the rows: each waiting row takes its new number, in the same
+     * order, and a row the freeze dropped leaves the queue.
+     * @param remap - Old row to new; a value past the new row count, or a row past the remap, drops it.
+     * @param count - The new row count.
+     */
+    remap(remap: ArrayLike<number>, count: number): void {
+        if (this.size === 0) {
+            return;
+        }
+
+        const rows = Array.from(this.order.subarray(this.head, this.tail));
+        this.clear();
+        for (const row of rows) {
+            const moved = row < remap.length ? remap[row] : count;
+            if (moved < count) {
+                this.add(moved);
+            }
+        }
+    }
+
+    /**
      * How many bytes the queue holds, waiting or not.
      * @returns The bytes of its two arrays.
      */
@@ -1368,8 +1389,8 @@ export class StylePainter {
      *     `minMarkSize`), asked as often; absent, every mark is drawn as painted.
      * @param modelDefaults - A model's own settings, by what `node.model` names; asked once per
      *     node painted with a model.
-     * @param largeGraph - Whether the graph holds more nodes than `Limits.largeGraphThreshold`, so
-     *     a node no layer gives a detail is drawn at low detail ({@link coarsened}); asked once per
+     * @param largeGraph - Whether the graph's nodes at full detail would pass
+     *     `Limits.fullDetailTriangleBudget`, so a node no layer gives a detail is drawn at low detail ({@link coarsened}); asked once per
      *     node painted, so it must be cheap.
      * @param dark - Whether the color scheme is dark, so a label no layer colored is drawn light;
      *     asked as often as the minimums.
@@ -1446,6 +1467,31 @@ export class StylePainter {
 
     /** How to stop listening to the pass currently bound, or null when nothing is bound. */
     private stopListening: (() => void) | null = null;
+
+    /**
+     * Follow a freeze that renumbered the rows: the rows whose paint the renderer has not applied
+     * yet take their new numbers. A pass that paints only the rows an edit changed leaves these
+     * waiting, so read at their old numbers they would draw another element's paint.
+     * @param nodeRemap - The freeze's node remap, or null when nodes kept their rows.
+     * @param edgeRemap - The freeze's edge remap, or null when edges kept their rows.
+     * @param counts - The new row counts.
+     * @param counts.nodes - Nodes.
+     * @param counts.edges - Edges.
+     * @internal
+     */
+    rowsMoved(
+        nodeRemap: ArrayLike<number> | null,
+        edgeRemap: ArrayLike<number> | null,
+        counts: { readonly nodes: number; readonly edges: number },
+    ): void {
+        if (nodeRemap !== null) {
+            this.pendingNodes.remap(nodeRemap, counts.nodes);
+        }
+
+        if (edgeRemap !== null) {
+            this.pendingEdges.remap(edgeRemap, counts.edges);
+        }
+    }
 
     /**
      * Say where the renderer reads its paint from.
@@ -1598,15 +1644,23 @@ export class StylePainter {
      * drawn, which would otherwise keep the look it was built with until the next pass over it.
      * @param target - Nodes or edges.
      * @param index - Its dense index.
+     * @param added - True for an element an edit just added, whose own row is all that changed: with
+     *     nothing else waiting, the renderer places it and walks nothing else (issue #9164).
      */
-    queue(target: SelectorTarget, index: number): void {
+    queue(target: SelectorTarget, index: number, added = false): void {
         if (index >= 0) {
+            const pending = target === "node" ? this.pendingNodes : this.pendingEdges;
+            const alone = added && pending.size === 0;
             if (target === "node") {
-                this.nodesQueuedOnly ||= this.pendingNodes.size === 0;
+                this.nodesQueuedOnly ||= pending.size === 0;
             }
-            (target === "node" ? this.pendingNodes : this.pendingEdges).add(index);
-            this.nodesRowsOnly &&= target !== "node";
-            this.edgesRowsOnly &&= target !== "edge";
+
+            pending.add(index);
+            if (target === "node") {
+                this.nodesRowsOnly = alone || (this.nodesRowsOnly && added);
+            } else {
+                this.edgesRowsOnly = alone || (this.edgesRowsOnly && added);
+            }
         }
     }
 
@@ -1655,12 +1709,29 @@ export class StylePainter {
     }
 
     /**
+     * How many nodes are waiting to be drawn.
+     * @returns The count.
+     */
+    get pendingNodeCount(): number {
+        return this.pendingNodes.size;
+    }
+
+    /**
      * Whether one node is waiting to be drawn.
      * @param index - Its dense index.
      * @returns True when its paint has not been applied yet.
      */
     isNodePending(index: number): boolean {
         return this.pendingNodes.has(index);
+    }
+
+    /**
+     * Whether one edge is waiting to be drawn.
+     * @param index - Its dense index.
+     * @returns True when its paint has not been applied yet.
+     */
+    isEdgePending(index: number): boolean {
+        return this.pendingEdges.has(index);
     }
 
     /**

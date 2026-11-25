@@ -10,6 +10,7 @@ import { useWorkspace } from "../state/WorkspaceContext";
  */
 export function useAccelerationStatus(): AccelerationStatus | null {
     const { element, session } = useWorkspace();
+    // on reload: fresh: read: read from graphty-element's session
     const [status, setStatus] = useState<AccelerationStatus | null>(() => session?.capabilities.acceleration ?? null);
     useEffect(() => {
         if (element === null) {

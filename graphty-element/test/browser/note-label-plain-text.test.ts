@@ -59,8 +59,8 @@ describe("a label bound to a note", () => {
         await session.styles.add({
             name: "note",
             target: "node",
-            selector: { match: "has", path: "graphty.notes.latest" },
-            encode: { "node.label": { by: "graphty.notes.latest" } },
+            selector: { match: "has", path: "store.graphty.notes.latest" },
+            encode: { "node.label": { by: "store.graphty.notes.latest" } },
             set: { "node.labelStyle": { color: "#000000" } },
         });
         await session.styles.add({

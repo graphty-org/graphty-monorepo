@@ -212,6 +212,29 @@ function keysOf(records: readonly Record<string, unknown>[]): string[] {
     return [...keys].sort();
 }
 
+/**
+ * Load a file through a session and count what it holds.
+ * @param type - the reader
+ * @param bytes - the file
+ * @param styles - whether the load draws the file's styles
+ * @returns the counts, or null when the load is refused
+ */
+async function loadCounts(
+    type: string,
+    bytes: Uint8Array,
+    styles: "file" | "none",
+): Promise<{ nodes: number; edges: number } | null> {
+    const session = createGraphSession({ features: ["file-styles"] });
+    try {
+        await session.data.import({ type, config: { data: bytes, errorLimit: ERROR_LIMIT } }, { styles });
+        return { nodes: session.data.nodes().length, edges: session.data.edges().length };
+    } catch {
+        return null;
+    } finally {
+        session.dispose();
+    }
+}
+
 const FILES = Object.entries(READERS).flatMap(([dir, type]) =>
     graphFiles(join(CORPUS, dir)).map((path) => ({ type, path, name: relative(CORPUS, path) })),
 );
@@ -349,17 +372,7 @@ describe("the element's readers load what graph-io loads", () => {
                 io = null;
             }
 
-            const session = createGraphSession();
-            let loaded: { nodes: number; edges: number } | null = null;
-            try {
-                await session.data.import({ type, config: { data: bytes, errorLimit: ERROR_LIMIT } });
-                loaded = { nodes: session.data.nodes().length, edges: session.data.edges().length };
-            } catch {
-                loaded = null;
-            } finally {
-                session.dispose();
-            }
-
+            const loaded = await loadCounts(type, bytes, "none");
             if (io === null) {
                 // A file graph-io cannot read as a graph (a Cytoscape.js stylesheet on its own).
                 assert.isNull(loaded, "the element refuses what graph-io refuses");
@@ -367,6 +380,8 @@ describe("the element's readers load what graph-io loads", () => {
             }
 
             assert.deepStrictEqual(loaded, { nodes: io.nodeCount, edges: logicalEdges(io).length });
+            // Drawing the file's styles changes only the look, never which nodes and edges load.
+            assert.deepStrictEqual(await loadCounts(type, bytes, "file"), loaded, "a styled load holds the same graph");
 
             const output = await read(type, { data: bytes, errorLimit: ERROR_LIMIT });
             await checkValues(output);

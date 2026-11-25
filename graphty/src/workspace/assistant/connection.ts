@@ -137,7 +137,7 @@ function countTurns(element: GraphtyElement): void {
             changed: added.length === 0 ? "none" : [...new Set(added)].sort((a, b) => a.localeCompare(b)).join(","),
         });
     };
-    // Every turn ends in exactly one of these two: a canceled one too (AI_CANCELLED), and one refused
+    // Every turn ends in exactly one of these two: a canceled one too (AI_CANCELED), and one refused
     // before it ran (a missing key, a stale approval) with ai-command-complete.
     element.addEventListener("ai-command-complete", ({ detail }) => {
         ended(detail.result.code);

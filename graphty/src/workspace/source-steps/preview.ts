@@ -22,8 +22,8 @@ import {
     type SourceStepPatch,
 } from "@graphty/graphty-element/session";
 
-import type { JoinCardState, JoinChoices, JoinDrill, JoinRepeats, WorkspaceStore } from "../state/store";
-import { joinCardOf, joinPair, PREVIEW_TAB, sourceColumns } from "./join";
+import type { JoinCardState, JoinChoices, JoinDrill, WorkspaceStore } from "../state/store";
+import { joinCardOf, joinPair, PREVIEW_TAB } from "./join";
 import { refusedWords } from "./words";
 
 /**
@@ -48,19 +48,13 @@ export function canPreview(card: JoinCardState): boolean {
 /**
  * Makes the card's act in the draft with its choices. Editing a committed step, the draft removes
  * that step first and the new act takes its place.
- * @param session - the element's session.
  * @param draft - the open draft.
  * @param card - the card.
  * @param pair - its two fields.
  * @returns the step it made, or undefined when it made none.
  * @throws What the draft throws for a refused act.
  */
-function makeAct(
-    session: GraphSession,
-    draft: SourceDraft,
-    card: JoinCardState,
-    pair: SourceMatchPair,
-): number | undefined {
+function makeAct(draft: SourceDraft, card: JoinCardState, pair: SourceMatchPair): number | undefined {
     const matching = { ignoreCase: card.ignoreCase, ignoreSpaces: card.ignoreSpaces };
     const op = card.act === "edge" ? "join.edges" : "join.merge";
     // Editing a committed step with a field or the act changed: the step goes, the new act comes.
@@ -75,7 +69,7 @@ function makeAct(
             ...(card.edgeType === "" ? {} : { edgeType: card.edgeType }),
         });
     } else {
-        draft.merge({ ...pair, ...matching, unmatchedFrom: card.unmatchedFrom });
+        draft.merge({ ...pair, ...matching, unmatchedFrom: card.unmatchedFrom, repeated: card.repeated });
     }
     // The draft holds only this act, so its last step of the op is the one it made (an edge from a
     // column of source 1 reads source 1's rows, not source 2's).
@@ -84,10 +78,6 @@ function makeAct(
     if (card.editing !== null && step !== undefined && step !== card.editing) {
         draft.moveStep(step, card.editing);
         step = card.editing;
-    }
-    // Repeats other than First (the element's own default) are the step's to settle.
-    if (step !== undefined && card.act === "merge" && card.repeated !== "first") {
-        draft.editStep(step, repeatsPatch(session, card, card.repeated));
     }
     return step;
 }
@@ -112,7 +102,7 @@ export async function startPreview(workspace: WorkspaceStore, session: GraphSess
     const draft = session.data.draft();
     let step: number | undefined;
     try {
-        step = makeAct(session, draft, card, pair);
+        step = makeAct(draft, card, pair);
     } catch (error) {
         draft.dispose();
         workspace.set({ notice: { message: refusedWords(error), error: true } });
@@ -197,31 +187,7 @@ export function setChoice(workspace: WorkspaceStore, session: GraphSession, choi
         workspace.set({ sourceCard: { ...card, ...choices } });
         return;
     }
-    const { repeated, ...rest } = choices;
-    editPreviewed(
-        workspace,
-        session,
-        { ...rest, ...(repeated === undefined ? {} : repeatsPatch(session, card, repeated)) },
-        choices,
-    );
-}
-
-/**
- * Repeats as the merge step takes it: the first or the last row as its `repeated`, or every column
- * source 2 brings besides its key reduced to its rows' count or list, as its `aggregate`.
- * @param session - the element's session.
- * @param card - the card.
- * @param repeats - the reader's choice.
- * @returns the step's change.
- */
-function repeatsPatch(session: GraphSession, card: JoinCardState, repeats: JoinRepeats): SourceStepPatch {
-    if (repeats === "first" || repeats === "last") {
-        return { repeated: repeats, aggregate: null };
-    }
-    const { field2 } = card;
-    const columns =
-        field2 === null ? [] : sourceColumns(session, field2.source).filter((column) => column !== field2.field);
-    return { repeated: null, aggregate: Object.fromEntries(columns.map((column) => [column, repeats])) };
+    editPreviewed(workspace, session, choices, choices);
 }
 
 /**

@@ -75,7 +75,7 @@ import type { DrawnTarget } from "../render/RowTable";
 import { wholeGraph } from "../session/working/graphs";
 import { readCommunities, readRowCommunities, sameCommunities } from "./clusterForce";
 import { forceAtlas2MaxIterFor } from "./forceAtlas2Iterations";
-import { type EdgePosition, LayoutEngine, type Position } from "./LayoutEngine";
+import { edgeEndsFollowNodes, type EdgePosition, LayoutEngine, type Position } from "./LayoutEngine";
 
 /**
  * Above this many nodes the automatic `iterationsPerStep` is raised, because a frame that
@@ -130,6 +130,30 @@ const ACCELERATED_MAX_ITERATIONS = 128;
 const ACCELERATED_BATCH_NODE_ITERATIONS = 4_000_000;
 
 /**
+ * The same budget under renderPath "batched", where the frame loop draws again only once the batch in flight has
+ * landed, so the frame interval while the layout runs IS one batch's time on the device. At the budget above a
+ * 10,000-node batch of 128 iterations took about 85 ms, against about 12 ms at one iteration per frame. This keeps
+ * such a batch at 16 iterations: on an NVIDIA card a landing every 14 to 16 ms and a frame median of 13 to 24 ms
+ * (benchmarks/compare perf matrix, `layout-ngraph-2d-10k` and `layout-ngraph-3d-10k`), within the frame time of a
+ * one-iteration batch, at 16 times its iterations per frame. 8 iterations measured no faster a frame.
+ */
+const ACCELERATED_BATCHED_NODE_ITERATIONS = 160_000;
+
+/**
+ * The fewest iterations a batch under renderPath "batched" is capped at, while the general budget
+ * ({@link ACCELERATED_BATCH_NODE_ITERATIONS}) allows them.
+ *
+ * An iteration's device time is not proportional to the node count: the grid tier's fixed passes dominate it, so on
+ * an NVIDIA card one iteration took about 0.5 ms at 10,000 nodes and 0.63 ms at 100,000. Divided by the node count
+ * alone, the budget above left a 100,000-node batch ONE iteration, while drawing that graph's 990,000 edges took the
+ * device 60 to 700 ms a frame, so the layout ran at the draw's pace: 5 to 15 iterations a second, and a minute to
+ * separate the communities of a planted partition graph (issue #10057, test/browser/force-100k-frame.bench.test.ts).
+ * Sixteen iterations are about 10 ms on the device there, a small part of such a frame. A smaller graph keeps the
+ * larger cap its budget gives.
+ */
+const ACCELERATED_BATCHED_LEAST_ITERATIONS = 16;
+
+/**
  * How many iterations the next accelerated batch computes when the host set no `iterationsPerStep`.
  *
  * It RAMPS: each batch computes as many iterations as the simulation has already submitted since it was built
@@ -139,10 +163,23 @@ const ACCELERATED_BATCH_NODE_ITERATIONS = 4_000_000;
  * @param base - The count the size rule gives ({@link iterationsPerStepFor}); never fewer.
  * @param nodeCount - The graph this load is over.
  * @param submitted - Iterations submitted since the simulation was built.
+ * @param budget - Nodes times iterations one batch may compute; renderPath "batched" passes a smaller one.
+ * @param least - The cap is at least this many iterations while the general budget allows them; renderPath
+ * "batched" passes {@link ACCELERATED_BATCHED_LEAST_ITERATIONS}.
  * @returns The iteration count of the next batch.
  */
-export function acceleratedIterationsFor(base: number, nodeCount: number, submitted: number): number {
-    const byNodes = Math.floor(ACCELERATED_BATCH_NODE_ITERATIONS / Math.max(nodeCount, 1));
+export function acceleratedIterationsFor(
+    base: number,
+    nodeCount: number,
+    submitted: number,
+    budget = ACCELERATED_BATCH_NODE_ITERATIONS,
+    least = 0,
+): number {
+    const nodes = Math.max(nodeCount, 1);
+    const byNodes = Math.max(
+        Math.floor(budget / nodes),
+        Math.min(least, Math.floor(ACCELERATED_BATCH_NODE_ITERATIONS / nodes)),
+    );
     const cap = Math.max(base, Math.min(ACCELERATED_MAX_ITERATIONS, byNodes));
     return Math.min(cap, Math.max(base, submitted));
 }
@@ -506,16 +543,23 @@ export interface SimulationEngineInit {
 const STRENGTH_COLUMN = "graphty.layoutStrength";
 
 /**
- * Slots in the drawn ring. A landed slot is copied at the publish after the frame's step, so it must
- * outlive every batch in flight plus that one (the GPU layouts' default `maxInFlight` is 2).
+ * Drawn ring slots beyond the batches a simulation keeps in flight. A landed slot is copied at the
+ * publish after the frame's step, and that step may already have submitted a batch in the landed
+ * batch's place, so the ring must hold every batch in flight plus the landed one: a ring of four
+ * at `maxInFlight` 4 handed the batch submitted after a landing the slot the publish then copied.
+ * Two keeps the ring of four the GPU layouts' default `maxInFlight` of 2 has always had.
  */
-const DRAWN_SLOTS = 4;
+const DRAWN_SPARE_SLOTS = 2;
+/** The GPU layouts' `maxInFlight` when the options leave it unset. */
+const DEFAULT_MAX_IN_FLIGHT = 2;
 
 /** drawn = (simulation - center) * scale + target: what the drawn ring and a publish apply. */
 interface DrawnTransform {
     readonly center: readonly [number, number, number];
     readonly scale: number;
     readonly target: readonly [number, number, number];
+    /** Sent only: each batch draws its own landing fitted to this radius, and reports the center and scale it took. */
+    readonly fit?: number;
 }
 
 /**
@@ -657,6 +701,11 @@ export class SimulationLayoutEngine extends LayoutEngine {
     /** The simulation filling the row table on the card, or null on the upload path. */
     #drawn: DrawnRun | null = null;
     /**
+     * The rows a ring waits for the table to grow to, or -1. A freeze that adds nodes reloads the layout before the
+     * graph grows its row table (observers run in subscription order), so the ring is attached at the next step.
+     */
+    #drawnShort = -1;
+    /**
      * The `weight` the running simulation was built with, or undefined for a simulation that reads
      * no weight: a load whose answer differs rebuilds it.
      */
@@ -671,6 +720,16 @@ export class SimulationLayoutEngine extends LayoutEngine {
     readonly #edgePair = { src: { x: 0, y: 0, z: 0 }, dst: { x: 0, y: 0, z: 0 } };
 
     #simulation: LayoutSimulation | null = null;
+
+    /**
+     * A simulation rebuilt over a layout that had SETTLED, held at rest until something wakes it.
+     *
+     * A new simulation has no way to start settled: its `load()` is a full run from the start of the
+     * schedule. So a device loss that rebuilt a settled layout on the device brought back ran that
+     * schedule again from the settled arrangement, and every node moved (issue #9929). This flag is the
+     * settled state the rebuild cannot hand over; whatever would reheat the old simulation clears it.
+     */
+    #resting = false;
 
     /**
      * What the controller had ATTACHED when the running simulation was built, which is not the
@@ -787,6 +846,8 @@ export class SimulationLayoutEngine extends LayoutEngine {
     #owedTransform: DrawnTransform | null = null;
     /** `#landed` when the publish was owed: a later landing has rewritten the simulation's rows. */
     #owedLanded = -1;
+    /** `#landed` when its slot was last copied into the row table, or -1: see `#publishDrawn`. */
+    #copiedLanded = -1;
 
     /**
      * One row as the owed publish writes it (`#writeRows` for that row alone), so a frame that draws
@@ -880,6 +941,22 @@ export class SimulationLayoutEngine extends LayoutEngine {
     deviceEnvelope = true;
     /** The simulation's array was written by the element since the last landing, so a device measure no longer holds. */
     #adoptedSinceLanding = false;
+    /**
+     * Bumped by every change to the simulation's array that `#landed` does not count: an adoption, a placed node, a
+     * pre-step batch awaited by `stepAsync`.
+     */
+    #simWrites = 0;
+    /** The last fit's envelope and what it was measured over, so an accelerated fit with nothing new reuses it. */
+    #lastFit: {
+        envelope: LayoutEnvelope;
+        /** Measured over every row: a fit that left held rows out is no envelope for one that measures them all. */
+        whole: boolean;
+        landed: number;
+        simWrites: number;
+        radius: number | null;
+        simPositions: F32;
+        simulation: LayoutSimulation | null;
+    } | null = null;
     #landedPublished = 0;
 
     /** Set by `LayoutManager` while it is not stepping this layout. See {@link paused}. */
@@ -1188,6 +1265,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
 
         this.#iterations = this.#resolveIterations(simGraph.nodeCount);
         this.#seed(simGraph, simPositions);
+        this.#resting = false;
         simulation.load(loadable.graph, simPositions);
         this.#attachDrawn(snapshot.nodeCount);
 
@@ -1218,8 +1296,17 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * @throws A `GraphtyError` with `E_NO_ACCELERATOR` when the policy is `"required"` and
      * nothing is attached. The bridge is then STOPPED -- no simulation, nothing submitted -- and
      * the next transition that attaches an accelerator brings it back through this same method.
+     * @param keepSettled - True when only the accelerator changed: a layout that had settled stays
+     *     settled on the new simulation, where it was, until something wakes it. A rebuild for new
+     *     data or new communities passes false and runs.
      */
-    replaceSimulation(): void {
+    replaceSimulation(keepSettled = false): void {
+        // NOT `#failed`: a settled simulation's per-frame device work fails on the lost device before
+        // the controller sees the loss, and that failure is reported, but it moved nothing. Its
+        // `settled` is still what its last landed batch said. With NO simulation (a `"required"` policy
+        // with nothing attached: the last rebuild threw), only a rest carried through that gap counts --
+        // an empty bridge reads settled, and a layout stopped mid-run must resume.
+        const settled = keepSettled && (this.#simulation === null ? this.#resting : this.isSettled);
         this.#detachDrawn();
         this.#simulation?.dispose();
         this.#simulation = null;
@@ -1236,8 +1323,12 @@ export class SimulationLayoutEngine extends LayoutEngine {
             this.#build();
         } catch (error) {
             this.#failed = true;
+            // Carried through the gap to the rebuild that brings the accelerator back.
+            this.#resting = settled;
             throw error;
         }
+
+        this.#resting = settled;
 
         // No reheat here either, and for the same reason: `#build()` loads the new simulation, and
         // a load is already a full run from the start of the schedule. See `reload`.
@@ -1256,9 +1347,12 @@ export class SimulationLayoutEngine extends LayoutEngine {
      */
     step(): void {
         const simulation = this.#simulation;
-        if (simulation === null || this.#failed) {
+        // A resting simulation does nothing when stepped, as a settled one does.
+        if (simulation === null || this.#failed || this.#resting) {
             return;
         }
+
+        this.#attachShort();
 
         const iterations = this.#batchIterations();
         const arrangement = this.#arrangement;
@@ -1296,7 +1390,8 @@ export class SimulationLayoutEngine extends LayoutEngine {
 
     /**
      * How many iterations the next frame's batch computes: the load's count, ramped up on a hardware accelerator when
-     * the host did not pin one (see {@link acceleratedIterationsFor}).
+     * the host did not pin one (see {@link acceleratedIterationsFor}), to a smaller cap under renderPath "batched" (see
+     * {@link ACCELERATED_BATCHED_NODE_ITERATIONS}).
      *
      * NOT ON A SOFTWARE ADAPTER. The ramp pays off where a batch's round trip costs more than its arithmetic, which is
      * a real card's case. A software adapter computes on the CPU: a 128-iteration batch of a few thousand nodes takes
@@ -1315,6 +1410,16 @@ export class SimulationLayoutEngine extends LayoutEngine {
             return this.#iterations;
         }
 
+        if (this.#dataManager.renderLimits?.batched() ?? false) {
+            return acceleratedIterationsFor(
+                this.#iterations,
+                this.#snapshot.nodeCount,
+                this.#iterationsDone,
+                ACCELERATED_BATCHED_NODE_ITERATIONS,
+                ACCELERATED_BATCHED_LEAST_ITERATIONS,
+            );
+        }
+
         return acceleratedIterationsFor(this.#iterations, this.#snapshot.nodeCount, this.#iterationsDone);
     }
 
@@ -1329,7 +1434,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * @returns A promise that resolves when the batch has landed, or rejects with its failure.
      */
     async stepAsync(iterations: number): Promise<void> {
-        if (this.#simulation === null || this.#failed) {
+        if (this.#simulation === null || this.#failed || this.#resting) {
             return;
         }
 
@@ -1337,11 +1442,14 @@ export class SimulationLayoutEngine extends LayoutEngine {
             this.#applyCollision(this.#snapshot.nodeCount);
         }
 
+        this.#attachShort();
         this.#iterationsDone += iterations;
         this.#syncWork();
         try {
             await this.#simulation.step(iterations);
         } finally {
+            // The batch rewrote the simulation's array without the frame loop's landing count seeing it.
+            this.#simWrites += 1;
             this.#syncWork();
         }
     }
@@ -1376,6 +1484,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * ones have it, and a third party's may not -- so it is feature-tested rather than assumed.
      */
     reheat(): void {
+        this.#resting = false;
         const simulation: (LayoutSimulation & { reheat?: () => void }) | null = this.#simulation;
         if (typeof simulation?.reheat === "function") {
             simulation.reheat();
@@ -1448,6 +1557,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
      */
     override setHoldMask(mask: NodeMask | null, rows: number): void {
         super.setHoldMask(mask, rows);
+        this.#resting = false;
         this.#applyPins();
     }
 
@@ -1481,6 +1591,9 @@ export class SimulationLayoutEngine extends LayoutEngine {
         }
 
         const scale = this.#envelopeScale;
+        this.#simWrites += 1;
+        // The simulation reheats on a placed node, so a resting one wakes with it.
+        this.#resting = false;
         this.#simulation?.setPosition(
             row,
             (p.x - this.#targetCentre[0]) / scale + this.#simCentre[0],
@@ -1604,7 +1717,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * @returns True when the last completed batch settled.
      */
     get isSettled(): boolean {
-        return this.#simulation?.settled ?? true;
+        return this.#resting || (this.#simulation?.settled ?? true);
     }
 
     /**
@@ -1683,7 +1796,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
         this.#fitEnvelope(snapshot, simPositions);
         if (mayOwe && drawn !== null && viaCard !== null) {
             drawn.stepped = true;
-            if (!this.#publishDrawn(drawn, landed)) {
+            if (!this.#publishDrawn(drawn, landed, true)) {
                 // Not copied after all (the texture is not on the card yet, or the ring failed): written now.
                 this.#publish(false);
                 return;
@@ -1859,12 +1972,16 @@ export class SimulationLayoutEngine extends LayoutEngine {
             target.table.rows < nodeCount ||
             this.#origin !== null
         ) {
+            if (drawn !== null && target !== null && target.table.rows < nodeCount && this.#origin === null) {
+                this.#drawnShort = nodeCount;
+            }
+
             return;
         }
 
         try {
             drawn.setDrawn({
-                slots: DRAWN_SLOTS,
+                slots: (this.#options.maxInFlight ?? DEFAULT_MAX_IN_FLIGHT) + DRAWN_SPARE_SLOTS,
                 rows: target.table.rowPosition.subarray(0, 4 * nodeCount),
                 // On another device than the texture's, each landed slot comes back in the batch's readback.
                 readBack: target.device === null,
@@ -1893,14 +2010,23 @@ export class SimulationLayoutEngine extends LayoutEngine {
             },
         };
         this.#drawn = run;
+        this.#copiedLanded = -1;
         target.table.drawnMirror = run.mirror;
         this.#sendDrawnTransform(run);
+    }
+
+    /** Attaches the ring a load left waiting for the table to grow, before the next batch or publish. */
+    #attachShort(): void {
+        if (this.#drawnShort >= 0) {
+            this.#attachDrawn(this.#drawnShort);
+        }
     }
 
     /** Back to the upload path: the ring stops, and the table tells no simulation of its writes. */
     #detachDrawn(): void {
         const run = this.#drawn;
         this.#drawn = null;
+        this.#drawnShort = -1;
         if (run === null) {
             return;
         }
@@ -1925,6 +2051,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * @returns The run, or null.
      */
     #drawnRun(): DrawnRun | null {
+        this.#attachShort();
         const run = this.#drawn;
         if (run === null) {
             return null;
@@ -1944,24 +2071,35 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * After a publish on the card (with the transform the landed batch drew with, which a batch's
      * commands recorded across awaits make unknowable here): the rows the ring must leave as the element wrote them, the copy of
      * the landed slot, and the transform the next batches draw with.
+     *
+     * A LANDING IS COPIED ONCE. A frame on which no batch landed publishes the landing already copied: the texture
+     * holds it, with every row written since sent over it, so copying it again sent nothing new but the rows told to
+     * the ring, every frame until the next batch landed. While a software adapter's queue ran behind the page that
+     * was an upload a frame for a landing already on the card (issue #9806).
      * @param run - The run.
      * @param landed - The landed slot to copy (its rows when read back from another device), or null when
      * this publish goes up by upload.
-     * @returns True when the landed slot was copied.
+     * @param owing - True when the lane is owed this publish rather than written now: a landing already copied is
+     * then not copied again. The publish written now copies it, since the texture must follow the lane's rows.
+     * @returns True when the landed slot was copied, now or by an earlier publish of the same landing.
      */
-    #publishDrawn(run: DrawnRun, landed: GPUBuffer | Float32Array | null): boolean {
+    #publishDrawn(run: DrawnRun, landed: GPUBuffer | Float32Array | null, owing = false): boolean {
         const simulation = this.#simulation;
         let copied = false;
         try {
             this.#sendDrawnSkip(run);
             if (landed === null) {
+                this.#copiedLanded = -1;
                 run.target.table.dropCopy();
+            } else if (owing && this.#copiedLanded === this.#landed) {
+                copied = true;
             } else {
                 const { table, device } = run.target;
                 copied =
                     landed instanceof Float32Array
                         ? table.uploadLanded(landed, run.n)
                         : device !== null && table.copyLanded(device, landed, run.n);
+                this.#copiedLanded = copied ? this.#landed : -1;
                 this.#resendTold(run);
             }
 
@@ -1994,14 +2132,23 @@ export class SimulationLayoutEngine extends LayoutEngine {
     }
 
     /**
-     * Sends the transform the next batches draw with: the envelope last measured.
+     * Sends the transform the next batches draw with: the envelope last measured, and, when the publish fits every row
+     * the device measures, the radius each batch fits its own landing to on the card.
+     *
+     * FITTED ON THE CARD, NOT FROM THE LAST LANDING. A batch is sent before the landings ahead of it are published, so
+     * the envelope last measured is a landing or two old, and while ForceAtlas2 ramps its batches up the arrangement
+     * doubles over two batches: two landing in one frame drew the second twice the size the layout measures
+     * (issue #9665). Fitted to its own rows, every landing is drawn at the size `#fitEnvelope` measures for it.
      * @param run - The run.
      */
     #sendDrawnTransform(run: DrawnRun): void {
+        const radius = this.#fitRadius();
+        const fit = this.#fixedRows.size === 0 && this.deviceEnvelope && radius !== null ? radius : undefined;
         const transform: DrawnTransform = {
             center: [this.#simCentre[0], this.#simCentre[1], this.#simCentre[2]],
             scale: this.#envelopeScale,
             target: [this.#targetCentre[0], this.#targetCentre[1], this.#targetCentre[2]],
+            ...(fit === undefined ? {} : { fit }),
         };
         run.simulation.setDrawnTransform(transform);
         const last = run.unstepped.at(-1);
@@ -2089,8 +2236,18 @@ export class SimulationLayoutEngine extends LayoutEngine {
         const radii = this.#collisionRadii(snapshot.nodeCount);
         const radius = this.#fitRadius();
         const measured =
+            this.#unchangedFit(held === null, radius, simPositions) ??
             (held === null && this.deviceEnvelope ? this.#deviceEnvelope(snapshot.nodeCount, radius) : null) ??
             this.#walkEnvelope(simPositions, snapshot.nodeCount, radius, held);
+        this.#lastFit = {
+            envelope: measured,
+            whole: held === null,
+            landed: this.#landed,
+            simWrites: this.#simWrites,
+            radius,
+            simPositions,
+            simulation: this.#simulation,
+        };
         this.#simBox = measured.box;
 
         // NOTHING LEFT TO MEASURE KEEPS THE LAST MAP rather than resetting it to the identity. A
@@ -2117,6 +2274,32 @@ export class SimulationLayoutEngine extends LayoutEngine {
         if (radii !== null) {
             this.#setCollision(radii, this.#envelopeScale);
         }
+    }
+
+    /**
+     * The last fit's envelope when nothing it measured has changed since, or null.
+     *
+     * AN ACCELERATED ARRAY CHANGES ONLY WHEN A BATCH LANDS OR THE ELEMENT WRITES IT, so a fit with neither since the
+     * last one would measure the same rows again. The device queue can run hundreds of frames behind the page, and
+     * every one of those frames walked every row before the first landing (issue #9627). A CPU simulation rewrites
+     * its array on every step, so it always measures.
+     * @param whole - Whether this fit measures every row (none held).
+     * @param radius - The scene-unit radius this fit is published at, or null.
+     * @param simPositions - The simulation's coordinates, three per row.
+     * @returns The envelope to reuse, or null to measure.
+     */
+    #unchangedFit(whole: boolean, radius: number | null, simPositions: F32): LayoutEnvelope | null {
+        const last = this.#lastFit;
+        const unchanged =
+            whole &&
+            this.#accelerated &&
+            last?.whole === true &&
+            last.landed === this.#landed &&
+            last.simWrites === this.#simWrites &&
+            last.radius === radius &&
+            last.simPositions === simPositions &&
+            last.simulation === this.#simulation;
+        return unchanged ? last.envelope : null;
     }
 
     /**
@@ -2557,6 +2740,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * @throws Whatever `plan()` or `createSimulation` throws.
      */
     #build(): void {
+        this.#resting = false;
         const snapshot = this.#snapshot;
         const positions = this.#positions;
         if (snapshot === null || positions === null) {
@@ -2740,6 +2924,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
 
         this.#simPositions = simPositions;
         this.#adoptedSinceLanding = true;
+        this.#simWrites += 1;
 
         return simPositions;
     }
@@ -2829,6 +3014,12 @@ export class SimulationLayoutEngine extends LayoutEngine {
         const mask = this.#mask;
         const simulation = this.#simulation;
         const row = this.#simRow(index);
+        if (!fixed) {
+            // A released row reheats the simulation, so a resting one wakes with it -- also one carried
+            // through a stopped bridge, which has no simulation to tell yet.
+            this.#resting = false;
+        }
+
         if (mask === null || simulation === null || !this.#hasRow(row)) {
             return;
         }
@@ -2945,3 +3136,5 @@ export class SimulationLayoutEngine extends LayoutEngine {
         );
     }
 }
+
+edgeEndsFollowNodes(SimulationLayoutEngine);

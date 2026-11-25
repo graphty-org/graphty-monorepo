@@ -141,7 +141,7 @@ async function attempt<T>(
     let sent = false;
     try {
         if (signal.aborted) {
-            throw new DOMException("The call was cancelled.", "AbortError");
+            throw new DOMException("The call was canceled.", "AbortError");
         }
 
         const value = await call(
@@ -155,7 +155,7 @@ async function attempt<T>(
             ),
         );
         if (signal.aborted) {
-            throw new DOMException("The call was cancelled.", "AbortError");
+            throw new DOMException("The call was canceled.", "AbortError");
         }
 
         return { type: "done", value };

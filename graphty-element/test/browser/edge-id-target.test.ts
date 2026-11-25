@@ -113,6 +113,18 @@ function edgesOf(element: Graphty): Edge[] {
 }
 
 /**
+ * The first edge of the data that is a line, not the loop: the order the graph lists its edges in is the order their
+ * `Edge` objects were built, and on the batched path an edge drawn from the rows builds its `Edge` only when read.
+ * @param element - The element.
+ * @returns The edge.
+ */
+function firstLine(element: Graphty): Edge {
+    const edge = edgesOf(element).find((candidate) => candidate.srcId === "n0" && candidate.dstId === "n3");
+    assert.isDefined(edge);
+    return edge;
+}
+
+/**
  * The drawn edge at a point by the full walk.
  * @param element - The element.
  * @param x - X in CSS pixels.
@@ -273,7 +285,7 @@ describe("the edge ID target", () => {
         const canvas = graph.scene.getEngine().getInputElement();
         assert.isNotNull(canvas);
         const scaling = graph.scene.getEngine().getHardwareScalingLevel();
-        const [edge] = edgesOf(element);
+        const edge = firstLine(element);
         const a = graph.worldToScreen(edge.srcNode.drawnWorldPosition);
         const b = graph.worldToScreen(edge.dstNode.drawnWorldPosition);
         const mid = { x: ((a.x + b.x) / 2) * scaling, y: ((a.y + b.y) / 2) * scaling };
@@ -312,7 +324,7 @@ describe("the edge ID target", () => {
         const canvas = graph.scene.getEngine().getInputElement();
         assert.isNotNull(canvas);
         const scaling = graph.scene.getEngine().getHardwareScalingLevel();
-        const [edge] = edgesOf(element);
+        const edge = firstLine(element);
         const a = graph.worldToScreen(edge.srcNode.drawnWorldPosition);
         const b = graph.worldToScreen(edge.dstNode.drawnWorldPosition);
         // Below the middle of the window, where rows past the first few of an unpadded read were lost.
@@ -343,7 +355,20 @@ describe("the edge ID target", () => {
                 // The loop is a curve: it alone goes on screen point by point.
                 assert.strictEqual(edgePickWork.measured - before, 1, `only the loop is measured ${where}`);
                 edgesNamed += got === null ? 0 : 1;
-                assert.strictEqual(got?.id, walked(element, point.x, point.y), where);
+                const expected = walked(element, point.x, point.y);
+                if (got?.id === expected) {
+                    continue;
+                }
+
+                // A press reads the target as hover does, so two lines over the same pixels (some edges join the
+                // same two nodes the other way round) are told apart as hover tells them.
+                const all = edgesOf(element);
+                const one = all.find((e) => e.id === expected);
+                const other = all.find((e) => e.id === got?.id);
+                assert.isTrue(
+                    one !== undefined && other !== undefined && overdrawn(element, one, other, point.x, point.y),
+                    `${where}: elementAt ${String(got?.id)}, walk ${String(expected)}`,
+                );
             }
 
             assert.isAbove(edgesNamed, POINTS / 2, "enough points are on an edge");
@@ -355,12 +380,16 @@ describe("the edge ID target", () => {
         const { graph } = element;
         const canvas = graph.scene.getEngine().getInputElement();
         assert.isNotNull(canvas);
-        const [edge] = edgesOf(element);
+        const edge = firstLine(element);
         const a = graph.worldToScreen(edge.srcNode.drawnWorldPosition);
         const b = graph.worldToScreen(edge.dstNode.drawnWorldPosition);
         const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-        // Edge i and edge i + NODES join the same nodes; the walk names the later one.
-        const expected = edgesOf(element)[NODES].id;
+        // Edge i and edge i + NODES join the same nodes; the walk names the one it reaches last.
+        const twin = edgesOf(element)
+            .filter((other) => other.srcId === edge.srcId && other.dstId === edge.dstId)
+            .at(-1);
+        assert.isDefined(twin);
+        const expected = twin.id;
         assert.strictEqual(walked(element, mid.x, mid.y), expected, "the walk names the edge there");
         const before = edgePickWork.measured;
         await click(element, mid);

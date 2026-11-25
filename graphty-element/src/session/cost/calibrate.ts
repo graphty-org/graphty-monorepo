@@ -11,7 +11,7 @@
  * The honest failure is the important part. If the clock is too coarse, the budget runs out, or
  * a workload returns a time of zero, the calibration comes back with
  * `basis: "defaults"` and the built-in rates, and every estimate built on it reports confidence
- * `"modelled"` rather than `"calibrated"`. A calibration that quietly reported a fabricated rate
+ * `"modeled"` rather than `"calibrated"`. A calibration that quietly reported a fabricated rate
  * would be the same failure this whole module exists to prevent, one layer down.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM. The workloads are typed arrays and

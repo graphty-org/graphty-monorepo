@@ -295,8 +295,23 @@ if (column !== null) {
 ```
 
 It offers only a column with no role yet. `time` is the column whose values read as time best; `label` the first of `label`, `name` or `title` holding text; an edge's
-`weight` a number column named `confidence`, `score` or `strength`, else the only number column.
+`weight` a number column named `confidence`, `score` or `strength`, else the only number column;
+`kind` the first of `type`, `kind` or `category` (any case) holding text.
 Every other role, and a node's weight, answers null.
+
+The `kind` role names the column that says what each node or edge is (person, account, device).
+A file that declares kinds sets it at load (Neo4j's `:LABEL` and `:TYPE`, or any column graph-io
+reads as labels or a kind), as does a load mapping's `kind`; `setRole` sets it on any other column.
+`data.kinds()` counts the elements of each kind, most first, with `null` where no column has the role:
+
+```typescript
+await session.data.setRole({ kind: "node", name: "type" }, "kind");
+const { nodes, edges } = session.data.kinds();
+nodes?.values; // [{ value: "person", count: 40 }, { value: "account", count: 12 }]
+edges; // null: no edge column has the kind role
+```
+
+A list value (Neo4j's several labels) counts once under each kind it lists.
 
 `usedBy` says what reads a column now: each style layer whose selector or bindings read it
 (`{ kind: "layer", id }`), then each finished run that weighed its edges by it
@@ -607,7 +622,7 @@ if (!check.valid) {
 catalog holds no labels and no order: choose your own.
 
 Every result of `aiCommand()` carries a `code` and its `params`, so you can tell a missing key
-from a cancelled command or a failed tool without reading `result.message`, which is English
+from a canceled command or a failed tool without reading `result.message`, which is English
 for a log and may change. `AI_RESULT_CODES` lists every code this release has. `AiResultCode` is
 an open union: a later minor release may add codes, so handle an unknown code (by `success` alone,
 for example):
@@ -618,7 +633,7 @@ import type { AiResultCode } from "@graphty/graphty-element/catalog";
 // Your words, keyed by code; AI_RESULT_CODES lists every code to fill in.
 const words: Partial<Record<AiResultCode, string>> = {
     AI_KEY_MISSING: "Add an API key in Settings first.",
-    AI_CANCELLED: "Stopped.",
+    AI_CANCELED: "Stopped.",
 };
 
 const result = await graph.aiCommand(text);
@@ -634,7 +649,7 @@ show(result.success ? (result.llmText ?? "Done.") : (words[result.code] ?? "Some
 | `AI_KEY_MISSING`            | false     | `provider`            | The provider needs an API key and has none                                                      |
 | `AI_KEY_REJECTED`           | false     | `provider`, `status`  | The provider refused the key (HTTP 401, 403; Google 400)                                        |
 | `AI_PROVIDER_ERROR`         | false     | `provider`, `status`? | The provider or the network failed                                                              |
-| `AI_CANCELLED`              | false     | `steps`?              | `cancelAiCommand()` ended it; `steps` undo steps taken back, absent when it had changed nothing |
+| `AI_CANCELED`               | false     | `steps`?              | `cancelAiCommand()` ended it; `steps` undo steps taken back, absent when it had changed nothing |
 | `AI_UNDONE`                 | false     |                       | It was undone while it ran; its changes are taken back                                          |
 | `AI_TOOL_UNKNOWN`           | false     | `tool`                | The model called a tool that does not exist                                                     |
 | `AI_TOOL_INVALID_ARGUMENTS` | false     | `tool`                | The model called a tool with arguments it refused                                               |
@@ -702,12 +717,12 @@ all, and one message is one undo step. What the model reads back is a code and i
 the element's English: a large answer comes in pages, and a run's result is summarized.
 Messages run one at a time, in the order they were sent; `cancelAiCommand()` ends the one running
 and every one waiting. While a run the assistant started computes, your own edits go through, and
-cancelling stops the run.
+canceling stops the run.
 
 #### Changes that wait for the reader
 
 A change the reader might not want is held, not made: removing many nodes or edges, changing many
-values, a run estimated to be slow, emptying or replacing the graph, cancelling a run the reader
+values, a run estimated to be slow, emptying or replacing the graph, canceling a run the reader
 started, or loading a URL the reader did not type. The element asks your page, and only your page
 can say yes; the model cannot approve anything.
 
@@ -807,7 +822,7 @@ const provider = keys.getDefaultProvider() ?? keys.getConfiguredProviders()[0];
 
 keys.disablePersistence(); // forget them on the next load (they stay in memory)
 
-await keys.forgetKey("anthropic"); // out of memory and both storages, wherever it was kept (experimental)
+await keys.forgetKey("anthropic"); // out of memory and both storages, wherever it was kept
 ```
 
 Keys saved by graphty-element before Web Crypto (with the `encrypt-storage` package) still load:

@@ -888,6 +888,11 @@ export interface LabelStyleFieldDescriptor {
     /** Whether it takes whole numbers only. */
     readonly integer?: boolean;
     /**
+     * Whether the number is an angle, in degrees (`rotation`). A style editor picks it with an angle control.
+     * @since 3.69.0
+     */
+    readonly angle?: true;
+    /**
      * What is drawn while nothing sets it, as {@link LABEL_STYLE_DEFAULTS} says (and `true` for `enabled`: a label
      * with words is drawn); absent when nothing is.
      */
@@ -1096,7 +1101,7 @@ const FIELD_ROWS = {
     maxLinesEllipsis: flag("Max Lines Ellipsis"),
     keepBlankLines: flag("Keep Blank Lines"),
     runAlign: choice("Run Align", ["baseline", "hanging", "middle"]),
-    rotation: num("Rotation"),
+    rotation: num("Rotation", { angle: true }),
     lineHeight: num("Line Height"),
     lineBox: choice("Line Box", ["font", "size", "glyphs"]),
     borderAlign: choice("Border Align", ["outside", "center"]),

@@ -1432,6 +1432,24 @@ describe("ChannelDescriptor.drawnWhen", () => {
         }
     });
 
+    it("says which numbers are angles, on channels and on the label style's fields", () => {
+        const angles = CHANNELS.filter((channel) => CHANNEL_DESCRIPTORS[channel].angle === true).sort();
+        assert.deepStrictEqual(angles, [
+            "edge.arrowHeadTextRotation",
+            "edge.arrowTailTextRotation",
+            "edge.labelRotation",
+            "node.gradientDirection",
+            "node.labelRotation",
+            "node.modelTurn",
+            "node.pieRotation",
+            "node.shapeRotation",
+        ]);
+        assert.deepStrictEqual(
+            LABEL_STYLE_DESCRIPTORS.filter((each) => each.angle === true).map((each) => each.field),
+            ["rotation"],
+        );
+    });
+
     it("says which list items are fractions, and which are shares of the whole", () => {
         assert.deepStrictEqual(CHANNEL_DESCRIPTORS["node.pieSizes"].listItems, { min: 0, max: 1, share: true });
         assert.deepStrictEqual(CHANNEL_DESCRIPTORS["node.stripeSizes"].listItems, { min: 0, max: 1, share: true });

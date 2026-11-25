@@ -614,6 +614,7 @@ export type ChannelCondition = {
 // @public
 export interface ChannelDescriptor {
     readonly accepts: ChannelValueKind;
+    readonly angle?: true;
     readonly appliesWhen?: {
         readonly channel: Channel;
         readonly values: readonly string[];
@@ -2355,6 +2356,7 @@ export interface LabelStyle {
 // @public
 export interface LabelStyleFieldDescriptor {
     readonly accepts: LabelFieldValueKind;
+    readonly angle?: true;
     readonly default?: string | number | boolean | readonly string[];
     readonly drawnOn?: readonly Channel[];
     readonly drawnWhen?: readonly LabelFieldCondition[];

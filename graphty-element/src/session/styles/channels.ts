@@ -1021,6 +1021,13 @@ export interface ChannelDescriptor {
      */
     readonly step?: number;
     /**
+     * Whether the number is an angle, in degrees: a shape's, a pie's or a label's rotation, a gradient's
+     * direction, a model's turn. A style editor picks it with an angle control rather than a plain number.
+     * Absent on every other channel.
+     * @since 3.69.0
+     */
+    readonly angle?: true;
+    /**
      * What {@link ChannelDescriptor.caveat} says, as a code an application words: see
      * {@link ChannelCaveatCode}. Absent on a channel whose caveat has no code yet.
      * @since 3.26.0
@@ -1700,6 +1707,7 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
             shortName: `${end} caption rotation`,
             group: "arrows",
             accepts: "number",
+            angle: true,
             stylePath: `arrow${end}.text.rotation`,
             renderable: true,
             caveat: "How far the caption is turned, in degrees clockwise on screen about its own middle; unset, level.",
@@ -2061,7 +2069,7 @@ function labelFieldChannels<Target extends "node" | "edge">(
         // Screen pixels, never scaled with the graph: a size below which the label is not drawn.
         row("MinScreenSize", "Min Screen Size", { accepts: "number", min: 0 }),
         row("OnTop", "On Top", { accepts: "boolean" }),
-        row("Rotation", "Rotation", { accepts: "number" }),
+        row("Rotation", "Rotation", { accepts: "number", angle: true }),
         row("Background", "Background", {
             accepts: "color",
             caveat: "The color of a panel drawn behind the label's words, as a program's label background is.",
@@ -3772,6 +3780,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         group: "shape",
         default: 0,
         accepts: "number",
+        angle: true,
         stylePath: "pie.rotation",
         renderable: true,
         caveat: NODE_PIE_CAVEAT,
@@ -4292,6 +4301,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         group: "shape",
         default: 0,
         accepts: "number",
+        angle: true,
         stylePath: "shape.rotation",
         renderable: true,
         caveat:
@@ -4572,6 +4582,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         group: "color",
         default: 0,
         accepts: "number",
+        angle: true,
         min: 0,
         max: 360,
         stylePath: "texture.color.direction",
@@ -4688,6 +4699,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         group: "shape",
         default: 0,
         accepts: "number",
+        angle: true,
         min: -360,
         max: 360,
         stylePath: "shape.modelTurn",

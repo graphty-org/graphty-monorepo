@@ -203,7 +203,7 @@ function indexOf(result: ImportGraphResult, id: string): number {
     // an absent id is INVALID_INDEX, past the last node
     const index = [id, Number(id)].map((each) => ids.indexOf(each)).find((each) => each < result.snapshot.nodeCount);
     assert.isDefined(index, `no node ${id}`);
-    return index ?? -1;
+    return index;
 }
 
 describe("the sample files from other programs", () => {
@@ -230,11 +230,8 @@ describe("the sample files from other programs", () => {
         "%s keeps its program's shapes, colors, labels, sizes and edge styles",
         async (_, sample) => {
             const result = await load(sample);
-            const styles = result.styles;
+            const { styles } = result;
             assert.isOk(styles);
-            if (!styles) {
-                return;
-            }
             const expected = EXPECTED[sample.id];
             for (const [id, values] of Object.entries(expected.nodes)) {
                 const index = indexOf(result, id);
@@ -259,8 +256,8 @@ describe("the sample files from other programs", () => {
                 assert.isTrue(positions?.usable, `${sample.id} stores its positions`);
                 for (const [id, [x, y]] of Object.entries(expected.positions)) {
                     const index = indexOf(result, id);
-                    assert.closeTo(positions?.coords[index * 3] ?? Number.NaN, x, 1e-6, `${sample.id} ${id} x`);
-                    assert.closeTo(positions?.coords[index * 3 + 1] ?? Number.NaN, y, 1e-6, `${sample.id} ${id} y`);
+                    assert.closeTo(positions.coords[index * 3], x, 1e-6, `${sample.id} ${id} x`);
+                    assert.closeTo(positions.coords[index * 3 + 1], y, 1e-6, `${sample.id} ${id} y`);
                 }
             }
         },

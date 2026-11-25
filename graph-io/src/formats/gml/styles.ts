@@ -1298,32 +1298,56 @@ function readElement(
     if (lg !== null && lg !== undefined) {
         readLabelGraphics(lg, writer, target === "node", putLabel, at);
     }
-    const markup = writer.vocabulary === "ogdf" ? ogdfLabelMarkup(label) : null;
-    if (!text && markup !== null && labelKeyDrawn(target, writer, isRec(g) || lg !== undefined)) {
-        put("label", canonText(markup.text, at("label")));
-        readColor(markup.color, "labelColor", "labelOpacity", writer, put, at);
-        put("labelFont", markup.font);
-        put("labelSize", markup.size);
-    } else if (
-        !text &&
-        labelKeyDrawn(target, writer, isRec(g) || lg !== undefined) &&
-        label !== null &&
-        label !== undefined
-    ) {
-        put(
-            "label",
-            writer.vocabulary === "graphviz" ? graphvizText(label, at("label")) : canonText(label, at("label")),
-        );
-        // the GML draft names no place for a node's label; a plain GML file's is centered on its node, as OGDF and
-        // Cytoscape draw it (yEd's GML keeps its own label models, in LabelGraphics)
-        if (target === "node" && writer.tool === null && writer.vocabulary === "graphlet") {
-            put("labelPosition", "center");
-        }
+    if (!text && labelKeyDrawn(target, writer, isRec(g) || lg !== undefined)) {
+        readLabelKey(target, label, writer, put, at);
+    }
+}
+
+/**
+ * Reads the `label` key of an element whose program draws it.
+ * @param target - nodes or edges
+ * @param label - the `label` key's value
+ * @param writer - the writer
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readLabelKey(target: StyleTarget, label: unknown, writer: GmlWriter, put: Put, at: At): void {
+    if (label === null || label === undefined) {
+        return;
+    }
+    if (writer.vocabulary === "ogdf" && readOgdfLabelMarkup(label, writer, put, at)) {
+        return;
+    }
+    put("label", writer.vocabulary === "graphviz" ? graphvizText(label, at("label")) : canonText(label, at("label")));
+    // the GML draft names no place for a node's label; a plain GML file's is centered on its node, as OGDF and
+    // Cytoscape draw it (yEd's GML keeps its own label models, in LabelGraphics)
+    if (target === "node" && writer.tool === null && writer.vocabulary === "graphlet") {
+        put("labelPosition", "center");
     }
 }
 
 /** A label OGDF's writer kept as rich text markup: `<label font="Arial,10,..." textColor="ff000000">text</label>`. */
 const OGDF_LABEL_MARKUP = /^\s*<label\b([^>]*)>([\s\S]*)<\/label>\s*$/;
+
+/**
+ * Puts a label kept as rich text markup by an editor built on OGDF: its text, color and font.
+ * @param raw - the `label` key's value
+ * @param writer - the writer
+ * @param put - receives the values
+ * @param at - the sites
+ * @returns whether the label was markup
+ */
+function readOgdfLabelMarkup(raw: unknown, writer: GmlWriter, put: Put, at: At): boolean {
+    const markup = ogdfLabelMarkup(raw);
+    if (markup === null) {
+        return false;
+    }
+    put("label", canonText(markup.text, at("label")));
+    readColor(markup.color, "labelColor", "labelOpacity", writer, put, at);
+    put("labelFont", markup.font);
+    put("labelSize", markup.size);
+    return true;
+}
 
 /**
  * Reads a label kept as rich text markup by an editor built on OGDF (the files in OGDF's own examples, such as
@@ -1340,7 +1364,7 @@ function ogdfLabelMarkup(
         return null;
     }
     const attribute = (name: string): string | undefined =>
-        new RegExp(`\\b${name}\\s*=\\s*"([^"]*)"`).exec(match[1])?.[1];
+        new RegExp(String.raw`\b${name}\s*=\s*"([^"]*)"`).exec(match[1])?.[1];
     const argb = /^[0-9a-f]{8}$/i.exec(attribute("textColor") ?? "")?.[0];
     const [family, points] = (attribute("font") ?? "").split(",");
     const size = Number(points);

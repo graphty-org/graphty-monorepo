@@ -75,7 +75,7 @@ import type { DrawnTarget } from "../render/RowTable";
 import { wholeGraph } from "../session/working/graphs";
 import { readCommunities, readRowCommunities, sameCommunities } from "./clusterForce";
 import { forceAtlas2MaxIterFor } from "./forceAtlas2Iterations";
-import { type EdgePosition, LayoutEngine, type Position } from "./LayoutEngine";
+import { edgeEndsFollowNodes, type EdgePosition, LayoutEngine, type Position } from "./LayoutEngine";
 
 /**
  * Above this many nodes the automatic `iterationsPerStep` is raised, because a frame that
@@ -3109,3 +3109,5 @@ export class SimulationLayoutEngine extends LayoutEngine {
         );
     }
 }
+
+edgeEndsFollowNodes(SimulationLayoutEngine);

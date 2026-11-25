@@ -460,6 +460,8 @@ describe.each(VIEWS)("pointing at nodes in %s", (view) => {
             await step("right-click b0", spot(element, "b0"), { right: true });
             await step("right-click empty canvas", EMPTY, { right: true });
             await step("ctrl-click t0", spot(element, "t0"), { modifiers: { ctrl: true } });
+            await step("shift-click a1", a1, { modifiers: { shift: true } });
+            await step("ctrl-click t0 again", spot(element, "t0"), { modifiers: { ctrl: true } });
             await step("click empty canvas", EMPTY);
             element.remove();
         }
@@ -471,6 +473,10 @@ describe.each(VIEWS)("pointing at nodes in %s", (view) => {
             "shift-click the a0-a1 edge -> edge:ea,node:b0",
             "right-click b0 -> edge:ea,node:b0",
             "right-click empty canvas -> edge:ea,node:b0",
+            // A modifier click on a node changes only that node: the selected edge stays (issue #10020).
+            "ctrl-click t0 -> edge:ea,node:b0,node:t0",
+            "shift-click a1 -> edge:ea,node:a1,node:b0,node:t0",
+            "ctrl-click t0 again -> edge:ea,node:a1,node:b0",
         ];
         assert.deepEqual(steps.objects.slice(0, want.length), want, "objects");
         assert.deepEqual(steps.batched, steps.objects, "batched selects as objects does");

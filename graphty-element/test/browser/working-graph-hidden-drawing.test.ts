@@ -34,9 +34,10 @@ afterEach(() => {
  * A mounted element holding the path laid out in a circle, with `showContext` on and only five
  * nodes shown, settled.
  * @param working - Whether the session reads the working graph.
+ * @param plain - Whether the edges are drawn with no head, so on "batched" no edge builds a `Node`.
  * @returns The element.
  */
-async function filtered(working: boolean): Promise<Graphty> {
+async function filtered(working: boolean, plain = false): Promise<Graphty> {
     const element = document.createElement("graphty-element");
     element.style.display = "block";
     element.style.width = "480px";
@@ -48,6 +49,15 @@ async function filtered(working: boolean): Promise<Graphty> {
     await element.updateComplete;
     await operationQueueOf(element.graph).waitForCompletion();
     element.session.workingGraph = working;
+    if (plain) {
+        await element.session.styles.add({
+            name: "plain",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.arrowHead": "none" },
+        } as never);
+    }
+
     await element.session.data.addNodes(IDS.map((id) => ({ id })));
     await element.session.data.addEdges(IDS.slice(1).map((id, index) => ({ source: IDS[index], target: id })));
     await element.graph.setLayout("circular", { dim: 2 });
@@ -80,6 +90,13 @@ describe("hidden nodes under the working graph", () => {
         const element = await filtered(false);
         assert.strictEqual(faintPoints(element), IDS.length - FIVE.length);
         assert.deepStrictEqual(element.session.visibility.notDrawn, []);
+    });
+
+    it("draws the hidden nodes as faint points when no edge builds a Node", async () => {
+        // On "batched" a plain edge is a row line and builds no `Node`: the rows painted after the filter was applied
+        // drew no context point.
+        const element = await filtered(false, true);
+        assert.strictEqual(faintPoints(element), IDS.length - FIVE.length);
     });
 
     it("draws no faint point at an old place under the fresh layout with the option on", async () => {

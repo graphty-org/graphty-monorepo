@@ -694,3 +694,83 @@ describe("a direction setting changed on a live store (#969)", () => {
         store.dispose();
     });
 });
+
+describe("the direction setting read once for work that changes no setting (#9420)", () => {
+    /**
+     * A store over a chain of `edges` edges whose `data.directed` reads are counted.
+     * @param edges - How many edges.
+     * @returns The store, the read count and the setter.
+     */
+    function countedStore(edges: number): {
+        store: GraphStore;
+        reads: { count: number };
+        set: (value: boolean | "auto") => void;
+    } {
+        let setting: boolean | "auto" = "auto";
+        const reads = { count: 0 };
+        const store = new GraphStore({
+            directed: () => {
+                reads.count++;
+                return setting;
+            },
+            positionScale: () => 1,
+            onReplaced: () => undefined,
+            onNodeRemap: () => undefined,
+            onEdgeRemap: () => undefined,
+        });
+        for (let i = 0; i < edges; i++) {
+            store.builder.addEdge(`n${i}`, `n${i + 1}`);
+        }
+
+        store.getSnapshot();
+        return {
+            store,
+            reads,
+            set: (value) => {
+                setting = value;
+            },
+        };
+    }
+
+    /**
+     * Read every edge's endpoints the way a frame's edge placement does: several reads of the graph per edge.
+     * @param store - The store.
+     * @param edges - How many edges.
+     */
+    function readEveryEdge(store: GraphStore, edges: number): void {
+        for (let row = 0; row < edges; row++) {
+            const [source, target] = store.reads.edgeEndpoints(row);
+            store.reads.idOf(source);
+            store.reads.idOf(target);
+        }
+    }
+
+    it("reads the setting once however many edges the work reads", () => {
+        for (const edges of [100, 1000]) {
+            const { store, reads } = countedStore(edges);
+            reads.count = 0;
+            store.withSettingHeld(() => {
+                readEveryEdge(store, edges);
+            });
+            assert.strictEqual(reads.count, 1, `${edges} edges`);
+
+            // Without it, each read of the graph reads the setting: the cost a frame paid.
+            reads.count = 0;
+            readEveryEdge(store, edges);
+            assert.isAtLeast(reads.count, 3 * edges);
+            store.dispose();
+        }
+    });
+
+    it("follows a setting changed before the work and after it", () => {
+        const { store, set } = countedStore(10);
+        assert.isTrue(store.reads.directed);
+        set(false);
+        store.withSettingHeld(() => {
+            assert.isFalse(store.reads.directed);
+        });
+        set(true);
+        assert.isTrue(store.reads.directed);
+        store.dispose();
+    });
+});

@@ -815,6 +815,7 @@ export class Edge {
     }[];
     // @internal
     get drawnGradient(): readonly string[];
+    get drawnHeadPosition(): Vector3 | null;
     get drawnLine(): {
         name: string;
         length: number;
@@ -859,6 +860,8 @@ export class Edge {
     parentGraph: Graph | GraphContext;
     // (undocumented)
     ray: Ray;
+    // @internal
+    redrawPulledOffEnds(): boolean;
     // @internal
     refreshFonts(families: ReadonlySet<string>): boolean;
     // @internal
@@ -1686,11 +1689,12 @@ export type GraphtyErrorCode =
 */
 | "E_NO_WEBGL"
 /**
-* A shader could not be built for WebGPU, usually because a name or a built-in in it is legal
-* GLSL that WGSL or the compilers in between do not take. A refused shader never draws and can
-* lose every frame it is part of, so `rendererStatus.drawing` turns false. `details.stage` names the step that gave up (`"compiler"`,
-* `"translator"` or `"device"`) and `details.messages` carry what it said, which the translator
-* leaves empty. Reported as `graph-error`.
+* A shader could not be built, under WebGPU usually because a name or a built-in in it is legal
+* GLSL that WGSL or the compilers in between do not take; under WebGL because the driver's
+* compiler refused it. A refused shader never draws and can lose every frame it is part of, so
+* `rendererStatus.drawing` turns false. `details.stage` names the step that gave up
+* (`"compiler"`, `"translator"` or `"device"`) and `details.messages` carry what it said,
+* which the translator leaves empty. Reported as `graph-error`.
 */
 | "E_SHADER_REFUSED"
 /**
@@ -2512,6 +2516,8 @@ class Node_2 implements ModelUser {
     get groupDrawnForAnotherCamera(): boolean;
     // @internal
     get groupSizing(): NodeStyleConfig["group"];
+    // @internal
+    get hiddenByStyle(): boolean;
     hideTooltip(): void;
     readonly id: NodeIdType;
     // @internal

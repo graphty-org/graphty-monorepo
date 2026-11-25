@@ -84,6 +84,15 @@ export const copyKey = (src: Source): string => src.origin.rows ?? src.origin.co
  */
 export const nodeSpace = (src: Source): string => src.mapping.nodes?.space ?? ownSpace(src.id);
 
+/**
+ * The space a source's rows key into when each is a node of an edge step (`rowNode`).
+ * @param src - The source.
+ * @param table - The table the step reads.
+ * @returns The space its node rows key into; for edge rows, the source's own.
+ */
+export const rowNodeSpace = (src: Source, table: TableName): string =>
+    table === "nodes" ? nodeSpace(src) : ownSpace(src.id);
+
 export const isEmpty = (v: Value | undefined): v is null | undefined | "" => v === undefined || v === null || v === "";
 const text = (v: CellValue | undefined): string => (v === undefined || v === null ? "" : String(v));
 
@@ -275,6 +284,9 @@ function ownNeeds(step: Step, src: Source): Need[] {
     const edgeStep = step.op === "join.edges" || step.op === "join.edge-values";
     const table = step.read.table ?? (edgeStep ? "edges" : "nodes");
     named(table, step.read);
+    if (step.op === "join.edges" && step.rowNode !== undefined && table === "nodes") {
+        named("nodes", { key: src.mapping.nodes?.key });
+    }
     for (const c of step.columns ?? []) {
         out.push([table, c, undefined]);
     }
@@ -554,6 +566,7 @@ function newStats(step: Step, si: number): StepStats {
         ...(step.op === "join.edges" ? { part: step.part } : {}),
         newNodes: 0,
         newEdges: 0,
+        mergedEdges: 0,
         matched: 0,
         unmatched: 0,
         fanOut: 0,
@@ -667,7 +680,9 @@ const settle = (n: BuiltNode): void => {
 
 type Lookup = (v: CellValue | undefined) => string[];
 const MISS_ORDER = ["left-out:empty-end", "left-out:fan-out", "left-out:unmatched"] as const;
-type EndHit = { n: BuiltNode } | { miss: "left-out:empty-end" | "left-out:fan-out" | "left-out:unmatched" };
+type RowHalf = "source" | "target";
+type EndMiss = (typeof MISS_ORDER)[number];
+type EndHit = { n: BuiltNode } | { miss: EndMiss };
 
 // Where one written cell came from.
 interface WriteAt {
@@ -703,6 +718,34 @@ interface EdgeArgs {
     readonly ends: { readonly source: string; readonly target: string };
     // the step's `repeated` on join.edges; absent leaves repeats to repeatedEdges
     readonly repeated?: "first" | "last" | "both";
+    // under `existing: "merge"`: the edges earlier steps made, and those this step folded rows into
+    readonly held?: HeldEdges;
+}
+
+// The edges a step found, by end pair, in build order, and the ones its rows folded into.
+interface HeldEdges {
+    readonly byPair: ReadonlyMap<string, readonly BuiltEdge[]>;
+    readonly folded: Set<string>;
+}
+
+// One row of a join.edges step.
+interface EdgeRow {
+    readonly s: EdgesStep;
+    readonly si: number;
+    readonly st: StepStats;
+    readonly src: Source;
+    readonly table: TableName;
+    readonly row: Row;
+    readonly index: number;
+    // what its edge is keyed by when no edge id names it
+    readonly key: string | undefined;
+    readonly held: HeldEdges | undefined;
+}
+
+// A row as a node (`rowNode`): the key its edges are named by, and the node.
+interface RowNode {
+    readonly key: string;
+    readonly hit: EndHit;
 }
 
 // The weight, meaning and time column an edge row carries (3.8, 3.9).
@@ -1102,7 +1145,7 @@ class Builder {
                 this.nodeValues(s, si, st);
                 break;
             case "join.merge":
-                this.merge(s, si, st);
+                (s.read.table === "edges" ? this.mergeRows : this.merge).call(this, s, si, st);
                 break;
             case "join.edges":
                 this.edgesStep(s, si, st);
@@ -1563,54 +1606,161 @@ class Builder {
         const table = s.read.table ?? "edges";
         const rd = s.read;
         const rows = this.filtered(s, table);
-        for (const hub of hubs(rows, rd.target)) {
+        for (const hub of rd.target === undefined ? [] : hubs(rows, rd.target)) {
             st.hub.push(hub);
-            this.issues.push({ code: "W_VALUE_HUB", params: { source: s.source, column: rd.target, ...hub } });
+            this.issues.push({ code: "W_VALUE_HUB", params: { source: s.source, column: rd.target ?? "", ...hub } });
         }
         const tr = this.translator(s);
         const empties = new Map<string, number>();
         const loose = s.ignoreCase === true || s.ignoreSpaces === true ? new Map<string, Map<string, string>>() : null;
         // keyless rows count over every row of the table, read by this step or not (spec 4.1.8 rule 3)
-        const keyless = keylessEdgeKeys(this.rows(src, table) ?? [], rd);
+        const keyless = s.rowNode === undefined ? keylessEdgeKeys(this.rows(src, table) ?? [], bothEnds(rd)) : [];
+        const rowNode = s.rowNode === undefined ? null : this.rowNodes(s, si, st, src);
+        const held = s.existing === "merge" ? { byPair: this.edgesByPair(), folded: new Set<string>() } : undefined;
         for (const [r, i] of rows) {
             const here = { table, row: i };
-            const a = this.edgeEnd(s, st, tr, r, "source", loose, here);
-            const b = this.edgeEnd(s, st, tr, r, "target", loose, here);
-            if ("miss" in a || "miss" in b) {
-                // an empty end counts first, then fan-out, then unmatched
-                const misses = [a, b].map((x) => ("miss" in x ? x.miss : null));
-                const miss = MISS_ORDER.find((m) => misses.includes(m)) ?? "left-out:unmatched";
-                this.countMiss(st, miss, misses[0] === "left-out:empty-end" ? rd.source : rd.target, empties, here);
-                this.fate(s.source, table, i, miss);
+            const row = rowNode?.(r, i);
+            const a = s.rowNode === "source" && row ? row.hit : this.edgeEnd(s, st, tr, r, "source", loose, here);
+            const b = s.rowNode === "target" && row ? row.hit : this.edgeEnd(s, st, tr, r, "target", loose, here);
+            const at = { s, si, st, src, table, row: r, index: i, key: row?.key ?? keyless[i], held };
+            const middle = s.rowNode === "middle" ? row?.hit : undefined;
+            const made = this.rowEdges(at, a, b, middle);
+            const misses = [a, b, middle].map((x) => (x && "miss" in x ? x.miss : null));
+            this.countEdgeRow(at, misses, made, empties);
+        }
+        st.mergedEdges = held?.folded.size ?? 0;
+        this.reportEmpty(s.source, empties);
+    }
+
+    // One join.edges row counted: matched, or the first thing its ends missed.
+    private countEdgeRow(
+        at: EdgeRow,
+        misses: readonly (EndMiss | null)[],
+        made: readonly string[],
+        empties: Map<string, number>,
+    ): void {
+        const { s, st, table, index } = at;
+        const here = { table, row: index };
+        // an empty end counts first, then fan-out, then unmatched
+        const miss = MISS_ORDER.find((m) => misses.includes(m));
+        if (miss === undefined) {
+            st.matched++;
+            this.mark(st, "matched", { ...here, element: made[0] });
+            return;
+        }
+        const empty = { 0: s.read.source, 1: s.read.target }[misses.indexOf("left-out:empty-end")];
+        this.countMiss(st, miss, empty ?? at.src.mapping.nodes?.key ?? "", empties, here);
+        this.fate(s.source, table, index, miss);
+    }
+
+    // The edges one join.edges row makes, by id: one between its ends, or, a row kept as a node
+    // between them (`middle`), one to each end it names.
+    private rowEdges(at: EdgeRow, a: EndHit, b: EndHit, middle: EndHit | undefined): string[] {
+        const { s, src, row } = at;
+        const rd = s.read;
+        const halves: [RowHalf | null, EndHit, EndHit][] =
+            middle === undefined
+                ? [[null, a, b]]
+                : [
+                      ["source", a, middle],
+                      ["target", middle, b],
+                  ];
+        const skip = new Set([rd.source, rd.target, rd.edgeId]);
+        const cols = s.columns ?? Object.keys(row).filter((c) => !skip.has(c));
+        const out: string[] = [];
+        for (const [half, from, to] of halves) {
+            if ("miss" in from || "miss" in to) {
                 continue;
             }
-            st.matched++;
-            reach(a.n, s.source);
-            reach(b.n, s.source);
-            const skip = new Set([rd.source, rd.target, rd.edgeId]);
-            const cols = s.columns ?? Object.keys(r).filter((c) => !skip.has(c));
-            const made = this.addEdge(s, si, st, {
+            reach(from.n, s.source);
+            reach(to.n, s.source);
+            const made = this.addEdge(s, at.si, at.st, {
                 load: s.source,
-                key: edgeStepKey(s, r, keyless[i], a.n, b.n),
-                from: a.n,
-                to: b.n,
-                row: r,
-                index: i,
-                values: cols.map((c) => [c, r[c]]),
+                key: edgeStepKey(s, row, at.key, from.n, to.n, half),
+                from: from.n,
+                to: to.n,
+                row,
+                index: at.index,
+                values: cols.map((c) => [c, row[c]]),
                 ctx: { source: s.source, part: s.part },
-                roles: src.mapping[table] ?? {},
+                roles: src.mapping[at.table] ?? {},
                 read: rd,
-                table,
-                // a row whose two ends read one column (a key met by the same column) keeps them apart
-                ends:
-                    rd.source === rd.target
-                        ? { source: "source", target: "target" }
-                        : { source: rd.source, target: rd.target },
+                table: at.table,
+                ends: endColumns(half === "target" ? undefined : rd.source, half === "source" ? undefined : rd.target),
                 repeated: s.repeated,
+                ...(at.held === undefined ? {} : { held: at.held }),
             });
-            this.mark(st, "matched", { ...here, element: made });
+            out.push(made);
         }
-        this.reportEmpty(s.source, empties);
+        return out;
+    }
+
+    // Every edge built so far, by its end pair, in build order.
+    private edgesByPair(): Map<string, BuiltEdge[]> {
+        const out = new Map<string, BuiltEdge[]>();
+        for (const e of this.edges.values()) {
+            const pair = `${e.from}\u0001${e.to}`;
+            const list = out.get(pair);
+            if (list) {
+                list.push(e);
+            } else {
+                out.set(pair, [e]);
+            }
+        }
+        return out;
+    }
+
+    // Each row of a step as a node (`rowNode`): the node the source's `join.add` made of it, else one
+    // the step makes, with every column of the row.
+    private rowNodes(s: EdgesStep, si: number, st: StepStats, src: Source): (r: Row, i: number) => RowNode {
+        const table = s.read.table ?? "edges";
+        const column = table === "nodes" ? src.mapping.nodes?.key : undefined;
+        const keyless = column === undefined ? keylessNodeKeys(this.rows(src, table) ?? []) : [];
+        const space = rowNodeSpace(src, table);
+        const added =
+            table === "nodes" &&
+            this.input.steps.slice(0, si).some((o) => o.op === "join.add" && o.source === s.source && o.off !== true);
+        const times = new Map<string, number>();
+        return (r, i) => {
+            const key = column === undefined ? keyless[i] : text(r[column]);
+            if (key === "") {
+                return { key, hit: { miss: "left-out:empty-end" } };
+            }
+            // two rows of one key are one node, with an edge each
+            const n = (times.get(key) ?? 0) + 1;
+            times.set(key, n);
+            const named = n === 1 ? key : `${key}#${String(n)}`;
+            const ctx = { source: s.source, part: s.part };
+            const node = this.node(space, key, ctx, r, st, added ? "leave-out" : "add");
+            if (node === null) {
+                return { key: named, hit: { miss: "left-out:unmatched" } };
+            }
+            if (!added) {
+                this.fillRowNode(node, s, si, st, src.mapping[table] ?? {}, r, i);
+            }
+            return { key: named, hit: { n: node } };
+        };
+    }
+
+    // A node a step makes of a row takes every column of it, and its time.
+    private fillRowNode(
+        node: BuiltNode,
+        s: EdgesStep,
+        si: number,
+        st: StepStats,
+        roles: EdgeRole,
+        r: Row,
+        i: number,
+    ): void {
+        this.touch(node, s, si, s.read.table ?? "edges", r, i);
+        supply(node, s.source);
+        for (const [c, v] of Object.entries(r)) {
+            this.write(node, c, v, { src: s.source, si, row: i, step: s, st });
+        }
+        if (typeof roles.time === "string" && node.time === null) {
+            node.time = parseTime(r[roles.time], roles.timeParseZone, roles.timeUnit);
+            node.timeFrom = node.time === null ? null : s.source;
+        }
     }
 
     private countMiss(
@@ -1644,12 +1794,12 @@ class Builder {
         loose: Map<string, Map<string, string>> | null,
         at: DrillUnit,
     ): EndHit {
-        const rd = s.read;
-        const v = r[which === "source" ? rd.source : rd.target];
-        if (isEmpty(v)) {
+        const [column, space] =
+            which === "source" ? [s.read.source, s.read.sourceSpace] : [s.read.target, s.read.targetSpace];
+        const v = column === undefined ? undefined : r[column];
+        if (isEmpty(v) || space === undefined) {
             return { miss: "left-out:empty-end" };
         }
-        const space = which === "source" ? rd.sourceSpace : rd.targetSpace;
         if (tr && which === (s.viaEnd ?? "target")) {
             const ids = tr(v);
             if (ids.length > 1) {
@@ -1734,6 +1884,11 @@ class Builder {
         }
         const policy = a.repeated === undefined ? (this.input.repeatedEdges ?? "keep") : "keep";
         const type = typeOf(this.types, "edge", a.ctx, a.row);
+        const into = heldEdge(a, type);
+        if (into) {
+            this.foldEdgeRow(into, id, step, si, st, a, timeCol);
+            return into.id;
+        }
         // 3.8, 8.6: edges of different types never reduce; meanings matter only to a combining rule
         const byMeaning = policy !== "first" && policy !== "last" && policy !== "error";
         const pairKey = (m: string | null): string => JSON.stringify([a.from.id, a.to.id, type, byMeaning ? m : null]);
@@ -1787,6 +1942,30 @@ class Builder {
         }
         span(e, a, timeCol);
         return e.id;
+    }
+
+    // A row folded into an edge an earlier step made (`existing: "merge"`): its columns meet the
+    // edge's by the step's clash rule, and its key is an alias of the edge.
+    private foldEdgeRow(
+        into: BuiltEdge,
+        id: string,
+        step: Step,
+        si: number,
+        st: StepStats,
+        a: EdgeArgs,
+        timeCol: string | null,
+    ): void {
+        if (a.held?.folded.has(into.id) === false) {
+            a.held.folded.add(into.id);
+            this.mark(st, "mergedEdges", { table: a.table, row: a.index, element: into.id });
+        }
+        supply(into, a.load);
+        this.touch(into, step, si, a.table, a.row, a.index);
+        this.edgeAliases.set(id, into.id);
+        for (const [c, v] of a.values) {
+            this.write(into, c, v, { src: a.load, si, row: a.index, step, st });
+        }
+        span(into, a, timeCol);
     }
 
     // A second row with an existing edge's key: the step's `repeated`, else E_EDGE_KEY_COLLISION (3.3).
@@ -1869,6 +2048,100 @@ class Builder {
         st.groups = [...groups.values()].sort((a, b) => b - a);
         st.repeated1 = this.keys(st, "repeated1", fanned);
         st.repeated2 = this.keys(st, "repeated2", repeats(mergeKeys(s, node2s)));
+    }
+
+    // A merge reading edge rows, which are no node 2s: each row's columns fold into the node 1 it
+    // names; a row naming none makes the node (one per value), or is left out under Only 2: Drop.
+    private mergeRows(s: MergeStep, si: number, st: StepStats): void {
+        const look = this.lookupIn(s, s.read.space);
+        const before = [...this.nodes.values()].filter((n) => n.space === s.read.space);
+        const type = before[0]?.type ?? null;
+        const made = new Set<string>();
+        const groups = new Map<string, number>();
+        const keys: (readonly [string, DrillUnit])[] = [];
+        const fanned = new Map<string, DrillUnit>();
+        for (const [r, i] of this.filtered(s, "edges")) {
+            const here = { table: "edges", row: i } as const;
+            const v = r[s.read.key];
+            if (isEmpty(v)) {
+                st.emptyKey++;
+                this.mark(st, "emptyKey", here);
+                this.fate(s.source, "edges", i, "left-out:empty-key");
+                continue;
+            }
+            const unit: DrillUnit = { ...here, key: text(v) };
+            const ids = look(v);
+            if (ids.length > 1) {
+                st.fanOut++;
+                this.mark(st, "fanOut", unit);
+                this.fate(s.source, "edges", i, "left-out:fan-out");
+                fanned.set(text(v), fanned.get(text(v)) ?? unit);
+                keys.push([text(v), unit]);
+                continue;
+            }
+            const met = made.has(ids[0] ?? "") ? undefined : this.nodes.get(ids[0] ?? "");
+            const n = met ?? this.keptRow(s, st, text(v), type, made, unit);
+            const reached = n === null ? unit : { ...unit, element: n.id };
+            keys.push([text(v), reached]);
+            if (met) {
+                st.merged++;
+                this.mark(st, "merged", reached);
+                groups.set(met.id, (groups.get(met.id) ?? 1) + 1);
+            } else {
+                st.unmatched++;
+                this.mark(st, "unmatched", reached);
+            }
+            this.mergeRow(s, si, st, n, r, i);
+        }
+        for (const n of before.filter((each) => !groups.has(each.id))) {
+            st.untouched++;
+            this.mark(st, "untouched", { element: n.id });
+        }
+        st.groups = [...groups.values()].sort((x, y) => y - x);
+        st.repeated1 = this.keys(st, "repeated1", fanned);
+        st.repeated2 = this.keys(st, "repeated2", repeats(keys));
+        this.reportEmpty(s.source, new Map(st.emptyKey > 0 ? [[s.read.key, st.emptyKey]] : []));
+    }
+
+    // One edge row's columns onto the node it folds into, or left out when there is none.
+    private mergeRow(s: MergeStep, si: number, st: StepStats, n: BuiltNode | null, r: Row, i: number): void {
+        if (n === null) {
+            this.fate(s.source, "edges", i, "left-out:unmatched");
+            return;
+        }
+        this.touch(n, s, si, "edges", r, i);
+        supply(n, s.source);
+        for (const c of s.columns ?? Object.keys(r).filter((c) => c !== s.read.key)) {
+            this.write(n, c, r[c], { src: s.source, si, row: i, step: s, st });
+        }
+    }
+
+    // The node a merged edge row naming no node 1 makes, one per value: in node 1's space, of its
+    // type, or, when the field is not node 1's key, in the source's own space. Null under Only 2: Drop.
+    private keptRow(
+        s: MergeStep,
+        st: StepStats,
+        key: string,
+        type: string | null,
+        made: Set<string>,
+        unit: DrillUnit,
+    ): BuiltNode | null {
+        if (s.unmatchedFrom === "drop") {
+            return null;
+        }
+        const space = s.via === undefined ? s.read.space : ownSpace(s.source);
+        const met = this.nodes.get(this.resolve(space, key) ?? "");
+        if (met) {
+            return met;
+        }
+        const n = this.mkNode(space, key, s.via === undefined ? type : null);
+        made.add(n.id);
+        st.newNodes++;
+        st.keptNew++;
+        this.mark(st, "newNodes", { ...unit, element: n.id });
+        this.mark(st, "keptNew", { ...unit, element: n.id });
+        this.madeBy.set(n, st);
+        return n;
     }
 
     // Kept node 2s move into node 1's space by their key, unless several share it or it is taken.
@@ -2066,18 +2339,49 @@ function hubs(rows: [Row, number][], column: string): { value: string; rows: num
     return [...counts].filter(([, c]) => c > HUB_SHARE * rows.length).map(([value, c]) => ({ value, rows: c }));
 }
 
-// A join.edges row's key: <part>/<key>, <part>/<from>|<to> escaped when reduced, else <part>/<from>|<to>#<n> (spec 4.1.8 rule 3).
-function edgeStepKey(s: EdgesStep, r: Row, rowKey: string | undefined, from: BuiltNode, to: BuiltNode): string {
-    const keyless = `${s.part}/${rowKey ?? ""}`;
-    if (s.read.edgeId !== undefined) {
+// A join.edges row's key: <part>/<key>, <part>/<from>|<to> escaped when reduced, else <part>/<from>|<to>#<n> (spec 4.1.8 rule 3);
+// the two edges of a row kept as a node between its ends add which end each is (`|source`, `|target`).
+function edgeStepKey(
+    s: EdgesStep,
+    r: Row,
+    rowKey: string | undefined,
+    from: BuiltNode,
+    to: BuiltNode,
+    half: RowHalf | null,
+): string {
+    const end = half === null ? "" : `|${half}`;
+    const row = rowKey ?? "";
+    const keyless = `${s.part}/${s.rowNode === undefined ? row : escapeKey(row)}${end}`;
+    if (s.read.edgeId !== undefined && s.rowNode === undefined) {
         const v = r[s.read.edgeId];
         return isEmpty(v) ? keyless : `${s.part}/${text(v)}`;
     }
     // only a step that reduces its rows to one edge per end pair keys by the pair; `both` keeps every row
     if ((s.repeated !== undefined && s.repeated !== "both") || s.aggregate !== undefined) {
-        return `${s.part}/${escapeKey(from.key)}|${escapeKey(to.key)}`;
+        return `${s.part}/${escapeKey(from.key)}|${escapeKey(to.key)}${end}`;
     }
     return keyless;
+}
+
+// The edge an earlier step made that a row folds into (`existing: "merge"`): a row of no type folds
+// into an edge of any type, a typed one only into its own.
+function heldEdge(a: EdgeArgs, type: string | null): BuiltEdge | undefined {
+    return a.held?.byPair.get(`${a.from.id}\u0001${a.to.id}`)?.find((e) => type === null || e.type === type);
+}
+
+// The columns of a step reading both ends.
+function bothEnds(rd: EdgesStep["read"]): { source: string; target: string; edgeId?: string } {
+    return { source: rd.source ?? "", target: rd.target ?? "", edgeId: rd.edgeId };
+}
+
+// The columns a join.edges edge's ends are read from. An end that is the row's own node reads none,
+// and a row whose two ends read one column (a key met by the same column) keeps them apart.
+function endColumns(
+    source: string | undefined,
+    target: string | undefined,
+): { readonly source: string; readonly target: string } {
+    const ends = { source: source ?? "source", target: target ?? "target" };
+    return ends.source === ends.target ? { source: "source", target: "target" } : ends;
 }
 
 function reduceWeight(

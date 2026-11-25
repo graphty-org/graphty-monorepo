@@ -10,7 +10,7 @@
  */
 
 import { GraphtyError } from "../../../errors/GraphtyError";
-import { checkClash, mapped, type MappingPatch, refuseBoth, rowsCopies } from "./acts";
+import { checkClash, existingOf, mapped, type MappingPatch, refuseBoth, rowsCopies } from "./acts";
 
 export type { MappingPatch } from "./acts";
 import { isStaged, ownSpace } from "./build";
@@ -23,9 +23,10 @@ import {
     type OverlapQuestion,
     overlapQuestion,
     type SourceSteps,
+    stepAct,
     type StepsEdit,
 } from "./project";
-import type { Aggregate, BuiltEdge, BuiltNode, ClashRule, RowFilter, Step } from "./types";
+import type { Aggregate, BuildResult, BuiltEdge, BuiltNode, ClashRule, RowFilter, Step } from "./types";
 
 /** The steps that may reduce a repeated key's rows by `aggregate` (3.3). */
 const AGGREGATES: ReadonlySet<Step["op"]> = new Set(["join.merge", "join.node-values", "join.edges"]);
@@ -76,6 +77,8 @@ export interface StepPatch {
     readonly unmatchedFrom?: "keep" | "drop";
     /** Per column, how the rows of one repeated key are reduced; `null` takes it off. */
     readonly aggregate?: Aggregate | null;
+    /** What a Connect's row does when an edge already joins its ends. */
+    readonly existing?: "add" | "merge";
 }
 
 /**
@@ -380,6 +383,32 @@ export function built(state: DraftState): DraftState {
 }
 
 /**
+ * What a patch of what a Connect's row does when an edge already joins its ends sets on its step.
+ * @param value - The value.
+ * @param step - The step.
+ * @param choice - The choice, or undefined to leave it.
+ * @returns The step's `existing` and `columns`, or null to leave them.
+ * @throws A `GraphtyError` with `E_BAD_COMMAND` (reason `existing`) for a step no Connect made.
+ */
+function existingPatch(
+    value: SourceSteps,
+    step: Step,
+    choice: StepPatch["existing"],
+): ReturnType<typeof existingOf> | null {
+    if (choice === undefined) {
+        return null;
+    }
+    const act = stepAct(value, step);
+    if (act?.act !== "connect") {
+        throw refused("E_BAD_COMMAND", "Only a Connect's step takes an existing choice.", {
+            reason: "existing",
+            op: step.op,
+        });
+    }
+    return existingOf(act.to !== undefined && act.to.keepRow !== true, choice);
+}
+
+/**
  * Change one step's choices (3.3, 3.10): its clash rules, the rows it leaves out, how it matches
  * text and repeated rows, and whether it is off.
  * @param value - The value.
@@ -418,6 +447,7 @@ export function stepEdit(value: SourceSteps, copies: Copies, index: number, patc
             op: step.op,
         });
     }
+    const existing = existingPatch(value, step, patch.existing);
     // Rules for some columns keep "*" for the rest, as a door's rule per column writes it (3.10).
     const held = typeof step.clash === "object" ? step.clash : { "*": step.clash ?? "keep" };
     const patched: Record<string, unknown> = {
@@ -432,7 +462,8 @@ export function stepEdit(value: SourceSteps, copies: Copies, index: number, patc
     };
     const given = Object.entries(patched).filter(([, v]) => v !== undefined);
     // A null or false takes the choice off; anything else sets it.
-    const keys = new Set(given.map(([k]) => k));
+    const keys = new Set([...given.map(([k]) => k), ...(existing === null ? [] : ["existing", "columns"])]);
+    given.push(...Object.entries(existing ?? {}));
     const next: Record<string, unknown> = Object.fromEntries([
         ...Object.entries(step).filter(([k]) => !keys.has(k)),
         ...given.filter(([, v]) => v !== null && v !== false),
@@ -472,9 +503,9 @@ export interface DraftMarks {
 
 /**
  * What committing a draft does to each element, from the committed build and the draft's: a node
- * the draft's build folds more keys into is `merged`, one it builds with other values `changed`, one
- * only it builds `new`, one only the committed build holds `removed`, and the rest `unchanged`;
- * edges likewise, never merged. Committed nodes are named by their committed NodeId and, where
+ * the draft's build folds more keys or rows into is `merged`, one it builds with other values
+ * `changed`, one only it builds `new`, one only the committed build holds `removed`, and the rest
+ * `unchanged`; edges likewise. Committed nodes are named by their committed NodeId and, where
  * it differs, by the draft's; new ones by the draft's.
  * @param base - The committed value and copies.
  * @param state - The draft.
@@ -485,9 +516,10 @@ export function draftMarks(base: Omit<DraftState, "owned">, state: DraftState): 
     const b1 = buildOf(state.value, state.copies);
     const ids0 = nodeIdsOf(b0);
     const ids1 = nodeIdsOf(b1);
+    const more = moreFolded(b0, b1);
     const nodes = new Map<string, DraftMark>();
     for (const [id, o] of b0.nodes) {
-        nodes.set(String(ids0.get(id)), nodeMark(o, b1.nodes.get(id)));
+        nodes.set(String(ids0.get(id)), nodeMark(o, b1.nodes.get(id), more.has(id)));
     }
     // After draws the draft's NodeIds: a committed node the draft spells otherwise (its space
     // written out once a staged type's keys overlap) reads its mark there too. A draft NodeId that
@@ -496,12 +528,12 @@ export function draftMarks(base: Omit<DraftState, "owned">, state: DraftState): 
         const key = String(ids1.get(id));
         if (!nodes.has(key)) {
             const was = b0.nodes.get(id);
-            nodes.set(key, was === undefined ? "new" : nodeMark(was, o));
+            nodes.set(key, was === undefined ? "new" : nodeMark(was, o, more.has(id)));
         }
     }
     const edges = new Map<string, DraftMark>();
     for (const [id, o] of b0.edges) {
-        edges.set(id, edgeMark(o, b1.edges.get(id)));
+        edges.set(id, edgeMark(o, b1.edges.get(id), more.has(id)));
     }
     for (const id of b1.edges.keys()) {
         if (!b0.edges.has(id)) {
@@ -509,6 +541,28 @@ export function draftMarks(base: Omit<DraftState, "owned">, state: DraftState): 
         }
     }
     return { nodes, edges };
+}
+
+/**
+ * The elements the draft's build folds more rows into than the committed one's: a merge of edge rows
+ * into nodes, or a Connect's rows into the edges already joining their ends.
+ * @param b0 - The committed build.
+ * @param b1 - The draft's.
+ * @returns Their internal ids in the draft's build.
+ */
+function moreFolded(b0: BuildResult, b1: BuildResult): ReadonlySet<string> {
+    const counts = (b: BuildResult): Map<string, number> => {
+        const out = new Map<string, number>();
+        for (const byCount of b.drill.values()) {
+            for (const { element = "" } of [...(byCount.get("merged") ?? []), ...(byCount.get("mergedEdges") ?? [])]) {
+                const id = b.aliases.get(element) ?? b.edgeAliases.get(element) ?? element;
+                out.set(id, (out.get(id) ?? 0) + 1);
+            }
+        }
+        return out;
+    };
+    const was = counts(b0);
+    return new Set([...counts(b1)].filter(([id, n]) => n > (was.get(id) ?? 0)).map(([id]) => id));
 }
 
 /**
@@ -525,13 +579,14 @@ function sameValues(a: BuiltNode | BuiltEdge, b: BuiltNode | BuiltEdge): boolean
  * What a draft does to one committed node.
  * @param was - The committed node.
  * @param now - The draft's build of it, if any.
+ * @param folded - Whether the draft folds more rows into it.
  * @returns Its mark.
  */
-function nodeMark(was: BuiltNode, now: BuiltNode | undefined): DraftMark {
+function nodeMark(was: BuiltNode, now: BuiltNode | undefined, folded: boolean): DraftMark {
     if (now === undefined) {
         return "removed";
     }
-    if (now.aliases.length > was.aliases.length) {
+    if (folded || now.aliases.length > was.aliases.length) {
         return "merged";
     }
     return sameValues(was, now) ? "unchanged" : "changed";
@@ -541,11 +596,15 @@ function nodeMark(was: BuiltNode, now: BuiltNode | undefined): DraftMark {
  * What a draft does to one committed edge.
  * @param was - The committed edge.
  * @param now - The draft's build of it, if any.
+ * @param folded - Whether the draft folds more rows into it.
  * @returns Its mark.
  */
-function edgeMark(was: BuiltEdge, now: BuiltEdge | undefined): DraftMark {
+function edgeMark(was: BuiltEdge, now: BuiltEdge | undefined, folded: boolean): DraftMark {
     if (now === undefined) {
         return "removed";
+    }
+    if (folded) {
+        return "merged";
     }
     return sameValues(was, now) && was.from === now.from && was.to === now.to ? "unchanged" : "changed";
 }

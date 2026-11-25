@@ -29,6 +29,7 @@ import type {
 const DRILL_COUNTS = [
     "newNodes",
     "newEdges",
+    "mergedEdges",
     "matched",
     "unmatched",
     "fanOut",
@@ -164,7 +165,7 @@ function exceptColumn(step: Step): string | null {
         case "join.edge-values":
             return step.read.edgeId;
         default:
-            return step.read.edgeId ?? step.read.source;
+            return step.read.edgeId ?? step.read.source ?? step.read.target ?? null;
     }
 }
 

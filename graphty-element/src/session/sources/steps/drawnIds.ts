@@ -133,16 +133,18 @@ export function markCounts(
     readonly new: number;
     readonly untouched: number;
     readonly nodes: { readonly merged: number; readonly new: number; readonly untouched: number };
-    readonly edges: { readonly new: number };
+    readonly edges: { readonly merged: number; readonly new: number };
 } {
     let merged = 0;
     let newNodes = 0;
+    let mergedEdges = 0;
     let newEdges = 0;
     for (const mark of marks.nodes.values()) {
         merged += mark === "merged" ? 1 : 0;
         newNodes += mark === "new" ? 1 : 0;
     }
     for (const mark of marks.edges.values()) {
+        mergedEdges += mark === "merged" ? 1 : 0;
         newEdges += mark === "new" ? 1 : 0;
     }
     const untouched = untouchedNodes(state, marks).size;
@@ -151,6 +153,6 @@ export function markCounts(
         new: newNodes + newEdges,
         untouched,
         nodes: { merged, new: newNodes, untouched },
-        edges: { new: newEdges },
+        edges: { merged: mergedEdges, new: newEdges },
     };
 }

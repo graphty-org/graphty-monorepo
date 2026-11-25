@@ -204,13 +204,13 @@ function compiled(
 
 /** The counts of a step whose elements a draft view colors as merged, new and untouched. */
 const STEP_MARKS = {
-    merged: ["merged"],
+    merged: ["merged", "mergedEdges"],
     new: ["newNodes", "newEdges", "keptNew"],
     untouched: ["untouched"],
 } as const;
 
 /** The counts of a step whose elements a marked step draws at full strength. */
-const STEP_ALL = ["merged", "newNodes", "newEdges", "keptNew", "matched", "untouched"] as const;
+const STEP_ALL = ["merged", "mergedEdges", "newNodes", "newEdges", "keptNew", "matched", "untouched"] as const;
 
 /** The session ids a draft view reads, or null while no draft is drawn. */
 type DraftIds = (
@@ -269,6 +269,15 @@ function newEdgeLook(color: string): LayerSpec["set"] {
 }
 
 /**
+ * What a merged edge gets in a color: the color, drawn whole.
+ * @param color - The color.
+ * @returns The channels.
+ */
+function mergedEdgeLook(color: string): LayerSpec["set"] {
+    return { "edge.color": color };
+}
+
+/**
  * What an untouched node gets in a color: a dotted border.
  * @param color - The color.
  * @returns The channels.
@@ -279,8 +288,8 @@ function untouchedLook(color: string): LayerSpec["set"] {
 
 /**
  * The layers a draft view (`styles.showDraft`) draws, bottom first: the rest faint when asked, a
- * ring on each node the commit would merge, a dashed border on each node it would add, and each
- * edge it would add drawn dashed, read from `graphty.draft`; a dotted border on the untouched nodes;
+ * ring on each node the commit would merge and each edge it would fold a row into in that color, a
+ * dashed border on each node it would add, and each edge it would add drawn dashed, read from `graphty.draft`; a dotted border on the untouched nodes;
  * each listed step's in its own color over those; the marked elements at full strength; the ghosts
  * drawn faint as under a branches view.
  * @param view - The colors.
@@ -328,13 +337,14 @@ export function draftLayers(
             ? []
             : idLayers("Untouched", ids({ untouched: true }), untouchedLook(view.untouched))),
         { name: "Merged", target: "node", selector: marked("merged"), set: mergedLook(view.merged) },
+        { name: "Merged", target: "edge", selector: marked("merged"), set: mergedEdgeLook(view.merged) },
         { name: "New", target: "node", selector: marked("new"), set: newNodeLook(view.new) },
         { name: "New", target: "edge", selector: marked("new"), set: newEdgeLook(view.new) },
     ];
     for (const { step, color } of view.steps ?? []) {
         specs.push(
             ...idLayers("Untouched", ids({ step, buckets: STEP_MARKS.untouched }), untouchedLook(color)),
-            ...idLayers("Merged", ids({ step, buckets: STEP_MARKS.merged }), mergedLook(color)),
+            ...idLayers("Merged", ids({ step, buckets: STEP_MARKS.merged }), mergedLook(color), mergedEdgeLook(color)),
             ...idLayers("New", ids({ step, buckets: STEP_MARKS.new }), newNodeLook(color), newEdgeLook(color)),
         );
     }

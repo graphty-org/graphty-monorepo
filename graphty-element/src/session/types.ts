@@ -1725,17 +1725,17 @@ export interface SessionDataApi {
     nodeRef(id: NodeId): SourceNodeRef | null;
     /**
      * Merge: fold each node of a source into the node its field names, as one undoable step. A
-     * staged source is added in its own space first. Its values meet the nodes' under `clash`
-     * (default `"keep"`).
+     * staged source is added in its own space first, unless it is read as edges: then each of its
+     * rows folds into the node it names. Its values meet the nodes' under `clash` (default `"keep"`).
      * @param options - The source and field, the nodes they fold into, and the choices.
      * @returns Settles once the graph is rebuilt.
-     * @throws A `GraphtyError` with `E_STEP_NEEDS_NODES` for a source with no node rows, or
+     * @throws A `GraphtyError` with `E_STEP_NEEDS_NODES` for a source with no rows, or
      * `E_AMBIGUOUS_ID` when the field names no one set of nodes.
      * @experimental source-steps
      */
     merge(options: SourceMergeOptions): Promise<void>;
     /**
-     * Make an edge: each node row of a source becomes an edge between its node and the node its
+     * Make an edge: each row of a source becomes an edge between its node and the node its
      * field names, as one undoable step. A staged source is added first: the source of the rows
      * in its own space, the source named by `into` as `add` adds it.
      * @param options - The source and field, the nodes they name, the direction and edge type.
@@ -4429,6 +4429,8 @@ export interface SourceStepCounts {
     readonly newNodes: number;
     /** Edges the step made. */
     readonly newEdges: number;
+    /** For a Connect with `existing: "merge"`: edges earlier steps made that its rows folded into. */
+    readonly mergedEdges: number;
     /** Rows whose key found the element they write to. */
     readonly matched: number;
     /** Rows whose key found no element. */
@@ -4441,7 +4443,7 @@ export interface SourceStepCounts {
     readonly valuesDiffer: Readonly<Record<string, number>>;
     /** Cells a numeric conflict rule (min, max, mean) met that are not numbers, by column. */
     readonly ruleType: Readonly<Record<string, number>>;
-    /** For `join.merge`: nodes folded into the node they matched. */
+    /** For `join.merge`: nodes, or edge rows, folded into the node they matched. */
     readonly merged: number;
     /** Elements this step gave a type other than the one an earlier step gave them. */
     readonly typeDiffers: number;
@@ -4449,8 +4451,8 @@ export interface SourceStepCounts {
     readonly untouched: number;
     /**
      * For `join.merge`: source 2's nodes the step leaves in the graph as nodes of their own (the
-     * new nodes the merge brings): those that met no node 1, or more than one. 0 under
-     * `unmatchedFrom: "drop"`, which leaves the unmatched out.
+     * new nodes the merge brings): those that met no node 1, or more than one, or the nodes its edge
+     * rows naming no node 1 made. 0 under `unmatchedFrom: "drop"`, which leaves the unmatched out.
      */
     readonly keptNew: number;
     /** For `join.merge`: how many nodes each merged node was made from, largest first. */
@@ -4864,7 +4866,7 @@ export interface SourceDraftPreview {
  * @experimental source-steps
  */
 export interface SourceDraftMarkCounts {
-    /** Nodes the commit merges another node into. */
+    /** Nodes the commit merges another node, or an edge row, into. */
     readonly merged: number;
     /** Nodes and edges the commit adds. */
     readonly new: number;
@@ -4875,7 +4877,7 @@ export interface SourceDraftMarkCounts {
      * a Connect step leaves the nodes it does not reach as they are, and is not counted here).
      */
     readonly nodes: {
-        /** Nodes the commit merges another node into. */
+        /** Nodes the commit merges another node, or an edge row, into. */
         readonly merged: number;
         /** Nodes the commit adds. */
         readonly new: number;
@@ -4884,6 +4886,8 @@ export interface SourceDraftMarkCounts {
     };
     /** The edge counts alone. */
     readonly edges: {
+        /** Edges the commit folds a row into. */
+        readonly merged: number;
         /** Edges the commit adds. */
         readonly new: number;
     };
@@ -5088,7 +5092,7 @@ export interface SourceStepRow {
      */
     readonly except: SourceRowFilter | null;
     /**
-     * For a step a join act made (`draft.merge`, or `draft.connect` on node rows): that act's
+     * For a step a join act made (`draft.merge` or `draft.connect`): that act's
      * fields and choices, read back so an application can show the step as it was made and make it
      * again with a field or the act changed (`draft.removeStep`, then the new act, in one draft).
      * Null for any other step. Its Values differ rules are in `valuesDiffer`, its excluded keys in
@@ -5144,7 +5148,11 @@ export interface SourceStepAct {
         readonly field: string;
         /** The space its nodes live in. */
         readonly into: { readonly space: SourceSpaceName };
+        /** True when each row stays a node between the two ends; absent when it makes none. */
+        readonly keepRow?: boolean;
     };
+    /** Make an edge: `"merge"` when a row folds into an edge already joining its ends; absent for `"add"`. */
+    readonly existing?: "add" | "merge";
 }
 
 /**
@@ -5513,7 +5521,8 @@ export interface SourceElementsFilter {
 }
 
 /**
- * `data.merge`: fold each node of a source into the node its field names.
+ * `data.merge`: fold each node of a source into the node its field names. A source read as edges has
+ * no node of its own: each of its rows folds its columns into the node its field names.
  * @experimental source-steps
  */
 export interface SourceMergeOptions {
@@ -5521,7 +5530,10 @@ export interface SourceMergeOptions {
     readonly from: SourceField;
     /** The nodes they fold into. */
     readonly into: SourceJoinInto;
-    /** A node of `from` that names no node: `"keep"` (default) keeps it, `"drop"` leaves it out. */
+    /**
+     * A node of `from` that names no node: `"keep"` (default) keeps it, `"drop"` leaves it out. Of a
+     * source read as edges, the value the row names becomes the kept node.
+     */
     readonly unmatchedFrom?: "keep" | "drop";
     /** How a cell both sides fill is settled, for every column or per column (`"*"` for the rest). */
     readonly clash?: SourceClashRule | Readonly<Record<string, SourceClashRule>>;
@@ -5532,7 +5544,7 @@ export interface SourceMergeOptions {
      * `"*"` sets every column but the one matched on, such as `{ "*": "list" }`.
      */
     readonly aggregate?: Readonly<Record<string, JoinReduce>>;
-    /** Rows that stay their own nodes. */
+    /** Rows that stay their own nodes; of a source read as edges, rows left out. */
     readonly except?: SourceRowFilter;
     /** Match keys ignoring case. */
     readonly ignoreCase?: boolean;
@@ -5541,8 +5553,8 @@ export interface SourceMergeOptions {
 }
 
 /**
- * `data.connect` (Make an edge): each node row of a source becomes an edge between its node and
- * the node its field names.
+ * `data.connect` (Make an edge): each row of a source becomes an edge between its node and the node
+ * its field names. A row of a source read as edges becomes the node itself, keyed by its content.
  * @experimental source-steps
  */
 export interface SourceConnectOptions {
@@ -5584,7 +5596,20 @@ export interface SourceConnectOptions {
         readonly field: string;
         /** Where the other end's nodes are: a source or a node kind. */
         readonly into: SourceJoinInto;
+        /**
+         * Keep each row as a node between the two ends, with an edge to each end it names; default
+         * false, where the row is one edge between them. Every row stays a node, whatever it names.
+         */
+        readonly keepRow?: boolean;
     };
+    /**
+     * A row whose two ends an edge an earlier step made already joins, the same way round:
+     * `"add"` (default) adds another edge, `"merge"` folds the row into that edge. With an
+     * `edgeType`, only an edge of that type is folded into. A row with both ends named and not kept
+     * as a node brings all its columns, to the edge it folds into (by the step's `clash` rules) or
+     * makes; under `"add"` it brings none.
+     */
+    readonly existing?: "add" | "merge";
 }
 
 /**
@@ -5665,6 +5690,8 @@ export interface SourceStepPatch {
      * `null` takes it off. A merge, node-values or edge step takes it.
      */
     readonly aggregate?: Readonly<Record<string, JoinReduce>> | null;
+    /** What a Connect's row does when an edge already joins its ends. Only a Connect's step takes it. */
+    readonly existing?: "add" | "merge";
 }
 
 /**
@@ -6217,7 +6244,7 @@ export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "match
     /**
      * Draw the draft on the graph, or stop. While it is drawn, every element reads the path
      * `graphty.draft` as what the commit would do to it -- `"merged"` (a node the commit folds
-     * more keys into), `"new"`, `"changed"` (other values), `"removed"` or `"unchanged"` -- so a
+     * more keys or rows into, or an edge it folds a row into), `"new"`, `"changed"` (other values), `"removed"` or `"unchanged"` -- so a
      * style layer or a rule can show it; while it is not, the path reads nothing. It draws the
      * side {@link SourceDraft.show} picks, `"after"` at first. Nothing is recorded or saved.
      * @example

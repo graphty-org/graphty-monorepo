@@ -609,15 +609,19 @@ export class SourceDraftHandle implements SourceDraft {
     suggestMatches(source: SourceKey): readonly SourceMatchSuggestion[] {
         this.live("suggestMatches");
         const facts = this.sourceTable(source).summary();
-        const nodes = facts.tables.find((each) => each.table === "nodes");
-        if (nodes === undefined) {
+        const table = facts.mapping.rows === "edges" ? "edges" : "nodes";
+        const read = facts.tables.find((each) => each.table === table);
+        if (read === undefined) {
             return [];
         }
         const { value, copies } = this.state;
         const rows = spaceRows(buildOf(value, copies));
-        const all = rows.filter((row) => row.nodes > 0).map((row) => row.space);
+        // A space only this source's edges name holds its own keys: nothing to join onto.
+        const all = rows
+            .filter((row) => row.nodes > 0 && (table === "nodes" || row.sources.some((each) => each !== source)))
+            .map((row) => row.space);
         const own = facts.mapping.space ?? rows.find((row) => row.ownedBy === source)?.space;
-        return Object.freeze(suggestMatches(value, copies, source, nodes.columns, { all, own }, facts.mapping.key));
+        return Object.freeze(suggestMatches(value, copies, source, read.columns, { all, own }, facts.mapping.key));
     }
 
     /** @inheritdoc */

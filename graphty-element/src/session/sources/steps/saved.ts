@@ -16,6 +16,9 @@
  * and a network source's `_source.loads` cells from its id. A source's key-overlap reports are
  * session-only. The file keeps no part counter: parts are minted from the parts present (3.3).
  *
+ * An edge step's `rowNode` and `existing`, and a `join.merge` reading edge rows, are written as the
+ * session keeps them: version 2 spells none of the three yet (4.1.8 rule 10).
+ *
  * Every source is saved as a copy; a reference (3.11) is not written yet. Pure and free of
  * Babylon.js, Lit and the DOM.
  */

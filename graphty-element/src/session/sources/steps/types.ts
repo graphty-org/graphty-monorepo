@@ -173,7 +173,11 @@ interface Translating {
     readonly mapping?: StepMappingTable;
 }
 
-/** `join.merge`: each node 2 an earlier step built folds into the node 1 its field names. */
+/**
+ * `join.merge`: each node 2 an earlier step built folds into the node 1 its field names. Reading
+ * `edges`, the source's edge rows have no node 2: each row's columns fold into the node 1 it names,
+ * and a row naming none makes the node (`unmatchedFrom: "keep"`) or is left out.
+ */
 export interface MergeStep extends StepChoices, Translating {
     readonly op: "join.merge";
     readonly read: NodeStepRead;
@@ -203,10 +207,11 @@ export interface EdgeValuesStep extends StepChoices {
 /** The ends and roles a `join.edges` step reads. */
 interface EdgesStepRead {
     readonly table?: TableName;
-    readonly source: string;
-    readonly sourceSpace: string;
-    readonly target: string;
-    readonly targetSpace: string;
+    /** Absent, with its space, for the end that is the row's own node (`rowNode`). */
+    readonly source?: string;
+    readonly sourceSpace?: string;
+    readonly target?: string;
+    readonly targetSpace?: string;
     readonly edgeId?: string;
     /** Absent means the source's weight role; `null` means none. */
     readonly weight?: string | null;
@@ -225,6 +230,15 @@ export interface EdgesStep extends StepChoices, Translating {
     readonly read: EdgesStepRead;
     /** Which end `via` translates; default `"target"`. */
     readonly viaEnd?: "source" | "target";
+    /**
+     * Each row is a node: the edge's source or target end, or the node between the two ends, with an
+     * edge to each (keyed `<part>/<row key>|source` and `|target`). It is keyed as the source's node
+     * rows are, in their space; an edge row by its content, in the source's own space. The step
+     * makes the node unless the source's `join.add` did.
+     */
+    readonly rowNode?: "source" | "target" | "middle";
+    /** `"merge"` folds a row into an edge an earlier step made between its ends; absent adds one. */
+    readonly existing?: "merge";
     /** Two rows naming one end pair: absent leaves them to the graph's `repeatedEdges`. */
     readonly repeated?: "first" | "last" | "both";
     /** Makes one edge per end pair, as `repeated` does, with these columns reduced over its rows. */
@@ -439,6 +453,8 @@ export interface StepStats {
     readonly part?: number;
     newNodes: number;
     newEdges: number;
+    /** For `join.edges`: edges earlier steps made that its rows folded into (`existing: "merge"`). */
+    mergedEdges: number;
     matched: number;
     unmatched: number;
     fanOut: number;
@@ -449,7 +465,10 @@ export interface StepStats {
     merged: number;
     typeDiffers: number;
     untouched: number;
-    /** For `join.merge`: node 2s left in the graph as nodes of their own (none under Only 2 Drop). */
+    /**
+     * For `join.merge`: node 2s left in the graph as nodes of their own, or nodes its edge rows made
+     * (none under Only 2 Drop).
+     */
     keptNew: number;
     groups: number[];
     selfLoops: number;

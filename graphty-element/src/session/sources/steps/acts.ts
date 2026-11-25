@@ -75,8 +75,13 @@ interface ConnectAct {
     readonly ignoreSpaces?: boolean;
     readonly perPair?: boolean;
     readonly unmatched?: "skip" | "add";
-    /** The other end: each row becomes an edge between node 1 and the node this field names, making no node. */
-    readonly to?: { readonly field: string; readonly into: JoinInto };
+    /**
+     * The other end: each row becomes an edge between node 1 and the node this field names, making
+     * no node, or under `keepRow` a node of its own with an edge to each.
+     */
+    readonly to?: { readonly field: string; readonly into: JoinInto; readonly keepRow?: boolean };
+    /** A row whose ends an edge already joins: add another (default), or fold its columns into that edge. */
+    readonly existing?: "add" | "merge";
 }
 
 /** Extract (4.3): one column of an edge source becomes nodes, joined to one end by new edges. */
@@ -173,23 +178,8 @@ export function sourceOf(value: SourceSteps, id: string): StepsSource {
 }
 
 /**
- * The source of a Merge or Make an edge, which must hold node rows.
- * @param value - The value.
- * @param copies - The rows as read.
- * @param id - The source's id.
- * @returns The source.
- */
-function nodeSource(value: SourceSteps, copies: Copies, id: string): StepsSource {
-    const src = sourceOf(value, id);
-    if (src.mapping.nodes === undefined || (copies[copyKey(src)]?.nodes?.length ?? 0) === 0) {
-        throw refused("E_STEP_NEEDS_NODES", `Source ${id} holds no node rows.`, { source: id });
-    }
-    return src;
-}
-
-/**
- * The source of a Connect whose rows each name both ends: its node rows, or, staged as edges, its
- * edge rows, which name the ends by any of their fields as node rows do.
+ * The source of a Merge or Make an edge: its node rows, or, read as edges, its edge rows, which name
+ * a node by any of their fields as node rows do.
  * @param value - The value.
  * @param copies - The rows as read.
  * @param id - The source's id.
@@ -201,7 +191,21 @@ function rowSource(value: SourceSteps, copies: Copies, id: string): { src: Steps
     if (src.mapping.nodes === undefined && (copies[copyKey(src)]?.edges?.length ?? 0) > 0) {
         return { src, table: "edges" };
     }
-    return { src: nodeSource(value, copies, id), table: "nodes" };
+    if (src.mapping.nodes === undefined || (copies[copyKey(src)]?.nodes?.length ?? 0) === 0) {
+        throw refused("E_STEP_NEEDS_NODES", `Source ${id} holds no rows.`, { source: id });
+    }
+    return { src, table: "nodes" };
+}
+
+/**
+ * Whether a join act must add a source's node rows before it reads them: no `join.add` step of the
+ * source is there to make its nodes.
+ * @param value - The value.
+ * @param id - The source's id.
+ * @returns True when none is.
+ */
+function notAdded(value: SourceSteps, id: string): boolean {
+    return !value.steps.some((s) => s.op === "join.add" && s.source === id);
 }
 
 /**
@@ -228,8 +232,32 @@ export interface NodeOne {
 }
 
 /**
- * Node 1's space and key (3.6): an edge source names which end its field belongs to by a space;
- * an edge source whose two ends live in different spaces, given a field, is ambiguous.
+ * The end of an edge source a field names: the one whose space is given, else the one whose column
+ * the field is.
+ * @param edges - The source's edge mapping.
+ * @param ends - The space each end's keys live in.
+ * @param ends.source - The source end's.
+ * @param ends.target - The target end's.
+ * @param field - The field.
+ * @param space - The space, when one is given.
+ * @returns The end, or null when none or, with no space, both are named.
+ */
+function endNamed(
+    edges: NonNullable<Mapping["edges"]>,
+    ends: { readonly source: string; readonly target: string },
+    field: string,
+    space: string | undefined,
+): "source" | "target" | null {
+    const named = (["source", "target"] as const).filter((end) =>
+        space === undefined ? edges[end] === field : ends[end] === space,
+    );
+    return named.length === 1 || (space !== undefined && named.length === 2) ? named[0] : null;
+}
+
+/**
+ * Node 1's space and key (3.6): a field of an edge source names the end whose column it is, or whose
+ * space is given; an edge source whose two ends live in different spaces, given any other field or
+ * none, is ambiguous.
  * @param value - The value.
  * @param into - Node 1.
  * @returns What the act needs.
@@ -245,20 +273,18 @@ export function nodeOne(value: SourceSteps, into: JoinInto): NodeOne {
         source: edges.sourceSpace ?? ownSpace(s1.id),
         target: edges.targetSpace ?? ownSpace(s1.id),
     };
-    if (into.space !== undefined && into.field !== undefined && edges && ends && s1.mapping.nodes === undefined) {
-        let keyCol: string | null = null;
-        if (ends.source === into.space) {
-            keyCol = edges.source;
-        } else if (ends.target === into.space) {
-            keyCol = edges.target;
+    if (into.field !== undefined && edges && ends && s1.mapping.nodes === undefined) {
+        const end = endNamed(edges, ends, into.field, into.space);
+        if (end !== null) {
+            const keyCol = edges[end];
+            return { space: ends[end], isKey: into.field === keyCol, keyCol };
         }
-        if (keyCol === null) {
+        if (into.space !== undefined) {
             throw refused("E_AMBIGUOUS_ID", `No end of source ${s1.id} lives in ${into.space}.`, {
                 source: s1.id,
                 space: into.space,
             });
         }
-        return { space: into.space, isKey: into.field === keyCol, keyCol };
     }
     const key = s1.mapping.nodes?.key;
     if (key !== undefined) {
@@ -395,7 +421,8 @@ export function refuseBoth(op: Step["op"], repeated: string | null | undefined):
 
 /**
  * Merge 2 into 1 (3.6): a staged node 1 is added first, a staged source 2 in its own space, then
- * `join.merge` folds each of its nodes into the node 1 its field names.
+ * `join.merge` folds each of its nodes into the node 1 its field names. A source read as edges adds
+ * nothing: `join.merge` folds its edge rows.
  * @param prior - The value.
  * @param copies - The rows as read.
  * @param o - The choices.
@@ -409,17 +436,17 @@ function merge(prior: SourceSteps, copies: Copies, o: MergeAct): SourceSteps {
         s1 !== undefined && s1 !== o.from.source && isStaged(prior, s1)
             ? addSource(prior, sourceOf(prior, s1), copies, undefined)
             : prior;
-    const s2 = nodeSource(value, copies, o.from.source);
+    const { src: s2, table } = rowSource(value, copies, o.from.source);
     const n1 = nodeOne(value, o.into);
     let next = value;
-    if (isStaged(value, s2.id)) {
+    if (table === "nodes" && notAdded(value, s2.id)) {
         const type = s2.stagedType ?? typeIn(value, copies, n1.space);
         next = addStaged(next, s2, ownSpace(s2.id), type, o.from.field === s2.mapping.nodes?.key, o.columns);
     }
     const step: MergeStep = {
         op: "join.merge",
         source: s2.id,
-        read: { key: o.from.field, space: n1.space },
+        read: { ...(table === "edges" ? { table } : {}), key: o.from.field, space: n1.space },
         unmatchedFrom: o.unmatchedFrom ?? "keep",
         ...defined({
             clash: o.clash,
@@ -428,6 +455,7 @@ function merge(prior: SourceSteps, copies: Copies, o: MergeAct): SourceSteps {
             except: o.except,
             ignoreCase: o.ignoreCase,
             ignoreSpaces: o.ignoreSpaces,
+            columns: table === "edges" ? o.columns : undefined,
         }),
         ...(n1.isKey || n1.keyCol === undefined
             ? {}
@@ -473,8 +501,8 @@ export function checkClash(
 
 /**
  * Make an edge (3.6): a staged source 1 is added as `add-staged` adds it, a staged source 2 in its
- * own space (never node 1's), then `join.edges` reads its node rows, one edge each, between node 1
- * and its node.
+ * own space (never node 1's), then `join.edges` reads its rows, one edge each, between node 1 and
+ * the row's node. A source read as edges is not added: the step makes each of its rows a node.
  * @param prior - The value.
  * @param copies - The rows as read.
  * @param o - The choices.
@@ -492,49 +520,130 @@ function connect(prior: SourceSteps, copies: Copies, o: ConnectAct): SourceSteps
     }
     const value =
         s1 !== undefined && isStaged(prior, s1) ? addSource(prior, sourceOf(prior, s1), copies, undefined) : prior;
-    let s2 = nodeSource(value, copies, o.from.source);
+    const { src: s2, table } = rowSource(value, copies, o.from.source);
     const n1 = nodeOne(value, o.into);
     let next = value;
-    if (isStaged(value, s2.id)) {
-        const space = s2.spacePicked === true ? (s2.mapping.nodes?.space ?? ownSpace(s2.id)) : ownSpace(s2.id);
-        if (space === n1.space) {
-            throw refused("E_JOIN_SPACE_SAME", `Source ${s2.id} would land in ${space}, the space it connects to.`, {
-                source: s2.id,
-                space,
-            });
-        }
+    if (table === "nodes" && notAdded(value, s2.id)) {
+        const space = rowSpaceOf(s2, [n1.space]);
         next = addStaged(next, s2, space, s2.stagedType);
-        s2 = next.sources[s2.id];
     }
-    const mint = minted(next, s2.id);
-    next = mint.value;
-    const k2 = s2.mapping.nodes?.key ?? "";
+    const row = next.sources[s2.id];
+    const key = table === "nodes" ? row.mapping.nodes?.key : undefined;
     const one = { col: o.from.field, space: n1.space };
-    const two = { col: k2, space: nodeSpace(s2) };
+    const two = key === undefined ? null : { col: key, space: nodeSpace(row) };
     const intoFrom = (o.direction ?? "into-from") === "into-from";
     const [a, b] = intoFrom ? [one, two] : [two, one];
+    return withEdgesStep(next, o, n1, {
+        source: s2.id,
+        read: { table, ...readEnds(a, b) },
+        key,
+        // an end with no column naming it is the row's own node
+        ...(two === null ? { rowNode: intoFrom ? ("target" as const) : ("source" as const) } : {}),
+    });
+}
+
+/**
+ * The space a source's node rows land in when a Connect makes nodes of them: the one picked for it,
+ * else its own.
+ * @param src - The source.
+ * @param ends - The spaces it connects to.
+ * @returns The space.
+ * @throws A `GraphtyError` with `E_JOIN_SPACE_SAME` when it is one of `ends`.
+ */
+function rowSpaceOf(src: StepsSource, ends: readonly string[]): string {
+    const space = src.spacePicked === true ? (src.mapping.nodes?.space ?? ownSpace(src.id)) : ownSpace(src.id);
+    if (ends.includes(space)) {
+        throw refused("E_JOIN_SPACE_SAME", `Source ${src.id} would land in ${space}, the space it connects to.`, {
+            source: src.id,
+            space,
+        });
+    }
+    return space;
+}
+
+/** One end of an edge step: the column naming its node and the space the node lives in. */
+interface EndRead {
+    readonly col: string;
+    readonly space: string;
+}
+
+/**
+ * The ends an edge step reads; null for the row's own node.
+ * @param a - The source end.
+ * @param b - The target end.
+ * @returns The step's `read` members.
+ */
+function readEnds(a: EndRead | null, b: EndRead | null): Omit<EdgesStep["read"], "table"> {
+    return {
+        ...(a === null ? {} : { source: a.col, sourceSpace: a.space }),
+        ...(b === null ? {} : { target: b.col, targetSpace: b.space }),
+    };
+}
+
+/**
+ * The value with a Connect's `join.edges` step at the end, in a part of its own.
+ * @param value - The value.
+ * @param o - The choices.
+ * @param n1 - Node 1.
+ * @param at - The source, what the step reads, the column keying its edges, and its row node.
+ * @param at.source - The source.
+ * @param at.read - The table and ends.
+ * @param at.key - The column keying each row's edge, if any.
+ * @param at.rowNode - Where the row's own node stands, if the step needs it.
+ * @returns The next value.
+ */
+function withEdgesStep(
+    value: SourceSteps,
+    o: ConnectAct,
+    n1: NodeOne,
+    at: {
+        readonly source: string;
+        readonly read: EdgesStep["read"];
+        readonly key: string | undefined;
+        readonly rowNode?: EdgesStep["rowNode"];
+    },
+): SourceSteps {
+    const mint = minted(value, at.source);
+    const intoFrom = (o.direction ?? "into-from") === "into-from";
     const step: EdgesStep = {
         op: "join.edges",
-        source: s2.id,
+        source: at.source,
         part: mint.part,
         read: {
-            table: "nodes",
-            source: a.col,
-            sourceSpace: a.space,
-            target: b.col,
-            targetSpace: b.space,
+            ...at.read,
             // one edge per pair keys the edges by their ends (build.ts edgeStepKey), not by the row
-            ...(o.perPair === true ? {} : { edgeId: k2 }),
+            ...(o.perPair === true || at.key === undefined || at.rowNode !== undefined ? {} : { edgeId: at.key }),
             weight: null,
         },
         unmatchedRows: o.unmatched === "add" ? "add" : "leave-out",
-        columns: [],
         ...(o.perPair === true ? { repeated: "first" as const } : {}),
-        ...defined({ ignoreCase: o.ignoreCase, ignoreSpaces: o.ignoreSpaces }),
+        ...defined({ ignoreCase: o.ignoreCase, ignoreSpaces: o.ignoreSpaces, rowNode: at.rowNode }),
+        ...existingOf(o.to !== undefined && o.to.keepRow !== true, o.existing),
         ...viaOf(o, n1, intoFrom),
     };
-    next = { ...next, steps: [...next.steps, step] };
-    return withRule(next, "edge", o.edgeType, { source: s2.id, part: mint.part });
+    const { stagedType } = value.sources[at.source];
+    // Node rows take their source's type; an edge row kept as a node, the type its source was staged with.
+    const typed = at.rowNode !== undefined && at.read.table === "edges" ? stagedType : undefined;
+    let next: SourceSteps = { ...mint.value, steps: [...mint.value.steps, step] };
+    next = withRule(next, "node", typed, { source: at.source, part: mint.part });
+    return withRule(next, "edge", o.edgeType, { source: at.source, part: mint.part });
+}
+
+/**
+ * What an edge step does with a row whose ends an edge already joins. An edge carries none of its
+ * row's columns, except that a row making no node folds its columns into the edge it meets.
+ * @param rowsOnly - Whether the step's rows make no node.
+ * @param existing - The choice.
+ * @returns The step's `existing` and `columns`; absent columns bring every one.
+ */
+export function existingOf(
+    rowsOnly: boolean,
+    existing: "add" | "merge" | undefined,
+): Pick<EdgesStep, "existing" | "columns"> {
+    if (existing !== "merge") {
+        return { columns: [] };
+    }
+    return rowsOnly ? { existing } : { existing, columns: [] };
 }
 
 /**
@@ -557,14 +666,16 @@ function viaOf(o: ConnectAct, n1: NodeOne, intoFrom: boolean): Pick<EdgesStep, "
 
 /**
  * Make an edge from each row (3.6): the row's `from.field` names node 1, its `to.field` names the
- * other end, and the row itself makes no node. A staged source an end names is added first.
+ * other end, and the row itself makes no node, or under `keepRow` a node between the two. A staged
+ * source an end names is added first; the rows' own source is not, as the step makes their nodes.
  * @param prior - The value.
  * @param copies - The rows as read.
  * @param o - The choices.
  * @param to - The other end.
  * @returns The next value.
  * @throws A `GraphtyError` with `E_BAD_COMMAND` (reason `to-field`) when the other end is named by
- *   a field that is not its nodes' key, and (reason `no-field`) when it names no field at all.
+ *   a field that is not its nodes' key, and (reason `no-field`) when it names no field at all; with
+ *   `E_JOIN_SPACE_SAME` when rows kept as nodes would land in a space they connect to.
  */
 function connectRows(
     prior: SourceSteps,
@@ -591,34 +702,25 @@ function connectRows(
             field: to.into.field,
         });
     }
-    const mint = minted(value, rows.id);
     const one = { col: o.from.field, space: n1.space };
     const two = { col: to.field, space: n2.space };
     const intoFrom = (o.direction ?? "into-from") === "into-from";
     const [a, b] = intoFrom ? [one, two] : [two, one];
-    // An edge row source keys each edge by its edge id column, if it names one, else by the row.
-    const key = table === "nodes" ? rows.mapping.nodes?.key : rows.mapping.edges?.edgeId;
-    const step: EdgesStep = {
-        op: "join.edges",
+    const keepRow = to.keepRow === true;
+    if (keepRow && table === "nodes" && notAdded(value, rows.id)) {
+        // Staged, its keys live only in the space it proposes: the step makes its nodes in this one.
+        const space = rowSpaceOf(rows, [n1.space, n2.space]);
+        const nodes = { ...rows.mapping.nodes, space };
+        const moved = { ...rows, mapping: { ...rows.mapping, nodes } };
+        value = { ...value, sources: { ...value.sources, [rows.id]: moved } };
+    }
+    return withEdgesStep(value, o, n1, {
         source: rows.id,
-        part: mint.part,
-        read: {
-            table,
-            source: a.col,
-            sourceSpace: a.space,
-            target: b.col,
-            targetSpace: b.space,
-            ...(o.perPair === true || key === undefined ? {} : { edgeId: key }),
-            weight: null,
-        },
-        unmatchedRows: o.unmatched === "add" ? "add" : "leave-out",
-        columns: [],
-        ...(o.perPair === true ? { repeated: "first" as const } : {}),
-        ...defined({ ignoreCase: o.ignoreCase, ignoreSpaces: o.ignoreSpaces }),
-        ...viaOf(o, n1, intoFrom),
-    };
-    const next = { ...mint.value, steps: [...mint.value.steps, step] };
-    return withRule(next, "edge", o.edgeType, { source: rows.id, part: mint.part });
+        read: { table, ...readEnds(a, b) },
+        // An edge row source keys each edge by its edge id column, if it names one, else by the row.
+        key: table === "nodes" ? rows.mapping.nodes?.key : rows.mapping.edges?.edgeId,
+        ...(keepRow ? { rowNode: "middle" as const } : {}),
+    });
 }
 
 /**
@@ -677,7 +779,7 @@ function mirrored(value: SourceSteps, copies: Copies, o: ConnectAct): ConnectAct
         return null;
     }
     const one = sourceOf(value, s1).mapping.nodes?.key;
-    const two = nodeSource(value, copies, o.from.source).mapping.nodes?.key;
+    const two = rowSource(value, copies, o.from.source).src.mapping.nodes?.key;
     if (one === undefined || field1 === one || o.from.field !== two) {
         return null;
     }

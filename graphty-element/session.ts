@@ -250,6 +250,7 @@ export type {
     SourceDraftPreviewStep,
     SourceDraftPreviewTotals,
     SourceDraftRow,
+    SourceDraftSpaceRow,
     SourceDraftRows,
     SourceDraftRowsQuery,
     SourceEdgeRef,

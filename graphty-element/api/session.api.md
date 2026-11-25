@@ -8081,6 +8081,11 @@ export interface SourceDraftRowsQuery extends SourceDraftElementsQuery {
     readonly offset?: number;
 }
 
+// @public
+export interface SourceDraftSpaceRow extends SourceSpaceRow {
+    readonly staged: SourceKey | null;
+}
+
 export { SourceEdgeRecord }
 
 // @public

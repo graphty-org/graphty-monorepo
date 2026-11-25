@@ -1719,7 +1719,9 @@ export function VarySlot({
                     ctx={ctx}
                     descriptor={descriptor}
                     to={to}
-                    label={label}
+                    // One name for the link wherever it is drawn: its first value's, never the value last picked
+                    // in its list ("Node shape by attribute", even after the model was bound from it).
+                    label={label ?? (which === undefined ? undefined : bindLabel(first))}
                     onPick={bind}
                     open={open}
                     onOpenChange={setOpen}
@@ -2089,7 +2091,9 @@ function dataView(
     if (unresolved) {
         size = undefined;
     } else if (list?.kind === "categorical") {
-        size = count(list.entries.length + list.hidden, "group");
+        // The groups the binding reads, as its group list holds them: the legend keeps only the values that paint
+        // something, so a model by data before any value is mapped to a model has rows for none of them.
+        size = count(session.styles.groups(layer.id, binding.by).length, "group");
     } else if (list?.ends !== undefined) {
         size = `${list.ends[0]} to ${list.ends[1]}`;
     }

@@ -175,7 +175,7 @@ async function rowShape(popover: HTMLElement): Promise<{ shape: unknown; items: 
     const grid = within(popover).getByRole("grid", { name: /groups$/ });
     const [first] = gridRows(popover);
     const cells = within(first).getAllByRole("gridcell");
-    const name = first.querySelector("[data-group-name]")?.textContent?.split(",")[0] ?? "";
+    const name = first.querySelector("[data-group-name]")?.firstChild?.textContent ?? "";
     const shape = {
         columns: within(grid).getAllByRole("columnheader").length,
         cells: cells.map((cell) => [...cell.querySelectorAll("button, input")].map((c) => c.tagName).join(" ")),

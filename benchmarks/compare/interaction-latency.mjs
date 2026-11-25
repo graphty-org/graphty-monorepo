@@ -1474,6 +1474,14 @@ mkdirSync(dirname(out), { recursive: true });
 if (cmd === "report") report(out);
 else if (cmd === "page") {
     const spec = JSON.parse(o.spec);
+    // A page that hangs is ended after 40 minutes from its start (after the lock), recorded as failed.
+    setTimeout(
+        () => {
+            appendFileSync(out, JSON.stringify({ ...spec, failure: "the page did not finish in 40 minutes" }) + "\n");
+            process.exit(1);
+        },
+        40 * 60 * 1000,
+    ).unref();
     if (spec.kind === "app") await appPage(spec, out);
     else await elementPage(spec, out);
 } else if (cmd === "element" || cmd === "app") {
@@ -1492,7 +1500,6 @@ else if (cmd === "page") {
         const argv = [fileURLToPath(import.meta.url), "page", out, "--spec", JSON.stringify(spec)];
         console.log("==", JSON.stringify(spec));
         const [bin, ...args] = wrap.length ? [...wrap, process.execPath, ...argv] : [process.execPath, ...argv];
-        // A page that hangs is ended after 40 minutes; its interactions are then missing from the results.
-        spawnSync(bin, args, { stdio: "inherit", timeout: 40 * 60 * 1000 });
+        spawnSync(bin, args, { stdio: "inherit" });
     }
 } else throw new Error(`unknown command ${cmd}`);

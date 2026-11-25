@@ -129,6 +129,14 @@ export interface LayoutService {
      * @returns The backend.
      */
     accelerator?(): string;
+    /**
+     * Settles once the layout in force has put its answer in the position array: at once for one
+     * that answers as it is built, and for one computed asynchronously (a Graphviz engine, `fixed`
+     * routing its edges through Graphviz) once that answer arrives, published then. Absent settles
+     * at once.
+     * @returns Settles, never rejecting, once the answer is in place or the run failed.
+     */
+    answered?(): Promise<void>;
 }
 
 /**

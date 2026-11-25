@@ -506,6 +506,7 @@ export interface BaseDataSourceConfig {
     graphIndex?: number;
     graphName?: string;
     layout?: "recommended" | "placed" | "keep";
+    pins?: "data" | "keep";
     styles?: "file" | "none";
     url?: string;
 }
@@ -3113,6 +3114,7 @@ export interface FileLoadOptions {
     graphName?: string;
     layout?: "recommended" | "placed" | "keep";
     nodeIdPath?: string;
+    pins?: "data" | "keep";
     replace?: boolean;
     signal?: AbortSignal;
     styleOptions?: FileStyleOptions;
@@ -6004,6 +6006,8 @@ export abstract class LayoutEngine {
 // @public
 export class LayoutManager implements Manager {
     constructor(eventManager: EventManager, dataManager: DataManager, styles: Styles);
+    // @internal
+    answered(): Promise<void>;
     get building(): boolean;
     checkMotion(): void;
     // @internal

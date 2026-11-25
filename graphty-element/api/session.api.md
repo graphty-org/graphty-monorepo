@@ -3498,6 +3498,7 @@ export interface ImportOptions {
     readonly layout?: "recommended" | "placed" | "keep";
     readonly mode?: "replace" | "merge";
     readonly overlap?: "separate" | "merge";
+    readonly pins?: "data" | "keep";
     readonly space?: SourceSpaceName;
     readonly type?: SourceTypeName;
 }

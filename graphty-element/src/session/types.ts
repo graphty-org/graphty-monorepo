@@ -6305,7 +6305,7 @@ export interface SourceTableFacts {
     readonly origin: string;
     /** The data source that read it (`"csv"`, `"json"`, ...). */
     readonly format?: string;
-    /** The size of what was read, in bytes; absent for a URL not fetched by the element and after a reopen. */
+    /** The size of what was read, in bytes; absent for a URL not fetched by the element. */
     readonly size?: number;
     /** When it was read, as RFC 3339; absent after a reopen for a source no load recorded. */
     readonly loadedAt?: string;

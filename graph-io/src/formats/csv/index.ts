@@ -40,6 +40,7 @@ import {
     PADDED_ID_CODE,
     POSSIBLE_HEADER_CODE,
     ROLE_TAKEN_CODE,
+    ROWS_AS_NODES_CODE,
     SINGLE_COLUMN_CODE,
     STRAY_QUOTE_CODE,
     TRAILING_DELIMITER_CODE,
@@ -93,6 +94,11 @@ export const CSV_ISSUE = Object.freeze({
      * by one of them anyway.
      */
     NO_UNIQUE_ID: NO_UNIQUE_ID_CODE,
+    /**
+     * The header names neither an edge's ends nor an id, and under `unnamed: "nodes"` every row was read as a node,
+     * so the file holds no edge. Pass `sourceColumn` and `targetColumn` to read the rows as edges.
+     */
+    ROWS_AS_NODES: ROWS_AS_NODES_CODE,
     /**
      * A row with a different number of fields than the header; the row is skipped. An adjacency list read without
      * `table: "adjacency"` gives one per long row, and the first one's message suggests the option.

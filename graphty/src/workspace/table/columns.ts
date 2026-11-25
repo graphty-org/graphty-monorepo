@@ -418,6 +418,7 @@ const ISSUE_WORDS: Readonly<Partial<Record<string, readonly [one: string, many: 
     "case-variant": ["case variant", "case variants"],
     "blank-id": ["blank id", "blank ids"],
     "refused-row": ["row refused", "rows refused"],
+    "rows-as-nodes": ["row read as a node", "rows read as nodes"],
     "mixed-type": ["mixed types", "mixed types"],
     "could-be-yes-no": ["value could be yes/no", "values could be yes/no"],
 };

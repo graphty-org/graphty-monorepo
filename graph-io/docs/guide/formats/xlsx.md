@@ -124,6 +124,7 @@ The codes this format's import report can hold. They are also exported as `XLSX_
 - `E_CSV_NO_ENDPOINT_COLUMNS` (error): The header names no source and target columns and no id column. Pass `sourceColumn` and `targetColumn` to name the columns. The import stops.
 - `E_CSV_NO_ID_COLUMN` (error): The node table has no id column. Pass `idColumn` to name it, or `rowNumberIds: true` to number the rows. The import stops.
 - `W_CSV_NO_UNIQUE_ID` (warning): Every id-like column of a node table's header (`id`, `person_id`, `node`, `key`, `name`) repeats a value or leaves one blank, so the nodes are numbered by row (0 for the first data row). Pass `idColumn` to key the table by one of them anyway.
+- `W_CSV_ROWS_AS_NODES` (warning): The header names neither an edge's ends nor an id, and under `unnamed: "nodes"` every row was read as a node, so the file holds no edge. Pass `sourceColumn` and `targetColumn` to read the rows as edges.
 - `E_CSV_FIELD_COUNT` (error): A row with a different number of fields than the header; the row is skipped. An adjacency list read without `table: "adjacency"` gives one per long row, and the first one's message suggests the option.
 - `E_MISSING_ENDPOINT` (error): An edge row with a blank source or target.
 - `E_MISSING_ID` (error): A node row with a blank id.

@@ -105,7 +105,7 @@ export interface StepsSource extends Source {
     readonly join?: JoinRecord;
     /**
      * What reading it recorded, for `sourceTable(id).summary()`: the size in bytes, when it was
-     * read (RFC 3339) and a CSV file's separator. Kept for the session only, never saved.
+     * read (RFC 3339) and a CSV file's separator, which is kept for the session only.
      */
     readonly read?: {
         readonly size?: number;

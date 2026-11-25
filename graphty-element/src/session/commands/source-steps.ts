@@ -276,6 +276,8 @@ function listed(
             tables: src.tables,
             ...(src.tableRows === undefined ? {} : { tableRows: src.tableRows }),
             ...(src.input === undefined ? {} : { input: src.input }),
+            ...(src.read?.size === undefined ? {} : { size: src.read.size }),
+            ...(src.read?.at === undefined ? {} : { loadedAt: src.read.at }),
             added: Object.freeze({ nodes: own?.added.nodes ?? 0, edges: own?.added.edges ?? 0 }),
             counts,
             state: sourceState(value, src.id),

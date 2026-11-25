@@ -359,6 +359,14 @@ export const WEIGHT_AS_ATTRIBUTE_CODE = "W_CSV_WEIGHT_AS_ATTRIBUTE";
  */
 export const NO_UNIQUE_ID_CODE = "W_CSV_NO_UNIQUE_ID";
 
+/**
+ * Warning: the header names neither an edge's ends nor an id, and under `unnamed: "nodes"` every row was read
+ * as a node, so the file holds no edge. Details: `columns`, the column names. Pass `sourceColumn` and
+ * `targetColumn` to read the rows as edges.
+ * @category Issue and loss codes
+ */
+export const ROWS_AS_NODES_CODE = "W_CSV_ROWS_AS_NODES";
+
 const TABLE_MODES: ReadonlySet<string> = new Set(["edges", "nodes", "adjacency", "auto"]);
 
 /** The common options an edge-table import reads (the rest is reported by reportUnusedOptions). */
@@ -1902,6 +1910,15 @@ class TableReader {
                 ? findColumn(names, ID_NAMES)
                 : (candidates.find((column) => isKey(rows, column, this.state.csv.blankIdPrefix !== null)) ?? null);
         const byValue = this.byValues() && (chosen ?? -1) < 0 ? this.valueKey(names) : -1;
+        if (candidates.length === 0 && this.byValues()) {
+            this.state.report.warning(
+                "merged",
+                ROWS_AS_NODES_CODE,
+                `the header names no endpoint columns and no id column (${names.map((n) => JSON.stringify(n)).join(", ")}); every row is read as a node`,
+                { line },
+                { columns: [...names] },
+            );
+        }
         const key = byValue >= 0 ? byValue : chosen;
         if (key !== null && (key >= 0 || !this.byValues())) {
             if (key >= 0) {

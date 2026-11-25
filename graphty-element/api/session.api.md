@@ -844,7 +844,9 @@ export interface ConditionField {
 export type ConditionFieldKind = ReadableValueKind | "name" | "source" | "date";
 
 // @public
-export function conditionFields(session: GraphSession, on: "node" | "edge"): ListedConditionField[];
+export function conditionFields(session: GraphSession, on: "node" | "edge", options?: {
+    readonly source?: SourceKey;
+}): ListedConditionField[];
 
 // @public
 export const conditionKey: (field: Pick<ConditionField, "on" | "path">) => string;
@@ -1153,6 +1155,7 @@ export interface DraftView {
     };
     readonly merged: string;
     readonly new: string;
+    readonly removed?: string;
     readonly rest?: "faint" | "plain";
     readonly steps?: readonly {
         readonly step: number;
@@ -3559,7 +3562,7 @@ export function isRunId(value: unknown): value is RunId;
 export function isRunStatus(value: unknown): value is RunStatus;
 
 // @public
-export type IssueCode = "not-a-number" | "decimal-comma" | "unknown-end" | "repeated-edge" | "repeated-id" | "padded-space" | "case-variant" | "blank-id" | "refused-row" | "mixed-type" | "could-be-yes-no" | "location-unmatched" | "location-ambiguous";
+export type IssueCode = "not-a-number" | "decimal-comma" | "unknown-end" | "repeated-edge" | "repeated-id" | "padded-space" | "case-variant" | "blank-id" | "refused-row" | "rows-as-nodes" | "mixed-type" | "could-be-yes-no" | "location-unmatched" | "location-ambiguous";
 
 // @public
 export type IssueId = string;
@@ -6925,7 +6928,9 @@ export interface SessionDataApi {
         readonly space: SourceSpaceName;
         readonly field?: string;
     }): SourceColumnProfile;
-    readableValues(): readonly ReadableValue[];
+    readableValues(options?: {
+        readonly source?: SourceKey;
+    }): readonly ReadableValue[];
     readExample(source: string, example: string, options?: SourceLoadOptions): Promise<SourceRead>;
     ref(key: string, options?: {
         readonly space?: string;
@@ -7799,7 +7804,9 @@ export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "match
     commit(): Promise<void>;
     connect(options: SourceConnectOptions): number;
     declareType(entry: SourceTypeEntry): void;
-    display(on: boolean): Promise<void>;
+    display(on: boolean, options?: {
+        readonly hold?: boolean;
+    }): Promise<void>;
     readonly displayed: boolean;
     dispose(): void;
     edits(): readonly ReaderEditRow[];
@@ -7825,7 +7832,9 @@ export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "match
     preview(): SourceDraftPreview;
     redo(): boolean;
     removeEdit(id: string): void;
-    removeSource(source: SourceKey): void;
+    removeSource(source: SourceKey, options?: {
+        readonly adds?: "keep" | "remove";
+    }): void;
     removeStep(index: number, options?: {
         readonly adds?: "keep" | "remove";
     }): void;

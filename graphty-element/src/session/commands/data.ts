@@ -378,6 +378,8 @@ export interface HeldRows {
     readonly idPath?: string;
     /** The node records named no id and were numbered under `idPath`, a column they did not hold. */
     readonly numbered?: true;
+    /** The columns of a table whose header named neither an edge's ends nor an id, so its rows are nodes. */
+    readonly unnamed?: readonly string[];
     /**
      * The file's own column its node records' ids were read from, which the records carry beside the
      * `idPath` the reader put them under.

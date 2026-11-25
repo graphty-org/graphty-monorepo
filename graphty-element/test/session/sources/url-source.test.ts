@@ -209,3 +209,24 @@ describe("a CSV column of codes", () => {
         session.dispose();
     });
 });
+
+describe("a URL's CSV whose header names neither ends nor an id", () => {
+    it("says its rows were read as nodes, so an edge list read so is not silent, and keeps saying it", async () => {
+        const url = `${HOST}/data/payments.csv`;
+        const body = "payer,payee,tx\n1,2,t1\n2,3,t2\n3,1,t3\n";
+        await withSession(async (session) => {
+            await session.data.import({ source: "url", config: { url } }, { fetch: replayFetch([{ url, body }]) });
+            const issue = session.data.issues().find((each) => each.code === "rows-as-nodes");
+            assert.deepInclude(issue, { count: 3, params: { columns: ["payer", "payee", "tx"] }, fixes: [] });
+            assert.strictEqual(issue?.source, session.data.sources()[0].key);
+            const { text } = await session.project.save();
+            await withSession(async (other) => {
+                await other.project.open(text);
+                assert.include(
+                    other.data.issues().map((each) => each.code),
+                    "rows-as-nodes",
+                );
+            });
+        });
+    });
+});

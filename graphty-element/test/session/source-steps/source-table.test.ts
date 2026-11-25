@@ -499,3 +499,38 @@ describe("source-steps: matching choices the join card sets", () => {
         session.dispose();
     });
 });
+
+describe("what reading a source recorded", () => {
+    it("is listed with the source, staged or added, and after a project file is opened", async () => {
+        const text = "id,n\na,1\nb,2\n";
+        const input = (): { type: string; config: { file: File } } => ({
+            type: "csv",
+            config: { file: new File([text], "x.csv") },
+        });
+        const session = createGraphSession({ features: ["source-steps"] });
+        await session.data.import(input());
+        const staged = await session.data.stage(input(), { key: "id" });
+        const facts = (from: GraphSession): unknown[] =>
+            from.data.sources({ staged: true }).map(({ size, loadedAt }) => [size, typeof loadedAt]);
+        const read = [
+            [text.length, "string"],
+            [text.length, "string"],
+        ];
+        assert.deepStrictEqual(facts(session), read);
+        await session.data.add(staged);
+        assert.deepStrictEqual(facts(session), read, "adding it changes nothing it was");
+        const before = session.data.sources().map((each) => each.loadedAt);
+        const { text: file } = await session.project.save();
+        const other = createGraphSession({ features: ["source-steps"] });
+        await other.project.open(file);
+        assert.deepStrictEqual(facts(other), read);
+        assert.deepStrictEqual(
+            other.data.sources().map((each) => each.loadedAt),
+            before,
+            "when it was first read, not opened",
+        );
+        assert.strictEqual(other.data.sourceTable(staged).summary().size, text.length);
+        other.dispose();
+        session.dispose();
+    });
+});

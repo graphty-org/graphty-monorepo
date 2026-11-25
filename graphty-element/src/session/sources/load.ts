@@ -165,6 +165,9 @@ interface Read {
 /** graph-io's report of a CSV table whose rows no column keys: they were numbered. */
 const NO_UNIQUE_ID = "W_CSV_NO_UNIQUE_ID";
 
+/** graph-io's report of a CSV table whose header names nothing, its rows read as nodes. */
+const ROWS_AS_NODES = "W_CSV_ROWS_AS_NODES";
+
 /**
  * The file's own column its nodes were keyed by, which graph-io reads into the node's id: the records
  * carry it again, under its own name.
@@ -216,6 +219,7 @@ async function readRows(
     const { nodes, edges } = toRecords(sourceGraph(loaded), columnsMapping(snapshot));
     const errors = new ErrorAggregator(ERROR_LIMIT);
     aggregateErrors(report, errors);
+    const columns = report.issues.find((issue) => issue.code === ROWS_AS_NODES)?.params?.columns;
     const idColumn = ownIdColumn({ ...config, ...report.source?.params }, nodes);
     return {
         held: {
@@ -229,6 +233,7 @@ async function readRows(
             idPath: "id",
             ...(idColumn === undefined ? {} : { idColumn }),
             ...(report.issues.some((issue) => issue.code === NO_UNIQUE_ID) ? { numbered: true as const } : {}),
+            ...(Array.isArray(columns) ? { unnamed: columns as readonly string[] } : {}),
             source: "source",
             target: "target",
         },

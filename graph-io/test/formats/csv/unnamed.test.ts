@@ -6,7 +6,12 @@
 import { GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { csvImporter, NO_ENDPOINT_COLUMNS_CODE, NO_UNIQUE_ID_CODE } from "../../../src/formats/csv/importer.js";
+import {
+    csvImporter,
+    NO_ENDPOINT_COLUMNS_CODE,
+    NO_UNIQUE_ID_CODE,
+    ROWS_AS_NODES_CODE,
+} from "../../../src/formats/csv/importer.js";
 import { ImportError, type ImportReport } from "../../../src/types.js";
 
 type Options = Parameters<typeof csvImporter.import>[2];
@@ -45,6 +50,17 @@ describe("csv unnamed option", () => {
         expect(snapshot.nodeCount).toBe(3);
         expect(report.resolved?.idColumn).toBe(undefined);
         expect(report.issues.map((issue) => issue.code)).toContain(NO_UNIQUE_ID_CODE);
+    });
+
+    it("says the rows were read as nodes when the header names neither ends nor an id", async () => {
+        const said = async (input: string): Promise<unknown[]> =>
+            (await load(input, { unnamed: "nodes" })).report.issues
+                .filter((issue) => issue.code === ROWS_AS_NODES_CODE)
+                .map((issue) => issue.params);
+        expect(await said("payer,payee,tx\n1,2,t1\n2,3,t2\n3,1,t3\n")).toEqual([{ columns: ["payer", "payee", "tx"] }]);
+        expect(await said("value,kind\na,x\na,y\nb,x\n")).toHaveLength(1);
+        expect(await said("person_id,name\np1,a\np2,b\n")).toEqual([]);
+        expect(await said("source,target\na,b\n")).toEqual([]);
     });
 
     it("still stops on two columns that mostly name the same things, which are an edge list's ends", async () => {

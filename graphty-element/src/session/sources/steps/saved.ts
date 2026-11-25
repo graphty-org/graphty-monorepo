@@ -186,7 +186,7 @@ function sourceOut(src: StepsSource, copy: CopyTables): Record<string, unknown> 
             format: src.type,
             options: src.config,
         }),
-        origin: { copy: src.origin.copy },
+        origin: { copy: src.origin.copy, ...defined({ size: src.read?.size }) },
         mapping: mappingOut(src),
         ...defined({
             numbered: src.numbered,
@@ -195,6 +195,7 @@ function sourceOut(src: StepsSource, copy: CopyTables): Record<string, unknown> 
         }),
         copy: Object.fromEntries(tables.map(([table, saved]) => [table, saved.cells])),
         columns: Object.fromEntries(tables.map(([table, saved]) => [table, saved.decls])),
+        ...defined({ loaded: src.read?.at }),
     };
 }
 
@@ -488,6 +489,20 @@ function copyIn(copy: Record<string, unknown>, columns: unknown, network: string
 }
 
 /**
+ * What reading a saved source recorded.
+ * @param origin - Its origin.
+ * @param loaded - When it was read.
+ * @returns Its size and when, or undefined for neither.
+ */
+function readIn(origin: Record<string, unknown>, loaded: unknown): StepsSource["read"] {
+    const read = defined({
+        size: typeof origin.size === "number" ? origin.size : undefined,
+        at: typeof loaded === "string" ? loaded : undefined,
+    });
+    return Object.keys(read).length === 0 ? undefined : read;
+}
+
+/**
  * One saved source back, with its copy.
  * @param raw - The source as saved.
  * @param facts - What its `loads` entry records.
@@ -544,6 +559,7 @@ function sourceIn(
             join: facts?.join,
             stagedType,
             endTypes: endTypesIn(types, id),
+            read: readIn(origin, raw.loaded),
             spacePicked:
                 !staged &&
                 nodes?.key !== undefined &&

@@ -219,6 +219,7 @@ function sourceFacts(
             config: kindOf(command) === "url" ? { url } : undefined,
             tableRows: command.tableRows,
             input: command.input,
+            read: { ...defined({ size: command.source.size }), at: new Date().toISOString() },
             spacePicked: options.space === undefined ? undefined : true,
             stagedType: options.type,
             endTypes: Object.keys(endTypes).length === 0 ? undefined : endTypes,

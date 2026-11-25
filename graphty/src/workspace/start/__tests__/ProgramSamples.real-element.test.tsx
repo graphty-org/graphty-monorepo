@@ -16,7 +16,7 @@ import { PROGRAM_SAMPLES } from "../../../data/sampleManifest";
 import { withFeatures } from "../../../test/features";
 import { openBy } from "../../../test/open";
 import { pickSample, sampleTile } from "../../../test/samples-dialog";
-import { render, screen, within } from "../../../test/test-utils";
+import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { forgetUsageAnswer } from "../../privacy/usageData";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -98,6 +98,35 @@ describe("the start page's files from other programs", () => {
             const statistics = session.data.statistics();
             assert.deepEqual([statistics.nodeCount, statistics.edgeCount], [entry.nodes, entry.edges]);
             assert.equal(store.get().project?.name, sample.name);
+        },
+    );
+
+    it.each(PROGRAM_SAMPLES.map((sample) => [sample.program, sample] as const))(
+        "says on the %s card whether its format carries styling, and labels the nodes of one that does not",
+        async (_, sample) => {
+            const entry = testFileOf(sample.url);
+            assert.equal(sample.sentence.includes("carries no styling"), !entry.styled, sample.sentence);
+            assert.equal(sample.labels !== undefined, !entry.styled, `${sample.program} labels`);
+            if (sample.labels === undefined) {
+                return;
+            }
+            const store = createWorkspaceStore();
+            render(<Workspace store={store} />);
+            const session = await openBy(store, () => pickSample(sample.program));
+            const element = document.querySelector("graphty-element");
+            assert.isNotNull(element);
+            const nodes = [...session.data.nodes()];
+            // the label layer is painted on a frame
+            await waitFor(() => {
+                const unlabeled = nodes.filter((node) => (element.labelOf(node.id)?.text ?? "") === "");
+                assert.deepEqual(
+                    unlabeled.map((node) => node.id),
+                    [],
+                    `${sample.program}: every node is labeled`,
+                );
+            });
+            // the labels are the opening's own: one Undo takes them back with the graph
+            assert.equal(session.history.position, 1, `${sample.program} opens as one undo step`);
         },
     );
 });

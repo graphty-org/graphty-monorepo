@@ -26,6 +26,11 @@ export interface StartSample {
      * its header does not name them.
      */
     readonly options?: Readonly<Record<string, unknown>>;
+    /**
+     * The values its nodes are labeled with when it opens, one label line each (`"data.name"`), for a file whose
+     * format carries no styling, so no labels of its own. A node lacking one of them leaves out that line.
+     */
+    readonly labels?: readonly string[];
 }
 
 /**
@@ -119,6 +124,9 @@ export const START_SAMPLES: readonly StartSample[] = [
         picture: `${import.meta.env.BASE_URL}samples/paper-citations.webp`,
     },
 ];
+
+/** What the card of a sample whose format carries no styling says of it. */
+const NO_STYLING = " Its format carries no styling, so graphty labels the nodes and draws the rest in its own style.";
 
 /** Where the samples from other programs are served (public/samples/programs/SOURCES.md has their sources). */
 const PROGRAMS_URL = `${import.meta.env.BASE_URL}samples/programs/`;
@@ -236,46 +244,53 @@ export const PROGRAM_SAMPLES: readonly ProgramSample[] = [
         program: "Neo4j",
         name: "Movies",
         sentence:
-            "Neo4j's Movies graph as a neo4j-admin import file: people, films and who acted in, directed or reviewed what.",
+            `Neo4j's Movies graph as a neo4j-admin import file: people, films and who acted in, directed or reviewed ` +
+            `what.${NO_STYLING}`,
         size: "169 nodes, 250 edges",
         picture: `${PROGRAMS_URL}neo4j.webp`,
         url: `${PROGRAMS_URL}neo4j-movies.csv`,
+        // a person has a name and a film a title
+        labels: ["data.name", "data.title"],
     },
     {
         id: "program-obo-foundry",
         program: "OBO Foundry",
         name: "Taxonomic ranks",
-        sentence: "An OBO Foundry ontology of taxonomic ranks, from kingdom to species, as one tree.",
+        sentence: `An OBO Foundry ontology of taxonomic ranks, from kingdom to species, as one tree.${NO_STYLING}`,
         size: "77 nodes, 75 edges",
         picture: `${PROGRAMS_URL}obo-foundry.webp`,
         url: `${PROGRAMS_URL}obo-foundry.obo`,
+        labels: ["data.name"],
     },
     {
         id: "program-cytoscape-sif",
         program: "Cytoscape (SIF)",
         name: "Group nodes tutorial",
-        sentence: "The network of Cytoscape's group nodes tutorial in the simple interaction format.",
+        sentence: `The network of Cytoscape's group nodes tutorial in the simple interaction format.${NO_STYLING}`,
         size: "37 nodes, 62 edges",
         picture: `${PROGRAMS_URL}cytoscape-sif.webp`,
         url: `${PROGRAMS_URL}cytoscape.sif`,
+        labels: ["id"],
     },
     {
         id: "program-cytoscape-table",
         program: "Cytoscape (CSV table)",
         name: "HIV protein interactions",
-        sentence: "Cytoscape's AP-MS tutorial table, read as a network from its Bait and Prey columns.",
+        sentence: `Cytoscape's AP-MS tutorial table, read as a network from its Bait and Prey columns.${NO_STYLING}`,
         size: "453 nodes, 499 edges",
         picture: `${PROGRAMS_URL}cytoscape-table.webp`,
         url: `${PROGRAMS_URL}cytoscape-table.csv`,
         options: { edgeSource: "Bait", edgeTarget: "Prey" },
+        labels: ["id"],
     },
     {
         id: "program-d3",
         program: "D3",
         name: "Les Miserables",
-        sentence: "D3's own force layout sample: characters in ten groups and who appears with whom.",
+        sentence: `D3's own force layout sample: characters in ten groups and who appears with whom.${NO_STYLING}`,
         size: "77 nodes, 254 edges",
         picture: `${PROGRAMS_URL}d3.webp`,
         url: `${PROGRAMS_URL}d3.json`,
+        labels: ["id"],
     },
 ];

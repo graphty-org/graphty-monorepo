@@ -29,7 +29,7 @@ import { replaceWith } from "../replace/commands";
 import { FILE_STYLE_OPTIONS, fileStylesChoice } from "../settings/preferences";
 import { askIfDraftOpen } from "../source-steps/preview";
 import { newProjectId, type Opener, startOpening, useStoreValue, type WorkspaceStore } from "../state/store";
-import { labelRow } from "../style/row";
+import { labelRow, writeLine } from "../style/row";
 import { noticeFileStyles } from "../styles/noticeFileStyles";
 import { panelsInView } from "../time/timeActions";
 
@@ -484,13 +484,37 @@ async function takeIn(
  * a separate graph).
  * @param workspace - the workspace store.
  * @param incoming - the source.
+ * @param labels - the values its nodes are labeled with once it is in (a sample's `labels`), in the same step.
  */
-export function openSeparate(workspace: WorkspaceStore, incoming: Incoming): void {
+export function openSeparate(workspace: WorkspaceStore, incoming: Incoming, labels?: readonly string[]): void {
     openProject(
         workspace,
         incoming.name.replace(/\.[^.]*$/, "") || incoming.name,
-        (next) => drawFirst(workspace, next, incoming.source, true, undefined, incoming.origin, incoming.callerKey),
+        async (next) => {
+            await drawFirst(workspace, next, incoming.source, true, undefined, incoming.origin, incoming.callerKey);
+            if (labels !== undefined) {
+                await labelNodes(next, labels);
+            }
+        },
         incoming.origin !== "sample",
+    );
+}
+
+/**
+ * Labels the nodes with values, one label line each, in the step that loaded them, so one Undo takes the opening back
+ * with its labels.
+ * @param session - the element's session.
+ * @param values - the values' paths (`"data.name"`).
+ * @returns when it is written.
+ */
+async function labelNodes(session: GraphSession, values: readonly string[]): Promise<void> {
+    const row = labelRow(session, null);
+    const after = session.history.steps.at(session.history.position - 1)?.id;
+    await session.transaction(
+        "Label the nodes",
+        (tx) =>
+            writeLine(tx, row.row, "node", "node.label", { template: values.map((path) => `{${path}}`) }, row.fresh),
+        { callerKey: APP_CALLER_KEY, ...(after === undefined ? {} : { after }) },
     );
 }
 
@@ -519,12 +543,16 @@ export function sampleSource(sample: Pick<StartSample, "name" | "url" | "options
  * @param callerKey - the load's `callerKey`; the sample's own by default, `"reopen"` for a reload.
  */
 export function openSample(workspace: WorkspaceStore, sample: StartSample, callerKey = sampleKey(sample)): void {
-    openSeparate(workspace, {
-        name: sample.name,
-        source: sampleSource(sample),
-        origin: "sample",
-        callerKey,
-    });
+    openSeparate(
+        workspace,
+        {
+            name: sample.name,
+            source: sampleSource(sample),
+            origin: "sample",
+            callerKey,
+        },
+        sample.labels,
+    );
     remember(workspace, { kind: "sample", sample });
 }
 

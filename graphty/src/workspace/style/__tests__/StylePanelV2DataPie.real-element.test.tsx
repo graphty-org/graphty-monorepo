@@ -113,9 +113,9 @@ describe("Style panel v2's data entries", () => {
         assert.strictEqual(session.history.position, before + 1, "one undo step");
         const merged = session.styles.explain({ node: "a" }).merged as Record<string, unknown>;
         assert.strictEqual(merged["node.pieSizes"], "0.25 0.5 0.25", "cat 1, dog 2, horse 1");
-        // The entry line shows what it reads, never one node's values (the sidebar holds controls only).
+        // The entry line holds its source, the field it reads, never one node's values (the sidebar holds controls).
         await waitFor(() => {
-            assert.isNotNull(screen.queryByRole("button", { name: "animals, animals" }));
+            assert.strictEqual(screen.queryByRole<HTMLInputElement>("combobox", { name: "Field" })?.value, "animals");
         });
         assert.isNull(screen.queryByRole("button", { name: /cat 1, dog 2, horse 1/ }));
 
@@ -169,8 +169,8 @@ describe("Style panel v2's data entries", () => {
         });
         assert.isUndefined(written(session, layer, "node.shapeTexts"));
         await waitFor(() => {
-            // The entry line shows what it reads, not one node's values.
-            assert.isNotNull(screen.queryByRole("button", { name: "degreeish, degreeish" }));
+            // The entry line holds the field it reads, not one node's values.
+            assert.strictEqual(screen.queryByRole<HTMLInputElement>("combobox", { name: "Field" })?.value, "degreeish");
         });
 
         await plus(sectionOf(tab, "node-fill"), "fill", "Chart");

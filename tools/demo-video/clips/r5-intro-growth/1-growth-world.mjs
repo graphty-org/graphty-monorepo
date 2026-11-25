@@ -185,8 +185,12 @@ const GATHER = S(2200);
 const ROUTE_SIZE = 3.2;
 /** The comets on the routes, in their source airports' colors (their speed slowed with the take). */
 const COMETS = { useEdgeColor: true, intensity: 2.6, bloom: 2, tail: 200, spacing: 260, speed: 1.2 / K };
-/** The routes' width on the globe: wide enough to stay visible on the large end globe. */
-const GLOBE_EDGE = 5;
+/**
+ * The routes on the globe: wide and near opaque, so they read as lines over the map behind the
+ * logo, at 1080p and at README size (at width 5 and opacity 0.5 they were hairlines, cut39).
+ */
+const GLOBE_EDGE = 9;
+const GLOBE_EDGE_OPACITY = 0.85;
 /** The comets' intensity before they light, on the globe: all but nothing, yet drawn. */
 const COMETS_UNLIT = 0.02;
 /**
@@ -244,11 +248,11 @@ const SCENE = { "node.sizeSpace": "scene" };
  * Every airport's size on the globe, San Francisco's too, and San Francisco's through the flight's
  * arrival (a scene size, in world units against the globe's radius 25): the same ball in both
  * plates, large in the close-up only because the camera is near (about 300 px of the output's
- * 1,080 at CLOSE), and small dots on the end globe (about 6 px), every airport shrinking together as
+ * 1,080 at CLOSE), and small dots on the end globe (about 5 px), every airport shrinking together as
  * the camera pulls back. A size on screen would keep them as large on the end globe as in the
  * close-up's neighborhood: a pile of beads over a 370 px globe (cut34).
  */
-const GLOBE_SIZE = 0.35;
+const GLOBE_SIZE = 0.27;
 /** San Francisco on the globe: still red, plain (PLAIN), the globe's size (GLOBE_SIZE). */
 const END_GLOBE = { "node.color": ROUTE_RED, ...PLAIN, ...SCENE, "node.size": GLOBE_SIZE };
 /** How near San Francisco (in the 3D drawing) another airport is hidden for the close-up. */
@@ -1020,7 +1024,12 @@ export default {
                 ),
             [
                 arrows,
-                { "edge.colorFrom": "source", "edge.arrowHead": "none", "edge.opacity": 0.5, "edge.width": GLOBE_EDGE },
+                {
+                    "edge.colorFrom": "source",
+                    "edge.arrowHead": "none",
+                    "edge.opacity": GLOBE_EDGE_OPACITY,
+                    "edge.width": GLOBE_EDGE,
+                },
             ],
         );
         const pull = reveal(landed, h.steps.europe, atRest);

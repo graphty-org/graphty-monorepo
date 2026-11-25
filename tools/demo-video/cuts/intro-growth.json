@@ -45,7 +45,7 @@
                     "zoom": false,
                     "caption": "",
                     "at": ["onglobe", 0],
-                    "to": ["turn", 5.58],
+                    "to": ["turn", 4.8],
                     "ramp": [
                         [["onglobe", 0], 3.2],
                         [["pull", 3], 3.6],
@@ -64,7 +64,7 @@
                     "card": "title",
                     "over": {
                         "clip": "growth-world",
-                        "at": ["turn", 4.08]
+                        "at": ["turn", 3.3]
                     },
                     "zoom": false,
                     "lines": ["See what your connected data is hiding"],

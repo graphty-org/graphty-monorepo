@@ -3185,6 +3185,20 @@ export class UpdateManager implements Manager {
     }
 
     /**
+     * Whether the newest fenced frame is the one that drew the finished picture, so its fence is
+     * the one a wait for the final picture waits on. The render loop flushes after that fence on
+     * every render path: unflushed, the GPU saw it only at Chromium's own next flush, about 18 ms
+     * later, and the wait ended about 20 ms after the frame (issue #10136). One flush per finished
+     * picture, so a path that does not flush every frame keeps its per-frame behavior.
+     * @returns True right after the finished frame's fence is made.
+     * @internal
+     */
+    fencedFinishedFrame(): boolean {
+        const before = this.finishedFrameFencedAfter;
+        return before !== null && this.gpuFrames?.fenced() === before + 1;
+    }
+
+    /**
      * Call back once {@link UpdateManager.nothingIsOwed} is true: at once when it already is, else
      * on the first pass or drawn frame that finds it so.
      *

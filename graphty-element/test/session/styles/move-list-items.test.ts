@@ -70,3 +70,23 @@ describe("styles.moveListItems", () => {
         }
     });
 });
+
+describe("proposeEncoding on a list item", () => {
+    it("proposes a binding for one item of a list, a color item from a column of colors", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes([
+            { id: "a", tint: "#00ff00", share: 0.2 },
+            { id: "b", tint: "#0000ff", share: 0.6 },
+        ]);
+        const color = session.styles.proposeEncoding({
+            column: { kind: "node", name: "tint" },
+            channel: "node.stripeColors.1",
+        });
+        assert.isTrue(color.ok, JSON.stringify(color));
+        const share = session.styles.proposeEncoding({
+            column: { kind: "node", name: "share" },
+            channel: "node.stripeSizes.0",
+        });
+        assert.isTrue(share.ok, JSON.stringify(share));
+    });
+});

@@ -674,13 +674,9 @@ export function propose(
         choice.kind === "column"
             ? { column: choice.column, ...appRange(channel) }
             : { run: choice.runId, field: choice.field, ...appRange(channel) };
-    if (isListItem(channel)) {
-        // The panel varies a list by data as a whole; its items have no from-data control.
-        throw new Error(`${channel} is one item of a list, which varies by data only as a whole`);
-    }
     // The two arms run the same call; they are split only so TypeScript narrows `channel` to one
-    // spec shape each (a plain channel, or a shader parameter's or further label field's address).
-    if (isShaderParam(channel) || isLabelField(channel)) {
+    // spec shape each (a plain channel, or a shader parameter's, further label field's or list item's address).
+    if (isShaderParam(channel) || isLabelField(channel) || isListItem(channel)) {
         return session.styles.proposeEncoding({ ...spec, channel });
     }
     return session.styles.proposeEncoding({ ...spec, channel });

@@ -7086,8 +7086,9 @@ export function drawnUses(uses: readonly ShaderUse[] | undefined): {
  * @returns The merged value.
  */
 export function mergeChannelValue(channel: string, held: unknown, over: object): unknown {
-    if (LIST_OF.has(channel)) {
-        return mergeListItems(held, over);
+    const listOf = LIST_OF.get(channel);
+    if (listOf !== undefined) {
+        return mergeListItems(held, over, listOf);
     }
 
     if (isLabelListChannel(channel)) {
@@ -7148,30 +7149,42 @@ export function listItemPatch(index: number, value: unknown): object {
 
 /**
  * Change items of a resolved list (its items separated by spaces): see {@link listItemPatch}.
+ * A color list changes only the items it holds: a color past its end has no band or slice to
+ * change. A number list (shares, opacities) is padded with unset items (`auto`, which the renderer
+ * reads as unset, `UNSET_LIST_ITEM`) up to the item, so an item over a list left unset draws.
  * @param held - The list the layers beneath resolve, or what a patch over nothing holds.
  * @param over - The patch, or a whole list.
+ * @param listOf - What the list holds.
  * @returns The list.
  */
-function mergeListItems(held: unknown, over: object): unknown {
+function mergeListItems(held: unknown, over: object, listOf: "color" | "number"): unknown {
     const items = (over as { readonly [LIST_ITEMS]?: Readonly<Record<string, unknown>> })[LIST_ITEMS];
     if (items === undefined) {
         return over;
     }
 
-    // An item over no list draws nothing: there is no list to change.
-    if (typeof held !== "string") {
+    // A color over no list draws nothing: there is no list to change.
+    if (typeof held !== "string" && listOf === "color") {
         return held;
     }
 
-    const list = held.split(/\s+/).filter((item) => item !== "");
+    const list = typeof held === "string" ? held.split(/\s+/).filter((item) => item !== "") : [];
     for (const [at, value] of Object.entries(items)) {
         const index = Number(at);
-        if (index < list.length && (typeof value === "string" || typeof value === "number")) {
+        if (typeof value !== "string" && typeof value !== "number") {
+            continue;
+        }
+        if (listOf === "number") {
+            while (list.length <= index) {
+                list.push("auto");
+            }
+        }
+        if (index < list.length) {
             list[index] = String(value);
         }
     }
 
-    return list.join(" ");
+    return list.length === 0 ? held : list.join(" ");
 }
 
 /**

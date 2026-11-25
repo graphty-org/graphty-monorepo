@@ -63,7 +63,9 @@ export function Sources({
     const drawn = useRef(false);
     useEffect(() => {
         if (drawn.current && selected !== undefined) {
-            list.current?.querySelector(`[data-source="${CSS.escape(selected)}"]`)?.scrollIntoView({ block: "nearest" });
+            list.current
+                ?.querySelector(`[data-source="${CSS.escape(selected)}"]`)
+                ?.scrollIntoView({ block: "nearest" });
         }
         drawn.current = true;
     }, [selected]);
@@ -86,7 +88,9 @@ export function Sources({
                             primary={sources.length === 1}
                             onOpenChange={(open) => {
                                 setOpened((was) => ({ ...was, [source.key]: open }));
-                                if (open) {
+                                // Opening an entry picks it; closing the picked one shows it in the
+                                // inspector again. Closing another never picks it, so it stays closed.
+                                if (open || source.key === selected) {
                                     onSelect(source.key);
                                 }
                             }}

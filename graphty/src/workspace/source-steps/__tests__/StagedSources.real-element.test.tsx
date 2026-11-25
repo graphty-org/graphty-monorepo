@@ -151,7 +151,7 @@ describe("a second source arrives staged (source-steps)", () => {
         await userEvent.click(within(modal).getByRole("button", { name: "Done" }));
         await within(modal).findByRole("alert");
         assert.isNotNull(screen.queryByRole("dialog", { name: "Join" }), "Done waits for an answer");
-        assert.strictEqual(session.data.nodes().length, 3);
+        assert.lengthOf(session.data.staged(), 1, "nothing is committed");
 
         await userEvent.click(within(modal).getByRole("button", { name: "Merge" }));
         await waitFor(() => {

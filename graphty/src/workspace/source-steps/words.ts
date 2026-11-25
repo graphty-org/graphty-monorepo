@@ -9,18 +9,14 @@ import {
     type ReaderEditRow,
     type SourceCellValue,
     type SourceClashRule,
-    type SourceDraftBucket,
     type SourceDraftRow,
     type SourceOverlapQuestion,
     type SourceProfileKind,
-    type SourceRefreshIssue,
-    type SourceStepAct,
     type SourceStepCounts,
     type SourceStepRow,
     type SourceTableMapping,
 } from "@graphty/graphty-element/session";
 
-import { sizeWords } from "../data-place/words";
 import { formatNumber } from "../inspector/words";
 
 /** The fixed labels. */
@@ -53,17 +49,6 @@ export const ROWS_ARE: readonly { readonly value: SourceTableMapping["rows"]; re
     { value: "edges", label: "Edges" },
     { value: "both", label: "Nodes + edges" },
 ];
-
-/**
- * The staged section's File line: its size, then its rows.
- * @param size - its size in bytes, when the element knows it.
- * @param rows - its rows, over every table.
- * @returns such as "61 KB, 1,243 rows".
- */
-export function fileWords(size: number | undefined, rows: number): string {
-    const counted = `${formatNumber(rows)} ${rows === 1 ? "row" : "rows"}`;
-    return size === undefined ? counted : `${sizeWords(size)}, ${counted}`;
-}
 
 /**
  * The Distinct line.
@@ -104,15 +89,6 @@ export function overlapQuestionWords(space: string): string {
  */
 export function overlapCountWords(question: SourceOverlapQuestion): string {
     return `${formatNumber(question.params.count)} of ${formatNumber(question.params.of)}`;
-}
-
-/**
- * Replace's label, naming the committed source it replaces.
- * @param name - that source's name.
- * @returns such as "Replace people.csv".
- */
-export function replaceWords(name: string): string {
-    return `Replace ${name}`;
 }
 
 /** The Join card's and the Fields tab's labels. */
@@ -178,6 +154,7 @@ export const WORKSPACE_WORDS = {
     untouched: "nodes untouched",
     nodesMerged: "nodes merged",
     nodesNew: "nodes new",
+    edgesNew: "edges new",
     otherEnd: "Other end",
     cardColors: "Card colors",
     styled: "Styled",
@@ -204,16 +181,6 @@ export const WORKSPACE_WORDS = {
     added: "Added",
     readSettings: "Read as",
 } as const;
-
-/** The six live counts of `data.matchCounts`, in the order the card shows them. */
-export const COUNT_WORDS = [
-    { id: "matched", label: "matched" },
-    { id: "only1", label: "only 1" },
-    { id: "only2", label: "only 2" },
-    { id: "repeated1", label: "repeat in 1" },
-    { id: "repeated2", label: "repeat in 2" },
-    { id: "textVersusNumber", label: "text vs number" },
-] as const;
 
 /** The value-overlap list's filters, as `data.matchValues` takes them. */
 export const OVERLAP_FILTERS = [
@@ -290,7 +257,6 @@ export const RULE_WORDS: Readonly<Record<SourceClashRule, string>> = {
     mean: "Mean",
 };
 
-
 /** A step's counts the Preview lists, in order, by the step's op. */
 export const BUCKET_WORDS: Readonly<
     Record<"merge" | "edge", readonly { readonly id: SourceStepNumberBucket; readonly label: string }[]>
@@ -361,35 +327,6 @@ export function refusedWords(error: unknown): string {
     return (code === undefined ? undefined : REFUSAL_WORDS[code]) ?? STAGED_WORDS.notChanged;
 }
 
-/**
- * The notice after a source card commits.
- * @param kind - the card: Add, Join, or Join editing a step.
- * @param name - the source it added or joined.
- * @returns such as "Joined entries.csv".
- */
-export function committedWords(kind: "add" | "join" | "edit", name: string): string {
-    const verb = { add: "Added", join: "Joined", edit: "Edited" }[kind];
-    return `${verb} ${name}`;
-}
-
-/**
- * A bucket of new elements of one type.
- * @param type - the type.
- * @returns such as "new person".
- */
-export function newTypeWords(type: string): string {
-    return `new ${type}`;
-}
-
-/**
- * An Add's count of rows whose key meets a node already in the graph, by the space it looks in.
- * @param space - the space's name as the reader reads it.
- * @returns such as "ends meet person".
- */
-export function endsMeetWords(space: string): string {
-    return `ends meet ${space}`;
-}
-
 /** The dock's Preview tab and the card's acts on its selection. */
 export const DRILL_WORDS = {
     preview: "Preview",
@@ -429,67 +366,6 @@ export const CELL_FILTERS = [
     { value: "decided", label: "Decided" },
 ] as const;
 
-/**
- * A count's name, as the Preview lists it.
- * @param bucket - the element's name for the count.
- * @returns its words.
- */
-export function bucketWords(bucket: SourceDraftBucket): string {
-    for (const list of Object.values(BUCKET_WORDS)) {
-        const found = list.find((each) => each.id === bucket);
-        if (found !== undefined) {
-            return found.label;
-        }
-    }
-    return bucket;
-}
-
-/**
- * The Show rows button's name for a count.
- * @param label - the count's words.
- * @returns such as "Show new edges rows".
- */
-export function showRowsWords(label: string): string {
-    return `Show ${label} rows`;
-}
-
-/**
- * The Show cells button's name for a Values differ column.
- * @param column - the column.
- * @returns such as "Show dept cells".
- */
-export function showCellsWords(column: string): string {
-    return `Show ${column} cells`;
-}
-
-/**
- * Exclude selected (n).
- * @param count - the keys selected.
- * @returns the label.
- */
-export function excludeWords(count: number): string {
-    return `Exclude selected (${formatNumber(count)})`;
-}
-
-/**
- * Pick 1 (n) or Pick 2 (n).
- * @param side - which source.
- * @param count - the cells selected.
- * @returns the label.
- */
-export function pickWords(side: 1 | 2, count: number): string {
-    return `Pick ${side} (${formatNumber(count)})`;
-}
-
-/**
- * Clear picks (n).
- * @param count - the decided cells selected.
- * @returns the label.
- */
-export function clearPicksWords(count: number): string {
-    return `Clear picks (${formatNumber(count)})`;
-}
-
 /** The Steps list, the step card and the Reader edits list. */
 export const STEP_WORDS = {
     steps: "Steps",
@@ -509,34 +385,13 @@ export const STEP_WORDS = {
 } as const;
 
 /** A step's kind, as the Steps list names it. */
-export const OP_WORDS: Readonly<Record<SourceStepRow["op"], string>> = {
+const OP_WORDS: Readonly<Record<SourceStepRow["op"], string>> = {
     "join.add": "Add",
     "join.merge": "Merge",
     "join.edges": "Edges",
     "join.node-values": "Values",
     "join.edge-values": "Values",
 };
-
-/**
- * What a join step joined: field 2, then the field or space of node 1 it joined onto.
- * @param act - the step's act.
- * @param spaceName - the name the reader reads for `act.into.space` (see `spaceLabel`).
- * @returns such as "badge -> person" or "badge -> people.csv".
- */
-export function actWords(act: SourceStepAct, spaceName: string): string {
-    return `${act.from.field} -> ${act.into.field ?? spaceName}`;
-}
-
-/**
- * A step as the step card names it under its title: its kind, its source and what it joined.
- * @param row - the step.
- * @param name - its source's name.
- * @param spaceName - the name the reader reads for the space it joined onto.
- * @returns such as "Edges entries.csv badge -> person".
- */
-export function stepSubjectWords(row: SourceStepRow, name: string, spaceName: string): string {
-    return [OP_WORDS[row.op], name, ...(row.act === null ? [] : [actWords(row.act, spaceName)])].join(" ");
-}
 
 /**
  * A later step whose counts the change moves, as the step card lists it.
@@ -548,32 +403,6 @@ export function stepSubjectWords(row: SourceStepRow, name: string, spaceName: st
  */
 export function stepChangedWords(index: number, op: SourceStepRow["op"], before: string, after: string): string {
     return `${stepWords(index)} ${OP_WORDS[op]}: ${before || STEP_WORDS.off} -> ${after || STEP_WORDS.off}`;
-}
-
-/**
- * A step's counts as its Steps row shows them, short so the row keeps room for what it joined:
- * "n" nodes, "e" edges, "m" merged.
- * @param row - the step.
- * @returns such as "3 n, 4 e", "3 m", or "" when it was not built.
- */
-export function stepCountShortWords(row: SourceStepRow): string {
-    const { buckets } = row;
-    if (buckets === null) {
-        return "";
-    }
-    switch (row.op) {
-        case "join.add":
-            return [
-                `${formatNumber(buckets.newNodes)} n`,
-                ...(buckets.newEdges > 0 ? [`${formatNumber(buckets.newEdges)} e`] : []),
-            ].join(", ");
-        case "join.merge":
-            return `${formatNumber(buckets.merged)} m`;
-        case "join.edges":
-            return `${formatNumber(buckets.newEdges)} e`;
-        default:
-            return formatNumber(buckets.matched);
-    }
 }
 
 /**
@@ -609,54 +438,12 @@ export function stepCountWords(row: SourceStepRow): string {
 }
 
 /**
- * The column a held step misses, as the Steps row names it.
- * @param issue - one of the step's `missing`.
- * @returns such as "badge missing".
- */
-export function missingWords(issue: SourceRefreshIssue): string {
-    return "column" in issue.params ? `${issue.params.column} missing` : STEP_WORDS.off;
-}
-
-/**
  * A Steps row's name.
  * @param index - the step's place, from 0.
  * @returns such as "Step 2".
  */
-export function stepWords(index: number): string {
+function stepWords(index: number): string {
     return `Step ${formatNumber(index + 1)}`;
-}
-
-/**
- * The Join card's title while it edits a committed step: the step, its kind and its source.
- * @param row - the step.
- * @param name - its source's name.
- * @returns such as "Step 2 Merge hr.csv".
- */
-export function editTitleWords(row: SourceStepRow, name: string): string {
-    return `${stepWords(row.index)} ${OP_WORDS[row.op]} ${name}`;
-}
-
-/**
- * The edited step's own counts, now and once committed.
- * @param before - its counts now, from `stepCountWords`.
- * @param after - its counts once committed.
- * @returns such as "3 merged -> 4 merged".
- */
-export function countsChangeWords(before: string, after: string): string {
-    return before === after ? PREVIEW_WORDS.noChange : `${before || STEP_WORDS.off} -> ${after || STEP_WORDS.off}`;
-}
-
-/**
- * The step card's title.
- * @param remove - what it removes.
- * @param name - the source's name.
- * @returns such as "Delete step 2" or "Remove people.csv".
- */
-export function removeTitleWords(
-    remove: { readonly step: number } | { readonly source: string },
-    name: string,
-): string {
-    return "step" in remove ? `Delete step ${formatNumber(remove.step + 1)}` : `Remove ${name}`;
 }
 
 /** Why a later step goes with the removal, by `W_STEP_REMOVED`'s reason. */
@@ -709,14 +496,4 @@ export function editKindWords(edit: ReaderEditRow): string {
  */
 export function editValueWords(edit: ReaderEditRow): string {
     return edit.column === undefined ? "" : `${edit.column} = ${cellWords(edit.value ?? null)}`;
-}
-
-/**
- * The notice after a step card commits.
- * @param remove - what it removed.
- * @param name - the source's name.
- * @returns such as "Deleted step 2" or "Removed people.csv".
- */
-export function removedWords(remove: { readonly step: number } | { readonly source: string }, name: string): string {
-    return "step" in remove ? `Deleted step ${formatNumber(remove.step + 1)}` : `Removed ${name}`;
 }

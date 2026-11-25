@@ -124,7 +124,10 @@ describe("steps and reader edits in the join workspace (source-steps)", () => {
         await waitFor(() => {
             assert.isNull(within(modal).queryByRole("region", { name: "entries.csv -> Connect" }));
         });
-        assert.isAbove(session.data.edges().length, 0, "nothing changes before Done");
+        assert.isTrue(
+            session.data.steps().some((row) => row.op === "join.edges"),
+            "nothing is committed before Done",
+        );
         await done(modal);
         assert.lengthOf(session.data.edges(), 0, "the edges went with the step");
         assert.strictEqual(session.history.steps.length, steps + 1, "one undo step");

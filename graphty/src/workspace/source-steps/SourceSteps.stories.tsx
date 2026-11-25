@@ -45,7 +45,7 @@ async function staged(context: Context, name: string, text: string): Promise<Gra
     );
     await session.data.stage({ type: "csv", config: { data: text }, name });
     storeOf(context).set({ dockOpen: false, dockMaximized: false });
-    await within(context.canvasElement).findByRole("region", { name });
+    await within(context.canvasElement).findByRole("listitem", { name });
     return session;
 }
 
@@ -61,20 +61,19 @@ async function choose(where: HTMLElement, name: string, option: string): Promise
 }
 
 /**
- * Opens the Join card from the staged section and picks Key of person and the source's badge.
+ * Opens the join workspace by Join + and picks Key of person and the staged source's badge on its
+ * card.
  * @param context - the play's context.
- * @param name - the staged file's name.
- * @returns the card.
+ * @returns the workspace.
  */
-async function pickBadge(context: Context, name: string): Promise<HTMLElement> {
+async function pickBadge(context: Context): Promise<HTMLElement> {
     const canvas = within(context.canvasElement);
-    const section = canvas.getByRole("region", { name });
-    await userEvent.click(within(section).getByRole("button", { name: /^Join/ }));
-    const card = await canvas.findByRole("form", { name: "Join" });
-    await choose(card, "Field 1 type", "person");
-    await choose(card, "Field 1 field", "Key");
-    await choose(card, "Field 2 field", "badge");
-    return card;
+    await userEvent.click(canvas.getByRole("button", { name: "Join" }));
+    const modal = await within(context.canvasElement.ownerDocument.body).findByRole("dialog", { name: "Join" });
+    await choose(modal, "In graph type", "person");
+    await choose(modal, "In graph field", "Key");
+    await choose(modal, "Incoming field", "badge");
+    return modal;
 }
 
 const meta: Meta<typeof Workspace> = {
@@ -97,68 +96,68 @@ export default meta;
 
 const DOORS = { project: { name: "Doors", id: 1 }, place: "data" } as const;
 
-/** A second file arrives staged in its own section: rows are, key, counts, Join and Add. */
+/**
+ * A second file arrives staged as its own entry in the Data sources list, opened to how its rows
+ * are read (Rows are, Key); "Join +" sits below every source.
+ */
 export const StagedSource: Story = {
     ...freshStore(DOORS),
     play: async (context) => {
         await staged(context, "entries.csv", ENTRIES);
-        const section = within(context.canvasElement).getByRole("region", { name: "entries.csv" });
-        await within(section).findByLabelText("Distinct");
+        const entry = within(context.canvasElement).getByRole("listitem", { name: "entries.csv" });
+        const toggle = entry.querySelector<HTMLElement>("[aria-expanded=false]");
+        if (toggle !== null) {
+            await userEvent.click(toggle);
+        }
+        await within(entry).findByRole("radiogroup", { name: "Rows are" });
     },
 };
 
-/** The Join card on Key of person and the entries' badge: its live counts and the dock's Fields tab. */
+/** The workspace card picking Key of person and the entries' badge, its values in the table. */
 export const PickFields: Story = {
     ...freshStore(DOORS),
     play: async (context) => {
         await staged(context, "entries.csv", ENTRIES);
-        await pickBadge(context, "entries.csv");
-        const fields = await within(context.canvasElement).findByRole("tab", { name: "Fields" });
-        await waitFor(() => {
-            if (fields.getAttribute("aria-selected") !== "true") {
-                throw new Error("the dock shows the Fields tab");
-            }
-        });
+        const modal = await pickBadge(context);
+        await within(modal).findByRole("grid", { name: "Values" });
     },
 };
 
-/** HR's list merged into people: the preview, dept's Values differ, and its cells in the dock. */
+/** HR's list merged into people: dept's values differ, its cells in the table with Pick 1 and Pick 2. */
 export const PreviewValuesDiffer: Story = {
     ...freshStore(DOORS),
     play: async (context) => {
         await staged(context, "hr.csv", HR);
-        const card = await pickBadge(context, "hr.csv");
-        await userEvent.click(within(card).getByRole("radio", { name: "Merge 2 into 1" }));
-        await userEvent.click(within(card).getByRole("button", { name: /^Preview/ }));
-        const section = await within(card).findByRole("region", { name: "Preview" });
-        await userEvent.click(within(section).getByRole("button", { name: "Show dept cells" }));
-        await within(context.canvasElement).findByRole("grid", { name: "Cells" });
+        const modal = await pickBadge(context);
+        await userEvent.click(within(modal).getByRole("radio", { name: "Merge" }));
+        await userEvent.click(await within(modal).findByRole("button", { name: "Cells dept" }));
+        await within(modal).findByRole("grid", { name: "Cells" });
     },
 };
 
-/** After the entries are committed as edges to people: the Steps list. */
+/** After a join is committed, the workspace lists every step as a card, the Add steps too. */
 export const AfterCommitSteps: Story = {
     ...freshStore(DOORS),
     play: async (context) => {
-        await staged(context, "entries.csv", ENTRIES);
-        const card = await pickBadge(context, "entries.csv");
-        await userEvent.click(within(card).getByRole("radio", { name: "Make an edge" }));
-        await userEvent.click(within(card).getByRole("combobox", { name: "Edge type" }));
-        await userEvent.keyboard("entered{Tab}");
-        await userEvent.click(within(card).getByRole("button", { name: /^Preview/ }));
-        await within(card).findByRole("region", { name: "Preview" });
-        await userEvent.click(within(card).getByRole("button", { name: /^Commit/ }));
-        const steps = await within(context.canvasElement).findByRole("list", { name: "Steps" });
+        const session = await staged(context, "entries.csv", ENTRIES);
+        let modal = await pickBadge(context);
+        await userEvent.click(within(modal).getByRole("radio", { name: "Connect" }));
+        await userEvent.click(within(modal).getByRole("button", { name: "Done" }));
+        const body = within(context.canvasElement.ownerDocument.body);
         await waitFor(() => {
-            if (within(steps).queryAllByRole("listitem").length !== 3) {
-                throw new Error("Steps lists people, entries and the edges");
+            if (body.queryByRole("dialog", { name: "Join" }) !== null) {
+                throw new Error("Done closes the workspace");
             }
         });
+        await userEvent.click(within(context.canvasElement).getByRole("button", { name: "Join" }));
+        modal = await body.findByRole("dialog", { name: "Join" });
+        await within(modal).findByRole("region", { name: "entries.csv -> Connect" });
+        await session.styles.settled();
     },
 };
 
 /**
- * The join workspace (issue #9796): Edit joins opens the modal over the canvas with one card for
+ * The join workspace (issue #9796): Join + opens the modal over the canvas with one card for
  * the staged entries, its match the element's guess; Connect makes the card's step, drawn in the
  * card's color in the preview.
  */
@@ -167,7 +166,7 @@ export const JoinWorkspace: Story = {
     play: async (context) => {
         const session = await staged(context, "entries.csv", ENTRIES);
         const canvas = within(context.canvasElement);
-        await userEvent.click(canvas.getByRole("button", { name: /^Edit joins/ }));
+        await userEvent.click(canvas.getByRole("button", { name: "Join" }));
         const body = within(context.canvasElement.ownerDocument.body);
         const modal = await body.findByRole("dialog", { name: "Join" });
         await userEvent.click(within(modal).getByRole("radio", { name: "Connect" }));

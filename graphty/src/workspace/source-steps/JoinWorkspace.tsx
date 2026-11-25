@@ -36,7 +36,7 @@ import type { JoinWorkspaceOpen } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { useBoxSize } from "../useBoxSize";
 import { commitWorkspace } from "./actions";
-import { edgeTypeChoices, spaceChoices, spaceLabel } from "./join";
+import { draftSpaceChoices, edgeTypeChoices } from "./join";
 import {
     type CardInto,
     type CardPicks,
@@ -115,15 +115,35 @@ function addCardId(index: number): string {
 const STAGED = "staged:";
 
 /**
- * The types a match can name in the graph: each space, then each staged source by its keys.
+ * The types a match can name in the graph: each space as the draft builds it, then each staged
+ * source the draft has not added yet, by its keys.
  * @param session - the element's session
+ * @param draft - the open draft
  * @returns the choices
  */
-function intoChoices(session: GraphSession): readonly { readonly value: string; readonly label: string }[] {
+function intoChoices(
+    session: GraphSession,
+    draft: SourceDraft,
+): readonly { readonly value: string; readonly label: string }[] {
+    const built = new Set(draft.steps().map((step) => step.source));
     return [
-        ...spaceChoices(session),
-        ...session.data.staged().map((source) => ({ value: `${STAGED}${source.key}`, label: sourceName(source) })),
+        ...draftSpaceChoices(session, draft),
+        ...session.data
+            .staged()
+            .filter((source) => !built.has(source.key))
+            .map((source) => ({ value: `${STAGED}${source.key}`, label: sourceName(source) })),
     ];
+}
+
+/**
+ * A space as the reader reads it, as the draft builds it.
+ * @param session - the element's session
+ * @param draft - the open draft
+ * @param space - the space
+ * @returns its name
+ */
+function spaceName(session: GraphSession, draft: SourceDraft, space: string): string {
+    return draftSpaceChoices(session, draft).find((choice) => choice.value === space)?.label ?? space;
 }
 
 /**
@@ -225,8 +245,14 @@ function MatchRow({
 }>): React.JSX.Element {
     const { picks } = card;
     const sources = [...session.data.staged(), ...session.data.sources()];
-    const types = intoChoices(session);
-    const supplying = session.data.spaces().find((row) => row.space === picks.into?.space)?.sources ?? [];
+    const types = intoChoices(session, draft);
+    // A space's fields are its supplying sources' columns as the draft builds them; a staged node 1
+    // offers its own columns, so any of them, not only its key, can be matched.
+    const stagedInto = picks.into?.space === "" ? picks.into.source : undefined;
+    const supplying =
+        stagedInto === undefined
+            ? (draft.spaces().find((row) => row.space === picks.into?.space)?.sources ?? [])
+            : [stagedInto];
     const intoFields = [
         { value: KEY_VALUE, label: JOIN_WORDS.key },
         ...supplying.flatMap((key) =>
@@ -625,27 +651,35 @@ function nameOf(session: GraphSession, key: string): string {
 /**
  * A node 1 side as the reader reads it: the type and its field, such as "people.Key".
  * @param session - the element's session
+ * @param draft - the open draft
  * @param into - the side
  * @returns the words
  */
-function intoWords(session: GraphSession, into: CardInto): string {
+function intoWords(session: GraphSession, draft: SourceDraft, into: CardInto): string {
     const type =
-        into.space === "" && into.source !== undefined ? nameOf(session, into.source) : spaceLabel(session, into.space);
+        into.space === "" && into.source !== undefined
+            ? nameOf(session, into.source)
+            : spaceName(session, draft, into.space);
     return `${type}.${into.field ?? JOIN_WORDS.key}`;
 }
 
 /**
  * A card's folded summary: its matches, named by their sources, and what its step does.
  * @param session - the element's session
+ * @param draft - the open draft
  * @param card - the card
  * @returns the line
  */
-function cardSummary(session: GraphSession, card: JoinCardView): string {
+function cardSummary(session: GraphSession, draft: SourceDraft, card: JoinCardView): string {
     const { from, into, to } = card.picks;
     const name = from === null ? "" : nameOf(session, from.source);
     const matches = [
-        from?.field === undefined || into === null ? null : `${intoWords(session, into)} = ${name}.${from.field}`,
-        to?.field === undefined || to.into === null ? null : `${intoWords(session, to.into)} = ${name}.${to.field}`,
+        from?.field === undefined || into === null
+            ? null
+            : `${intoWords(session, draft, into)} = ${name}.${from.field}`,
+        to?.field === undefined || to.into === null
+            ? null
+            : `${intoWords(session, draft, to.into)} = ${name}.${to.field}`,
     ].filter((each) => each !== null);
     const match = matches.join(", ");
     const b = card.step?.buckets;
@@ -695,11 +729,13 @@ function valuesPage(
 /**
  * The names and reads of a card's two fields, for the Fields view.
  * @param session - the element's session
+ * @param draft - the open draft
  * @param card - the card
  * @returns the two sides
  */
 function fieldSides(
     session: GraphSession,
+    draft: SourceDraft,
     card: JoinCardView,
 ): { readonly title: string; readonly side: { source?: string; field?: string; space?: string } }[] {
     const { from, into } = card.picks;
@@ -708,7 +744,7 @@ function fieldSides(
             ? []
             : [
                   {
-                      title: intoWords(session, into),
+                      title: intoWords(session, draft, into),
                       side:
                           into.source !== undefined && into.field !== undefined
                               ? { source: into.source, field: into.field }
@@ -717,7 +753,12 @@ function fieldSides(
               ]),
         ...(from?.field === undefined
             ? []
-            : [{ title: `${nameOf(session, from.source)}.${from.field}`, side: { source: from.source, field: from.field } }]),
+            : [
+                  {
+                      title: `${nameOf(session, from.source)}.${from.field}`,
+                      side: { source: from.source, field: from.field },
+                  },
+              ]),
     ];
 }
 
@@ -800,7 +841,11 @@ function TablePane({
                 ]}
                 onChange={(kind) => {
                     setOffset(0);
-                    onShows(kind === "fields" ? { kind: "fields", card: shows.card } : { kind: "values", card: shows.card, only: "all" });
+                    onShows(
+                        kind === "fields"
+                            ? { kind: "fields", card: shows.card }
+                            : { kind: "values", card: shows.card, only: "all" },
+                    );
                 }}
             />
         );
@@ -808,7 +853,7 @@ function TablePane({
             return (
                 <div className="jw-table">
                     {view}
-                    {card === undefined ? null : <FieldsPane draft={draft} sides={fieldSides(session, card)} />}
+                    {card === undefined ? null : <FieldsPane draft={draft} sides={fieldSides(session, draft, card)} />}
                 </div>
             );
         }
@@ -975,6 +1020,8 @@ function JoinWorkspace({
     }, [opened, session, how, store]);
     // on reload: fresh: pointer: the Reader edits list opened for a look
     const [editsOpen, setEditsOpen] = useState(false);
+    // on reload: fresh: in flight: an other end picked on a written card before both its field and type are
+    const [pendingTo, setPendingTo] = useState<Readonly<Partial<Record<string, CardPicks["to"]>>>>({});
     // on reload: fresh: in flight: the refusal each card last met, drawn on it
     const [errors, setErrors] = useState<Readonly<Partial<Record<string, string>>>>({});
     // on reload: fresh: pointer: the rows picked for a look
@@ -1022,7 +1069,17 @@ function JoinWorkspace({
 
     const cards = live ? cardsOf(draft, pending) : [];
     // The steps that add a staged source as it is: a card each, read-only but for its questions.
-    const addSteps = live ? draft.steps().filter((step) => step.act === null && step.op === "join.add") : [];
+    // A join step that adds its own staged source shows on its own card, not as an Add card too.
+    const addSteps = live
+        ? draft
+              .steps()
+              .filter(
+                  (step, _at, all) =>
+                      step.act === null &&
+                      step.op === "join.add" &&
+                      !all.some((other) => other.act !== null && other.source === step.source),
+              )
+        : [];
     // Cards never take the key's colors, so a color names either a card or what the commit does.
     const palette = (session.scope.options.branchPalette ?? cardPalette(session.catalog.palettes())).filter(
         (color) => !KEY_COLORS.has(color.toUpperCase()),
@@ -1066,6 +1123,13 @@ function JoinWorkspace({
     const change: CardChange = (card, picks, result) => {
         const notice = noticeOn(card.id);
         setErrors(({ [card.id]: _was, ...rest }) => rest);
+        // "+ Match" on a written card: the other end waits on the card until both its field and its
+        // type are picked, then the step is written with it.
+        const waiting = picks.to !== undefined && picks.to !== null && toPairOf(picks) === null;
+        setPendingTo(({ [card.id]: _was, ...rest }) => (waiting ? { ...rest, [card.id]: picks.to } : rest));
+        if (waiting && result !== null && card.step !== null) {
+            return;
+        }
         const at = card.step?.index ?? null;
         const pair = pairOf(picks);
         if (result === null || pair === null) {
@@ -1211,16 +1275,22 @@ function JoinWorkspace({
     // The key names each effect by the mark the preview draws for it (a ring, a dashed border, a
     // dotted border), in the color it takes outside a card's own color.
     const keyItems = [
-        { id: "merged", color: MERGED_COLOR, label: WORKSPACE_WORDS.nodesMerged, count: marks.merged },
-        { id: "new", color: NEW_COLOR, label: WORKSPACE_WORDS.nodesNew, count: marks.new },
-        { id: "untouched", color: UNTOUCHED_COLOR, label: WORKSPACE_WORDS.untouched, count: marks.untouched },
+        { id: "merged", color: MERGED_COLOR, label: WORKSPACE_WORDS.nodesMerged, count: marks.nodes.merged },
+        { id: "new", color: NEW_COLOR, label: WORKSPACE_WORDS.nodesNew, count: marks.nodes.new },
+        { id: "edges", color: NEW_COLOR, label: WORKSPACE_WORDS.edgesNew, count: marks.edges.new },
+        { id: "untouched", color: UNTOUCHED_COLOR, label: WORKSPACE_WORDS.untouched, count: marks.nodes.untouched },
     ];
     // The table lists what the reader asked for, else the open card's values.
     const listed = shows?.kind === "values" && !cards.some((card) => card.id === shows.card) ? null : shows;
     const tableShows: TableShows | null =
         listed ?? (openCard === undefined ? null : { kind: "values", card: openCard.id, only: "all" });
 
-    const items: CardListItem[] = cards.map((card, at) => {
+    const items: CardListItem[] = cards.map((shown, at) => {
+        const waitingTo = pendingTo[shown.id];
+        const card: JoinCardView =
+            waitingTo === undefined || (shown.picks.to ?? null) !== null
+                ? shown
+                : { ...shown, picks: { ...shown.picks, to: waitingTo } };
         const { result } = card;
         // A card joining a staged source not yet in the draft says how its rows are read first,
         // and can add it as it is.
@@ -1237,7 +1307,7 @@ function JoinWorkspace({
             ...(colors ? { color: colorOf(at) } : {}),
             summary: (
                 <Text size="xs" c="dimmed" truncate>
-                    {cardSummary(session, card)}
+                    {cardSummary(session, draft, card)}
                 </Text>
             ),
             data: { "data-join-card": card.id },
@@ -1268,6 +1338,8 @@ function JoinWorkspace({
                                     try {
                                         draft.add(staged.key);
                                         removeCard(card.id);
+                                        // The pressed button goes with its card: keys stay in the workspace.
+                                        box.current?.focus();
                                     } catch (error) {
                                         noticeOn(card.id)(error);
                                     }
@@ -1365,7 +1437,7 @@ function JoinWorkspace({
                     <AddStepBody
                         draft={draft}
                         step={step}
-                        spaceName={(space) => spaceLabel(session, space)}
+                        spaceName={(space) => spaceName(session, draft, space)}
                         onError={noticeOn(id)}
                     />
                     {error === undefined ? null : (

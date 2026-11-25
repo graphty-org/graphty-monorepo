@@ -434,33 +434,36 @@ describe("the Data place's sidebar on the real element", () => {
         });
     });
 
-    it("draws no chip for a count of 0, keeps the name readable, and keeps the chips beside the actions on hover", async () => {
+    it("names a closed entry's counts in its summary, keeps the name readable, and shows the menu on hover", async () => {
         const session = await openDataPlace();
         const name = "a-node-table-with-a-rather-long-file-name-for-a-narrow-sidebar.csv";
         drop(new File([HOSTS_CSV], name));
         const row: HTMLElement = await place().findByRole("listitem", { name });
-        // A drop takes focus to the new row.
+        const header = (): HTMLElement | null => row.querySelector<HTMLElement>("[aria-expanded]");
+        // A drop takes focus to the new entry's header.
         await waitFor(() => {
-            assert.strictEqual(document.activeElement, row.querySelector(".dp-source-main"));
+            assert.strictEqual(document.activeElement, header());
         });
-        assert.isNotNull(row.querySelector('[data-kind="node"]'));
-        assert.isNull(row.querySelector('[data-kind="edge"]'), "no edge chip for 0 edges");
-        const label = row.querySelector<HTMLElement>(".dp-source-name");
+        const label = row.querySelector<HTMLElement>("[data-testid=control-section-name]");
         assert.isAtLeast(label?.getBoundingClientRect().width ?? 0, 40);
-        // The chips are named with their units, once.
         const { nodes } = session.data.sources()[0].counts;
-        const main = within(row).getByRole("button", { pressed: true });
-        assert.include(main.textContent, `${String(nodes)} nodes`);
-        // The chip says "Node 2" to no one: the row's name carries the counts once, with their unit.
-        assert.strictEqual(within(row).getByRole("button", { name: `${name} ${String(nodes)} nodes` }), main);
+        // Closed, the entry names its counts, with their units, and no edges for 0 edges.
+        const toggle = header();
+        assert.isNotNull(toggle);
+        if (toggle !== null) {
+            await userEvent.click(toggle);
+        }
+        await waitFor(() => {
+            assert.strictEqual(header()?.getAttribute("aria-expanded"), "false");
+        });
+        const summary = row.querySelector<HTMLElement>("[data-testid=control-section-summary]");
+        assert.strictEqual(summary?.textContent, `${String(nodes)} nodes`);
 
         await userEvent.hover(row);
-        const chips = row.querySelector<HTMLElement>(".dp-source-chips");
         const menu = within(row).getByRole("button", { name: `${name} menu` });
         await waitFor(() => {
-            assert.notEqual(chips === null ? "none" : getComputedStyle(chips).display, "none");
             assert.isAbove(menu.getBoundingClientRect().width, 0);
-            assert.isAtLeast(menu.getBoundingClientRect().left, chips?.getBoundingClientRect().right ?? Infinity);
+            assert.notEqual(getComputedStyle(menu).opacity, "0");
         });
         // The cut name is one hover away in full.
         await userEvent.hover(label ?? row);
@@ -481,7 +484,11 @@ describe("the Data place's sidebar on the real element", () => {
         assert.isNull(within(group("auth-log.csv")).queryByRole("combobox", { name: "Source" }), "closed");
 
         const log: HTMLElement = place().getByRole("listitem", { name: "auth-log.csv" });
-        await userEvent.click(within(log).getByRole("button", { pressed: false }));
+        const closed = log.querySelector<HTMLElement>("[aria-expanded=false]");
+        assert.isNotNull(closed, "auth-log.csv's entry is closed");
+        if (closed !== null) {
+            await userEvent.click(closed);
+        }
         await waitFor(() => {
             assert.equal(
                 within(group("auth-log.csv")).getByRole<HTMLInputElement>("combobox", { name: "Source" }).value,
@@ -492,7 +499,7 @@ describe("the Data place's sidebar on the real element", () => {
         await userEvent.click(page.getByRole("button", { name: "Graph", exact: true }));
         await userEvent.click(page.getByRole("button", { name: "Data", exact: true }));
         const again: HTMLElement = await place().findByRole("listitem", { name: "auth-log.csv" });
-        assert.strictEqual(within(again).getByRole("button", { pressed: true }).closest(".dp-source"), again);
+        assert.isTrue(again.hasAttribute("data-selected"), "auth-log.csv is still the picked source");
         assert.equal(
             within(group("auth-log.csv")).getByRole<HTMLInputElement>("combobox", { name: "Source" }).value,
             "user",
@@ -507,7 +514,11 @@ describe("the Data place's sidebar on the real element", () => {
         const [, hosts] = session.data.sources();
 
         const log: HTMLElement = place().getByRole("listitem", { name: "auth-log.csv" });
-        await userEvent.click(within(log).getByRole("button", { pressed: false }));
+        const closed = log.querySelector<HTMLElement>("[aria-expanded=false]");
+        assert.isNotNull(closed, "auth-log.csv's entry is closed");
+        if (closed !== null) {
+            await userEvent.click(closed);
+        }
         await waitFor(() => {
             assert.include(fieldsGroup().textContent, "auth-log.csv");
         });
@@ -595,7 +606,7 @@ describe("the Data place's sidebar on the real element", () => {
         const session = await openDataPlace();
         await loadLog(session);
         const row = await place().findByRole("listitem", { name: "auth-log.csv" });
-        const main = row.querySelector<HTMLElement>(".dp-source-main");
+        const main = row.querySelector<HTMLElement>("[aria-expanded]");
         assert.isNotNull(main);
         await userEvent.dblClick(main);
         const input = await screen.findByRole("textbox", { name: "Source name" });
@@ -607,7 +618,7 @@ describe("the Data place's sidebar on the real element", () => {
             assert.isNull(screen.queryByRole("textbox", { name: "Source name" }));
         });
 
-        place().getByRole("listitem", { name: "auth-log.csv" }).querySelector<HTMLElement>(".dp-source-main")?.focus();
+        place().getByRole("listitem", { name: "auth-log.csv" }).querySelector<HTMLElement>("[aria-expanded]")?.focus();
         await userEvent.keyboard("{F2}");
         const again = await screen.findByRole("textbox", { name: "Source name" });
         await userEvent.clear(again);

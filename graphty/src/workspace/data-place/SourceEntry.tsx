@@ -1,9 +1,10 @@
 import { ContextMenu, ControlSection, Popout, PopoutManager } from "@graphty/compact-mantine";
 import type { LoadedSource } from "@graphty/graphty-element/session";
-import { ActionIcon, Button, Menu, Tooltip } from "@mantine/core";
+import { ActionIcon, Badge, Button, Menu, Tooltip } from "@mantine/core";
 import React, { useState } from "react";
 
 import type { SourceRowCommand } from "../commands/registry";
+import { sourceReferencesOn } from "../features";
 import { CommandMenuItem } from "../frame/menus";
 import { RenameInput } from "../frame/RenameInput";
 import { GLYPHS } from "../glyphs";
@@ -206,6 +207,12 @@ export function SourceEntry({
     ));
     const actions = (
         <span className="dp-source-actions">
+            {source.copy === "reference" && sourceReferencesOn(session) ? (
+                // With the source references experiment, a load a save keeps as a reference.
+                <Badge component="span" variant="light" className="dp-source-ref" aria-label="Reference">
+                    Ref
+                </Badge>
+            ) : null}
             <IssuesChip source={source} name={name} />
             {commands.flatMap((command) =>
                 command.icon === undefined
@@ -248,6 +255,12 @@ export function SourceEntry({
                     onKeyDown={(event) => {
                         if (event.key === "F2" && (event.target as HTMLElement).matches("[aria-expanded]")) {
                             event.preventDefault();
+                            setRenaming(true);
+                        }
+                    }}
+                    // A double-click on the header renames the source, as in the layer tree.
+                    onDoubleClick={(event) => {
+                        if ((event.target as HTMLElement).closest("[aria-expanded]") !== null) {
                             setRenaming(true);
                         }
                     }}

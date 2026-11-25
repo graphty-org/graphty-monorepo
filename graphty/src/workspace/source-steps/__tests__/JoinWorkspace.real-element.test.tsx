@@ -63,12 +63,13 @@ async function opened(
 }
 
 /**
- * The cards the workspace draws.
+ * The join cards the workspace draws, leaving out the cards of the steps that add a source as it is
+ * (people.csv's own Add is one).
  * @param modal - the workspace.
  * @returns how many.
  */
 function cardCount(modal: HTMLElement): number {
-    return modal.querySelectorAll("[data-join-card]").length;
+    return modal.querySelectorAll("[data-join-card]:not([data-join-card^='add:'])").length;
 }
 
 /**
@@ -224,12 +225,19 @@ describe("the join workspace (source-steps)", () => {
             assert.strictEqual(cardCount(modal), 2);
         });
         // The new card is open: expand the first again, then the second.
-        const cards = (): HTMLElement[] => [...modal.querySelectorAll<HTMLElement>("[data-join-card]")];
+        const cards = (): HTMLElement[] => [
+            ...modal.querySelectorAll<HTMLElement>("[data-join-card]:not([data-join-card^='add:'])"),
+        ];
         const open = (card: HTMLElement | undefined): boolean =>
             card !== undefined && within(card).queryByRole("combobox", { name: "Incoming field" }) !== null;
         for (const at of [0, 1]) {
-            const expand = within(modal).getAllByRole("button", { name: /^Expand / })[0];
-            await userEvent.click(expand);
+            const expand = within(modal)
+                .getAllByRole("button", { name: /^Expand / })
+                .find((button) => cards().some((card) => card.contains(button)));
+            assert.isDefined(expand);
+            if (expand !== undefined) {
+                await userEvent.click(expand);
+            }
             await waitFor(() => {
                 assert.isTrue(open(cards()[at]), `card ${String(at + 1)} opens`);
             });
@@ -268,5 +276,51 @@ describe("the join workspace (source-steps)", () => {
         for (const edge of edges) {
             assert.notStrictEqual(String(edge.source), String(edge.target), "no edge from a node to itself");
         }
+    });
+
+    it("+ Match after Connect keeps the other end until its field and type are picked, then writes it", async () => {
+        const { session, modal } = await opened(false, { name: "doors.csv", text: "door,name\nD1,North\nD2,South" });
+        await connect(modal, session);
+        await userEvent.click(within(modal).getByRole("button", { name: "+ Match" }));
+        await choose(modal, "Other end field", "door");
+        assert.strictEqual(
+            within(modal).getByRole<HTMLInputElement>("combobox", { name: "Other end field" }).value,
+            "door",
+            "the other end stays on the card while its type is unpicked",
+        );
+        await choose(modal, "Other end type", "doors.csv");
+        await waitFor(() => {
+            assert.strictEqual(session.data.currentDraft()?.steps().at(-1)?.act?.to?.field, "door");
+        });
+    });
+
+    it("names a staged type by its source on the card's summary once its step is written", async () => {
+        const { session, modal } = await opened(false, { name: "doors.csv", text: "door,name\nD1,North\nD2,South" });
+        await userEvent.click(within(modal).getByRole("button", { name: "+ Match" }));
+        await choose(modal, "Other end field", "door");
+        await choose(modal, "Other end type", "doors.csv");
+        await connect(modal, session);
+        await waitFor(() => {
+            assert.strictEqual(
+                within(modal).getByRole<HTMLInputElement>("combobox", { name: "Other end type" }).value,
+                "doors.csv",
+                "the type keeps its name after the step adds doors.csv",
+            );
+        });
+        assert.notInclude(modal.textContent ?? "", "source:", "no space id is shown");
+    });
+
+    it("a refused write is drawn on its card, not behind the modal", async () => {
+        const { store, modal } = await opened();
+        await choose(modal, "In graph type", "person");
+        await choose(modal, "In graph field", "Key");
+        await choose(modal, "Incoming field", "door");
+        const rows = within(modal).getByRole("radiogroup", { name: "Rows are" });
+        await userEvent.click(within(rows).getByText("Edges"));
+        await choose(modal, "From", "badge");
+        await choose(modal, "To", "door");
+        await userEvent.click(within(modal).getByRole("radio", { name: "Merge" }));
+        await within(modal).findByRole("alert");
+        assert.isNull(store.get().notice, "no notice behind the modal");
     });
 });

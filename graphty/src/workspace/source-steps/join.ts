@@ -8,6 +8,8 @@ import type {
     GraphSession,
     NodeId,
     SourceColumnProfile,
+    SourceDraft,
+    SourceDraftSpaceRow,
     SourceKey,
     SourceTableFacts,
 } from "@graphty/graphty-element/session";
@@ -115,13 +117,23 @@ export function spaceChoices(session: GraphSession): readonly Choice[] {
 }
 
 /**
- * A space as the reader reads it: its name, or its owning source's name (see `spaceChoices`).
+ * The spaces as an open draft builds them (`draft.spaces()`), as choices: a source's own space
+ * reads as that source's name, the space of a staged source a step built included, so no space id
+ * is ever shown.
  * @param session - the element's session.
- * @param space - the space.
- * @returns its name.
+ * @param draft - the open draft.
+ * @returns the choices.
  */
-export function spaceLabel(session: GraphSession, space: string): string {
-    return spaceChoices(session).find((choice) => choice.value === space)?.label ?? space;
+export function draftSpaceChoices(session: GraphSession, draft: SourceDraft): readonly Choice[] {
+    const all = session.data.sources({ staged: true });
+    const name = (key: string | null | undefined): string | undefined => {
+        const found = key === null || key === undefined ? undefined : all.find((each) => each.key === key);
+        return found === undefined ? undefined : sourceName(found);
+    };
+    // A named space (person) reads as its name; only a source's own space reads as that source.
+    return draft
+        .spaces()
+        .map((row: SourceDraftSpaceRow) => ({ value: row.space, label: name(row.ownedBy) ?? row.space }));
 }
 
 /**

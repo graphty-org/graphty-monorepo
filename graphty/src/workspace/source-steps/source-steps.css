@@ -1,26 +1,3 @@
-/* The Join card's live counts: three a row, the number over its words. */
-.ss-counts {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 4px;
-    margin: 0;
-}
-
-.ss-count {
-    display: flex;
-    flex-direction: column-reverse;
-    min-width: 0;
-}
-
-.ss-count dd {
-    margin: 0;
-}
-
-/* The dock's Fields tab: the two profiles side by side, then the value list. */
-.ss-fields-tab {
-    padding: 4px 8px;
-}
-
 .ss-profile {
     flex: 1;
 }
@@ -43,17 +20,6 @@
 }
 
 /* The Before / After chip, at the top center of the canvas while a draft is drawn. */
-.ss-draft-chip {
-    position: absolute;
-    top: 8px;
-    left: 50%;
-    transform: translateX(-50%);
-    padding: 2px 6px;
-    border-radius: var(--mantine-radius-sm);
-    background: var(--mantine-color-body);
-    box-shadow: var(--mantine-shadow-xs);
-    pointer-events: auto;
-}
 
 /* A count or a Values differ column that lists its rows or cells in the dock's Preview tab. */
 .ss-count-show {
@@ -147,8 +113,16 @@ dialog.jw-modal {
     border-radius: 50%;
 }
 
-.jw-key-mark[data-mark="new"] {
+.jw-key-mark[data-mark="new"],
+.jw-key-mark[data-mark="edges"] {
     border-style: dashed;
+}
+
+/* New edges: a dashed line, as the preview draws an added edge. */
+.jw-key-mark[data-mark="edges"] {
+    height: 0;
+    border-width: 2px 0 0;
+    border-radius: 0;
 }
 
 .jw-key-mark[data-mark="untouched"] {

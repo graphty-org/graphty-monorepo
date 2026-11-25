@@ -4,7 +4,7 @@
  * arranges them.
  */
 
-import { CompactColorInput, ScrollArea } from "@graphty/compact-mantine";
+import { CompactColorInput, ControlGroup, ScrollArea } from "@graphty/compact-mantine";
 import { type Channel, listItemAddress, listShares, setListShare } from "@graphty/graphty-element/catalog";
 import { ActionIcon, Group, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
@@ -278,6 +278,7 @@ export function ItemLine({
                                 showOpacity={opacity !== undefined && !opacity.bound}
                                 showReset={false}
                                 swatches={ctx.documentColors}
+                                allowHexAlpha
                                 onChange={pickPaint}
                             />
                         )}
@@ -381,7 +382,7 @@ export function ListTools({ state }: Readonly<{ state: ListState }>): React.JSX.
 const REGION = 4 * 28;
 
 /**
- * The caption row and the scroll region of a list's lines. A share being dragged shows its value, and the shares
+ * The legend and the scroll region of a list's lines. A share being dragged shows its value, and the shares
  * giving way theirs, on every line while the drag lasts; the write lands once, on release (stripes design 3.2).
  * @param props - Component props
  * @param props.state - the lists
@@ -400,38 +401,36 @@ export function ColorLines({ state }: Readonly<{ state: ListState }>): React.JSX
         part?.bound === true ? [<BoundLine key={part.channel} state={state} part={part} at={undefined} />] : [],
     );
     const shown = preview === null ? state : { ...state, shares: preview };
-    return (
-        <>
-            {colors.bound ? null : (
-                <div className="ws-list-caption" aria-hidden>
-                    <span>Color</span>
-                    {number === undefined || number.bound ? null : <span>{number.name}</span>}
-                </div>
-            )}
-            {/* Its scrollbar takes its own room beside the lines, never over a "-"; it never scrolls sideways. */}
-            <ScrollArea.Autosize
-                mah={REGION}
-                type="auto"
-                scrollbars="y"
-                offsetScrollbars="y"
-                className="ws-list-region"
-                classNames={{ content: "ws-list-content" }}
-            >
-                <div className="ws-list-items">
-                    {wholeBound}
-                    {colors.bound
-                        ? null
-                        : colors.items.map((_, at) => (
-                              <ItemLine
-                                  // eslint-disable-next-line react/no-array-index-key -- an item is its place in the list
-                                  key={at}
-                                  state={shown}
-                                  at={at}
-                                  onPreview={setPreview}
-                              />
-                          ))}
-                </div>
-            </ScrollArea.Autosize>
-        </>
+    const region = (
+        // Its scrollbar takes its own room beside the lines, never over a "-"; it never scrolls sideways.
+        <ScrollArea.Autosize
+            mah={REGION}
+            type="auto"
+            scrollbars="y"
+            offsetScrollbars="y"
+            className="ws-list-region"
+            classNames={{ content: "ws-list-content" }}
+        >
+            <div className="ws-list-items">
+                {wholeBound}
+                {colors.bound
+                    ? null
+                    : colors.items.map((_, at) => (
+                          <ItemLine
+                              // eslint-disable-next-line react/no-array-index-key -- an item is its place in the list
+                              key={at}
+                              state={shown}
+                              at={at}
+                              onPreview={setPreview}
+                          />
+                      ))}
+            </div>
+        </ScrollArea.Autosize>
+    );
+    // compact-mantine's legend names the lines' two inputs, chip then number; none when only chips are left.
+    return colors.bound || number === undefined || number.bound ? (
+        region
+    ) : (
+        <ControlGroup label={`Color / ${number.name}`}>{region}</ControlGroup>
     );
 }

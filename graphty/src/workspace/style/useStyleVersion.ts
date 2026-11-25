@@ -19,6 +19,7 @@ function useBumpedVersion(
     element: GraphtyElement | null,
     listen: (session: GraphSession, bump: () => void) => (() => void)[],
 ): number {
+    // on reload: fresh: derived: a redraw counter for graphty-element's events
     const [version, setVersion] = useState(0);
     useEffect(() => {
         const bump = (): void => {

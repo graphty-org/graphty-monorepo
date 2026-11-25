@@ -82,7 +82,7 @@ async function render(avoidFirst: boolean): Promise<Graphty> {
     await element.waitForStableFrame();
     await element.session.layout.setDimension("2d");
     await element.session.layout.set("fixed");
-    // Labelled by a layer that states no place for them: a label whose place the file states (DOT centers its
+    // Labeled by a layer that states no place for them: a label whose place the file states (DOT centers its
     // labels) stays there, and avoidance moves only a label left at the element's own place.
     await element.session.data.import({ type: "dot", name: "shapes.gv", config: { data: DOT } }, { styles: "none" });
     await element.session.styles.add({

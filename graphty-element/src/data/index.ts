@@ -1,5 +1,13 @@
 import type { GraphSnapshot } from "@graphty/graph-format";
-import { cx2Importer, cxImporter, cysImporter, oboImporter, xgmmlImporter, xlsxImporter } from "@graphty/graph-io";
+import {
+    cx2Importer,
+    cxImporter,
+    cysImporter,
+    oboImporter,
+    sifImporter,
+    xgmmlImporter,
+    xlsxImporter,
+} from "@graphty/graph-io";
 
 import { formatDescriptor } from "../catalog/formats";
 import type { FormatDescriptor } from "../catalog/types";
@@ -82,6 +90,8 @@ DataSource.register(
         statedBy: () => "OBO relations, which point from a term to its parent",
     }),
 );
+// Cytoscape's simple interaction format: one `source interaction target...` line per edge.
+DataSource.register(DataSource.fromImporter(sifImporter, builtIn("sif")));
 // A workbook sheet is a table, which states no direction. Its parser loads on first use.
 DataSource.register(DataSource.fromImporter(xlsxImporter, builtIn("xlsx")));
 

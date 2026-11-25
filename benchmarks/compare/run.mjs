@@ -213,9 +213,10 @@ try {
     });
     log("floor", await page.evaluate(() => B.floor()));
     log("gen", await page.evaluate(([n, m, kind]) => B.gen(n, m, kind), [N, M, planted ? "planted" : undefined]));
-    // BENCH_PROFILE_TIMED names a file prefix: the engine setup, the load and the layout frame stages are then
-    // CPU-profiled while they are timed, into <prefix>-setup, -load and -layout .cpuprofile, to read their
-    // garbage collector and per-function time. The profiler slows them, so write those rows to their own file.
+    // BENCH_PROFILE_TIMED names a file prefix: the engine setup, the load, the restyle and the layout frame stages
+    // are then CPU-profiled while they are timed, into <prefix>-setup, -load, -restyle and -layout .cpuprofile, to
+    // read their garbage collector and per-function time. The profiler slows them, so write those rows to their own
+    // file.
     const profiled = async (stage, run, arg) => {
         if (!process.env.BENCH_PROFILE_TIMED) return page.evaluate(run, arg);
         await cdp.send("Profiler.enable");
@@ -298,7 +299,7 @@ try {
             .catch((e) => console.log("screenshot failed", String(e).slice(0, 120)));
         throw new Error(ONLY_STAGE_DONE);
     }
-    if (style) log("restyle", await page.evaluate((name) => globalThis.B.restyle(name), style));
+    if (style) log("restyle", await profiled("restyle", (name) => globalThis.B.restyle(name), style));
     // What a labeled run really built: with sampling on, only the cells' winners.
     if (labels && lib === "graphty")
         log(

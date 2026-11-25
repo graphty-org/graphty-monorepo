@@ -3,7 +3,7 @@ import type { LoadedSource, SourceKey } from "@graphty/graphty-element/session";
 import React, { useEffect, useRef } from "react";
 
 import { sourceStepsOn } from "../features";
-import { JoinButton } from "../source-steps/JoinButton";
+import { JoinButton, JoinWorkspaceButton } from "../source-steps/JoinButton";
 import { JoinCard } from "../source-steps/JoinCard";
 import { ReaderEdits } from "../source-steps/ReaderEdits";
 import { StagedSection } from "../source-steps/StagedSection";
@@ -61,6 +61,7 @@ export function Sources({
             actions={
                 <>
                     {stepsOn && staged.length + sources.length >= 2 ? <JoinButton /> : null}
+                    {stepsOn && staged.length + sources.length >= 2 ? <JoinWorkspaceButton /> : null}
                     <AddSourceMenu />
                 </>
             }

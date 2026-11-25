@@ -93,4 +93,28 @@ describe("framing a moved graph (#9420)", () => {
             nodes.forEach((node, at) => node.mesh.onAfterWorldMatrixUpdateObservable.remove(nodeWatches[at]));
         }
     });
+
+    it("frames nodes restyled after they were drawn where they are, not at the origin (#10066)", async () => {
+        const element = await loaded();
+        element.zoomToFit();
+        await element.waitForStableFrame();
+        const before = element.getCameraState();
+
+        // A new opacity is drawn from another source mesh: each node's instance moves onto it where it stands.
+        const ends = [0, COUNT - 1];
+        await element.session.styles.add({
+            name: "Ends",
+            target: "node",
+            selector: { match: "ids", nodes: ends },
+            set: { "node.opacity": 0.5 },
+        });
+        await element.waitForStableFrame();
+
+        const last = element.graph.getNodes()[COUNT - 1];
+        const { min, max } = last.framingBounds();
+        assert.closeTo((min.x + max.x) / 2, last.drawnWorldPosition.x, 1e-4);
+        element.zoomToFit();
+        await element.waitForStableFrame();
+        assert.deepEqual(element.getCameraState(), before);
+    });
 });

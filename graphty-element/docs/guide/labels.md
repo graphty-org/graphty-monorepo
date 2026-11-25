@@ -242,7 +242,7 @@ await element.session.styles.add({
 Louvain numbers its groups by id, not from 1, so `rank` and `count` are what give "Community 2 of
 5". Every word is yours; the element adds none. A value is drawn as written: a name holding
 `<bold>` shows the tag, and only the template's own markup is read. Templates work on `node.label`,
-`edge.label` (where `count` and `rank` are taken across the edges) and `node.tooltip`.
+`edge.label` and `edge.tooltip` (where `count` and `rank` are taken across the edges) and `node.tooltip`.
 
 A `format` on the template writes every number a `{path}` reads the way `Intl.NumberFormat`
 would. Name on one line, PageRank below it with two decimals and thousands grouped:

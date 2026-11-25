@@ -2,8 +2,9 @@
  * @file What a reader sees in every frame while a GPU layout lands its batches: each node drawn where
  * `nodeScreenPosition` says it is in that same frame, each edge on the segment between its two nodes, and no ink
  * anywhere else -- on both render paths, drawn with WebGL and with WebGPU, at about 300 and 2,000 nodes, while the
- * layout runs steadily, after a node with no edges is added mid-run, after a restyle and a real hover between two
- * landings, and while a real mouse drags a node.
+ * layout runs steadily, after a node with no edges is added mid-run, after a node or an edge is removed mid-run (the
+ * removal renumbers the rows while batches for the old rows are in flight) and after that removal is undone and
+ * redone, after a restyle and a real hover between two landings, and while a real mouse drags a node.
  *
  * Every other GPU-layout check waits for rest or reads bookkeeping (the row texture against the CPU copy). The
  * batched path draws from the landed batch on the GPU and skips frames between landings, so a landing drawn a frame
@@ -32,7 +33,7 @@ import type { Graphty } from "../../index.js";
 import type { AccelerationCapabilities, AccelerationStatus } from "../../src/acceleration";
 import { operationQueueOf } from "../../src/Graph";
 import { dataManagerInternals } from "../../src/managers/DataManager";
-import { undrawnEdges, undrawnNodes } from "../helpers/drawn-invariants";
+import { keptEdgeStretch, layoutPlaces, undrawnEdges, undrawnNodes } from "../helpers/drawn-invariants";
 import {
     captureNextFrame,
     checkDrawnFrames,
@@ -42,6 +43,8 @@ import {
     inkedPixels,
     isBlue,
     recordDrawnFrames,
+    STILL_CHECKED,
+    stillFrames,
 } from "../helpers/frame-recorder";
 import { drag, hover } from "../helpers/real-input";
 
@@ -340,6 +343,126 @@ async function hoverAgainstFrames(
 
 const GPU_CASES = ADAPTER === "" ? describe.skip : describe;
 
+/**
+ * A stopped layout's next frames: every node and edge where it is said to be, ink present, and no node moved on
+ * screen (a batch still in flight when the layout stopped must not land).
+ * @param element - The element.
+ * @param ids - Every node shown.
+ * @param pairs - Every edge shown.
+ * @param what - Named in the failure.
+ */
+async function assertStillFrames(
+    element: Graphty,
+    ids: readonly string[],
+    pairs: readonly (readonly [string, string])[],
+    what: string,
+): Promise<void> {
+    const before = ids.map((id) => element.nodeScreenPosition(id));
+    const reports = await stillFrames(element.graph, ids, pairs);
+    const moved = Math.max(
+        ...ids.map((id, i) => {
+            const a = before[i];
+            const b = element.nodeScreenPosition(id);
+            return a === undefined || b === undefined ? Infinity : Math.hypot(b.x - a.x, b.y - a.y);
+        }),
+    );
+    console.log(`[gpu-landings] ${what}: ${describeFrames(reports)}, worst move ${String(moved)} px`);
+    assert.strictEqual(reports.length, STILL_CHECKED, `${what}: every frame was read, none moved`);
+    assert.isFalse(reports.some(faulty), `${what}: ${describeFrames(reports)}`);
+    assert.isBelow(moved, 1, `${what}: no node moved once the layout stopped`);
+}
+
+/** One removal, or undo of one, taken while a GPU layout lands, and what is drawn after it. */
+interface Removal {
+    name: string;
+    step: (element: Graphty, graph: Fixture) => Promise<void>;
+    after: (graph: Fixture) => { ids: string[]; pairs: (readonly [string, string])[] };
+    /**
+     * Undo and redo stop a running layout and put back the arrangement the history holds
+     * (design/undo/undo-design.md section 6.2), on both paths and as before the renderer optimizations: what is
+     * checked after them is that no batch still in flight lands and moves a node, and that the still frames are right.
+     */
+    stopsLayout?: boolean;
+    /**
+     * Every edge the step keeps joins two nodes about as far apart in layout space after it as before
+     * ({@link keptEdgeStretch}): renumbered rows must not hand nodes other rows' places. Not asked of a step that
+     * adds a node: forceatlas2 starts again from new places on an add, on both paths and in the build from before
+     * the renderer optimizations.
+     */
+    keepsPlaces?: boolean;
+}
+
+/**
+ * The fixture less some nodes (and every edge touching one) and some edges, plus some nodes added.
+ * @param graph - The fixture.
+ * @param gone - Nodes removed.
+ * @param goneEdges - Edges removed, by their place in `graph.pairs`.
+ * @param added - Nodes added, with no edges.
+ * @returns What is drawn.
+ */
+function without(
+    graph: Fixture,
+    gone: readonly string[],
+    goneEdges: readonly number[] = [],
+    added: readonly string[] = [],
+): { ids: string[]; pairs: (readonly [string, string])[] } {
+    return {
+        ids: [...graph.ids.filter((id) => !gone.includes(id)), ...added],
+        pairs: graph.pairs.filter((pair, i) => !goneEdges.includes(i) && !pair.some((id) => gone.includes(id))),
+    };
+}
+
+/**
+ * Removing the first node renumbers every row after it while batches computed for the old rows are still in flight
+ * and landings are copied by row; undo brings the rows back through the records. The element numbers edges in the
+ * order they were added, so the second pair's edge is "1".
+ */
+const REMOVALS: readonly Removal[] = [
+    {
+        name: "the first node removed",
+        step: async (element) => {
+            await element.session.data.removeNodes(["n0"]);
+        },
+        after: (graph) => without(graph, ["n0"]),
+        keepsPlaces: true,
+    },
+    {
+        name: "an edge removed",
+        step: async (element) => {
+            await element.session.data.removeEdges(["1"]);
+        },
+        after: (graph) => without(graph, [], [1]),
+        keepsPlaces: true,
+    },
+    {
+        name: "the first node removed and another added",
+        step: async (element) => {
+            await element.session.data.removeNodes(["n0"]);
+            await element.session.data.addNodes([{ id: "late" }]);
+        },
+        after: (graph) => without(graph, ["n0"], [], ["late"]),
+    },
+    {
+        name: "the first node's removal undone",
+        step: async (element) => {
+            await element.session.data.removeNodes(["n0"]);
+            await element.session.undo();
+        },
+        after: (graph) => without(graph, []),
+        stopsLayout: true,
+    },
+    {
+        name: "the first node's removal undone and redone",
+        step: async (element) => {
+            await element.session.data.removeNodes(["n0"]);
+            await element.session.undo();
+            await element.session.redo();
+        },
+        after: (graph) => without(graph, ["n0"]),
+        stopsLayout: true,
+    },
+];
+
 GPU_CASES.each(["batched", "objects"] as const)("GPU layout landings drawn on %s", (path) => {
     describe.each(["webgl", "webgpu"] as const)("with %s", (renderer) => {
         // The positive control: a still graph's picture holds ink where every node and edge is, so a blank or
@@ -409,6 +532,40 @@ GPU_CASES.each(["batched", "objects"] as const)("GPU layout landings drawn on %s
             assert.isDefined(element.nodeScreenPosition("late"), "the added node is placed");
             assertAccelerated(statuses);
         });
+
+        it.each(REMOVALS)(
+            "keeps every node and edge where it is said to be after $name mid-run",
+            async ({ name, step, after, stopsLayout = false, keepsPlaces = false }) => {
+                const graph = fixture(300, false);
+                const { element, statuses } = await mount(path, renderer, graph);
+                assertLazy(element, path, 300);
+                await startGpuLayout(element, "forceatlas2");
+                assertGoodFrames(await framesOf(element, graph.ids, graph.pairs, 5), `${path} ${renderer} before`, 5);
+                const { ids, pairs } = after(graph);
+                const kept = ids.filter((id) => graph.ids.includes(id));
+                const before = layoutPlaces(element, kept);
+                await step(element, graph);
+                if (keepsPlaces) {
+                    const stretch = keptEdgeStretch(before, layoutPlaces(element, kept), pairs);
+                    assert.strictEqual(stretch, "", `${path} ${renderer}: the edges kept by ${name} kept their length`);
+                }
+
+                assert.strictEqual(element.session.data.snapshot().edgeCount, pairs.length, "the edges left");
+                if (stopsLayout) {
+                    assert.isFalse(element.isRunning(), "undo and redo stop the layout");
+                    await element.waitForStableFrame();
+                    await assertStillFrames(element, ids, pairs, `${path} ${renderer} after ${name}`);
+                    assertAccelerated(statuses);
+                    return;
+                }
+
+                assertGoodFrames(
+                    await framesOf(element, ids, pairs, MOVING_FRAMES),
+                    `${path} ${renderer} after ${name}`,
+                );
+                assertAccelerated(statuses);
+            },
+        );
 
         it("shows a restyle on the next drawn frame between landings", async () => {
             const graph = fixture(300, false);

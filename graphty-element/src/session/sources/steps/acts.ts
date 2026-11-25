@@ -541,7 +541,7 @@ function viaOf(o: ConnectAct, n1: NodeOne, intoFrom: boolean): Pick<EdgesStep, "
  * @param to - The other end.
  * @returns The next value.
  * @throws A `GraphtyError` with `E_BAD_COMMAND` (reason `to-field`) when the other end is named by
- *   a field that is not its nodes' key.
+ *   a field that is not its nodes' key, and (reason `no-field`) when it names no field at all.
  */
 function connectRows(
     prior: SourceSteps,
@@ -549,6 +549,9 @@ function connectRows(
     o: ConnectAct,
     to: NonNullable<ConnectAct["to"]>,
 ): SourceSteps {
+    if (to.field.trim() === "") {
+        throw refused("E_BAD_COMMAND", `The other end names no field.`, { reason: "no-field" });
+    }
     let value = prior;
     for (const end of [o.into.source, to.into.source]) {
         if (end !== undefined && end !== o.from.source && isStaged(value, end)) {

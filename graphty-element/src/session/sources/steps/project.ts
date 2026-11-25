@@ -1100,7 +1100,8 @@ function stepAct(value: SourceSteps, step: Step): StepAct | null {
         aggregate: step.aggregate ?? null,
         unmatched: step.unmatchedRows === "add" ? "add" : "skip",
         perPair: step.repeated === "first",
-        ...(rowsOnly
+        // A step whose other end names no column reads back as a one-match Connect, never `to.field: ""`.
+        ...(rowsOnly && (intoFrom ? read.target : read.source) !== ""
             ? {
                   to: intoFrom
                       ? { field: read.target, into: { space: read.targetSpace } }

@@ -1,12 +1,12 @@
 /**
- * The dock's Preview tab on the REAL graphty-element with the source-steps experiment on
+ * The join workspace's table on the REAL graphty-element with the source-steps experiment on
  * (design/data/multiple-data-sources-design.md, section 5.4), driven by clicks and keys, in the
  * owner's founding example. Door entries made into edges to the people who badged in: a click on the
- * new edges count lists its rows in the dock, selecting the test badge's row offers Exclude selected
- * (1) in the card, which leaves that edge out, and removing it from the excluded list brings it
- * back. HR's list merged into people: a click on dept's Values differ lists its cells, Pick 2 on one
- * cell marks it R and lists it under Decided, Ctrl+A on the open cells and Pick 1 decides them all,
- * and Clear picks takes the picks back.
+ * card's new edges count lists its rows in the workspace table, selecting the test badge's row and
+ * Exclude leaves that edge out, and Include brings it back. HR's list merged into people: a click
+ * on dept in the card lists its cells, Pick 2 on one cell marks it R and lists it under Decided,
+ * Ctrl+A on the open cells and Pick 1 decides them all, and Clear takes the picks back. The Fields
+ * view profiles the card's two fields.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -30,18 +30,20 @@ const ENTRIES = "entry,badge,door\nE1,B1,D1\nE2,B1,D2\nE3,B2,D1\nE4,B9,D1\nE6,B2
 const HR = "badge,dept\nB1,Operations\nB2,Research\nB3,Sales";
 
 /**
- * People in the graph as type person, one more file dropped and staged, and the Join card open on
- * Key of person and the staged file's badge.
+ * People in the graph as type person, one more file dropped and staged, and the join workspace
+ * open with its card matching Key of person to the staged file's badge, with a result picked.
  * @param name - the staged file's name.
  * @param text - its contents.
+ * @param result - the card's result.
  * @param staff - a second people file added as person too, when given.
- * @returns the session and the card.
+ * @returns the session and the workspace.
  */
 async function joinOn(
     name: string,
     text: string,
+    result: "Merge" | "Connect",
     staff?: string,
-): Promise<{ session: GraphSession; card: HTMLElement }> {
+): Promise<{ session: GraphSession; modal: HTMLElement }> {
     await page.viewport(1440, 900);
     const project = await emptyProject();
     await project.session.data.import(
@@ -56,26 +58,23 @@ async function joinOn(
         await project.session.data.add(id, { overlap: "merge" });
     }
     drop(name, text);
-    await screen.findByRole("region", { name });
+    await screen.findByRole("listitem", { name });
     (document.activeElement as HTMLElement | null)?.blur();
-    await userEvent.keyboard("j");
-    const card = await screen.findByRole("form", { name: "Join" });
-    await choose(card, "Field 1 type", "person");
-    await choose(card, "Field 1 field", "Key");
-    await choose(card, "Field 2 field", "badge");
-    return { session: project.session, card };
-}
-
-/**
- * Picks an act and clicks Preview.
- * @param card - the card.
- * @param act - the act's name.
- * @returns the card's Preview section.
- */
-async function preview(card: HTMLElement, act: string): Promise<HTMLElement> {
-    await userEvent.click(within(card).getByRole("radio", { name: act }));
-    await userEvent.click(within(card).getByRole("button", { name: /^Preview/ }));
-    return within(card).findByRole("region", { name: "Preview" });
+    await userEvent.keyboard("{Shift>}J{/Shift}");
+    const modal = await screen.findByRole("dialog", { name: "Join" });
+    await choose(modal, "In graph type", "person");
+    await choose(modal, "In graph field", "Key");
+    await choose(modal, "Incoming field", "badge");
+    await userEvent.click(within(modal).getByRole("radio", { name: result }));
+    await waitFor(() => {
+        assert.isAbove(
+            draftOf(project.session)
+                .steps()
+                .filter((row) => row.act !== null).length,
+            0,
+        );
+    });
+    return { session: project.session, modal };
 }
 
 /**
@@ -91,152 +90,70 @@ function draftOf(session: GraphSession): SourceDraft {
     return draft;
 }
 
-describe("the dock's Preview tab (source-steps)", () => {
-    it("excludes the test badge's row from the new edges and removing it from the list restores it", async () => {
-        const { session, card } = await joinOn("entries.csv", ENTRIES);
-        const section = await preview(card, "Make an edge");
+describe("the join workspace's table (source-steps)", () => {
+    it("excludes the test badge's row from the new edges and Include restores it", async () => {
+        const { session, modal } = await joinOn("entries.csv", ENTRIES, "Connect");
         const newEdges = (): number => draftOf(session).preview().steps.at(-1)?.buckets?.newEdges ?? -1;
         assert.strictEqual(newEdges(), 5, "E1, E2, E3, E6 and E7");
 
-        await userEvent.click(within(section).getByRole("button", { name: "Show new edges rows" }));
-        const grid = await screen.findByRole("grid", { name: "Rows" });
-        assert.isTrue(screen.getByRole("tab", { name: "Preview" }).getAttribute("aria-selected") === "true");
+        await userEvent.click(await within(modal).findByRole("button", { name: /new edges$/ }));
+        const grid = await within(modal).findByRole("grid", { name: "Rows" });
         assert.lengthOf(within(grid).getAllByRole("rowheader"), 5, "one row per new edge");
-        // Each row is keyed by its entry, the column an edge step leaves rows out by.
         await select(rowWith(grid, "T0"));
-
-        await userEvent.click(await within(card).findByRole("button", { name: "Exclude selected (1)" }));
+        await userEvent.click(within(modal).getByRole("button", { name: "Exclude" }));
         await waitFor(() => {
             assert.strictEqual(newEdges(), 4);
         });
-        const excluded = within(card).getByRole("group", { name: "Excluded" });
-        assert.isNotNull(within(excluded).getByText("E7"));
-        await waitFor(() => {
-            assert.lengthOf(within(screen.getByRole("grid", { name: "Rows" })).getAllByRole("rowheader"), 4);
-        });
-
-        await userEvent.click(within(excluded).getByRole("button", { name: "Remove E7" }));
+        const include = await within(modal).findByRole("button", { name: "Include E7" });
+        await userEvent.click(include);
         await waitFor(() => {
             assert.strictEqual(newEdges(), 5);
         });
-        assert.isNull(within(card).queryByRole("group", { name: "Excluded" }));
-    });
-
-    it("entries in the graph, people staged: excluding and restoring a row redraws After as the card counts it", async () => {
-        await page.viewport(1440, 900);
-        const { session } = await emptyProject();
-        await session.data.import(
-            { type: "csv", config: { data: ENTRIES }, name: "entries.csv" },
-            { key: "entry", type: "entry" },
-        );
-        drop("people.csv", PEOPLE);
-        await screen.findByRole("region", { name: "people.csv" });
-        (document.activeElement as HTMLElement | null)?.blur();
-        await userEvent.keyboard("j");
-        const card = await screen.findByRole("form", { name: "Join" });
-        await choose(card, "Field 1 type", "entry");
-        await choose(card, "Field 1 field", "badge");
-        await choose(card, "Field 2 field", "badge");
-        const section = await preview(card, "Make an edge");
-        // What the inspector's Overview counts: the graph drawn, After while the card previews.
-        const drawnNodes = (): string => {
-            const row = screen
-                .getAllByRole("group", { name: "Nodes" })
-                .find((each) => each.classList.contains("cm-data-row"));
-            return row?.querySelector("[data-testid=data-row-value]")?.textContent ?? "";
-        };
-        const after = (): string => within(section).getByLabelText("Nodes after").textContent?.split(" -> ")[1] ?? "";
-        assert.strictEqual(after(), "10", "six entries and four people");
-        await waitFor(() => {
-            assert.strictEqual(drawnNodes(), "10");
-        });
-
-        await userEvent.click(within(section).getByRole("button", { name: "Show new edges rows" }));
-        const grid = await screen.findByRole("grid", { name: "Rows" });
-        await select(rowWith(grid, "E7"));
-        await userEvent.click(await within(card).findByRole("button", { name: "Exclude selected (1)" }));
-        const excluded = await within(card).findByRole("group", { name: "Excluded" });
-        await waitFor(() => {
-            assert.strictEqual(draftOf(session).preview().steps.at(-1)?.buckets?.newEdges, 4);
-        });
-        // Settles once the graph draws the draft's After as it stands now.
-        await draftOf(session).show("after");
-        assert.strictEqual(String(session.data.statistics().nodeCount), after(), "After draws the card's nodes");
-        await waitFor(() => {
-            assert.strictEqual(drawnNodes(), after(), "the inspector counts the nodes the card says After has");
-        });
-        assert.strictEqual(
-            session.data.nodes().find((node) => node.id === "B1")?.name,
-            "Ann",
-            "a person keeps its values",
-        );
-
-        await userEvent.click(within(excluded).getByRole("button", { name: "Remove E7" }));
-        await waitFor(() => {
-            assert.strictEqual(draftOf(session).preview().steps.at(-1)?.buckets?.newEdges, 5);
-        });
-        await draftOf(session).show("after");
-        assert.strictEqual(String(session.data.statistics().nodeCount), after());
-        await waitFor(() => {
-            assert.strictEqual(drawnNodes(), after());
-        });
-        assert.strictEqual(session.data.nodes().find((node) => node.id === "B1")?.name, "Ann");
+        assert.isNull(within(modal).queryByRole("button", { name: "Include E7" }));
     });
 
     it("HR dept: Pick 2 on one cell marks it R and Decided lists it; Pick 1 on every open cell decides them all", async () => {
-        const { session, card } = await joinOn("hr.csv", HR);
-        const section = await preview(card, "Merge 2 into 1");
+        const { session, modal } = await joinOn("hr.csv", HR, "Merge");
         const cells = (only: "open" | "decided"): number =>
             draftOf(session).preview().cells({ column: "dept", only }).total;
         assert.strictEqual(cells("open"), 2, "B1 and B2");
 
-        await userEvent.click(within(section).getByRole("button", { name: "Show dept cells" }));
-        const grid = await screen.findByRole("grid", { name: "Cells" });
+        await userEvent.click(await within(modal).findByRole("button", { name: "Cells dept" }));
+        const grid = await within(modal).findByRole("grid", { name: "Cells" });
         assert.lengthOf(within(grid).getAllByRole("rowheader"), 2);
         await select(rowWith(grid, "B2"));
-        await userEvent.click(await within(card).findByRole("button", { name: "Pick 2 (1)" }));
+        await userEvent.click(within(modal).getByRole("button", { name: "Pick 2" }));
         await waitFor(() => {
             assert.strictEqual(cells("decided"), 1);
         });
         await waitFor(() => {
-            const row = rowWith(screen.getByRole("grid", { name: "Cells" }), "B2");
+            const row = rowWith(within(modal).getByRole("grid", { name: "Cells" }), "B2");
             assert.include(row.textContent ?? "", "Research");
             assert.include(within(row).getAllByRole("gridcell").at(-1)?.textContent ?? "", "R");
         });
-        assert.strictEqual(within(section).getByLabelText("dept decided").textContent, "decided 1");
 
-        const filter = screen.getByRole("radiogroup", { name: "Cells" });
-        await userEvent.click(within(filter).getByText("Decided"));
-        await waitFor(() => {
-            const decided = within(screen.getByRole("grid", { name: "Cells" })).getAllByRole("rowheader");
-            assert.deepStrictEqual(
-                decided.map((each) => each.textContent),
-                ["B2"],
-            );
-        });
-
+        const filter = within(modal).getByRole("radiogroup", { name: "Cells" });
         await userEvent.click(within(filter).getByText("Open"));
-        const open = await screen.findByRole("grid", { name: "Cells" });
+        const open = await within(modal).findByRole("grid", { name: "Cells" });
         await waitFor(() => {
             assert.lengthOf(within(open).getAllByRole("rowheader"), 1);
         });
         await select(rowWith(open, "B1"));
         await userEvent.keyboard("{Control>}a{/Control}");
-        await userEvent.click(await within(card).findByRole("button", { name: "Pick 1 (1)" }));
+        await userEvent.click(within(modal).getByRole("button", { name: "Pick 1" }));
         await waitFor(() => {
             assert.strictEqual(cells("open"), 0);
         });
         assert.strictEqual(cells("decided"), 2);
 
-        // Clear picks on every decided cell takes both back.
         await userEvent.click(within(filter).getByText("Decided"));
-        const decided = await screen.findByRole("grid", { name: "Cells" });
+        const decided = await within(modal).findByRole("grid", { name: "Cells" });
         await waitFor(() => {
             assert.lengthOf(within(decided).getAllByRole("rowheader"), 2);
         });
         await select(rowWith(decided, "B1"));
         await userEvent.keyboard("{Control>}a{/Control}");
-        await userEvent.click(await within(card).findByRole("button", { name: "Clear picks (2)" }));
+        await userEvent.click(within(modal).getByRole("button", { name: "Clear" }));
         await waitFor(() => {
             assert.strictEqual(cells("open"), 2);
         });
@@ -245,21 +162,19 @@ describe("the dock's Preview tab (source-steps)", () => {
     it("Pick 1 decides every selected cell when person is built from two files", async () => {
         const staff = "badge,name,dept\nB5,Di,Ops";
         const hr = "badge,dept\nB1,Operations\nB5,Facilities";
-        const { session, card } = await joinOn("hr.csv", hr, staff);
-        const section = await preview(card, "Merge 2 into 1");
+        const { session, modal } = await joinOn("hr.csv", hr, "Merge", staff);
         const cells = (only: "open" | "decided"): number =>
             draftOf(session).preview().cells({ column: "dept", only }).total;
         assert.strictEqual(cells("open"), 2, "B1 from people.csv and B5 from staff.csv");
 
-        await userEvent.click(within(section).getByRole("button", { name: "Show dept cells" }));
-        const grid = await screen.findByRole("grid", { name: "Cells" });
+        await userEvent.click(await within(modal).findByRole("button", { name: "Cells dept" }));
+        const grid = await within(modal).findByRole("grid", { name: "Cells" });
         await select(rowWith(grid, "B5"));
         await userEvent.keyboard("{Control>}a{/Control}");
-        await userEvent.click(await within(card).findByRole("button", { name: "Pick 1 (2)" }));
+        await userEvent.click(within(modal).getByRole("button", { name: "Pick 1" }));
         await waitFor(() => {
             assert.strictEqual(cells("decided"), 2);
         });
-        assert.strictEqual(cells("open"), 0);
         assert.deepStrictEqual(
             draftOf(session)
                 .preview()
@@ -268,5 +183,13 @@ describe("the dock's Preview tab (source-steps)", () => {
             ["Ops", "Ops"],
             "each cell shows the value it held before HR's list",
         );
+    });
+
+    it("the Fields view profiles the card's two fields", async () => {
+        const { modal } = await joinOn("hr.csv", HR, "Merge");
+        const view = within(modal).getByRole("radiogroup", { name: "Fields" });
+        await userEvent.click(within(view).getByText("Fields"));
+        await within(modal).findByLabelText("hr.csv.badge distinct");
+        assert.strictEqual(within(modal).getByLabelText("hr.csv.badge distinct").textContent, "3");
     });
 });

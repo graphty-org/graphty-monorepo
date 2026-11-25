@@ -14,7 +14,6 @@ import { failWords } from "../table/columns";
 import { designate, unitOf } from "../time/timeActions";
 import { UNIT_CHOICES } from "../time/timeWords";
 import { pickEnd } from "./commands";
-import { FiltersSection } from "./Filters";
 import { TypeGlyphIcon } from "./TypeGlyphIcon";
 import {
     columnChoices,
@@ -34,7 +33,6 @@ import {
     roleHolder,
     ROWS_ARE,
     sidesOf,
-    sourceName,
     tableRoles,
     type TypeGlyph,
     unusedWords,
@@ -830,7 +828,7 @@ function GraphRows({
  * @param props.source - the load, or undefined when the graph was not loaded from one
  * @returns the rows
  */
-function SourceFields({
+export function SourceFields({
     session,
     source,
 }: Readonly<{ session: GraphSession; source: LoadedSource | undefined }>): React.JSX.Element {
@@ -944,77 +942,19 @@ function SourceFields({
 }
 
 /**
- * The Fields section: one collapsible group per load, named after it (the Style panel's kind
- * groups), the selected load's open and first. Picking another load opens its group and scrolls to
- * it; the reader opens and closes the rest. A graph not loaded from a file shows its fields
- * ungrouped.
- * @param props - Component props
- * @param props.sources - `data.sources()`
- * @param props.selected - the selected load
+ * The Attributes section of a graph not loaded from a file: its fields ungrouped. A loaded graph's
+ * fields are in each source's own entry (`SourceEntry`).
  * @returns the section, or nothing before the element has come up
  */
-export function Fields({
-    sources,
-    selected,
-}: Readonly<{
-    sources: readonly LoadedSource[];
-    selected: LoadedSource | undefined;
-}>): React.JSX.Element | null {
+export function UnloadedFields(): React.JSX.Element | null {
     const { session } = useWorkspace();
-    const held = useWorkspaceState((state) => state.ends);
     useSessionEvents(session, TIME_FIELD_EVENTS);
-    // The groups the reader opened or closed; a group they never touched is open only while its load
-    // is selected. A new pick forgets the reader's choice for that group, so it opens.
-    const [opened, setOpened] = useState<Readonly<Record<string, boolean>>>({});
-    const [openedFor, setOpenedFor] = useState(selected?.key);
-    if (openedFor !== selected?.key) {
-        setOpenedFor(selected?.key);
-        if (selected !== undefined) {
-            setOpened(({ [selected.key]: _picked, ...rest }) => rest);
-        }
-    }
-    const groups = useRef<HTMLDivElement>(null);
-    const sourcesRef = useRef(sources);
-    sourcesRef.current = sources;
-    const drawn = useRef(false);
-    useEffect(() => {
-        // Not on the first drawing: only a new pick scrolls the panel.
-        if (drawn.current) {
-            // The picked load's section, at its own place.
-            const at = sourcesRef.current.findIndex((each) => each.key === selected?.key);
-            groups.current?.children.item(Math.max(at, 0))?.scrollIntoView({ block: "nearest" });
-        }
-        drawn.current = true;
-    }, [selected?.key]);
     if (session === null) {
         return null;
     }
-    const empty = (source: LoadedSource | undefined): boolean =>
-        sidesShown(attributesOf(session, source), source).length === 0 &&
-        !(source !== undefined && held?.load === source.key);
-    if (sources.length === 0) {
-        return (
-            <ControlSection label="Attributes" empty={empty(undefined)}>
-                <SourceFields session={session} source={undefined} />
-            </ControlSection>
-        );
-    }
-    // Each load is a section of its own, holding its Filters, in the Data sources list's order.
     return (
-        <div ref={groups} className="dp-source-sections">
-            {sources.map((source) => (
-                <ControlSection
-                    key={source.key}
-                    label={sourceName(source)}
-                    opened={opened[source.key] ?? source === selected}
-                    onOpenChange={(open) => {
-                        setOpened((was) => ({ ...was, [source.key]: open }));
-                    }}
-                >
-                    <SourceFields session={session} source={source} />
-                    <FiltersSection source={source.key} primary={sources.length === 1} headingLevel={3} />
-                </ControlSection>
-            ))}
-        </div>
+        <ControlSection label="Attributes" empty={sidesShown(attributesOf(session, undefined), undefined).length === 0}>
+            <SourceFields session={session} source={undefined} />
+        </ControlSection>
     );
 }

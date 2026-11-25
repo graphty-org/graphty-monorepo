@@ -22,7 +22,6 @@ import {
 
 import { sizeWords } from "../data-place/words";
 import { formatNumber } from "../inspector/words";
-import type { JoinRepeats } from "../state/store";
 
 /** The fixed labels. */
 export const STAGED_WORDS = {
@@ -152,7 +151,7 @@ export const JOIN_WORDS = {
 /** The join workspace's words (issue #9796). */
 export const WORKSPACE_WORDS = {
     title: "Join",
-    open: "Edit joins",
+    open: "Join",
     addJoin: "Join",
     match: "Match",
     matches: "Matches",
@@ -193,6 +192,17 @@ export const WORKSPACE_WORDS = {
     drawing: "Drawing",
     committed: "Joined",
     matchCount: "Match count",
+    pick1: "Pick 1",
+    pick2: "Pick 2",
+    clearPicks: "Clear",
+    row: "Row",
+    fields: "Fields",
+    values: "Values",
+    exclude: "Exclude",
+    include: "Include",
+    addAsIs: "Add as is",
+    added: "Added",
+    readSettings: "Read as",
 } as const;
 
 /** The six live counts of `data.matchCounts`, in the order the card shows them. */
@@ -280,13 +290,6 @@ export const RULE_WORDS: Readonly<Record<SourceClashRule, string>> = {
     mean: "Mean",
 };
 
-/** How a merge settles a key source 2's rows repeat, as the Repeats menu names each way. */
-export const REPEATS_WORDS: Readonly<Record<JoinRepeats, string>> = {
-    first: "First",
-    last: "Last",
-    count: "Count",
-    list: "List",
-};
 
 /** A step's counts the Preview lists, in order, by the step's op. */
 export const BUCKET_WORDS: Readonly<

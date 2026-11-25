@@ -7,6 +7,7 @@
 
 import { assert, describe, it } from "vitest";
 
+import { isGraphtyError } from "../../../src/errors/GraphtyError";
 import { createGraphSession, type GraphSession } from "../../../src/session";
 
 const csv = (name: string, ...data: string[]): { type: string; config: { data: string }; name: string } => ({
@@ -58,6 +59,46 @@ describe("source-steps drafts: an edge from a column of a source in the graph", 
         await draft.commit();
         assert.deepStrictEqual(drawn(session), ["e1->B1", "e2->B2", "e3->B1", "e4->B3"], "after the commit");
         assert.notStrictEqual(session.data.sources({ staged: true }).find((s) => s.key === people)?.state, "staged");
+    });
+
+    it("refuses an other end that names no field, and removing the other end leaves a one-match Connect", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        await session.data.import(PEOPLE, { key: "badge", type: "person" });
+        await session.data.import(csv("doors.csv", "door,building", "D1,North", "D2,South"), {
+            key: "door",
+            type: "door",
+            mode: "merge",
+        });
+        const entries = await session.data.stage(ENTRIES, { key: "entry", type: "entry" });
+        const draft = session.data.draft();
+        const from = { source: entries, field: "badge" };
+        draft.connect({ from, into: { space: "person" }, to: { field: "door", into: { space: "door" } } });
+        const at = draft.steps().findIndex((row) => row.op === "join.edges");
+        assert.isAbove(at, -1);
+        assert.strictEqual(draft.steps()[at]?.act?.to?.field, "door", "two ends");
+        let refusal: unknown = null;
+        try {
+            draft.replaceStep(at, {
+                act: "connect",
+                options: { from, into: { space: "person" }, to: { field: "", into: { space: "door" } } },
+            });
+        } catch (error) {
+            refusal = error;
+        }
+        assert.isTrue(
+            isGraphtyError(refusal) && refusal.code === "E_BAD_COMMAND" && refusal.details.reason === "no-field",
+        );
+        draft.replaceStep(at, { act: "connect", options: { from, into: { space: "person" } } });
+        const row = draft.steps().find((each) => each.op === "join.edges");
+        assert.isUndefined(row?.act?.to, "read back without an other end");
+        assert.isAbove(
+            row?.buckets === null
+                ? 0
+                : (draft.preview().steps.find((s) => s.op === "join.edges")?.buckets?.newEdges ?? 0),
+            0,
+        );
+        draft.dispose();
+        session.dispose();
     });
 
     it("runs the edge the other way when asked", async () => {

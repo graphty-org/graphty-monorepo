@@ -81,6 +81,8 @@ describe("a record from data", () => {
         ]);
         assert.strictEqual(table.rows[0].cells[1].align, "right");
         assert.isAbove(table.cellPadding ?? 0, 0, "a gap between a row's name and its value");
+        // The table measures in the node's size, its letters one node size tall: a gap, not ten node sizes.
+        assert.isBelow(table.cellPadding ?? 0, 0.5, "a gap a fraction of a letter");
     });
 
     it("puts a header first, draws rules or zebra rows, and caps the rows with a +n row", async () => {

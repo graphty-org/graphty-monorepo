@@ -169,6 +169,22 @@ describe("data facts", () => {
         assert.strictEqual(session.styles.dataSample(layerId, "node.pieData", "missing"), "c");
     });
 
+    it("finds a node missing one column of a pattern as a sample with a missing value", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes([
+            { id: "a", x1: 4, x2: 7 },
+            { id: "c", x1: 6 },
+        ]);
+        const layer = await session.styles.add({
+            name: "Data",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.chartData": { entries: [{ pattern: "x" }] } },
+        });
+        await session.styles.settled();
+        assert.strictEqual(session.styles.dataSample(layer.id, "node.chartData", "missing"), "c");
+    });
+
     it("lists pinned and unseen categories, Other and missing", async () => {
         const { session, layerId } = await withLayer({
             "node.pieData": {

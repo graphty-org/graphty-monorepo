@@ -157,6 +157,8 @@ describe("a pie from data", () => {
             ["own", "25%", "75%"],
         );
         assert.ok(texts[1][0] > 0 && texts[2][0] < 0, "the first slice is right of twelve o'clock, the second left");
+        const sizes = (texts as unknown as [number, number, string, { size?: number }?][]).map((each) => each[3]?.size);
+        assert.ok(sizes[1] !== undefined && sizes[1] < 0.5, "a slice's text is drawn small enough to sit in its slice");
     });
 
     it("draws an empty node as nothing, a gray ring or a missing slice, and a missing value as skip or gray", async () => {

@@ -5704,7 +5704,10 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                     first: result.undrawn === null,
                     next: result.undrawn === null,
                     undrawn: result.undrawn !== null,
-                    missing: result.entries.some((each) => each.value === null),
+                    // A whole entry missing, or one column of a pattern (a chart's x2 on a node with only x1).
+                    missing: result.entries.some(
+                        (each) => each.value === null || each.parts?.some((part) => part.value === null) === true,
+                    ),
                 };
                 if (wanted[find]) {
                     return node;

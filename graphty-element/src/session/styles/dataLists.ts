@@ -79,6 +79,8 @@ const ZEBRA_FILL = "#F2F2F2";
 const GRAY_SHARE = 0.01;
 /** How far out a slice's text sits, as a share of the disc's radius. */
 const SLICE_TEXT_AT = 0.65;
+/** How tall a slice's text is, as a share of the node's height per unit of the disc's radius: inside its slice. */
+const SLICE_TEXT_SIZE = 0.15;
 /** How tall a gray missing bar stands, as a share of the scale: a mark, never read as a value near the top. */
 const GRAY_BAR = 0.1;
 /** The hole a pie's `empty: "ring"` cuts, as a share of the radius, unless the node's own hole is larger. */
@@ -1897,6 +1899,7 @@ function sliceTexts(
     const rotation = Number(helpers.beneath("node.pieRotation") ?? 0);
     const radius = Number(helpers.beneath("node.pieRadius") ?? 1);
     const reach = SLICE_TEXT_AT * (Number.isFinite(radius) ? radius : 1);
+    const look = { size: round(SLICE_TEXT_SIZE * (Number.isFinite(radius) ? radius : 1)) };
     let turned = Number.isFinite(rotation) ? rotation / 360 : 0;
     const texts = slices.flatMap(({ part, share }) => {
         const middle = (turned + share / 2) * 2 * Math.PI;
@@ -1906,7 +1909,7 @@ function sliceTexts(
         }
 
         const words = spec.labels === "percent" ? `${String(Math.round(share * 100))}%` : helpers.write(part);
-        return [[round(reach * Math.sin(middle)), round(reach * Math.cos(middle)), escapeLabelMarkup(words)]];
+        return [[round(reach * Math.sin(middle)), round(reach * Math.cos(middle)), escapeLabelMarkup(words), look]];
     });
     return JSON.stringify([...held, ...texts]);
 }
@@ -1995,8 +1998,11 @@ function resolveRecord(
     };
 }
 
-/** A record table's cell padding, in label pixels (a quarter of the default 48 px letters' height between cells). */
-const RECORD_CELL_PADDING = 6;
+/**
+ * A record table's cell padding. A node's label table measures in the node's size (`meshes/labelTable.ts`), and its
+ * default letters are one node size tall: an eighth each side is a quarter of a letter between cells.
+ */
+const RECORD_CELL_PADDING = 0.125;
 
 /** What a data fill's binding answers to the readers that read every binding (a legend, `agreement`). */
 const NO_COUNTS = Object.freeze({ seen: 0, unreadable: 0, notPlottable: 0, clamped: 0, other: 0, unmeasured: 0 });

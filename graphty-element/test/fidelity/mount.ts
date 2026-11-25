@@ -83,6 +83,7 @@ export async function readSample(file: string): Promise<{ sha256: string; data: 
  * @param size.height - height
  * @param graphName - which graph to read from a file that holds several, when not its first
  * @param formatOptions - the reader's own options the program drew the file with
+ * @param layout - the load's layout choice (`"recommended"` unless given)
  * @returns the element, the sample's hash and how it was loaded
  */
 export async function mountSample(
@@ -90,6 +91,7 @@ export async function mountSample(
     size: { width: number; height: number } = { width: WIDTH, height: HEIGHT },
     graphName?: string,
     formatOptions?: Readonly<Record<string, unknown>>,
+    layout?: "recommended" | "placed",
 ): Promise<{ element: Graphty; sha256: string; command: string }> {
     unmount();
     // a picture the sample names on the internet is answered from its committed copy, and any other internet request
@@ -108,7 +110,7 @@ export async function mountSample(
     let loaded: string;
     let refused: string[];
     try {
-        loaded = await importSample(element, sample.format, blobUrl, graphName, formatOptions, fileUrl);
+        loaded = await importSample(element, sample.format, blobUrl, graphName, formatOptions, fileUrl, layout);
     } finally {
         // ends the refusal, so the browser project's later files reach the routes before it (the map tile guard)
         refused = await commands.takeRefusedSamplePictures();

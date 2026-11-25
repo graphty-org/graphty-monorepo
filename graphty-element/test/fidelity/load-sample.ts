@@ -116,6 +116,7 @@ export function createSampleElement(width: number, height: number): Graphty {
  *     settings), when there are any
  * @param imageBaseUrl - where the sample file is served, which the pictures it names by relative paths are beside
  *     (`url` is a Blob's, which has no directory)
+ * @param layout - the load's layout choice: `"placed"` is how the graphty app opens a file from its start page
  * @returns how it was loaded and placed, for the scene's provenance
  */
 export async function importSample(
@@ -125,6 +126,7 @@ export async function importSample(
     graphName?: string,
     formatOptions: Readonly<Record<string, unknown>> = {},
     imageBaseUrl?: string,
+    layout: "recommended" | "placed" = "recommended",
 ): Promise<string> {
     await element.updateComplete;
     // session.data.import, which takes the format's own reader options (formatOptions) that
@@ -147,11 +149,8 @@ export async function importSample(
         ...(imageBaseUrl === undefined ? {} : { imageBaseUrl }),
     };
     const based = imageBaseUrl === undefined ? "" : ", imageBaseUrl";
-    const route = `session.data.import({ type: "${format}", config: { url${named} } }, { styles: "file", layout: "recommended", styleOptions: { framing: "file", lengths: "spacing"${based} } })`;
-    await element.session.data.import(
-        { type: format, config },
-        { styles: "file", layout: "recommended", styleOptions },
-    );
+    const route = `session.data.import({ type: "${format}", config: { url${named} } }, { styles: "file", layout: "${layout}", styleOptions: { framing: "file", lengths: "spacing"${based} } })`;
+    await element.session.data.import({ type: format, config }, { styles: "file", layout, styleOptions });
     await element.waitForSettled();
     await element.session.styles.settled();
     await element.waitForStableFrame();

@@ -32,6 +32,8 @@ interface Expected {
     readonly labelsBeside?: readonly string[];
     /** Whether the file stores every node's position. */
     readonly placed: boolean;
+    /** The layout the file asks for, which draws it when it stores no positions, and no two nodes overlap in it. */
+    readonly layout?: string;
 }
 
 const EXPECTED: Readonly<Record<string, Expected>> = {
@@ -119,6 +121,8 @@ const EXPECTED: Readonly<Record<string, Expected>> = {
         },
         edgeColors: ["#e27dd6", "#61c2c5", "#c46747"],
         placed: false,
+        // the file names no layout program, so Graphviz draws it with dot
+        layout: "graphviz-dot",
     },
     ogdf: {
         nodes: {
@@ -141,6 +145,26 @@ const EXPECTED: Readonly<Record<string, Expected>> = {
         placed: true,
     },
 };
+
+/**
+ * Every pair of visible nodes whose boxes on screen overlap by more than a pixel.
+ * @param nodes - the drawn nodes
+ * @returns the pairs, as "a b"
+ */
+function overlapping(nodes: readonly SceneNode[]): string[] {
+    const shown = nodes.filter((node) => node.visible);
+    const pairs: string[] = [];
+    for (const [i, a] of shown.entries()) {
+        for (const b of shown.slice(i + 1)) {
+            const across = (a.w + b.w) / 2 - Math.abs(a.x - b.x);
+            const down = (a.h + b.h) / 2 - Math.abs(a.y - b.y);
+            if (across > 1 && down > 1) {
+                pairs.push(`${a.id} ${b.id}`);
+            }
+        }
+    }
+    return pairs;
+}
 
 afterEach(() => {
     unmount();
@@ -165,6 +189,8 @@ describe("the sample files from other programs, drawn with their file styles", (
             undefined,
             undefined,
             options,
+            // as the graphty app opens a sample from its start page
+            "placed",
         );
         const { counts } = element.session.status;
         assert.deepEqual([counts.nodes, counts.edges], [sample.nodes, sample.edges], `${sample.id} counts`);
@@ -189,6 +215,10 @@ describe("the sample files from other programs, drawn with their file styles", (
             .filter((node) => node.label?.position !== "inside")
             .map((node) => `${node.id} ${String(node.label?.text)} ${String(node.label?.position)}`);
         assert.deepEqual(offNode, [], `${sample.id} labels the file centers on their node`);
+        if (expected.layout !== undefined) {
+            assert.equal(element.layout, expected.layout, `${sample.id} is laid out as its file asks`);
+            assert.deepEqual(overlapping(scene.nodes), [], `${sample.id} nodes drawn over each other`);
+        }
         const nodes = new Map(scene.nodes.map((node) => [node.id, node]));
         for (const [id, want] of Object.entries(expected.nodes)) {
             const node = nodes.get(id);

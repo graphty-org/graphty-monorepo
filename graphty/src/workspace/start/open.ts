@@ -36,7 +36,8 @@ import { panelsInView } from "../time/timeActions";
 /**
  * How a sample opens a new project: as one undo step, as an imported file is, so Undo takes the
  * opening back (owner, issue #796), and drawn where its data placed every node (graphty-element's
- * `layout: "placed"`), else on the layout the project starts with.
+ * `layout: "placed"`), else with the layout the file asks for (a DOT file's Graphviz program), else on the
+ * layout the project starts with.
  */
 export const OPENING = { layout: "placed" } as const;
 

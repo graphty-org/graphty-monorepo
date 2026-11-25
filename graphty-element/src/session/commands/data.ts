@@ -287,7 +287,8 @@ export interface DataImportCommand {
     readonly mode?: "replace" | "merge";
     /**
      * `"recommended"` also chooses a layout for what was loaded, in the same step; `"placed"` draws
-     * it where its data placed every node (the fixed layout), else leaves the layout as it is.
+     * it where its data placed every node (the fixed layout), else with the layout the data asks for
+     * (a DOT file's Graphviz program), else leaves the layout as it is.
      */
     readonly layout?: "recommended" | "placed" | "keep";
     /** Rows a draft already read: loaded in place of reading the source again, on redo too. */
@@ -1199,14 +1200,16 @@ async function repickEdges(picked: readonly PickedEdges[], ctx: UndoableContext)
  * @param ctx - The import's context.
  * @param sceneScale - The scene units one unit of the file's lengths was drawn as, read once the
  *     import is done: a fixed layout draws the file's stored positions in the same unit.
- * @param placedOnly - Apply only the fixed layout, which keeps where the data placed every node;
- *     any other advice leaves the layout as it is.
+ * @param placedOnly - Apply only the drawing the data gives: the fixed layout, which keeps where it placed every
+ *     node, or the layout it asks for ({@link REQUESTED_LAYOUT_VALUE}: a DOT file's Graphviz program); any other
+ *     advice leaves the layout as it is.
  */
 function adviseLayout(ctx: UndoableContext, sceneScale: () => number | null, placedOnly: boolean): void {
     const advise = ctx.services.layoutAdvice;
     ctx.after("layout:recommended", (dispatch) => {
         const advice = advise?.();
-        if (advice === undefined || (placedOnly && advice.id !== "fixed")) {
+        const requested = ctx.state.graph.values.get(REQUESTED_LAYOUT_VALUE) as RequestedLayoutValue | undefined;
+        if (advice === undefined || (placedOnly && advice.id !== "fixed" && advice.id !== requested?.layout)) {
             return;
         }
 

@@ -505,7 +505,7 @@ const OFF_SHARDS = [
     // run's Run tests step over its 391 stories (run 44799180458, 2026-11-20: 847, 1,443 and 409 s).
     // "batched-webgpu" is split in two (vitest --shard, by file count): as one job it ran 22 to 25 minutes of its
     // 26-minute deadline (full runs 45337267625 and 45503798998), and with three more files and a runner a quarter
-    // slower it reached the deadline (#10085). Two parts plan about 13 and 16 minutes on that slow runner.
+    // slower it reached the deadline (#10085). On that slow runner each part holds about 12.5 minutes of files.
     ...[1, 2].map((n) => ({
         shard: `graphty-element-batched-webgpu-${n}`,
         package: "graphty-element",

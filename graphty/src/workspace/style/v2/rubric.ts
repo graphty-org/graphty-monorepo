@@ -390,8 +390,6 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
             { channel: "node.gradientDirection", name: "Direction" },
             { channel: "node.gradientCenterX", name: "Center", pair: "node.gradientCenterY", letters: ["X", "Y"] },
             { channel: "node.gradientRadius", name: "Radius" },
-            // The end color of a gradient that names no colors of its own (from the fill color into this).
-            { channel: "node.gradientColor", name: "End" },
             { channel: "node.opacity", name: "Opacity" },
         ],
     },

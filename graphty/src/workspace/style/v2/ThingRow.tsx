@@ -240,6 +240,10 @@ function popoverHead(rubric: ThingRubric, main: Channel, listed: boolean): LineS
     if (rubric.row !== undefined) {
         return rubric.row;
     }
+    // A gradient's colors are edited by the row's gradient bar alone (design 2.6): no line in the pop-over.
+    if (main === "node.gradientColors" || main === "edge.gradientColors") {
+        return undefined;
+    }
     return listed ? undefined : { channel: main };
 }
 
@@ -644,16 +648,26 @@ export function ThingRow({
     // A basic shape's row has no settings pop-over (owner, 2026-11-23): its drop-down picks the shape, its Kind
     // line is drawn under it, and the lines a layer sets (Rotation, Corners, Custom shape) under that.
     const plainShape = thing.id === "shape" && replacing === undefined && main.channel === "node.shape";
-    const slots: RowSlots = plainShape
-        ? { slot: null, removeLabel, onRemove: remove }
-        : {
-              slot: settings,
-              removeLabel,
-              onRemove: remove,
-              onOpen: () => {
-                  setOpen(true);
-              },
-          };
+    // A row whose value list spans channels (a Finish's Shading) has no data link, so with no other lines its
+    // pop-over would only repeat the row: no "..." then.
+    const bare =
+        rubric?.row?.choices !== undefined &&
+        rubric.main.length === 0 &&
+        common.length === 0 &&
+        (rubric.groups ?? []).length === 0 &&
+        rubric.strip === undefined &&
+        others.length === 0;
+    const slots: RowSlots =
+        plainShape || bare
+            ? { slot: null, removeLabel, onRemove: remove }
+            : {
+                  slot: settings,
+                  removeLabel,
+                  onRemove: remove,
+                  onOpen: () => {
+                      setOpen(true);
+                  },
+              };
     return (
         <div ref={box} data-thing={thing.id}>
             {picker}

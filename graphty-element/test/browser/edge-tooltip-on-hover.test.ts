@@ -10,6 +10,9 @@
 
 import "../../src/graphty-element";
 
+import { PointerEventTypes } from "@babylonjs/core/Events/pointerEvents.js";
+import type { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
+import type { DynamicTexture } from "@babylonjs/core/Materials/Textures/dynamicTexture.js";
 import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
 import { afterEach, assert, describe, it } from "vitest";
 
@@ -132,22 +135,27 @@ function tooltips(element: Graphty): AbstractMesh[] {
 }
 
 /**
- * Move the real pointer and wait until the move has been answered: at once on WebGL and objects, once the
- * edge ID target is read back on `"batched"` WebGPU.
+ * Move the real pointer and wait until the move has been answered: at once on WebGL and objects, once any
+ * read of the edge ID target the move started is back on `"batched"` WebGPU. A move that needed no read (the
+ * target not ready, a layout under way) was answered at once, so it is never waited on.
  * @param element - The element.
  * @param point - Where, in CSS pixels.
  */
 async function pointTo(element: Graphty, point: { x: number; y: number }): Promise<void> {
-    const target = element.graph.getEdgeIdTarget();
-    const readsBefore = target?.counts.reads ?? 0;
+    const { scene } = element.graph;
+    // Added after the element's own move observer, so when it runs the element has already asked for its read.
+    let moved = false;
+    const observer = scene.onPointerObservable.add(() => {
+        moved = true;
+    }, PointerEventTypes.POINTERMOVE);
     await hover(element, point);
-    if (element.renderer === "webgpu" && target !== null) {
-        while (target.counts.reads === readsBefore || target.counts.pending > 0) {
-            await nextFrame();
-        }
+    const target = element.graph.getEdgeIdTarget();
+    while (!moved || (target !== null && target.counts.pending > 0)) {
+        await nextFrame();
     }
 
-    element.graph.scene.render();
+    scene.onPointerObservable.remove(observer);
+    scene.render();
 }
 
 describe("an edge tooltip a layer asks for, under a real pointer", () => {
@@ -186,6 +194,10 @@ describe("an edge tooltip a layer asks for, under a real pointer", () => {
                     encode: { "edge.tooltip": { template: ["{data.kind}"] } },
                 });
                 await element.waitForStableFrame();
+                element.graph.scene.render();
+                // The pointer still rests on the straight edge: the layer's tooltip appears without a move.
+                assert.lengthOf(tooltips(element), 1, "a layer added under a resting pointer draws its tooltip");
+                await pointTo(element, NOWHERE);
                 assert.lengthOf(tooltips(element), 0, "a tooltip is hover-only: nothing at rest");
                 if (path === "batched") {
                     // A tooltip is not drawn by the line, so the straight line stays a row line with no `Edge`.
@@ -241,5 +253,156 @@ describe("an edge tooltip a layer asks for, under a real pointer", () => {
                 }
             },
         );
+    }
+});
+
+/** The tooltip layer every case below starts from: words, and nothing said about the look. */
+const WORDS = {
+    name: "what each edge is",
+    target: "edge",
+    selector: { match: "everything" },
+    encode: { "edge.tooltip": { template: ["{data.kind}"] } },
+} as const;
+
+/** How far one color channel may be from the one asked for and still count as it. */
+const COLOUR_TOLERANCE = 24;
+
+/**
+ * Whether the drawn tooltip's texture holds a color: at a point, or anywhere.
+ * @param plane - The tooltip's plane.
+ * @param hex - The color, as `#rrggbb`.
+ * @param where - `"panel"` for the panel (three pixels in from the left, halfway down), `"anywhere"` for any pixel.
+ * @returns Whether it is drawn there.
+ */
+function drawsColour(plane: AbstractMesh, hex: string, where: "panel" | "anywhere"): boolean {
+    const texture = (plane.material as StandardMaterial | null)?.diffuseTexture as DynamicTexture | null;
+    assert.isNotNull(texture, "a tooltip is drawn on a texture");
+    const { width, height } = texture.getSize();
+    const { data } = texture.getContext().getImageData(0, 0, width, height);
+    const want = [1, 3, 5].map((at) => Number.parseInt(hex.slice(at, at + 2), 16));
+    const isIt = (at: number): boolean => want.every((value, i) => Math.abs(data[at + i] - value) <= COLOUR_TOLERANCE);
+    if (where === "panel") {
+        return isIt((Math.round(height / 2) * width + 3) * 4);
+    }
+
+    for (let at = 0; at < data.length; at += 4) {
+        if (data[at + 3] > 200 && isIt(at)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * The one tooltip on screen.
+ * @param element - The element.
+ * @param why - What is being checked.
+ * @returns Its plane.
+ */
+function theTooltip(element: Graphty, why: string): AbstractMesh {
+    const drawn = tooltips(element);
+    assert.lengthOf(drawn, 1, why);
+    return drawn[0];
+}
+
+/**
+ * The height of a tooltip's plane in world units.
+ * @param plane - The plane.
+ * @returns Its height.
+ */
+function heightOf(plane: AbstractMesh): number {
+    plane.computeWorldMatrix(true);
+    return plane.getBoundingInfo().boundingBox.extendSizeWorld.y * 2;
+}
+
+describe("an edge tooltip kept true while the pointer rests on the edge", () => {
+    for (const path of ["objects", "batched"] as const) {
+        it(`is drawn in the look a layer asks for, and redrawn when the layer changes, on ${path}`, async () => {
+            const { element, ids } = await threeEdges(path, "2d", "webgl");
+            await element.session.styles.add(WORDS);
+            await element.waitForStableFrame();
+            const point = onLine(element, "a", "b", ids.straight);
+            await pointTo(element, NOWHERE);
+            await pointTo(element, point);
+            const plain = theTooltip(element, "the words alone draw a tooltip");
+            const plainHeight = heightOf(plain);
+            const PANEL = "#10B981";
+            const BLUE = "#2563EB";
+            const RED = "#FF0000";
+            assert.isFalse(drawsColour(plain, PANEL, "panel"), `the default panel is not already ${PANEL}`);
+            assert.isFalse(drawsColour(plain, BLUE, "panel"), `the default panel is not already ${BLUE}`);
+            assert.isFalse(drawsColour(plain, RED, "anywhere"), `the default letters are not already ${RED}`);
+
+            // The pointer stays where it is: the tooltip is redrawn from the new layer, not left as it was.
+            await element.session.styles.add({
+                name: "tooltip look",
+                target: "edge",
+                selector: { match: "everything" },
+                set: { "edge.tooltipStyle": { background: PANEL } },
+            });
+            await element.waitForStableFrame();
+            element.graph.scene.render();
+            assert.isTrue(
+                drawsColour(theTooltip(element, "edge.tooltipStyle"), PANEL, "panel"),
+                "tooltipStyle's panel",
+            );
+
+            await element.session.styles.add({
+                name: "tooltip parts",
+                target: "edge",
+                selector: { match: "everything" },
+                set: { "edge.tooltipSize": 72, "edge.tooltipBackground": BLUE, "edge.tooltipColor": RED },
+            });
+            await element.waitForStableFrame();
+            element.graph.scene.render();
+            const styled = theTooltip(element, "the parts redraw the tooltip");
+            assert.isTrue(drawsColour(styled, BLUE, "panel"), "edge.tooltipBackground is the panel drawn");
+            assert.isTrue(drawsColour(styled, RED, "anywhere"), "edge.tooltipColor is the letters drawn");
+            assert.isAbove(heightOf(styled), plainHeight * 1.2, "edge.tooltipSize is the size drawn");
+        });
+
+        it(`goes when its edge is removed under a resting pointer, on ${path}`, async () => {
+            const { element, ids } = await threeEdges(path, "2d", "webgl");
+            await element.session.styles.add(WORDS);
+            await element.waitForStableFrame();
+            await pointTo(element, NOWHERE);
+            await pointTo(element, onLine(element, "a", "b", ids.straight));
+            theTooltip(element, "hovering draws the tooltip");
+
+            await element.session.data.removeEdges([ids.straight]);
+            await element.waitForStableFrame();
+            element.graph.scene.render();
+            assert.lengthOf(tooltips(element), 0, "the tooltip goes with its edge");
+        });
+
+        it(`goes when the pointer leaves the canvas, on ${path}`, async () => {
+            const { element, ids } = await threeEdges(path, "2d", "webgl");
+            await element.session.styles.add(WORDS);
+            await element.waitForStableFrame();
+            await pointTo(element, NOWHERE);
+            await pointTo(element, onLine(element, "a", "b", ids.straight));
+            theTooltip(element, "hovering draws the tooltip");
+
+            // Past the canvas's right side: the canvas hears pointerleave and no move.
+            await hover(element, { x: 405, y: 200 });
+            element.graph.scene.render();
+            assert.lengthOf(tooltips(element), 0, "the tooltip goes when the pointer leaves the canvas");
+        });
+
+        it(`is drawn when the consumer handles cursors itself, on ${path}`, async () => {
+            const { element, ids } = await threeEdges(path, "2d", "webgl");
+            await element.session.styles.add(WORDS);
+            await element.waitForStableFrame();
+            element.graph.scene.doNotHandleCursors = true;
+            const heard: EdgeEventDetail[] = [];
+            element.addEventListener("graphty-edge-hover", (event) => {
+                heard.push(event.detail);
+            });
+            await pointTo(element, NOWHERE);
+            await pointTo(element, onLine(element, "a", "b", ids.straight));
+            assert.deepEqual(heard, [{ edgeId: ids.straight, tooltip: "straight" }], "the hover is heard");
+            theTooltip(element, "and the tooltip is drawn");
+        });
     }
 });

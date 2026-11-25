@@ -1128,11 +1128,9 @@ export function nodeEventDetail(event: NodeEvent): NodeEventDetail | null {
 }
 
 // edge events
-// There is deliberately no edge-click event. Edge meshes are unpickable in three places, so
-// nothing could emit one, and the type that used to be declared here described a detail carrying a
-// live `Edge` -- a Babylon mesh -- which cannot be structure-cloned and so could never have left
-// the element. A declared event that never fires is a documented lie; it comes back, with a
-// serializable detail, when edge picking lands.
+// There is no edge-click event yet: a click on an edge selects it (the selection's own events say so).
+// Edge hover is read from the element's own edge picking, on both render paths, and its detail is
+// serializable (an id and the words), never a live `Edge`, so it can leave the element.
 /** Every event about one edge. */
 export type EdgeEvent = EdgeGenericEvent | EdgeAddEvent | EdgeHoverEvent;
 

@@ -70,15 +70,7 @@ import { batchUploadFrames } from "./meshes/FrameRoster";
 import type { ColumnRow } from "./meshes/NodeBatch";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { movingTexel } from "./meshes/pulledAnimatedLine";
-import {
-    CURVE_STRIDE,
-    curvePathPoint,
-    type CurveSpan,
-    curveSpan,
-    loopShape,
-    routed,
-    viaShare,
-} from "./meshes/pulledCurve";
+import { CURVE_STRIDE, curvePath, type CurveSpan, curveSpan, loopShape, routed, viaShare } from "./meshes/pulledCurve";
 import { type PulledHead, pulledHeadBatch, pulledHeadOf, roundRow } from "./meshes/pulledHead";
 import { pulledEdgesDefault, type PulledLineBatch } from "./meshes/PulledLineBatch";
 import { readColor } from "./meshes/readColor";
@@ -1633,10 +1625,12 @@ export class Edge {
             // a pulled curve's points, as its pieces place them (`meshes/pulledCurve.ts`), in the floats the card
             // holds them in, as the object path reads its slots: the camera frames the graph by these points, and a
             // frame placed from doubles sits a last bit off the object path's and moves a sample (ThreeDBends)
-            return Array.from({ length: path.span.pieces + 1 }, (_, j) => {
-                const { x, y, z } = curvePathPoint(path.src, path.dst, path.span, j);
-                return new Vector3(Math.fround(x), Math.fround(y), Math.fround(z));
-            });
+            const flat = curvePath(path.src, path.dst, path.span);
+            return Array.from(
+                { length: flat.length / 3 },
+                (_, j) =>
+                    new Vector3(Math.fround(flat[3 * j]), Math.fround(flat[3 * j + 1]), Math.fround(flat[3 * j + 2])),
+            );
         }
 
         if (this.mesh instanceof PatternedLineMesh) {
@@ -3814,15 +3808,9 @@ export class Edge {
         const { batch } = pulled;
         const kept = pulled.route ?? null;
         // a routed path's points themselves (a line through bends' ends and bends, a center arc's cut samples), placed in
-        // doubles as the object path places them, so the card draws the very points the object path does
-        const points =
-            span === null || !routed(span)
-                ? null
-                : Array.from({ length: span.pieces + 1 }, (_, j) => curvePathPoint(src, dst, span, j)).flatMap((p) => [
-                      p.x,
-                      p.y,
-                      p.z,
-                  ]);
+        // doubles as the object path places them, so the card draws the very points the object path does; the span keeps
+        // those it was cut from its samples, so the curve is not worked out again here
+        const points = span === null || !routed(span) ? null : curvePath(src, dst, span);
         if (points === null) {
             batch.releaseRoute(kept?.at ?? -1);
             pulled.route = null;

@@ -48,7 +48,12 @@ type AlgorithmClass = new (g: AlgorithmHost | GraphSession, options?: any) => Al
  * Exported for use in type annotations when referencing algorithm classes
  */
 export interface AlgorithmStatics {
+    /**
+     * The algorithm's name within its namespace, such as `"pagerank"`; with `namespace` it forms
+     * the key a run starts it by.
+     */
     type: string;
+    /** The group the algorithm is registered under, such as `"graphty"`; the first half of the `namespace:type` key. */
     namespace: string;
     /**
      * What the catalog publishes about this algorithm, for a plugin that wants to be one.
@@ -123,6 +128,7 @@ export interface AlgorithmStatics {
      * it as the descriptor's `scopeInput`.
      */
     scopeInput?: ScopeInputDeclaration;
+    /** The algorithm's options in the legacy schema form; an empty object means it takes none. */
     optionsSchema: OptionsSchema;
     /** @deprecated Use getZodOptionsSchema() instead */
     getOptionsSchema(): OptionsSchema;
@@ -296,7 +302,12 @@ export interface AcceleratedAlgorithmRun {
  * ```
  */
 export abstract class Algorithm<TOptions extends Record<string, unknown> = Record<string, unknown>> {
+    /**
+     * The algorithm's name within its namespace, such as `"pagerank"`; a subclass sets it, and
+     * with `namespace` it forms the key a run starts it by.
+     */
     static type: string;
+    /** The group the algorithm is registered under, such as `"graphty"`; a subclass sets it. */
     static namespace: string;
 
     /**
@@ -774,6 +785,12 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
         return (this.constructor as typeof Algorithm).namespace;
     }
 
+    /**
+     * Computes the algorithm over the graph and writes its results; the session's runs call it
+     * when a run starts. A subclass implements it.
+     * @param g - The graph the algorithm runs over.
+     * @returns Resolves when the computation has finished and its results are written.
+     */
     abstract run(g: AlgorithmHost): Promise<void>;
 
     /**

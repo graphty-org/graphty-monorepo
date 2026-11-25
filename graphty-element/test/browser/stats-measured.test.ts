@@ -42,6 +42,11 @@ it("counts arrowhead placements, edge-end searches and loads once a graph with a
 
     // the first frame after the load places its edges
     await drawnFrames(element.graph.getScene(), 1);
+    if (element.renderPath === "batched") {
+        // a head pulled from the row table is stood by the shader while the layout moves, and placed on the CPU once
+        // it rests (`ArrowCapBatch.placePulled`), which is what the stats count
+        await element.waitForStableFrame();
+    }
 
     const stats = element.getStatsManager();
     assert.isAbove(stats.getStats().arrowCapUpdateCount, 0, "arrowheads were placed");

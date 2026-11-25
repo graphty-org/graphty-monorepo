@@ -2073,9 +2073,9 @@
         },
         "gexf-qvge-mine-airing/edgeOpacity": {
             "floor": 1,
-            "to": 0.9658119658119658,
-            "reason": "reference corrected against Gephi Toolkit 0.11.3's own drawing (graph-io/test/fidelity/oracles/gexf-qvge-mine-airing.svg): Gephi merges a repeated directed edge (58->59, 52->53, 47->42, 31->34, 37->30, 23->14) into one, so the repeats are not drawn; the gexf-file scene is graph-io's own reading of the file and draws them",
-            "date": "2026-11-13"
+            "to": 0.9487179487179487,
+            "reason": "reference corrected against Gephi Toolkit 0.11.3's own drawing (graph-io/test/fidelity/oracles/gexf-qvge-mine-airing.svg): Gephi merges a repeated directed edge (58->59, 52->53, 47->42, 31->34, 37->30, 23->14) into one, so the repeats are not drawn; the gexf-file scene is graph-io's own reading of the file and draws them. 2026-11-24 (issue #9949): the edges Gephi does not draw are now drawn hidden by a style rather than filtered out, and the requested scene reads each edge's own visible channel; before, it asked visibility.isVisible() with the edge's id, which a node of the same numeric id answered, so these hidden edges were counted as drawn",
+            "date": "2026-11-24"
         },
         "gexf-qvge-mine-airing/edgeWidth": {
             "floor": 1,

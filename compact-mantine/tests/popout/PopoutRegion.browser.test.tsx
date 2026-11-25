@@ -5,6 +5,7 @@ import { page, userEvent } from "vitest/browser";
 
 import { Popout, PopoutManager, PopoutRegion, usePopoutRegion } from "../../src/components/popout";
 import { compactTheme } from "../../src/theme";
+import type { PopoutPlacement } from "../../src/types/popout";
 
 // A panel opens to the left of its trigger, so the triggers sit well in from the left edge of a
 // window wide enough for that, the way a sidebar holds them; at the window's edge the panel is
@@ -17,15 +18,16 @@ beforeAll(async () => {
  * One pop-out, named so a board can open it and look for its content.
  * @param props - Component props
  * @param props.name - What to call the trigger and the content test id
+ * @param props.placement - The side the panel opens on, or undefined to leave it to the region
  * @returns A pop-out with a titled panel.
  */
-function NamedPopout({ name }: { name: string }): React.JSX.Element {
+function NamedPopout({ name, placement }: { name: string; placement?: PopoutPlacement }): React.JSX.Element {
     return (
         <Popout>
             <Popout.Trigger>
                 <button>{`Open ${name}`}</button>
             </Popout.Trigger>
-            <Popout.Panel width={200} header={{ variant: "title", title: name }}>
+            <Popout.Panel width={200} header={{ variant: "title", title: name }} placement={placement}>
                 <Popout.Content>
                     <span data-testid={`${name}-content`}>{name}</span>
                 </Popout.Content>
@@ -179,5 +181,58 @@ describe("PopoutRegion", () => {
             </PopoutRegion>,
         );
         expect(seen).toBe("inspector");
+    });
+
+    /**
+     * Opens a named pop-out and reports which side of its trigger the panel opened on.
+     * @param name - The pop-out's name
+     * @returns "left" or "right"
+     */
+    async function sideOf(name: string): Promise<"left" | "right"> {
+        await userEvent.click(screen.getByRole("button", { name: `Open ${name}` }));
+        await waitFor(() => {
+            expect(screen.getByTestId(`${name}-content`)).toBeInTheDocument();
+        });
+        const trigger = screen.getByRole("button", { name: `Open ${name}` }).getBoundingClientRect();
+        const panel = screen.getByRole("dialog").getBoundingClientRect();
+        return panel.left >= trigger.right - 1 ? "right" : "left";
+    }
+
+    it("opens a pop-out on the region's side when the panel sets none", async () => {
+        renderPopout(
+            <PopoutRegion id="panel" placement="right">
+                <NamedPopout name="region-side" />
+            </PopoutRegion>,
+        );
+        expect(await sideOf("region-side")).toBe("right");
+    });
+
+    it("inherits the side from an enclosing region that sets one", async () => {
+        renderPopout(
+            <PopoutRegion id="outer" placement="right">
+                <PopoutRegion id="inner">
+                    <NamedPopout name="inherited" />
+                </PopoutRegion>
+            </PopoutRegion>,
+        );
+        expect(await sideOf("inherited")).toBe("right");
+    });
+
+    it("lets a panel's own placement win over its region's", async () => {
+        renderPopout(
+            <PopoutRegion id="panel" placement="right">
+                <NamedPopout name="own-side" placement="left" />
+            </PopoutRegion>,
+        );
+        expect(await sideOf("own-side")).toBe("left");
+    });
+
+    it("opens on the left where no region sets a side", async () => {
+        renderPopout(
+            <PopoutRegion id="panel">
+                <NamedPopout name="default-side" />
+            </PopoutRegion>,
+        );
+        expect(await sideOf("default-side")).toBe("left");
     });
 });

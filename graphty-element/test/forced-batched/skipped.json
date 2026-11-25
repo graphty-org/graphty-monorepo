@@ -20,9 +20,21 @@
         "reason": "Holds the row scan against a pick of each row's mesh, which a batched row no longer has"
     },
     { "file": "test/browser/row-table-shadow.test.ts", "reason": "Asserts a graph on objects opens no table" },
+    { "file": "test/browser/view-switch-draws-every-node.test.ts", "reason": "Sets each case's render path by hand" },
+    { "file": "test/interactions/xr/xr-batched-rows.test.ts", "reason": "Sets each case's render path by hand" },
+    { "file": "test/browser/framing-skips-plain-edges.test.ts", "reason": "Sets each case's render path by hand" },
     {
-        "file": "test/browser/time-ghost.test.ts",
-        "reason": "Reads mesh.visibility, which a hidden proxy answers with 0 until stage 11"
+        "file": "test/browser/framing-world-matrix-work.test.ts",
+        "reason": "Starts each check on the objects path by hand"
     },
-    { "file": "test/browser/view-switch-draws-every-node.test.ts", "reason": "Sets each case's render path by hand" }
+    { "file": "test/browser/label-texture-uploads-once.test.ts", "reason": "Sets each case's render path by hand" },
+    { "file": "test/browser/layout-edge-positions.test.ts", "reason": "Sets each case's render path by hand" },
+    {
+        "file": "test/performance/edge-performance.test.ts",
+        "reason": "Counts each edge's drawn pattern off its Edge object and line batch mesh, which a batched row line does not have"
+    },
+    {
+        "file": "test/interactions/batched-reads-build-no-objects.test.ts",
+        "reason": "Sets each case's render path by hand"
+    }
 ]

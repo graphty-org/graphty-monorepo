@@ -44,9 +44,14 @@ describe.each(["ngraph", "d3"] as const)("%s nodeGap", (layout) => {
         await g.setLayout(layout, { seed: 7, dim: 2, nodeGap: 1 });
         await settle(g);
         assert.isTrue(g.getLayoutManager().isSettled);
-        const engine = g.getLayoutManager().layoutEngine;
-        assert.isDefined(engine);
-        const before = [...g.getDataManager().nodes.values()].map((n) => ({ ...engine.getNodePosition(n) }));
+        // Read by id, so the check builds no Node objects on renderPath "batched".
+        const positions = (): { x: number; y: number }[] =>
+            nodes.map(({ id }) => {
+                const at = g.getSession().positions.get(id);
+                assert.isDefined(at, `${id} is placed`);
+                return { x: at.x, y: at.y };
+            });
+        const before = positions();
 
         await g.getSession().styles.add({ name: "late", target: "node", selector: { match: "everything" }, set });
         await operationQueueOf(g).waitForCompletion();
@@ -56,7 +61,7 @@ describe.each(["ngraph", "d3"] as const)("%s nodeGap", (layout) => {
         }
         assert.isTrue(g.getLayoutManager().isSettled, "the layer woke the settled layout");
         await settle(g);
-        const after = [...g.getDataManager().nodes.values()].map((n) => ({ ...engine.getNodePosition(n) }));
+        const after = positions();
         for (let i = 0; i < before.length; i++) {
             assert.strictEqual(
                 Math.hypot(after[i].x - before[i].x, after[i].y - before[i].y),

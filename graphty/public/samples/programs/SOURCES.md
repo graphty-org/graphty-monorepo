@@ -8,8 +8,9 @@ a byte-for-byte copy of a file in graph-io's test corpus (the path given under "
 `graph-io/test/corpus/programs/samples.json` lists them with their counts.
 
 The licenses below are the licenses of the files. Files under GPL, LGPL, EPL or CDDL are redistributed unchanged,
-under their own license, with their source named; each of those licenses' full text is in `licenses/`, beside the
-app's copies of the files (`graphty/public/samples/programs/licenses/`). The CDDL text there has its typographic
+under their own license, with their source named, and the Neo4j file, changed, under the Apache License 2.0; each of
+those licenses' full text is in `licenses/`, beside the app's copies of the files
+(`graphty/public/samples/programs/licenses/`). The CDDL text there has its typographic
 quotes written as plain quotes and its section sign as "Section"; every other text is as its publisher gives it.
 
 ## yEd -- yed.graphml
@@ -106,7 +107,8 @@ quotes written as plain quotes and its section sign as "Section"; every other te
   colors and 18 sizes, stored positions, 254 edges.
 - Source: https://github.com/gephi/gephi/blob/eee9b3920b489c994062ee826c0acd3fbe9134ca/modules/WelcomeScreen/src/main/resources/org/gephi/desktop/welcome/samples/Les%20Miserables.gexf
 - Test copy: graph-io/test/corpus/programs/gephi__Les-Miserables.gexf
-- License: Gephi's dual license, CDDL 1.0 or GPL 3.0 (https://github.com/gephi/gephi/blob/master/LICENSE.md;
+- License: Gephi's dual license at that commit, CDDL 1.0 or GPL 3.0
+  (https://github.com/gephi/gephi/blob/eee9b3920b489c994062ee826c0acd3fbe9134ca/COPYING.txt;
   `licenses/CDDL-1.0.txt`, `licenses/GPL-3.0.txt`). Copyright 2008-2011 Gephi Consortium.
 
 ## Graphviz -- graphviz.gv
@@ -123,7 +125,8 @@ quotes written as plain quotes and its section sign as "Section"; every other te
   labels in black and white, 57 solid and dotted edges; laid out by graphty.
 - Source: https://raw.githubusercontent.com/ogdf/ogdf/1a40505ac00677a58ab5ce532e1dcc3bd63116e5/doc/examples/layout/ERDiagram.gml
 - Test copy: graph-io/test/corpus/programs/ogdf__ERDiagram.gml
-- License: GPL 2.0 or GPL 3.0, OGDF's LICENSE.txt (https://github.com/ogdf/ogdf/blob/master/LICENSE.txt;
+- License: GPL 2.0 or GPL 3.0, OGDF's LICENSE.txt
+  (https://github.com/ogdf/ogdf/blob/1a40505ac00677a58ab5ce532e1dcc3bd63116e5/LICENSE.txt;
   `licenses/GPL-2.0.txt`, `licenses/GPL-3.0.txt`). Copyright (C) the OGDF authors.
 
 ## Pajek -- pajek.net
@@ -142,8 +145,8 @@ quotes written as plain quotes and its section sign as "Section"; every other te
 - Source: https://github.com/neo4j/apoc/blob/07c551a0be6277e35afd0e55138a4cad7f8530db/common/src/main/resources/movies.cypher,
   converted by us from Cypher to import CSV (no redistributable import CSV from Neo4j exists).
 - Test copy: graph-io/test/corpus/programs/neo4j-movies.csv
-- License: Apache License 2.0 (https://www.apache.org/licenses/LICENSE-2.0). Copyright Neo4j, Inc. Changed: rewritten
-  from the CREATE statements of movies.cypher into neo4j-admin import CSV.
+- License: Apache License 2.0 (https://www.apache.org/licenses/LICENSE-2.0; `licenses/Apache-2.0.txt`). Copyright
+  Neo4j, Inc. Changed: rewritten from the CREATE statements of movies.cypher into neo4j-admin import CSV.
 
 ## OBO Foundry -- obo-foundry.obo
 

@@ -156,6 +156,12 @@
             "experimental": "file-styles"
         },
         {
+            "channel": "node.labelWrapUnkerned",
+            "target": "node",
+            "accepts": "boolean",
+            "experimental": "file-styles"
+        },
+        {
             "channel": "node.labelWrapEllipsis",
             "target": "node",
             "accepts": "boolean",
@@ -2741,6 +2747,16 @@
             "accepts": "labelStyle"
         },
         {
+            "channel": "edge.tooltip",
+            "target": "edge",
+            "accepts": "text"
+        },
+        {
+            "channel": "edge.tooltipStyle",
+            "target": "edge",
+            "accepts": "labelStyle"
+        },
+        {
             "channel": "edge.labelTextAlign",
             "target": "edge",
             "accepts": "enum",
@@ -2820,6 +2836,24 @@
             "accepts": "color"
         },
         {
+            "channel": "edge.tooltipSize",
+            "target": "edge",
+            "accepts": "number",
+            "min": 1,
+            "step": 1,
+            "perWorldUnit": 48
+        },
+        {
+            "channel": "edge.tooltipColor",
+            "target": "edge",
+            "accepts": "color"
+        },
+        {
+            "channel": "edge.tooltipBackground",
+            "target": "edge",
+            "accepts": "color"
+        },
+        {
             "channel": "edge.arrowHeadTextBackground",
             "target": "edge",
             "accepts": "color"
@@ -2869,6 +2903,12 @@
         },
         {
             "channel": "edge.labelWrapSkipEndSpace",
+            "target": "edge",
+            "accepts": "boolean",
+            "experimental": "file-styles"
+        },
+        {
+            "channel": "edge.labelWrapUnkerned",
             "target": "edge",
             "accepts": "boolean",
             "experimental": "file-styles"

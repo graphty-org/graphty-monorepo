@@ -43,6 +43,18 @@ async function decode(src: string): Promise<HTMLImageElement> {
     return img;
 }
 
+/** A checked-in picture, decoded; a checkout without Git LFS holds a pointer file where it should be, so say so. */
+async function decodeFile(url: string): Promise<HTMLImageElement> {
+    return decode(url).catch(async (e: unknown) => {
+        const head = await fetch(url)
+            .then(async (r) => (await r.text()).slice(0, 40))
+            .catch(() => "");
+        throw head.startsWith("version https://git-lfs")
+            ? new Error(`${url} is a Git LFS pointer, not a picture: run git lfs pull`)
+            : e;
+    });
+}
+
 function canvas(w: number, h: number): { c: HTMLCanvasElement; g: CanvasRenderingContext2D } {
     const c = document.createElement("canvas");
     c.width = w;
@@ -60,15 +72,7 @@ function canvas(w: number, h: number): { c: HTMLCanvasElement; g: CanvasRenderin
  * @returns its size and RGBA bytes
  */
 export async function pngPixels(url: string): Promise<{ width: number; height: number; data: Uint8ClampedArray }> {
-    const img = await decode(url).catch(async (e: unknown) => {
-        // a checkout without Git LFS holds a pointer file where the picture should be
-        const head = await fetch(url)
-            .then(async (r) => (await r.text()).slice(0, 40))
-            .catch(() => "");
-        throw head.startsWith("version https://git-lfs")
-            ? new Error(`${url} is a Git LFS pointer, not a picture: run git lfs pull`)
-            : e;
-    });
+    const img = await decodeFile(url);
     const { c, g } = canvas(img.naturalWidth, img.naturalHeight);
     g.drawImage(img, 0, 0);
     return { width: c.width, height: c.height, data: g.getImageData(0, 0, c.width, c.height).data };
@@ -132,7 +136,7 @@ export async function rasterCompare(
         return null;
     }
     const gImg = await decode(`data:image/png;base64,${graphtyPng}`);
-    const oImg = await decode(oraclePngUrl);
+    const oImg = await decodeFile(oraclePngUrl);
     const w = gImg.naturalWidth;
     const h = gImg.naturalHeight;
     // graphty's scene is in render pixels; the capture may be at another device scale

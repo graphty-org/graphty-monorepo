@@ -27,6 +27,7 @@ import { sha256Hex, type SourceListing, type SourceListQuery, type SourceProbe }
 import {
     DATASET_NAMES,
     DatasetError,
+    DATASETS,
     fetchDataset,
     GENERATOR_CATALOG,
     type SampleGraph,
@@ -194,6 +195,7 @@ import type { SelectionTextMode } from "./selection";
 import { searchOf } from "./selection/targets";
 import type { CodedFact, ColumnRef, ProgressChange } from "./shared";
 import { draftOpenError, SourceDraftHandle } from "./sourceDraft";
+import { type SavedSourceDraft, setSourceDraftHooks } from "./sourceDraftHooks";
 import { ExpansionState, type HostEdge, type LoadStamp, type SourceHost } from "./sources/host";
 import {
     isSourceFactKey,
@@ -1461,6 +1463,37 @@ export class SessionData implements SessionDataApi {
         this.neighborLists = new RevisionCache(() => pages.revision(), NEIGHBOR_LISTS_KEPT);
         this.attributeCache = new RevisionCache(() => pages.dataRevision());
         this.edgeColumns = new RevisionCache(() => pages.dataRevision());
+        // Autosave keeps an open source draft with the work and opens it again after a restore.
+        setSourceDraftHooks(this, {
+            saved: () => this.sourceDraft?.saved() ?? null,
+            reopen: (saved) => this.reopenDraft(saved),
+        });
+    }
+
+    /**
+     * Open again a source draft autosave kept, drawn as it was.
+     * @param saved - The draft as autosave kept it.
+     * @returns False when it could not be: the experiment is off, a draft is open, or the rows it
+     *   read are gone.
+     */
+    private async reopenDraft(saved: SavedSourceDraft): Promise<boolean> {
+        if (!this.stepsOn() || this.sourceDraft !== null) {
+            return false;
+        }
+        this.draft({ askOverlap: saved.askOverlap });
+        const draft = this.sourceDraft as SourceDraftHandle | null;
+        if (draft === null) {
+            return false;
+        }
+        if (!draft.restore(saved)) {
+            draft.dispose();
+            return false;
+        }
+        if (saved.shown.on) {
+            await draft.display(true);
+            await draft.show(saved.shown.side);
+        }
+        return true;
     }
 
     /**
@@ -1888,7 +1921,10 @@ export class SessionData implements SessionDataApi {
             } catch (error) {
                 throw datasetError(name, baseUrl, signal, status, error);
             }
-            const sample = this.sampleLoad(snapshot, name, load);
+            // Named as the catalog names it ("Doubtful Sound dolphins", not "dolphins"); a dataset the catalog does not
+            // list (a mirror's own) by its name.
+            const title = DATASETS.find((each) => each.name === name)?.title ?? name;
+            const sample = this.sampleLoad(snapshot, title, load);
             await this.importVia(send, sample.source, load, turn, {
                 ...sample,
                 facts: { dataset: name, baseUrl },
@@ -4168,6 +4204,7 @@ export class SessionData implements SessionDataApi {
                 emit: (change) => this.writes.emit?.("data:draft-changed", change),
                 drawn: () => this.writes.drawing?.drawn() ?? Promise.resolve(),
                 redraw: () => this.writes.drawing?.resume(),
+                edgeIds: (side) => (side === "after" ? this.afterEdgeIds : null) ?? this.stepsEdgeIds(),
             },
             { value: this.stepsValue(), copies: this.stepsCopies() },
             { ...(options.askOverlap === undefined ? {} : { askOverlap: options.askOverlap }) },
@@ -4418,6 +4455,15 @@ export class SessionData implements SessionDataApi {
             this.shownMarks = { marks, ids, edges };
         }
         return { nodes: marks.nodes, edges: this.shownMarks.edges, side: draft.side };
+    }
+
+    /**
+     * The session ids of some elements of the drawn draft, on the side it draws.
+     * @param query - Element references, some counts of one step, or the untouched nodes.
+     * @returns The ids, or null while no draft is drawn or the experiment is off.
+     */
+    drawnDraftIds(query: Parameters<SourceDraftHandle["drawnIds"]>[0]): ReturnType<SourceDraftHandle["drawnIds"]> {
+        return this.stepsOn() ? (this.sourceDraft?.drawnIds(query) ?? null) : null;
     }
 
     /**

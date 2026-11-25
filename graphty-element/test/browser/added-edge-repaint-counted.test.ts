@@ -14,6 +14,7 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 import type { Graphty } from "../../index.js";
 import { Edge } from "../../src/Edge";
 import { operationQueueOf } from "../../src/Graph";
+import { EdgeRowLines } from "../../src/meshes/EdgeRowLines";
 import { NodeBatches } from "../../src/meshes/NodeBatch";
 import { Node } from "../../src/Node";
 import { dispatcherOf } from "../../src/session/GraphSession";
@@ -57,7 +58,8 @@ async function settle(element: Graphty): Promise<void> {
 
 /**
  * Add one edge and count the elements repainted until its paint is applied. A node is repainted
- * through its `Node`, or, on the `"batched"` path, as a row a batch draws with no `Node`.
+ * through its `Node`, or, on the `"batched"` path, as a row a batch draws with no `Node`; an edge
+ * through its `Edge`, or, on the `"batched"` path, as a row line drawn with no `Edge`.
  * @param element - The element.
  * @param edge - The edge.
  * @param edge.source - Its source.
@@ -71,13 +73,16 @@ async function repaintedBy(
     const nodes = vi.spyOn(Node.prototype, "applySessionPaint");
     const rows = vi.spyOn(NodeBatches.prototype, "paintRow");
     const edges = vi.spyOn(Edge.prototype, "applySessionPaint");
+    const lines = vi.spyOn(EdgeRowLines.prototype, "paintRow");
     await element.graph.addEdges([edge]);
     await settle(element);
     const rowsDrawn = rows.mock.results.filter(({ value }) => value === true).length;
-    const counted = { nodes: nodes.mock.calls.length + rowsDrawn, edges: edges.mock.calls.length };
+    const linesDrawn = lines.mock.results.filter(({ value }) => value === true).length;
+    const counted = { nodes: nodes.mock.calls.length + rowsDrawn, edges: edges.mock.calls.length + linesDrawn };
     nodes.mockRestore();
     rows.mockRestore();
     edges.mockRestore();
+    lines.mockRestore();
     return counted;
 }
 

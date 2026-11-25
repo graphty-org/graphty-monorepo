@@ -16,7 +16,7 @@ import { Engine } from "@babylonjs/core/Engines/engine.js";
 import { NullEngine } from "@babylonjs/core/Engines/nullEngine.js";
 import { WebGPUEngine } from "@babylonjs/core/Engines/webgpuEngine.js";
 import { PointerEventTypes } from "@babylonjs/core/Events/pointerEvents.js";
-import { type Matrix, Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { Matrix, Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
 import type { SubMesh } from "@babylonjs/core/Meshes/subMesh.js";
 import { Observable } from "@babylonjs/core/Misc/observable.js";
@@ -25,6 +25,8 @@ import { Scene } from "@babylonjs/core/scene.js";
 import type { WebXRDefaultExperience } from "@babylonjs/core/XR/webXRDefaultExperience.js";
 import { WebXRState } from "@babylonjs/core/XR/webXRTypes.js";
 import type { GraphSnapshot } from "@graphty/graph-format";
+import cloneDeep from "lodash/cloneDeep.js";
+import isEqual from "lodash/isEqual.js";
 
 import { ACCELERATION_POLICY_DEFAULT, AccelerationController } from "./acceleration";
 import { VoiceInputAdapter } from "./ai/input/VoiceInputAdapter";
@@ -40,6 +42,15 @@ import { CAMERA_LOG_INTERVAL_MS, frameFacts, throttle, viewLog } from "./manager
 import type { GraphSceneMetadata } from "./types/sceneMetadata";
 
 const graphLogger: Logger = GraphtyLogger.getLogger(["graphty", "graph"]);
+
+/**
+ * Whether an engine draws on a WebGL1 context, which compiles no GLSL ES 3.00 shader.
+ * @param engine - The engine.
+ * @returns True for WebGL1; false for WebGL2, WebGPU and NullEngine.
+ */
+function isWebGL1(engine: AbstractEngine): boolean {
+    return engine instanceof Engine && !(engine instanceof NullEngine) && engine.webGLVersion < 2;
+}
 
 /** One {@link Graph.waitForStableFrame} call: whether it gave up, and how to stop its current round. */
 /** The parts of a click's pointer event that decide what it does to the selection. */
@@ -169,6 +180,7 @@ import {
 import { type AlgorithmOnLoad, DataConfig } from "./config/DataConfig";
 import { RenderSettingsOpts } from "./config/GraphBehavior";
 import { DEFAULT_LIGHTING, isLighting, type Lighting, LIGHTING_VALUES } from "./config/Lighting";
+import { drawnText, labelTextOf, richTextLabelOptions, type RichTextStyleType } from "./config/RichTextStyle";
 import { type PartialXRConfig, xrConfigSchema } from "./config/xr-config-schema";
 import { type ExportGraphOptions, type ExportResult, exportSession } from "./data/export";
 import { WRITABLE_LANE, writableLane } from "./data/lane";
@@ -184,6 +196,7 @@ import {
     type ReducedMotionChangedEvent,
     type RenderLostEvent,
     type RenderRestoredEvent,
+    type RenderWarningEvent,
     type TourEndedEvent,
     type TourProgressEvent,
     type XRMenuSelectEvent,
@@ -242,9 +255,9 @@ import {
 import { bootstrapEdgePaint, bootstrapNodePaint } from "./managers/StylePainter";
 import { columnCenter, type ColumnFraming } from "./managers/UpdateManager";
 import { AnnotationMeshes } from "./meshes/AnnotationMeshes";
-import { arrowCapMeshes } from "./meshes/ArrowCapBatch";
+import { arrowCapMeshes, pulledCapHosts } from "./meshes/ArrowCapBatch";
 import { edgeDrawPlace } from "./meshes/EdgeLineBatch";
-import { EdgeRowLines } from "./meshes/EdgeRowLines";
+import { EdgeRowLines, pulledLineSortsWith } from "./meshes/EdgeRowLines";
 import { payLabelAnimations } from "./meshes/labelAnimationDebt";
 import { closeRectOnScreen, hasCloseLabels, inRect, isCloseLabel } from "./meshes/labelClose";
 import { labelFontsLoading, watchFontLoads } from "./meshes/labelFonts";
@@ -257,7 +270,6 @@ import {
     type ModelPreviewOptions,
     PreviewEngines,
 } from "./meshes/ModelPreview";
-import { drawLast } from "./meshes/moveInstance";
 import { type ColumnRow, NodeBatches, type RenderPath, renderPathDefault, type RowCounts } from "./meshes/NodeBatch";
 import { forgetGlyphs } from "./meshes/NodeDecorationMesh";
 import { NodeEffects } from "./meshes/NodeEffects";
@@ -272,6 +284,8 @@ import {
 } from "./meshes/NodeThumbnail";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { type Antialias, type LeanLines, pulledEdgesDefault } from "./meshes/PulledLineBatch";
+import { RichTextLabel } from "./meshes/RichTextLabel";
+import { onRewriteMissed } from "./meshes/RowPullPlugin";
 import { loadChunk, loadModel, ModelLoadFailure } from "./models/loadModel";
 import { type ModelTemplate, optionsOf } from "./models/ModelCache";
 import { TextureCache } from "./models/TextureCache";
@@ -336,6 +350,7 @@ import { loadLineOf, type LoadTurn } from "./session/loadLine";
 import type { SessionCommand } from "./session/planning";
 import {
     cancelReasonOf,
+    type Dispatcher,
     type DispatchFunction,
     queueScheduler,
     type TransactionOptions as DispatcherTransactionOptions,
@@ -781,6 +796,12 @@ export interface FileLoadOptions {
      */
     layout?: "recommended" | "placed" | "keep";
     /**
+     * `"data"` also pins every node the file marks fixed (a Graphviz `pos="x,y!"` or `pin=true`, a
+     * Cytoscape.js `"locked": true`), so a layout keeps them where the file put them and lays out
+     * the rest. `"keep"` (the default) pins nothing.
+     */
+    pins?: "data" | "keep";
+    /**
      * Cancels the load, its read or fetch included: it rejects with the signal's reason (an
      * `AbortError` by default) and adds nothing, leaving the graph as it was.
      */
@@ -874,6 +895,21 @@ function presentOnly<T extends Record<string, unknown>>(options: T): Partial<{ [
     ) as Partial<{
         [K in keyof T]: NonNullable<T[K]>;
     }>;
+}
+
+/** An edge under the pointer, and its tooltip with what it was drawn from (`Graph.#hoveredEdge`). */
+interface EdgeHover {
+    id: EdgeId;
+    /** How far along the edge the pointer met it: 0 at the first end, 1 at the second. */
+    along: number;
+    /** From that point on the straight run between the ends to where the pointer met the line (a curve's bulge). */
+    offset: Vector3;
+    camera: Camera | null;
+    block: RichTextStyleType | undefined;
+    words: string | undefined;
+    /** The point the tooltip hangs from, moved in place as the edge moves. */
+    anchor: Vector3;
+    tooltip: RichTextLabel | undefined;
 }
 
 /**
@@ -1100,6 +1136,8 @@ export class Graph implements GraphContext {
     #renderPath: RenderPath = renderPathDefault.value;
     /** The ceilings asked for through `limits`, and those in force on this render path. */
     readonly #limits = new RenderLimits(this.#renderPath === "batched");
+    /** Whether the log was told that WebGL1 draws `"batched"` as objects; see `#batchesDraw`. */
+    #warnedWebGL1 = false;
     /** The node batches, once the renderer is open on the `"batched"` path. */
     #nodeBatches: NodeBatches | null = null;
     /** Edge rows drawn with no `Edge`, on the `"batched"` path (`EdgeRowLines`). */
@@ -1198,7 +1236,14 @@ export class Graph implements GraphContext {
      * Asked each frame, so a live path change takes effect on the next one.
      * @returns True under renderPath "batched".
      */
-    readonly #batchedFrames = (): boolean => this.#renderPath === "batched";
+    readonly #batchedFrames = (): boolean => this.#batchesDraw();
+    /**
+     * Whether rows are drawn in batches: under renderPath "batched", on an engine that compiles
+     * their GLSL ES 3.00 shaders. A WebGL1 context does not, so there every row is drawn as an
+     * object, as `rowCounts` says (#10022). Asked each time, so it follows the engine WebGPU replaces.
+     * @returns True while batches draw.
+     */
+    readonly #batchesDraw = (): boolean => this.#renderPath === "batched" && !isWebGL1(this.engine);
     /**
      * Whether the render loop multisamples only the frame a still scene rests on: `antialias` is
      * `"at-rest"`. Asked each frame, so a change takes effect on the next one.
@@ -1248,6 +1293,11 @@ export class Graph implements GraphContext {
      * it is why every data question this class answers is forwarded rather than computed.
      */
     private readonly session: ElementSession;
+    /**
+     * The session's dispatcher once looked up: {@link Graph.is2D} and the configuration document are read for every
+     * edge placed, every frame a layout moves (issue #9420), and a weak map lookup each time showed in the profile.
+     */
+    #dispatcher: Dispatcher | undefined;
     /** The queue loads, layouts, runs and style passes take their turn in; see {@link operationQueueOf}. */
     private readonly operationQueue: OperationQueueManager;
 
@@ -1391,6 +1441,10 @@ export class Graph implements GraphContext {
             antialiasAtRest: this.#antialiasAtRest,
             preserveDrawingBuffer: this.preserveDrawingBuffer,
         });
+        // A shader WebGL refuses is reported as WebGPU's are; WebGPU's own engine is watched once it opens.
+        if (!(this.renderManager.engine instanceof NullEngine)) {
+            this.watchShaderCompiles(this.renderManager.engine);
+        }
 
         this.basemapManager = new BasemapManager(
             () => this.scene,
@@ -1421,7 +1475,7 @@ export class Graph implements GraphContext {
         this.dataManager = new DataManager(this.eventManager, this.styles);
         this.dataManager.renderLimits = {
             ceilings: () => this.#limits.overrides,
-            batched: () => this.#renderPath === "batched",
+            batched: this.#batchesDraw,
             objectRows: () => this.#limits.effective.objectRows,
             objectEdges: () => this.#limits.effective.objectEdges,
             objectCap: (of, wanted, cap) => {
@@ -1487,7 +1541,7 @@ export class Graph implements GraphContext {
                 // Late-bound on purpose: a change of renderer replaces the render manager.
                 renderedFrame: () => this.renderManager.frameDrawn(),
                 // Under "batched" only, the repaint fills a uniform dirty set's mesh keys at once.
-                batched: () => this.#renderPath === "batched",
+                batched: this.#batchesDraw,
                 nodeSizeSpace: () => this.styles.config.behavior.node.sizeSpace,
                 darkScheme: () => this.#darkScheme,
                 layoutHidden: () => this.#layoutHidden,
@@ -1804,6 +1858,7 @@ export class Graph implements GraphContext {
                 const engine = this.layoutManager.layoutEngine;
                 return engine instanceof SimulationLayoutEngine ? engine.accelerator : "cpu";
             },
+            answered: () => this.layoutManager.answered(),
         };
         lane.register("layout", async (_rendered, target) => {
             const choice = target.layout ?? DEFAULT_LAYOUT;
@@ -2606,7 +2661,16 @@ export class Graph implements GraphContext {
      * @returns The status once {@link Graph.init} has chosen; null before.
      */
     get rendererStatus(): RendererStatus | null {
-        return this.#rendererStatus;
+        const status = this.#rendererStatus;
+        // Where the attached accelerator really runs, which can differ from what the renderer offered it: one
+        // probed before a renderer was on its way opened its own device (issue #9986).
+        const shared = this.acceleration.sharesRendererDevice;
+        if (status === null || shared === undefined) {
+            return status;
+        }
+
+        const layoutDevice = shared ? "shared" : "separate";
+        return status.layoutDevice === layoutDevice ? status : { ...status, layoutDevice };
     }
 
     /**
@@ -2883,18 +2947,25 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Reports a shader the GLSL compiler stops on. Babylon.js 9 hands the effect a rejection of its
-     * async compile as it would a synchronous failure, so everything listening to the effect hears
-     * as it does under WebGL; this reports it. An effect with its own `onError` is the shader
-     * check's, which has its own report. (Babylon 8 dropped the rejection, and this wrapped the
-     * engine's compile to tell the effect.)
+     * Reports a shader the GLSL compiler stops on, under WebGL and WebGPU alike: a refused shader
+     * never draws, and nothing else says so (#10022). Babylon.js 9 hands a WebGPU effect a rejection
+     * of its async compile as it would a synchronous failure, so everything listening to the effect
+     * hears as it does under WebGL. An effect with its own `onError` is the shader check's, which
+     * has its own report. A batch shader one of `RowPullPlugin`'s edits missed still draws, so it is
+     * a `render-warning` with `W_SHADER_EDIT_MISSED` (#10025), and drawing is left alone.
      * @param engine - The engine that compiles the graph's shaders.
      */
-    private watchShaderCompiles(engine: WebGPUEngine): void {
+    private watchShaderCompiles(engine: AbstractEngine): void {
         engine.onEffectErrorObservable.add(({ effect, errors }) => {
             if (!effect.onError) {
                 this.reportRefusedShader("compiler", [errors]);
             }
+        });
+        onRewriteMissed(engine, (patterns) => {
+            this.eventManager.emit("render-warning", {
+                code: "W_SHADER_EDIT_MISSED",
+                params: { renderer: engine.isWebGPU ? "webgpu" : "webgl", patterns },
+            } satisfies Omit<RenderWarningEvent, "type">);
         });
     }
 
@@ -2910,7 +2981,7 @@ export class Graph implements GraphContext {
 
         const error = new GraphtyError({
             code: "E_SHADER_REFUSED",
-            message: `the WebGPU ${stage} refused a shader, so it is not drawn: ${messages.join("; ")}`,
+            message: `the ${this.engine.isWebGPU ? "WebGPU" : "WebGL"} ${stage} refused a shader, so it is not drawn: ${messages.join("; ")}`,
             source: "view",
             recoverable: false,
             details: { stage, messages },
@@ -2978,6 +3049,9 @@ export class Graph implements GraphContext {
             setDrawing(true);
             this.settleRestart(null);
             this.eventManager.emit("render-restored", { renderer } satisfies Omit<RenderRestoredEvent, "type">);
+            // The renderer has a working device again, so the GPU is back: the moment to try once more an
+            // accelerator whose reattach failed while it was gone (issue #9987).
+            this.acceleration.deviceAvailable();
         });
         const { signal } = this.#teardown;
         // The browser tried to give a WebGL context back and could not make one.
@@ -3162,6 +3236,14 @@ export class Graph implements GraphContext {
         });
         // No frame is drawn while an element built from the defaults waits for its style.
         this.renderManager.drawHeld = (): boolean => this.dataManager.drawHeld;
+        // A consumer's own light reaches the nodes a batch draws, as it reaches the objects path's.
+        const relight = (): void => {
+            this.renderManager.relightBatches();
+            // A frozen list of what is drawn skips each mesh's material check (#9246).
+            this.updateManager.thawActiveMeshes();
+        };
+        this.scene.onNewLightAddedObservable.add(relight);
+        this.scene.onLightRemovedObservable.add(relight);
     }
 
     /**
@@ -3729,6 +3811,15 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * The session's dispatcher, looked up once (see `#dispatcher`).
+     * @returns The dispatcher.
+     */
+    private dispatcher(): Dispatcher {
+        this.#dispatcher ??= dispatcherOf(this.session);
+        return this.#dispatcher;
+    }
+
+    /**
      * The configuration document `styles.config` reads: frozen, merged from the project settings
      * and the view settings, and rebuilt only when one of them has changed since the last read,
      * so two reads with no change between them return the same object.
@@ -3742,7 +3833,7 @@ export class Graph implements GraphContext {
             return this.mergeConfig(DEFAULT_PROJECT, DEFAULT_LAYOUT);
         }
 
-        const dispatcher = dispatcherOf(session);
+        const dispatcher = this.dispatcher();
         const writes = dispatcher.lane.writes("config");
         const layout = dispatcher.lane.writes("layout");
         let cache = this.configCache;
@@ -4008,6 +4099,7 @@ export class Graph implements GraphContext {
                     graphIndex,
                     graphName,
                     layout: options?.layout,
+                    pins: options?.pins,
                     styles,
                     styleOptions,
                 }),
@@ -5476,8 +5568,8 @@ export class Graph implements GraphContext {
         }
 
         this.#renderPath = path;
-        this.#limits.honor(path === "batched");
-        if (path === "objects") {
+        this.#limits.honor(this.#batchesDraw());
+        if (!this.#batchesDraw()) {
             this.#warnLimitsIgnored();
         }
 
@@ -5588,7 +5680,22 @@ export class Graph implements GraphContext {
 
     /** Open or close the batches to match the path. Proxies stay, so neither way rebuilds a row. */
     #applyRenderPath(): void {
-        const batched = this.#renderPath === "batched" && !(this.engine instanceof NullEngine);
+        const batched = this.#batchesDraw() && !(this.engine instanceof NullEngine);
+        // On WebGL1 the ceilings asked for are not in force: every row is an object there. Said only
+        // when that is news: `setRenderPath` and `setLimits` already said it for a path they set aside.
+        const wasIgnored = this.#limits.ignored;
+        this.#limits.honor(this.#batchesDraw());
+        if (!wasIgnored) {
+            this.#warnLimitsIgnored();
+        }
+
+        if (this.#renderPath === "batched" && isWebGL1(this.engine) && !this.#warnedWebGL1) {
+            this.#warnedWebGL1 = true;
+            graphLogger.warn('renderPath "batched" needs WebGL2 or WebGPU: every row is drawn as an object', {
+                renderPath: "objects",
+            });
+        }
+
         // Pulled edges read node places from the row table (`PulledLineBatch`).
         if (pulledEdgesDefault.value && !(this.engine instanceof NullEngine)) {
             this.openRowTable();
@@ -5596,6 +5703,19 @@ export class Graph implements GraphContext {
 
         if (batched && this.#nodeBatches === null) {
             const places = this.openRowTable();
+            // the scene's cap batches draw arrowheads pulled from the row table too (`ArrowCapBatch.setPulled`)
+            pulledCapHosts.set(this.scene, {
+                rows: places,
+                settled: () => !this.isRunning() || this.layoutManager.layoutEngine?.isSettled !== false,
+                placedCaps: (count) => {
+                    // one count an arrowhead placed and its edge's ends found, as an object edge counts its own
+                    for (const counter of [this.statsManager.arrowCapUpdate, this.statsManager.intersectCalc]) {
+                        for (let at = 0; at < count; at++) {
+                            counter.fetchNewFrame();
+                        }
+                    }
+                },
+            });
             this.#nodeBatches = new NodeBatches(
                 {
                     cache: this.dataManager.meshCache,
@@ -5631,10 +5751,15 @@ export class Graph implements GraphContext {
 
                         this.renderManager.requestFrame();
                     },
-                    resized: () => {
+                    resized: (row) => {
+                        // a `Node` resized has its edges measured again (`remeasureEdgesOf`); a row has no `Node` to say so (#9857)
+                        this.updateManager.placeEdgesOfRow(row);
                         if (this.layoutManager.layoutEngine?.wakeForResize() === true) {
                             this.layoutManager.running = true;
                         }
+                    },
+                    edgeEndsChanged: (row) => {
+                        this.updateManager.placeEdgesOfRow(row);
                     },
                 },
                 this.scene,
@@ -5647,6 +5772,7 @@ export class Graph implements GraphContext {
                 requestFrame: () => {
                     this.renderManager.requestFrame();
                 },
+                settled: () => !this.isRunning() || this.layoutManager.layoutEngine?.isSettled !== false,
             });
             const batches = this.#nodeBatches;
             const target = new NodeIdTarget(this.scene, {
@@ -5674,6 +5800,7 @@ export class Graph implements GraphContext {
             });
             useEdgeIdTarget(this.scene, this.#edgeIds);
         } else if (!batched && this.#nodeBatches !== null) {
+            pulledCapHosts.delete(this.scene);
             useEdgeIdTarget(this.scene, null);
             this.#edgeIds?.dispose();
             this.#edgeIds = null;
@@ -5684,11 +5811,7 @@ export class Graph implements GraphContext {
             this.#edgeRowLines = null;
             this.#nodeBatches.dispose();
             this.#nodeBatches = null;
-            const nodes = [...dataManagerInternals.builtNodes(this.dataManager)];
-            // Translucent instances blend in the order the scene lists them: in row order, as the objects path
-            // builds them, not with the Nodes built under batches (a read, a hover) before the rest.
-            nodes.sort((a, b) => a.index - b.index);
-            drawLast(nodes.flatMap((node) => node.drawnPickMesh ?? []));
+            // the Nodes built under batches (a read, a hover) draw in row order with the rest (`drawInRowOrder`)
         }
 
         // Plain edges are pulled on "batched" (`Edge.pullsLine`): repaint them when that changes.
@@ -5788,7 +5911,7 @@ export class Graph implements GraphContext {
     getDrawnTarget(): DrawnTarget | null {
         const { engine } = this;
         const table = this.#rowTable;
-        if (this.#renderPath !== "batched" || table === null) {
+        if (!this.#batchesDraw() || table === null) {
             return null;
         }
 
@@ -6029,8 +6152,8 @@ export class Graph implements GraphContext {
         // Their shared action manager is made here too, so it belongs to the scene from the start.
         // Under "batched" it waits for the first object row's mesh: until a mesh has an action,
         // Babylon runs no pick on a move (design/rendering/row-renderer.md 4.4).
-        nodePointerRosterOf(this.scene);
-        if (this.#renderPath !== "batched") {
+        const nodeRoster = nodePointerRosterOf(this.scene);
+        if (!this.#batchesDraw()) {
             nodeActionManagerOf(this.scene);
         }
 
@@ -6042,17 +6165,28 @@ export class Graph implements GraphContext {
         // The newest move whose answer was heard: an older read landing later is dropped, but a
         // pointer that keeps moving still hears each read one late, instead of never (#8016).
         let edgeHoverHeard = 0;
+        // The pointer leaving the canvas ends an edge hover; a read still under way for an earlier move is dropped.
+        const leaveEdge = (): void => {
+            edgeHoverHeard = edgeHoverMoves;
+            this.#hoverEdge(undefined, 0, 0);
+        };
         this.scene.onPointerObservable.add((pointerInfo) => {
             const move = ++edgeHoverMoves;
             const canvas = this.scene.getEngine().getInputElement();
             const { buttons } = pointerInfo.event as { buttons?: number };
+            const { pointerX: x, pointerY: y } = this.scene;
+            // Whether a node is under the pointer is read from what Babylon picked (a mesh with pointer
+            // actions) and from the nodes' own hover (a batched row), never from the cursor: a consumer
+            // may handle cursors itself (`doNotHandleCursors`) or give nodes the default cursor.
             if (
                 !canvas ||
-                this.scene.doNotHandleCursors ||
                 (buttons ?? 0) !== 0 ||
-                canvas.style.cursor === this.scene.hoverCursor ||
+                nodeRoster.overId !== undefined ||
+                this.scene.meshUnderPointer?._getActionManagerForTrigger()?.hasPointerTriggers === true ||
                 (this.scene.metadata as GraphSceneMetadata | null)?.xrHelper?.baseExperience?.state === WebXRState.IN_XR
             ) {
+                // Over a node, in a drag or in XR: no edge is hovered.
+                leaveEdge();
                 return;
             }
 
@@ -6062,15 +6196,21 @@ export class Graph implements GraphContext {
                 }
 
                 edgeHoverHeard = move;
-                if (edgeId !== undefined) {
+                if (edgeId !== undefined && !this.scene.doNotHandleCursors) {
                     canvas.style.cursor = this.scene.hoverCursor;
                 }
+
+                if (edgeId !== undefined) {
+                    canvas.addEventListener("pointerleave", leaveEdge);
+                }
+
+                this.#hoverEdge(edgeId, x, y);
             };
             const edgeId = hoverEdgeAt(
                 this.scene,
                 () => this.builtEdges(),
-                this.scene.pointerX,
-                this.scene.pointerY,
+                x,
+                y,
                 (point) => this.worldToScreen(point),
                 this.rowLinePicks(),
             );
@@ -6080,6 +6220,11 @@ export class Graph implements GraphContext {
                 over(edgeId);
             }
         }, PointerEventTypes.POINTERMOVE);
+
+        // A hovered edge's tooltip is kept true while the pointer is still (removed edge, restyle, layout, camera).
+        this.scene.onBeforeRenderObservable.add(() => {
+            this.#syncHoveredEdge();
+        });
 
         // The pointer cursor over a close button, put back when the pointer leaves it. Only the
         // cursor this set is put back, so nothing else's cursor is touched.
@@ -6098,6 +6243,195 @@ export class Graph implements GraphContext {
                 this.canvas.style.cursor = over ? "pointer" : this.scene.defaultCursor;
             }
         });
+    }
+
+    /**
+     * The edge the pointer is over: how far along it the pointer met it, and the tooltip drawn for it
+     * when a style layer gave it one, with what it was drawn from so a change to any of it is seen.
+     */
+    #hoveredEdge: EdgeHover | undefined;
+
+    /**
+     * The pointer is over an edge, or over none. Arriving at an edge emits `edge-hover` and draws the
+     * edge's tooltip (`edge.tooltip`) where the pointer met the line; leaving it takes the tooltip down.
+     * The same on both render paths: an edge drawn with no `Edge` is read from its row and none is built.
+     * @param edgeId - The edge, or undefined for none.
+     * @param x - The pointer's x on the canvas, in CSS pixels.
+     * @param y - The pointer's y on the canvas, in CSS pixels.
+     */
+    #hoverEdge(edgeId: EdgeId | undefined, x: number, y: number): void {
+        if (edgeId === this.#hoveredEdge?.id) {
+            return;
+        }
+
+        this.#hoveredEdge?.tooltip?.dispose();
+        this.#hoveredEdge = undefined;
+        if (edgeId === undefined) {
+            return;
+        }
+
+        const at = dataManagerInternals.edgeRowOf(this.dataManager, edgeId);
+        const hovered: EdgeHover = {
+            id: edgeId,
+            ...(at === undefined ? { along: 0.5, offset: Vector3.Zero() } : this.#whereOnEdge(at.ends, x, y)),
+            camera: null,
+            block: undefined,
+            words: undefined,
+            anchor: Vector3.Zero(),
+            tooltip: undefined,
+        };
+        this.#hoveredEdge = hovered;
+        if (at !== undefined) {
+            this.#drawEdgeTooltip(hovered, at.row, at.ends);
+        }
+
+        this.eventManager.emitEdgeEvent("edge-hover", {
+            edgeId,
+            ...(hovered.tooltip === undefined ? {} : { tooltip: hovered.words }),
+        });
+    }
+
+    /**
+     * Keep the hovered edge's tooltip true while the pointer is still: it goes when the edge does, is
+     * drawn again when its words, its style or the camera change, and follows the edge as a layout
+     * moves it. Runs before each frame, and costs nothing while no edge is hovered.
+     */
+    #syncHoveredEdge(): void {
+        const hovered = this.#hoveredEdge;
+        if (hovered === undefined) {
+            return;
+        }
+
+        const at = dataManagerInternals.edgeRowOf(this.dataManager, hovered.id);
+        if (at === undefined) {
+            this.#hoverEdge(undefined, 0, 0);
+            return;
+        }
+
+        const { block, words } = this.#edgeTooltipWanted(hovered.id, at.row);
+        if (hovered.camera !== this.scene.activeCamera || words !== hovered.words || !isEqual(block, hovered.block)) {
+            hovered.tooltip?.dispose();
+            hovered.tooltip = undefined;
+            this.#drawEdgeTooltip(hovered, at.row, at.ends);
+            return;
+        }
+
+        const point = hovered.tooltip && this.#pointOnEdge(at.ends, hovered);
+        if (hovered.tooltip && point && !point.equalsWithEpsilon(hovered.anchor)) {
+            hovered.anchor.copyFrom(point);
+            hovered.tooltip.reattach();
+        }
+    }
+
+    /**
+     * What an edge's tooltip says and how it looks, as the style stack resolves it now.
+     * @param edgeId - The edge.
+     * @param row - The edge's row.
+     * @returns The block (a copy of its own) and the words, each undefined when there is no tooltip.
+     */
+    #edgeTooltipWanted(
+        edgeId: EdgeId,
+        row: number,
+    ): { block: RichTextStyleType | undefined; words: string | undefined } {
+        const block = this.stylePainter.owns ? drawnText(this.stylePainter.edgePaint(row)?.style.tooltip) : undefined;
+        if (block === undefined) {
+            return { block: undefined, words: undefined };
+        }
+
+        const data = dataManagerInternals.builtEdges(this.dataManager).get(edgeId)?.data;
+        const words = labelTextOf(data, block);
+        // CLONED: the block belongs to a paint the painter rebuilds on every call (Node.syncTooltip).
+        return { block: cloneDeep(block), words: words === "" ? undefined : words };
+    }
+
+    /**
+     * Draw the hovered edge's tooltip as the style stack resolves it now, on the edge where the pointer met it.
+     * @param hovered - The hover, whose camera, block, words, anchor and tooltip this sets.
+     * @param row - The edge's row.
+     * @param ends - The rows of the edge's two nodes.
+     */
+    #drawEdgeTooltip(hovered: EdgeHover, row: number, ends: readonly [number, number]): void {
+        const { block, words } = this.#edgeTooltipWanted(hovered.id, row);
+        hovered.camera = this.scene.activeCamera;
+        hovered.block = block;
+        hovered.words = words;
+        const point = this.#pointOnEdge(ends, hovered);
+        if (block === undefined || words === undefined || point === undefined) {
+            return;
+        }
+
+        hovered.anchor.copyFrom(point);
+        const location = block.location ?? "top-right";
+        const label = new RichTextLabel(this.scene, {
+            ...richTextLabelOptions(block, {
+                text: words,
+                attachTo: hovered.anchor,
+                attachPosition: location === "automatic" ? "top" : location,
+                attachOffset: block.attachOffset ?? 0,
+            }),
+            onTop: true,
+        });
+        // Under the pointer: it must not take the pointer from the edge or a node beneath it.
+        if (label.labelMesh) {
+            label.labelMesh.isPickable = false;
+        }
+
+        hovered.tooltip = label;
+    }
+
+    /**
+     * Where on an edge the pointer meets it: the point under the pointer at the depth of the edge's middle
+     * (on screen, where the pointer met the line), as how far along the edge it is and how far off the
+     * straight run between the ends, so the point can follow the edge as it moves.
+     * @param ends - The rows of the edge's two nodes.
+     * @param x - The pointer's x on the canvas, in CSS pixels.
+     * @param y - The pointer's y on the canvas, in CSS pixels.
+     * @returns 0 at the first end and 1 at the second, and the offset; the middle when the ends are not drawn.
+     */
+    #whereOnEdge(ends: readonly [number, number], x: number, y: number): { along: number; offset: Vector3 } {
+        const camera = this.scene.activeCamera;
+        const [a, b] = ends.map((row) => this.#rowWorldCentre(row));
+        if (!camera || a === undefined || b === undefined) {
+            return { along: 0.5, offset: Vector3.Zero() };
+        }
+
+        const ray = this.scene.createPickingRay(x, y, Matrix.Identity(), camera);
+        const middle = a.add(b).scaleInPlace(0.5);
+        const point = ray.origin.add(ray.direction.scale(Vector3.Dot(middle.subtract(ray.origin), ray.direction)));
+        const line = b.subtract(a);
+        const length2 = line.lengthSquared();
+        const along = length2 === 0 ? 0.5 : Math.min(1, Math.max(0, Vector3.Dot(point.subtract(a), line) / length2));
+        return { along, offset: point.subtract(Vector3.Lerp(a, b, along)) };
+    }
+
+    /**
+     * The point on an edge where the pointer met it, where the edge's ends are drawn now.
+     * @param ends - The rows of the edge's two nodes.
+     * @param where - How far along the edge, and how far off its straight run.
+     * @param where.along - 0 at the first end, 1 at the second.
+     * @param where.offset - Off the straight run between the ends.
+     * @returns The point, or undefined when the edge's ends are not drawn.
+     */
+    #pointOnEdge(ends: readonly [number, number], where: { along: number; offset: Vector3 }): Vector3 | undefined {
+        const [a, b] = ends.map((row) => this.#rowWorldCentre(row));
+        return a === undefined || b === undefined
+            ? undefined
+            : Vector3.Lerp(a, b, where.along).addInPlace(where.offset);
+    }
+
+    /**
+     * Where a node row is drawn in the world, building no `Node` for a row a batch draws.
+     * @param row - The node's row.
+     * @returns The center, or undefined when the row is not drawn.
+     */
+    #rowWorldCentre(row: number): Vector3 | undefined {
+        const node = dataManagerInternals.builtNodeAtRow(this.dataManager, row);
+        if (node !== undefined) {
+            node.drawnWorldMatrix(true);
+            return node.drawnWorldPosition.clone();
+        }
+
+        return this.#columnSpots([row]).next().value?.centre;
     }
 
     /**
@@ -6275,7 +6609,7 @@ export class Graph implements GraphContext {
      * @returns "2d" or "3d".
      */
     private dimension(): "2d" | "3d" {
-        return (dispatcherOf(this.session).state.layout ?? DEFAULT_LAYOUT).dimension;
+        return (this.dispatcher().state.layout ?? DEFAULT_LAYOUT).dimension;
     }
 
     /**
@@ -6562,7 +6896,17 @@ export class Graph implements GraphContext {
             (then: (a: SubMesh, b: SubMesh) => number) =>
             (a: SubMesh, b: SubMesh): number =>
                 rank(a.getMesh()) - rank(b.getMesh()) || lineOrder(a.getMesh(), b.getMesh()) || then(a, b);
-        const opaque = byRank((a, b) => RenderingGroup.PainterSortCompare(a, b));
+        // a 2D pulled line batch draws where the line batch of its width does (`pulledLineSortsWith`), just after it
+        const painter = (a: SubMesh, b: SubMesh): number => {
+            const [ma, mb] = [a.getMesh(), b.getMesh()];
+            const [pa, pb] = [pulledLineSortsWith.get(ma) ?? ma, pulledLineSortsWith.get(mb) ?? mb];
+            if (pa === pb) {
+                return Number(pa !== ma) - Number(pb !== mb);
+            }
+
+            return pa.material && pb.material ? pa.material.uniqueId - pb.material.uniqueId : pa.uniqueId - pb.uniqueId;
+        };
+        const opaque = byRank(painter);
         this.scene.setRenderingOrder(
             0,
             opaque,
@@ -11039,10 +11383,25 @@ export class Graph implements GraphContext {
 
     /**
      * Get all edges, in the order the edge pick walks them.
+     *
+     * On the `"batched"` render path most edges are drawn from row tables with no `Edge` object.
+     * As with {@link Graph.getNodes}, the array builds an edge's `Edge` only when that element is
+     * first read: the call and `length` stay cheap, and walking the whole array builds every `Edge`.
+     * To enumerate the edges of a large graph, walk {@link Graph.getEdgeIds}.
      * @returns Array of all edge instances
      */
     getEdges(): Edge[] {
-        return Array.from(this.dataManager.edges.values());
+        return dataManagerInternals.edgeList(this.dataManager);
+    }
+
+    /**
+     * Get the id of every edge, building no `Edge` object, in the order {@link Graph.getEdges}
+     * returns the edges.
+     * @returns The ids.
+     * @since 3.40.0
+     */
+    getEdgeIds(): string[] {
+        return [...this.dataManager.edges.keys()];
     }
 
     /**
@@ -11835,6 +12194,9 @@ export class Graph implements GraphContext {
             // for `view.immersive` with `null` (`xrSessionEnded`).
             onSessionEnded: ({ mode, cause }) => {
                 this.xrSessionEnded(mode === "immersive-vr" ? "vr" : "ar", cause);
+            },
+            onFrameError: (error) => {
+                this.eventManager.emitGraphError(this, error, "xr", error.details);
             },
         };
     }

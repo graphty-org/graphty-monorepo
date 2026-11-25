@@ -10,7 +10,16 @@
  * first frame, so the batched path keeps rows with no Node object (the graphty app's state); the
  * lazy check runs before the layout starts. Never call `getNode`, `getEdges` or `edgeBetween`
  * before that check: they build rows and hide the defect. The "and then" cases call them on
- * purpose, part way through a run.
+ * purpose, part way through a run. Other "and then" steps remove a node, an edge, a node and then add one, or undo
+ * and redo a removal: a removal renumbers the batched rows while the layout places nodes by row, so they also check
+ * that each kept node keeps its own place in layout space across the step (undo stops the layout by design, so
+ * those steps check the picture at rest instead).
+ *
+ * The "and then" steps include a real wheel zoom, a real drag on empty canvas (it turns the 3D camera
+ * and pans the 2D one) and a resize of the element; a node pushed past the canvas's edge by one of
+ * them is not required to be drawn. A last case removes the element while ngraph runs, inserts it
+ * again in a later task (a new engine, row table and picking buffers), checks the frames of the
+ * layout it resumes and hovers nodes with the real mouse.
  *
  * Run (from graphty-element; about four minutes for each project):
  *   ../tools/with-browser.sh ../tools/low-priority.sh npx vitest run --project=browser \
@@ -27,17 +36,21 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
 import { dataManagerInternals } from "../../src/managers/DataManager";
+import { minimumWorkPerFrame, setMinimumWorkPerFrame } from "../../src/managers/minimumWork";
 import type { RenderPath } from "../../src/meshes/NodeBatch";
 import { drawnFrames, recordDrawnFrames } from "../helpers/drawn-frames";
 import {
     arrowTipsOff,
     drawnRadius,
+    furthestMove,
+    keptPlaceJump,
+    layoutPlaces,
     type Picture,
     strayInk,
     undrawnEdges,
     undrawnNodes,
 } from "../helpers/drawn-invariants";
-import { drag, hover, nodePoint } from "../helpers/real-input";
+import { drag, hover, nodePoint, wheel } from "../helpers/real-input";
 import { edgeBetween } from "../helpers/testSetup";
 
 type View = "2d" | "3d";
@@ -190,6 +203,26 @@ afterEach(() => {
 });
 
 /**
+ * The style layers that give nodes and edges the inks the frame checks tell apart.
+ * @param element - The element.
+ * @param kind - The edges loaded.
+ */
+async function addInk(element: Graphty, kind: Kind): Promise<void> {
+    await element.session.styles.add({
+        name: "Node ink",
+        target: "node",
+        selector: { match: "everything" },
+        set: { "node.color": "#2040ff", "node.size": 1 },
+    });
+    await element.session.styles.add({
+        name: "Edge ink",
+        target: "edge",
+        selector: { match: "everything" },
+        set: { "edge.color": "#ff00ff", "edge.width": 6, ...KIND_STYLE[kind] },
+    });
+}
+
+/**
  * An element already drawn, empty, then given the disjoint fixture: the way a file loads in the
  * graphty app, and the only way rows are stored with no Node on the batched path.
  * @param path - The render path.
@@ -211,18 +244,7 @@ async function mounted(path: RenderPath, view: View, kind: Kind): Promise<Grapht
     });
     await element.updateComplete;
     await element.setViewMode(view);
-    await element.session.styles.add({
-        name: "Node ink",
-        target: "node",
-        selector: { match: "everything" },
-        set: { "node.color": "#2040ff", "node.size": 1 },
-    });
-    await element.session.styles.add({
-        name: "Edge ink",
-        target: "edge",
-        selector: { match: "everything" },
-        set: { "edge.color": "#ff00ff", "edge.width": 6, ...KIND_STYLE[kind] },
-    });
+    await addInk(element, kind);
     await operationQueueOf(element.graph).waitForCompletion();
     await element.waitForStableFrame();
 
@@ -261,6 +283,8 @@ function assertLazy(element: Graphty): void {
 interface Run {
     /** Frames where at least one node moved, each checked. */
     moving: number;
+    /** Of those, the frames checked from the start of the "and then" step on. */
+    afterStep: number;
     /** What was wrong, frame by frame. */
     misses: string[];
     /** The largest distance any node moved between the first and last moving frames, in CSS pixels. */
@@ -269,6 +293,8 @@ interface Run {
     picture: string | undefined;
     /** The node centers the element reported in that frame, as JSON. */
     centers: string | undefined;
+    /** Moving frames checked after the "and then" step settled; 0 with no step. */
+    afterTaken: number;
 }
 
 /**
@@ -307,7 +333,7 @@ function hiddenAt(
 function frameCheck(
     element: Graphty,
     kind: Kind,
-    shown: () => Shown,
+    shown: () => Shown | undefined,
 ): {
     check: (picture: Picture) => Promise<string[]> | undefined;
     travelled: () => number;
@@ -333,37 +359,68 @@ function frameCheck(
         );
     return {
         check: (picture) => {
-            const { ids, pairs, arrows, allowed = [] } = shown();
-            const now = centers(ids);
-            const moved = furthest(last, now);
-            last = now;
+            const showing = shown();
+            if (showing === undefined) {
+                // A frame drawn while a removal or an undo is under way: either state may be drawn.
+                return undefined;
+            }
+
+            const { ids: all, pairs: allPairs, arrows: allArrows, allowed = [] } = showing;
+            const everywhere = centers(all);
+            const moved = furthest(last, everywhere);
+            last = everywhere;
             if (moved < STILL_PX) {
                 return undefined;
             }
 
-            if (drawnRadius(picture, [...now.values()]) < MIN_RADIUS_PX) {
+            // A camera move or a resize can put a node past the canvas's edge, where it is not drawn: only
+            // the nodes wholly on the canvas, and the edges between two of them, must be drawn. Any edge's
+            // ink is still allowed, and the nodes off it still count as places ink may be.
+            const radius = drawnRadius(picture, [...everywhere.values()]);
+            const canvas = element.graph.engine.getRenderingCanvas();
+            const width = canvas?.clientWidth ?? 0;
+            const height = canvas?.clientHeight ?? 0;
+            const margin = radius + 2;
+            const inView = (id: string): boolean => {
+                const c = everywhere.get(id);
+                return (
+                    c !== undefined && c.x >= margin && c.y >= margin && c.x <= width - margin && c.y <= height - margin
+                );
+            };
+            const ids = all.filter(inView);
+            const both = (pair: Pair): boolean => inView(pair[0]) && inView(pair[1]);
+            const pairs = allPairs.filter(both);
+            const now = new Map([...everywhere].filter(([id]) => inView(id)));
+            if (radius < MIN_RADIUS_PX) {
                 // Framed so far out that a node is a pixel and an edge a faint tint: nothing can be
                 // told apart. Not counted, so a run must still show enough frames that can be read.
                 return undefined;
             }
 
-            first ??= now;
+            first ??= everywhere;
             seen.push(now);
             // All three read the picture and the node centers now, in this frame, before they await.
             const curves = kind === "curved" ? curveEndsOff(picture, pairs, now) : [];
-            const undrawn = kind === "curved" ? Promise.resolve([]) : undrawnEdges(element, pairs, picture);
+            // Every edge is read, so every node counts as drawn over an edge, and only those in view are kept.
+            const undrawn =
+                kind === "curved"
+                    ? Promise.resolve([])
+                    : undrawnEdges(element, allPairs, picture).then((found) => found.filter(both));
             const stray =
                 kind === "curved"
                     ? Promise.resolve([])
-                    : strayInk(element, ids, [...pairs, ...allowed], picture, hiddenAt(element, ids, allowed));
-            const tips = kind === "curved" ? Promise.resolve([]) : arrowTipsOff(element, arrows, picture);
+                    : strayInk(element, all, [...allPairs, ...allowed], picture, hiddenAt(element, all, allowed));
+            const tips =
+                kind === "curved"
+                    ? Promise.resolve([])
+                    : arrowTipsOff(element, allArrows, picture).then((found) => found.filter(both));
             const labels =
                 kind === "labeled"
                     ? strayLabels(
                           picture,
-                          pairs.flatMap(([a, b]) => {
-                              const p = now.get(a);
-                              const q = now.get(b);
+                          allPairs.flatMap(([a, b]) => {
+                              const p = everywhere.get(a);
+                              const q = everywhere.get(b);
                               return p === undefined || q === undefined
                                   ? []
                                   : [{ x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 }];
@@ -401,14 +458,16 @@ interface Shown {
 interface RunOptions {
     /** Called once, after a third of the frames, for an "and then" step. */
     during?: () => Promise<void>;
-    /** The nodes and edges expected on screen; every node and edge by default. */
-    shown?: () => Shown;
+    /** The nodes and edges expected on screen, or undefined to leave a frame unchecked; everything by default. */
+    shown?: () => Shown | undefined;
     /**
      * After `start` returns: draw on until enough moving frames or the layout settles (default);
      * draw on until enough moving frames or {@link STILL_FRAMES} frames in a row where nothing
      * moved (a transition, which outlives the layout's own settling); or stop at once (a drag).
      */
     afterStart?: "until settled" | "until still" | "stop";
+    /** Also end once the layout has stopped running: an undo stops it and restores the arrangement, with no settle. */
+    untilStopped?: boolean;
 }
 
 /**
@@ -440,7 +499,7 @@ async function checkWhileMoving(
     start: () => Promise<unknown>,
     options: RunOptions = {},
 ): Promise<Run> {
-    const { during, shown, afterStart = "until settled" } = options;
+    const { during, shown, afterStart = "until settled", untilStopped = false } = options;
     let settled = false;
     const onSettled = (): void => {
         settled = true;
@@ -452,38 +511,56 @@ async function checkWhileMoving(
     const all = everything(kind);
     const frames = frameCheck(element, kind, shown ?? (() => all));
     const record = recordDrawnFrames(element, frames.check);
-    await start();
-    const scene = element.graph.getScene();
-    let stepped = during === undefined;
-    const drawOn = afterStart !== "stop";
-    let still = 0;
-    const done = (): boolean =>
-        record.checked >= MOVING_FRAMES || (afterStart === "until settled" ? settled : still >= STILL_FRAMES);
-    for (let i = 0; i < FRAME_BOUND && drawOn && !done(); i++) {
-        const before = record.checked;
-        await drawnFrames(scene, 1);
-        still = record.checked === before ? still + 1 : 0;
-        if (!stepped && record.checked >= MOVING_FRAMES / 3) {
-            stepped = true;
-            await during?.();
+    // A layout run takes one layout round per drawn frame. Otherwise a slow frame catches up
+    // several rounds (UpdateManager's catch-up, by the clock), so under load the layout settles in
+    // fewer drawn frames than ENOUGH_FRAMES and the case checks almost nothing. The "minimum-work"
+    // project has the mode on already, so it is put back as it was.
+    const wasOn = minimumWorkPerFrame();
+    setMinimumWorkPerFrame(wasOn || afterStart === "until settled");
+    try {
+        await start();
+        const scene = element.graph.getScene();
+        let stepped = during === undefined;
+        let checkedAtStep = 0;
+        const drawOn = afterStart !== "stop";
+        let still = 0;
+        let atStep: number | undefined;
+        const done = (): boolean =>
+            record.checked >= MOVING_FRAMES ||
+            (untilStopped && !element.isRunning()) ||
+            (afterStart === "until settled" ? settled : still >= STILL_FRAMES);
+        for (let i = 0; i < FRAME_BOUND && drawOn && !done(); i++) {
+            const before = record.checked;
+            await drawnFrames(scene, 1);
+            still = record.checked === before ? still + 1 : 0;
+            if (!stepped && record.checked >= MOVING_FRAMES / 3) {
+                stepped = true;
+                checkedAtStep = record.checked;
+                await during?.();
+                atStep = record.checked;
+            }
         }
-    }
 
-    if (!drawOn) {
-        // The last move's frame.
-        await drawnFrames(scene, 2);
-    }
+        if (!drawOn) {
+            // The last move's frame.
+            await drawnFrames(scene, 2);
+        }
 
-    const misses = await record.stop();
-    const missed = /^frame (\d+):/.exec(misses[0] ?? "");
-    const centers = missed === null ? undefined : frames.centers(Number(missed[1]));
-    return {
-        moving: record.checked,
-        misses,
-        travelled: frames.travelled(),
-        picture: record.firstMiss(),
-        centers: centers === undefined ? undefined : JSON.stringify(Object.fromEntries(centers)),
-    };
+        const misses = await record.stop();
+        const missed = /^frame (\d+):/.exec(misses[0] ?? "");
+        const centers = missed === null ? undefined : frames.centers(Number(missed[1]));
+        return {
+            moving: record.checked,
+            afterStep: record.checked - checkedAtStep,
+            misses,
+            travelled: frames.travelled(),
+            picture: record.firstMiss(),
+            centers: centers === undefined ? undefined : JSON.stringify(Object.fromEntries(centers)),
+            afterTaken: atStep === undefined ? 0 : record.checked - atStep,
+        };
+    } finally {
+        setMinimumWorkPerFrame(wasOn);
+    }
 }
 
 /**
@@ -559,16 +636,17 @@ function frameClock(element: Graphty): void {
  * @param element - The element.
  * @param kind - The edges loaded.
  */
-async function assertAtRest(element: Graphty, kind: Kind): Promise<void> {
+async function assertAtRest(element: Graphty, kind: Kind, shown: Shown = everything(kind)): Promise<void> {
     await operationQueueOf(element.graph).waitForCompletion();
     await element.waitForStableFrame();
-    const { pairs, arrows } = everything(kind);
+    const { ids, pairs, arrows } = shown;
     if (kind === "curved") {
         return;
     }
 
+    assert.deepEqual(await undrawnNodes(element, ids), [], "at rest, nodes not drawn at their places");
     assert.deepEqual(await undrawnEdges(element, pairs), [], "at rest, edges not drawn between their nodes");
-    assert.deepEqual(await strayInk(element, IDS, pairs), [], "at rest, ink away from every node and edge");
+    assert.deepEqual(await strayInk(element, ids, pairs), [], "at rest, ink away from every node and edge");
     assert.deepEqual(await arrowTipsOff(element, arrows), [], "at rest, arrows short of their targets");
 }
 
@@ -643,10 +721,142 @@ interface AndThen {
     step: (element: Graphty) => Promise<void>;
     /** What is shown once it is taken; everything by default. */
     after?: (element: Graphty) => Shown;
+    /**
+     * Frames drawn while the step is being taken are left unchecked: a removal or an undo is drawn in some frame
+     * before its promise settles, and neither the old nor the new list of what is shown holds for that frame alone
+     * (a removed node has no place left to look for stray ink at). Every frame after the step settles is checked.
+     */
+    uncheckedWhileTaken?: boolean;
+    /**
+     * The step stops the layout: undo and redo stop a running layout and put back the arrangement the history
+     * holds (design/undo/undo-design.md section 6.2), as the build from before the renderer optimizations does. The
+     * frames after it are checked while anything still moves, then the picture at rest.
+     */
+    stopsLayout?: boolean;
+    /**
+     * Every node the step keeps keeps its own place in layout space across the step (checked by
+     * {@link keptPlaceJump}): rows renumbered under a running layout must not hand one node another's place.
+     */
+    keepsPlaces?: boolean;
 }
+
+/** Moving frames a removal step must be followed by, checked: the renumbered rows' first landings and more. */
+const STEP_FRAMES = 5;
 
 /** The nodes kept by the filter step: the first six pairs. */
 const KEPT: readonly string[] = IDS.slice(0, 12);
+
+/**
+ * The id the element gave an edge of the arrow fixture: it numbers edges in the order they were added, and
+ * {@link mounted} adds them in one write, in the order {@link JOINS} lists them. Read this way, not through
+ * `edgeBetween`, so removing an edge does not first build its Edge object.
+ * @param pair - The edge.
+ * @returns Its id.
+ */
+function fixtureEdgeId(pair: Pair): string {
+    const i = JOINS.findIndex(([a, b]) => a === pair[0] && b === pair[1]);
+    assert.isAtLeast(i, 0, `${pair.join("-")} is a fixture edge`);
+    return String(i);
+}
+
+/**
+ * What the arrow fixture shows once some nodes (and every edge touching one) and some edges are gone and others
+ * added.
+ * @param gone - The nodes removed.
+ * @param goneEdges - The edges removed.
+ * @param added - The nodes and undirected edges added.
+ * @param added.ids - The nodes.
+ * @param added.pairs - The edges.
+ * @returns What is shown.
+ */
+function shownWithout(
+    gone: readonly string[],
+    goneEdges: readonly Pair[] = [],
+    added: { ids: readonly string[]; pairs: readonly Pair[] } = { ids: [], pairs: [] },
+): Shown {
+    const all = everything("arrow");
+    const kept = (pair: Pair): boolean =>
+        !pair.some((id) => gone.includes(id)) && !goneEdges.some(([a, b]) => a === pair[0] && b === pair[1]);
+    return {
+        ids: [...all.ids.filter((id) => !gone.includes(id)), ...added.ids],
+        pairs: [...all.pairs.filter(kept), ...added.pairs],
+        arrows: all.arrows.filter(kept),
+    };
+}
+
+/**
+ * Removing a node or an edge renumbers the rows after it on the batched path (the store freezes again), while the
+ * layout keeps placing nodes by row and landings are copied by row: an old place on a renumbered row, or a pulled
+ * line or arrowhead left joining the old rows, shows in the frames after the step. Undo brings the rows back
+ * through the records. Pairs with an even number are directed in the arrow fixture, odd ones are not.
+ */
+const REMOVALS: readonly AndThen[] = [
+    {
+        name: "a node of an arrowed pair removed",
+        step: async (element) => {
+            await element.session.data.removeNodes(["p8a"]);
+        },
+        after: () => shownWithout(["p8a"]),
+        uncheckedWhileTaken: true,
+        keepsPlaces: true,
+    },
+    {
+        name: "a plain edge removed",
+        step: async (element) => {
+            const before = element.session.data.snapshot().edgeCount;
+            await element.session.data.removeEdges([fixtureEdgeId(["p9a", "p9b"])]);
+            assert.strictEqual(element.session.data.snapshot().edgeCount, before - 1, "one edge went");
+        },
+        after: () => shownWithout([], [["p9a", "p9b"]]),
+        uncheckedWhileTaken: true,
+        keepsPlaces: true,
+    },
+    {
+        name: "an arrowed edge removed",
+        step: async (element) => {
+            const before = element.session.data.snapshot().edgeCount;
+            await element.session.data.removeEdges([fixtureEdgeId(["p10a", "p10b"])]);
+            assert.strictEqual(element.session.data.snapshot().edgeCount, before - 1, "one edge went");
+        },
+        after: () => shownWithout([], [["p10a", "p10b"]]),
+        uncheckedWhileTaken: true,
+        keepsPlaces: true,
+    },
+    {
+        // The add after the removal freezes the store over the renumbered rows again.
+        name: "a node removed and another added",
+        step: async (element) => {
+            await element.session.data.removeNodes(["p11a"]);
+            await element.session.data.addNodes([{ id: "late", position: { x: 0, y: 0, z: 0 } }]);
+            await element.session.data.addEdges([{ source: "late", target: "p6a", directed: false }]);
+        },
+        after: () => shownWithout(["p11a"], [], { ids: ["late"], pairs: [["late", "p6a"]] }),
+        uncheckedWhileTaken: true,
+        keepsPlaces: true,
+    },
+    {
+        name: "a triangle corner's removal undone",
+        step: async (element) => {
+            await element.session.data.removeNodes(["t1a"]);
+            const undone = await element.session.undo();
+            assert.strictEqual(undone.kind, "undone", "the removal was undone");
+        },
+        uncheckedWhileTaken: true,
+        stopsLayout: true,
+    },
+    {
+        name: "a triangle corner's removal undone and redone",
+        step: async (element) => {
+            await element.session.data.removeNodes(["t1a"]);
+            await element.session.undo();
+            const redone = await element.session.redo();
+            assert.strictEqual(redone.kind, "redone", "the removal was redone");
+        },
+        after: () => shownWithout(["t1a"]),
+        uncheckedWhileTaken: true,
+        stopsLayout: true,
+    },
+];
 
 const AND_THEN: readonly AndThen[] = [
     {
@@ -693,6 +903,8 @@ const AND_THEN: readonly AndThen[] = [
             const all = everything("arrow");
             return { ...all, ids: [...all.ids, "late"], pairs: [...all.pairs, ["late", "p6a"]] };
         },
+        // the control for the removals: an add renumbers no row
+        keepsPlaces: true,
     },
     {
         name: "a node hidden by a style",
@@ -744,29 +956,156 @@ const AND_THEN: readonly AndThen[] = [
         },
     },
     {
+        name: "a real wheel zoom",
+        step: async (element) => {
+            await wheel(element, { x: SIZE / 2, y: SIZE / 2 }, -150);
+        },
+    },
+    {
+        // From the corner, which no node reaches: in 3D the drag turns the camera, in 2D it pans.
+        name: "a real camera orbit drag",
+        step: async (element) => {
+            await drag(element, { x: 4, y: 4 }, { x: 74, y: 44 }, 8);
+        },
+    },
+    {
+        name: "a resize of the element",
+        step: async (element) => {
+            element.style.width = "343px";
+            element.style.height = "301px";
+            await Promise.resolve();
+        },
+    },
+    {
         name: "a screenshot",
         step: async (element) => {
             const shot = await element.captureScreenshot();
             assert.isAbove(shot.blob.size, 0, "the screenshot has a picture");
         },
     },
+    ...REMOVALS,
 ];
 
 describe.each(["objects", "batched"] as const)("and then, part way through ngraph on the %s path", (path) => {
     describe.each(["2d", "3d"] as const)("in %s", (view) => {
-        it.each(AND_THEN)("arrowed and plain edges follow every frame after $name", async ({ step, after }) => {
+        it.each(AND_THEN)("arrowed and plain edges follow every frame after $name", async (andThen) => {
+            const { step, after, uncheckedWhileTaken = false, stopsLayout = false, keepsPlaces = false } = andThen;
             const element = await mounted(path, view, "arrow");
             assertLazy(element);
+            let taking = false;
             let taken = false;
+            // A node kept by a removal keeps its own place: rows renumbered under a running layout must not hand
+            // one node another's place. Read in layout space, beside the fastest a node moved in the frame before.
+            const continuous = keepsPlaces;
+            let jump = "";
             const run = await checkWhileMoving(element, "arrow", () => element.setLayout("ngraph", { seed: 7 }), {
                 during: async () => {
+                    const scene = element.graph.getScene();
+                    const kept = (after?.(element) ?? everything("arrow")).ids.filter((id) =>
+                        (IDS as readonly string[]).includes(id),
+                    );
+                    const earlier = layoutPlaces(element, kept);
+                    await drawnFrames(scene, 1);
+                    const before = layoutPlaces(element, kept);
+                    const speed = furthestMove(earlier, before);
+                    let drawn = 0;
+                    const counting = scene.onAfterRenderObservable.add(() => {
+                        drawn++;
+                    });
+                    taking = true;
                     await step(element);
                     taken = true;
+                    scene.onAfterRenderObservable.remove(counting);
+                    if (continuous) {
+                        jump = keptPlaceJump(before, layoutPlaces(element, kept), speed, drawn);
+                    }
                 },
-                shown: () => (taken && after !== undefined ? after(element) : everything("arrow")),
+                shown: () => {
+                    if (taking && !taken && uncheckedWhileTaken) {
+                        return undefined;
+                    }
+
+                    return taken && after !== undefined ? after(element) : everything("arrow");
+                },
+                untilStopped: stopsLayout,
             });
             assert.isTrue(taken, "the step was taken while the nodes moved");
+            assert.strictEqual(jump, "", "a node kept by the step kept its own place");
+            if (uncheckedWhileTaken && !stopsLayout) {
+                assert.isAtLeast(run.afterTaken, STEP_FRAMES, "the nodes went on moving after the step");
+            }
+
+            if (!stopsLayout) {
+                // A step that stops the layout leaves no moving frames after it: its picture is checked at rest.
+                assert.isAtLeast(run.afterStep, 5, "frames were checked during and after the step");
+            }
+
             assertFollowed(run);
+            if (stopsLayout) {
+                assert.isFalse(element.isRunning(), "the step stopped the layout");
+                await assertAtRest(element, "arrow", after?.(element) ?? everything("arrow"));
+            }
         });
     });
 });
+
+describe.each(["objects", "batched"] as const)(
+    "removed part way through ngraph and inserted again on the %s path",
+    (path) => {
+        it("draws every edge between its nodes on every frame, and hovers the node under the real pointer", async () => {
+            const element = await mounted(path, "2d", "arrow");
+            assertLazy(element);
+            // One layout round per frame from the start, as checkWhileMoving does for its own runs:
+            // switched on only after the inks are added again below, their repaint would be split
+            // part way and frames would be read with edges not yet painted.
+            const wasOn = minimumWorkPerFrame();
+            setMinimumWorkPerFrame(true);
+            cleanups.push(() => {
+                setMinimumWorkPerFrame(wasOn);
+            });
+            await element.setLayout("ngraph", { seed: 7 });
+            await drawnFrames(element.graph.getScene(), 5);
+            assert.isTrue(element.isRunning(), "removed while the layout runs");
+            const first = element.graph.engine;
+
+            // Removed past the current task: the graph shuts down and frees its engine.
+            element.remove();
+            await vi.waitFor(() => {
+                assert.isTrue(first.isDisposed, "the first engine was released");
+            });
+            document.body.appendChild(element);
+            await vi.waitFor(() => {
+                assert.isTrue(element.graph.initialized, "the new graph finished initialising");
+            });
+            assert.notStrictEqual(element.graph.engine, first, "a new engine draws it");
+            assert.strictEqual(element.renderPath, path, "the render path came back");
+            assert.strictEqual(element.session.data.snapshot().nodeCount, IDS.length, "the nodes came back");
+            assert.isTrue(element.isRunning(), "the layout runs again");
+            assertLazy(element);
+            // Style layers added through the session are not declared by the page, so they do not
+            // come back with the new graph: add the inks again to read the frames.
+            await addInk(element, "arrow");
+            assertFollowed(await checkWhileMoving(element, "arrow", () => Promise.resolve()));
+
+            while (element.isRunning()) {
+                await drawnFrames(element.graph.getScene(), 1);
+            }
+
+            await assertAtRest(element, "arrow");
+            const missed: string[] = [];
+            for (const id of ["p0a", "p6b", "p11a", "t1c"]) {
+                const point = nodePoint(element, id);
+                await hover(element, point);
+                await operationQueueOf(element.graph).waitForCompletion();
+                await element.waitForStableFrame();
+                const hovered = String(element.session.selection.hovered ?? "none");
+                const at = element.elementAt(point);
+                if (hovered !== id || at?.id !== id) {
+                    missed.push(`${id}: hovered ${hovered}, elementAt ${String(at?.id ?? "none")}`);
+                }
+            }
+
+            assert.deepEqual(missed, [], "the real pointer on a node hovers it after the element came back");
+        });
+    },
+);

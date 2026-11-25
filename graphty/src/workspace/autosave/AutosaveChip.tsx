@@ -21,7 +21,9 @@ const TONE_COLOR = { ok: "green.8", busy: "blue.8", problem: "red.8" } as const;
 export function AutosaveChip(): React.JSX.Element {
     const { element, session, store } = useWorkspace();
     const on = useWorkspaceState((state) => state.autosave);
+    // on reload: fresh: read: read from graphty-element's autosaver
     const [status, setStatus] = useState<AutosaveStatus | null>(null);
+    // on reload: fresh: notice: what the chip says to a screen reader
     const [said, setSaid] = useState("");
 
     useEffect(() => {

@@ -164,6 +164,7 @@ export interface GraphtyElementJSXProps {
     "ongraphty-autosave-restored"?: (event: GraphtyElementEventMap["graphty-autosave-restored"]) => void;
     "ongraphty-autosave-status"?: (event: GraphtyElementEventMap["graphty-autosave-status"]) => void;
     "ongraphty-capabilities-change"?: (event: GraphtyElementEventMap["graphty-capabilities-change"]) => void;
+    "ongraphty-edge-hover"?: (event: GraphtyElementEventMap["graphty-edge-hover"]) => void;
     "ongraphty-features"?: (event: GraphtyElementEventMap["graphty-features"]) => void;
     "ongraphty-history-change"?: (event: GraphtyElementEventMap["graphty-history-change"]) => void;
     "ongraphty-label-change"?: (event: GraphtyElementEventMap["graphty-label-change"]) => void;
@@ -220,6 +221,7 @@ export interface GraphtyElementJSXProps {
     "onrender-initialized"?: (event: CustomEvent<EventOfType<"render-initialized">>) => void;
     "onrender-lost"?: (event: CustomEvent<EventOfType<"render-lost">>) => void;
     "onrender-restored"?: (event: CustomEvent<EventOfType<"render-restored">>) => void;
+    "onrender-warning"?: (event: CustomEvent<EventOfType<"render-warning">>) => void;
     "onscreenshot-enhancing"?: (event: CustomEvent<EventOfType<"screenshot-enhancing">>) => void;
     "onscreenshot-ready"?: (event: CustomEvent<EventOfType<"screenshot-ready">>) => void;
     "onselection-changed"?: (event: CustomEvent<EventOfType<"selection-changed">>) => void;

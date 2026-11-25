@@ -73,9 +73,14 @@ Checks that hover, the `graphty-node-hover` event, `elementAt`, `screenToWorld`,
 click's selection agree with each other, on `renderPath: "objects"` and `"batched"`, for nodes of
 every size and place, every kind of edge, shift, ctrl and right-click selection, the Hovered and
 Selected layers' pixels on a plain edge, a hover on every node of a seeded 200-node graph, a hover
-while a force layout moves the node, and a click on a settled layout. Each case sets its own render
+while a force layout moves the node, a click on a settled layout, and hover, click and `elementAt` on
+nodes whose rows were renumbered by a removal (and its undo) while a force layout ran. The "pointing after the view
+changes" cases change the view after a first pick (a resize bigger, smaller and to an odd size, a
+pixel ratio of 2 and 1.5, a real wheel zoom, a real drag that turns or pans the camera) and then
+point at every node and edge again, so a hover or click that reads a picking buffer left at the old
+size or camera fails. Each case sets its own render
 path, so the forced-batched project skips the file. It runs with the rest of this project on pull
-requests (about two and a half minutes, most of it the 200-node hover):
+requests (about three and a half minutes, most of it the 200-node hover and the view changes):
 
 ```bash
 npx vitest run --project=interactions test/interactions/pick-parity.test.ts
@@ -89,6 +94,25 @@ each `[pick-parity]` line whose path is `objects` (key to value).
 
 The two `selection ctrl-click t0` entries are edited by hand: since #9907 a Ctrl-click adds the node to
 the selection (or takes it out) instead of replacing it, so they record the toggle, not that build's answer.
+The twelve `a pixel ratio of 1.5` and `a pixel ratio of 2` `edge ... middle` entries are edited by hand too:
+that build found no edge at a pixel ratio other than 1 (#9917), so they record the edge found, as every
+`edge ... middle` entry at ratio 1 does.
+
+### The same in WebKit (`interactions-webkit` project)
+
+Batched picking reads a pixel back from an ID render target, and WebKit's WebGL2 (what an iPad
+draws with) differs from Chromium's in read-back formats and antialias resolve. The
+`interactions-webkit` project runs part of two files in WebKit on both render paths: this file's
+nodes and edges at rest with their selection cases, and
+`test/browser/edges-follow-running-layout.test.ts`'s ngraph and glide cases (edges and arrowheads
+follow their nodes on every drawn frame). WebKit has no DevTools protocol, so
+`test/helpers/real-input.ts` makes the mouse with Playwright there (the `dispatchMouseEvent` command
+in `vitest.config.ts`). It runs in the 6-hour full run only (shard
+`graphty-element-interactions-webkit`); by hand:
+
+```bash
+npm run test:interactions-webkit
+```
 
 ## Running Tests
 

@@ -1,6 +1,6 @@
 /**
  * @file Former algorithm keys and option names, read as the current ones (spec/README.md 10.1
- * rule 2). Experimental (`save-files-v2`).
+ * rule 2).
  *
  * A renamed algorithm lists the key it replaced in `formerKeys`, with the parameters that reproduce
  * it; a renamed option lists its old names in `formerNames`. A reader meeting an old name reads it

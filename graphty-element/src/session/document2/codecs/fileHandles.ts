@@ -2,7 +2,7 @@
  * @file The browser file handles a version 2 save references file sources by (spec 4.1.2 rule 6,
  * 8.3): a handle cannot be written into a file, so graphty-element keeps it in the browser's
  * IndexedDB, keyed by source id and copy id, and the saved source has no `path`. An open reads it
- * back and checks its permission without prompting. Experimental (`save-files-v2`).
+ * back and checks its permission without prompting.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
@@ -10,8 +10,6 @@
 /**
  * A File System Access file handle, as much of it as graphty-element reads: its name, its file,
  * and its read permission where the browser has the permission calls.
- * @experimental save-files-v2
- * @beta
  */
 export interface ProjectFileHandle {
     /** The file's name. */

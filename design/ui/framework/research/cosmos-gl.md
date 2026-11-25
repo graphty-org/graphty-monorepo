@@ -12,7 +12,8 @@ Sources:
   (2026-10-14), released as `@cosmos.gl/graph` 3.5.1 under the MIT license. Every cosmos.gl path
   below (`src/...`, `docs/...`, `history/...`) is relative to that commit. Its `history/` folder
   is the authors' own engineering log, and most of cosmos.gl's measured numbers come from it.
-- **graphty**: this repository's `golden` branch on 2026-10-20. graphty paths are relative to the
+- **graphty**: this repository's `golden` branch on 2026-10-20 for sections 1 to 8.6, master on 2026-11-15 for 8.7,
+  and master at `0ab8dac1b4` on 2026-11-24 for the current numbers and 8.8. graphty paths are relative to the
   repository root.
 
 Every claim is marked as one of three kinds, and the three are never mixed in one sentence:
@@ -29,7 +30,136 @@ on the same machine.
 
 ---
 
+## Current numbers (measured 2026-11-24)
+
+Sections 1 to 8.7 are the record of how this comparison developed, and their numbers are dated. This section is the
+latest measurement; section 8.8 gives its method and detail.
+
+Measured on 2026-11-24 (Pacific time) on the machine of section 8.1: an NVIDIA RTX 4070 SUPER, headless Chromium 143,
+WebGL through ANGLE on Vulkan. graphty-element is master at `0ab8dac1b4` (the page was built from `4fea332375`, which
+adds only the harness changes), measured on both render paths:
+`renderPath: "batched"` (the row renderer) and `"objects"` (the default). cosmos.gl is 3.5.1. The harness is
+`benchmarks/compare`. Every figure is the median of three runs, interleaved round by round with the order rotated,
+each run on four CPU cores reserved for it and holding the machine's shared GPU lock. The look is 2D lean (box nodes,
+plain lines, no arrowheads), the drawing area 1,200 x 900 CSS pixels, device pixel ratio 1 unless stated. The graphs are
+random G(n, m) graphs (seed 42), and both libraries start from the same random positions. A ratio to cosmos.gl is in
+brackets; below 1x graphty-element is faster or smaller. At 1,000,000 nodes only batched runs, with `limits` raised past
+the default render ceiling of 100,000 nodes; objects refuses that load.
+
+**10,000 nodes, 100,000 edges**
+
+| Measure                           | cosmos.gl | batched         | objects          |
+| --------------------------------- | --------- | --------------- | ---------------- |
+| First frame                       | 0.16 s    | 0.48 s (3.0x)   | 2.28 s (14x)     |
+| Still frame, median / p99         | 3.6 / 6.7 ms | 7.9 / 8.4 ms (2.2x) | 13.0 / 16.1 ms (3.6x) |
+| Moving frame, median / p99        | 3.5 / 3.9 ms | 7.9 / 8.4 ms (2.3x) | 15.9 / 22.8 ms (4.5x) |
+| JavaScript heap                   | 23 MB     | 74 MB (3.2x)    | 303 MB (13x)     |
+| Renderer and GPU processes        | 428 MB    | 477 MB (1.1x)   | 756 MB (1.8x)    |
+| Hover                             | 3.8 ms    | 1.2 ms (0.3x)   | 4.4 ms (1.2x)    |
+| Lasso over the middle of the view | -         | 1.6 ms          | 8.1 ms           |
+| Frame while the layout runs       | 4.6 ms *  | 24.0 ms         | 105 ms           |
+| Hover while the layout runs       | - *       | 2.5 ms          | 2.6 ms           |
+| One layout step plus readback     | 3.3 ms *  | 5.5 ms          | 10.3 ms          |
+| Layout step in a batch            | 2.0 ms *  | 2.1 ms          | 1.4 ms           |
+
+**100,000 nodes, 1,000,000 edges**
+
+| Measure                           | cosmos.gl | batched         | objects          |
+| --------------------------------- | --------- | --------------- | ---------------- |
+| First frame                       | 0.59 s    | 4.07 s (6.9x)   | 36.8 s (62x)     |
+| Still frame, median / p99         | 28.5 / 30.2 ms | 74.0 / 77.0 ms (2.6x) | 121 / 145 ms (4.2x) |
+| Moving frame, median / p99        | 29.0 / 30.2 ms | 74.4 / 75.9 ms (2.6x) | 167 / 208 ms (5.8x) |
+| JavaScript heap                   | 161 MB    | 359 MB (2.2x)   | 2,601 MB (16x)   |
+| Renderer and GPU processes        | 602 MB    | 879 MB (1.5x)   | 3,502 MB (5.8x)  |
+| Hover                             | 29.0 ms   | 1.7 ms (0.06x)  | 48.1 ms (1.7x)   |
+| Lasso over the middle of the view | -         | 16.5 ms         | 85.9 ms          |
+| Frame while the layout runs       | 5.8 ms *  | 80.5 ms         | 1,794 ms         |
+| Hover while the layout runs       | - *       | 5.6 ms          | 22.8 ms          |
+| One layout step plus readback     | 5.4 ms *  | 90.6 ms         | 97.8 ms          |
+| Layout step in a batch            | 3.9 ms *  | 17.5 ms         | 6.0 ms           |
+
+**1,000,000 nodes, 1,000,000 edges**
+
+| Measure                           | cosmos.gl | batched         |
+| --------------------------------- | --------- | --------------- |
+| First frame                       | 1.05 s    | 10.1 s (9.6x)   |
+| Still frame, median / p99         | 28.9 / 29.8 ms | 76.4 / 81.1 ms (2.6x) |
+| Moving frame, median / p99        | 29.1 / 30.0 ms | 76.7 / 78.3 ms (2.6x) |
+| JavaScript heap                   | 270 MB    | 739 MB (2.7x)   |
+| Renderer and GPU processes        | 787 MB    | 1,325 MB (1.7x) |
+| Hover                             | 28.9 ms   | 8.0 ms (0.3x)   |
+| Lasso over the middle of the view | -         | 125 ms          |
+| Frame while the layout runs       | 22.3 ms * | 85.9 ms         |
+| Hover while the layout runs       | - *       | 53.2 ms         |
+| One layout step plus readback     | 38.3 ms * | 47.1 ms         |
+| Layout step in a batch            | 31.0 ms * | 24.1 ms         |
+
+\* cosmos.gl's force simulation does not work on this card above 4,096 points: within a few steps every point is
+pushed against the edge of its simulation space (8.8.2). Its layout rows time that broken simulation, so they are not
+compared with graphty-element's, and its points leave the view, so no hover target was left to measure while its layout
+ran.
+
+**Device pixel ratio 2** (a 2,400 x 1,800 drawing buffer; no layout in these runs):
+
+| Graph       | Measure                    | cosmos.gl | batched         | objects        |
+| ----------- | -------------------------- | --------- | --------------- | -------------- |
+| 10k + 100k  | First frame                | 0.17 s    | 0.56 s (3.3x)   | 2.49 s (15x)   |
+| 10k + 100k  | Still frame                | 6.9 ms    | 17.8 ms (2.6x)  | 23.2 ms (3.4x) |
+| 10k + 100k  | Moving frame               | 6.8 ms    | 17.9 ms (2.6x)  | 29.1 ms (4.3x) |
+| 10k + 100k  | Hover                      | 7.2 ms    | 1.6 ms (0.2x)   | 6.2 ms (0.9x)  |
+| 100k + 1M   | First frame                | 0.69 s    | 4.79 s (7.0x)   | 38.3 s (56x)   |
+| 100k + 1M   | Still frame                | 60.6 ms   | 175 ms (2.9x)   | 226 ms (3.7x)  |
+| 100k + 1M   | Moving frame               | 60.6 ms   | 175 ms (2.9x)   | 281 ms (4.6x)  |
+| 100k + 1M   | Hover                      | 61.0 ms   | 1.7 ms (0.03x)  | 53.9 ms (0.9x) |
+| 1M + 1M     | First frame                | 1.33 s    | 11.5 s (8.7x)   | -              |
+| 1M + 1M     | Still frame                | 60.5 ms   | 178 ms (2.9x)   | -              |
+| 1M + 1M     | Moving frame               | 60.5 ms   | 178 ms (2.9x)   | -              |
+| 1M + 1M     | Hover                      | 61.0 ms   | 4.6 ms (0.08x)  | -              |
+
+**Layout quality** (8.8.3). Planted partition graphs with 100 communities, scored for stress against hop distance,
+neighborhood preservation and community purity (the share of a node's 10 nearest nodes on screen that are in its own
+community; 0.01 is chance). graphty-element ran on the card; cosmos.gl's quality comes from SwiftShader, Chromium's
+software renderer, where its simulation works, so its column is the result after a number of steps, not after a time.
+
+| Graph               | graphty-element (batched)                              | cosmos.gl (SwiftShader)                         |
+| ------------------- | ------------------------------------------------------ | ----------------------------------------------- |
+| 10k nodes, 100k edges | purity 0.28 after 1 s, 0.29 after 60 s               | 0.35 after 100 steps, 0.27 when it ends (5,000) |
+| 100k nodes, 990k edges | 0.02 after 60 s, 0.35 after 120 s                   | 0.41 after 100 steps, 0.39 after 1,000          |
+| 1M nodes, 2M edges  | 0.01 after 60 s, 0.07 after 360 s                      | not run (too slow in software)                  |
+
+Judgments:
+
+- **Drawing: batched is 2.2-2.6x cosmos.gl's frame at every size at ratio 1 and 2.6-2.9x at ratio 2; objects is
+  3.4-5.8x.** The million-edge frames are
+  bound by GPU fill (8.7), so the batched ratio no longer moves with the graph's size. A hover answers faster than
+  cosmos.gl's at every size on batched, because cosmos.gl answers in its next frame.
+- **Loading is the largest gap left: 3x at 10,000 nodes, 7x at 100,000 and 10x at 1,000,000 on batched**, and 14-62x on
+  objects. Memory is 2-3x cosmos.gl's on batched, 13-16x on objects.
+- **At 10,000 nodes the two force layouts reach the same quality, and graphty-element gets there within a second.** At
+  100,000 nodes cosmos.gl's algorithm separates the communities within 100 steps, while graphty-element's default GPU
+  layout needs 60-120 s; at 1,000,000 it has barely started after six minutes. That is the main layout finding
+  (issue #10057). In its
+  first 60 s at 100,000 nodes graphty-element ran 1,875 iterations, about 31 a second, against a kernel that takes
+  under 2 ms an iteration in Node (6.2), and its picture still looked random after them, where 100 of cosmos.gl's steps
+  were enough. So it both runs fewer iterations than the card allows and gains less from each. Its step in a batch is
+  also slower on batched than on objects at that size (17.5 ms against 6.0 ms), which nobody has explained yet.
+- **cosmos.gl's simulation is unusable on this machine's card at the sizes measured**, a defect in cosmos.gl or the
+  driver stack, not in the comparison; it also explains the unexplained layout frame of 8.7.
+
+Open gaps, not estimated:
+
+- **Integrated GPU and Apple machines**: this machine has only the RTX 4070 SUPER, so neither was measured (issue
+  #10058).
+- **cosmos.gl's layout speed on a card where its simulation works**, and its settings tuned to match graphty-element's
+  (also issue #10058).
+- **Labels and the 3D default look** were not measured again since 8.3.
+
+---
+
 ## 1. Summary
+
+Written on 2026-10-20, before the row renderer; its graphty-element numbers are out of date. The current state is in
+"Current numbers" above.
 
 **Judgment: cosmos.gl's scale comes from one rule -- positions never leave the GPU.** Positions
 live in a float texture. Each force is a full-screen fragment pass. All points are one draw call
@@ -801,7 +931,162 @@ Judgments:
   100k + 1M) while holding less heap.
 - **The layout frame ratio (12x at 100k + 1M) is not like for like.** graphty-element's layout frame, 77.5 ms,
   is about its still frame, the same fill. cosmos.gl's, 6.7 ms, is far below its own 28.7 ms still frame, so it
-  does not draw the same work in each layout frame; why was not established.
+  does not draw the same work in each layout frame; why was not established. (8.8.2 answers it: on this card
+  cosmos.gl's simulation collapses, and its points pile up against the edge of its space, mostly out of view.)
+
+### 8.8 Layout quality, hover during the layout and ratio 2 (2026-11-24)
+
+The numbers that lead this document. Raw rows and generated tables: `benchmarks/results/finish-1910-cosmos/`,
+`finish-1910-batched/`, `finish-1910-objects/` (one per library or render path) and `finish-1910-quality/`, each with a
+`results.jsonl` and a `summary.md` from `benchmarks/compare/summarize.mjs`. How to run them again:
+`benchmarks/compare/RUNBOOK.md`.
+
+#### 8.8.1 Method
+
+- **The rendering and layout stages** are those of 8.2, on the batched and objects render paths and cosmos.gl, at
+  10,000 + 100,000, 100,000 + 1,000,000 and 1,000,000 + 1,000,000. Three rounds, the order of the three rotating each
+  round. The one-minute load average of the shared machine was 5.9-62 when a run began; each run held four reserved
+  CPU cores and the GPU lock, so other work did not share its cores or its card. The first frame is the figure that
+  load moves most (up to 1.5x in 8.7); each summary file gives every figure's range across its runs.
+- **Hover while the layout runs** was broken in the harness until now: it picked ten targets before the first hover,
+  the layout moved the nodes away, and the first hover that found no node waited three minutes and ended the stage.
+  Each hover now picks its own target just before the pointer moves, and one that finds no node within 10 s is
+  counted as a miss rather than a latency.
+- **Ratio 2**: graphty-element runs with `pixel-ratio="device"` and cosmos.gl with `pixelRatio: 2`, so both draw a
+  2,400 x 1,800 buffer, which section 8.3 could not compare. No layout in these runs.
+- **Layout quality**: a planted partition graph from graph-samples (`plantedPartitionGraph`, seed 42): 100 equal
+  communities, 80% of each node's edges inside its community, about 10,000 + 100,000, 100,000 + 990,000 (kept under
+  the default limit of 1,000,000 drawn edges) and 1,000,000 + 2,000,000 edges. The layout starts from the same random
+  positions for every library and runs while the page draws; its positions are copied at 1, 5, 15 and 30 s and after
+  60 s, and scored after the run by `benchmarks/compare/quality.js`:
+  - **stress**: the mean of (s x drawn distance / hop distance - 1)^2 over every node reached from 32 sampled sources,
+    with the one scale s that minimizes it; 0 is a drawing whose distances are the hop distances. Lower is better.
+  - **edge spread**: the standard deviation of the edge lengths over their mean. A random drawing scores about 0.48
+    and a drawing that pulls each community together about 1.0, because a few edges between communities stay long;
+    compare it only between drawings that both show the communities.
+  - **neighborhood**: for 500 sampled nodes, the share of a node's k nearest drawn nodes that are its k graph
+    neighbors. Higher is better.
+  - **silhouette**: the mean silhouette of the sampled nodes against the planted communities. With 100 communities
+    and the closest other community taken as the comparison, a random drawing scores below zero (-0.01 to -0.10 here),
+    so read it against the start.
+  - **purity**: the share of a sampled node's 10 nearest drawn nodes in its own community; chance is 0.01.
+  Each run also draws its final positions, one dot per node colored by community, which is where the pictures below
+  come from. graphty-element's default force layout (`ngraph`, on the GPU through webgpu-graph-algorithms) ran on the
+  card, two runs per size and path, and one longer run of six minutes at 100,000 and 1,000,000 nodes.
+
+#### 8.8.2 cosmos.gl's simulation collapses on this card
+
+Facts:
+
+- On the RTX 4070 SUPER under ANGLE on Vulkan, cosmos.gl's points leave the middle of its simulation space within
+  the first steps and pile up against two of its edges. Stepped by hand with no frames drawn, a 10,000-point graph
+  whose points start between x = 548 and 3,548 (of a 4,096 space) has every x between 23 and 59 after 10 steps. With
+  repulsion set to 0, every point lands on the same position. The layout's purity never rises above about 0.04.
+- It happens above 4,096 points and not below: 3,000 points stay in the middle and their communities separate (purity
+  0.26 after 10 steps); 5,000 points collapse. 4,096 is where cosmos.gl switches its many-body force from exact pairs
+  to the grid approximation (3.4).
+- It happens with only `--use-angle=vulkan` and `--enable-features=Vulkan` on the command line, without the harness's
+  other flags, and in every run at 10,000, 100,000 and 1,000,000 points.
+- On SwiftShader, Chromium's software renderer, the same graphs, positions and steps work: 5,000 and 10,000 points
+  separate their communities (purity 0.31-0.35), and 100,000 reach 0.41.
+
+Judgments:
+
+- The cause is in cosmos.gl's grid many-body path or in how this driver stack runs it; this comparison cannot tell
+  which. It is not something the harness does: the same page works on SwiftShader.
+- Every cosmos.gl layout figure measured on this card, here and in 8.3 and 8.7, times a collapsed simulation. That
+  explains 8.7's open question of why cosmos.gl's frame while its layout runs (5.8 ms at 100,000 nodes) is far below
+  its still frame (28.5 ms): the points are piled on the edge of the space, mostly outside the view. Its step costs
+  may still be about right, since the passes run over every point whatever their positions, but they are not used.
+
+![cosmos.gl's 10,000-point layout on the RTX 4070 SUPER after 60 s: the points are piled on two edges of its space](cosmos-gl/layout-10k-cosmos-rtx.png)
+
+#### 8.8.3 Layout quality
+
+Medians of two runs (one for the six-minute runs), scored at the time or step named. The start row is the same
+random drawing for every library.
+
+| Graph | Layout | At | Stress | Edge spread | Neighborhood | Silhouette | Purity |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 10k + 100k | random start | - | 0.221 | 0.476 | 0.002 | -0.103 | 0.008 |
+| 10k + 100k | graphty-element batched | 1 s | 0.202 | 1.024 | 0.044 | -0.063 | 0.278 |
+| 10k + 100k | graphty-element batched | 60 s | 0.201 | 1.032 | 0.047 | -0.060 | 0.292 |
+| 10k + 100k | graphty-element objects | 5 s | 0.201 | 1.031 | 0.048 | -0.062 | 0.289 |
+| 10k + 100k | graphty-element objects | 60 s | 0.201 | 1.032 | 0.047 | -0.060 | 0.292 |
+| 10k + 100k | cosmos.gl, SwiftShader | 100 steps | 0.212 | 1.065 | 0.061 | -0.043 | 0.347 |
+| 10k + 100k | cosmos.gl, SwiftShader | 5,000 steps (its end) | 0.192 | 1.020 | 0.041 | -0.080 | 0.273 |
+| 10k + 100k | cosmos.gl, on the card | 60 s | 0.342 | 0.705 | 0.004 | -0.422 | 0.025 |
+| 100k + 990k | random start | - | 0.209 | 0.476 | 0.000 | -0.038 | 0.011 |
+| 100k + 990k | graphty-element batched | 60 s | 0.206 | 0.505 | 0.001 | -0.231 | 0.024 |
+| 100k + 990k | graphty-element batched | 120 s | 0.195 | 1.102 | 0.006 | -0.046 | 0.353 |
+| 100k + 990k | graphty-element batched | 360 s | 0.195 | 1.106 | 0.005 | -0.042 | 0.348 |
+| 100k + 990k | graphty-element objects | 60 s | 0.205 | 0.492 | 0.001 | -0.186 | 0.015 |
+| 100k + 990k | cosmos.gl, SwiftShader | 100 steps | 0.214 | 1.125 | 0.007 | 0.008 | 0.406 |
+| 100k + 990k | cosmos.gl, SwiftShader | 1,000 steps | 0.198 | 1.143 | 0.007 | -0.016 | 0.386 |
+| 100k + 990k | cosmos.gl, on the card | 60 s | 0.381 | 0.780 | 0.000 | -0.069 | 0.008 |
+| 1M + 2M | random start | - | 0.196 | 0.476 | 0.000 | -0.011 | 0.011 |
+| 1M + 2M | graphty-element batched | 60 s | 0.215 | 0.620 | 0.000 | -0.019 | 0.012 |
+| 1M + 2M | graphty-element batched | 360 s | 0.182 | 0.655 | 0.000 | -0.134 | 0.068 |
+| 1M + 2M | cosmos.gl, on the card | 60 s | 0.340 | 0.689 | 0.000 | -0.017 | 0.009 |
+
+Facts:
+
+- graphty-element's layout never reported itself settled within a run, at any size. It ran about 70,000 iterations in
+  60 s at 10,000 nodes, 1,875 at 100,000 and about 2,300 at 1,000,000 (33,404 in the six-minute run).
+- cosmos.gl's simulation ends by itself after 5,000 steps (its alpha decays to its floor). On SwiftShader a step took
+  about 40-60 ms at 10,000 points and about 180-300 ms at 100,000, so its 100,000-point run was stopped at 1,000 steps
+  and the 1,000,000-point graph was not run.
+- The render path does not change the result: batched and objects reach the same scores at 10,000 nodes once each
+  has started. Objects is slower to start (its first positions land after 1-5 s instead of under 1 s).
+
+Judgments:
+
+- At 10,000 nodes graphty-element and cosmos.gl's algorithm are equal on every measure; cosmos.gl's peaks early (step
+  100) and loses a little as it cools.
+- At 100,000 nodes graphty-element needs 60-120 s of wall time to do what cosmos.gl's algorithm does in 100 steps, and
+  at 1,000,000 it is far from done after six minutes. On this card cosmos.gl's 100 steps would take well under a
+  second if its step cost the same when the simulation works (3.9 ms at 100,000 points here, 3.8 ms in 8.3). This
+  is the largest layout gap the comparison found; neither stress nor neighborhood separates the two at the end.
+
+Pictures of the final positions (one dot per node, colored by community):
+
+| 10,000 nodes | 100,000 nodes |
+| --- | --- |
+| ![graphty-element batched, 10k, after 60 s](cosmos-gl/layout-10k-graphty-element.png) graphty-element batched, 60 s | ![graphty-element batched, 100k, after 360 s](cosmos-gl/layout-100k-graphty-element-360s.png) graphty-element batched, 360 s |
+| ![cosmos.gl on SwiftShader, 10k, 5,000 steps](cosmos-gl/layout-10k-cosmos-swiftshader.png) cosmos.gl on SwiftShader, 5,000 steps | ![cosmos.gl on SwiftShader, 100k, 1,000 steps](cosmos-gl/layout-100k-cosmos-swiftshader.png) cosmos.gl on SwiftShader, 1,000 steps |
+
+![graphty-element batched, 1,000,000 nodes, after 60 s](cosmos-gl/layout-1m-graphty-element-60s.png)
+
+graphty-element batched, 1,000,000 nodes and 2,000,000 edges, after 60 s.
+
+#### 8.8.4 Hover while the layout runs
+
+Facts (medians of each run's hits, then the median across three runs):
+
+| Graph | batched | objects | hovers that found no node (batched, objects) |
+| --- | --- | --- | --- |
+| 10k + 100k | 2.5 ms | 2.6 ms | 4 and 4 of 10 |
+| 100k + 1M | 5.6 ms | 22.8 ms | 6 and 4 of 10 |
+| 1M + 1M | 53.2 ms | - | 8 of 10 |
+
+- A still hover on batched takes 1.2, 1.7 and 8.0 ms at the three sizes; while the layout runs a hover waits for the
+  frame in progress, and a frame then takes 24, 80 and 86 ms.
+- A miss means the node had moved before the pointer arrived. At 1,000,000 nodes a node is under a pixel wide, so most
+  hovers miss.
+
+#### 8.8.5 Ratio 2
+
+Facts:
+
+- Both libraries drew a 2,400 x 1,800 buffer in every run (the harness records the canvas size).
+- Going from ratio 1 to ratio 2, four times the pixels, multiplied the still frame by 1.9-2.1 for cosmos.gl, 2.3-2.4
+  for batched and 1.8-1.9 for objects. Memory did not change.
+- cosmos.gl's hover equals its frame time at both ratios (29 ms, then 61 ms at 100,000 nodes), since it detects the
+  hover while drawing its next frame; batched's hover stays under 5 ms.
+
+Judgment: at a million edges both libraries are bound by filling pixels, and batched pays a little more per pixel
+than cosmos.gl, so its ratio to cosmos.gl grows from 2.6x to 2.9x at ratio 2. Cheaper lines are the only lever on it,
+as 8.7 found.
 
 ---
 

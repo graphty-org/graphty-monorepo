@@ -2,7 +2,7 @@
  * @file The parts of the version 1 migration (spec 9.1) that read a version 1 file's own data:
  * plain JSON helpers, the version 1 column encoding, and the data section with the element
  * references every other migrated section names nodes and edges by. Experimental
- * (`save-files-v2`). Pure: no session.
+ *. Pure: no session.
  */
 
 import { sha256HexSync } from "@graphty/graph-io";

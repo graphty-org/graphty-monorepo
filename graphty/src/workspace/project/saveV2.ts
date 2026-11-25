@@ -1,5 +1,5 @@
 /**
- * Version 2 save files in the app (the "save-files-v2" experiment): the questions the Save as and
+ * Version 2 save files in the app: the questions the Save as and
  * Open dialogs ask, and the report shown after. graphty-element says what a save would write
  * (`project.describe`), what a file holds before it opens (`project.inspect`) and what each save
  * or open reported; this file only holds the reader's answers and hands them to the element.

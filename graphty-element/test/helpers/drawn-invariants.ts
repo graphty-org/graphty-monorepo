@@ -128,7 +128,7 @@ function hue(p: readonly number[]): number | undefined {
  * @param p - The pixel.
  * @returns True when its hue is near magenta's.
  */
-function magenta(p: readonly number[]): boolean {
+function magentaHue(p: readonly number[]): boolean {
     const h = hue(p);
     return h !== undefined && h >= 280 && h <= 320;
 }
@@ -138,7 +138,7 @@ function magenta(p: readonly number[]): boolean {
  * @param p - The pixel.
  * @returns True when its hue is near the nodes' blue.
  */
-function blue(p: readonly number[]): boolean {
+function blueHue(p: readonly number[]): boolean {
     const h = hue(p);
     return h !== undefined && h >= 210 && h <= 250;
 }
@@ -149,7 +149,26 @@ function blue(p: readonly number[]): boolean {
  * @returns True when it has a hue and it is neither.
  */
 function other(p: readonly number[]): boolean {
-    return hue(p) !== undefined && !magenta(p) && !blue(p);
+    return hue(p) !== undefined && !magentaHue(p) && !blueHue(p);
+}
+
+/**
+ * Whether a pixel is strongly the edges' magenta (#ff00ff): red and blue both lead green by 60. Stricter than
+ * the hue test above, which also takes a faint antialiased tint.
+ * @param p - The pixel.
+ * @returns True when red and blue both lead green.
+ */
+export function magenta(p: readonly number[]): boolean {
+    return p[0] > p[1] + 60 && p[2] > p[1] + 60;
+}
+
+/**
+ * Whether a pixel is strongly the nodes' blue (#2040ff): blue leads red and green by 60.
+ * @param p - The pixel.
+ * @returns True when blue leads red and green.
+ */
+export function blue(p: readonly number[]): boolean {
+    return p[2] > p[0] + 60 && p[2] > p[1] + 60;
 }
 
 /**
@@ -190,7 +209,7 @@ export async function undrawnNodes(element: Graphty, ids: readonly string[], giv
     const pic = given ?? (await picture(element));
     const bg = pic.background;
     const ink = (p: readonly number[]): boolean =>
-        !magenta(p) && Math.abs(p[0] - bg[0]) + Math.abs(p[1] - bg[1]) + Math.abs(p[2] - bg[2]) > 60;
+        !magentaHue(p) && Math.abs(p[0] - bg[0]) + Math.abs(p[1] - bg[1]) + Math.abs(p[2] - bg[2]) > 60;
     return ids.filter((id) => {
         const at = center(element, id);
         return at === undefined || !near(pic, at.x, at.y, ink);
@@ -232,7 +251,7 @@ export async function undrawnEdges(
                 const y = a.y + (b.y - a.y) * t;
                 // A point under a node, or under other ink drawn over the edge (its label's box),
                 // shows that instead: it tells nothing.
-                return !covered(x, y) && !near(pic, x, y, other) && !near(pic, x, y, magenta);
+                return !covered(x, y) && !near(pic, x, y, other) && !near(pic, x, y, magentaHue);
             })
         );
     });
@@ -256,7 +275,7 @@ export function drawnRadius(pic: Picture, centers: readonly { x: number; y: numb
                 [0, -1],
             ].map(([dx, dy]) => {
                 let r = 0;
-                while (blue(pic.at(c.x + dx * (r + 1), c.y + dy * (r + 1)) ?? [0, 0, 0])) {
+                while (blueHue(pic.at(c.x + dx * (r + 1), c.y + dy * (r + 1)) ?? [0, 0, 0])) {
                     r++;
                 }
 
@@ -298,8 +317,8 @@ export async function arrowTipsOff(
         const x = b.x - ((b.x - a.x) * reach) / length;
         const y = b.y - ((b.y - a.y) * reach) / length;
         // Another node drawn over the tip hides it.
-        const hidden = blue(pic.at(x, y) ?? [0, 0, 0]);
-        return !hidden && !near(pic, x, y, magenta);
+        const hidden = blueHue(pic.at(x, y) ?? [0, 0, 0]);
+        return !hidden && !near(pic, x, y, magentaHue);
     });
 }
 
@@ -341,7 +360,7 @@ export async function strayInk(
     const stray: string[] = [];
     pic.each((p, x, y) => {
         if (
-            (magenta(p) || blue(p)) &&
+            (magentaHue(p) || blueHue(p)) &&
             !nodes.some((c) => Math.hypot(x - c.x, y - c.y) <= nodeBand) &&
             !segments.some(([a, b]) => toSegment(x, y, a, b) <= edgeBand) &&
             !loops.some((c) => Math.hypot(x - c.x, y - c.y) <= radius * LOOP_REACH + SLACK)
@@ -368,4 +387,126 @@ export async function inkNear(
     test: (p: readonly number[]) => boolean,
 ): Promise<boolean> {
     return near(await picture(element), point.x, point.y, test);
+}
+
+/** A point in layout space. */
+export interface Place {
+    x: number;
+    y: number;
+    z: number;
+}
+
+/**
+ * Where the layout has each node now, in layout space (no camera in it), read back through `session.positions`.
+ * @param element - The element.
+ * @param ids - The nodes.
+ * @returns Each node's place.
+ */
+export function layoutPlaces(element: Graphty, ids: readonly string[]): Map<string, Place> {
+    const { ids: index } = element.session.snapshot();
+    return new Map(
+        ids.map((id) => {
+            const place = { x: 0, y: 0, z: 0 };
+            element.session.positions.read(index.requireIndex(id), place);
+            return [id, place] as const;
+        }),
+    );
+}
+
+/**
+ * The furthest any node moved between two readings.
+ * @param from - The earlier places.
+ * @param to - The later places, of the same nodes or fewer.
+ * @returns The distance.
+ */
+export function furthestMove(from: ReadonlyMap<string, Place>, to: ReadonlyMap<string, Place>): number {
+    let worst = 0;
+    for (const [id, b] of to) {
+        const a = from.get(id);
+        worst = Math.max(worst, a === undefined ? Infinity : Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z));
+    }
+
+    return worst;
+}
+
+/**
+ * How far one kept node may move across an edit, as a multiple of the median kept node's move: an edit that
+ * reloads a running simulation moves every node about alike (by the build from before the renderer optimizations
+ * too), while a node handed another row's place jumps by the distance between two nodes.
+ */
+const JUMP_SPREAD = 2;
+/** How many times further than the fastest node moved in the frame before an edit a node may move per frame across it. */
+const STEP_SPEEDUP = 3;
+
+/**
+ * Whether every node an edit kept kept its own place: none moved further than the frames drawn across the edit
+ * allow at the layout's speed before it, or than twice the median kept node's move.
+ * @param before - Each kept node's place just before the edit.
+ * @param after - Each kept node's place just after it.
+ * @param speed - The furthest any node moved in the frame before the edit.
+ * @param drawn - Frames drawn across the edit.
+ * @returns "" when every kept node kept its place; otherwise the worst nodes and the bound.
+ */
+export function keptPlaceJump(
+    before: ReadonlyMap<string, Place>,
+    after: ReadonlyMap<string, Place>,
+    speed: number,
+    drawn: number,
+): string {
+    const moves = [...after].map(([id, b]) => {
+        const a = before.get(id);
+        return { id, d: a === undefined ? Infinity : Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z) };
+    });
+    const sorted = moves.map(({ d }) => d).sort((a, b) => a - b);
+    const median = sorted[Math.floor(sorted.length / 2)] ?? 0;
+    const bound = Math.max(JUMP_SPREAD * median, (drawn + 1) * STEP_SPEEDUP * speed);
+    const far = moves.filter(({ d }) => d > bound).sort((a, b) => b.d - a.d);
+    return far.length === 0
+        ? ""
+        : `${String(far.length)} kept nodes jumped past ${bound.toFixed(2)} (median move ${median.toFixed(2)}, ${String(drawn)} frames at up to ${speed.toFixed(2)} a frame before): ${far
+              .slice(0, 6)
+              .map(({ id, d }) => `${id} ${d.toFixed(2)}`)
+              .join(", ")}`;
+}
+
+/** How many times longer or shorter than before an edit an edge whose two nodes the edit kept may become. */
+const EDGE_STRETCH = 3;
+
+/**
+ * Whether every edge an edit kept still joins two nodes about as far apart as before it, in layout space: a
+ * layout pulls joined nodes together, so an edge whose ends were handed other rows' places is suddenly as long as
+ * the distance between two unjoined nodes. A layout that moves its nodes far between landings (a GPU layout) still
+ * keeps joined nodes close, which a check on each node's own move cannot rely on.
+ * @param before - Each kept node's place just before the edit.
+ * @param after - Each kept node's place just after it.
+ * @param pairs - The edges the edit kept.
+ * @returns "" when every kept edge kept its length within {@link EDGE_STRETCH} times; otherwise the worst edges.
+ */
+export function keptEdgeStretch(
+    before: ReadonlyMap<string, Place>,
+    after: ReadonlyMap<string, Place>,
+    pairs: readonly (readonly [string, string])[],
+): string {
+    const length = (at: ReadonlyMap<string, Place>, a: string, b: string): number | undefined => {
+        const p = at.get(a);
+        const q = at.get(b);
+        return p === undefined || q === undefined ? undefined : Math.hypot(p.x - q.x, p.y - q.y, p.z - q.z);
+    };
+    const stretched = pairs.flatMap(([a, b]) => {
+        const was = length(before, a, b);
+        const now = length(after, a, b);
+        if (was === undefined || now === undefined || a === b) {
+            return [];
+        }
+
+        const ratio = now / Math.max(was, 1e-6);
+        return ratio > EDGE_STRETCH || ratio < 1 / EDGE_STRETCH ? [{ a, b, was, now, ratio }] : [];
+    });
+    stretched.sort((x, y) => Math.abs(Math.log(y.ratio)) - Math.abs(Math.log(x.ratio)));
+    return stretched.length === 0
+        ? ""
+        : `${String(stretched.length)} of ${String(pairs.length)} kept edges changed length more than ${String(EDGE_STRETCH)} times: ${stretched
+              .slice(0, 6)
+              .map(({ a, b, was, now }) => `${a}-${b} ${was.toFixed(1)} to ${now.toFixed(1)}`)
+              .join(", ")}`;
 }

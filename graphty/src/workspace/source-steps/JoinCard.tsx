@@ -15,6 +15,7 @@ import { useWorkspace } from "../state/WorkspaceContext";
 import { cancelCard, commitCard } from "./actions";
 import { CancelButton } from "./CancelButton";
 import {
+    edgeTypeChoices,
     field1Profile,
     field2Profile,
     holdsNodes,
@@ -77,7 +78,7 @@ function Samples({
  * @param props.onPick - takes a pick
  * @returns the select
  */
-function Pick({
+export function Pick({
     name,
     data,
     value,
@@ -294,10 +295,7 @@ function Act({ session, card }: Readonly<{ session: GraphSession; card: JoinCard
     const { store } = useWorkspace();
     const source = card.field2?.source;
     const needsNodes = source !== undefined && !holdsNodes(session, source);
-    const edgeTypes = session.data
-        .types()
-        .filter((type) => type.kind === "edge")
-        .map((type) => ({ value: type.name }));
+    const edgeTypes = edgeTypeChoices(session);
     return (
         <Stack gap={4}>
             <Radio.Group

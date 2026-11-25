@@ -153,6 +153,8 @@ async function sceneOf(overrides: Partial<ViewMasks> = {}): Promise<Scene> {
         nodeVersion: 0,
         edgeVersion: 0,
         drawHeld: false,
+        // The edge pass holds the store's direction setting while it places edges; this graph has no setting to hold.
+        store: { withSettingHeld: <T>(work: () => T): T => work() },
         supportPoints: {
             update: () => false,
             hasEdges: false,

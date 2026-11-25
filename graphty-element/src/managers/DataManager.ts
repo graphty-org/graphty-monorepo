@@ -27,6 +27,7 @@ import { type EdgeRow, type LayoutEngine, layoutEngineInternals } from "../layou
 import { NGraphEngine } from "../layout/NGraphLayoutEngine";
 import { isEdgeLineBatchMesh } from "../meshes/EdgeLineBatch";
 import { EdgeShaderDrawing } from "../meshes/EdgeShaderDrawing";
+import { disposeSwappedTogether } from "../meshes/handOverTogether";
 import { disposeLabelsTogether } from "../meshes/LabelBatch";
 import { MeshCache } from "../meshes/MeshCache";
 import { NodeShaderDrawing } from "../meshes/NodeShaderDrawing";
@@ -78,6 +79,8 @@ import { bootstrapEdgePaint, bootstrapNodePaint, type EdgePaint, type NodePaint 
 
 /** The graph value a plugin algorithm's graph-level results are kept under. */
 const GRAPH_RESULTS = "graphResults";
+/** Torn-down `Edge`s the filing queue may hold beyond twice the live ones before it is swept of them. */
+const DEAD_QUEUE_SLACK = 1024;
 
 /**
  * Kept for a row whose record the graph slice holds as columns (row-renderer.md 4.6, "Records into
@@ -200,9 +203,14 @@ function setAsideAndDispose<T>(nodes: Iterable<Node>, edges: Iterable<Edge>, tea
 
     const meshes = scene.meshes.splice(0);
     const owned = actionManagers.splice(0);
+    // Each dispose also frees the rendering groups, a visit to every texture (one per label): setting the
+    // block frees them once, and nothing is drawn until it lifts (issue #10018).
+    const blocked = scene.blockfreeActiveMeshesAndRenderingGroups;
+    scene.blockfreeActiveMeshesAndRenderingGroups = true;
     try {
         return teardown();
     } finally {
+        scene.blockfreeActiveMeshesAndRenderingGroups = blocked;
         restore(scene.meshes, meshes, (mesh) => !mesh.isDisposed());
         restore(actionManagers, owned, () => true);
         for (const [parent, children, kept] of families) {
@@ -442,8 +450,15 @@ export const dataManagerInternals = {} as {
     edgesLive(manager: DataManager): number;
     /** The `Edge`s built so far by id, building none: what a check of the drawn edges walks. */
     builtEdges(manager: DataManager): ReadonlyMap<string, Edge>;
+    /**
+     * An edge's row (the index the style painter paints it at) and its two ends' node rows, building no `Edge`;
+     * undefined for an id not held.
+     */
+    edgeRowOf(manager: DataManager, id: EdgeId): { row: number; ends: readonly [number, number] } | undefined;
     /** A stored node id's row in the store, read with no `Node`; `INVALID_INDEX` for an id it does not hold. */
     rowOf(manager: DataManager, id: NodeIdType): number;
+    /** Run work that changes no setting with the store's direction setting read once; see `GraphStore.withSettingHeld`. */
+    withSettingHeld(manager: DataManager, work: () => void): void;
     /** The `Node` built for a row, building none; undefined when the row has none. */
     builtNodeAtRow(manager: DataManager, row: number): Node | undefined;
     /** The `Node`s built so far, walked without building one for a row that has none. */
@@ -470,6 +485,16 @@ export const dataManagerInternals = {} as {
     incidentEdgeIds(manager: DataManager, id: NodeIdType): EdgeId[];
     /** The built `Edge`s at a node, building none. */
     builtEdgesAt(manager: DataManager, id: NodeIdType): Iterable<Edge>;
+    /**
+     * How many built `Edge`s {@link builtEdgesAt} has looked at, ever: the edges of the stored nodes asked about, never
+     * every built edge (issue #10028).
+     */
+    edgesWalkedByEnd(manager: DataManager): number;
+    /**
+     * The edges at a node row, building nothing: its built `Edge`s and the rows of every live edge attached to it,
+     * read from the store's incidence lists, so O(degree).
+     */
+    edgesAtRow(manager: DataManager, row: number): { built: Iterable<Edge>; rows: number[] };
     /** The id of a row stored with no `Node` yet, or undefined when a `Node` draws it or none is stored there. */
     unbuiltAt(manager: DataManager, index: number): NodeIdType | undefined;
     /** The record of a row stored with no `Node` yet, or undefined when a `Node` draws it or none is stored there. */
@@ -489,6 +514,8 @@ export const dataManagerInternals = {} as {
      * the order `nodes` walks them.
      */
     nodeList(manager: DataManager): Node[];
+    /** Every edge as an array, building none until its element is read, as {@link nodeList} does for nodes. */
+    edgeList(manager: DataManager): Edge[];
     /**
      * How the current layout engine is handed a row stored with no `Node`: a function given the
      * ids of each arrival's such rows (a no-op for an engine that reads every row of the
@@ -844,16 +871,29 @@ export class DataManager implements Manager {
     private builtNodes = 0;
     /** See `dataManagerInternals.edgesBuilt`. */
     private builtEdges = 0;
+    /** See `dataManagerInternals.edgesWalkedByEnd`. */
+    private walkedByEnd = 0;
+    /** The store degrees {@link builtEdgesOf} has walked since the queue was last filed. */
+    private walkedUnfiled = 0;
 
     static {
         dataManagerInternals.nodesBuilt = (manager) => manager.builtNodes;
         dataManagerInternals.loadIds = (manager) => manager.loadIds;
         dataManagerInternals.styles = (manager) => manager.styles;
         dataManagerInternals.edgesBuilt = (manager) => manager.builtEdges;
+        dataManagerInternals.edgesWalkedByEnd = (manager) => manager.walkedByEnd;
         dataManagerInternals.nodesLive = (manager) => manager.nodeMap.builtView().size;
         dataManagerInternals.edgesLive = (manager) => manager.edgeMap.builtView().size;
         dataManagerInternals.builtEdges = (manager) => manager.edgeMap.builtView();
+        dataManagerInternals.edgeRowOf = (manager, id) => {
+            const row = manager.edgeMap.builtView().get(id)?.index ?? manager.unbuiltEdgeIds.get(id);
+            const { reads } = manager.store;
+            return row === undefined || !reads.hasEdge(row) ? undefined : { row, ends: reads.edgeEndpoints(row) };
+        };
         dataManagerInternals.rowOf = (manager, id) => manager.store.reads.indexOf(id);
+        dataManagerInternals.withSettingHeld = (manager, work) => {
+            manager.store.withSettingHeld(work);
+        };
         dataManagerInternals.builtNodes = (manager) => manager.nodeMap.built();
         dataManagerInternals.builtNodeAtRow = (manager, row) => {
             const id = manager.nodeIdAtRow(row);
@@ -875,6 +915,22 @@ export class DataManager implements Manager {
         dataManagerInternals.builtNode = (manager, id) => manager.nodeMap.builtOf(id);
         dataManagerInternals.incidentEdgeIds = (manager, id) => manager.incidentEdgeIdsOf(id);
         dataManagerInternals.builtEdgesAt = (manager, id) => manager.builtEdgesOf(id);
+        dataManagerInternals.edgesAtRow = (manager, row) => {
+            const id = manager.nodeIdAtRow(row);
+            if (id === undefined) {
+                return { built: [], rows: [] };
+            }
+
+            const rows: number[] = [];
+            for (const counter of manager.store.incidentEdgeIds([id])) {
+                const edgeRow = manager.store.edgeIndexOf(counter);
+                if (edgeRow !== INVALID_INDEX) {
+                    rows.push(edgeRow);
+                }
+            }
+
+            return { built: manager.builtEdgesOf(id), rows };
+        };
         dataManagerInternals.unbuiltAt = (manager, index) => manager.unbuilt.get(index)?.id;
         dataManagerInternals.unbuiltRecord = (manager, index) => {
             const row = manager.unbuilt.get(index);
@@ -883,6 +939,7 @@ export class DataManager implements Manager {
         dataManagerInternals.buildRow = (manager, id) => manager.buildRow(id);
         dataManagerInternals.buildRowsTogether = (manager, work) => manager.buildRowsTogether(work);
         dataManagerInternals.nodeList = (manager) => manager.nodeMap.lazyValues();
+        dataManagerInternals.edgeList = (manager) => manager.edgeMap.lazyValues();
         dataManagerInternals.buildAll = (manager) => {
             manager.buildRowsTogether(() => {
                 for (const id of manager.unbuiltRows.ids()) {
@@ -1924,9 +1981,10 @@ export class DataManager implements Manager {
         // An edge stored with no `Edge` goes the same way, with nothing to tear down: reading it
         // would build one.
         const removed = this.dropUnbuiltEdgesOf(ids, slice);
-        // The built edges of the nodes going, from the index by end: a scan of every built edge was a
-        // walk of a million edges on each redo of a removal (issue #9164).
-        const edges = [...new Set([...ids].flatMap((id) => [...this.builtEdgesOf(id)]))];
+        // The built edges of the nodes going, from the index by end and one scan of the edges not yet filed in it:
+        // a scan of every built edge was a walk of a million edges on each redo of a removal (issue #9164), and
+        // filing them all first took half a second after a restyle built a million (issue #10028).
+        const edges = this.builtEdgesAtAny(ids);
         disposeReleased(
             // Built ones only: a row removed with no `Node` has none to release, and is not given one.
             [...ids].flatMap((id) => this.nodeMap.builtOf(id) ?? []),
@@ -2998,12 +3056,15 @@ export class DataManager implements Manager {
 
         const built: [Node, NodePaint][] = [];
         this.builtTogether = built;
-        try {
-            return work();
-        } finally {
-            this.builtTogether = null;
-            paintBuilt(built);
-        }
+        // A built row a batch draws trades its new mesh for an anchor when painted: those go together too (#10018).
+        return disposeSwappedTogether(() => {
+            try {
+                return work();
+            } finally {
+                this.builtTogether = null;
+                paintBuilt(built);
+            }
+        });
     }
 
     /**
@@ -3256,34 +3317,109 @@ export class DataManager implements Manager {
     }
 
     /**
-     * Queue a built `Edge` to be filed under its ends; see {@link unfiledEdges}.
+     * Queue a built `Edge` to be filed under its ends; see {@link unfiledEdges}. Torn-down `Edge`s left in the queue
+     * are dropped once they outnumber the live ones, so builds and teardowns with no read between keep it bounded.
      * @param edge - The edge.
      */
     private indexBuiltEdge(edge: Edge): void {
         this.unfiledEdges.push(edge);
+        if (this.unfiledEdges.length > 2 * this.edgeMap.builtView().size + DEAD_QUEUE_SLACK) {
+            this.unfiledEdges = this.unfiledEdges.filter((queued) => this.isLive(queued));
+        }
     }
 
     /**
-     * A node's built `Edge`s, building none.
+     * Whether a built `Edge` has not been torn down since.
+     * @param edge - The edge.
+     * @returns Whether the edge map still holds it.
+     */
+    private isLive(edge: Edge): boolean {
+        return this.edgeMap.builtOf(edge.id) === edge;
+    }
+
+    /**
+     * A node's built `Edge`s, building none, and filing the queued ones only once that is cheap.
+     *
+     * Filing every queued `Edge` costs the whole queue: after a restyle under "batched" turned a million arrowed
+     * edges into `Edge`s, the first hover filed them all and took half a second (issue #10028). So while the queue
+     * is long, a stored node's edges are read from the store's incidence lists in O(degree), and a node the store no
+     * longer holds (a reconcile tearing it down) has the queue scanned for it. The degrees walked are counted, and once
+     * they reach the queue's length the queue is filed and the index answers again: a single hover never pays for the
+     * whole queue, and a pass over many nodes (a running layout, a node-size restyle) pays for it at most twice.
      * @param id - The node's id.
      * @returns They.
      */
     private builtEdgesOf(id: NodeIdType): Iterable<Edge> {
+        if (this.edgeMap.builtView().size === 0) {
+            return [];
+        }
+
+        if (this.unfiledEdges.length > 0 && this.store.reads.indexOf(id) === INVALID_INDEX) {
+            return this.builtEdgesAtAny(new Set([id]));
+        }
+
+        if (this.unfiledEdges.length > 0) {
+            const counters = this.store.incidentEdgeIds([id]);
+            this.walkedUnfiled += counters.length;
+            if (this.walkedUnfiled < this.unfiledEdges.length) {
+                const edges: Edge[] = [];
+                for (const counter of counters) {
+                    const edge = this.edgeMap.builtOf(edgeIdOf(counter));
+                    if (edge !== undefined) {
+                        edges.push(edge);
+                    }
+                }
+
+                this.walkedByEnd += edges.length;
+                return edges;
+            }
+        }
+
         this.fileBuiltEdges();
-        return this.builtEdgesAt.get(id) ?? [];
+        const filed = this.builtEdgesAt.get(id);
+        this.walkedByEnd += filed?.size ?? 0;
+        return filed ?? [];
     }
 
-    /** File every queued `Edge` under each of its ends, in the order they were built. */
+    /**
+     * The built `Edge`s at any of some nodes, filing none: the filed ones from the index, the queued ones by one scan
+     * of the queue, which costs far less than filing it.
+     * @param ids - The nodes.
+     * @returns The edges, each once.
+     */
+    private builtEdgesAtAny(ids: ReadonlySet<NodeIdType>): Edge[] {
+        const edges = new Set<Edge>();
+        for (const id of ids) {
+            for (const edge of this.builtEdgesAt.get(id) ?? []) {
+                edges.add(edge);
+            }
+        }
+
+        for (const edge of this.unfiledEdges) {
+            if ((ids.has(edge.srcId) || ids.has(edge.dstId)) && this.isLive(edge)) {
+                edges.add(edge);
+            }
+        }
+
+        this.walkedByEnd += edges.size;
+        return [...edges];
+    }
+
+    /** File every queued `Edge` that is still built under each of its ends, in the order they were built. */
     private fileBuiltEdges(): void {
+        this.walkedUnfiled = 0;
         if (this.unfiledEdges.length === 0) {
             return;
         }
 
         const edges = this.unfiledEdges;
         this.unfiledEdges = [];
+        this.walkedByEnd += edges.length;
         for (const edge of edges) {
-            this.indexBuiltEdgeAt(edge.srcId, edge);
-            this.indexBuiltEdgeAt(edge.dstId, edge);
+            if (this.isLive(edge)) {
+                this.indexBuiltEdgeAt(edge.srcId, edge);
+                this.indexBuiltEdgeAt(edge.dstId, edge);
+            }
         }
     }
 
@@ -3302,12 +3438,12 @@ export class DataManager implements Manager {
     }
 
     /**
-     * Take a built `Edge` out of {@link builtEdgesAt}.
+     * Take a torn-down `Edge` out of {@link builtEdgesAt}. One still queued is left there, and filing and the scan
+     * skip it, since the edge map no longer holds it: filing the whole queue here made the first removal after a
+     * restyle that built a million `Edge`s take half a second (issue #10028).
      * @param edge - The edge.
      */
     private unindexBuiltEdge(edge: Edge): void {
-        // Filed first, so an edge built and torn down before any read leaves nothing queued behind it.
-        this.fileBuiltEdges();
         for (const end of [edge.srcId, edge.dstId]) {
             const at = this.builtEdgesAt.get(end);
             if (at?.delete(edge) === true && at.size === 0) {
@@ -3681,14 +3817,17 @@ export class DataManager implements Manager {
             stored.record === IN_SLICE
                 ? (this.graph.slice.edges.get(edgeIdOf(stored.edgeId)) ?? IN_SLICE)
                 : stored.record;
-        const paint = this.graphContext?.getStylePainter?.()?.edgePaint(row) ?? null;
+        const painter = this.graphContext?.getStylePainter?.();
+        const paint = painter?.edgePaint(row) ?? null;
+        // A row a pass is still to paint takes that paint then, once: painted now as well, it was painted twice.
+        const owed = painter?.isEdgePending(row) === true;
         // Painted in this pass (`queue` false): built from that paint, not from the placeholder the paint would
         // replace at once. Built from the placeholder, each such edge took a cap and a line slot and gave them
         // straight back, and a batch whose last slot leaves is disposed: on "batched", where edges are built one
         // at a time as they are painted, every edge built and disposed whole batches (issue #9181).
         const edge = this.makeEdge({ ...stored, record }, false, queue, queue ? null : paint);
         // A row a style hides draws no line to pull, but its `Edge` must not read as drawn until the next frame.
-        if (queue && paint !== null && (lined || paint.style.visible === false)) {
+        if (queue && !owed && paint !== null && (lined || paint.style.visible === false)) {
             edge.applySessionPaint(paint);
         }
 

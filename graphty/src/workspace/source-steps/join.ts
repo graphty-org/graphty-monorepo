@@ -199,7 +199,23 @@ export function field2Profile(session: GraphSession, field: JoinField2 | null): 
  * @returns the columns.
  */
 export function sourceColumns(session: GraphSession, source: SourceKey, table?: "nodes"): readonly string[] {
-    const tables = summaryOf(session, source)?.tables ?? [];
+    return columnsOf(session.data, source, table);
+}
+
+/**
+ * A source's columns as a reader of source tables reads them (the committed sources or an open
+ * draft): its node rows', else its edge rows'.
+ * @param reader - `session.data` or a draft.
+ * @param source - the source.
+ * @param table - only this table's.
+ * @returns the columns.
+ */
+export function columnsOf(
+    reader: Pick<GraphSession["data"], "sourceTable">,
+    source: SourceKey,
+    table?: "nodes",
+): readonly string[] {
+    const tables = summaryOf(reader, source)?.tables ?? [];
     const nodes = tables.find((each) => each.table === "nodes");
     if (table === "nodes") {
         return nodes?.columns ?? [];
@@ -214,18 +230,18 @@ export function sourceColumns(session: GraphSession, source: SourceKey, table?: 
  * @returns true when it does.
  */
 export function holdsNodes(session: GraphSession, source: SourceKey): boolean {
-    return summaryOf(session, source)?.mapping.rows !== "edges";
+    return summaryOf(session.data, source)?.mapping.rows !== "edges";
 }
 
 /**
  * A source's tables and mapping, or null once it is gone (an undo took it away while the card is open).
- * @param session - the element's session.
+ * @param reader - `session.data` or a draft.
  * @param source - the source.
  * @returns the facts, or null.
  */
-function summaryOf(session: GraphSession, source: SourceKey): SourceTableFacts | null {
+function summaryOf(reader: Pick<GraphSession["data"], "sourceTable">, source: SourceKey): SourceTableFacts | null {
     try {
-        return session.data.sourceTable(source).summary();
+        return reader.sourceTable(source).summary();
     } catch {
         return null;
     }
@@ -326,4 +342,16 @@ export function joinCardOf(card: WorkspaceState["sourceCard"]): JoinCardState | 
  */
 export function previewing(card: WorkspaceState["sourceCard"]): boolean {
     return (joinCardOf(card)?.preview ?? null) !== null;
+}
+
+/**
+ * The edge types the element declares, as an Edge type box offers them.
+ * @param session - the element's session
+ * @returns the choices
+ */
+export function edgeTypeChoices(session: GraphSession): { readonly value: string }[] {
+    return session.data
+        .types()
+        .filter((type) => type.kind === "edge")
+        .map((type) => ({ value: type.name }));
 }

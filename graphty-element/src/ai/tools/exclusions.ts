@@ -428,6 +428,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
                 "edits",
                 "ref",
                 "nodeRef",
+                "typeOf",
                 "stage",
                 "declareType",
                 "removeEdit",
@@ -508,7 +509,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
                 "columns",
             ],
         },
-        { root: "SourceTable", members: ["source", "summary", "profile"] },
+        { root: "SourceTable", members: ["source", "summary", "profile", "rows"] },
         {
             root: "SourceDraftPreview",
             members: [
@@ -972,7 +973,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { root: "SessionStylesApi", members: ["settled"], reason: "lifecycle", kind: BY_DESIGN },
     { root: "SessionStylesApi", members: ["applyTemplate", "toDocument"], reason: "whole-document", kind: BY_DESIGN },
     { root: "SessionStylesApi", members: ["setDefaultPalettes"], reason: "app-default", kind: BY_DESIGN },
-    { root: "SessionStylesApi", members: ["compiled"], reason: "internal-handle", kind: BY_DESIGN },
+    { root: "SessionStylesApi", members: ["compiled", "refreshDraftView"], reason: "internal-handle", kind: BY_DESIGN },
     { root: "ElementPaint", reason: "internal-handle", kind: BY_DESIGN },
     { root: "ElementMask", reason: "raw-data", kind: BY_DESIGN },
     { root: "RunResult", reason: "covered-by", by: "results.summary", kind: BY_DESIGN },

@@ -6,7 +6,7 @@
  * parameters, never English. Pure and free of Babylon.js, Lit and the DOM.
  */
 
-import { build, copyKey, isEmpty, nodeSpace, resolveEdge, resolveNode, ruleFits } from "./build";
+import { build, copyKey, isEmpty, nodeSpace, resolveEdge, resolveNode, ruleFits, sameCell } from "./build";
 import { RECORD_PATHS } from "./paths";
 import {
     type BuildInput,
@@ -20,6 +20,7 @@ import {
     type NodeRef,
     READER_SOURCE,
     type ReaderEdit,
+    type RowFilter,
     type Step,
     type TableName,
     type Value,
@@ -296,8 +297,12 @@ export function conflicts(result: BuildResult, query: ConflictQuery = {}): Confl
 function conflictAt(el: BuiltNode | BuiltEdge, column: string): Conflict | null {
     const list = Object.entries(el.own)
         .filter(([, c]) => column in c)
-        .map(([source, c]) => ({ source, value: c[column].v }));
-    if (distinct(list.map((x) => x.value)) < 2) {
+        .flatMap(([source, c]) => {
+            const met = el.metAgain?.[column];
+            const values = met?.source === source ? [...new Set(met.values)] : [c[column].v];
+            return values.map((value) => ({ source, value }));
+        });
+    if (list.every(({ value }) => sameCell(list[0].value, value))) {
         return null;
     }
     const rule = el.rule?.[column] ?? "keep";
@@ -623,8 +628,12 @@ export function renameColumn(
     const read = Object.entries(renamed).find(([, w]) => w === r.from)?.[0] ?? r.from;
     const result = held ?? build(input, copies);
     const col = (c: string): string => (c === r.from ? r.to : c);
-    const filter = <F extends { column: string }>(f: F | undefined): F | undefined =>
-        f && { ...f, column: col(f.column) };
+    const filter = <F extends RowFilter>(f: F | undefined): F | undefined =>
+        f && {
+            ...f,
+            column: col(f.column),
+            ...(f.cells === undefined ? {} : { cells: { ...f.cells, column: col(f.cells.column) } }),
+        };
     const steps = input.steps.map((st): Step => {
         if (st.source !== r.source) {
             return st;

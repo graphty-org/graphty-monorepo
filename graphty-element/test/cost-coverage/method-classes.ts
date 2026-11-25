@@ -1257,6 +1257,7 @@ export const READ_ONLY: readonly string[] = [
     "SessionDataApi.joins",
     "SessionDataApi.ref",
     "SessionDataApi.nodeRef",
+    "SessionDataApi.typeOf",
     "SessionDataApi.lineage",
     "SessionDataApi.values",
     "SessionDataApi.cell",
@@ -1274,6 +1275,7 @@ export const READ_ONLY: readonly string[] = [
     "SessionDataApi.profile",
     "SourceTable.summary",
     "SourceTable.profile",
+    "SourceTable.rows",
     // A preview diffs the committed build and the draft's, which its acts already built.
     "SourceDraft.preview",
     // The drill-down lists what one count counted in the build the preview already made.
@@ -1369,6 +1371,7 @@ export const READ_ONLY: readonly string[] = [
     "SessionShaders.thumbnail",
     "SessionStylesApi.compiled",
     "SessionStylesApi.modelUrlFromCode",
+    "SessionStylesApi.refreshDraftView",
     "SetsApi.containing",
     "SetsApi.get",
     "SetsApi.list",

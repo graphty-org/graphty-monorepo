@@ -133,11 +133,21 @@ export function markCounts(state: DraftState, marks: DraftMarks): SourceDraftMar
     const newNodes = count(marks.nodes, "new");
     const newEdges = count(marks.edges, "new");
     const untouched = untouchedNodes(state, marks).size;
+    // Named only when there are any: most drafts change no element but by merging into it.
+    const changed = (all: ReadonlyMap<string, string>): { changed?: number } => {
+        const n = count(all, "changed");
+        return n === 0 ? {} : { changed: n };
+    };
     return {
         merged,
         new: newNodes + newEdges,
         untouched,
-        nodes: { merged, new: newNodes, untouched, removed: count(marks.nodes, "removed") },
-        edges: { merged: count(marks.edges, "merged"), new: newEdges, removed: count(marks.edges, "removed") },
+        nodes: { merged, new: newNodes, untouched, removed: count(marks.nodes, "removed"), ...changed(marks.nodes) },
+        edges: {
+            merged: count(marks.edges, "merged"),
+            new: newEdges,
+            removed: count(marks.edges, "removed"),
+            ...changed(marks.edges),
+        },
     };
 }

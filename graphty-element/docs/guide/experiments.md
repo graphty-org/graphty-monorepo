@@ -102,8 +102,9 @@ from an ordered list of steps that add, merge and connect them. Work in progress
   replacing load takes every source out first, so opening a file works as before;
 - each source's keys live in an id space: its own unless the load names `space` or `type`, so two
   loads with no options never merge their nodes. A NodeId is the key; where a node loaded earlier in
-  another space has that key, `<space>:<key>`, or `<source's name>:<key>` in a source's own space, so
-  loading more never renames a node;
+  another space has that key, `<space>:<key>`, or `<source's name>:<key>` in a source's own space. A
+  node keeps its NodeId whatever is loaded, renamed, replaced, turned off or taken out around it, and a
+  saved project holds it, so a direct edit naming a NodeId edits that node;
 - `addNodes` and the other direct edits are the reader's own edits (`data.edits()`,
   `data.removeEdit(id)`); `mergeNodes` is refused with `E_UNSUPPORTED` (`reason: "later"`);
 - `data.stage`, `data.steps`, `data.spaces`, `data.types`, `data.declareType` and `data.ref` read
@@ -141,7 +142,9 @@ for (const issue of report.issues ?? []) {
 To bring a second source in on purpose, stage it (`data.stage` reads it but builds nothing yet),
 then `data.merge` it into the nodes it names or `data.connect` it to them as edges. Where both
 sources hold a value for the same cell, the first one held is kept unless the merge's `clash`
-names another rule per column (`overwrite`, `both`, `min`, `max`, `mean`, `vote`); `min`, `max`
+names another rule per column (`overwrite`, `both`, `min`, `max`, `mean`, `vote`). `both` keeps the
+other value in a column named by the source's id, whose `plainName` in `data.attributes()` names the
+source. Two matches of one source that bring one node two values are settled the same way. `min`, `max`
 and `mean` on a column whose values are not numbers (or dates, for `min` and `max`) are refused
 with `E_CLASH_RULE_TYPE`. `data.conflicts()` lists each cell that differs, each `data.steps()` row
 counts them per column (`W_VALUES_DIFFER` in `valuesDiffer`), and `data.pick` settles one cell as
@@ -211,6 +214,7 @@ Before a join, a staged source can be read and set up without building anything:
 - A staged source named like a committed one lists that source's key in `sameName`.
 - `data.staged()` lists the staged sources, oldest first. They are no part of the graph, so
   `data.sources()` leaves them out; `data.sources({ staged: true })` lists them too, in their place.
+- `data.typeOf(kind, id)` gives the type of a node or an edge (`data.typeOf("node", "B1")`), null for none.
 - `data.nodeRef(id)` gives a node's id space and key (`{ space, key }`), the inverse of `data.ref`:
   what a join on the node's type, or a reader edit naming it, takes.
 - A `data.spaces()` row of a source's own space (its rows keyed with no space named) names that
@@ -344,7 +348,8 @@ step its counts (`buckets`) and their change from the committed ones:
 | `endsMeet`, `endsMissing`                              | edge ends that found a node, or none, per id space                       |
 
 `preview.rows({ step, bucket })` lists the rows behind a count, with each row as read and the
-element's values before and after; `draft.exclude(step, keys)` leaves those rows out of the step.
+element's values before and after; `draft.exclude(step, rows)` leaves those rows out of the step, each
+by itself, and `draft.exclude(step, keys)` every row of those keys; the step's `except` lists both.
 `preview.cells({ column })` lists the cells where sources disagree, each source's value, the value
 shown and whether a pick decided it; `editStep(step, { clash })` changes a column's rule and
 `pick` or `pickAll` decide cells. `draft.display(true)` draws the draft, where every element reads

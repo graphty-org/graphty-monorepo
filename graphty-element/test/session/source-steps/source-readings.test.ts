@@ -34,7 +34,7 @@ describe("source-steps: readings of one source or one type", () => {
 
     it("a source's histogram reads that source's own value, its clash column included", async () => {
         const { session, b } = await clashing();
-        const own = session.data.histogram({ kind: "node", name: "amt (erp.csv)" }, { source: b });
+        const own = session.data.histogram({ kind: "node", name: `amt (${b})` }, { source: b });
         assert.strictEqual(own.kind, "numeric");
         if (own.kind === "numeric") {
             assert.deepStrictEqual([own.min, own.max], [30, 40]);

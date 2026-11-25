@@ -19,7 +19,8 @@
  * An edge step's `rowNode`, `existing`, `addEnd`, `link` and `extract`, an add's `joined`, and a
  * `join.merge` reading edge rows, are written as the session keeps them: version 2 spells none of
  * them yet (4.1.8 rule 10). So is a
- * source's `numbered`, the column its keyless rows were numbered under.
+ * source's `numbered`, the column its keyless rows were numbered under, and the member's
+ * `nodeIds`, the NodeIds that are not their nodes' keys.
  *
  * Every source is saved as a copy; a reference (3.11) is not written yet. Pure and free of
  * Babylon.js, Lit and the DOM.
@@ -43,7 +44,7 @@ import {
 } from "./types";
 
 /** The member names the sources and steps add to the `graphty-sources` member. */
-export const STEPS_MEMBER_FIELDS: readonly string[] = ["sources", "types", "joins", "build"];
+export const STEPS_MEMBER_FIELDS: readonly string[] = ["sources", "types", "joins", "build", "nodeIds"];
 
 /** The step ops a saved `joins` list may hold. */
 const OPS: ReadonlySet<string> = new Set([
@@ -203,7 +204,20 @@ function sourceOut(src: StepsSource, copy: CopyTables): Record<string, unknown> 
  * @returns The filter, or undefined for none.
  */
 const filterOut = (f: RowFilter | undefined): RowFilter | undefined =>
-    f === undefined ? undefined : { column: f.column, values: f.values.map((v) => textOf(v)) };
+    f === undefined
+        ? undefined
+        : {
+              column: f.column,
+              values: f.values.map((v) => textOf(v)),
+              ...(f.cells === undefined
+                  ? {}
+                  : {
+                        cells: {
+                            column: f.cells.column,
+                            pairs: f.cells.pairs.map((p) => ({ value: textOf(p.value), with: textOf(p.with) })),
+                        },
+                    }),
+          };
 
 /**
  * A step as saved: `rows` and `except` values as text.
@@ -338,6 +352,7 @@ export function stepsMemberFields(value: SourceSteps, copies: Copies): Record<st
             stepOut(step),
         ),
         ...(value.build === undefined ? {} : { build: value.build }),
+        ...(value.nodeIds === undefined ? {} : { nodeIds: value.nodeIds }),
     };
 }
 
@@ -575,7 +590,10 @@ const optional = (v: unknown, test: (v: unknown) => boolean): boolean => v === u
  */
 function stepShaped(step: Record<string, unknown>): boolean {
     const { op, read, link, extract } = step;
-    const filter = (v: unknown): boolean => isObject(v) && typeof v.column === "string" && Array.isArray(v.values);
+    const cells = (v: unknown): boolean =>
+        isObject(v) && typeof v.column === "string" && Array.isArray(v.pairs) && v.pairs.every(isObject);
+    const filter = (v: unknown): boolean =>
+        isObject(v) && typeof v.column === "string" && Array.isArray(v.values) && optional(v.cells, cells);
     const reads = op === "join.add" ? read === undefined : isObject(read);
     return (
         reads &&
@@ -626,6 +644,13 @@ function shapeProblem(member: Readonly<Record<string, unknown>>): string | null 
     const { build } = member;
     if (build !== undefined && !(typeof build === "string" && ULID.test(build))) {
         return "/build";
+    }
+    const { nodeIds } = member;
+    if (
+        nodeIds !== undefined &&
+        !(isObject(nodeIds) && Object.values(nodeIds).every((each) => typeof each === "string"))
+    ) {
+        return "/nodeIds";
     }
     return null;
 }
@@ -733,7 +758,7 @@ export function readStepsMember(member: Readonly<Record<string, unknown>>): Step
         sources[read.source.id] = read.source;
         copies[copyKey(read.source)] = read.copy;
     }
-    const { build } = member;
+    const { build, nodeIds } = member;
     return {
         value: {
             sources,
@@ -741,6 +766,7 @@ export function readStepsMember(member: Readonly<Record<string, unknown>>): Step
             types,
             reader,
             ...(build === undefined ? {} : { build: build as string }),
+            ...(isObject(nodeIds) ? { nodeIds: nodeIds as Record<string, string> } : {}),
         },
         copies,
     };

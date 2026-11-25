@@ -130,6 +130,11 @@ export interface Source {
 export interface RowFilter {
     readonly column: string;
     readonly values: readonly CellValue[];
+    /** Rows named by the values of `column` and of this column together. */
+    readonly cells?: {
+        readonly column: string;
+        readonly pairs: readonly { readonly value: CellValue; readonly with: CellValue }[];
+    };
 }
 
 /** How a step settles a cell another source already filled (3.10). */
@@ -411,6 +416,8 @@ export interface BuildInput {
     readonly repeatedEdges?: DuplicatePolicy;
     /** The reader source's operations, in the order made. */
     readonly reader?: readonly ReaderOp[];
+    /** The NodeId of each node whose NodeId is not its key, by internal id. */
+    readonly nodeIds?: Readonly<Record<string, string>>;
 }
 
 /** One source's value for one cell. */
@@ -459,6 +466,8 @@ export interface BuiltElement {
     ruleStep?: Record<string, number>;
     /** The steps whose value for each column differed from the one shown before it, in order. */
     differAt?: Record<string, number[]>;
+    /** Each column two matches of one source brought different values: the source's values, as met. */
+    metAgain?: Record<string, { readonly source: string; readonly values: Value[] }>;
     /** The reader edit that sets each edited column. */
     edited?: Record<string, ReaderEdit>;
     clashColumns?: Record<string, ClashColumn>;
@@ -468,6 +477,8 @@ export interface BuiltElement {
 
 /** A node of the working graph. */
 export interface BuiltNode extends BuiltElement {
+    /** The sources whose own node rows it is, whatever was folded into it. */
+    brought?: Set<string>;
     space: string;
     /** The types of node 2s merged into it (3.4). */
     otherTypes: (string | null)[];
@@ -602,8 +613,10 @@ export interface BuildResult {
     readonly edges: Map<string, BuiltEdge>;
     /** A node 2's or moved node's former internal id to the node it is now. */
     readonly aliases: Map<string, string>;
-    /** The name a source's own space is spelled by in a NodeId: the source's, when no other space has it. */
+    /** What a source's own space is spelled by in a NodeId: the source's name, when no other space has it. */
     readonly spaceNames: ReadonlyMap<string, string>;
+    /** The NodeId of each node whose NodeId was settled not to be its key, by internal id. */
+    readonly nodeIds: Readonly<Record<string, string>>;
     /** A reduced edge's row key to the edge it folded into. */
     readonly edgeAliases: Map<string, string>;
     readonly stats: StepStats[];

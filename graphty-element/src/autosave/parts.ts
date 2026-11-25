@@ -215,6 +215,18 @@ function dataParts(session: GraphSession): Record<string, string | null> {
     };
 }
 
+/** The parts kept apart from the graph, which a drawn source draft leaves as they are. */
+export const APART: ReadonlySet<PartTag> = new Set<PartTag>(["drafts", "stash"]);
+
+/**
+ * Whether a source draft's After is drawn on the graph.
+ * @param session - The session.
+ * @returns True while one is.
+ */
+export function draftIsDrawn(session: GraphSession): boolean {
+    return (session.data as Partial<Pick<SessionData, "draftIsDrawn">>).draftIsDrawn?.() === true;
+}
+
 /**
  * Build the parts a set of tags names, from the session as it is now.
  * @param session - The session.
@@ -235,7 +247,7 @@ export function buildParts(
     const build = (): BuiltParts => partsNow(session, tags, written, stash, writtenAssets);
     const data = session.data as Partial<Pick<SessionData, "withoutDrawnDraft">>;
     // A source draft's After drawn on the graph is no part of the project; the drafts are kept apart.
-    const ofTheGraph = [...tags].some((tag) => tag !== "drafts" && tag !== "stash");
+    const ofTheGraph = [...tags].some((tag) => !APART.has(tag));
     return ofTheGraph && data.withoutDrawnDraft !== undefined ? data.withoutDrawnDraft(build) : build();
 }
 

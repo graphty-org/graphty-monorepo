@@ -269,6 +269,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "data.pick()": "writes",
     "data.ref()": "names its target",
     "data.nodeRef()": "names its target",
+    "data.typeOf()": "names its target",
     "data.removeEdit()": "writes",
     "data.removeStep()": "writes",
     "data.resolveStep()": "writes",

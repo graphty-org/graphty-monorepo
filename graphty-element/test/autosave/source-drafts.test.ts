@@ -208,3 +208,50 @@ for (const act of ["link", "extract", "connect"] as const) {
         second.dispose();
     });
 }
+
+it("writes made while a draft is drawn leave it drawn, and the graph is written as it was and as it is left", async () => {
+    const store = memoryAutosaveStore();
+    const clock = new FakeClock();
+    const first = createGraphSession({ features: ["source-steps"] });
+    const writer = new Autosaver({ key: KEY, session: first, store, clock, locks: new FakeLocks() });
+    const people = { type: "csv", config: { data: "person,dept\np1,x\np2,x\np3,y" }, name: "people.csv" };
+    await first.data.import(people, { key: "person" });
+    const source = first.data.sources()[0]?.key ?? "";
+    const draft = first.data.draft();
+    await writer.settled();
+    const id = writer.status.entry ?? "";
+    assert.isAbove(writer.status.revision, 0, "opening the draft writes what the graph held, before any timer");
+
+    const data = first.data as unknown as { withoutDrawnDraft: (read: () => unknown) => unknown };
+    const { withoutDrawnDraft } = data;
+    let taken = 0;
+    data.withoutDrawnDraft = (read) => {
+        taken++;
+        return withoutDrawnDraft.call(first.data, read);
+    };
+    draft.link({ source, columns: ["dept"] });
+    await draft.display(true);
+    for (const move of [() => draft.undo(), () => draft.redo(), () => draft.undo(), () => draft.redo()]) {
+        move();
+        await draft.display(true);
+        clock.advance(20_000);
+        await writer.settled();
+    }
+    assert.strictEqual(taken, 0, "no write takes the drawing off");
+    assert.strictEqual(writer.status.state, "saved");
+    assert.lengthOf(first.data.edges(), 1);
+
+    draft.dispose();
+    await first.data.setRole({ kind: "node", name: "dept" }, "label");
+    clock.advance(20_000);
+    await writer.settled();
+    writer.stop();
+    first.dispose();
+    const second = createGraphSession({ features: ["source-steps"] });
+    const reader = new Autosaver({ key: KEY, session: second, store, clock, locks: new FakeLocks() });
+    await reader.restore(id, true);
+    assert.isNull(second.data.currentDraft());
+    assert.deepStrictEqual([second.data.nodes().length, second.data.edges().length], [3, 0]);
+    reader.stop();
+    second.dispose();
+});

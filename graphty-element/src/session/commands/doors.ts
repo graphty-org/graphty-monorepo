@@ -2902,6 +2902,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             edits: READ,
             ref: READ,
             nodeRef: READ,
+            typeOf: READ,
             stage: SOURCE_STEPS_WRITE,
             declareType: SOURCE_STEPS_WRITE,
             removeEdit: SOURCE_STEPS_WRITE,
@@ -3745,6 +3746,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             source: READ,
             summary: READ,
             profile: READ,
+            rows: READ,
         },
     },
     {
@@ -4458,6 +4460,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             ...STYLES_API,
             compiled: READ,
             modelUrlFromCode: READ,
+            refreshDraftView: READ,
         },
     },
     {

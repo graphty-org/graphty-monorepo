@@ -23,6 +23,7 @@ import type {
     NodeRef,
     ReaderOp,
     Row,
+    RowFilter,
     Source,
     Step,
     TableName,
@@ -319,6 +320,8 @@ export function drillRows(
     const column = exceptColumn(step, state.value.sources[step.source]);
     const copies = copyMap(state.copies);
     const codes = CODES[query.bucket] === undefined ? [] : [CODES[query.bucket] as DrillCode];
+    // an edge to one value of a cell holding several is listed by that value
+    const byValue = query.bucket === "newEdges" && step.op === "join.edges" && step.extract !== undefined;
     const rows = page(units, query.offset, query.limit).map((u): DrillRow => {
         const now = u.element === undefined ? null : resolved(b1, u.element);
         // a count of elements, not rows, lists each by the source that brought it
@@ -332,15 +335,16 @@ export function drillRows(
         const src = state.value.sources[source] as SourceSteps["sources"][string] | undefined;
         const incoming = table === null ? null : (touch?.cells ?? rowOf(src, copies, table, u.row));
         const cell = incoming === null || column === null ? undefined : incoming[column];
-        const key = isEmpty(cell) ? (u.key ?? now?.key ?? null) : cell;
+        const ends = endsOf(b1, now, u.pair);
+        const own = isEmpty(cell) ? (u.key ?? now?.key ?? null) : cell;
         return {
             source,
             table,
             row: u.row ?? null,
-            key,
+            key: (byValue ? ends?.target.key : undefined) ?? own,
             name: u.name ?? null,
             element: now === null ? null : refOf(now),
-            ends: endsOf(b1, now, u.pair),
+            ends,
             held: was === null ? null : ownColumns(was.values),
             incoming: incoming === null ? null : ownColumns(incoming, src && numberedKey(src)),
             shown: now === null ? null : ownColumns(now.values),
@@ -388,11 +392,64 @@ export function drillCells(state: DraftState, query: CellQuery): { total: number
     return { total: all.length, cells };
 }
 
+/** A pair of values naming a row an excluded list holds. */
+interface ExceptCell {
+    readonly value: CellValue;
+    readonly with: CellValue;
+}
+
+/** What an excluded list takes: a key, a row a count listed, or a pair it holds. */
+type ExceptItem = CellValue | Pick<DrillRow, "key" | "incoming"> | ExceptCell;
+
 /**
- * Add keys to a step's excluded list, or take them off it (5.4): the step's `except`.
+ * The column that, with the one a step excludes by, names one row: its source's key, what a link's rows
+ * share, or an edge's other end.
+ * @param step - The step.
+ * @param src - Its source.
+ * @param column - The column it excludes by.
+ * @param row - The row.
+ * @returns The column, or null when none tells the row apart.
+ */
+function tellingColumn(step: Step, src: Source | undefined, column: string, row: Row): string | null {
+    const keys = [src?.mapping.nodes?.key, src?.mapping.edges?.edgeId];
+    const ends = step.op === "join.edges" ? [...(step.link?.columns ?? []), step.read.source, step.read.target] : [];
+    return [...keys, ...ends].find((each) => each !== undefined && each !== column && !isEmpty(row[each])) ?? null;
+}
+
+/**
+ * The pair naming one listed row, or its key when no second column tells it apart.
+ * @param step - The step.
+ * @param src - Its source.
+ * @param column - The column it excludes by.
+ * @param item - The row, key or pair.
+ * @returns The pair and its second column, or the key.
+ */
+function exceptItem(
+    step: Step,
+    src: Source | undefined,
+    column: string,
+    item: ExceptItem,
+): { readonly column: string | null; readonly pair: ExceptCell } | { readonly key: CellValue } {
+    if (item === null || typeof item !== "object") {
+        return { key: item };
+    }
+    if ("with" in item) {
+        return { column: step.except?.cells?.column ?? null, pair: item };
+    }
+    const { key, incoming } = item;
+    const other = incoming === null ? null : tellingColumn(step, src, column, incoming);
+    const held = step.except?.cells?.column;
+    // a list tells rows apart by one second column
+    return other === null || incoming === null || (held !== undefined && held !== other)
+        ? { key }
+        : { column: other, pair: { value: key, with: incoming[other] ?? null } };
+}
+
+/**
+ * Add keys or rows to a step's excluded list, or take them off it (5.4): the step's `except`.
  * @param value - The value.
  * @param index - The step's place.
- * @param keys - The keys.
+ * @param items - The keys, rows or pairs.
  * @param mode - `"exclude"` adds them, `"include"` takes them off.
  * @param column - The column the keys are in; absent, the one {@link exceptColumn} names.
  * @returns The step's new `except`, or null to take it off.
@@ -403,10 +460,10 @@ export function drillCells(state: DraftState, query: CellQuery): { total: number
 export function exceptOf(
     value: SourceSteps,
     index: number,
-    keys: readonly CellValue[],
+    items: readonly ExceptItem[],
     mode: "exclude" | "include",
     column?: string,
-): { readonly column: string; readonly values: readonly CellValue[] } | null {
+): RowFilter | null {
     const step = value.steps[index] as Step | undefined;
     if (step === undefined) {
         throw badCommand(`No step at ${String(index)}.`, { reason: "no-step", index });
@@ -422,17 +479,46 @@ export function exceptOf(
             column: own,
         });
     }
-    const held = step.except?.values ?? [];
-    let values: CellValue[];
-    if (mode === "exclude") {
-        const seen = new Set(held.map((h) => normalize(h)));
-        const added = keys.filter((k) => !seen.has(normalize(k)) && Boolean(seen.add(normalize(k))));
-        values = [...held, ...added];
-    } else {
-        const out = new Set(keys.map((k) => normalize(k)));
-        values = held.filter((h) => !out.has(normalize(h)));
+    const at = column ?? own;
+    const named = items.map((item) => exceptItem(step, value.sources[step.source], at, item));
+    const telling =
+        step.except?.cells?.column ?? named.flatMap((each) => ("pair" in each ? [each.column] : [])).find(Boolean);
+    const told = (each: (typeof named)[number]): boolean => "pair" in each && each.column === telling;
+    const keys = named.filter((each) => !told(each)).map((each) => ("pair" in each ? each.pair.value : each.key));
+    const pairs = named.flatMap((each) => (told(each) && "pair" in each ? [each.pair] : []));
+    const pairKey = (p: ExceptCell): string => JSON.stringify([normalize(p.value), normalize(p.with)]);
+    const values = changed(step.except?.values ?? [], keys, mode, (k) => normalize(k));
+    const cells = changed(step.except?.cells?.pairs ?? [], pairs, mode, pairKey);
+    if (values.length === 0 && cells.length === 0) {
+        return null;
     }
-    return values.length === 0 ? null : { column: column ?? own, values };
+    return {
+        column: at,
+        values,
+        ...(cells.length === 0 || telling === undefined || telling === null
+            ? {}
+            : { cells: { column: telling, pairs: cells } }),
+    };
+}
+
+/**
+ * A list with some things added, each once, or taken off.
+ * @param held - The list.
+ * @param items - The things.
+ * @param mode - Which.
+ * @param key - What tells two apart.
+ * @returns The list.
+ */
+function changed<T>(
+    held: readonly T[],
+    items: readonly T[],
+    mode: "exclude" | "include",
+    key: (item: T) => string,
+): T[] {
+    const names = new Set((mode === "exclude" ? held : items).map((each) => key(each)));
+    return mode === "include"
+        ? held.filter((each) => !names.has(key(each)))
+        : [...held, ...items.filter((each) => !names.has(key(each)) && Boolean(names.add(key(each))))];
 }
 
 /** Which cells a batch pick takes one source's value for. */

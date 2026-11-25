@@ -33,6 +33,7 @@ import {
     projectBuild,
     type ProjectedEdge,
     type ProjectedGraph,
+    settleIds,
     SOURCE_COPIES_VALUE,
     SOURCE_EDGE_IDS_VALUE,
     SOURCE_STEPS_VALUE,
@@ -558,8 +559,9 @@ const dataStepsSet: UndoableDefinition<DataStepsSetCommand> = {
         const edgeIds = valueOf<Readonly<Record<string, EdgeId>>>(ctx, SOURCE_EDGE_IDS_VALUE, {});
         const all = command.copies === undefined ? priorCopies : { ...priorCopies, ...command.copies };
         const known = ctx.services.config?.().data.knownFields;
-        const edited = withRepeated(applyEdit(prior, command.edit, all), known?.repeatedEdges);
-        const copies = copiesOf(edited, all);
+        const asked = withRepeated(applyEdit(prior, command.edit, all), known?.repeatedEdges);
+        const copies = copiesOf(asked, all);
+        const edited = settledFrom(command.edit, prior, priorCopies, asked, copies);
         const idPath = known?.nodeIdPath ?? "id";
         const after = projectBuild(refusingDuplicates(buildOf(edited, copies)), edited, idPath);
         const { edit } = command;
@@ -613,6 +615,26 @@ const dataStepsSet: UndoableDefinition<DataStepsSetCommand> = {
         refreshDerivedAfter(ctx);
     },
 };
+
+/**
+ * The edited value with its NodeIds settled: after the value before it, unless the edit begins anew.
+ * @param edit - The edit.
+ * @param prior - The value before.
+ * @param priorCopies - Its rows as read.
+ * @param asked - The value the edit makes.
+ * @param copies - Its rows as read.
+ * @returns The value.
+ */
+function settledFrom(
+    edit: StepsEdit,
+    prior: SourceSteps,
+    priorCopies: Copies,
+    asked: SourceSteps,
+    copies: Copies,
+): SourceSteps {
+    const anew = edit.kind === "restore" || (edit.kind === "add" && edit.replace === true);
+    return anew ? settleIds(EMPTY_STEPS, {}, asked, copies) : settleIds(prior, priorCopies, asked, copies);
+}
 
 /**
  * A build, refused when it holds a repeated edge under `repeatedEdges` "error", as a load without the

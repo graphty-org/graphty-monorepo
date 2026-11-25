@@ -14,7 +14,7 @@ import type { SourceMatchCounts as MatchCounts } from "../../types";
 import { type JoinInto, type NodeOne, nodeOne, sourceOf } from "./acts";
 import { cellValues, isEmpty, isStaged, type MatchOptions, normalize, resolveNode, tableRows } from "./build";
 import { buildOf, type Copies, copyMap, type SourceSteps } from "./project";
-import type { CellValue, Row, Value } from "./types";
+import type { BuildResult, CellValue, Row, Value } from "./types";
 
 /** Side 2: the incoming source and the field it names node 1 by. */
 interface MatchFrom {
@@ -474,10 +474,95 @@ export interface MatchSuggestion {
 /** The share of a field's values that must meet to call a suggestion confident. */
 const CONFIDENT_SHARE = 0.8;
 
+/** The share of a column's cells that must be different values for it to identify its rows. */
+const IDENTIFYING_SHARE = 0.8;
+
+/** The values of one column or of a space's keys, as they compare, and how many cells held one. */
+interface Values {
+    readonly keys: ReadonlySet<string>;
+    readonly cells: number;
+}
+
+/** A column's values per rows array, so every source's guess reads each column once. */
+const columnValues = new WeakMap<readonly Row[], Map<string, Values>>();
+
+/** A space's keys, and its nodes' columns, per build. */
+const spaceValues = new WeakMap<BuildResult, Map<string, Values>>();
+
+/**
+ * The different values of some cells, each of a list's apart.
+ * @param cells - The cells.
+ * @returns The values.
+ */
+function valuesOf(cells: Iterable<Value | undefined>): Values {
+    const keys = new Set<string>();
+    let filled = 0;
+    for (const cell of cells) {
+        for (const v of cellValues(cell)) {
+            if (!isEmpty(v)) {
+                filled++;
+                keys.add(normalize(v));
+            }
+        }
+    }
+    return { keys, cells: filled };
+}
+
+/**
+ * A member of a map, made when it is not there.
+ * @param map - The map.
+ * @param key - The member.
+ * @param make - Makes it.
+ * @returns The member.
+ */
+function kept<V>(map: Map<string, V>, key: string, make: () => V): V {
+    const held = map.get(key) ?? make();
+    map.set(key, held);
+    return held;
+}
+
+/**
+ * The values of one column of a source's rows.
+ * @param rows - The rows.
+ * @param field - The column.
+ * @returns The values.
+ */
+function ofColumn(rows: readonly Row[], field: string): Values {
+    const byField = columnValues.get(rows) ?? new Map<string, Values>();
+    columnValues.set(rows, byField);
+    return kept(byField, field, () => valuesOf(rows.map((row) => row[field])));
+}
+
+/**
+ * The keys of a space's nodes, or the values of a column of theirs.
+ * @param built - The build.
+ * @param space - The space.
+ * @param field - The column; absent for the keys.
+ * @returns The values.
+ */
+function ofSpace(built: BuildResult, space: string, field?: string): Values {
+    const bySpace = spaceValues.get(built) ?? new Map<string, Values>();
+    spaceValues.set(built, bySpace);
+    return kept(bySpace, field === undefined ? space : `${space}\u0001${field}`, () => {
+        const cells: (Value | undefined)[] = [];
+        for (const n of built.nodes.values()) {
+            if (n.space === space) {
+                cells.push(field === undefined ? n.key : n.values[field]);
+            }
+        }
+        return valuesOf(cells);
+    });
+}
+
+// Whether a column names its rows: nearly every cell holds another value.
+const identifies = (v: Values): boolean => v.keys.size > 1 && v.keys.size >= IDENTIFYING_SHARE * v.cells;
+
 /**
  * The joins a source most likely makes onto the graph, best first: each node column of the source
- * against the keys of each id space other than its own and of each other staged source, ranked by the share of its values that
- * meet. A column whose values are the space's keys merges; any other connects.
+ * against the keys of each id space other than its own and of each other staged source, and against a
+ * column of the same name there when both name their rows; ranked by the share of its values that
+ * meet. A column whose values are the space's keys, or that names its rows on both sides, merges; any
+ * other connects.
  * @param value - The sources and steps.
  * @param copies - The rows as read.
  * @param source - The source.
@@ -501,38 +586,59 @@ export function suggestMatches(
     },
     key: string | undefined,
 ): MatchSuggestion[] {
-    const out: { share: number; suggestion: MatchSuggestion }[] = [];
-    const sides: readonly JoinInto[] = [
-        ...spaces.all.filter((space) => space !== spaces.own).map((space) => ({ space })),
-        ...(spaces.staged ?? []).map((each) => ({ source: each })),
-    ];
-    for (const into of sides) {
+    const built = buildOf(value, copies);
+    const rows = rowsOf(value, copies, source);
+    const found: { share: number; rank: number; suggestion: MatchSuggestion }[] = [];
+    const meet = (field: string, into: JoinInto, other: Values, merges: boolean): void => {
+        const { keys } = ofColumn(rows, field);
+        let matched = 0;
+        for (const k of keys) {
+            matched += other.keys.has(k) ? 1 : 0;
+        }
+        if (matched === 0) {
+            return;
+        }
+        const share = matched / keys.size;
+        found.push({
+            share,
+            // a source that waits comes after what the graph holds, and a column after the keys
+            rank: (into.source === undefined ? 0 : 2) + (into.field === undefined ? 0 : 1),
+            suggestion: Object.freeze({
+                result: merges ? "merge" : "connect",
+                matches: Object.freeze([Object.freeze({ from: { source, field }, into })]),
+                confident: share >= CONFIDENT_SHARE,
+            }),
+        });
+    };
+    const named = (field: string, into: JoinInto, keys: Values, other: () => Values): void => {
+        if (!identifies(ofColumn(rows, field))) {
+            return;
+        }
+        const values = other();
+        // a column holding the keys is the keys
+        const isKey = values.keys.size === keys.keys.size && [...values.keys].every((k) => keys.keys.has(k));
+        if (identifies(values) && !isKey) {
+            meet(field, { ...into, field }, values, true);
+        }
+    };
+    for (const space of spaces.all.filter((each) => each !== spaces.own)) {
         for (const field of columns) {
-            const pair: MatchPair = { from: { source, field }, into };
-            let counts: MatchCounts;
-            try {
-                counts = matchCounts(value, copies, pair);
-            } catch {
-                continue;
-            }
-            const held = counts.matched + counts.only2;
-            if (counts.matched === 0 || held === 0) {
-                continue;
-            }
-            const share = counts.matched / held;
-            out.push({
-                share,
-                suggestion: Object.freeze({
-                    result: field === key ? "merge" : "connect",
-                    matches: Object.freeze([Object.freeze(pair)]),
-                    confident: share >= CONFIDENT_SHARE,
-                }),
-            });
+            meet(field, { space }, ofSpace(built, space), field === key);
+            named(field, { space }, ofSpace(built, space), () => ofSpace(built, space, field));
         }
     }
-    // a source that waits comes after what the graph holds
-    const waits = (each: (typeof out)[number]): number =>
-        each.suggestion.matches[0].into.source === undefined ? 0 : 1;
-    out.sort((a, b) => waits(a) - waits(b) || b.share - a.share);
-    return out.map((each) => each.suggestion);
+    for (const id of spaces.staged ?? []) {
+        const theirs = rowsOf(value, copies, id);
+        const theirKey = sourceOf(value, id).mapping.nodes?.key;
+        const columnsThere = new Set(theirs.length === 0 ? [] : Object.keys(theirs[0]));
+        for (const field of columns) {
+            const keys = ofColumn(theirs, theirKey ?? "");
+            meet(field, { source: id }, keys, field === key);
+            if (columnsThere.has(field)) {
+                named(field, { source: id }, keys, () => ofColumn(theirs, field));
+            }
+        }
+    }
+    found.sort((a, b) => a.rank - b.rank || b.share - a.share);
+    return found.map((each) => each.suggestion);
 }

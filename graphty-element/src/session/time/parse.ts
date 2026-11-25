@@ -306,9 +306,40 @@ const TIME_NAME = /(?:^|[^a-z])(?:date|datetime|time|timestamp|year|start|end|cr
 /** A loose reading counts as a date only with a four-digit year in it. */
 const HAS_YEAR = /\d{4}/;
 
-/** Text spelling a date's parts: a month's name, or numbers set apart as a date's are (`1/15/2026`, `2026/01`). */
-const DATE_PARTS =
-    /(?<![a-z])(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*(?![a-z])[\s.,]*\d|\d[\s.,-]*(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)|(?<!\d)\d{1,4}([/.-])\d{1,2}\1\d{1,4}(?!\d)|(?<!\d)\d{4}\/\d{1,2}(?!\d)/i;
+/** A month's or a weekday's name, whole or short, and what else a spelled date may hold as a word. */
+const DATE_WORD =
+    /\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sept?(?:ember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?|mon(?:day)?|tue(?:s(?:day)?)?|wed(?:nesday)?|thu(?:rs(?:day)?)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?|st|nd|rd|th|of|at|am|pm|t|z|utc|gmt|[ecmp][sd]t)\b/gi;
+
+/** A month's name set apart. */
+const MONTH_WORD =
+    /\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sept?(?:ember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b/i;
+
+/** A year set apart from what is around it. */
+const YEAR = String.raw`(?:1[5-9]|2[01])\d{2}`;
+
+/** Numbers set apart as a date's are (`1/15/2026`, `2026.01.05`, `2026/01`). */
+const DATE_NUMBERS = new RegExp(
+    String.raw`(?<!\d)(?:${YEAR}([/.-])\d{1,2}\1\d{1,2}|\d{1,2}([/.-])\d{1,2}\2${YEAR}|${YEAR}\/\d{1,2})(?!\d)`,
+);
+
+/**
+ * Whether text spells a date's parts: numbers set apart as a date's are, or a month's name with a year
+ * and nothing else a date does not say.
+ * @param text - The text.
+ * @returns True when it does.
+ */
+function spellsDate(text: string): boolean {
+    if (DATE_NUMBERS.test(text)) {
+        return true;
+    }
+    // "5th" is a 5 and its ordinal
+    const words = text.replaceAll(/(\d)(st|nd|rd|th)\b/gi, "$1 $2");
+    return (
+        MONTH_WORD.test(words) &&
+        new RegExp(String.raw`\b${YEAR}\b`).test(words) &&
+        !/[a-z]/i.test(words.replaceAll(DATE_WORD, ""))
+    );
+}
 
 /**
  * Whether text reads as a date on its face: strict ISO 8601, or loose text spelling a date's parts
@@ -318,7 +349,7 @@ const DATE_PARTS =
  */
 export function readsAsDate(text: string): boolean {
     const { how } = readInstant(text, "ms");
-    return how === "strict" || (how === "loose" && HAS_YEAR.test(text) && DATE_PARTS.test(text));
+    return how === "strict" || (how === "loose" && HAS_YEAR.test(text) && spellsDate(text));
 }
 
 /**

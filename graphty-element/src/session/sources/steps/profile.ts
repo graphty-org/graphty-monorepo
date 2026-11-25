@@ -342,22 +342,43 @@ export interface TableHandle {
     readonly source: string;
     summary(): SourceSummary;
     profile(column: string, options?: { readonly table?: TableName }): ColumnProfile;
+    rows(options?: RowsQuery): { readonly total: number; readonly rows: readonly Row[] };
+}
+
+/** Which of a source's rows to read. */
+interface RowsQuery {
+    readonly table?: TableName;
+    readonly offset?: number;
+    readonly limit?: number;
 }
 
 /**
  * A handle on one source's rows, reading the value and copies `now` gives at each call.
  * @param now - The value and copies now.
  * @param source - The source.
+ * @param loadedAt - When it was read, when the source itself holds no record of it (after a reopen).
  * @returns The handle.
  * @throws A `GraphtyError` with `E_LOAD_UNKNOWN` for an unknown source.
  */
-export function tableHandle(now: () => { value: SourceSteps; copies: Copies }, source: string): TableHandle {
+export function tableHandle(
+    now: () => { value: SourceSteps; copies: Copies },
+    source: string,
+    loadedAt?: string,
+): TableHandle {
     sourceOf(now().value, source);
     return Object.freeze({
         source,
         summary: () => {
             const { value, copies } = now();
-            return sourceSummary(value, copies, source);
+            return { ...(loadedAt === undefined ? {} : { loadedAt }), ...sourceSummary(value, copies, source) };
+        },
+        rows: ({ table, offset = 0, limit }: RowsQuery = {}) => {
+            const { value, copies } = now();
+            const src = sourceOf(value, source);
+            const own = table ?? (src.mapping.nodes === undefined ? "edges" : "nodes");
+            const all = tableRows(src, copyMap(copies), own) ?? [];
+            const from = Math.max(0, offset);
+            return { total: all.length, rows: all.slice(from, from + Math.max(0, limit ?? all.length)) };
         },
         profile: (column: string, options: { readonly table?: TableName } = {}) => {
             const { value, copies } = now();

@@ -15,7 +15,17 @@ import type { EdgeId, NodeId } from "../../../catalog/types";
 import { GraphtyError } from "../../../errors/GraphtyError";
 import type { JoinRecord, SourceExtractOptions, SourceLinkOptions, SourceStepAct } from "../../types";
 import { applyAct, extractOf, movedAfter, type StepsAct, withoutStepAndAdds } from "./acts";
-import { build, copyKey, isStaged, nodeSpace, ownSpace, resolveNode, rowNodeSpace, stepSources } from "./build";
+import {
+    build,
+    copyKey,
+    freeName,
+    isStaged,
+    nodeSpace,
+    ownSpace,
+    resolveNode,
+    rowNodeSpace,
+    stepSources,
+} from "./build";
 import { RECORD_PATHS } from "./paths";
 import { conflictReport, readableRecord, type StepsOutcome } from "./provenance";
 import { applyRefreshEdit, editStates, missingColumns, type RefreshEdit, type RefreshIssue } from "./refresh";
@@ -112,6 +122,11 @@ export interface SourceSteps {
     readonly types: readonly TypeEntry[];
     /** The reader source's operations, in the order made. */
     readonly reader: readonly ReaderOp[];
+    /**
+     * The NodeId of each node whose NodeId is not its key, by internal id, as {@link settleIds} left
+     * them: a node keeps its NodeId whatever is renamed, replaced, turned off or taken out around it.
+     */
+    readonly nodeIds?: Readonly<Record<string, string>>;
     /**
      * The graph's `data.knownFields.repeatedEdges` as of the last edit, which the build reduces
      * repeated edges by; absent keeps them. Session state, not saved: an edit sets it from the setting.
@@ -602,24 +617,52 @@ function withoutSource(prior: SourceSteps, id: string): SourceSteps {
     const gone = new Set(
         prior.steps.filter((step) => reading(step)).flatMap((step) => madeSpaces(step, prior.sources[step.source])),
     );
-    const dead = (step: Step, value: SourceSteps): boolean => {
+    const lost = (step: Step, value: SourceSteps): readonly ("source" | "target")[] => {
         if (step.op !== "join.edges" || step.link !== undefined || extractOf(step) !== null) {
-            return false;
+            return [];
         }
         const made = new Set(
             value.steps.flatMap((each) => (each === step ? [] : madeSpaces(each, value.sources[each.source]))),
         );
         const own = new Set(madeSpaces(step, value.sources[step.source]));
-        return [step.read.sourceSpace, step.read.targetSpace].some(
-            (space) => space !== undefined && gone.has(space) && !made.has(space) && !own.has(space),
-        );
+        return (["source", "target"] as const).filter((end) => {
+            const space = step.read[`${end}Space`];
+            return space !== undefined && gone.has(space) && !made.has(space) && !own.has(space);
+        });
     };
     let value = bare;
-    for (let at = value.steps.findIndex((s) => dead(s, value)); at !== -1;) {
-        value = withoutStepAndAdds(value, at);
-        at = value.steps.findIndex((s) => dead(s, value));
+    for (let at = 0; at !== -1;) {
+        at = value.steps.findIndex((s) => lost(s, value).length > 0);
+        const step = value.steps[at] as Step | undefined;
+        const ends = step === undefined ? [] : lost(step, value);
+        if (step?.op === "join.edges" && step.rowNode === "middle" && ends.length === 1) {
+            const kept = withoutEnd(step, ends[0]);
+            value = { ...value, steps: value.steps.map((each) => (each === step ? kept : each)) };
+        } else if (step !== undefined) {
+            value = withoutStepAndAdds(value, at);
+        }
     }
     return value;
+}
+
+/**
+ * A step whose rows are nodes between two ends, without the edges to one of them.
+ * @param step - The step.
+ * @param end - The end that goes.
+ * @returns The step, its rows linked to the other end.
+ */
+function withoutEnd(step: EdgesStep, end: "source" | "target"): EdgesStep {
+    const other = end === "source" ? "target" : "source";
+    const { otherColumn, via, viaEnd, lookup, mapping, nodeColumn, addEnd, ...rest } = step;
+    const found = (viaEnd ?? "target") === other ? { via, lookup, mapping, nodeColumn } : { nodeColumn: otherColumn };
+    const read = { ...step.read, [end]: undefined, [`${end}Space`]: undefined };
+    const looked = Object.values(found).some((each) => each !== undefined);
+    return {
+        ...rest,
+        read: defined(read),
+        rowNode: end,
+        ...defined({ ...found, viaEnd: looked ? other : undefined, addEnd: addEnd === end ? undefined : addEnd }),
+    } as EdgesStep;
 }
 
 /**
@@ -661,8 +704,7 @@ function typedKey(el: BuiltNode): string | number {
 }
 
 /**
- * A node's NodeId when its key alone does not name it: `<space>:<key>`, a source's own space by the
- * source's name.
+ * A node's NodeId when its key is taken: `<space>:<key>`, a source's own space by the source's name.
  * @param result - The build.
  * @param n - The node.
  * @returns The NodeId.
@@ -672,38 +714,86 @@ function spelledId(result: BuildResult, n: BuiltNode): string {
 }
 
 /**
- * Each node's NodeId: its key, or `<space>:<key>` (9.1) when a node built before it, in another
- * space, has that key, so a node keeps its NodeId whatever is loaded after it. A key that reads the
- * same as another node's `<space>:<key>` (a key such as `person:x`) is spelled so too, and no two
- * nodes share a NodeId.
+ * Each node's NodeId: the one it is known to have, else its key, else, when a node built before it
+ * has that one, `<space>:<key>` (9.1). No two nodes share one.
+ * @param result - The build.
+ * @param known - The NodeIds nodes are known to have, by internal id.
+ * @returns The NodeId by internal id.
+ */
+function assignIds(result: BuildResult, known: (id: string) => string | undefined): ReadonlyMap<string, string> {
+    const out = new Map<string, string>();
+    const taken = new Set<string>();
+    const give = (n: BuiltNode, id: string | undefined): boolean => {
+        if (id === undefined || taken.has(id)) {
+            return false;
+        }
+        taken.add(id);
+        out.set(n.id, id);
+        return true;
+    };
+    const nodes = [...result.nodes.values()];
+    const unknown = nodes.filter((n) => !give(n, known(n.id)));
+    for (const n of unknown.filter((each) => !give(each, each.key))) {
+        give(n, freeName(spelledId(result, n), taken));
+    }
+    return out;
+}
+
+const idsByBuild = new WeakMap<BuildResult, ReadonlyMap<string, NodeId>>();
+
+/**
+ * Each node's NodeId: the one {@link settleIds} left it, else its key, else, when a node built before
+ * it has that key, `<space>:<key>` (9.1). No two nodes share a NodeId.
  * @param result - The build.
  * @returns The NodeId by internal id.
  */
 export function nodeIdsOf(result: BuildResult): ReadonlyMap<string, NodeId> {
-    const keys = new Set<string>();
-    const spelled = new Set<BuiltNode>();
-    for (const n of result.nodes.values()) {
-        if (keys.has(n.key)) {
-            spelled.add(n);
-        }
-        keys.add(n.key);
+    let ids = idsByBuild.get(result);
+    if (ids === undefined) {
+        const given = assignIds(result, (id) => result.nodeIds[id]);
+        ids = new Map(
+            [...result.nodes.values()].map((n) => [
+                n.id,
+                given.get(n.id) === n.key ? typedKey(n) : (given.get(n.id) ?? n.key),
+            ]),
+        );
+        idsByBuild.set(result, ids);
     }
-    // Spelling one key can make another bare key collide, so repeat until nothing changes.
-    for (let grew = spelled.size > 0; grew;) {
-        const taken = new Set([...spelled].map((n) => spelledId(result, n)));
-        grew = false;
-        for (const n of result.nodes.values()) {
-            if (!spelled.has(n) && taken.has(n.key)) {
-                spelled.add(n);
-                grew = true;
-            }
-        }
+    return ids;
+}
+
+/**
+ * The value with the NodeIds of its nodes settled: a node the value before it built keeps the NodeId it
+ * had there, so no NodeId names one node before an edit and another after it.
+ * ponytail: one entry per node whose key is taken; a compact form if two large files numbered alike
+ * show up in a saved project's size.
+ * @param prior - The value before.
+ * @param priorCopies - Its rows as read.
+ * @param next - The value after.
+ * @param copies - Its rows as read.
+ * @returns The next value, sharing its build.
+ */
+export function settleIds(prior: SourceSteps, priorCopies: Copies, next: SourceSteps, copies: Copies): SourceSteps {
+    const result = buildOf(next, copies);
+    const before = nodeIdsOf(buildOf(prior, priorCopies));
+    const given = assignIds(result, (id) => {
+        const was = before.get(id);
+        return result.nodeIds[id] ?? (was === undefined ? undefined : String(was));
+    });
+    const held = Object.fromEntries(
+        [...result.nodes.values()].flatMap((n) => {
+            const id = given.get(n.id) ?? n.key;
+            return id === n.key ? [] : [[n.id, id]];
+        }),
+    );
+    const was = Object.entries(next.nodeIds ?? {});
+    if (was.length === Object.keys(held).length && was.every(([id, spelled]) => held[id] === spelled)) {
+        return next;
     }
-    const out = new Map<string, NodeId>();
-    for (const n of result.nodes.values()) {
-        out.set(n.id, spelled.has(n) ? spelledId(result, n) : typedKey(n));
-    }
-    return out;
+    const { nodeIds: _old, ...rest } = next;
+    const settled: SourceSteps = Object.keys(held).length === 0 ? rest : { ...rest, nodeIds: held };
+    builds.set(settled, { copies, result: { ...result, nodeIds: held } });
+    return settled;
 }
 
 /**

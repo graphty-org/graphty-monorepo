@@ -63,6 +63,7 @@ import type {
     SourceDraftColumn,
     SourceDraftOptions,
     SourceDraftPreview,
+    SourceDraftRow,
     SourceDraftSpaceRow,
     SourceElementRef,
     SourceExtractOptions,
@@ -78,6 +79,7 @@ import type {
     SourceMergeOptions,
     SourceMoveColumnsOptions,
     SourcePickAllOptions,
+    SourceRowCell,
     SourceStepPatch,
     SourceStepRow,
     SourceTable,
@@ -424,10 +426,15 @@ export class SourceDraftHandle implements SourceDraft {
      * Change a step's excluded list.
      * @param verb - The act.
      * @param step - The step's place.
-     * @param keys - The keys.
+     * @param keys - The keys, rows or pairs.
      * @param column - The column they are in, for an exclusion.
      */
-    private except(verb: "exclude" | "include", step: number, keys: readonly SourceCellValue[], column?: string): void {
+    private except(
+        verb: "exclude" | "include",
+        step: number,
+        keys: Parameters<typeof exceptOf>[2],
+        column?: string,
+    ): void {
         this.act(verb, (state) => {
             const except = exceptOf(state.value, step, keys, verb, column);
             return draftApply(state, stepEdit(state.value, state.copies, step, { except }));
@@ -435,12 +442,16 @@ export class SourceDraftHandle implements SourceDraft {
     }
 
     /** @inheritdoc */
-    exclude(step: number, keys: readonly SourceCellValue[], options: { readonly column?: string } = {}): void {
+    exclude(
+        step: number,
+        keys: readonly (SourceCellValue | SourceDraftRow)[],
+        options: { readonly column?: string } = {},
+    ): void {
         this.except("exclude", step, keys, options.column);
     }
 
     /** @inheritdoc */
-    include(step: number, keys: readonly SourceCellValue[]): void {
+    include(step: number, keys: readonly (SourceCellValue | SourceRowCell)[]): void {
         this.except("include", step, keys);
     }
 

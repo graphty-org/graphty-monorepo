@@ -508,6 +508,8 @@ interface DataWrites {
     references?(): { readonly nodes: readonly NodeId[]; readonly edges: readonly (EdgeId | undefined)[] };
     /** A drawn source draft's After on the graph: taken off and put back around what must not see it. */
     readonly drawing?: {
+        /** Whether a draft's After is drawn now. */
+        active(): boolean;
         /** Settles once the graph draws what the open draft shows now. */
         drawn(): Promise<void>;
         /** Take After off the graph now, synchronously. */
@@ -4243,6 +4245,14 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * Whether a draft's After is drawn: the graph holds what its commit would leave.
+     * @returns True while it is.
+     */
+    draftIsDrawn(): boolean {
+        return this.writes.drawing?.active() === true;
+    }
+
+    /**
      * Run a read of the project (a save) on the committed graph: a drawn draft's After is taken off
      * the graph while it runs, until a promise it returns settles, and drawn again after, so the
      * read never holds what the draft adds.
@@ -4315,7 +4325,11 @@ export class SessionData implements SessionDataApi {
      */
     sourceTable(source: SourceKey): SourceTable {
         this.requireSteps("sourceTable");
-        return tableHandle(() => ({ value: this.stepsValue(), copies: this.stepsCopies() }), source);
+        const now = (): { value: SourceSteps; copies: Copies } => ({
+            value: this.stepsValue(),
+            copies: this.stepsCopies(),
+        });
+        return tableHandle(now, source, this.loadFacts.get(source)?.loadedAt);
     }
 
     /**
@@ -4661,6 +4675,18 @@ export class SessionData implements SessionDataApi {
     ref(key: string, options: { readonly space?: string } = {}): SourceNodeRef | null {
         this.requireLive("ref");
         return refOf(this.stepsBuild().result, key, options.space);
+    }
+
+    /**
+     * The type of a node or an edge in the graph.
+     * @param kind - Nodes or edges.
+     * @param id - Its id.
+     * @returns The type, or null for one with none or not in the graph.
+     */
+    typeOf(kind: "node" | "edge", id: NodeId | EdgeId): string | null {
+        this.requireSteps("typeOf");
+        const { nodes, edges } = elementsById(this.stepsBuild().result, this.stepsEdgeIds());
+        return (kind === "node" ? nodes.get(String(id)) : edges.get(id as EdgeId))?.type ?? null;
     }
 
     /**
@@ -7535,16 +7561,30 @@ export class SessionData implements SessionDataApi {
         readonly readable: readonly AttributeDescriptor[];
     } {
         const snapshot = this.current();
-        return this.attributeCache.get("", () => {
+        const sources = this.stepsOn() ? Object.values(this.stepsValue().sources) : [];
+        return this.attributeCache.get(JSON.stringify(sources.map((src) => [src.id, src.label])), () => {
+            // A Both column is named by its source's id, and shown by the source's name.
+            const named = (each: AttributeDescriptor): AttributeDescriptor => {
+                const src = sources.find(({ id }) => each.name.endsWith(` (${id})`));
+                return src?.label === undefined || src.label === null
+                    ? each
+                    : { ...each, plainName: `${each.name.slice(0, -src.id.length - 3)} (${src.label})` };
+            };
             // The `_source.` facts are the element's bookkeeping of network loads, not the data's
             // columns, and so is what a collapsed group keeps for its expand.
+            // So is the direction of an edge linking nodes that share a value, which no source's rows hold.
+            const linked =
+                this.stepsOn() && ![...this.stepsBuild().result.edges.values()].some((e) => "directed" in e.values);
             const all = describeAttributes(snapshot, this.records).filter(
-                (each) => !isSourceFactKey(each.name) && each.name !== GROUP_RESTORE,
+                (each) =>
+                    !isSourceFactKey(each.name) &&
+                    each.name !== GROUP_RESTORE &&
+                    !(linked && each.kind === "edge" && each.name === "directed"),
             );
             const isReadable = (each: AttributeDescriptor): boolean =>
                 this.stepsOn() && RECORD_PATHS.includes(each.name);
             return {
-                columns: Object.freeze(all.filter((each) => !isReadable(each))),
+                columns: Object.freeze(all.filter((each) => !isReadable(each)).map((each) => named(each))),
                 readable: Object.freeze(
                     all
                         .filter((each) => isReadable(each))

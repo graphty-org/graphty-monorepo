@@ -6988,6 +6988,7 @@ export interface SessionDataApi {
     }): number | undefined;
     structureValues(): readonly StructureValue[];
     testSource(source: SourceInput, options?: SourceLoadOptions): Promise<SourceProbe>;
+    typeOf(kind: "node" | "edge", id: NodeId_2 | EdgeId): string | null;
     types(): readonly SourceTypeEntry[];
     undirected(snapshot?: GraphSnapshot): DerivedGraph;
     updateEdges(rows: readonly RowUpdate<EdgeId>[]): Promise<void>;
@@ -7294,6 +7295,7 @@ export interface SessionStatus {
 export interface SessionStylesApi extends StylesApi {
     compiled(): readonly CompiledLayer[];
     modelUrlFromCode(url: string): boolean;
+    refreshDraftView(): void;
 }
 
 // @public
@@ -7811,7 +7813,7 @@ export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "match
     dispose(): void;
     edits(): readonly ReaderEditRow[];
     editStep(index: number, patch: SourceStepPatch): void;
-    exclude(step: number, keys: readonly SourceCellValue[], options?: {
+    exclude(step: number, keys: readonly (SourceCellValue | SourceDraftRow)[], options?: {
         readonly column?: string;
     }): void;
     extract(source: SourceKey, options: SourceExtractOptions): number;
@@ -7819,7 +7821,7 @@ export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "match
     import(source: DataSourceInput, options?: ImportOptions & {
         readonly overlap?: "separate" | "merge";
     }): Promise<string>;
-    include(step: number, keys: readonly SourceCellValue[]): void;
+    include(step: number, keys: readonly (SourceCellValue | SourceRowCell)[]): void;
     link(options: SourceLinkOptions): number;
     merge(options: SourceMergeOptions): void;
     moveColumns(source: SourceKey, options: SourceMoveColumnsOptions): void;
@@ -7906,6 +7908,7 @@ export interface SourceDraftMarkCounts {
         readonly merged: number;
         readonly new: number;
         readonly removed: number;
+        readonly changed?: number;
     };
     readonly merged: number;
     readonly new: number;
@@ -7914,6 +7917,7 @@ export interface SourceDraftMarkCounts {
         readonly new: number;
         readonly untouched: number;
         readonly removed: number;
+        readonly changed?: number;
     };
     readonly untouched: number;
 }
@@ -8628,7 +8632,20 @@ export interface SourceRolePatch {
 }
 
 // @public
+export interface SourceRowCell {
+    readonly value: SourceCellValue;
+    readonly with: SourceCellValue;
+}
+
+// @public
+export interface SourceRowCells {
+    readonly column: string;
+    readonly pairs: readonly SourceRowCell[];
+}
+
+// @public
 export interface SourceRowFilter {
+    readonly cells?: SourceRowCells;
     readonly column: string;
     readonly values: readonly SourceCellValue[];
 }
@@ -8804,6 +8821,11 @@ export interface SourceTable {
     profile(column: string, options?: {
         readonly table?: "nodes" | "edges";
     }): SourceColumnProfile;
+    rows(options?: {
+        readonly table?: "nodes" | "edges";
+        readonly offset?: number;
+        readonly limit?: number;
+    }): SourceTableRows;
     readonly source: SourceKey;
     summary(): SourceTableFacts;
 }
@@ -8843,6 +8865,12 @@ export interface SourceTablePart {
     readonly columns: readonly string[];
     readonly rows: number;
     readonly table: "nodes" | "edges";
+}
+
+// @public
+export interface SourceTableRows {
+    readonly rows: readonly Readonly<Record<string, SourceCellValue | undefined>>[];
+    readonly total: number;
 }
 
 // @public

@@ -1349,6 +1349,34 @@ export function withoutStepAndAdds(value: SourceSteps, index: number): SourceSte
 }
 
 /**
+ * The value without one step and the adds it was made with; without a source's add, and without the
+ * joins of other sources that need the nodes it made: a join never names nodes that are not there.
+ * @param value - The value.
+ * @param index - The step's place.
+ * @returns The value.
+ */
+function withoutStepAndAll(value: SourceSteps, index: number): SourceSteps {
+    const gone = value.steps[index] as Step | undefined;
+    if (gone?.op !== "join.add") {
+        return withoutStepAndAdds(value, index);
+    }
+    const spaces = stepSpaces(gone, value.sources[gone.source]);
+    const others = value.steps.filter((step) => step.op === "join.add" && step !== gone && step.off !== true);
+    const made = new Set(others.flatMap((add) => [...stepSpaces(add, value.sources[add.source])]));
+    const lost = new Set([...spaces].filter((space) => !made.has(space)));
+    const needs = (step: Step): boolean =>
+        step.op !== "join.add" &&
+        step.source !== gone.source &&
+        [...stepSpaces(step, value.sources[step.source])].some((space) => lost.has(space));
+    let next = withoutStep(value, index);
+    for (const step of value.steps.filter((each) => needs(each))) {
+        const at = next.steps.indexOf(step);
+        next = at === -1 ? next : withoutStepAndAdds(next, at);
+    }
+    return next;
+}
+
+/**
  * Move one step to another place in the build order: the steps between shift by one. Refused when
  * a step would read a source before the step that adds it.
  * @param value - The value.
@@ -1487,7 +1515,7 @@ export function applyAct(value: SourceSteps, act: StepsAct, copies: Copies): Sou
             }
             return mapped(value, act.source, act.patch, copies);
         default:
-            return act.adds === "remove" ? withoutStepAndAdds(value, act.index) : withoutStep(value, act.index);
+            return act.adds === "remove" ? withoutStepAndAll(value, act.index) : withoutStep(value, act.index);
     }
 }
 

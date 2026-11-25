@@ -345,7 +345,13 @@ export function draftLayers(
         specs.push(
             ...idLayers("Untouched", ids({ step, buckets: STEP_MARKS.untouched }), untouchedLook(color)),
             ...idLayers("Merged", ids({ step, buckets: STEP_MARKS.merged }), mergedLook(color), mergedEdgeLook(color)),
-            ...idLayers("New", ids({ step, buckets: STEP_MARKS.new }), newNodeLook(color), newEdgeLook(color)),
+            // The layers above draw what the commit adds dashed: what the step made before keeps its line whole.
+            ...idLayers(
+                "New",
+                ids({ step, buckets: STEP_MARKS.new }),
+                { "node.borderColor": color, "node.borderWidth": 0.1 },
+                { "edge.color": color },
+            ),
         );
     }
     if (strong !== null) {

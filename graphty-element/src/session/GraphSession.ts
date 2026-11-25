@@ -3862,6 +3862,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             }),
             drawing: {
                 // Once drawn and the events saying so are out, so a caller's next act comes after them.
+                active: () => afterDrawn,
                 drawn: async () => {
                     await draftDrawn();
                     await draftEvents;
@@ -4851,11 +4852,18 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         notifier.notify({ kind: "attributes", element: "edge", fields: [field] });
         stateRevision++;
     };
+    // Ends the draft repaint under way: the graph it reads is about to be written, and another follows.
+    let draftPass = new AbortController();
     const repaintDraft = (): void => {
         draftMoved();
         if (stack === null) {
             return;
         }
+        draftPass.abort();
+        const pass = new AbortController();
+        draftPass = pass;
+        // The view's layers name elements by the ids they had when it was shown: drawn anew, they may have others.
+        stack.refreshDraftView();
         const graph = snapshot();
         const all = (count: number): number[] => Array.from({ length: count }, (_, index) => index);
         // A layer reading the path matched other elements before, as after a note changed.
@@ -4864,9 +4872,13 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             .repaintElements(
                 stack.compiled(),
                 { node: all(graph.nodeCount), edge: all(graph.edgeCount) },
-                { signal: teardown.signal, report: () => undefined },
+                { signal: AbortSignal.any([teardown.signal, pass.signal]), report: () => undefined },
             )
-            .catch(repaintFailed("draft"));
+            .catch((error: unknown) => {
+                if (!pass.signal.aborted) {
+                    repaintFailed("draft")(error);
+                }
+            });
     };
     // A drawn draft's After (design 5.3): the graph its commit would leave, drawn by writing what the
     // commit would remove, patch and add -- the graph's rows only, never the sources and steps --
@@ -4899,6 +4911,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             return;
         }
         const { diff, idPath } = drawn;
+        draftPass.abort();
         // The After taken off for this one is still rolling back: its rollback lands first, or the
         // two interleave and leave neither graph drawn.
         const prior = drawing;
@@ -4973,6 +4986,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             return;
         }
         const { abort, ended } = after;
+        draftPass.abort();
         after = null;
         drawing = ended;
         afterDrawn = false;

@@ -1562,6 +1562,8 @@ export interface SessionStylesApi extends StylesApi {
      * @returns The compiled layers, bottom first.
      */
     compiled(): readonly CompiledLayer[];
+    /** Work the shown draft view's layers out again from the draft as it is drawn now, repainting nothing. */
+    refreshDraftView(): void;
     /**
      * Whether the page's own code named this model URL, in a layer it added or updated directly
      * (`styles.add`, `styles.update`). Only such a URL is fetched without the page allowing its
@@ -2355,7 +2357,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     /** The branches view drawn now, and the layers it draws. */
     // A draft view (`showDraft`) is held here too, with no branches view to tell.
     let branchesShown: {
-        readonly layers: readonly CompiledLayer[];
+        layers: readonly CompiledLayer[];
         readonly view: BranchesView | null;
         readonly draft?: DraftView;
     } | null = null;
@@ -4785,6 +4787,12 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                     repaintBetween(drawn, painting(current()));
                 },
             };
+        },
+
+        refreshDraftView(): void {
+            if (branchesShown?.draft !== undefined) {
+                branchesShown.layers = draftLayers(branchesShown.draft, current(), check, sources.draftIds);
+            }
         },
 
         get showingBranches(): boolean {

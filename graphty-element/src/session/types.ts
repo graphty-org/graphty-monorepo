@@ -1710,6 +1710,15 @@ export interface SessionDataApi {
      */
     ref(key: string, options?: { readonly space?: string }): SourceNodeRef | null;
     /**
+     * The type of a node or an edge in the graph, as `types()` names it.
+     * @param kind - Nodes or edges.
+     * @param id - Its id.
+     * @returns The type, or null for one with none or not in the graph.
+     * @throws A `GraphtyError` with `E_FEATURE_OFF` while the source-steps experiment is off.
+     * @experimental source-steps
+     */
+    typeOf(kind: "node" | "edge", id: NodeId | EdgeId): string | null;
+    /**
      * The id space and key of a node in the graph, by its id: what a join on the node's type, or a
      * reader edit naming it, takes. The inverse of {@link SessionDataApi.ref}.
      *
@@ -4896,6 +4905,8 @@ export interface SourceDraftMarkCounts {
         readonly untouched: number;
         /** Nodes the commit takes out. */
         readonly removed: number;
+        /** Nodes the commit gives other values, merging none into them; absent for none. */
+        readonly changed?: number;
     };
     /** The edge counts alone. */
     readonly edges: {
@@ -4905,6 +4916,8 @@ export interface SourceDraftMarkCounts {
         readonly new: number;
         /** Edges the commit takes out. */
         readonly removed: number;
+        /** Edges the commit gives other values; absent for none. */
+        readonly changed?: number;
     };
 }
 
@@ -5590,6 +5603,30 @@ export interface SourceRowFilter {
     readonly column: string;
     /** The values; a row whose cell is one of them is named. */
     readonly values: readonly SourceCellValue[];
+    /** Rows named by two columns' values together; absent for none. */
+    readonly cells?: SourceRowCells;
+}
+
+/**
+ * Rows named by the value of a {@link SourceRowFilter}'s column and of a second column together.
+ * @experimental source-steps
+ */
+export interface SourceRowCells {
+    /** The second column. */
+    readonly column: string;
+    /** The pairs of values; a row holding both of one is named. */
+    readonly pairs: readonly SourceRowCell[];
+}
+
+/**
+ * One pair of values naming a row: see {@link SourceRowCells}.
+ * @experimental source-steps
+ */
+export interface SourceRowCell {
+    /** The value of the filter's own column. */
+    readonly value: SourceCellValue;
+    /** The value of the second column. */
+    readonly with: SourceCellValue;
 }
 
 /**
@@ -6024,7 +6061,7 @@ export interface SourceTableFacts {
     readonly format?: string;
     /** The size of what was read, in bytes; absent for a URL not fetched by the element and after a reopen. */
     readonly size?: number;
-    /** When it was read, as RFC 3339; absent after a reopen. */
+    /** When it was read, as RFC 3339; absent after a reopen for a source no load recorded. */
     readonly loadedAt?: string;
     /** A CSV file's separator, as `DraftTable.delimiter` says it; absent after a reopen. */
     readonly delimiter?: DraftTable["delimiter"];
@@ -6099,6 +6136,30 @@ export interface SourceTable {
      *   table does not hold, or `E_LOAD_UNKNOWN` once the source is gone.
      */
     profile(column: string, options?: { readonly table?: "nodes" | "edges" }): SourceColumnProfile;
+    /**
+     * A page of its rows as read, under their working column names.
+     * @param options - Which rows.
+     * @param options.table - Node or edge rows; by default the ones its rows are.
+     * @param options.offset - How many to skip; default 0.
+     * @param options.limit - How many to return at most; absent returns the rest.
+     * @returns How many the table holds, and the page.
+     */
+    rows(options?: {
+        readonly table?: "nodes" | "edges";
+        readonly offset?: number;
+        readonly limit?: number;
+    }): SourceTableRows;
+}
+
+/**
+ * A page of a source's rows, from `sourceTable(id).rows()`.
+ * @experimental source-steps
+ */
+export interface SourceTableRows {
+    /** How many rows the table holds. */
+    readonly total: number;
+    /** The page's rows; a column a row leaves out is unset there. */
+    readonly rows: readonly Readonly<Record<string, SourceCellValue | undefined>>[];
 }
 
 /**
@@ -6290,10 +6351,11 @@ export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "match
      */
     clearPicks(options: SourceClearPicksOptions): number;
     /**
-     * Leave rows out of a step by their keys (design 5.4): the keys `preview.rows` gives. They join
-     * the step's excluded list (its `except`); an excluded row of a merge stays its own node.
+     * Leave rows out of a step (design 5.4): the rows `preview.rows` gives, each by itself, or every
+     * row of some keys. They join the step's excluded list (its `except`); an excluded row of a merge
+     * stays its own node. A row no second column tells apart goes with every row of its key.
      * @param step - The step's place.
-     * @param keys - The keys.
+     * @param keys - The keys, or the rows.
      * @param options - The column the keys are in; absent, the column the step's excluded list
      *   already reads, else the one it matches rows by.
      * @param options.column - The column.
@@ -6301,13 +6363,18 @@ export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "match
      *   `join.add` step (reason `no-except`) or a column other than the one its list reads (reason
      *   `except-column`).
      */
-    exclude(step: number, keys: readonly SourceCellValue[], options?: { readonly column?: string }): void;
+    exclude(
+        step: number,
+        keys: readonly (SourceCellValue | SourceDraftRow)[],
+        options?: { readonly column?: string },
+    ): void;
     /**
-     * Take keys off a step's excluded list; an empty list is taken off the step.
+     * Take keys, or rows named by two values, off a step's excluded list; an empty list is taken off
+     * the step.
      * @param step - The step's place.
-     * @param keys - The keys.
+     * @param keys - The keys, or the pairs of its `except.cells`.
      */
-    include(step: number, keys: readonly SourceCellValue[]): void;
+    include(step: number, keys: readonly (SourceCellValue | SourceRowCell)[]): void;
     /**
      * Change one step's choices: clash rules per column, rows left out, matching, repeated rows, off.
      * @param index - The step's place, as {@link SourceDraft.steps} lists it.
@@ -6321,7 +6388,8 @@ export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "match
      * @param index - The step's place.
      * @param options - What becomes of the sources the step's act added for itself.
      * @param options.adds - `"keep"` (default) leaves them added; `"remove"` takes them along once no
-     *   step needs their nodes, so they are staged again and the whole join is taken back.
+     *   step needs their nodes, so they are staged again and the whole join is taken back. Of a source's
+     *   own add, it also takes the joins of other sources that name its nodes.
      */
     removeStep(index: number, options?: { readonly adds?: "keep" | "remove" }): void;
     /**

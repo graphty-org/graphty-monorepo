@@ -338,7 +338,7 @@ describe("source-steps drafts: what a join never takes from the graph", () => {
         session.dispose();
     });
 
-    it("and Both names its column by the source, told apart from another source of that name", async () => {
+    it("and Both names its column by the source's id, shown by its name, which a rename and a selector keep", async () => {
         const session = on();
         await session.data.import(csv("a.csv", "duns,city", "1,Rome", "2,Oslo"), { key: "duns", type: "supplier" });
         const d = session.data.draft();
@@ -350,11 +350,16 @@ describe("source-steps drafts: what a join never takes from the graph", () => {
         }
         await d.commit();
         const node = session.data.node("1");
-        assert.deepStrictEqual(
-            [node?.city, node?.["city (b.csv)"], node?.[`city (${keys[1] ?? ""})`]],
-            ["Rome", "Paris", "Lima"],
-        );
+        const [one, two] = keys.map((key) => `city (${key})`);
+        assert.deepStrictEqual([node?.city, node?.[one], node?.[two]], ["Rome", "Paris", "Lima"]);
         assert.deepStrictEqual(await reopened(session), graphOf(session));
+        const shown = (): (string | undefined)[] =>
+            [one, two].map((name) => session.data.attributes().find((each) => each.name === name)?.plainName);
+        assert.deepStrictEqual(shown(), ["city (b.csv)", "city (b.csv)"]);
+        await session.data.renameSource("vendors", keys[1]);
+        assert.deepStrictEqual(shown(), ["city (b.csv)", "city (vendors)"]);
+        await session.selection.apply({ where: `data."${two}" == 'Lima'` });
+        assert.deepStrictEqual([...session.selection.nodes].map(String), ["1"]);
         session.dispose();
     });
 });
@@ -630,6 +635,8 @@ describe("source-steps drafts: match counts and guesses", () => {
                 .map((each) => each.matches[0]),
             [
                 { from: { source: entries, field: "person" }, into: { space: "person" } },
+                // a column naming its rows on both sides, though neither's key
+                { from: { source: entries, field: "badge" }, into: { space: "person", field: "badge" } },
                 { from: { source: entries, field: "building" }, into: { source: buildings } },
             ],
         );
@@ -637,7 +644,8 @@ describe("source-steps drafts: match counts and guesses", () => {
     });
 
     it("read a code as text, not as a date", async () => {
-        for (const text of ["B-1027", "bldg-04", "dev-5921", "12:30", "T-1 2004"]) {
+        const codes = ["B-1027", "bldg-04", "dev-5921", "12:30", "T-1 2004", "decision 2024", "marble 1999"];
+        for (const text of [...codes, "2024 marketing", "DEC1234", "10-20-3000", "MAY-1001", "Mar 5000 units"]) {
             assert.isFalse(readsAsDate(text), text);
         }
         for (const text of ["2026-01-15", "1/15/2026", "15 Jan 2026", "January 15, 2026", "2026/01/15"]) {

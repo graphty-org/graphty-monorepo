@@ -1,14 +1,11 @@
 // Storybook does not run src/main.tsx, so the story defines the real <graphty-element> itself.
 import "@graphty/graphty-element";
 
-import { setDefaultFeatures } from "@graphty/graphty-element/extend";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import type { Meta, StoryObj } from "@storybook/react";
 import { userEvent, within } from "storybook/test";
 
-import { loadSiteConfig, resetSiteConfig } from "../../siteConfig";
 import { freshStore, storeOf } from "../../stories/freshStore";
-import { siteFeatures } from "../../test/siteFeatures";
 import type { WorkspaceStore } from "../state/store";
 import { Workspace } from "../Workspace";
 import { SAVE_AS_DIALOG } from "./actions";
@@ -99,16 +96,6 @@ const meta: Meta<typeof Workspace> = {
     title: "Workspace/Project/Save files v2",
     component: Workspace,
     parameters: { layout: "fullscreen" },
-    // The save-files-v2 experiment on, as a site whose site.json names it; put back afterwards.
-    beforeEach: async () => {
-        setDefaultFeatures(["save-files-v2"]);
-        await siteFeatures(["save-files-v2"]);
-        return async () => {
-            setDefaultFeatures([]);
-            resetSiteConfig();
-            await loadSiteConfig();
-        };
-    },
 };
 
 export default meta;

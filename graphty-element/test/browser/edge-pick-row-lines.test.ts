@@ -9,12 +9,11 @@
 import "../../src/graphty-element";
 
 import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
-import { afterEach, assert, describe, it } from "vitest";
+import { afterEach, assert, beforeAll, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
-import { operationQueueOf, renderManagerOf } from "../../src/Graph";
+import * as graphModule from "../../src/Graph";
 import { dataManagerInternals } from "../../src/managers/DataManager";
-import { edgePickWork } from "../../src/render/PickService";
 import { click, hover, nextFrame } from "../helpers/real-input";
 
 /** The adapter the browser project was launched with; empty when it has no WebGPU. */
@@ -58,7 +57,7 @@ async function plainEdges(
     });
     await element.updateComplete;
     await element.setViewMode(viewMode);
-    await operationQueueOf(element.graph).waitForCompletion();
+    await graphModule.operationQueueOf(element.graph).waitForCompletion();
     await element.session.data.addNodes([
         { id: "a", position: { x: -6, y: 3, z: 0 } },
         { id: "b", position: { x: 6, y: 3, z: 0 } },
@@ -70,7 +69,7 @@ async function plainEdges(
         { src: "c", dst: "d" },
     ]);
     await element.graph.setLayout("fixed", { dim: viewMode === "2d" ? 2 : 3 });
-    await operationQueueOf(element.graph).waitForCompletion();
+    await graphModule.operationQueueOf(element.graph).waitForCompletion();
     await element.waitForStableFrame();
     return element;
 }
@@ -95,7 +94,7 @@ async function clickSettled(
         await nextFrame();
     }
 
-    await operationQueueOf(element.graph).waitForCompletion();
+    await graphModule.operationQueueOf(element.graph).waitForCompletion();
 }
 
 /**
@@ -206,6 +205,17 @@ describe("picking a plain edge with a real pointer", () => {
 });
 
 describe("the work of a plain edge pick on batched", () => {
+    // Loaded by a glob, not imported at the top: the build from before the batched path has no PickService (nor
+    // renderManagerOf), and this file's other cases run against that build too (benchmarks/compare/
+    // parity-vs-reference.mjs, behavior stage). There the glob finds nothing and these cases fail, as they should.
+    const pickService = import.meta.glob<{ edgePickWork: { rowLines: number } }>("../../src/render/PickService.ts");
+    let edgePickWork: { rowLines: number };
+    beforeAll(async () => {
+        const load = pickService["../../src/render/PickService.ts"];
+        assert.isFunction(load, "the pick service is in this build");
+        ({ edgePickWork } = await load());
+    });
+
     /** A 20 by 20 grid of short vertical lines, each its own pair of nodes. */
     const LINES = 400;
 
@@ -246,7 +256,7 @@ describe("the work of a plain edge pick on batched", () => {
         });
         await element.updateComplete;
         await element.setViewMode(viewMode);
-        await operationQueueOf(element.graph).waitForCompletion();
+        await graphModule.operationQueueOf(element.graph).waitForCompletion();
         const nodes = Array.from({ length: LINES * 2 }, (_, i) => {
             const line = Math.floor(i / 2);
             return {
@@ -265,7 +275,7 @@ describe("the work of a plain edge pick on batched", () => {
         await element.session.data.addNodes(nodes);
         await element.session.data.addEdges(edges);
         await element.graph.setLayout("fixed", { dim: viewMode === "2d" ? 2 : 3 });
-        await operationQueueOf(element.graph).waitForCompletion();
+        await graphModule.operationQueueOf(element.graph).waitForCompletion();
         await element.waitForStableFrame();
         return { element, nodes };
     }
@@ -358,7 +368,7 @@ describe("the work of a plain edge pick on batched", () => {
                     { id: "n422", ...at(420) },
                     { id: "n423", ...at(421) },
                 ]);
-                await operationQueueOf(element.graph).waitForCompletion();
+                await graphModule.operationQueueOf(element.graph).waitForCompletion();
                 await element.waitForStableFrame();
                 const swapped = between(element, "n422", "n423");
                 assert.closeTo(swapped.x, mid.x, 1, "the next line is where the pointer rests");
@@ -393,7 +403,7 @@ describe("the work of a plain edge pick on batched", () => {
                     { id: "n422", ...at(422) },
                     { id: "n423", ...at(423) },
                 ]);
-                await operationQueueOf(element.graph).waitForCompletion();
+                await graphModule.operationQueueOf(element.graph).waitForCompletion();
                 await element.waitForStableFrame();
                 before = reads();
                 await hover(element, mid);
@@ -465,7 +475,7 @@ describe("the work of a plain edge pick on batched", () => {
                     { id: "n212", ...at(210) },
                     { id: "n213", ...at(211) },
                 ]);
-                await operationQueueOf(element.graph).waitForCompletion();
+                await graphModule.operationQueueOf(element.graph).waitForCompletion();
                 await wholeBack();
                 before = edgePickWork.rowLines;
                 assert.deepEqual(element.elementAt(mid), { kind: "edge", id: nextId }, "it names the moved-in line");
@@ -489,7 +499,7 @@ describe("the work of a plain edge pick on batched", () => {
                         camera.position.x += 0.3;
                     }
 
-                    renderManagerOf(element.graph).requestFrame();
+                    graphModule.renderManagerOf(element.graph).requestFrame();
                 });
                 assert.deepEqual(asked.hit, { kind: "edge", id: nextId }, "the line is still found");
                 assert.isAbove(asked.lines, 0, "it is measured");
@@ -509,7 +519,7 @@ describe("the work of a plain edge pick on batched", () => {
                         camera.position.x += 10;
                     }
 
-                    renderManagerOf(element.graph).requestFrame();
+                    graphModule.renderManagerOf(element.graph).requestFrame();
                 });
                 await wholeBack();
                 const settled = element.elementAt(mid);
@@ -531,7 +541,7 @@ describe("the work of a plain edge pick on batched", () => {
                             camera.position.x += 0.01;
                         }
 
-                        renderManagerOf(element.graph).requestFrame();
+                        graphModule.renderManagerOf(element.graph).requestFrame();
                     });
                 };
                 const sent = (): number => target.counts.wholeReads + target.counts.wholePending;
@@ -578,7 +588,7 @@ describe("picking a curved edge, and a line while the layout moves it", () => {
                     selector: { match: "everything" },
                     set: { "edge.curvature": true },
                 });
-                await operationQueueOf(graph).waitForCompletion();
+                await graphModule.operationQueueOf(graph).waitForCompletion();
                 await element.waitForStableFrame();
                 const manager = graph.getDataManager();
                 const [ab] = dataManagerInternals.incidentEdgeIds(manager, "a");
@@ -630,7 +640,7 @@ describe("picking a curved edge, and a line while the layout moves it", () => {
                 });
                 await element.updateComplete;
                 await element.setViewMode("2d");
-                await operationQueueOf(element.graph).waitForCompletion();
+                await graphModule.operationQueueOf(element.graph).waitForCompletion();
                 await element.session.data.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }]);
                 await element.session.data.addEdges([{ src: "a", dst: "b" }]);
                 await element.graph.setLayout("ngraph", { dim: 2, seed: 7 });
@@ -680,7 +690,7 @@ describe("the edge ID target's row line vertices on batched", () => {
         await element.session.data.addEdges(
             Array.from({ length: count }, (_, i) => ({ src: `r${String(i)}`, dst: `r${String((i + 1) % count)}` })),
         );
-        await operationQueueOf(element.graph).waitForCompletion();
+        await graphModule.operationQueueOf(element.graph).waitForCompletion();
         await element.waitForStableFrame();
         await hover(element, { x: 250, y: 200 });
         await element.waitForStableFrame();

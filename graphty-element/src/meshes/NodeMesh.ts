@@ -92,6 +92,48 @@ export function styleOpacity(texture: NodeStyleConfig["texture"]): number {
     return typeof color === "object" && "opacity" in color ? (color.opacity ?? 1) : 1;
 }
 
+/**
+ * Where a node body's source draws in the blended pass (Babylon draws a lower `alphaIndex` first),
+ * plus its look's place ({@link lookPlace}): after the node surfaces (`NodeBillboardBatch`, 1e8) and the edges with an
+ * index (about 1e9), before every mesh that keeps the default, as the sources' distance once put
+ * them. The place orders translucent looks among themselves by when each was first made, on both render
+ * paths and after any history of instances: a source parks at one place whose distance its
+ * geometry's bounds shift, and ties fell to whichever look's instance `scene.meshes` met first,
+ * so removing and adding back a node could reorder whole looks (issues #10029, #10030).
+ */
+const NODE_BODY_ALPHA_INDEX = 1e12;
+
+/** The `uniqueId` each look's first source had, by what the look draws, per scene. */
+const lookPlaces = new WeakMap<Scene, Map<string, number>>();
+
+/**
+ * A look's place among translucent looks: the `uniqueId` of the first source made for it. A source
+ * no node wears is pruned and made again with a higher id (and often under another cache key, as
+ * the style interner numbers a look again), which would move the look over every look made in
+ * between; it takes its first place back instead.
+ * @param mesh - The new source.
+ * @param key - What the look draws: its view, picture and style.
+ * @returns The place.
+ */
+function lookPlace(mesh: Mesh, key: string): number {
+    const scene = mesh.getScene();
+    let places = lookPlaces.get(scene);
+    if (places === undefined) {
+        places = new Map();
+        lookPlaces.set(scene, places);
+    }
+
+    // ponytail: one entry per distinct look the scene ever drew, never dropped; drop entries with the
+    // scene's sources if a graph cycles through unbounded looks.
+    let place = places.get(key);
+    if (place === undefined) {
+        place = mesh.uniqueId;
+        places.set(key, place);
+    }
+
+    return place;
+}
+
 /** How deep a node drawn flat is, as a fraction of its smaller side: thin, but never zero. */
 const THIN_DEPTH_RATIO = 0.02;
 
@@ -485,6 +527,9 @@ export class NodeMesh {
             mesh.visibility = styleOpacity(createOptions.texture);
         }
 
+        const { picture, ...look } = createOptions;
+        mesh.alphaIndex =
+            NODE_BODY_ALPHA_INDEX + lookPlace(mesh, JSON.stringify([options.is2D, picture?.name ?? null, look]));
         return mesh;
     }
 

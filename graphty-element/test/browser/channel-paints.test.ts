@@ -55,7 +55,7 @@ import { UNPAINTED_CHANNELS } from "../../src/catalog/unreachable";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import type { GraphSession } from "../../src/session";
 import { CHANNEL_DESCRIPTORS, type ChannelDescriptor } from "../../src/session/styles/channels";
-import { pixelsOverBar, readCanvas } from "../helpers/whole-canvas";
+import { assertSameFrame, pixelsOverBar, readCanvas } from "../helpers/whole-canvas";
 
 /** Two nodes and the edge between them: enough for every channel, small enough to be quick. */
 const NODES = [{ id: "alpha" }, { id: "omega" }];
@@ -615,7 +615,7 @@ describe("every node channel on a batched row", () => {
                 assert.isAbove(pixelsOverBar(before, batched), 0, `${descriptor.channel} changed nothing`);
             }
 
-            assert.equal(pixelsOverBar(batched, objects), 0, `${descriptor.channel} differs between the paths`);
+            assertSameFrame(batched, objects, `${descriptor.channel} differs between the paths`);
             assert.equal(pixelsOverBar(before, restored), 0, `removing ${descriptor.channel} left the picture changed`);
         });
     }

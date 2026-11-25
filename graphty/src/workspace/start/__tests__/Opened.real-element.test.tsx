@@ -1,6 +1,6 @@
 /**
  * The workspace's `opened` on the REAL graphty-element: a sample opened from the start screen
- * settles it only once the whole open is done -- the graph read, its history started and focus
+ * settles it only once the whole open is done -- the graph read as one undo step and focus
  * handed to the graph's heading -- and a file at an address that cannot be read leaves the Network data panel open with the reason.
  * It is what every test waits on after an open, never the node count, which arrives first (#3544).
  */
@@ -18,7 +18,7 @@ import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
 describe("opened: an open's whole run", () => {
-    it("settles once the sample is read, its history started and focus is on its heading", async () => {
+    it("settles once the sample is read as one undo step and focus is on its heading", async () => {
         const store = createWorkspaceStore();
         render(<Workspace store={store} />);
         await userEvent.click(screen.getByRole("button", { name: sampleTile("Les Miserables") }));
@@ -27,7 +27,7 @@ describe("opened: an open's whole run", () => {
         await opened;
         const session = document.querySelector("graphty-element")?.session;
         assert.equal(session?.data.statistics().nodeCount, 77);
-        assert.isFalse(session?.canUndo, "opening is not a step to undo");
+        assert.isTrue(session?.canUndo, "opening a sample is one step Undo takes back");
         assert.equal(document.activeElement?.id, INSPECTOR_TITLE_ID);
         assert.isNull(store.get().notice);
     });

@@ -342,6 +342,15 @@ export interface AccelerationStatus {
      * @since 3.31.0
      */
     readonly params?: Readonly<Record<string, CodedFactParam>>;
+    /**
+     * Present, and `true`, while the element is attaching a fresh accelerator after a device loss
+     * or a run that got no answer; absent otherwise. A status is published when it ends, whichever
+     * way: `state` then reads `"idle"` or `"active"` when an accelerator came back, or stays
+     * `"error"` when the recovery budget (`maxRecoveryAttempts`) is spent or recovery is off, and
+     * nothing will try again until the policy changes or a backend is registered.
+     * @since 3.61.0
+     */
+    readonly recovering?: true;
 }
 
 /**

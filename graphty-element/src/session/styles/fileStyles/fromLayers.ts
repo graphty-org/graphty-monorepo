@@ -261,10 +261,12 @@ const PLANS: Readonly<Record<StyleTarget, ReadonlyMap<string, PropertyPlan>>> = 
         ["node.shape", plan(table(NODE_SHAPES), "shape")],
         ["node.size", plan(number, "width", "height")],
         ["node.opacity", plan(opacity, "opacity")],
+        ["node.visible", plan(flag, "visible")],
     ]),
     edge: new Map([
         ["edge.color", plan(color, "color")],
         ["edge.opacity", plan(opacity, "opacity")],
+        ["edge.visible", plan(flag, "visible")],
         ["edge.width", plan(number, "width")],
         // Screen pixels: never scaled with the file's lengths.
         ["edge.minScreenWidth", plan(number, "minScreenWidth")],
@@ -280,6 +282,7 @@ const PLANS: Readonly<Record<StyleTarget, ReadonlyMap<string, PropertyPlan>>> = 
         ["edge.arrowHeadFillColor", plan(color, "targetArrowFillColor")],
         ["edge.arrowTailFillColor", plan(color, "sourceArrowFillColor")],
         ["edge.label", plan(text, "label")],
+        ["edge.tooltip", plan(text, "tooltip")],
         ["edge.arrowHeadText", plan(text, "targetLabel")],
         ["edge.arrowTailText", plan(text, "sourceLabel")],
         ["edge.xlabel", plan(text, "xlabel")],

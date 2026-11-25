@@ -453,6 +453,9 @@ export function RowStyle({
                   ctx.layers,
                   // Its revision moves with every repaint, whatever it painted.
                   ctx.layers.map((layer) => ({ ...session.styles.counts(layer.id), revision: undefined })),
+                  // What a bound field draws: a repaint can change it while the counts stay put (a
+                  // fixed color bound to Degree paints the same nodes, #9981).
+                  ctx.layers.map((layer) => session.styles.legendOf(layer.id)),
                   channelsFor(side).map(({ channel }) => [beneath(channel), hiddenBy?.(channel)]),
                   colors,
                   dataVersion,

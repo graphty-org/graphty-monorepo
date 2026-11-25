@@ -180,7 +180,7 @@ describe("the style codec writes", () => {
         assert.deepEqual(invalid(section), []);
     });
 
-    it("writes the style tree by layer id", async () => {
+    it("writes the style tree by layer id, and each folder with its id", async () => {
         const session = createGraphSession(ON);
         await session.styles.add({
             name: "A",
@@ -193,7 +193,7 @@ describe("the style codec writes", () => {
         const [id] = (section.layers as JsonObject[]).map((layer) => layer.id);
         const tree = section.tree as JsonObject[];
         assert.deepEqual(tree[0], { layer: id });
-        assert.deepEqual(tree[1], { folder: "Looks", children: [] });
+        assert.deepEqual(tree[1], { folder: "Looks", id: "folder:looks_1", children: [] });
         assert.deepEqual(invalid(section), []);
     });
 });

@@ -18,7 +18,7 @@ Tool values are elements drawn with the writing program's default.
 | cx/fidelity/radiation-bibliography.cx.gz | ok | 188 | 207 | 5 | 7 | 505 | 9% | 9% | 0 | 2370 | 0 | W_STYLE_MAPPING_COLUMN_MISSING, W_STYLE_NOT_CARRIED |
 | cx/fidelity/repro-locked-own-size.cx | ok | 12 | 12 | 5 | 2 | 22 | 82% | 82% | 0 | 372 | 0 |  |
 | cx/fidelity/repro-unplaced-boxes.cx | ok | 24 | 29 | 3 | 3 | 0 | - | - | 0 | 775 | 0 |  |
-| cx/fidelity/syn-bypass.cx | ok | 64 | 90 | 7 | 5 | 268 | 99% | 90% | 0 | 924 | 0 | W_STYLE_NOT_CARRIED |
+| cx/fidelity/syn-bypass.cx | ok | 64 | 90 | 7 | 5 | 278 | 99% | 90% | 0 | 924 | 0 | W_STYLE_NOT_CARRIED |
 | cx/fidelity/syn-mappings.cx | ok | 96 | 140 | 13 | 12 | 1645 | 31% | 31% | 0 | 1416 | 0 | W_STYLE_BAD_MAPPING, W_STYLE_NOT_CARRIED |
 | cx/generated/graphty-written-block-other-graph.cx | ok | 75 | 108 | 8 | 3 | 102 | 4% | 4% | 0 | 1173 | 0 | W_STYLE_BLOCK_IGNORED |
 | cx/generated/graphty-written-block-truncated.cx | ok | 75 | 108 | 8 | 3 | 102 | 4% | 4% | 0 | 1173 | 0 | W_STYLE_BLOCK_IGNORED |
@@ -31,7 +31,7 @@ Tool values are elements drawn with the writing program's default.
 | cx2/fidelity/imatinib-smpdb.cx2 | ok | 75 | 159 | 8 | 6 | 404 | 2% | 2% | 0 | 1402 | 0 |  |
 | cx2/fidelity/repro-shared-interaction.cx2 | ok | 16 | 16 | 4 | 6 | 35 | 9% | 0% | 0 | 424 | 0 |  |
 | cx2/fidelity/signor-aml.cx2 | ok | 147 | 306 | 6 | 9 | 779 | 16% | 13% | 0 | 2699 | 0 |  |
-| cx2/fidelity/syn-bypass.cx2 | ok | 64 | 90 | 7 | 5 | 268 | 99% | 90% | 0 | 924 | 0 | W_STYLE_NOT_CARRIED |
+| cx2/fidelity/syn-bypass.cx2 | ok | 64 | 90 | 7 | 5 | 278 | 99% | 90% | 0 | 924 | 0 | W_STYLE_NOT_CARRIED |
 | cx2/fidelity/syn-mappings.cx2 | ok | 96 | 140 | 14 | 12 | 1717 | 30% | 30% | 0 | 1416 | 0 | W_STYLE_NOT_CARRIED |
 | cx2/fidelity/synthetic-lethal.cx2 | ok | 69 | 152 | 9 | 4 | 365 | 0% | 0% | 13 | 1326 | 0 | W_STYLE_RAMP_ROUNDED |
 | cx2/fidelity/u2os-hierarchy.cx2 | ok | 82 | 84 | 8 | 2 | 134 | 0% | 0% | 16 | 1080 | 0 | W_STYLE_RAMP_ROUNDED |
@@ -368,7 +368,7 @@ Tool values are elements drawn with the writing program's default.
 | json/fidelity/vis-lesmiserables.json | ok | 77 | 254 | 15 | 3 | 126 | 0% | 0% | 0 | 4018 | 0 |  |
 | json/fidelity/vis-nodelegend.json | ok | 21 | 15 | 9 | 4 | 69 | 54% | 7% | 0 | 306 | 0 |  |
 | json/fidelity/vis-siblings.json | ok | 200 | 284 | 6 | 3 | 158 | 0% | 0% | 0 | 4808 | 0 |  |
-| json/fidelity/vis-synth.json | ok | 72 | 84 | 10 | 6 | 235 | 65% | 24% | 0 | 1052 | 0 | W_STYLE_UNKNOWN_VALUE |
+| json/fidelity/vis-synth.json | ok | 72 | 84 | 10 | 5 | 235 | 66% | 24% | 0 | 1052 | 0 | W_STYLE_UNKNOWN_VALUE |
 | json/fidelity/vis-transparency.json | ok | 50 | 100 | 3 | 3 | 0 | - | - | 0 | 1850 | 0 |  |
 | json/fidelity/vis-unix.json | ok | 41 | 49 | 3 | 3 | 0 | - | - | 0 | 916 | 0 |  |
 | json/fidelity/vis-world.json | ok | 48 | 69 | 3 | 3 | 0 | - | - | 0 | 1308 | 0 |  |
@@ -376,9 +376,9 @@ Tool values are elements drawn with the writing program's default.
 | json/generated/cytoscape-tamper-block-truncated.json | ok | 4 | 3 | 8 | 11 | 14 | 57% | 57% | 0 | 103 | 0 | W_STYLE_BLOCK_IGNORED |
 | json/generated/cytoscape-tamper-native-edited.json | ok | 4 | 3 | 7 | 5 | 14 | 86% | 64% | 0 | 3 | 0 |  |
 | json/generated/cytoscape-tamper-node-added.json | ok | 5 | 3 | 8 | 11 | 14 | 57% | 57% | 0 | 116 | 0 | W_STYLE_BLOCK_IGNORED |
-| json/generated/graphology-graphty-written.json | ok | 4 | 3 | 6 | 5 | 9 | 78% | 67% | 0 | 100 | 0 |  |
+| json/generated/graphology-graphty-written.json | ok | 4 | 3 | 6 | 5 | 9 | 78% | 67% | 0 | 101 | 0 |  |
 | json/generated/graphology-tamper-block-truncated.json | ok | 4 | 3 | 2 | 2 | 9 | 100% | 0% | 0 | 54 | 0 | W_STYLE_BLOCK_IGNORED |
-| json/generated/graphology-tamper-native-edited.json | ok | 4 | 3 | 7 | 5 | 9 | 89% | 78% | 0 | 100 | 0 |  |
+| json/generated/graphology-tamper-native-edited.json | ok | 4 | 3 | 7 | 5 | 9 | 89% | 78% | 0 | 101 | 0 |  |
 | json/generated/graphology-tamper-node-added.json | ok | 5 | 3 | 2 | 2 | 9 | 100% | 0% | 0 | 66 | 0 | W_STYLE_BLOCK_IGNORED |
 | json/graphology-arctic.json.gz | ok | 1715 | 6228 | 1 | 1 | 0 | - | - | 0 | 70404 | 0 |  |
 | json/graphology-eurosis.json.gz | ok | 1285 | 7524 | 4 | 1 | 2118 | 0% | 0% | 1540 | 71757 | 0 | W_STYLE_RAMP_ROUNDED |
@@ -449,7 +449,7 @@ Tool values are elements drawn with the writing program's default.
 | xgmml/BasicDataVizDemo.xgmml.gz | ok | 331 | 362 | 7 | 5 | 438 | 74% | 0% | 0 | 4158 | 0 | W_STYLE_NOT_CARRIED |
 | xgmml/STRING-BreastCancer_expr.xgmml.gz | ok | 21 | 98 | 4 | 3 | 101 | 19% | 0% | 0 | 714 | 0 | W_STYLE_NOT_CARRIED |
 | xgmml/String_Network-breast_cancer.xgmml.gz | ok | 90 | 378 | 3 | 3 | 324 | 0% | 0% | 0 | 2808 | 0 | W_STYLE_NOT_CARRIED |
-| xgmml/fidelity/aracne-mycccnd1.xgmml.gz | ok | 236 | 241 | 6 | 3 | 50 | 2% | 2% | 0 | 4529 | 0 |  |
+| xgmml/fidelity/aracne-mycccnd1.xgmml.gz | ok | 236 | 241 | 6 | 5 | 52 | 2% | 2% | 0 | 4529 | 0 |  |
 | xgmml/fidelity/dream4-signaling.xgmml | ok | 40 | 58 | 5 | 2 | 13 | 0% | 0% | 0 | 922 | 0 |  |
 | xgmml/fidelity/gcmodeller-demo.xgmml | ok | 20 | 24 | 3 | 3 | 23 | 100% | 0% | 0 | 264 | 0 | W_STYLE_NOT_CARRIED |
 | xgmml/fidelity/imagenet-dog-children.xgmml | ok | 190 | 189 | 5 | 2 | 22 | 100% | 100% | 0 | 3601 | 0 |  |

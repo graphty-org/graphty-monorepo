@@ -83,6 +83,7 @@ export type GraphEvent =
     | BasemapStatusEvent
     | RenderLostEvent
     | RenderRestoredEvent
+    | RenderWarningEvent
     | OperationCanceledEvent
     | StatsUpdateEvent
     | InputEnabledChangedEvent
@@ -657,6 +658,21 @@ export interface RenderRestoredEvent {
 }
 
 /**
+ * Emitted when the graph is drawn, but not quite as it should be: the installed Babylon.js words a
+ * line of its shaders differently from the one render-path="batched" edits, so batched rows are
+ * shaded or placed by Babylon's own line instead (`W_SHADER_EDIT_MISSED`, `params.renderer`,
+ * `params.patterns`). `rendererStatus.drawing` is unchanged. A code and facts, never a sentence.
+ */
+export interface RenderWarningEvent {
+    /** The event's name. */
+    type: "render-warning";
+    /** What happened: `W_SHADER_EDIT_MISSED`. */
+    code: GraphtyWarningCode;
+    /** The code's parameters, as the code's documentation lists them. */
+    params: Readonly<Record<string, unknown>>;
+}
+
+/**
  * Emitted when the map under the location map layout changes state: drawn, loading, or fallen
  * back to the bundled world image because its tiles failed (`error` then carries
  * `E_BASEMAP_UNREACHABLE` with `{ source, status }`, `status` being the HTTP status when the
@@ -1128,19 +1144,37 @@ export function nodeEventDetail(event: NodeEvent): NodeEventDetail | null {
 }
 
 // edge events
-// There is deliberately no edge-click event. Edge meshes are unpickable in three places, so
-// nothing could emit one, and the type that used to be declared here described a detail carrying a
-// live `Edge` -- a Babylon mesh -- which cannot be structure-cloned and so could never have left
-// the element. A declared event that never fires is a documented lie; it comes back, with a
-// serializable detail, when edge picking lands.
-//
-// The same fact took the edge TOOLTIP with it in 2.0. A tooltip is drawn when the pointer lands
-// on the thing it belongs to, so an unpickable edge can never show one, and `edge.tooltip` was
-// published as something the element draws for the whole of 1.x and drawn by nothing. The
-// channel and the tooltip block on `EdgeStyle` are withdrawn, recorded in
-// `WITHDRAWN_CAPABILITIES` in `src/catalog/unreachable.ts`. Both come back together.
+// There is no edge-click event yet: a click on an edge selects it (the selection's own events say so).
+// Edge hover is read from the element's own edge picking, on both render paths, and its detail is
+// serializable (an id and the words), never a live `Edge`, so it can leave the element.
 /** Every event about one edge. */
-export type EdgeEvent = EdgeGenericEvent | EdgeAddEvent;
+export type EdgeEvent = EdgeGenericEvent | EdgeAddEvent | EdgeHoverEvent;
+
+/**
+ * Emitted when the pointer moves onto an edge, on both render paths. Mirrored to the DOM as
+ * `graphty-edge-hover` with an {@link EdgeEventDetail}.
+ * @since 3.40.0
+ */
+export interface EdgeHoverEvent {
+    /** The event's name. */
+    type: "edge-hover";
+    /** The edge the pointer is over. */
+    edgeId: EdgeId;
+    /** The words the edge's tooltip draws, when a style layer gave it one (`edge.tooltip`). */
+    tooltip?: string;
+}
+
+/**
+ * What a `graphty-edge-hover` DOM event carries: the edge's id, and its tooltip's words when a
+ * style layer gave it one. A consumer that draws its own tooltip in HTML reads the words here.
+ * @since 3.40.0
+ */
+export interface EdgeEventDetail {
+    /** The edge the pointer is over. */
+    edgeId: EdgeId;
+    /** The words the edge's tooltip draws, only when a style layer gave it one (`edge.tooltip`). */
+    tooltip?: string;
+}
 
 /** Emitted before and after an edge is repainted. */
 export interface EdgeGenericEvent {

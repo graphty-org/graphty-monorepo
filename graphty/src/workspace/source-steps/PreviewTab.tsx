@@ -6,91 +6,20 @@ import type {
     SourceDraftCell,
     SourceDraftPreview,
     SourceDraftRow,
-    SourceKey,
-    SourceValue,
 } from "@graphty/graphty-element/session";
 import { Group, Stack, Text } from "@mantine/core";
 import React from "react";
 
-import { sourceName } from "../data-place/words";
 import { formatNumber } from "../inspector/words";
 import { useSessionEvents } from "../sessionEvents";
 import type { JoinCardState, JoinDrill, WorkspaceStore } from "../state/store";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { cellId, openDraft, rowId, setDrill } from "./preview";
-import { bucketWords, CELL_FILTERS, cellWords, DRILL_WORDS, EFFECT_WORDS, RULE_WORDS } from "./words";
+import { EFFECT_COLORS, nameOf, rowColumns, valueWords } from "./tableColumns";
+import { bucketWords, CELL_FILTERS, DRILL_WORDS, RULE_WORDS } from "./words";
 
 /** The draft's acts change the rows and cells the tab lists. */
 const DRAFT_EVENTS = ["data:draft-changed"] as const;
-
-/** A row's tint by what the commit does to its element; the Effect column says it in words. */
-const EFFECT_COLORS: Readonly<Partial<Record<SourceDraftRow["effect"], string>>> = {
-    added: "var(--mantine-color-green-light)",
-    changed: "var(--mantine-color-yellow-light)",
-    removed: "var(--mantine-color-red-light)",
-    "left-out": "var(--mantine-color-gray-light)",
-};
-
-/**
- * A built value as the tab shows it: a list an aggregate gathered reads as its values.
- * @param value - the value, or undefined where the side holds none.
- * @returns its words.
- */
-function valueWords(value: SourceValue | undefined): string {
-    if (value === undefined) {
-        return "";
-    }
-    // A list is the one value that is an object.
-    return typeof value === "object" && value !== null
-        ? value.map((each) => cellWords(each)).join(", ")
-        : cellWords(value);
-}
-
-/**
- * A source's name, by its key.
- * @param session - the element's session.
- * @param key - the source.
- * @returns its name.
- */
-function nameOf(session: GraphSession, key: SourceKey): string {
-    const source = session.data.sources({ staged: true }).find((each) => each.key === key);
-    return source === undefined ? key : sourceName(source);
-}
-
-/**
- * The rows table's columns: the key, the source, the effect, then each value column's held and
- * incoming values side by side.
- * @param session - the element's session.
- * @param rows - the rows.
- * @returns the columns.
- */
-function rowColumns(session: GraphSession, rows: readonly SourceDraftRow[]): DataTableColumn<SourceDraftRow>[] {
-    const names = new Set<string>();
-    for (const row of rows) {
-        for (const name of [...Object.keys(row.held ?? {}), ...Object.keys(row.incoming ?? {})]) {
-            names.add(name);
-        }
-    }
-    return [
-        { id: "key", header: DRILL_WORDS.key, sortable: false, rowHeader: true, value: (row) => cellWords(row.key) },
-        { id: "from", header: DRILL_WORDS.from, sortable: false, value: (row) => nameOf(session, row.source) },
-        { id: "effect", header: DRILL_WORDS.effect, sortable: false, value: (row) => EFFECT_WORDS[row.effect] },
-        ...[...names].flatMap((name): DataTableColumn<SourceDraftRow>[] => [
-            {
-                id: `held:${name}`,
-                header: `${name} (${DRILL_WORDS.held})`,
-                sortable: false,
-                value: (row) => valueWords(row.held?.[name]),
-            },
-            {
-                id: `incoming:${name}`,
-                header: `${name} (${DRILL_WORDS.incoming})`,
-                sortable: false,
-                value: (row) => valueWords(row.incoming?.[name] ?? undefined),
-            },
-        ]),
-    ];
-}
 
 /**
  * The cells table's columns: the element, each source's value, the value shown, and what shows it

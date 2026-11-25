@@ -13,7 +13,7 @@ import {
     type GeneratorDescriptor,
     type GeneratorParams,
 } from "@graphty/graphty-element/catalog";
-import type { DataSourceInput, GraphSession, LoadDraft } from "@graphty/graphty-element/session";
+import type { DataSourceInput, GraphSession, HistoryStepId, LoadDraft } from "@graphty/graphty-element/session";
 import { useCallback, useRef } from "react";
 
 import type { StartSample } from "../../data/sampleManifest";
@@ -34,25 +34,51 @@ import { noticeFileStyles } from "../styles/noticeFileStyles";
 import { panelsInView } from "../time/timeActions";
 
 /**
- * How a new project's first load is read: where its history starts, and drawn where its data placed
- * every node (graphty-element's `layout: "placed"`), else on the layout the project starts with.
+ * How a sample opens a new project: as one undo step, as an imported file is, so Undo takes the
+ * opening back (owner, issue #796), and drawn where its data placed every node (graphty-element's
+ * `layout: "placed"`), else on the layout the project starts with.
  */
-export const OPENING = { history: "start", layout: "placed" } as const;
+export const OPENING = { layout: "placed" } as const;
+
+/**
+ * How a file opened from the start screen is read: where its history starts, so Undo never
+ * unloads it, and drawn as a sample is.
+ */
+const FILE_OPENING = { ...OPENING, history: "start" } as const;
+
+/**
+ * How a new project's first source is read.
+ * @param origin - "sample" for one of the app's own samples.
+ * @returns a sample's opening or a file's.
+ */
+function openingOf(origin?: "sample"): typeof OPENING | typeof FILE_OPENING {
+    return origin === "sample" ? OPENING : FILE_OPENING;
+}
 
 /**
  * Opens a new project and hands its load to the workspace, which runs it once the project's
- * element has come up. Each load starts the project's history (`history: "start"`): opening is
- * not a change to undo, and Undo pressed while it loads never cancels it. The store's `opened`
+ * element has come up. A sample's load is one undo step that takes the opening back, the project's
+ * name with it; a file's load starts the history (`history: "start"`), so Undo never unloads it.
+ * Either way the opening is where the project starts, not an unsaved change. The store's `opened`
  * settles once the load is read and focus handed on.
  * @param workspace - the workspace store.
  * @param name - the project's name.
  * @param load - what to load into the new element.
+ * @param file - whether the load is a file's, which starts the history; a sample's by default.
  */
 export function openProject(
     workspace: WorkspaceStore,
     name: string,
     load: (session: GraphSession) => Promise<void>,
+    file = false,
 ): void {
+    // The name is the project's in graphty-element too, so its autosave entry carries it. A step
+    // marked as the app's own, so it is not counted as the reader's.
+    const naming = (session: GraphSession, after?: HistoryStepId): Promise<void> =>
+        session.transaction("Name the project", (tx) => tx.config.set({ name }), {
+            callerKey: APP_CALLER_KEY,
+            ...(after === undefined ? {} : { after }),
+        });
     workspace.set((state) => ({
         project: { name, id: newProjectId(state) },
         page: "panels",
@@ -61,16 +87,22 @@ export function openProject(
         dialog: null,
         // A failure of an earlier try says nothing about this one.
         notice: null,
-        // The name is the project's in graphty-element too, so its autosave entry carries it. Set
-        // before the load, which starts the history, so Undo never takes the name back.
         ...startOpening({
             name,
             load: async (session) => {
-                // The name is a step marked as the app's own, so it is not counted as the reader's.
-                await session.transaction("Name the project", (tx) => tx.config.set({ name }), {
-                    callerKey: APP_CALLER_KEY,
-                });
+                if (file) {
+                    // Named before the load, which starts the history, so Undo never takes the name back.
+                    await naming(session);
+                    await load(session);
+                    return;
+                }
+                // The app's own setup (its starting settings) is never a step Undo takes back, and the
+                // load after it is where the project starts.
+                session.history.clear({ pending: "keep" });
                 await load(session);
+                // Named in the load's own step, so that step stays where the project starts (graphty-element's
+                // first import) and one Undo takes the whole opening back (issue #796).
+                await naming(session, session.history.steps.at(session.history.position - 1)?.id);
             },
         }),
         ends: null,
@@ -370,7 +402,7 @@ async function drawFirst(
         // its drawing (a Cytoscape session) opens where its program put its nodes (issue #9297).
         ...(styles === "file" ? { layout: "recommended" as const } : {}),
         ...(fixed ? {} : { mapping }),
-        ...(fresh ? OPENING : {}),
+        ...(fresh ? openingOf(origin) : {}),
         ...(origin === undefined ? {} : { origin }),
         ...(callerKey === undefined ? {} : { callerKey }),
     });
@@ -453,8 +485,11 @@ async function takeIn(
  * @param incoming - the source.
  */
 export function openSeparate(workspace: WorkspaceStore, incoming: Incoming): void {
-    openProject(workspace, incoming.name.replace(/\.[^.]*$/, "") || incoming.name, (next) =>
-        drawFirst(workspace, next, incoming.source, true, undefined, incoming.origin, incoming.callerKey),
+    openProject(
+        workspace,
+        incoming.name.replace(/\.[^.]*$/, "") || incoming.name,
+        (next) => drawFirst(workspace, next, incoming.source, true, undefined, incoming.origin, incoming.callerKey),
+        incoming.origin !== "sample",
     );
 }
 

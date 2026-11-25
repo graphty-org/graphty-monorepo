@@ -79,6 +79,11 @@ export interface SectionSpec {
     readonly items?: readonly { readonly id: string; readonly name: string; readonly channels: readonly Channel[] }[];
     /** Properties drawn together: once the row sets one, the others show, waiting for a value. */
     readonly together?: readonly Channel[];
+    /**
+     * The Shaders section's option tiles: what each option says it is, by property ("Effects
+     * option"); absent, the tab's words ({@link OPTION_TILE_WORDS}).
+     */
+    readonly optionWords?: Readonly<Partial<Record<Channel, string>>>;
 }
 
 /** A model's channels: what the Shape field names, and what Model settings sets. */
@@ -489,6 +494,11 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.animationSpeed": "Dash motion",
     "edge.label": "Label",
     "edge.labelStyle": "Label style",
+    "edge.tooltip": "Tooltip",
+    "edge.tooltipStyle": "Tooltip style",
+    "edge.tooltipSize": "Tooltip size",
+    "edge.tooltipColor": "Tooltip color",
+    "edge.tooltipBackground": "Tooltip background",
     "edge.labelSize": "Label size",
     "edge.labelColor": "Label color",
     "edge.labelBackground": "Label background",
@@ -1580,6 +1590,13 @@ export const OPTION_TILE_WORDS: Readonly<Record<"node" | "edge", string>> = {
     node: "Shape option",
     edge: "Line option",
 };
+
+/**
+ * What a tile from the tab's own style options says it is, by the section it is added in.
+ * @param section - the section's title, such as "Effects".
+ * @returns the words: "Effects option".
+ */
+export const optionTileWord = (section: string): string => `${section} option`;
 
 /** The shader editor's words, each as a reader sees it. */
 export const EDITOR_WORDS = {

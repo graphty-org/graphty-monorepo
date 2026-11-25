@@ -7,7 +7,7 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { once } from "node:events";
-import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, describe, it } from "node:test";
@@ -397,12 +397,28 @@ describe("test-slots", () => {
         release();
     });
 
-    it("gives each gate shard its own Vite cache, and Vite's default outside one", () => {
+    it("gives each gate shard its own Vite cache", () => {
         assert.equal(
             shardCacheDir({ GRAPHTY_TEST_SHARD: "graphty-element-browser-2" }),
             "node_modules/.vite/shard-graphty-element-browser-2",
         );
-        assert.equal(shardCacheDir({}), undefined);
+    });
+
+    // Two runs in one checkout sharing a cache: the second, starting, deleted the first's bundle (#9956).
+    it("gives each run outside a shard its own Vite cache, and removes those of runs that have ended", () => {
+        const dir = fresh();
+        const ended = spawnSync(process.execPath, ["-e", ""]).pid;
+        for (const name of [`run-${ended}`, `run-${process.pid}`, "vitest"]) {
+            mkdirSync(join(dir, "node_modules/.vite", name), { recursive: true });
+        }
+        const cwd = process.cwd();
+        process.chdir(dir);
+        try {
+            assert.equal(shardCacheDir({}, 1), join(dir, "node_modules/.vite/run-1"));
+        } finally {
+            process.chdir(cwd);
+        }
+        assert.deepEqual(readdirSync(join(dir, "node_modules/.vite")).sort(), [`run-${process.pid}`, "vitest"]);
     });
 
     // Without `force` a second run in the same checkout trusts the old bundle and reloads mid-run on an import

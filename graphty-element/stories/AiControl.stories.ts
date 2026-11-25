@@ -170,6 +170,13 @@ function getAvailableMemory(): { available: number | null; total: number | null 
     }
 }
 
+/**
+ * The last render's panel setup, until it has written the panel's first text. The setup awaits the
+ * WebLLM provider's chunk before it does, so a cold load could leave "Loading graph..." in the
+ * screenshot (#9985): the play function waits for this.
+ */
+let showcaseReady: Promise<void> = Promise.resolve();
+
 // Main setup function
 async function setupShowcase(): Promise<void> {
     const element = document.querySelector<GraphtyElement>("graphty-element");
@@ -817,7 +824,13 @@ This demo integrates:
         },
     },
     render: (): TemplateResult => {
-        setTimeout(() => void setupShowcase(), 100);
+        // Storybook puts the template into the page right after render returns: set the panel up
+        // on the next frame, when its elements are there to find.
+        showcaseReady = new Promise((resolve) => {
+            requestAnimationFrame(() => {
+                resolve(setupShowcase());
+            });
+        });
 
         return html`
             <style>
@@ -1376,6 +1389,7 @@ type Story = StoryObj;
 
 export const Default: Story = {
     play: async ({ canvasElement }) => {
+        await showcaseReady;
         const scene = await drawn(canvasElement, "AI Control Default");
 
         // The showcase hands its own sample network to the element as it renders.

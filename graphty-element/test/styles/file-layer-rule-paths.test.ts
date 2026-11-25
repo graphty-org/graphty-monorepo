@@ -68,7 +68,7 @@ describe("a file layer's rule form", () => {
             assert.ok(isGraphtyError(thrown), reads);
             assert.strictEqual(thrown.details.reason, "reserved-root", reads);
         }
-        for (const reads of ["data.el_load", "graphty.notes.count"]) {
+        for (const reads of ["data.el_load", "store.graphty.notes.count"]) {
             assert.doesNotThrow(() =>
                 parseSetDefinition({
                     kind: "rule",

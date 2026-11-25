@@ -300,7 +300,7 @@ report.problems; // W_SOURCE_UNAVAILABLE or W_SOURCE_CHANGED with { source }, wh
   cannot be read opens with its rows held bare in their places (ids and edge ends, no values), so
   positions, runs, notes and edges that name them stay; the next save writes them and the
   reference back unchanged, and an open that can read it again fills them.
-- With `save-files-v2` too, a version 2 save keeps a load chosen as a reference referenced, and
+- A version 2 save keeps a load chosen as a reference referenced, and
   reports a load that cannot be one as `W_SOURCE_NO_PATH` with the same reason `copies()` gives. A
   version 2 file's referenced sources open kept as references; one that cannot be read opens held,
   with no elements, until `session.data.refresh(load.key)` reads it again.

@@ -120,8 +120,15 @@ describe("label looks that vary", () => {
         session.dispose();
     });
 
-    it("exists for node labels, tooltips, edge labels and both captions, as size, text color and background", () => {
-        for (const base of ["node.label", "node.tooltip", "edge.label", "edge.arrowHeadText", "edge.arrowTailText"]) {
+    it("exists for labels, tooltips and both captions, as size, text color and background", () => {
+        for (const base of [
+            "node.label",
+            "node.tooltip",
+            "edge.label",
+            "edge.tooltip",
+            "edge.arrowHeadText",
+            "edge.arrowTailText",
+        ]) {
             assert.strictEqual(CHANNEL_DESCRIPTORS[`${base}Size` as Channel].accepts, "number", base);
             assert.strictEqual(CHANNEL_DESCRIPTORS[`${base}Color` as Channel].accepts, "color", base);
             assert.strictEqual(CHANNEL_DESCRIPTORS[`${base}Background` as Channel].accepts, "color", base);

@@ -114,6 +114,31 @@ describe("JournalEntry.trigger", () => {
         later.dispose();
     });
 
+    it("marks every entry of a version 2 project open", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes([{ id: "ada" }, { id: "grace" }]);
+        await session.data.addEdges([{ src: "ada", dst: "grace" }]);
+        await session.config.set({ name: "Pioneers" });
+        const { text } = await session.project.save({ format: 2 });
+
+        const later = createGraphSession();
+        const heard: JournalEntry[] = [];
+        later.on("journal:appended", ({ entry }) => heard.push(entry));
+        await later.project.open(text);
+
+        assert.include(
+            heard.map((entry) => entry.command.op),
+            "config.set",
+            "opening set the project's name",
+        );
+        assert.deepEqual(
+            heard.filter((entry) => entry.trigger !== "project").map((entry) => entry.command.op),
+            [],
+        );
+        session.dispose();
+        later.dispose();
+    });
+
     it("marks every member entry of a graphty document that is not a project", async () => {
         const session = await fixtureSession();
         const heard: JournalEntry[] = [];

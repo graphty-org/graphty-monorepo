@@ -1,5 +1,5 @@
 /**
- * @file What the `graphty.notes.*` style paths read (design/notes/notes-design.md section 6.1): per
+ * @file What the `store.graphty.notes.*` style paths read (design/notes/notes-design.md section 6.1): per
  * node and per edge row, how many notes name it, and the text and time of the newest of them.
  *
  * Only node and edge targets count; a note about a set, an item, a result or the graph counts on

@@ -554,11 +554,12 @@ export type GraphtyErrorCode =
      */
     | "E_NO_WEBGL"
     /**
-     * A shader could not be built for WebGPU, usually because a name or a built-in in it is legal
-     * GLSL that WGSL or the compilers in between do not take. A refused shader never draws and can
-     * lose every frame it is part of, so `rendererStatus.drawing` turns false. `details.stage` names the step that gave up (`"compiler"`,
-     * `"translator"` or `"device"`) and `details.messages` carry what it said, which the translator
-     * leaves empty. Reported as `graph-error`.
+     * A shader could not be built, under WebGPU usually because a name or a built-in in it is legal
+     * GLSL that WGSL or the compilers in between do not take; under WebGL because the driver's
+     * compiler refused it. A refused shader never draws and can lose every frame it is part of, so
+     * `rendererStatus.drawing` turns false. `details.stage` names the step that gave up
+     * (`"compiler"`, `"translator"` or `"device"`) and `details.messages` carry what it said,
+     * which the translator leaves empty. Reported as `graph-error`.
      */
     | "E_SHADER_REFUSED"
     /**
@@ -569,6 +570,13 @@ export type GraphtyErrorCode =
      * stays in 3D and the next attempt starts clean. Recoverable: asking again can succeed.
      */
     | "E_XR_SESSION_FAILED"
+    /**
+     * Something run for one frame of an immersive session threw: Babylon.js's own XR input, or
+     * code observing the frame. The session keeps drawing; the step that threw is skipped for that
+     * frame. `details.mode` is `"vr"` or `"ar"` and `cause` carries what was thrown. Reported once
+     * per session for each distinct message, as `graph-error` (context `"xr"`), never thrown.
+     */
+    | "E_XR_FRAME_FAILED"
     /**
      * A feature the caller asked for needs an optional peer package that is not installed.
      * `details.package` names the package to install and `details.feature` the feature that
@@ -1006,6 +1014,13 @@ export type GraphtyWarningCode =
      */
     | "W_FILTER_DRAFT_DROPPED"
     /**
+     * The draft of the sources and steps autosave kept could not be opened again after a restore
+     * (the source-steps experiment is off, or the rows it read are gone), so it was dropped. In an
+     * autosave restore's report; no params.
+     * Since 3.40.0.
+     */
+    | "W_SOURCE_DRAFT_DROPPED"
+    /**
      * A style layer's `{ match: "ids" }` selector names ids no element of the layer's target answers
      * to, by either spelling of an integer id, so they paint nothing. `params.target` is `"node"` or
      * `"edge"`, and `params.ids` the ids as the layer named them.
@@ -1031,6 +1046,14 @@ export type GraphtyWarningCode =
      * Experimental: may change in a minor release.
      */
     | "W_OBJECT_CAP"
+    /**
+     * The installed Babylon.js words a line of its shaders differently from the one
+     * render-path="batched" edits, so the edit was not made: batched rows still draw, with Babylon's
+     * own line (a node's shading may differ a little from the same node drawn as an object).
+     * `params.renderer` is `"webgl"` or `"webgpu"`, `params.patterns` the edits that matched
+     * nothing. Reported as `render-warning`.
+     */
+    | "W_SHADER_EDIT_MISSED"
     /**
      * A style layer binds a whole label style channel (`node.labelStyle`) to a path. No scale
      * produces a whole label style, so the binding paints nothing. `params.channel` is the channel,
@@ -1377,6 +1400,7 @@ const CODE_TABLE = {
     E_NO_WEBGL: "E_NO_WEBGL",
     E_SHADER_REFUSED: "E_SHADER_REFUSED",
     E_XR_SESSION_FAILED: "E_XR_SESSION_FAILED",
+    E_XR_FRAME_FAILED: "E_XR_FRAME_FAILED",
     E_MISSING_PACKAGE: "E_MISSING_PACKAGE",
     E_UNSUPPORTED: "E_UNSUPPORTED",
     E_READONLY: "E_READONLY",

@@ -86,8 +86,20 @@ describe("source-steps: a join step's act", () => {
                 ignoreSpaces: false,
                 repeated: null,
                 aggregate: null,
+                unmatched: "skip",
+                perPair: false,
             });
         }
+    });
+
+    it("reads Make an edge's one edge per pair back as perPair", async () => {
+        const { session } = await people();
+        const entries = await session.data.stage(ENTRIES, { key: "entry", type: "entry" });
+        const draft = session.data.draft();
+        draft.connect({ from: { source: entries, field: "badge" }, into: { space: "person" }, perPair: true });
+        await draft.commit();
+        const edges = session.data.steps().find((s) => s.op === "join.edges");
+        assert.isTrue(edges?.act?.perPair, "the act reads back as one edge per pair");
     });
 
     it("names the source and column a merge on a non-key column translates through", async () => {

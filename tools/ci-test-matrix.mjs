@@ -512,11 +512,26 @@ const OFF_SHARDS = [
     // all three engines in one job (tools/test-select.mjs parityBins(), #9274; a story added by a fix turned the full
     // run red, #9259). "story-ms": a story's three loads on that engine, with the run's start shared out: the full
     // run's Run tests step over its 391 stories (run 44799180458, 2026-11-20: 847, 1,443 and 409 s).
-    {
-        shard: "graphty-element-batched-webgpu",
+    // "batched-webgpu" is split in two (vitest --shard, by file count): as one job it ran 22 to 25 minutes of its
+    // 26-minute deadline (full runs 45337267625 and 45503798998), and with three more files and a runner a quarter
+    // slower it reached the deadline (#10085). On that slow runner each part holds about 12.5 minutes of files.
+    ...[1, 2].map((n) => ({
+        shard: `graphty-element-batched-webgpu-${n}`,
         package: "graphty-element",
-        "test-command": String.raw`cd graphty-element && GRAPHTY_BROWSER_GPU=swiftshader-unthrottled pnpm exec vitest run --project=forced-batched $(grep -rlE 'GRAPHTY_BROWSER_GPU|navigator\.gpu' test/browser test/interactions --include='*.test.ts' | grep -v '\.bench\.') ${ELEMENT_REPORTERS}`,
+        "test-command": String.raw`cd graphty-element && GRAPHTY_BROWSER_GPU=swiftshader-unthrottled pnpm exec vitest run --project=forced-batched --shard=${n}/2 $(grep -rlE 'GRAPHTY_BROWSER_GPU|navigator\.gpu' test/browser test/interactions --include='*.test.ts' | grep -v '\.bench\.') ${ELEMENT_REPORTERS}`,
         "needs-browser": true,
+        "full-run-only": true,
+        local: "never",
+    })),
+    // Hover, click and edges in motion in WebKit on both render paths (the "interactions-webkit" project: pick-parity's
+    // at-rest cases and edges-follow's ngraph and glide cases, with Playwright's mouse). Pictures alone are compared
+    // in WebKit by render-parity-webkit; this is where a WebKit-only pick or edge-follow failure shows. Full run only.
+    {
+        shard: "graphty-element-interactions-webkit",
+        package: "graphty-element",
+        "test-command": `cd graphty-element && pnpm run test:interactions-webkit ${ELEMENT_REPORTERS}`,
+        "needs-browser": true,
+        browsers: "chromium webkit",
         "full-run-only": true,
         local: "never",
     },

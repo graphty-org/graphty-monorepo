@@ -890,6 +890,7 @@ function channelPlans(
             ["labelWrapWidth", [length("node.labelWrapWidth", factors.node * SCENE_PER_UNIT.node)]],
             ["labelWrapTrailingSpace", [id("node.labelWrapTrailingSpace")]],
             ["labelWrapSkipEndSpace", [id("node.labelWrapSkipEndSpace")]],
+            ["labelWrapUnkerned", [id("node.labelWrapUnkerned")]],
             ["labelWrapEllipsis", [id("node.labelWrapEllipsis")]],
             ["labelWrapAnywhere", [id("node.labelWrapAnywhere")]],
             ["labelWrapSpaceCount", [id("node.labelWrapSpaceCount")]],

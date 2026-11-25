@@ -247,6 +247,7 @@ type ResolvedRichTextLabelOptions = RequiredExceptOptional<
     | "letterSize"
     | "wrapTrailingSpace"
     | "wrapSkipEndSpace"
+    | "wrapUnkerned"
     | "wrapEllipsis"
     | "wrapAnywhere"
     | "wrapSpaceCount"
@@ -2364,13 +2365,15 @@ export class RichTextLabel {
             letterSize === undefined || letterSize <= 0
                 ? (wrapWidth * oneLinePx) / this.lineHeightInWorld()
                 : (wrapWidth * fontSize) / letterSize;
-        const { wrapTrailingSpace, wrapSkipEndSpace, wrapEllipsis, wrapAnywhere, wrapSpaceCount } = this.options;
+        const { wrapTrailingSpace, wrapSkipEndSpace, wrapUnkerned, wrapEllipsis, wrapAnywhere, wrapSpaceCount } =
+            this.options;
         this.parsedContent = wrapLines(ctx, this.parsedContent, widthPx, {
             trailingSpace: wrapTrailingSpace === true,
             skipEndSpace: wrapSkipEndSpace === true,
             ellipsis: wrapEllipsis === true,
             anywhere: wrapAnywhere === true,
             spaceCount: wrapSpaceCount,
+            unkerned: wrapUnkerned === true,
             maxLines,
             maxLinesEllipsis,
         });

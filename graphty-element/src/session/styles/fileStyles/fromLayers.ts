@@ -252,6 +252,7 @@ const PLANS: Readonly<Record<StyleTarget, ReadonlyMap<string, PropertyPlan>>> = 
         ["node.labelWrapWidth", plan((value) => scaled(value, 1 / SCENE_PER_UNIT.node), "labelWrapWidth")],
         ["node.labelWrapTrailingSpace", plan(flag, "labelWrapTrailingSpace")],
         ["node.labelWrapSkipEndSpace", plan(flag, "labelWrapSkipEndSpace")],
+        ["node.labelWrapUnkerned", plan(flag, "labelWrapUnkerned")],
         // Screen pixels: never scaled with the file's lengths.
         ["node.labelMinScreenSize", plan(number, "labelMinScreenSize")],
         ["node.labelOnTop", plan(flag, "labelOnTop")],

@@ -86,9 +86,10 @@ export async function sampleData(
  * frame. Append it to the page, then call {@link importSample}.
  * @param width - CSS pixels
  * @param height - CSS pixels
+ * @param view - the view it opens in: 2D unless given (the graphty app opens in 3D)
  * @returns the element
  */
-export function createSampleElement(width: number, height: number): Graphty {
+export function createSampleElement(width: number, height: number, view: "2d" | "3d" = "2d"): Graphty {
     const element = document.createElement("graphty-element");
     element.style.cssText = `display:block;width:${String(width)}px;height:${String(height)}px`;
     // The samples are drawn with their file's styles, the file styles experiment.
@@ -96,7 +97,7 @@ export function createSampleElement(width: number, height: number): Graphty {
     // The working graph off: the programs a file came from lay out and draw every element, hidden
     // ones included, so the drawing is compared over the whole graph.
     element.workingGraph = false;
-    element.viewMode = "2d";
+    element.viewMode = view;
     element.layoutConfig = { seed: SEED };
     // Run the layout before the first frame, as the File Styles stories do: drawing every step
     // of a few hundred nodes in a software-rendered Chromium does not settle in

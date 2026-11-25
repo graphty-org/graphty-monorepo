@@ -58,6 +58,28 @@ function testFileOf(url: string): (typeof SAMPLES)[number] {
     return entry;
 }
 
+/** A node as the session lists it: its id and its data. */
+type NodeRecord = Readonly<Record<string, unknown>> & { readonly id: string | number };
+
+/**
+ * What each sample whose format carries no styling labels its nodes with: the file's own name column, else the node
+ * id. A label taken from another column fails, and so does one of the nodes the file names here.
+ */
+const LABELED_WITH: Readonly<
+    Record<string, { readonly text: (node: NodeRecord) => string; readonly names: Readonly<Record<string, string>> }>
+> = {
+    // a person by name, a film by title
+    Neo4j: {
+        text: (node) => String(node.name ?? node.title),
+        names: { Keanu: "Keanu Reeves", TheMatrix: "The Matrix" },
+    },
+    // a term by its name, not its TAXRANK id
+    "OBO Foundry": { text: (node) => String(node.name), names: { "TAXRANK:0000006": "species" } },
+    "Cytoscape (SIF)": { text: (node) => String(node.id), names: { NPM1: "NPM1" } },
+    "Cytoscape (CSV table)": { text: (node) => String(node.id), names: { GAG: "GAG" } },
+    D3: { text: (node) => String(node.id), names: { Myriel: "Myriel" } },
+};
+
 describe("the start page's files from other programs", () => {
     it("lists one card for each program, named for it, in its own section", async () => {
         render(<Workspace store={createWorkspaceStore()} />);
@@ -115,7 +137,9 @@ describe("the start page's files from other programs", () => {
             const session = await openBy(store, () => pickSample(sample.program));
             const element = document.querySelector("graphty-element");
             assert.isNotNull(element);
-            const nodes = [...session.data.nodes()];
+            const nodes = [...session.data.nodes()] as NodeRecord[];
+            const labeledWith = LABELED_WITH[sample.program];
+            assert.isDefined(labeledWith, `${sample.program} says what labels its nodes`);
             // the label layer is painted on a frame
             await waitFor(() => {
                 const unlabeled = nodes.filter((node) => (element.labelOf(node.id)?.text ?? "") === "");
@@ -125,6 +149,15 @@ describe("the start page's files from other programs", () => {
                     `${sample.program}: every node is labeled`,
                 );
             });
+            const wrong = nodes.filter((node) => element.labelOf(node.id)?.text !== labeledWith.text(node));
+            assert.deepEqual(
+                wrong.map((node) => `${String(node.id)}: ${String(element.labelOf(node.id)?.text)}`),
+                [],
+                `${sample.program}: every node is labeled from its column`,
+            );
+            for (const [id, text] of Object.entries(labeledWith.names)) {
+                assert.equal(element.labelOf(id)?.text, text, `${sample.program} labels ${id}`);
+            }
             // the labels are the opening's own: one Undo takes them back with the graph
             assert.equal(session.history.position, 1, `${sample.program} opens as one undo step`);
         },

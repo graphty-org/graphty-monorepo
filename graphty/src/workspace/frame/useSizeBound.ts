@@ -13,6 +13,7 @@ import { useWorkspaceState } from "../state/WorkspaceContext";
  * @returns true while node sizes encode values a reader compares.
  */
 export function useSizeBound(session: GraphSession | null): boolean {
+    // on reload: fresh: read: read from graphty-element's legend
     const [bound, setBound] = useState(false);
     const paused = useWorkspaceState((state) => state.selectionWorkspace !== null);
     // Read with a legend in it: a workspace a reload brought back open (issue #9655) opens before

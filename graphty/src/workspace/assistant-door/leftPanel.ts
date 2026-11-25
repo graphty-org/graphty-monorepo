@@ -44,6 +44,7 @@ interface LeftPanel {
  */
 export function useLeftPanel(): LeftPanel {
     const { store } = useWorkspace();
+    // on reload: fresh: read: the window's width, read from the browser
     const windowWidth = useSyncExternalStore(onResize, () => globalThis.innerWidth);
     const onAssistant = useWorkspaceState((state) => state.page === "panels" && state.place === "assistant");
     const leftWidth = useWorkspaceState((state) => state.leftWidth);

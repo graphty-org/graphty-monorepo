@@ -152,8 +152,10 @@ export function fileStylesChoice(): "file" | "none" {
  * How the app draws a file's styles: at the spacing the file's own program lays it out at, so a file with no
  * positions shows its nodes as large beside the gaps as that program does (graphty-element's `lengths: "spacing"`),
  * and framed as that program frames it (`framing: "file"`: a sigma.js file fills the canvas as sigma.js fills it).
+ * The columns holding each element's own style values are loaded hidden (`valueColumns: "hidden"`): they are how
+ * the file draws, not data the reader brought, so the table, the pickers and the key leave them out.
  */
-export const FILE_STYLE_OPTIONS = { lengths: "spacing", framing: "file" } as const;
+export const FILE_STYLE_OPTIONS = { lengths: "spacing", framing: "file", valueColumns: "hidden" } as const;
 
 /**
  * Keeps the import-styles preference.

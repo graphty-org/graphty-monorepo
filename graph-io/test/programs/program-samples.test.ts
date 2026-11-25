@@ -35,6 +35,8 @@ interface Expected {
     readonly edges: Readonly<Record<number, EdgeValues>>;
     /** Node centers, y up, in the file's unit, for a file that stores them. */
     readonly positions?: Readonly<Record<string, readonly [number, number]>>;
+    /** How far apart the program's own layout leaves the nodes of a file that stores no positions, in its unit. */
+    readonly spacing?: number;
 }
 
 const EXPECTED: Readonly<Record<string, Expected>> = {
@@ -163,6 +165,9 @@ const EXPECTED: Readonly<Record<string, Expected>> = {
             "32": { fill: "#a52a2a", label: "User", labelColor: "#ffffff" },
         },
         edges: { 0: { lineStyle: "solid" }, 11: { lineStyle: "dotted" } },
+        // OGDF's FMMM layout: a 20 gap between the circles round two joined boxes, plus twice the median half-diagonal
+        // (53.85, a 100 x 40 box)
+        spacing: 127.703,
     },
     pajek: {
         nodes: {
@@ -251,6 +256,14 @@ describe("the sample files from other programs", () => {
                     const got = resolveStyles(styles, "edge", property as never, result.snapshot)[Number(edge)];
                     assert.equal(got, value, `${sample.id} edge ${edge} ${property}`);
                 }
+            }
+            if (expected.spacing !== undefined) {
+                assert.closeTo(
+                    styles.styles.lengths?.spacing ?? Number.NaN,
+                    expected.spacing,
+                    1e-3,
+                    `${sample.id} spacing`,
+                );
             }
             if (expected.positions !== undefined) {
                 const positions = extractPositions(registry.importer(sample.format), result.snapshot, result.report);

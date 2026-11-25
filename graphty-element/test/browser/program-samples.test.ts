@@ -32,6 +32,11 @@ interface Expected {
     readonly labelsBeside?: readonly string[];
     /** Whether the file stores every node's position. */
     readonly placed: boolean;
+    /**
+     * For a file that stores no positions, the least share of the median gap to a node's nearest neighbor that the
+     * median node's width takes, so the nodes are drawn at the size its program draws them beside its layout's gaps.
+     */
+    readonly widthToSpacing?: number;
     /** The layout the file asks for, which draws it when it stores no positions, and no two nodes overlap in it. */
     readonly layout?: string;
 }
@@ -134,6 +139,9 @@ const EXPECTED: Readonly<Record<string, Expected>> = {
         },
         edgeColors: ["#000000"],
         edgeStyles: { dotted: 15 },
+        // laid out at the spacing OGDF's own layout leaves between boxes this size (a gap of 20 between the circles round
+        // two joined boxes), so a box is most of the way across to its neighbor, not a speck between them
+        widthToSpacing: 0.5,
         placed: false,
     },
     pajek: {
@@ -166,6 +174,20 @@ function overlapping(nodes: readonly SceneNode[]): string[] {
         }
     }
     return pairs;
+}
+
+/**
+ * The median width of the visible nodes on screen over the median distance from one to its nearest neighbor.
+ * @param nodes - the drawn nodes
+ * @returns the ratio
+ */
+function widthToSpacing(nodes: readonly SceneNode[]): number {
+    const shown = nodes.filter((node) => node.visible);
+    const middle = (values: number[]): number => values.sort((a, b) => a - b)[Math.floor(values.length / 2)] ?? 0;
+    const nearest = shown.map((a) =>
+        Math.min(...shown.filter((b) => b !== a).map((b) => Math.hypot(a.x - b.x, a.y - b.y))),
+    );
+    return middle(shown.map((node) => node.w)) / middle(nearest);
 }
 
 afterEach(() => {
@@ -217,6 +239,13 @@ describe("the sample files from other programs, drawn with their file styles", (
             .filter((node) => node.label?.position !== "inside")
             .map((node) => `${node.id} ${String(node.label?.text)} ${String(node.label?.position)}`);
         assert.deepEqual(offNode, [], `${sample.id} labels the file centers on their node`);
+        if (expected.widthToSpacing !== undefined) {
+            assert.isAtLeast(
+                widthToSpacing(scene.nodes),
+                expected.widthToSpacing,
+                `${sample.id} node width to spacing`,
+            );
+        }
         if (expected.layout !== undefined) {
             assert.equal(element.layout, expected.layout, `${sample.id} is laid out as its file asks`);
             assert.deepEqual(overlapping(scene.nodes), [], `${sample.id} nodes drawn over each other`);

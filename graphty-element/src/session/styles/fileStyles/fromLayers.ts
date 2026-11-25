@@ -280,6 +280,7 @@ const PLANS: Readonly<Record<StyleTarget, ReadonlyMap<string, PropertyPlan>>> = 
         ["edge.arrowHeadFillColor", plan(color, "targetArrowFillColor")],
         ["edge.arrowTailFillColor", plan(color, "sourceArrowFillColor")],
         ["edge.label", plan(text, "label")],
+        ["edge.tooltip", plan(text, "tooltip")],
         ["edge.arrowHeadText", plan(text, "targetLabel")],
         ["edge.arrowTailText", plan(text, "sourceLabel")],
         ["edge.xlabel", plan(text, "xlabel")],

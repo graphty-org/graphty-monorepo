@@ -712,6 +712,10 @@ export interface GraphtyElementJSXProps {
      */
     "ongraphty-capabilities-change"?: (event: GraphtyElementEventMap["graphty-capabilities-change"]) => void;
     /**
+     * Emitted when the pointer moves onto an edge, with the edge's id and its tooltip's words.
+     */
+    "ongraphty-edge-hover"?: (event: GraphtyElementEventMap["graphty-edge-hover"]) => void;
+    /**
      * Emitted once the element has started, with the experiments it switched on and the ids it did not recognize.
      */
     "ongraphty-features"?: (event: GraphtyElementEventMap["graphty-features"]) => void;

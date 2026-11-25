@@ -1069,6 +1069,7 @@ function channelPlans(
         ["sourcePort", [id("edge.sourcePort")]],
         ["targetPort", [id("edge.targetPort")]],
         ["label", [id("edge.label")]],
+        ["tooltip", [id("edge.tooltip")]],
         ["targetLabel", [id("edge.arrowHeadText")]],
         ["sourceLabel", [id("edge.arrowTailText")]],
         ["xlabel", [id("edge.xlabel")]],
@@ -1299,7 +1300,7 @@ const SCREEN_LABEL_SIZES: readonly StyleProperty[] = [
 /** The properties the element draws nothing for, per kind. */
 const NOT_DRAWN: Readonly<Record<StyleTarget, ReadonlySet<string>>> = {
     node: new Set(),
-    edge: new Set(["tooltip"]),
+    edge: new Set(),
 };
 
 /** The properties the translation draws in passes of their own, per kind. */

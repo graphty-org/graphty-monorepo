@@ -442,6 +442,11 @@ export const dataManagerInternals = {} as {
     edgesLive(manager: DataManager): number;
     /** The `Edge`s built so far by id, building none: what a check of the drawn edges walks. */
     builtEdges(manager: DataManager): ReadonlyMap<string, Edge>;
+    /**
+     * An edge's row (the index the style painter paints it at) and its two ends' node rows, building no `Edge`;
+     * undefined for an id not held.
+     */
+    edgeRowOf(manager: DataManager, id: EdgeId): { row: number; ends: readonly [number, number] } | undefined;
     /** A stored node id's row in the store, read with no `Node`; `INVALID_INDEX` for an id it does not hold. */
     rowOf(manager: DataManager, id: NodeIdType): number;
     /** The `Node` built for a row, building none; undefined when the row has none. */
@@ -853,6 +858,11 @@ export class DataManager implements Manager {
         dataManagerInternals.nodesLive = (manager) => manager.nodeMap.builtView().size;
         dataManagerInternals.edgesLive = (manager) => manager.edgeMap.builtView().size;
         dataManagerInternals.builtEdges = (manager) => manager.edgeMap.builtView();
+        dataManagerInternals.edgeRowOf = (manager, id) => {
+            const row = manager.edgeMap.builtView().get(id)?.index ?? manager.unbuiltEdgeIds.get(id);
+            const { reads } = manager.store;
+            return row === undefined || !reads.hasEdge(row) ? undefined : { row, ends: reads.edgeEndpoints(row) };
+        };
         dataManagerInternals.rowOf = (manager, id) => manager.store.reads.indexOf(id);
         dataManagerInternals.builtNodes = (manager) => manager.nodeMap.built();
         dataManagerInternals.builtNodeAtRow = (manager, row) => {

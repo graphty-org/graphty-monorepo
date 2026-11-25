@@ -16,7 +16,7 @@ import { Engine } from "@babylonjs/core/Engines/engine.js";
 import { NullEngine } from "@babylonjs/core/Engines/nullEngine.js";
 import { WebGPUEngine } from "@babylonjs/core/Engines/webgpuEngine.js";
 import { PointerEventTypes } from "@babylonjs/core/Events/pointerEvents.js";
-import { type Matrix, Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { Matrix, Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
 import type { SubMesh } from "@babylonjs/core/Meshes/subMesh.js";
 import { Observable } from "@babylonjs/core/Misc/observable.js";
@@ -169,6 +169,7 @@ import {
 import { type AlgorithmOnLoad, DataConfig } from "./config/DataConfig";
 import { RenderSettingsOpts } from "./config/GraphBehavior";
 import { DEFAULT_LIGHTING, isLighting, type Lighting, LIGHTING_VALUES } from "./config/Lighting";
+import { drawnText, labelTextOf, richTextLabelOptions, type RichTextStyleType } from "./config/RichTextStyle";
 import { type PartialXRConfig, xrConfigSchema } from "./config/xr-config-schema";
 import { type ExportGraphOptions, type ExportResult, exportSession } from "./data/export";
 import { WRITABLE_LANE, writableLane } from "./data/lane";
@@ -272,6 +273,7 @@ import {
 } from "./meshes/NodeThumbnail";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { type Antialias, type LeanLines, pulledEdgesDefault } from "./meshes/PulledLineBatch";
+import { RichTextLabel } from "./meshes/RichTextLabel";
 import { loadChunk, loadModel, ModelLoadFailure } from "./models/loadModel";
 import { type ModelTemplate, optionsOf } from "./models/ModelCache";
 import { TextureCache } from "./models/TextureCache";
@@ -6067,10 +6069,16 @@ export class Graph implements GraphContext {
         // The newest move whose answer was heard: an older read landing later is dropped, but a
         // pointer that keeps moving still hears each read one late, instead of never (#8016).
         let edgeHoverHeard = 0;
+        // The pointer leaving the canvas ends an edge hover; a read still under way for an earlier move is dropped.
+        const leaveEdge = (): void => {
+            edgeHoverHeard = edgeHoverMoves;
+            this.#hoverEdge(undefined, 0, 0);
+        };
         this.scene.onPointerObservable.add((pointerInfo) => {
             const move = ++edgeHoverMoves;
             const canvas = this.scene.getEngine().getInputElement();
             const { buttons } = pointerInfo.event as { buttons?: number };
+            const { pointerX: x, pointerY: y } = this.scene;
             if (
                 !canvas ||
                 this.scene.doNotHandleCursors ||
@@ -6078,6 +6086,8 @@ export class Graph implements GraphContext {
                 canvas.style.cursor === this.scene.hoverCursor ||
                 (this.scene.metadata as GraphSceneMetadata | null)?.xrHelper?.baseExperience?.state === WebXRState.IN_XR
             ) {
+                // Over a node, in a drag or in XR: no edge is hovered.
+                leaveEdge();
                 return;
             }
 
@@ -6089,13 +6099,16 @@ export class Graph implements GraphContext {
                 edgeHoverHeard = move;
                 if (edgeId !== undefined) {
                     canvas.style.cursor = this.scene.hoverCursor;
+                    canvas.addEventListener("pointerleave", leaveEdge);
                 }
+
+                this.#hoverEdge(edgeId, x, y);
             };
             const edgeId = hoverEdgeAt(
                 this.scene,
                 () => this.builtEdges(),
-                this.scene.pointerX,
-                this.scene.pointerY,
+                x,
+                y,
                 (point) => this.worldToScreen(point),
                 this.rowLinePicks(),
             );
@@ -6123,6 +6136,105 @@ export class Graph implements GraphContext {
                 this.canvas.style.cursor = over ? "pointer" : this.scene.defaultCursor;
             }
         });
+    }
+
+    /** The edge the pointer is over, and the tooltip drawn for it when a style layer gave it one. */
+    #hoveredEdge: { id: EdgeId; tooltip: RichTextLabel | undefined } | undefined;
+
+    /**
+     * The pointer is over an edge, or over none. Arriving at an edge emits `edge-hover` and draws the
+     * edge's tooltip (`edge.tooltip`) where the pointer met the line; leaving it takes the tooltip down.
+     * The same on both render paths: an edge drawn with no `Edge` is read from its row and none is built.
+     * @param edgeId - The edge, or undefined for none.
+     * @param x - The pointer's x on the canvas, in CSS pixels.
+     * @param y - The pointer's y on the canvas, in CSS pixels.
+     */
+    #hoverEdge(edgeId: EdgeId | undefined, x: number, y: number): void {
+        if (edgeId === this.#hoveredEdge?.id) {
+            return;
+        }
+
+        this.#hoveredEdge?.tooltip?.dispose();
+        this.#hoveredEdge = undefined;
+        if (edgeId === undefined) {
+            return;
+        }
+
+        const at = dataManagerInternals.edgeRowOf(this.dataManager, edgeId);
+        const block =
+            at === undefined || !this.stylePainter.owns
+                ? undefined
+                : drawnText(this.stylePainter.edgePaint(at.row)?.style.tooltip);
+        const data = dataManagerInternals.builtEdges(this.dataManager).get(edgeId)?.data;
+        const words = block === undefined ? undefined : labelTextOf(data, block);
+        const tooltip = words === "" ? undefined : words;
+        this.#hoveredEdge = {
+            id: edgeId,
+            tooltip:
+                at === undefined || block === undefined || tooltip === undefined
+                    ? undefined
+                    : this.#edgeTooltipAt(at.ends, x, y, tooltip, block),
+        };
+        this.eventManager.emitEdgeEvent("edge-hover", { edgeId, ...(tooltip === undefined ? {} : { tooltip }) });
+    }
+
+    /**
+     * Draw an edge's tooltip under the pointer, at the depth of the edge's middle: on screen it is where the
+     * pointer met the line, and in 3D it is drawn at the size the edge's own words would be.
+     * @param ends - The rows of the edge's two nodes.
+     * @param x - The pointer's x on the canvas, in CSS pixels.
+     * @param y - The pointer's y on the canvas, in CSS pixels.
+     * @param words - What it says.
+     * @param block - How it looks, as the style stack resolved it.
+     * @returns The tooltip, or undefined when the edge's ends are not drawn.
+     */
+    #edgeTooltipAt(
+        ends: readonly [number, number],
+        x: number,
+        y: number,
+        words: string,
+        block: RichTextStyleType,
+    ): RichTextLabel | undefined {
+        const camera = this.scene.activeCamera;
+        const [a, b] = ends.map((row) => this.#rowWorldCentre(row));
+        if (!camera || a === undefined || b === undefined) {
+            return undefined;
+        }
+
+        const ray = this.scene.createPickingRay(x, y, Matrix.Identity(), camera);
+        const middle = a.add(b).scaleInPlace(0.5);
+        const point = ray.origin.add(ray.direction.scale(Vector3.Dot(middle.subtract(ray.origin), ray.direction)));
+        const location = block.location ?? "top-right";
+        const label = new RichTextLabel(this.scene, {
+            ...richTextLabelOptions(block, {
+                text: words,
+                attachTo: point,
+                attachPosition: location === "automatic" ? "top" : location,
+                attachOffset: block.attachOffset ?? 0,
+            }),
+            onTop: true,
+        });
+        // Under the pointer: it must not take the pointer from the edge or a node beneath it.
+        if (label.labelMesh) {
+            label.labelMesh.isPickable = false;
+        }
+
+        return label;
+    }
+
+    /**
+     * Where a node row is drawn in the world, building no `Node` for a row a batch draws.
+     * @param row - The node's row.
+     * @returns The center, or undefined when the row is not drawn.
+     */
+    #rowWorldCentre(row: number): Vector3 | undefined {
+        const node = dataManagerInternals.builtNodeAtRow(this.dataManager, row);
+        if (node !== undefined) {
+            node.drawnWorldMatrix(true);
+            return node.drawnWorldPosition.clone();
+        }
+
+        return this.#columnSpots([row]).next().value?.centre;
     }
 
     /**

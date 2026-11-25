@@ -167,7 +167,7 @@ export function pulledEdgesOf(scene: object): Set<Edge> {
 }
 
 /** Style keys a pulled line can carry; any other set keeps the edge an object edge (`Edge.pullsLine`). */
-const PULLED_STYLE_KEYS = new Set(["line", "label", "arrowHead", "arrowTail", "band", "visible"]);
+const PULLED_STYLE_KEYS = new Set(["line", "label", "tooltip", "arrowHead", "arrowTail", "band", "visible"]);
 
 /** Line keys a pulled line draws exactly as the plain line does. */
 const PULLED_LINE_KEYS = new Set([

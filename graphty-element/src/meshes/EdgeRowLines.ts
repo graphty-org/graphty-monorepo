@@ -15,7 +15,7 @@ import type { MeshCache } from "./MeshCache";
 import type { LeanLines, PulledLineBatch } from "./PulledLineBatch";
 
 /** Style keys a row line may set: any other needs an `Edge` (a cap, a label or a band is drawn by one). */
-const ROW_STYLE_KEYS = new Set(["line", "label", "arrowHead", "arrowTail", "band", "visible"]);
+const ROW_STYLE_KEYS = new Set(["line", "label", "tooltip", "arrowHead", "arrowTail", "band", "visible"]);
 
 /**
  * Line keys a row line draws exactly as an `Edge`'s pulled straight line does. A curve, a fan, a gap, bends, a

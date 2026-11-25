@@ -357,6 +357,8 @@ A channel is one visual property with one name. These are all of them:
 | `edge.animationSpeed`         | a number                                                                                                         |
 | `edge.label`                  | the words to draw                                                                                                |
 | `edge.labelStyle`             | as `node.labelStyle`                                                                                             |
+| `edge.tooltip`                | the words to show while the pointer is over the edge                                                             |
+| `edge.tooltipStyle`           | as `node.labelStyle`, for the tooltip                                                                            |
 | `edge.labelColor`             | as `node.labelColor`                                                                                             |
 | `edge.labelSize`              | as `node.labelSize`                                                                                              |
 | `edge.labelLetterSize`        | as `node.labelLetterSize`                                                                                        |
@@ -693,11 +695,34 @@ await element.session.styles.add({
 vocabulary `node.labelStyle` takes. The words are what switch a tooltip on, so a layer that
 writes only the appearance draws nothing.
 
-**An edge has no tooltip.** `edge.tooltip` was published through 1.x and drawn by nothing in any
-released version, and it was withdrawn in 2.0: a tooltip needs the pointer to land on the thing
-it belongs to, and an edge is not pickable -- the same reason the element emits no `edge-click`.
-Put the words on the edge itself with `edge.label`, or at one of its ends with
-`edge.arrowHeadText` and `edge.arrowTailText`.
+### A tooltip on an edge
+
+An edge's tooltip works the same way: nothing is drawn until a style layer gives an edge tooltip
+words, and then only while the pointer is over that edge, at the point where the pointer met the
+line. It works on straight, curved and patterned lines, in 2D and 3D, on both render paths.
+
+```typescript
+const element = document.querySelector("graphty-element");
+await element.session.data.addNodes([{ id: "Paris" }, { id: "Lyon" }]);
+await element.session.data.addEdges([{ src: "Paris", dst: "Lyon", road: "A6", km: 465 }]);
+
+await element.session.styles.add({
+    name: "Which road each edge is",
+    target: "edge",
+    selector: { match: "everything" },
+    encode: { "edge.tooltip": { template: ["{data.road}", "{data.km} km"] } },
+});
+
+element.addEventListener("graphty-edge-hover", (event) => {
+    console.log(event.detail.edgeId, event.detail.tooltip); // "A6\n465 km" over the line
+});
+```
+
+`edge.tooltipStyle` sets how it is drawn, in the `node.labelStyle` vocabulary, and
+`edge.tooltipSize`, `edge.tooltipColor` and `edge.tooltipBackground` set its size and colors
+alone. The `graphty-edge-hover` event fires whenever the pointer arrives on an edge, with the
+edge's id, and with the tooltip's words when it has some: a page that draws its own tooltip in
+HTML reads them there and writes no style for the element to draw.
 
 An arrow that is told nothing about its own appearance follows the line it caps, at either end:
 

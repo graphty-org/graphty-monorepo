@@ -368,6 +368,8 @@ const DECLARED = [
     "edge.animationSpeed",
     "edge.label",
     "edge.labelStyle",
+    "edge.tooltip",
+    "edge.tooltipStyle",
     "edge.labelTextAlign",
     "edge.labelLocation",
     "node.visible",
@@ -378,6 +380,9 @@ const DECLARED = [
     "edge.labelSize",
     "edge.labelColor",
     "edge.labelBackground",
+    "edge.tooltipSize",
+    "edge.tooltipColor",
+    "edge.tooltipBackground",
     "edge.arrowHeadTextBackground",
     "edge.arrowTailTextBackground",
     "edge.labelLetterSize",
@@ -470,9 +475,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into two hundred and twenty-eight node channels and one hundred and eighty-seven edge channels", () => {
+    it("splits into two hundred and twenty-eight node channels and one hundred and ninety-two edge channels", () => {
         assert.strictEqual(channelsFor("node").length, 228);
-        assert.strictEqual(channelsFor("edge").length, 187);
+        assert.strictEqual(channelsFor("edge").length, 192);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -544,24 +549,21 @@ describe("what the element can really draw", () => {
         assert.notInclude(LABEL_STYLE_FIELDS as string[], "wrap");
     });
 
-    it("says on both tooltip channels that a tooltip is hover-only, and that an edge has none", () => {
-        // Two things a consumer meets as silence otherwise. A tooltip is drawn on hover, so a
-        // layer that writes one changes nothing on a graph at rest -- which looks exactly like a
-        // layer that never landed. And `edge.tooltip` was published through 1.x and withdrawn in
-        // 2.0, so somebody who had one needs to be told where it went by the channels that are
-        // left rather than by a parse error alone.
-        for (const channel of ["node.tooltip", "node.tooltipStyle"] as const) {
+    it("says on every tooltip channel that a tooltip is hover-only, for a node and an edge", () => {
+        // A tooltip is drawn on hover, so a layer that writes one changes nothing on a graph at
+        // rest -- which looks exactly like a layer that never landed.
+        for (const channel of ["node.tooltip", "node.tooltipStyle", "edge.tooltip", "edge.tooltipStyle"] as const) {
             const { caveat } = CHANNEL_DESCRIPTORS[channel];
 
             assert.isDefined(caveat, channel);
             assert.include(caveat, "hover", channel);
-            assert.include(caveat, "edge.tooltip", channel);
         }
 
-        assert.strictEqual(CHANNEL_DESCRIPTORS["node.tooltip"].stylePath, "tooltip.text");
-        assert.strictEqual(CHANNEL_DESCRIPTORS["node.tooltipStyle"].stylePath, "tooltip");
-        assert.strictEqual(CHANNEL_DESCRIPTORS["node.tooltipStyle"].accepts, "labelStyle");
-        assert.isFalse(isChannel("edge.tooltip"));
+        for (const target of ["node", "edge"] as const) {
+            assert.strictEqual(CHANNEL_DESCRIPTORS[`${target}.tooltip`].stylePath, "tooltip.text");
+            assert.strictEqual(CHANNEL_DESCRIPTORS[`${target}.tooltipStyle`].stylePath, "tooltip");
+            assert.strictEqual(CHANNEL_DESCRIPTORS[`${target}.tooltipStyle`].accepts, "labelStyle");
+        }
     });
 
     it("says what a caption at the end of an arrow narrows, on all four of its channels", () => {
@@ -866,6 +868,8 @@ describe("what a style editor needs to draw a row", () => {
         "edge.arrowTailTextOffsetY",
         "edge.label",
         "edge.labelStyle",
+        "edge.tooltip",
+        "edge.tooltipStyle",
         // A label, a caption or an edge label is drawn with no panel behind it until a style
         // asks for one; a node tooltip has a white panel by default.
         "node.labelBackground",
@@ -1054,7 +1058,7 @@ describe("what a style editor needs to draw a row", () => {
 });
 
 describe("colour channels", () => {
-    it("are the forty-one that carry a colour, and the type says the same forty-one", () => {
+    it("are the forty-three that carry a colour, and the type says the same forty-three", () => {
         const fromTheType: readonly ColorChannel[] = [
             "node.color",
             "node.labelColor",
@@ -1095,6 +1099,8 @@ describe("colour channels", () => {
             "node.tooltipBackground",
             "edge.labelColor",
             "edge.labelBackground",
+            "edge.tooltipColor",
+            "edge.tooltipBackground",
             "edge.arrowHeadTextBackground",
             "edge.arrowTailTextBackground",
             "edge.labelOutline",

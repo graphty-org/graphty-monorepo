@@ -27,6 +27,7 @@ import { type EdgeRow, type LayoutEngine, layoutEngineInternals } from "../layou
 import { NGraphEngine } from "../layout/NGraphLayoutEngine";
 import { isEdgeLineBatchMesh } from "../meshes/EdgeLineBatch";
 import { EdgeShaderDrawing } from "../meshes/EdgeShaderDrawing";
+import { disposeSwappedTogether } from "../meshes/handOverTogether";
 import { disposeLabelsTogether } from "../meshes/LabelBatch";
 import { MeshCache } from "../meshes/MeshCache";
 import { NodeShaderDrawing } from "../meshes/NodeShaderDrawing";
@@ -3037,12 +3038,15 @@ export class DataManager implements Manager {
 
         const built: [Node, NodePaint][] = [];
         this.builtTogether = built;
-        try {
-            return work();
-        } finally {
-            this.builtTogether = null;
-            paintBuilt(built);
-        }
+        // A built row a batch draws trades its new mesh for an anchor when painted: those go together too (#10018).
+        return disposeSwappedTogether(() => {
+            try {
+                return work();
+            } finally {
+                this.builtTogether = null;
+                paintBuilt(built);
+            }
+        });
     }
 
     /**

@@ -331,7 +331,7 @@ function EmptyLine({ args }: Readonly<{ args: GroupArgs }>): React.JSX.Element {
     const { ctx, spec, put } = args;
     const empty = word(spec.empty, "none");
     return (
-        <PopLine line="data.empty" name="No values" wide={empty !== "none"} first={empty === "none" ? undefined : 156}>
+        <PopLine line="data.empty" name="No values" wide={empty !== "none"} first={empty === "none" ? undefined : 150}>
             <Segments
                 label="No values"
                 value={empty}

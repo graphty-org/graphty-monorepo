@@ -45,7 +45,7 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import type { ChartData, PieData, RecordData } from "../../catalog/data-lists";
+import type { ChartData, PieData, RecordData, StripeData } from "../../catalog/data-lists";
 import { leavingLook } from "../../catalog/label-looks";
 import {
     LABEL_CAP,
@@ -735,6 +735,7 @@ export interface ChannelValues {
     "node.labels": readonly LabelEntry[];
     "edge.labels": readonly LabelEntry[];
     "node.pieData": PieData;
+    "node.stripeData": StripeData;
     "node.chartData": ChartData;
     "node.recordData": RecordData;
     "edge.taper": number;
@@ -885,8 +886,8 @@ export type ChannelValueKind =
      */
     | "labelEntries"
     /**
-     * A pie's, chart's or record's data spec ({@link PieData}, {@link ChartData}, {@link RecordData}), which fills
-     * the fixed lists at the layer's place: see `node.pieData`. @since 3.68.0
+     * A pie's, stripes', chart's or record's data spec ({@link PieData}, {@link StripeData}, {@link ChartData},
+     * {@link RecordData}), which fills the fixed lists at the layer's place: see `node.pieData`. @since 3.68.0
      */
     | "dataSpec";
 
@@ -1069,7 +1070,9 @@ export interface ChannelDescriptor {
      * The range of each item of a number list (`listOf` `"number"`) whose items are fractions: 0 to 1 for a
      * gradient's stops and a pie's or stripes' opacities. With `share`, each item is that share of the whole (a
      * pie's slice, a stripe's band): capped at what the items before it left, and an item left unset splits what
-     * remains evenly. Absent on every other channel.
+     * remains evenly. An unset item before a set one is written as the word `auto`, which keeps the later items in
+     * their places (`readChannelList` with `keepPlace`, `writeChannelList`, `setListShare`). Absent on every other
+     * channel.
      * @since 3.65.0
      */
     readonly listItems?: { readonly min: number; readonly max: number; readonly share?: true };
@@ -1373,7 +1376,8 @@ const NODE_STRIPES_CAVEAT =
     "Bands of color over the node's face, inside its outline: `node.stripeColors`, `node.stripeSizes` " +
     'and `node.stripeOpacities` as a pie\'s, following one another top to bottom ("down") or left to ' +
     'right ("right", `node.stripeDirection`), over a box `node.stripeSize` times the node\'s; ' +
-    '`node.stripeFrame`, four fractions "top right bottom left", keeps only that rim of the box.';
+    '`node.stripeFrame`, four fractions "top right bottom left" (`node.stripeFrame.0` to `.3` each one; a side not ' +
+    "given is 0, and four zeros draw the whole band), keeps only that rim of each band.";
 
 const NODE_OUTER_BORDER_CAVEAT =
     "A second ring outside the node's border, `node.outerBorderOffset` beyond the border's outer edge " +
@@ -4400,6 +4404,17 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "`node.pieOpacities` (and appends slice texts to `node.shapeTexts`) at this layer's place, so a layer " +
             "above writing one of those wins it; a layer does not hold both. See docs/guide/data-lists.md.",
     ),
+    "node.stripeData": dataChannel(
+        "node.stripeData",
+        "Node Stripe Data",
+        "Stripe data",
+        "shape",
+        "Stripes from data: an ordered list of entries (columns, a pattern of columns, fixed values), each a band, " +
+            "a list value spreading into one band per value (a list of words one band per distinct word, the same " +
+            "color on every node). It fills `node.stripeColors`, `node.stripeSizes` and `node.stripeOpacities` at " +
+            "this layer's place, so a layer above writing one of those wins it; a layer does not hold both. See " +
+            "docs/guide/data-lists.md.",
+    ),
     "node.chartData": dataChannel(
         "node.chartData",
         "Node Chart Data",
@@ -5955,6 +5970,7 @@ const LIST_OF: ReadonlyMap<string, "color" | "number"> = new Map<string, "color"
     ["node.stripeColors", "color"],
     ["node.stripeSizes", "number"],
     ["node.stripeOpacities", "number"],
+    ["node.stripeFrame", "number"],
     ["node.chartColors", "color"],
     ["node.chartValues", "number"],
     ["edge.gradientColors", "color"],
@@ -5971,6 +5987,7 @@ const ITEM_RANGES: ReadonlyMap<string, NonNullable<ChannelDescriptor["listItems"
     ["node.pieOpacities", FRACTION],
     ["node.stripeSizes", SHARE],
     ["node.stripeOpacities", FRACTION],
+    ["node.stripeFrame", FRACTION],
     ["edge.gradientStops", FRACTION],
 ]);
 

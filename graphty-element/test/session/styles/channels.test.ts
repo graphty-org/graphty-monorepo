@@ -206,6 +206,7 @@ const DECLARED = [
     "node.shapeTexts",
     "node.labelTable",
     "node.pieData",
+    "node.stripeData",
     "node.chartData",
     "node.recordData",
     "node.shapeLineWidth",
@@ -470,8 +471,8 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into two hundred and twenty-five node channels and one hundred and ninety edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 225);
+    it("splits into two hundred and twenty-six node channels and one hundred and ninety edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 226);
         assert.strictEqual(channelsFor("edge").length, 190);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
@@ -696,6 +697,7 @@ describe("what a style editor needs to draw a row", () => {
         "edge.labelTable",
         // A data spec draws nothing unset: the lists it fills keep what the layers beneath give.
         "node.pieData",
+        "node.stripeData",
         "node.chartData",
         "node.recordData",
         "node.shapeLineWidth",

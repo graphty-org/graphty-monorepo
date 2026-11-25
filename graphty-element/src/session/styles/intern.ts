@@ -364,6 +364,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.labels": "content",
     // A data spec is never drawn itself: the lists it fills carry their own roles.
     "node.pieData": "content",
+    "node.stripeData": "content",
     "node.chartData": "content",
     "node.recordData": "content",
     "edge.labels": "content",

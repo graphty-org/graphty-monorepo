@@ -28,7 +28,7 @@ import type { CodedFact } from "../session/shared";
 import type { ChannelDescriptor } from "../session/styles/channels";
 import type { TransitionDescriptor } from "../transitions/registry";
 import type { ChannelValueDescriptor } from "./channelValues";
-import type { ChartData, PieData, RecordData } from "./data-lists";
+import type { ChartData, PieData, RecordData, StripeData } from "./data-lists";
 import type { LabelLookDescriptor } from "./label-looks";
 import type { LabelEntry, LabelStyle } from "./label-style";
 import type { ModelDescriptor } from "./models";
@@ -1092,6 +1092,7 @@ export type Channel =
     | "node.labels"
     | "edge.labels"
     | "node.pieData"
+    | "node.stripeData"
     | "node.chartData"
     | "node.recordData"
     | "edge.taper"
@@ -1216,6 +1217,7 @@ export type ChannelValue =
     | readonly ShaderUse[]
     | readonly LabelEntry[]
     | PieData
+    | StripeData
     | ChartData
     | RecordData;
 

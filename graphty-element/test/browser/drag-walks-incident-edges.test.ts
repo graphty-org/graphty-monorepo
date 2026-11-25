@@ -210,6 +210,12 @@ async function dragCounted(
     assert.isDefined(position, "node t is drawn");
     const { x, y } = position;
 
+    // Watched from before the press, so each pass is compared with where the pass before it left `t`. The pointer
+    // writes `t` in its own event, between passes, and the next pass places its edges: when the first move's event
+    // lands after its reply, `waitForStableFrame` resolves before that pass (a reader's drag is not instability,
+    // `UpdateManager.frameIsStable`), and a watch begun then took the written place as where `t` already stood, so
+    // the pass placing it counted as one that did not move `t` (issue #10055).
+    const moving = passesMoving(element);
     await press(element, { x, y });
     await moveHeld(element, { x: x + 10, y: y + 5 });
     await element.waitForStableFrame();
@@ -238,7 +244,6 @@ async function dragCounted(
     const frame = element.graph.scene.onBeforeRenderObservable.add(() => {
         frames++;
     });
-    const moving = passesMoving(element);
     try {
         for (let move = 1; move <= MOVES; move++) {
             if (during?.move === move) {

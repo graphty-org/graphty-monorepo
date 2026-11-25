@@ -20,7 +20,7 @@
 // The cut dissolves the earth in behind it (tmp/demo-video/intros/growth/shots.md), and the camera
 // pulls back from it, starting within the dissolve, in one long eased move to the whole globe
 // (evenly lit, no night side), large and a little above the frame's middle, the network's colors
-// and comets coming back outward from San Francisco, muted (MUTED: each community's hue at half its
+// coming back outward from San Francisco, muted (MUTED: each community's hue at half its
 // saturation, quiet dots on the map), San Francisco one ordinary airport of the globe (its size all
 // along, every airport shrinking together as the camera pulls back; its community's muted color
 // eased in; every airport of the globe a plain ball, PLAIN), the globe turning behind the title's
@@ -194,13 +194,6 @@ const COMETS = { useEdgeColor: true, intensity: 2.6, bloom: 2, tail: 200, spacin
  */
 const GLOBE_EDGE = 9;
 const GLOBE_EDGE_OPACITY = 0.85;
-/** The comets' intensity before they light, on the globe: all but nothing, yet drawn. */
-const COMETS_UNLIT = 0.02;
-/**
- * The comets' intensity on the globe, lit: lower than in the 3D drawing, so they never glare over
- * the quiet airports (MUTED) where routes crowd, as over Europe (take36, at the 3D drawing's 2.6).
- */
-const COMETS_GLOBE = 1.2;
 /** The route's line and its airports: a rich red that reads on the dark sky and on the map. */
 const ROUTE_RED = "#e0262f";
 /** The route's line: its width as the flight flies it, and on the globe. */
@@ -997,29 +990,10 @@ export default {
         console.log(
             `  growth-world: San Francisco lands ${JSON.stringify(landed)}, plan put it ${JSON.stringify(h.steps.spot)}`,
         );
-        // in the same cut-away, the layers the pull back brings in, painting nothing yet (adding a
-        // layer over every route costs the globe a few hundred ms): comets on the busiest airports'
-        // routes, all but unlit (lit a little, so the comets' first frames are drawn here: lit from
-        // nothing later, they held the picture over a second in the pull back), and every route in
-        // its airport's color beneath the dark veil (dim.edges), so they show as it lifts
-        const comets = await onElement(
-            h,
-            async (el, set) => {
-                const edges = el.session.data.edges();
-                const deg = new Map();
-                for (const e of edges) for (const n of [e.source, e.target]) deg.set(n, (deg.get(n) ?? 0) + 1);
-                const hubs = new Set([...deg.keys()].sort((a, b) => deg.get(b) - deg.get(a)).slice(0, 25));
-                const ids = edges.filter((e) => hubs.has(e.source) || hubs.has(e.target)).map((e) => e.id);
-                const layer = await el.session.styles.add({
-                    name: "Comets",
-                    target: "edge",
-                    selector: { match: "ids", edges: ids },
-                    set,
-                });
-                return layer.id;
-            },
-            { "edge.shaders": [{ shader: "comet-tracers", params: { ...COMETS, intensity: COMETS_UNLIT } }] },
-        );
+        // in the same cut-away, the layer the pull back brings in, painting nothing yet (adding a
+        // layer over every route costs the globe a few hundred ms): every route in its airport's color
+        // beneath the dark veil (dim.edges), so they show as it lifts. No comets here: where routes
+        // crowd, as over Europe and the North Atlantic, their glow adds up to a white flare
         await onElement(
             h,
             (el, [above, set]) =>
@@ -1056,7 +1030,7 @@ export default {
             ),
         );
         // the light comes back outward from San Francisco as the camera pulls back, once the dissolve
-        // is over: the network's colors, glow and routes, the comets, and the route's line
+        // is over: the network's colors and routes, and the route's line
         await h.pause(SEAM);
         const L = (ms) => ms * PULL_SLOW;
         // each started a little after the last, so their restyles never land in the same frame
@@ -1078,7 +1052,6 @@ export default {
                 return tween(h, route.end, look(ROUTE_RED), look(muted(endColor)), L(S(3000)), L(700));
             }),
         ]);
-        await tweenShader(h, comets, "intensity", COMETS_UNLIT, COMETS_GLOBE, S(2000), { ease: true, stepMs: 800 });
         await ride;
     },
     holdMs: 300,

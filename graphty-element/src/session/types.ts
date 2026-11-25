@@ -3663,7 +3663,8 @@ export interface LoadedSource extends DataSourceDescriptor {
     /**
      * True when this session holds what the load was read from, so
      * {@link SessionDataApi.reloadSource} can read it again; absent otherwise (a project opened
-     * from a file, a network source, a generated graph).
+     * from a file, a network source, a generated graph). The reader's own work restored by
+     * autosave keeps it: autosave keeps what each such load was read from beside the work.
      * @since 3.30.0
      */
     readonly reloadable?: true;

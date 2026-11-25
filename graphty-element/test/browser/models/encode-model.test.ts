@@ -141,6 +141,41 @@ describe("styles.encode on node.model", () => {
         );
     });
 
+    it("never fetches a word of the data as an address: a column with no values draws once a value is mapped", async () => {
+        const element = await graphOfKinds();
+        const requested = stubFetch(new Map());
+        const { assets, styles } = element.session;
+        const server = await assets.add(sphereGlb(8, 4), { name: "asset:server" });
+        const events = modelEvents(element);
+
+        const layer = await styles.encode({ column: { kind: "node", name: "kind" }, channel: "node.model" });
+        assert.deepInclude(layer.encode?.["node.model"], { by: "data.kind", unmapped: "skip" });
+        await operationQueueOf(element.graph).waitForCompletion();
+        await element.waitForStableFrame();
+        assert.lengthOf(element.session.network.pending(), 0, "no word of the data is asked about as an address");
+        assert.lengthOf(
+            requested.filter((url) => !url.startsWith("blob:")),
+            0,
+            "nothing is fetched",
+        );
+        assert.isFalse(drawnAsModel(element.graph, "web"), "an unmapped kind keeps its shape");
+        assert.deepEqual(
+            events.map((change) => change.ref),
+            [],
+            "no word of the data is taken for a model",
+        );
+
+        const drawn = nextModelEvent(element, (change) => change.ref === server.id && change.state === "drawn");
+        await styles.setValueEntries(layer.id, "data.kind", [
+            { channel: "node.model", value: "server", entry: server.id },
+        ]);
+        await drawn;
+        await operationQueueOf(element.graph).waitForCompletion();
+        assert.isTrue(drawnAsModel(element.graph, "web"), "the mapped kind draws its model");
+        assert.isFalse(drawnAsModel(element.graph, "alice"), "an unmapped kind still keeps its shape");
+        assert.lengthOf(element.session.network.pending(), 0);
+    });
+
     it("fetches a URL in the value map only once the reader allows its host, once for every node", async () => {
         const rack = "https://models.example.com/rack.glb";
         const element = await graphOfKinds();

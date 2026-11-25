@@ -168,7 +168,10 @@ export interface ColumnEncodingSpec extends EncodingOptions {
      *
      * On `node.model` every value must be an asset id (`"asset:..."`, from `session.assets.add`
      * or `session.catalog`) or an `http`/`https` URL; a URL is fetched once, and only when its host
-     * is allowed by the page or the reader (`session.network`).
+     * is allowed by the page or the reader (`session.network`). Without `values` (and without a
+     * `scale`), a `node.model` or `node.texture` encoding draws nothing until a value is mapped
+     * (`unmapped: "skip"`, its entries added with `styles.setValueEntries`): a value of the data is
+     * never fetched as an address unless a map names it, or the caller names `scale: "passthrough"`.
      *
      * ```ts
      * await session.styles.encode({
@@ -901,6 +904,13 @@ export function proposeColumnBinding(
     // A scale the caller named is the caller's decision: written as asked.
     if (spec.scale !== undefined) {
         return bind(spec.scale);
+    }
+
+    // A model or a picture names a file to fetch: a value of the data is drawn only once a map names what it draws,
+    // so a word in the data ("farm") is never fetched as a web address. Every value is left to the layers beneath
+    // until then; a caller who wants the data's own values read as addresses names `scale: "passthrough"`.
+    if (descriptor.channel === "node.model" || descriptor.channel === "node.texture") {
+        return bind("passthrough", { unmapped: "skip" });
     }
 
     if (descriptor.accepts === "text" || descriptor.accepts === "boolean") {

@@ -542,6 +542,22 @@ describe("every label field is reachable from the Label row and draws (E673)", (
                     const linear = within(root).getByRole<HTMLInputElement>("radio", { name: "Linear" });
                     await userEvent.click(root.querySelector<HTMLElement>(`label[for="${linear.id}"]`) ?? linear);
                 }
+                if (!(await hasLine(root, place.line.field))) {
+                    // A look's settings are drawn once its switch is on (graphty-element's drawnWhen): the reader
+                    // switches it on first, from its own line.
+                    for (const need of descriptor.needs ?? []) {
+                        const switchLine = root.querySelector<HTMLElement>(
+                            `.ws-row[data-line="node.labelStyle.${need.field}"]`,
+                        );
+                        assert.isNotNull(switchLine, `${field}: its line is not drawn, nor ${need.field}'s`);
+                        if (typeof need.value === "boolean") {
+                            await userEvent.click(within(switchLine).getByRole("checkbox"));
+                        } else {
+                            const box = within(switchLine).getByRole<HTMLInputElement>("textbox");
+                            await typeIn(box, String(need.value).slice(1));
+                        }
+                    }
+                }
                 if (place.how === "unit") {
                     const line = await lineIn(root, `node.labelStyle.${place.line.field}:unit`);
                     const unit = place.line.unit?.find(
@@ -605,7 +621,8 @@ describe("every label field is reachable from the Label row and draws (E673)", (
                     }
                     case "text":
                         if (rule === "R13") {
-                            await pickOption(line, "Monospace");
+                            // FontPicker lists a CSS generic family as written.
+                            await pickOption(line, "monospace");
                         } else if (rule === "R16") {
                             // A picture (R16): chosen in the Picture pop-over, written as the picture's asset.
                             await userEvent.click(inputs()[0]);
@@ -659,7 +676,8 @@ describe("every label field is reachable from the Label row and draws (E673)", (
                 }
                 tab = await openStyle("Key people");
             }
-            console.info(`[walk] ${field}: ${failed.at(-1)?.startsWith(`${field}:`) === true ? "FAILED" : "ok"}`);
+            const last = failed.at(-1);
+            console.info(`[walk] ${field}: ${last?.startsWith(`${field}:`) === true ? `FAILED (${last})` : "ok"}`);
         }
         assert.deepEqual(failed, [], "every field is reached, written and drawn from the panel");
         assert.sameMembers(reached, [...LABEL_STYLE_FIELDS], "every field is reached");

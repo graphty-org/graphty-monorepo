@@ -30,8 +30,15 @@
  * - no "..." group is one line tall, but for those `GROWING_GROUPS` names, each checked to grow in another state;
  * - a "..." menu opens fully visible: inside the window, unscrolled;
  * - beyond each thing as "+" adds it, the states `STATES` names are walked (a shader or a model as the Shape, two
- *   strands, a wavy border); and a strip's tab picked from the keyboard keeps focus, Linear from Solid is one undo
- *   step, and a basic shape's choice reads as a model's tabs do;
+ *   strands, a wavy border); and a strip's tab picked from the keyboard keeps focus, and Linear from Solid is one
+ *   undo step;
+ * - no button group opens anything (owner, 2026-11-24: "no button group should open menus"): every grouped button
+ *   in the row, its pop-over and each group pop-over is clicked, and every tab of a strip picked, and none opens a
+ *   menu, a list, a picker or a pop-over;
+ * - one path to any control (owner, 2026-11-24: "there should only be one path to any control"): no value of a thing
+ *   is edited by two different controls across its row, its pop-over and its group pop-overs (a line under a row
+ *   repeating its pop-over's line in the same control is one control drawn twice); and the Shape's drop-down is its
+ *   one control for a basic shape, a model or a shader, in every state;
  * - names go above inputs, never beside them: every visible name on a line is compact-mantine's own (a field's
  *   built-in label above it, a FieldRow caption, a ControlGroup legend), never text the app draws, and none sits
  *   to the left of an input on its line (owner, 2026-11-24). Checked in rows, pop-overs, group pop-overs, the link
@@ -152,6 +159,12 @@ const KNOWN_FEW_OPTIONS: readonly string[] = [
 
 /** "..." menus with a group of one line, which joins the main pop-over instead. */
 const KNOWN_ONE_LINE_GROUP: readonly string[] = [];
+
+/** Rows and pop-overs with a grouped button or a tab that opens a menu, list, picker or pop-over. */
+const KNOWN_GROUP_OPENS: readonly string[] = [];
+
+/** Things with a value edited by two different controls across the row and its pop-overs. */
+const KNOWN_TWO_PATHS: readonly string[] = [];
 
 /**
  * Groups one line tall as a thing starts, which grow in another state, so stay groups (owner, 2026-11-24: a group of
@@ -509,6 +522,132 @@ function editedTwice(lines: readonly HTMLElement[]): string[] {
     return [...twice.map((each) => `${each} and its list`), ...raw.map((line) => `${nameOf(line)} shows raw data`)];
 }
 
+/** What opens over a surface: a pop-out, a menu, a list. */
+const OPENED = '[data-popout-id], [role="menu"], [role="listbox"]';
+
+/**
+ * How many pop-outs, menus and lists are open and drawn.
+ * @returns the count.
+ */
+function openCount(): number {
+    return [...document.querySelectorAll(OPENED)].filter(laidOut).length;
+}
+
+/**
+ * Clicks every grouped button of a surface that is not a tab strip (walkTabs picks a strip's tabs), as a reader does,
+ * and names each that opens a menu, a list, a picker or a pop-over (owner, 2026-11-24: "no button group should open
+ * menus"). What it opened is closed again; a surface drawn anew is found again.
+ * @param root - the row or pop-over.
+ * @param reopen - finds or opens it again.
+ * @returns `<group> > <button>` for each that opened something.
+ */
+async function groupsOpen(root: HTMLElement, reopen: () => Promise<HTMLElement>): Promise<string[]> {
+    const groupsIn = (surface: HTMLElement): HTMLElement[] =>
+        [...surface.querySelectorAll<HTMLElement>('[role="radiogroup"]')].filter(
+            (group) => laidOut(group) && group.closest("[data-strip]") === null,
+        );
+    const keyOf = (radio: HTMLInputElement): string =>
+        `${radio.closest('[role="radiogroup"]')?.getAttribute("aria-label") ?? ""}|${radio.value}`;
+    const keys = groupsIn(root).flatMap((group) =>
+        [...group.querySelectorAll<HTMLInputElement>('input[type="radio"]')].map(keyOf),
+    );
+    const found: string[] = [];
+    let surface = root;
+    for (const key of keys) {
+        if (!surface.isConnected) {
+            surface = await reopen();
+        }
+        const radio = groupsIn(surface)
+            .flatMap((group) => [...group.querySelectorAll<HTMLInputElement>('input[type="radio"]')])
+            .find((each) => keyOf(each) === key);
+        if (radio === undefined || radio.disabled || radio.checked) {
+            continue;
+        }
+        const label = surface.querySelector<HTMLElement>(`label[for="${radio.id}"]`);
+        const before = openCount();
+        await userEvent.click(label ?? radio);
+        const opened = await waitFor(() => {
+            const more = openCount() > before;
+            assert.isTrue(radio.checked || more || !radio.isConnected, `${key} is picked`);
+            return more;
+        });
+        if (opened) {
+            found.push(key.replace("|", " > "));
+            await userEvent.keyboard("{Escape}");
+            await waitFor(() => {
+                assert.isAtMost(openCount(), before, `what ${key} opened closed`);
+            });
+        }
+    }
+    return found;
+}
+
+/** The attributes naming what a one-of line chooses (a family's members, a kind group's kinds, a text's looks). */
+const CHOOSES = ["data-member-menu", "data-kind-menu", "data-look-menu"];
+
+/**
+ * Each value's controls in a surface's lines, by address: a line's `data-line`; a data or text source's line (rubric
+ * R12) is its value's source, not the value; a one-of line is what it chooses (a family, a kind group, a look). A
+ * control is named by its kind: grouped buttons, a value list, a select, else its element and role.
+ * @param lines - the lines.
+ * @returns the kinds of control, by address.
+ */
+function controlsOf(lines: readonly HTMLElement[]): Record<string, string[]> {
+    const out: Record<string, string[]> = {};
+    for (const line of lines) {
+        const chooser = CHOOSES.flatMap((name) => {
+            const value = line.closest(`[${name}]`)?.getAttribute(name);
+            return value === null || value === undefined ? [] : [`${name.slice(5)} ${value}`];
+        })[0];
+        const source = line.dataset.rule === "R12" ? " source" : "";
+        const address = line.dataset.line === undefined ? chooser : `${line.dataset.line}${source}`;
+        const first = own(line, CONTROLS).find(
+            (each) => each.closest(".ws-vary") === null && !/^Remove /.test(each.getAttribute("aria-label") ?? ""),
+        );
+        if (address === undefined || first === undefined) {
+            continue;
+        }
+        let kind = `${first.tagName.toLowerCase()}:${first.getAttribute("role") ?? first.getAttribute("type") ?? ""}`;
+        if (first.closest('[role="radiogroup"]') !== null) {
+            kind = "grouped buttons";
+        } else if (first.hasAttribute("data-value-listbox")) {
+            kind = "value list";
+        } else if (first.matches("input.mantine-Select-input")) {
+            kind = "select";
+        }
+        out[address] = [...new Set([...(out[address] ?? []), kind])];
+    }
+    return out;
+}
+
+/**
+ * Merges each value's controls from another surface into a thing's.
+ * @param into - the thing's so far.
+ * @param more - another surface's.
+ * @returns the merged.
+ */
+function mergePaths(
+    into: Readonly<Record<string, string[]>> | undefined,
+    more: Readonly<Record<string, string[]>>,
+): Record<string, string[]> {
+    const out: Record<string, string[]> = { ...into };
+    for (const [address, kinds] of Object.entries(more)) {
+        out[address] = [...new Set([...(out[address] ?? []), ...kinds])];
+    }
+    return out;
+}
+
+/**
+ * Values edited by two different controls (owner, 2026-11-24: "there should only be one path to any control").
+ * @param paths - each value's controls.
+ * @returns what is wrong.
+ */
+function twoPaths(paths: Readonly<Record<string, string[]>> | undefined): string[] {
+    return Object.entries(paths ?? {})
+        .filter(([, kinds]) => kinds.length > 1)
+        .map(([address, kinds]) => `${address} by ${kinds.join(" and ")}`);
+}
+
 /**
  * Closes every open pop-out from its close button, the last opened first.
  */
@@ -719,6 +858,10 @@ interface Found {
     few?: string[];
     /** Groups of one line. */
     oneLine?: string[];
+    /** Grouped buttons or tabs that opened something. */
+    opens?: string[];
+    /** Each value's controls, by address: the kinds of control editing it. */
+    paths?: Record<string, string[]>;
     minus: string[];
     slot: string[];
     rest: string[];
@@ -881,17 +1024,21 @@ function settingsShown(root: HTMLElement): string {
 
 /**
  * Picks every tab of a surface's tab strip, as a reader does, and names what breaks the tab rules (owner,
- * 2026-11-24): more than one strip, more than five tabs, two tabs showing the same settings, a tab over 6 lines. A
- * tab that opens a picker first (Model, Shader) is closed again with nothing picked; a tab that takes the pop-over
- * away (Basic shape, which has none) ends the walk.
+ * 2026-11-24): more than one strip, more than five tabs, two tabs showing the same settings, a tab over 6 lines, a tab
+ * that opens a picker (closed again with nothing picked: no button group opens menus). A tab that takes the pop-over
+ * away ends the walk.
  * @param surface - the pop-over or group pop-over.
  * @returns the strips' and the tall tabs' findings.
  */
-async function walkTabs(surface: HTMLElement): Promise<{ strips: string[]; tall: string[] }> {
+async function walkTabs(surface: HTMLElement): Promise<{ strips: string[]; tall: string[]; opens: string[] }> {
     const strips = [...surface.querySelectorAll<HTMLElement>("[data-strip]")].filter(
         (strip) => laidOut(strip) && strip.parentElement?.closest("[data-strip]") === null,
     );
-    const found = { strips: strips.length > 1 ? [`${String(strips.length)} strips`] : [], tall: [] as string[] };
+    const found = {
+        strips: strips.length > 1 ? [`${String(strips.length)} strips`] : [],
+        tall: [] as string[],
+        opens: [] as string[],
+    };
     const [strip] = strips;
     if (strip === undefined) {
         return found;
@@ -917,6 +1064,8 @@ async function walkTabs(surface: HTMLElement): Promise<{ strips: string[]; tall:
             return opened && !radio.checked;
         });
         if (picker) {
+            // A tab is a grouped button: it never opens a picker (owner, 2026-11-24).
+            found.opens.push(`tab ${name}`);
             await userEvent.keyboard("{Escape}");
             await waitFor(() => {
                 assert.strictEqual(panels(), before, `${name}'s picker closed`);
@@ -1228,6 +1377,7 @@ async function walkGroups(
         found.rest.push(...at(shownAtRest(lines)));
         found.empty.push(...at(emptyInputs(lines)));
         found.twice = [...(found.twice ?? []), ...at(editedTwice(lines))];
+        found.paths = mergePaths(found.paths, controlsOf(lines));
         const reopenGroup = async (): Promise<HTMLElement> => {
             surface = await reopen();
             const again = await openGroup(surface, entry.name);
@@ -1238,12 +1388,20 @@ async function walkGroups(
         const tabs = await walkTabs(live.closest<HTMLElement>("[data-popout-id]") ?? live);
         found.strips = [...(found.strips ?? []), ...at(tabs.strips)];
         found.tabTall = [...(found.tabTall ?? []), ...at(tabs.tall)];
+        found.opens = [...(found.opens ?? []), ...at(tabs.opens)];
         // Last: counting a drop-down's options closes the pop-overs (Escape), so each opens again.
         const now = document.querySelector<HTMLElement>(`[data-group-pop="${entry.name}"]`) ?? (await reopenGroup());
         found.few = [
             ...(found.few ?? []),
             ...at(await fewOptions(now.closest<HTMLElement>("[data-popout-id]") ?? now, reopenGroup)),
         ];
+        // Its grouped buttons, each clicked: they write the layer, so after every other check.
+        // The group pop-over as drawn now: a click that writes the layer may draw it anew, still open.
+        const groupNow = async (): Promise<HTMLElement> => {
+            const live = document.querySelector<HTMLElement>(`[data-group-pop="${entry.name}"]`);
+            return live === null ? reopenGroup() : (live.closest<HTMLElement>("[data-popout-id]") ?? live);
+        };
+        found.opens = [...(found.opens ?? []), ...at(await groupsOpen(await groupNow(), groupNow))];
     }
 }
 
@@ -1287,9 +1445,12 @@ describe("Style panel v2's input rules (owner, 2026-11-23)", () => {
             const openSettings = async (): Promise<HTMLElement> => {
                 const button = settingsButtons()[0];
                 assert.isDefined(button, `${walk.key} has a settings button`);
-                // Shown on hover of its line, as a reader meets it.
-                await userEvent.hover(button.closest<HTMLElement>(".ws-row, .ws-member") ?? rowNow());
-                await userEvent.click(button);
+                // Still open (Escape closed only what it opened): clicking would close it.
+                if (button.getAttribute("aria-expanded") !== "true") {
+                    // Shown on hover of its line, as a reader meets it.
+                    await userEvent.hover(button.closest<HTMLElement>(".ws-row, .ws-member") ?? rowNow());
+                    await userEvent.click(button);
+                }
                 return openedBy(button);
             };
             // A row with no settings (a basic Shape: its drop-down is its settings) is checked alone.
@@ -1320,6 +1481,7 @@ describe("Style panel v2's input rules (owner, 2026-11-23)", () => {
                 plus: pop === null ? [] : plusReveals(pop),
                 // In the pop-over: the row's own line is the list's main value, its pop-over the list.
                 twice: pop === null ? [] : editedTwice(linesIn(pop)),
+                paths: controlsOf(lines),
             };
             // Hovering a line shows its buttons.
             const shownNow = (button: HTMLElement): boolean => {
@@ -1352,7 +1514,18 @@ describe("Style panel v2's input rules (owner, 2026-11-23)", () => {
                 const tabs = await walkTabs(live);
                 found.strips = [...(found.strips ?? []), ...tabs.strips];
                 found.tabTall = [...(found.tabTall ?? []), ...tabs.tall];
+                found.opens = [...(found.opens ?? []), ...tabs.opens];
             }
+            // The pop-over as drawn now: a click that writes the layer may draw it anew, still open.
+            const popNow = async (): Promise<HTMLElement> =>
+                document.querySelector<HTMLElement>("[data-thing-popover]") ?? openSettings();
+            // Last, as they write the layer: every grouped button of the row, then of its pop-over, clicked.
+            await closeAll();
+            found.opens = [
+                ...(found.opens ?? []),
+                ...(await groupsOpen(rowNow(), () => Promise.resolve(rowNow()))),
+                ...(settingsButtons().length === 0 ? [] : await groupsOpen(await openSettings(), popNow)),
+            ];
             FOUND.set(walk.key, found);
         });
     }
@@ -1675,6 +1848,16 @@ describe("Style panel v2's input rules (owner, 2026-11-23)", () => {
                 by((found) => found.oneLine),
                 KNOWN_ONE_LINE_GROUP,
             ),
+            compare(
+                "Grouped buttons or tabs that open a menu, list, picker or pop-over",
+                by((found) => found.opens),
+                KNOWN_GROUP_OPENS,
+            ),
+            compare(
+                "A value edited by two different controls",
+                by((found) => twoPaths(found.paths)),
+                KNOWN_TWO_PATHS,
+            ),
         ].filter((each) => each.fixed.length > 0 || each.added.length > 0);
         assert.deepEqual(results, []);
     });
@@ -1742,17 +1925,6 @@ function stripTab(name: string): HTMLInputElement | null {
         (each) => laidOut(each) && each.textContent.trim() === name,
     );
     return label === undefined ? null : (document.getElementById(label.htmlFor) as HTMLInputElement | null);
-}
-
-/**
- * The words of a one-of's choices in a box: its segments' labels.
- * @param box - the line or strip.
- * @returns the words, in order.
- */
-function choicesIn(box: Element): string[] {
-    return [...box.querySelectorAll<HTMLLabelElement>('[role="radiogroup"] label')].map((each) =>
-        each.textContent.trim(),
-    );
 }
 
 /**
@@ -1834,24 +2006,94 @@ describe("Style panel v2's tab strips, as a reader uses them (owner, 2026-11-24)
         assert.strictEqual(session.history.position, steps + 1, "one step");
     });
 
-    it("node.shape: its choice reads the same under a basic shape's row as in a model's pop-over", async () => {
+    it("node.shape: its drop-down is its one control for a basic shape, a model or a shader, in every state", async () => {
         const { session, layer, row } = await rowOf("node.shape");
-        const line = row.querySelector('[data-member-menu="node.shape"]');
-        assert.isNotNull(line, "the basic shape's choice under its row");
-        const under = choicesIn(line);
-        assert.isAbove(under.length, 1, "grouped buttons");
-        await session.styles.update(layer, {
-            set: { ...session.styles.get(layer)?.set, "node.model": "asset:sample/person" },
+        const states: readonly (readonly [string, Readonly<Partial<Record<Channel, ChannelValue>>>, string])[] = [
+            ["a basic shape", {}, ""],
+            ["a model", { "node.model": "asset:sample/person" }, "Person"],
+            ["a shader", { "node.shaders": [{ shader: "icon-sticker" }] }, "Sticker"],
+        ];
+        for (const [state, set, named] of states) {
+            // Each state alone: the model goes before the shader comes.
+            const { "node.model": _model, ...rest } = session.styles.get(layer)?.set ?? {};
+            await session.styles.update(layer, { set: { ...rest, ...set } });
+            await session.styles.settled();
+            const live = await waitFor(() => {
+                const found = row.isConnected ? row : document.querySelector<HTMLElement>('[data-thing="shape"]');
+                assert.isNotNull(found, "the Shape row");
+                const list = found.querySelector<HTMLElement>('[data-value-listbox="node.shape"]');
+                assert.isNotNull(list, `${state}: the Shape list on its row`);
+                assert.include(list.getAttribute("aria-label") ?? "", named, `${state}: the list names it`);
+                return found;
+            });
+            // No Kind buttons under the row, and no Basic / Model / Shader tabs in its pop-over.
+            assert.isNull(live.querySelector('[data-member-menu="node.shape"]'), `${state}: no Kind buttons`);
+            const settings = [...live.querySelectorAll<HTMLElement>("button[aria-label]")].some((each) =>
+                / settings( has configured values)?$/.test(each.getAttribute("aria-label") ?? ""),
+            );
+            if (settings) {
+                const pop = await openRowSettings(live);
+                assert.isNull(
+                    pop.querySelector("[data-member-menu], [data-strip]"),
+                    `${state}: no tabs in its pop-over`,
+                );
+                assert.isNull(pop.querySelector('[data-line="node.model"]'), `${state}: no Model line`);
+                await closeAll();
+            }
+            // Its list holds every way: the shapes, then Models and Shaders.
+            const list = live.querySelector<HTMLElement>('[data-value-listbox="node.shape"]');
+            assert.isNotNull(list);
+            await userEvent.click(list);
+            const sections = await screen.findByRole("combobox", { name: "Node shape section" });
+            await userEvent.click(sections);
+            const names = (await screen.findAllByRole("option")).map((each) => each.textContent.trim());
+            assert.includeMembers(names, ["Basic", "Models", "Shaders"], `${state}: every section`);
+            await userEvent.keyboard("{Escape}");
+            await closeAll();
+        }
+    });
+
+    it("node.shape: a sticker, a model and a basic shape again are picked from the one drop-down", async () => {
+        const { session, layer, row } = await rowOf("node.shape");
+        const live = (): HTMLElement => {
+            const found = row.isConnected ? row : document.querySelector<HTMLElement>('[data-thing="shape"]');
+            assert.isNotNull(found);
+            return found;
+        };
+        const pickFrom = async (section: string, option: string): Promise<void> => {
+            const list = await waitFor(() => {
+                const found = live().querySelector<HTMLElement>('[data-value-listbox="node.shape"]');
+                assert.isNotNull(found);
+                return found;
+            });
+            await userEvent.click(list);
+            await userEvent.click(await screen.findByRole("combobox", { name: "Node shape section" }));
+            await userEvent.click(await screen.findByRole("option", { name: section }));
+            const values = await screen.findByRole("group", { name: "Node shape values" });
+            await userEvent.click(within(values).getByRole("option", { name: option }));
+        };
+        const set = (channel: Channel): unknown => session.styles.get(layer)?.set?.[channel];
+        await pickFrom("Shaders", "Sticker");
+        await waitFor(() => {
+            assert.deepInclude(set("node.shaders") as unknown[], { shader: "icon-sticker" }, "the sticker draws");
         });
-        await session.styles.settled();
-        const pop = await waitFor(() => {
-            const settings = row.isConnected ? row : document.querySelector<HTMLElement>('[data-thing="shape"]');
-            assert.isNotNull(settings);
-            return settings;
-        }).then(openRowSettings);
-        const strip = pop.querySelector('[data-member-menu="node.shape"][data-strip]');
-        assert.isNotNull(strip, "the model's tab strip");
-        assert.deepEqual(choicesIn(strip), under);
+        // Model... opens the Models gallery beside the list, and its pick switches the Shape to the model.
+        await pickFrom("Models", "Model...");
+        const models = await screen.findByRole("dialog", { name: "Models" });
+        await userEvent.click(within(models).getByRole("button", { name: "Person" }));
+        await waitFor(() => {
+            assert.isString(set("node.model"), "the model draws");
+            const uses = set("node.shaders");
+            assert.isFalse(
+                Array.isArray(uses) && uses.some((use: { shader?: string }) => use.shader === "icon-sticker"),
+                "the sticker goes",
+            );
+        });
+        await pickFrom("Basic", "Box");
+        await waitFor(() => {
+            assert.strictEqual(set("node.shape"), "box", "the basic shape draws");
+            assert.isUndefined(set("node.model"), "the model goes");
+        });
     });
 });
 
@@ -1974,6 +2216,13 @@ describe("Style panel v2's input rules on data pop-overs (spec 2.5)", () => {
                     found.push(`groups ${rule}: ${list.join(", ")}`);
                 }
             }
+            // One path to any control, across the data pop-over and its groups; and its grouped buttons open nothing.
+            await closeAll();
+            const data = await openData();
+            found.push(
+                ...twoPaths(mergePaths(groups.paths, controlsOf(linesIn(data)))).map((each) => `data: ${each}`),
+                ...(await groupsOpen(data, openData)).map((each) => `data: ${each} opens`),
+            );
             await closeAll();
 
             // The Graph value's entry: its pop-over, Format beside it, then Calculate beside it.

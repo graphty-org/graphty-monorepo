@@ -1,7 +1,7 @@
 /**
  * Style panel v2's Switch to on the REAL graphty-element, driven by real clicks
- * (design/ui/style-panel-v2/design.md, section 5 and acceptance check 1): the Kind select, first in a
- * family row's "..." settings, lists its members and reads the current one. A star with rounded corners and a size
+ * (design/ui/style-panel-v2/design.md, section 5 and acceptance check 1): the Shape row's one drop-down picks a basic
+ * shape, a model or a shader (owner, 2026-11-24: one path to any control), and Fill's tabs its members. A star with rounded corners and a size
  * switched to Sticker keeps its row, its name, its size, its color and its Size line, and switched back
  * brings the star and its corners back; every member's row has the same menu; after another row was
  * selected, one Undo brings the star back; Fill switches Solid -> Gradient -> Solid in one step each. No
@@ -17,7 +17,7 @@ import { userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
-import { kindOf, openProject, openStyle, pickKind, sectionOf, written } from "./v2Harness";
+import { openProject, openStyle, pickKind, sectionOf, written } from "./v2Harness";
 
 /**
  * Waits for a thing's row in a section.
@@ -50,11 +50,23 @@ async function openSettings(row: HTMLElement, name: string): Promise<HTMLElement
 }
 
 /**
- * Picks the Sticker from the shader gallery the Shader choice opens beside it (design 5, rule 1).
+ * Picks from the Shape row's one drop-down (owner, 2026-11-24: one path to any control): a section, then a choice.
+ * @param row - the Shape row.
+ * @param section - the list's section.
+ * @param option - the choice.
  */
-async function pickSticker(): Promise<void> {
-    const gallery = await screen.findByRole("dialog", { name: "Shader" });
-    await userEvent.click(within(gallery).getByRole("button", { name: "Sticker" }));
+async function pickShape(row: HTMLElement, section: string, option: string): Promise<void> {
+    const list = await waitFor(() => {
+        const live = row.isConnected ? row : document.querySelector<HTMLElement>('[data-thing="shape"]');
+        const found = live?.querySelector<HTMLElement>('[data-value-listbox="node.shape"]') ?? null;
+        assert.isNotNull(found, "the Shape list");
+        return found;
+    });
+    await userEvent.click(list);
+    await userEvent.click(await screen.findByRole("combobox", { name: "Node shape section" }));
+    await userEvent.click(await screen.findByRole("option", { name: section }));
+    const values = await screen.findByRole("group", { name: "Node shape values" });
+    await userEvent.click(within(values).getByRole("option", { name: option }));
 }
 
 /**
@@ -97,14 +109,10 @@ describe("Style panel v2's Switch to", () => {
         const size = (): Element | null => shape.querySelector('[data-thing="size"] [data-line="node.size"]');
         assert.isNotNull(size(), "Size is its own row");
         assert.isNull(row.querySelector('[data-line="node.size"]'), "not a line of the Shape row");
-        assert.equal(await kindOf(row, "Node shape"), "Basic");
+        // No Kind buttons under the row: its drop-down is the one path (owner, 2026-11-24).
+        assert.isNull(row.querySelector("[data-member-menu]"), "no Kind buttons");
 
-        // The same Basic, Model and Shader as a model's or shader's tabs (owner, 2026-11-24), under the row.
-        await pickKind(row, "Node shape", "Shader");
-        // The row keeps its basic shape until a sticker is picked.
-        await screen.findByRole("dialog", { name: "Shader" });
-        assert.equal(written(session, id, "node.shape"), "star", "nothing switches before the pick");
-        await pickSticker();
+        await pickShape(row, "Shaders", "Sticker");
         await waitFor(() => {
             assert.deepEqual(replacing(session, id), ["icon-sticker"], "a sticker draws in the shapes' place");
             assert.isUndefined(written(session, id, "node.shape"), "the basic shape is taken off");
@@ -116,9 +124,10 @@ describe("Style panel v2's Switch to", () => {
         assert.isNotNull(size(), "the Size row stays");
         assert.lengthOf(shape.querySelectorAll('[data-thing="shape"]'), 1, "still one Shape row, in the same section");
 
-        // The Sticker's row starts its pop-over with the Basic, Model and Shader tabs.
-        assert.equal(await kindOf(after, "Node shape"), "Shader");
-        await pickKind(after, "Node shape", "Basic");
+        // The Sticker's row is the same drop-down, naming the sticker; a basic shape picked there brings the star back.
+        const list = after.querySelector('[data-value-listbox="node.shape"]');
+        assert.include(list?.getAttribute("aria-label") ?? "", "Sticker");
+        await pickShape(after, "Symbols", "Star");
         await waitFor(() => {
             assert.equal(written(session, id, "node.shape"), "star", "the star comes back");
             assert.equal(written(session, id, "node.cornerRadius"), 0.2, "with its corners");
@@ -138,8 +147,7 @@ describe("Style panel v2's Switch to", () => {
         });
         const tab = await openStyle("Key people");
         const row = await rowOf(sectionOf(tab, "node-shape"), "shape");
-        await pickKind(row, "Node shape", "Shader");
-        await pickSticker();
+        await pickShape(row, "Shaders", "Sticker");
         await waitFor(() => {
             assert.isUndefined(written(session, id, "node.shape"));
         });
@@ -201,7 +209,7 @@ describe("Style panel v2's Switch to", () => {
 describe("Style panel v2's keys inside a thing's pop-over", () => {
     withFeatures(["file-styles", "style-panel-v2"]);
 
-    it("emptying W and pressing Enter unsets only the width, and Backspace on the Kind line changes nothing", async () => {
+    it("emptying W and pressing Enter unsets only the width", async () => {
         const { session, id } = await openStar();
         await session.styles.update(id, {
             set: {
@@ -214,7 +222,6 @@ describe("Style panel v2's keys inside a thing's pop-over", () => {
         });
         await session.styles.settled();
         const tab = await openStyle("Key people");
-        const row = await rowOf(sectionOf(tab, "node-shape"), "shape");
         // W is the Size row's (ia-design 2).
         const popover = await openSettings(await rowOf(sectionOf(tab, "node-shape"), "size"), "Node size settings");
 
@@ -230,17 +237,5 @@ describe("Style panel v2's keys inside a thing's pop-over", () => {
         assert.equal(written(session, id, "node.shape"), "star", "the shape stays");
         assert.equal(written(session, id, "node.cornerRadius"), 0.2, "its corners stay");
         assert.equal(written(session, id, "node.size"), 2, "its size stays");
-
-        // Backspace on the Kind line's picked button changes nothing.
-        await userEvent.keyboard("{Escape}");
-        const basic = row.querySelector<HTMLInputElement>('[data-member-menu] input[type="radio"]:checked');
-        assert.isNotNull(basic, "the Kind line's picked button");
-        // Its own label clicked: focus on it, nothing changed.
-        const label = row.querySelector<HTMLElement>(`label[for="${basic.id}"]`);
-        assert.isNotNull(label);
-        await userEvent.click(label);
-        await userEvent.keyboard("{Backspace}");
-        assert.equal(written(session, id, "node.shape"), "star", "Backspace on the Kind line leaves the shape");
-        assert.equal(written(session, id, "node.size"), 2);
     });
 });

@@ -360,6 +360,11 @@ describe("Style panel v2's '+' lists", () => {
                 await onlyPlusAdds(session, group, `Chart's ${title}`);
             }
         }
+        // Escape closes the top pop-over only: the values list beside, then the Chart's pop-over.
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.lengthOf(document.querySelectorAll("[data-thing-popover]"), 1);
+        });
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
             assert.isNull(document.querySelector("[data-thing-popover]"));
@@ -383,6 +388,11 @@ describe("Style panel v2's '+' lists", () => {
         if (slices !== undefined) {
             await onlyPlusAdds(session, slices, "Pie's slices");
         }
+        // The slices list beside, then the Pie's pop-over.
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.lengthOf(document.querySelectorAll("[data-thing-popover]"), 1);
+        });
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
             assert.isNull(document.querySelector("[data-thing-popover]"));

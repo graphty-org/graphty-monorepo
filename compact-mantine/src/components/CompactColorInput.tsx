@@ -223,6 +223,12 @@ export interface CompactColorInputProps {
      */
     showOpacity?: boolean;
     /**
+     * Let the picker's Hex value box take 4- and 8-digit hex (`RRGGBBAA`, as Figma does): the
+     * last digits set the opacity, reported through `onOpacityChange` and `onChange`.
+     * @default false
+     */
+    allowHexAlpha?: boolean;
+    /**
      * Whether the control cannot be used at all.
      *
      * A disabled control is drawn in the same dimmed ink as every other
@@ -604,6 +610,7 @@ function ResetButton({
  * @param props.labels - Replace the English words of the tabs and the palette list
  * @param props.label - The field's name, drawn above the control and used to name the group
  * @param props.showOpacity - Whether to offer the opacity box
+ * @param props.allowHexAlpha - Whether the picker's Hex box also takes 4- and 8-digit hex, setting the opacity
  * @param props.disabled - Whether the control cannot be used at all
  * @param props.disabledReason - One sentence saying why the control is off, drawn only while it is off
  * @param props.onFocus - Called when the hex box or the opacity box takes focus
@@ -642,6 +649,7 @@ export function CompactColorInput({
     labels: wordOverrides,
     label,
     showOpacity = true,
+    allowHexAlpha = false,
     disabled = false,
     disabledReason,
     onFocus,
@@ -833,6 +841,7 @@ export function CompactColorInput({
             onChange={handlePickerChange}
             onChangeEnd={handlePickerChangeEnd}
             withAlpha={showOpacity}
+            allowHexAlpha={allowHexAlpha}
             swatches={shownSwatches}
             labels={{ colorWord: labels.colorWord }}
         />

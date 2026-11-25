@@ -143,3 +143,42 @@ describe("ColorPickerPanel formats and sliders", () => {
         expect(onChange).not.toHaveBeenCalled();
     });
 });
+
+describe("ColorPickerPanel allowHexAlpha", () => {
+    /**
+     * Type into the Hex value box and commit with Enter.
+     * @param text - what to type
+     */
+    async function typeHex(text: string): Promise<void> {
+        await userEvent.click(screen.getByRole("textbox", { name: "Color value" }));
+        await userEvent.keyboard(`{Control>}a{/Control}${text}{Enter}`);
+    }
+
+    it("on, takes 8- and 4-digit hex and sets the opacity from the last digits", async () => {
+        const onChange = vi.fn();
+        renderPanel(<ColorPickerPanel value="#FF0000FF" onChange={onChange} allowHexAlpha />);
+
+        await typeHex("00FF0080");
+        expect(onChange).toHaveBeenLastCalledWith("#00FF0080");
+        expect(screen.getByRole("textbox", { name: "Color value" })).toHaveValue("00FF00");
+
+        await typeHex("#00f8");
+        expect(onChange).toHaveBeenLastCalledWith("#0000FF88");
+
+        // Six digits still keep the opacity in force.
+        await typeHex("FFFF00");
+        expect(onChange).toHaveBeenLastCalledWith("#FFFF0088");
+    });
+
+    it("off (the default), refuses 8-digit hex and keeps the opacity on 6-digit hex", async () => {
+        const onChange = vi.fn();
+        renderPanel(<ColorPickerPanel value="#FF000080" onChange={onChange} />);
+
+        await typeHex("00FF0040");
+        expect(onChange).not.toHaveBeenCalled();
+        expect(screen.getByRole("textbox", { name: "Color value" })).toHaveValue("FF0000");
+
+        await typeHex("00FF00");
+        expect(onChange).toHaveBeenLastCalledWith("#00FF0080");
+    });
+});

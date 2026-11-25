@@ -1,7 +1,7 @@
 // graphty (React app) ESLint configuration
 // Extends root config, adds React-specific rules
 
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 
 import rootConfig from "../eslint.config.js";
 import reactPlugin from "eslint-plugin-react";
@@ -26,6 +26,14 @@ const ELEMENT_EXPORTS = Object.keys(
 )
     .filter((key) => key !== ".")
     .map((key) => key.slice(2).replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`));
+// The Mantine components compact-mantine's theme styles: each key of its theme files' component extensions
+// (`    Button: Button.extend({`). The Style panel counts these as compact-mantine's (owner, 2026-11-24), so a
+// component the theme starts styling is allowed there without an edit.
+const CM_THEME = new URL("../compact-mantine/src/theme/components/", import.meta.url);
+const CM_THEMED = readdirSync(CM_THEME)
+    .filter((file) => file.endsWith(".ts") && file !== "index.ts")
+    .flatMap((file) => [...readFileSync(new URL(file, CM_THEME), "utf8").matchAll(/^ {4}([A-Z]\w*): /gm)])
+    .map((match) => match[1]);
 /** The app's own lint rules: one object, because ESLint refuses a plugin name defined twice. */
 const graphtyPlugin = {
     rules: {
@@ -222,8 +230,10 @@ export default tseslint.config(
     // THE STYLE PANEL'S INPUTS ARE COMPACT-MANTINE'S (owner, 2026-11-24)
     // ============================================
     // eslint-rules/style-panel-inputs.js. The files: Style panel v2, its Graph settings, and every shared app file
-    // they draw an input from. No file is exempt; `gaps` names the Mantine inputs compact-mantine has no component
-    // for yet, each waiting on the owner (design/ui/style-panel-v2/design.md, "Only compact-mantine components").
+    // they draw an input from. No file is exempt. A Mantine component compact-mantine's theme styles counts as
+    // compact-mantine's (`themed`, read from the theme; owner, 2026-11-24); `gaps` names the unthemed Mantine inputs
+    // compact-mantine has no component for yet, each waiting on the owner (design/ui/style-panel-v2/design.md,
+    // "Only compact-mantine components").
     {
         files: [
             "src/workspace/style/v2/**/*.tsx",
@@ -253,16 +263,9 @@ export default tseslint.config(
             "graphty/style-panel-inputs": [
                 "error",
                 {
+                    themed: CM_THEMED,
                     gaps: {
-                        ActionIcon: "an icon button (a line's link, settings and minus); compact-mantine has none",
-                        Button: "a plain button (a value that opens its pop-over, Use as model); compact-mantine has none",
                         UnstyledButton: "a picture tile (models, shaders); compact-mantine has no tile button",
-                        Checkbox: "a check box on a line; compact-mantine has only ToggleRow, a whole row",
-                        Menu: "a menu (a pop-over's group menu); compact-mantine has its items, not the menu",
-                        Textarea:
-                            "the shader code box (Graph settings > Background > Shader); compact-mantine has no text area",
-                        TextInput:
-                            "the custom model's name, read on each key so Enter adds the model; compact-mantine's ComboInput reports only a committed value",
                     },
                 },
             ],

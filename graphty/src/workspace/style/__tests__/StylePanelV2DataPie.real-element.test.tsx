@@ -169,7 +169,8 @@ describe("Style panel v2's data entries", () => {
         });
         assert.isUndefined(written(session, layer, "node.shapeTexts"));
         await waitFor(() => {
-            assert.isNotNull(screen.queryByRole("button", { name: /^degreeish, 3$/ }));
+            // The entry line shows what it reads, not one node's values.
+            assert.isNotNull(screen.queryByRole("button", { name: "degreeish, degreeish" }));
         });
 
         await plus(sectionOf(tab, "node-fill"), "fill", "Chart");
@@ -230,7 +231,7 @@ describe("Style panel v2's data entries", () => {
         });
         await session.styles.settled();
         await openStyle("Key people");
-        await userEvent.click(await screen.findByRole("button", { name: /cat 1, dog 2, horse 1/ }));
+        await userEvent.click(await screen.findByRole("button", { name: "animals, animals" }));
         const entry = await openFrom("animals settings");
         await userEvent.click(within(entry).getByText("Equal share"));
         await waitFor(() => {

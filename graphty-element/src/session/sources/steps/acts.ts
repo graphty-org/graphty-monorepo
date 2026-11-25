@@ -8,7 +8,7 @@
 
 import type { GraphtyErrorCode } from "../../../errors/codes";
 import { GraphtyError } from "../../../errors/GraphtyError";
-import { copyKey, isStaged, mintPart, nodeSpace, ownSpace, stepSources, tableRows } from "./build";
+import { copyKey, freeName, isStaged, mintPart, nodeSpace, ownSpace, stepSources, tableRows } from "./build";
 import {
     addSource,
     buildOf,
@@ -1051,11 +1051,7 @@ function freeSpace(value: SourceSteps, column: string): string {
             src.mapping.edges?.targetSpace,
         ]),
     );
-    let space = column;
-    for (let n = 2; taken.has(space); n++) {
-        space = `${column} ${String(n)}`;
-    }
-    return space;
+    return freeName(column, taken);
 }
 
 /**

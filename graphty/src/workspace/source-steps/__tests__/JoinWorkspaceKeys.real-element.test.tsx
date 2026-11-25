@@ -135,6 +135,150 @@ describe("the join workspace's keys (source-steps)", () => {
         assert.isNull(session.data.currentDraft());
     });
 
+    it("Redo makes the undone join again, from its button as from its key; with nothing to take back both are off", async () => {
+        const { session, modal } = await opened(["entries.csv", ENTRIES]);
+        const button = (name: RegExp): HTMLButtonElement =>
+            within(modal).getByRole<HTMLButtonElement>("button", { name });
+        assert.isTrue(button(/^Undo/).disabled, "nothing to undo yet");
+        await eachRow(session, modal, NODE);
+        const joins = (): number =>
+            draftOf(session)
+                .steps()
+                .filter((row) => row.act !== null).length;
+        const steps = session.history.steps.length;
+        await userEvent.click(button(/^Undo/));
+        await waitFor(() => {
+            assert.strictEqual(joins(), 0);
+            assert.isFalse(button(/^Redo/).disabled);
+        });
+        await userEvent.click(button(/^Redo/));
+        await waitFor(() => {
+            assert.strictEqual(joins(), 1);
+            assert.isTrue(button(/^Redo/).disabled);
+        });
+        await userEvent.keyboard("{Control>}z{/Control}");
+        await waitFor(() => {
+            assert.strictEqual(joins(), 0);
+        });
+        await userEvent.keyboard("{Control>}{Shift>}z{/Shift}{/Control}");
+        await waitFor(() => {
+            assert.strictEqual(joins(), 1);
+        });
+        assert.strictEqual(session.history.steps.length, steps, "the graph's own history is not touched");
+    });
+
+    it("work while the focus is in a list's box, and an open list keeps its own", async () => {
+        const { session, modal } = await opened(["entries.csv", ENTRIES]);
+        await eachRow(session, modal, NODE);
+        await choose(modal, "Incoming field", "entry");
+        const box = within(modal).getByRole("combobox", { name: "Incoming field" });
+        assert.strictEqual(document.activeElement, box);
+        await userEvent.keyboard("b");
+        await waitFor(() => {
+            assert.strictEqual(draftOf(session).side, "before");
+        });
+        await userEvent.click(box);
+        await screen.findByRole("option", { name: "entry" });
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("option", { name: "entry" }));
+        });
+        assert.isNotNull(screen.queryByRole("dialog", { name: "Join" }), "Escape closes the list alone");
+        const before = draftOf(session).steps().length;
+        await userEvent.keyboard("{Control>}z{/Control}");
+        await waitFor(() => {
+            assert.notDeepEqual(
+                [before, "entry"],
+                [draftOf(session).steps().length, draftOf(session).steps().at(-1)?.act?.from.field],
+            );
+        });
+    });
+
+    it("Escape in a field being typed in gives up the text; the next one cancels", async () => {
+        const { session, modal } = await opened(["entries.csv", ENTRIES]);
+        await eachRow(session, modal, NODE);
+        const type = within(modal).getByRole<HTMLInputElement>("combobox", { name: "Edge type" });
+        await userEvent.click(type);
+        await userEvent.keyboard("entered{Escape}");
+        await waitFor(() => {
+            assert.strictEqual(type.value, "");
+            assert.notStrictEqual(document.activeElement, type);
+        });
+        assert.isNotNull(screen.queryByRole("dialog", { name: "Join" }));
+        assert.strictEqual(draftOf(session).steps().at(-1)?.act?.edgeType, undefined);
+
+        // Typed, then a list pressed: the text is taken, and Escape is the list's.
+        await userEvent.click(type);
+        await userEvent.keyboard("entered");
+        const field = within(modal).getByRole("combobox", { name: "In graph field" });
+        await userEvent.click(field);
+        await waitFor(() => {
+            assert.strictEqual(draftOf(session).steps().at(-1)?.act?.edgeType, "entered");
+        });
+        await screen.findByRole("option", { name: "phone" });
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement, field);
+        });
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("option", { name: "phone" }));
+        });
+        assert.isNotNull(screen.queryByRole("dialog", { name: "Join" }));
+        await userEvent.keyboard("{Escape}");
+        await closed();
+        assert.lengthOf(session.data.edges(), 0, "Cancel discards");
+    });
+
+    it("Done opens a join begun and not finished, and says so; finished, it commits", async () => {
+        const { session, modal } = await opened(["doors.csv", DOORS], ["entries.csv", ENTRIES]);
+        await userEvent.click(within(modal).getByRole("radio", { name: EDGE }));
+        await userEvent.click(within(modal).getByRole("button", { name: "Done" }));
+        assert.strictEqual((await within(modal).findByRole("alert")).textContent, "Unfinished");
+        await choose(modal, "Other end type", "doors.csv");
+        await choose(modal, "Other end field", "door");
+        await waitFor(() => {
+            assert.isNull(within(modal).queryByRole("alert"));
+        });
+        await userEvent.click(within(modal).getByRole("button", { name: "Done" }));
+        await closed();
+        assert.isAbove(session.data.edges().length, 0);
+    });
+
+    it("every source that waits has a card with its guess, gone once another card joins it", async () => {
+        const { session, modal } = await opened(["doors.csv", DOORS], ["entries.csv", ENTRIES]);
+        await within(modal).findByRole("region", { name: "entries.csv" });
+        assert.isNotNull(within(modal).getByRole("region", { name: "doors.csv" }));
+        await userEvent.click(within(modal).getByRole("radio", { name: EDGE }));
+        await choose(modal, "Other end type", "doors.csv");
+        await choose(modal, "Other end field", "door");
+        await waitFor(() => {
+            assert.isAbove(session.data.edges().length, 0);
+            assert.isNull(within(modal).queryByRole("region", { name: "doors.csv" }));
+        });
+    });
+
+    it("the other end is matched by any field of its nodes, with its own live count", async () => {
+        const doors = "door,code\nBLDG-01,c1\nBLDG-02,c2";
+        const entries = "entry,badge,at\nE1,B1,c1\nE2,B2,c2\nE3,B3,c9";
+        const { session, modal } = await opened(["doors.csv", doors], ["entries.csv", entries]);
+        await userEvent.click(within(modal).getByRole("radio", { name: EDGE }));
+        await choose(modal, "In graph type", "person");
+        await choose(modal, "Incoming field", "badge");
+        await choose(modal, "Other end type", "doors.csv");
+        await choose(modal, "Other end in graph field", "code");
+        await choose(modal, "Other end field", "at");
+        await waitFor(() => {
+            assert.deepStrictEqual(
+                session.data.edges().map((edge) => [edge.source, edge.target]),
+                [
+                    ["B1", "BLDG-01"],
+                    ["B2", "BLDG-02"],
+                ],
+            );
+        });
+        assert.strictEqual(within(modal).getByLabelText("Other end match count").textContent, "2 of 3 match");
+    });
+
     it("draw a deleted card again: Undo brings its step back, and once more its picks", async () => {
         const { session, modal } = await opened(["entries.csv", ENTRIES]);
         await eachRow(session, modal, NODE);
@@ -228,14 +372,13 @@ describe("a join card's matches and table (source-steps)", () => {
         await eachRow(session, modal, NODE);
         await userEvent.click(await within(modal).findByRole("button", { name: /new edges$/ }));
         await select(rowWith(await within(modal).findByRole("grid", { name: "Rows" }), "E1"));
-        const exclude = (): HTMLButtonElement =>
-            within(modal).getByRole<HTMLButtonElement>("button", { name: "Exclude" });
-        await waitFor(() => {
-            assert.isFalse(exclude().disabled);
-        });
+        await within(modal).findByRole("button", { name: "Exclude" });
         await userEvent.click(within(modal).getByRole("button", { name: /matched$/ }));
         await waitFor(() => {
-            assert.isTrue(exclude().disabled, "another list, nothing picked in it");
+            assert.isNull(
+                within(modal).queryByRole("button", { name: "Exclude" }),
+                "another list, nothing picked in it",
+            );
         });
         assert.isNull(draftOf(session).steps().at(-1)?.except ?? null);
     });

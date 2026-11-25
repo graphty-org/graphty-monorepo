@@ -64,7 +64,7 @@ export function nameOf(session: GraphSession, key: SourceKey): string {
 }
 
 /** A value the session keeps beside a record's own columns. */
-const FACTS = /^_source\./;
+const FACTS = "_source.";
 
 /**
  * Whether a row's key is a number it was given for want of a column of its own.
@@ -92,7 +92,9 @@ export function rowColumns(session: GraphSession, rows: readonly SourceDraftRow[
     }
     // what the draft's other steps brought, or an element read from no row of its own
     const brought = new Set(
-        rows.flatMap((row) => Object.keys(row.shown ?? {}).filter((name) => !names.has(name) && !FACTS.test(name))),
+        rows.flatMap((row) =>
+            Object.keys(row.shown ?? {}).filter((name) => !names.has(name) && !name.startsWith(FACTS)),
+        ),
     );
     // rows numbered for want of a key have none to show
     // and an edge's or a pair's is its two ends

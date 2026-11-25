@@ -101,6 +101,22 @@ export const nodeSpace = (src: Source): string => src.mapping.nodes?.space ?? ow
 export const rowNodeSpace = (src: Source, table: TableName): string =>
     table === "nodes" ? nodeSpace(src) : ownSpace(src.id);
 
+/**
+ * A name no other one takes: itself, or with a number after it.
+ * @param name - The name.
+ * @param taken - The names taken.
+ * @returns The name.
+ */
+export function freeName(name: string, taken: ReadonlySet<string | undefined>): string {
+    let n = 1;
+    let out = name;
+    while (taken.has(out)) {
+        n++;
+        out = `${name} ${String(n)}`;
+    }
+    return out;
+}
+
 export const isEmpty = (v: Value | undefined): v is null | undefined | "" => v === undefined || v === null || v === "";
 const text = (v: CellValue | undefined): string => (v === undefined || v === null ? "" : String(v));
 
@@ -1364,10 +1380,7 @@ class Builder {
         const taken = new Set([...this.nodes.values()].map((n) => n.space));
         const out = new Map<string, string>();
         for (const src of Object.values(this.input.sources)) {
-            let spelled = namedBy(src);
-            for (let n = 2; taken.has(spelled); n++) {
-                spelled = `${namedBy(src)} ${String(n)}`;
-            }
+            const spelled = freeName(namedBy(src), taken);
             taken.add(spelled);
             out.set(ownSpace(src.id), spelled);
         }
@@ -2002,13 +2015,7 @@ class Builder {
         const used: SharedValue[] = [];
         for (const value of values) {
             if (value.holders.size > link.maxShared) {
-                const hub = { value: text(value.given), rows: [...value.holders.values()].flat().length };
-                st.hub.push(hub);
-                for (const [n, [{ index }]] of value.holders) {
-                    const row = index === NO_ROW ? {} : { table, row: index };
-                    this.mark(st, "hub", { ...row, element: n.id, key: hub.value, name: value.column });
-                }
-                this.issues.push({ code: "W_VALUE_HUB", params: { source: s.source, column: value.column, ...hub } });
+                this.linkHub(at, value);
             } else if (value.holders.size > 1) {
                 used.push(value);
             }
@@ -2039,6 +2046,17 @@ class Builder {
             }
         }
         this.reportEmpty(s.source, empties);
+    }
+
+    // A value too many nodes hold to link them.
+    private linkHub({ s, st, table }: LinkAt, value: SharedValue): void {
+        const hub = { value: text(value.given), rows: [...value.holders.values()].flat().length };
+        st.hub.push(hub);
+        for (const [n, [{ index }]] of value.holders) {
+            const row = index === NO_ROW ? {} : { table, row: index };
+            this.mark(st, "hub", { ...row, element: n.id, key: hub.value, name: value.column });
+        }
+        this.issues.push({ code: "W_VALUE_HUB", params: { source: s.source, column: value.column, ...hub } });
     }
 
     // Each value of a link's columns with the nodes holding it, and the rows that hold none.
@@ -2450,7 +2468,7 @@ class Builder {
             time: null,
             timeFrom: null,
             ends: a.ends,
-            ...(step.op === "join.edges" && step.link !== undefined ? { undirected: true as const } : {}),
+            ...linked(step),
         };
         this.putEdge(e);
         if (!this.pairs.has(pairKey(e.weightMeaning))) {
@@ -2558,38 +2576,39 @@ class Builder {
     // The rows of a merge's source that are no node of their own (see `merge`), each once: its columns fold
     // into the nodes its value names, and a row naming none is left where it is.
     private mergeRowsAgain(at: MergeAt, shared: readonly BuiltNode[], look: Lookup): void {
-        const { s, si, st, groups, fanned } = at;
+        const { s } = at;
         const rows = new Map<number, { readonly r: Row; readonly held?: BuiltNode }>();
         for (const [row, r] of this.skipped.get(s.source) ?? []) {
             rows.set(row, { r });
         }
         for (const n of shared) {
-            for (const t of n.touch) {
-                if (t.source === s.source && t.table === "nodes" && t.valued !== true && !rows.has(t.row)) {
-                    rows.set(t.row, { r: t.cells, held: n });
-                }
+            for (const t of ownTouches(n, s.source).filter((each) => !rows.has(each.row))) {
+                rows.set(t.row, { r: t.cells, held: n });
             }
         }
         for (const [i, { r, held }] of rows) {
-            const out = (s.except !== undefined && listed(s.except, r)) || (s.rows !== undefined && !listed(s.rows, r));
-            const v = r[s.read.key];
-            const ids = out || isEmpty(v) ? [] : look(v);
-            const unit = { table: "nodes", row: i, key: text(v) } as const;
-            if (ids.length > 1) {
-                fanned.set(text(v), fanned.get(text(v)) ?? unit);
-            }
-            const n1s = (ids.length === 1 || s.fanOut === "each" ? ids : []).flatMap((id) => this.nodes.get(id) ?? []);
-            for (const n1 of n1s) {
-                groups.set(n1.id, (groups.get(n1.id) ?? 1) + 1);
-                st.merged++;
-                this.mark(st, "merged", { ...unit, element: n1.id });
-                this.foldSharedRow(n1, s, si, st, r, i);
-            }
-            if (n1s.length === 0) {
-                const count = ids.length > 1 ? "fanOut" : "unmatched";
-                st[count]++;
-                this.mark(st, count, held === undefined ? unit : { ...unit, element: held.id });
-            }
+            this.mergeRowAgain(at, look, r, i, held);
+        }
+    }
+
+    // One such row, and the node it is in, if any.
+    private mergeRowAgain(at: MergeAt, look: Lookup, r: Row, i: number, held: BuiltNode | undefined): void {
+        const { s, si, st, fanned } = at;
+        const v = r[s.read.key];
+        const ids = leftOut(s, r) || isEmpty(v) ? [] : look(v);
+        const unit = { table: "nodes", row: i, key: text(v) } as const;
+        if (ids.length > 1) {
+            fanned.set(text(v), fanned.get(text(v)) ?? unit);
+        }
+        const n1s = (ids.length === 1 || s.fanOut === "each" ? ids : []).flatMap((id) => this.nodes.get(id) ?? []);
+        for (const n1 of n1s) {
+            this.countMergedRow(at, n1, { ...unit, element: n1.id });
+            this.foldSharedRow(n1, s, si, st, r, i);
+        }
+        if (n1s.length === 0) {
+            const count = ids.length > 1 ? "fanOut" : "unmatched";
+            st[count]++;
+            this.mark(st, count, held === undefined ? unit : { ...unit, element: held.id });
         }
     }
 
@@ -2606,11 +2625,10 @@ class Builder {
     // One node 2 of a merge: folded into the node 1 it names (or each of several, under `fanOut`), or kept or dropped.
     private mergeNode2(at: MergeAt, n2: BuiltNode, look: Lookup, kept: Map<string, BuiltNode[]>): void {
         const { s, si, st, groups, fanned } = at;
-        const own = n2.touch.filter((t) => t.source === s.source && t.table === "nodes" && t.valued !== true);
+        const own = ownTouches(n2, s.source);
         const rows = own.map((t) => t.cells);
         const [r] = rows;
-        const excluded =
-            (s.except !== undefined && listed(s.except, r)) || (s.rows !== undefined && !listed(s.rows, r));
+        const excluded = leftOut(s, r);
         const v = r[s.read.key];
         const ids = excluded || isEmpty(v) ? [] : look(v).filter((id) => id !== n2.id);
         const unit = { table: "nodes", row: own[0].row, element: n2.id, key: n2.key } as const;
@@ -2803,7 +2821,7 @@ class Builder {
     // A node 2 left out: its rows, which make no node now, are still there for a later merge to read.
     private skipNode2(s: MergeStep, n2: BuiltNode): void {
         const rows = this.skipped.get(s.source) ?? new Map<number, Row>();
-        for (const t of n2.touch.filter((each) => each.source === s.source && each.table === "nodes")) {
+        for (const t of ownTouches(n2, s.source)) {
             rows.set(t.row, t.cells);
         }
         this.skipped.set(s.source, rows);
@@ -3051,6 +3069,21 @@ function endCells(s: EdgesStep, r: Row, end: "source" | "target"): readonly Row[
     const full = [...new Set(parts.filter((v) => !isEmpty(v) && (out === undefined || !listed(out, { [column]: v }))))];
     // an empty cell is one row naming nothing
     return full.length === 0 ? [{ ...r, [column]: null }] : full.map((v) => ({ ...r, [column]: v }));
+}
+
+// The node rows of a source a node is, not those only naming it.
+function ownTouches(n: BuiltNode, source: string): BuiltNode["touch"] {
+    return n.touch.filter((t) => t.source === source && t.table === "nodes" && t.valued !== true);
+}
+
+// Whether a step leaves a row out.
+function leftOut(s: Step, r: Row): boolean {
+    return (s.except !== undefined && listed(s.except, r)) || (s.rows !== undefined && !listed(s.rows, r));
+}
+
+// What an edge linking nodes that share a value says of its direction.
+function linked(step: Step): Pick<BuiltEdge, "undirected"> {
+    return step.op === "join.edges" && step.link !== undefined ? { undirected: true } : {};
 }
 
 // Whether a row names a node at the target end of a step: its cell holds a value, and neither the

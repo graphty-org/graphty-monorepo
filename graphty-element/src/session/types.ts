@@ -5797,8 +5797,8 @@ export interface SourceLinkOptions {
      */
     readonly nodes?: SourceSpaceName;
     /**
-     * `"edges"` (default): one edge per pair of nodes, from the one earlier in the graph, its `shared`
-     * attribute the number of values they share. `"nodes"`: one node per shared value, keyed `<column>:<value>` and carrying the value
+     * `"edges"` (default): one edge per pair of nodes, its `shared` attribute the number of values they
+     * share, undirected (`directed: false`). `"nodes"`: one node per shared value, keyed `<column>:<value>` and carrying the value
      * under the column's name, with an edge to it from each node holding it.
      */
     readonly as?: "edges" | "nodes";
@@ -6400,7 +6400,7 @@ export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "match
     /**
      * The joins a source most likely makes onto the draft's graph, best first: each of its node
      * columns against the keys of each id space other than its own, and of each other staged source
-     * (named by its `source`), ranked by how many of its values meet. A column that is the source's key proposes `"merge"`, any other `"connect"`.
+     * (named by its `source`, after the graph's), ranked by how many of its values meet. A column that is the source's key proposes `"merge"`, any other `"connect"`.
      * What an app shows as a guess; nothing is applied.
      * @param source - The source.
      * @returns The suggestions; empty when no value meets.

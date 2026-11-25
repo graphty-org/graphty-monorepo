@@ -530,6 +530,9 @@ export function suggestMatches(
             });
         }
     }
-    out.sort((a, b) => b.share - a.share);
+    // a source that waits comes after what the graph holds
+    const waits = (each: (typeof out)[number]): number =>
+        each.suggestion.matches[0].into.source === undefined ? 0 : 1;
+    out.sort((a, b) => waits(a) - waits(b) || b.share - a.share);
     return out.map((each) => each.suggestion);
 }

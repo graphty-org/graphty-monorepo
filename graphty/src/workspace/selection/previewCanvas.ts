@@ -28,11 +28,14 @@ export function cameraRefused(error: unknown): void {
  * @param active - Whether the workspace is open and its cell is laid out.
  * @param root - The workspace's box, holding the `.sel-ws-preview` cell.
  * @param frame - The canvas column, holding `.ws-canvas`.
+ * @param changed - Whether the workspace changed the graph, which is then framed on close: the camera from
+ *   before was placed for another graph.
  */
 export function usePreviewCanvas(
     active: boolean,
     root: RefObject<HTMLElement | null>,
     frame: HTMLElement | null,
+    changed?: () => boolean,
 ): void {
     const { element } = useWorkspace();
     useLayoutEffect(() => {
@@ -79,7 +82,7 @@ export function usePreviewCanvas(
             for (const each of ["top", "left", "width", "height"]) {
                 canvas.style.removeProperty(`--sel-preview-${each}`);
             }
-            if (framing) {
+            if (framing || changed?.() === true) {
                 requestAnimationFrame(() => {
                     requestAnimationFrame(fit);
                 });
@@ -89,5 +92,5 @@ export function usePreviewCanvas(
             }
         };
         // The canvas is placed once per opening; its observer follows the cell from there.
-    }, [active, root, frame, element]);
+    }, [active, root, frame, element, changed]);
 }

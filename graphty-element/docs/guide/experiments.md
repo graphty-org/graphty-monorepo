@@ -101,8 +101,9 @@ from an ordered list of steps that add, merge and connect them. Work in progress
   `load()` without a join, a network source) becomes one source plus a step that adds it; a
   replacing load takes every source out first, so opening a file works as before;
 - each source's keys live in an id space: its own unless the load names `space` or `type`, so two
-  loads with no options never merge their nodes. A NodeId is the key when one space holds it, else
-  `<space>:<key>`;
+  loads with no options never merge their nodes. A NodeId is the key; where a node loaded earlier in
+  another space has that key, `<space>:<key>`, or `<source's name>:<key>` in a source's own space, so
+  loading more never renames a node;
 - `addNodes` and the other direct edits are the reader's own edits (`data.edits()`,
   `data.removeEdit(id)`); `mergeNodes` is refused with `E_UNSUPPORTED` (`reason: "later"`);
 - `data.stage`, `data.steps`, `data.spaces`, `data.types`, `data.declareType` and `data.ref` read
@@ -169,7 +170,7 @@ off, loads, joins, removal, refresh and saved files are as before.
 A draft tries acts on a copy of the sources and steps, so a reader can see what they would do
 before the graph changes. `data.draft()` opens one; it takes the same acts as the data doors
 (`stage`, `add`, `merge`, `connect`, `extract`, `pick`, `editStep`, `removeSource`, ...) and its
-own `undo()`. `commit()` applies all of them as one undo step, and `dispose()` leaves nothing.
+own `undo()` and `redo()` (`canUndo` and `canRedo` say whether there is anything to). `commit()` applies all of them as one undo step, and `dispose()` leaves nothing.
 
 ```ts
 const session = createGraphSession({ features: ["source-steps"] });
@@ -191,8 +192,10 @@ await draft.commit(); // one undo step: Undo puts the entries back to staged
 `matched`, `only1`, `only2`, `repeated1`, `repeated2`, `fanOut`, `textVersusNumber`, and how many
 more would match with `ignoreCase` or `ignoreSpaces` on. The same by row: `rows`, `matchedRows`,
 `emptyRows`, and the rows that would match with one toggle on, or with both
-(`moreRowsWithIgnoreCase`, `moreRowsWithIgnoreSpaces`, `moreRowsWithBoth`). `matchValues` lists the
-values behind them, a page at a time.
+(`moreRowsWithIgnoreCase`, `moreRowsWithIgnoreSpaces`, `moreRowsWithBoth`); and by node of the other
+side, where the odd spelling may be: `matchedNodes`, `moreNodesWithIgnoreCase`,
+`moreNodesWithIgnoreSpaces`, `moreNodesWithBoth`. `matchValues` lists the values behind them, a page at
+a time.
 
 Before a join, a staged source can be read and set up without building anything:
 
@@ -249,6 +252,9 @@ draft.replaceStep(at, { act: "connect", options: { ...ends, to: { ...ends.to, ke
 draft.steps()[at]?.act?.to?.keepRow; // true: each entry is a node between a person and a building
 ```
 
+The other end may be named by a column of its nodes (`to.into: { space, field }`), as `into` may. An
+edge carries the columns of the rows it was made of but the two its own step reads its ends from.
+
 The other end may be new nodes: `to.unmatched: "add"` makes a node of every value naming none at that
 end only, in a space that may hold no node yet, and `to.type` declares their type. A join adds the
 staged sources it needs; `removeStep(index, { adds: "remove" })` takes them back with it once no step
@@ -276,7 +282,7 @@ draft.merge({
 ```
 
 `draft.link` links nodes whose rows share a value in a column: an edge per pair of nodes, its
-`shared` attribute the number of values they share, or with `as: "nodes"` one node per value. A value
+`shared` attribute the number of values they share, `directed: false` on it, or with `as: "nodes"` one node per value. A value
 more than `maxShared` nodes hold (default 10) links none of them, and a pair must share `minShared`
 values (default 1). For values in rows of their own, `field` names the node holding each row's and
 `into` where those nodes are. `extract` makes nodes of a column's values, joined to the node each row

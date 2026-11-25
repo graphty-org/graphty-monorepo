@@ -4,7 +4,7 @@ import "@graphty/graphty-element";
 import { setDefaultFeatures } from "@graphty/graphty-element/extend";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import type { Meta, StoryObj } from "@storybook/react";
-import { userEvent, waitFor, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { loadSiteConfig, resetSiteConfig } from "../../siteConfig";
 import { freshStore, storeOf } from "../../stories/freshStore";
@@ -130,7 +130,7 @@ export const PickFields: Story = {
     },
 };
 
-/** HR's list merged into people: dept's values differ, its cells in the table with Pick 1 and Pick 2. */
+/** HR's list merged into people: dept's values differ, its cells in the table with Use existing and Use incoming. */
 export const PreviewValuesDiffer: Story = {
     ...freshStore(DOORS),
     play: async (context) => {
@@ -236,7 +236,10 @@ export const JoinWorkspaceKeepMiddle: Story = {
         await choose(modal, "Other end type", "doors.csv");
         await userEvent.click(within(modal).getByRole("radio", { name: "A node linked to what it names" }));
         await within(modal).findByRole("button", { name: "Remove Other end" });
-        await within(modal).findByText("1->2->3");
+        const direction = await within(modal).findByRole<HTMLInputElement>("combobox", { name: "Direction" });
+        await waitFor(async () => {
+            await expect(direction.value).toBe("badge -> entries.csv -> door");
+        });
         await session.styles.settled();
     },
 };

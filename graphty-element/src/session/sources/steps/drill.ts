@@ -282,6 +282,23 @@ function endsOf(result: BuildResult, el: Built | null, pair: DrillUnit["pair"]):
 }
 
 /**
+ * A row as read.
+ * @param src - Its source.
+ * @param copies - The rows as read.
+ * @param table - Its table.
+ * @param row - Its place; absent for no row.
+ * @returns The row, or null when there is none.
+ */
+function rowOf(
+    src: SourceSteps["sources"][string] | undefined,
+    copies: ReturnType<typeof copyMap>,
+    table: TableName,
+    row: number | undefined,
+): Row | null {
+    return src === undefined || row === undefined ? null : (tableRows(src, copies, table)?.[row] ?? null);
+}
+
+/**
  * The rows behind one count of one step of a draft: each with its key, the element it reached in
  * the draft, that element's values in the committed build and in the draft, the row as read, its
  * effect and the outcome it is reported under (5.4).
@@ -313,10 +330,7 @@ export function drillRows(
         const touch = u.row === undefined ? undefined : now?.touch.find((t) => t.source === source && t.row === u.row);
         const table = u.table ?? touch?.table ?? null;
         const src = state.value.sources[source] as SourceSteps["sources"][string] | undefined;
-        const incoming =
-            u.row === undefined || table === null
-                ? null
-                : (touch?.cells ?? (src === undefined ? undefined : tableRows(src, copies, table)?.[u.row]) ?? null);
+        const incoming = table === null ? null : (touch?.cells ?? rowOf(src, copies, table, u.row));
         const cell = incoming === null || column === null ? undefined : incoming[column];
         const key = isEmpty(cell) ? (u.key ?? now?.key ?? null) : cell;
         return {

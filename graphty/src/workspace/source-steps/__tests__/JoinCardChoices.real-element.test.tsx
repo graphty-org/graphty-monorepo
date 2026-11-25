@@ -176,13 +176,13 @@ describe("a join card's choices (source-steps)", () => {
         assert.strictEqual(draftOf(session).steps().length, steps, "a guess is shown, never applied");
         await eachRow(modal, NODE);
         await newest(session, (step) => step.act?.act === "connect", "a node linked to its person");
-        assert.include(offered(modal), "Direction");
+        assert.isNotNull(within(modal).queryByRole("combobox", { name: "Direction" }));
         assert.notInclude(offered(modal), "Existing edge", "only an edge meets another");
         assert.notInclude(offered(modal), "Many rows");
         await eachRow(modal, FIELDS);
         await newest(session, (step) => step.act?.act === "merge", "fields on their person");
         assert.include(offered(modal), "Many rows");
-        assert.notInclude(offered(modal), "Direction");
+        assert.isNull(within(modal).queryByRole("combobox", { name: "Direction" }));
         assert.isNull(within(modal).queryByRole("combobox", { name: "Other end type" }));
         await eachRow(modal, EDGE);
         await within(modal).findByRole("combobox", { name: "Other end type" });
@@ -239,6 +239,38 @@ describe("a join card's choices (source-steps)", () => {
         assert.strictEqual(session.data.count({ type: "tag" }).nodes, 2, "key and night");
     });
 
+    it("New nodes of another field are that field's own, not the first one's kind", async () => {
+        const { session, modal } = await opened();
+        await eachRow(modal, NODE);
+        await choose(modal, "In graph type", "New nodes");
+        await choose(modal, "Incoming field", "dept");
+        const first = await newest(session, (step) => step.extract?.column === "dept", "departments");
+        assert.strictEqual(first.extract?.space, "dept");
+        await choose(modal, "Incoming field", "tags");
+        const second = await newest(session, (step) => step.extract?.column === "tags", "tags");
+        assert.strictEqual(second.extract?.space, "tags");
+    });
+
+    it("a card's options stay while its source is changed away and back", async () => {
+        const { session, modal } = await opened(["doors.csv", DOORS], ["entries.csv", ENTRIES]);
+        await eachRow(modal, NODE);
+        await pickWay(modal, "No match", "Skip");
+        await typeIn(modal, "Edge type", "entered");
+        await newest(session, (step) => step.act?.edgeType === "entered", "set");
+        await choose(modal, "Incoming source", "doors.csv");
+        await waitFor(() => {
+            assert.isUndefined(
+                draftOf(session)
+                    .steps()
+                    .find((step) => step.act !== null),
+            );
+        });
+        await choose(modal, "Incoming source", "entries.csv");
+        await choose(modal, "Incoming field", "badge");
+        const back = await newest(session, (step) => step.act !== null, "written again");
+        assert.deepInclude(back.act, { edgeType: "entered", unlinked: "drop" });
+    });
+
     it("an edge's other end can be new nodes, while a badge naming no one still makes none", async () => {
         const { session, modal } = await opened(["entries.csv", ENTRIES]);
         await eachRow(modal, EDGE);
@@ -247,7 +279,7 @@ describe("a join card's choices (source-steps)", () => {
         await newest(session, (step) => step.act?.to?.unmatched === "add", "doors made of the column");
         await typeIn(modal, "New type", "gate");
         await newest(session, (step) => step.act?.to?.type === "gate", "typed");
-        await pickWay(modal, "Direction", "3->1");
+        await choose(modal, "Direction", "door -> badge");
         await newest(session, (step) => step.act?.direction === "from-into", "turned");
         assert.strictEqual(
             within(modal).getByRole<HTMLInputElement>("combobox", { name: "Other end field" }).value,
@@ -296,7 +328,7 @@ describe("a join card's choices (source-steps)", () => {
         await typeIn(modal, "Hub cap", "2");
         const capped = await newest(session, (step) => step.link?.maxShared === 2, "capped");
         assert.strictEqual(capped.buckets?.newEdges, 0, "three hold Ops");
-        await within(modal).findByText("1 over the cap");
+        await within(modal).findByText("1 value over the cap");
         await typeIn(modal, "Hub cap", "5");
         await typeIn(modal, "Minimum shared", "2");
         const least = await newest(session, (step) => step.link?.minShared === 2, "a minimum");
@@ -329,7 +361,11 @@ describe("a join card's choices (source-steps)", () => {
         await newest(session, (step) => step.act?.aggregate?.["*"] === "list", "a list of devices");
         await userEvent.click(within(modal).getByRole("button", { name: /^\+ Join/ }));
         await waitFor(() => {
-            assert.lengthOf(modal.querySelectorAll("[data-join-card]:not([data-join-card^='add:'])"), 2);
+            assert.lengthOf(
+                modal.querySelectorAll("[data-join-card]:not([data-join-card^='add:'])"),
+                3,
+                "the list's own card, the one that waits for watch.csv and the new one",
+            );
         });
         await eachRow(modal, FIELDS);
         await choose(modal, "In graph type", "person");
@@ -357,13 +393,13 @@ describe("a join card's choices (source-steps)", () => {
         assert.strictEqual(linked.buckets?.newEdges, 1);
     });
 
-    it("No match Add counts the node the merge adds and Skip none, and Only 2 lists it", async () => {
+    it("No match Add counts the node the merge adds and Skip none, and Only incoming lists it", async () => {
         const { session, modal } = await opened(["hr.csv", HR]);
         await eachRow(modal, FIELDS);
         const added = (): number => draftOf(session).preview().after.nodes - draftOf(session).preview().before.nodes;
-        await within(modal).findByRole("button", { name: "1 new" });
+        await within(modal).findByRole("button", { name: "1 new node" });
         assert.strictEqual(added(), 1, "B7");
-        await userEvent.click(within(modal).getByText("Only 2"));
+        await userEvent.click(within(modal).getByText("Only incoming"));
         const values = within(modal).getByRole("grid", { name: "Values" });
         await waitFor(() => {
             assert.deepStrictEqual(
@@ -377,14 +413,14 @@ describe("a join card's choices (source-steps)", () => {
         await waitFor(() => {
             assert.strictEqual(added(), 0);
         });
-        assert.isNull(within(modal).queryByRole("button", { name: "1 new" }));
+        assert.isNull(within(modal).queryByRole("button", { name: "1 new node" }));
     });
 
     it("offers Min where every value is a number, and a rule of a column's own outlives another choice", async () => {
         const { session, modal } = await opened(["hr.csv", HR]);
         await eachRow(modal, FIELDS);
         await userEvent.click(await within(modal).findByRole("combobox", { name: "Both have dept" }));
-        await screen.findByRole("option", { name: "Use 2" });
+        await screen.findByRole("option", { name: "Use incoming" });
         assert.isNull(screen.queryByRole("option", { name: "Min" }), "no Min on a text column");
         await userEvent.keyboard("{Escape}");
         await choose(modal, "Both have floor", "Min");
@@ -414,7 +450,7 @@ describe("a join card's choices (source-steps)", () => {
             assert.isNotNull(screen.queryByRole("dialog", { name: "Join" }), `Enter on ${where} keeps the workspace`);
         };
         await userEvent.click(await within(modal).findByRole("combobox", { name: "Both have dept" }));
-        await screen.findByRole("option", { name: "Use 2" });
+        await screen.findByRole("option", { name: "Use incoming" });
         await userEvent.keyboard("{Enter}");
         keeps("an open list");
         within(modal).getByRole("switch", { name: "Ignore case" }).focus();
@@ -459,7 +495,7 @@ describe("a join card's choices (source-steps)", () => {
     it("a file dropped while the workspace is open asks first, and Cancel keeps the draft and its rule", async () => {
         const { session, modal } = await opened(["hr.csv", HR]);
         await eachRow(modal, FIELDS);
-        await choose(modal, "Both have dept", "Use 2");
+        await choose(modal, "Both have dept", "Use incoming");
         const draft = draftOf(session);
         const rule = (): string | undefined =>
             draft

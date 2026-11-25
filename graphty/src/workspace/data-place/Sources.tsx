@@ -69,6 +69,9 @@ export function Sources({
         }
         drawn.current = true;
     }, [selected]);
+    // The picked entry is open without being opened: it stays so when another is picked.
+    const kept = (was: Readonly<Record<string, boolean>>): Readonly<Record<string, boolean>> =>
+        selected === undefined ? was : { [selected]: true, ...was };
     const empty = sources.length === 0 && staged.length === 0;
     return (
         <ControlSection label="Data sources" actions={<AddSourceMenu />} empty={empty}>
@@ -87,7 +90,7 @@ export function Sources({
                             opened={opened[source.key] ?? source.key === selected}
                             primary={sources.length === 1}
                             onOpenChange={(open) => {
-                                setOpened((was) => ({ ...was, [source.key]: open }));
+                                setOpened((was) => ({ ...kept(was), [source.key]: open }));
                                 // Opening an entry picks it; closing the picked one shows it in the
                                 // inspector again. Closing another never picks it, so it stays closed.
                                 if (open || source.key === selected) {
@@ -103,7 +106,7 @@ export function Sources({
                             selected={source.key === selected}
                             opened={opened[source.key] ?? source.key === selected}
                             onOpenChange={(open) => {
-                                setOpened((was) => ({ ...was, [source.key]: open }));
+                                setOpened((was) => ({ ...kept(was), [source.key]: open }));
                                 if (open) {
                                     onSelect(source.key);
                                 }

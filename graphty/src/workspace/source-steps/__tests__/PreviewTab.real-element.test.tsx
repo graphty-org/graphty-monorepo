@@ -4,8 +4,8 @@
  * owner's founding example. Door entries made into edges to the people who badged in: a click on the
  * card's new edges count lists its rows in the workspace table, selecting the test badge's row and
  * Exclude leaves that edge out, and Include brings it back. HR's list merged into people: a click
- * on dept in the card lists its cells, Pick 2 on one cell marks it R and lists it under Decided,
- * Ctrl+A on the open cells and Pick 1 decides them all, and Clear takes the picks back. The Fields
+ * on dept in the card lists its cells, Use incoming on one cell marks it R and lists it under Decided,
+ * Ctrl+A on the open cells and Use existing decides them all, and Clear takes the picks back. The Fields
  * view profiles the card's two fields.
  */
 
@@ -113,7 +113,45 @@ describe("the join workspace's table (source-steps)", () => {
         assert.isNull(within(modal).queryByRole("button", { name: "Include E7" }));
     });
 
-    it("HR dept: Pick 2 on one cell marks it R and Decided lists it; Pick 1 on every open cell decides them all", async () => {
+    it("entries in the graph, people staged: excluding and restoring a row redraws After as the card counts it", async () => {
+        await page.viewport(1440, 900);
+        const { session } = await emptyProject();
+        await session.data.import(
+            { type: "csv", config: { data: ENTRIES }, name: "entries.csv" },
+            { key: "entry", type: "entry" },
+        );
+        drop("people.csv", PEOPLE);
+        await screen.findByRole("listitem", { name: "people.csv" });
+        (document.activeElement as HTMLElement | null)?.blur();
+        await userEvent.keyboard("{Shift>}J{/Shift}");
+        const modal = await screen.findByRole("dialog", { name: "Join" });
+        await choose(modal, "Incoming source", "entries.csv");
+        await userEvent.click(within(modal).getByRole("radio", { name: "A node linked to what it names" }));
+        await choose(modal, "In graph type", "people.csv");
+        await choose(modal, "Incoming field", "badge");
+        const drawn = (): string[] =>
+            session.data
+                .edges()
+                .map((edge) => `${String(edge.source)}-${String(edge.target)}`)
+                .sort();
+        const all = ["B1-E1", "B1-E2", "B2-E3", "B2-E6", "T0-E7"];
+        await waitFor(() => {
+            assert.deepStrictEqual(drawn(), all);
+        });
+        await userEvent.click(await within(modal).findByRole("button", { name: "5 new edges" }));
+        await select(rowWith(await within(modal).findByRole("grid", { name: "Rows" }), "T0"));
+        await userEvent.click(await within(modal).findByRole("button", { name: "Exclude" }));
+        await waitFor(() => {
+            assert.deepStrictEqual(drawn(), all.slice(0, 4), "redrawn without the test badge's edge");
+        });
+        await within(modal).findByRole("button", { name: "4 new edges" });
+        await userEvent.click(await within(modal).findByRole("button", { name: "Include E7" }));
+        await waitFor(() => {
+            assert.deepStrictEqual(drawn(), all);
+        });
+    });
+
+    it("HR dept: Use incoming on one cell marks it R and Decided lists it; Use existing on every open cell decides them all", async () => {
         const { session, modal } = await joinOn("hr.csv", HR, "Merge");
         const cells = (only: "open" | "decided"): number =>
             draftOf(session).preview().cells({ column: "dept", only }).total;
@@ -123,7 +161,7 @@ describe("the join workspace's table (source-steps)", () => {
         const grid = await within(modal).findByRole("grid", { name: "Cells" });
         assert.lengthOf(within(grid).getAllByRole("rowheader"), 2);
         await select(rowWith(grid, "B2"));
-        await userEvent.click(within(modal).getByRole("button", { name: "Pick 2" }));
+        await userEvent.click(within(modal).getByRole("button", { name: "Use incoming" }));
         await waitFor(() => {
             assert.strictEqual(cells("decided"), 1);
         });
@@ -141,7 +179,7 @@ describe("the join workspace's table (source-steps)", () => {
         });
         await select(rowWith(open, "B1"));
         await userEvent.keyboard("{Control>}a{/Control}");
-        await userEvent.click(within(modal).getByRole("button", { name: "Pick 1" }));
+        await userEvent.click(within(modal).getByRole("button", { name: "Use existing" }));
         await waitFor(() => {
             assert.strictEqual(cells("open"), 0);
         });
@@ -160,7 +198,7 @@ describe("the join workspace's table (source-steps)", () => {
         });
     });
 
-    it("Pick 1 decides every selected cell when person is built from two files", async () => {
+    it("Use existing decides every selected cell when person is built from two files", async () => {
         const staff = "badge,name,dept\nB5,Di,Ops";
         const hr = "badge,dept\nB1,Operations\nB5,Facilities";
         const { session, modal } = await joinOn("hr.csv", hr, "Merge", staff);
@@ -172,7 +210,7 @@ describe("the join workspace's table (source-steps)", () => {
         const grid = await within(modal).findByRole("grid", { name: "Cells" });
         await select(rowWith(grid, "B5"));
         await userEvent.keyboard("{Control>}a{/Control}");
-        await userEvent.click(within(modal).getByRole("button", { name: "Pick 1" }));
+        await userEvent.click(within(modal).getByRole("button", { name: "Use existing" }));
         await waitFor(() => {
             assert.strictEqual(cells("decided"), 2);
         });

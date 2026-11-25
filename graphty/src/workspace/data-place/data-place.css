@@ -92,6 +92,12 @@
     margin-inline: -16px -8px;
 }
 
+/* One line between two entries: none under an entry's own Filters, nor under the last entry. */
+.dp-source-entry .cm-section-content > .cm-section:last-child,
+.dp-source-entry:not(:has(~ .dp-source-entry)) > .cm-section {
+    border-bottom: 0;
+}
+
 .dp-source-entry:is(:hover, [data-busy], :has(:focus-visible), :has([data-expanded])) .dp-source-actions > * {
     max-width: none;
     overflow: visible;

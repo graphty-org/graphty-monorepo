@@ -6,7 +6,7 @@
  * are given the type person on their workspace card and are added as they are; door entries are
  * joined to the people who badged in (an edge "entered", ignoring case, the test badge's entry left
  * out) and to the buildings whose doors they opened (an edge "at"); HR's list is merged into people
- * with Use 2 for dept and one pick back to people.csv's value; visitors are added as people too,
+ * with Use incoming for dept and one pick back to people.csv's value; visitors are added as people too,
  * answering the key-overlap question. Before / After flips the drawing, each Done commits one undo
  * step, and Undo returns the visitors to staged and Redo adds them again.
  */
@@ -125,8 +125,8 @@ describe("the founding example through the app (source-steps)", () => {
         await stage("people.csv", PEOPLE);
         assert.strictEqual(session.data.nodes().length, 2, "a staged source draws nothing");
         let modal = await joinPlus();
-        let settings = await within(modal).findByRole("group", { name: "Read as" });
-        await userEvent.click(within(settings).getByRole("button", { name: "Expand Rows are" }));
+        let settings = await within(modal).findByRole("group", { name: "Staged source" });
+        await userEvent.click(within(settings).getByRole("button", { name: "Expand Read as" }));
         await typeInto(settings, "Type", "person");
         await waitFor(() => {
             const key = session.data.staged()[0]?.key ?? "";
@@ -198,18 +198,18 @@ describe("the founding example through the app (source-steps)", () => {
         await done(modal);
         assert.strictEqual(edgesOf(session, "at"), 6, "every entry but E5's D3");
 
-        // HR's list merged into people: Use 2 for dept, then one pick keeps people.csv's Lab.
+        // HR's list merged into people: Use incoming for dept, then one pick keeps people.csv's Lab.
         await stage("hr.csv", HR);
         modal = await joinPlus();
         await choose(modal, "In graph type", "person");
         await choose(modal, "In graph field", "badge");
         await choose(modal, "Incoming field", "badge");
         await userEvent.click(within(modal).getByRole("radio", { name: "Fields on a node" }));
-        await choose(modal, "Both have dept", "Use 2");
+        await choose(modal, "Both have dept", "Use incoming");
         await userEvent.click(await within(modal).findByRole("button", { name: "Cells dept" }));
         const cells = await within(modal).findByRole("grid", { name: "Cells" });
         await select(rowWith(cells, "B2"));
-        await userEvent.click(within(modal).getByRole("button", { name: "Pick 1" }));
+        await userEvent.click(within(modal).getByRole("button", { name: "Use existing" }));
         await waitFor(() => {
             assert.strictEqual(
                 session.data.currentDraft()?.preview().cells({ column: "dept", only: "decided" }).total,
@@ -223,8 +223,8 @@ describe("the founding example through the app (source-steps)", () => {
         // Visitors as people too: the Add card asks whether their badges are the same people.
         await stage("visitors.csv", VISITORS);
         modal = await joinPlus();
-        settings = await within(modal).findByRole("group", { name: "Read as" });
-        await userEvent.click(within(settings).getByRole("button", { name: "Expand Rows are" }));
+        settings = await within(modal).findByRole("group", { name: "Staged source" });
+        await userEvent.click(within(settings).getByRole("button", { name: "Expand Read as" }));
         await typeInto(settings, "Type", "person");
         await waitFor(() => {
             const key = session.data.staged()[0]?.key ?? "";

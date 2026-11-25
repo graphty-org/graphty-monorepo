@@ -4,6 +4,7 @@ import { ActionIcon, Select, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useId, useRef, useState } from "react";
 
 import { MEANING_WORDS } from "../analyze/words";
+import { sourceStepsOn } from "../features";
 import { GLYPHS } from "../glyphs";
 import { formatNumber } from "../inspector/words";
 import { TIME_FIELD_EVENTS, useSessionEvents } from "../sessionEvents";
@@ -744,15 +745,32 @@ function attributesOf(
 }
 
 /**
+ * Whether a join of a source's rows brought nodes, however the rows themselves were read.
+ * @param session - the element's session.
+ * @param source - the source.
+ * @returns true when one did.
+ */
+function joinedNodes(session: GraphSession, source: LoadedSource | undefined): boolean {
+    return (
+        source !== undefined &&
+        source.counts.nodes > 0 &&
+        sourceStepsOn(session) &&
+        session.data.steps().some((step) => step.source === source.key && step.op !== "join.add")
+    );
+}
+
+/**
  * The sides Fields shows: a load's own and always Edges, or for a graph not loaded from one, each
  * side with columns.
  * @param attributes - `data.attributes()`.
  * @param source - the selected load.
+ * @param broughtNodes - whether a join of the load's rows brought nodes.
  * @returns the sides.
  */
 function sidesShown(
     attributes: ReturnType<GraphSession["data"]["attributes"]>,
     source: LoadedSource | undefined,
+    broughtNodes = false,
 ): FieldSide[] {
     const sides = ["nodes", "edges"] as const;
     if (source === undefined) {
@@ -761,11 +779,7 @@ function sidesShown(
     // A load always has Edges, whether or not it made any or carries columns for them (the owner,
     // 2026-11-07: "Edges should always be present"): a joined file makes edges its own rows are not.
     const own = sidesOf(source);
-    // rows read as edges still bring nodes where a join keeps them
-    const supplies = (source?.counts.nodes ?? 0) > 0;
-    return sides.filter(
-        (side) => side === "edges" || own === undefined || own.includes(side) || (side === "nodes" && supplies),
-    );
+    return sides.filter((side) => side === "edges" || own === undefined || own.includes(side) || broughtNodes);
 }
 
 /**
@@ -852,7 +866,7 @@ export function SourceFields({
     };
     const tables = Object.values(source?.mapping?.tables ?? {});
     const ends = source !== undefined && held?.load === source.key ? held : null;
-    const sides = ends === null ? sidesShown(attributes, source) : [];
+    const sides = ends === null ? sidesShown(attributes, source, joinedNodes(session, source)) : [];
     // The fixed rows read when the rows load: shown only when this load can be read again here.
     const fixedRows = (side: FieldSide): React.ReactNode[] => {
         const roles = tableRoles(source, side);

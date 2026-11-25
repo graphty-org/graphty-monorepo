@@ -188,7 +188,7 @@ dialog.jw-modal {
 
 .jw-remove {
     padding: 8px;
-    border-bottom: 1px solid var(--cm-border);
+    margin-block-end: 8px;
 }
 
 .jw-match > .jw-add-match {

@@ -18,10 +18,9 @@ import {
     type SourceElementRef,
     type SourceMatchValue,
     type SourceStepPatch,
-    type SourceStepRow,
 } from "@graphty/graphty-element/session";
 import { Button, Group, Loader, Stack, Text } from "@mantine/core";
-import React, { useEffect, useId, useRef, useState } from "react";
+import React, { useCallback, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { sourceStepsOn } from "../features";
@@ -57,15 +56,7 @@ import { KeyWords } from "./KeyWords";
 import { ReaderEdits } from "./ReaderEdits";
 import { StagedRows } from "./StagedFields";
 import { EFFECT_COLORS, MATCH_VALUE_COLUMNS, nameOf, rowColumns } from "./tableColumns";
-import {
-    addStepWords,
-    JOIN_WORDS,
-    OVERLAP_FILTERS,
-    PREVIEW_WORDS,
-    refusedWords,
-    STAGED_WORDS,
-    WORKSPACE_WORDS,
-} from "./words";
+import { addStepWords, JOIN_WORDS, OVERLAP_FILTERS, PREVIEW_WORDS, refusedWords, WORKSPACE_WORDS } from "./words";
 import { AddStepBody, type CellFilter, CellsPane, FieldsPane, RemoveStrip, TableActions } from "./WorkspaceParts";
 
 /** The element's events after which the workspace reads its draft again. */
@@ -116,6 +107,18 @@ type TableShows =
     | { readonly kind: "fields"; readonly card: string }
     | { readonly kind: "rows"; readonly step: number; readonly bucket: string }
     | { readonly kind: "cells"; readonly step: number; readonly column: string; readonly only: CellFilter };
+
+/**
+ * Whether a card the workspace opened with for a source that waits is done with: another card has joined
+ * the source, and the card was never begun.
+ * @param card - the card
+ * @param used - the sources the draft's steps read
+ * @returns true when it is
+ */
+function joinedMeanwhile(card: PendingCard, used: ReadonlySet<string>): boolean {
+    const { from, becomes } = card.picks;
+    return card.id.startsWith(WAITING) && becomes === null && from !== null && used.has(from.source);
+}
 
 /**
  * A card's options, kept while it has no step.
@@ -603,7 +606,10 @@ function JoinWorkspace({
     const [drawing, setDrawing] = useState(true);
     const version = useSessionEvents(session, DRAFT_EVENTS);
     const frame = typeof document === "undefined" ? null : document.querySelector<HTMLElement>(".ws-body");
-    usePreviewCanvas(draft !== null, box, frame);
+    // Done left another graph than the one the workspace opened on.
+    const changed = useRef(false);
+    const refit = useCallback(() => changed.current, []);
+    usePreviewCanvas(draft !== null, box, frame, refit);
 
     // The draft is drawn After while the workspace is open; closing by any door throws it away.
     // Decided a microtask later: StrictMode's development-only rerun mounts the workspace again
@@ -671,18 +677,7 @@ function JoinWorkspace({
         }
     }, [draft, live, version, store]);
 
-    // A waiting source's own card goes once another card has joined it, unless it was begun.
-    const used = new Set(live ? draft.steps().map((step) => step.source) : []);
-    const waits = (card: PendingCard): boolean =>
-        !(
-            card.id.startsWith(WAITING) &&
-            card.id !== open &&
-            card.picks.becomes === null &&
-            card.written === undefined &&
-            card.picks.from !== null &&
-            used.has(card.picks.from.source)
-        );
-    const cards = live ? cardsOf(draft, pending.filter(waits)) : [];
+    const cards = live ? cardsOf(draft, pending) : [];
     // The steps that add a staged source as it is: a card each, read-only but for its questions.
     // A join step that adds its own staged source shows on its own card, not as an Add card too.
     const asked = new Set(live ? draft.preview().questions.map((question) => question.params.source) : []);
@@ -789,20 +784,23 @@ function JoinWorkspace({
         }
         try {
             const step = writeCard(draft, card.step, act);
+            const id = idAt(card, step);
             // The step reads back as the element names it (a staged source by its new space).
             const made = cardsOf(draft, []).find((each) => each.step?.index === step)?.picks ?? write;
             // Kept, written: an undo that takes the step back draws the card again, as it was before
             // the pick that wrote it. A step card
             // rewritten with other picks carries its written card's picks along, so that card
             // is never drawn again beside it.
+            const used = new Set(draft.steps().map((each) => each.source));
             setPending((now) =>
-                now.map((each) =>
-                    each.id === card.id || (at !== null && writtenFor(each, card))
-                        ? { ...each, written: [...(each.written ?? []), write, made] }
-                        : each,
-                ),
+                now
+                    .filter((each) => each.id === id || !joinedMeanwhile(each, used))
+                    .map((each) =>
+                        each.id === card.id || (at !== null && writtenFor(each, card))
+                            ? { ...each, written: [...(each.written ?? []), write, made] }
+                            : each,
+                    ),
             );
-            const id = idAt(card, step);
             setOpen(id);
             setShows((now) => (now?.kind === "values" && now.card === card.id ? { ...now, card: id } : now));
         } catch (error) {
@@ -884,6 +882,7 @@ function JoinWorkspace({
         }
         void commitWorkspace(store, session, draft, noticeOn("")).then((ok) => {
             if (ok) {
+                changed.current = changes > 0;
                 close();
             }
         });
@@ -1044,7 +1043,7 @@ function JoinWorkspace({
                     }
                     readSettings={
                         staged === undefined || card.step !== null ? null : (
-                            <fieldset className="ss-field jw-read" aria-label={WORKSPACE_WORDS.readSettings}>
+                            <fieldset className="ss-field jw-read" aria-label={WORKSPACE_WORDS.stagedSource}>
                                 <ControlSection label={WORKSPACE_WORDS.readSettings} defaultOpened={false}>
                                     <StagedRows
                                         session={session}
@@ -1287,26 +1286,28 @@ function JoinWorkspace({
                             </Text>
                         )}
                     </div>
-                    <div className="sel-ws-center" data-strip="">
+                    <div className="sel-ws-center" {...(tableShows === null ? {} : { "data-strip": "" })}>
                         <div className="sel-ws-preview" />
-                        <Stack gap={4} className="jw-lower">
-                            <Group gap={6} justify="flex-end">
-                                <Button size="compact-xs" variant="subtle" onClick={frameMarked}>
-                                    {WORKSPACE_WORDS.frame}
-                                </Button>
-                            </Group>
-                            <TablePane
-                                session={session}
-                                draft={draft}
-                                shows={tableShows}
-                                cards={cards}
-                                picked={rowsPicked?.ids ?? []}
-                                onShows={setShows}
-                                onPick={(next) => {
-                                    setPickedRows({ ...next, list });
-                                }}
-                            />
-                        </Stack>
+                        {tableShows === null ? null : (
+                            <Stack gap={4} className="jw-lower">
+                                <Group gap={6} justify="flex-end">
+                                    <Button size="compact-xs" variant="subtle" onClick={frameMarked}>
+                                        {WORKSPACE_WORDS.frame}
+                                    </Button>
+                                </Group>
+                                <TablePane
+                                    session={session}
+                                    draft={draft}
+                                    shows={tableShows}
+                                    cards={cards}
+                                    picked={rowsPicked?.ids ?? []}
+                                    onShows={setShows}
+                                    onPick={(next) => {
+                                        setPickedRows({ ...next, list });
+                                    }}
+                                />
+                            </Stack>
+                        )}
                     </div>
                 </div>
             </dialog>

@@ -131,19 +131,77 @@ describe("steps and reader edits in the join workspace (source-steps)", () => {
         await done(modal);
         assert.lengthOf(session.data.edges(), 0, "the edges went with the step");
         assert.strictEqual(session.history.steps.length, steps + 1, "one undo step");
+        const undo = await screen.findByRole("button", { name: "Undo" });
+        await userEvent.click(undo);
+        await waitFor(() => {
+            assert.isAbove(session.data.edges().length, 0);
+        });
+
+        const again = await workspace();
+        await userEvent.click(await within(again).findByRole("button", { name: "Delete entries.csv -> Connect" }));
+        await done(again);
+        await screen.findByText("Joined");
+        await screen.findByRole("button", { name: "Undo" });
+        assert.lengthOf(session.data.edges(), 0, "after an Undo, deleting it again still says so, with Undo");
     });
 
-    it("HR's merge card lists dept with its rule; Use 2 there puts HR's departments in", async () => {
+    it("HR's merge card lists dept with its rule; Use incoming there puts HR's departments in", async () => {
         const { session } = await withPeople();
         await mergeHr(session, "keep");
         assert.strictEqual(session.data.node("B1")?.dept, "Ops");
         const modal = await workspace();
         const card = await within(modal).findByRole("region", { name: "hr.csv -> Merge" });
-        await userEvent.click(within(modal).getByRole("button", { name: "Expand hr.csv -> Merge" }));
-        await choose(card, "Both have dept", "Use 2");
-        assert.isNotNull(within(card).getByRole("combobox", { name: "Many rows dept" }), "how dept's rows reduce");
+        await choose(card, "Both have dept", "Use incoming");
+        assert.isNull(
+            within(card).queryByRole("combobox", { name: "Many rows dept" }),
+            "no person takes several rows, so how they reduce is not asked",
+        );
         await done(modal);
         assert.strictEqual(session.data.node("B1")?.dept, "Operations");
+    });
+
+    it("HR's merge card reopens on its rule; Keep existing puts people.csv's departments back", async () => {
+        const { session } = await withPeople();
+        await mergeHr(session, "overwrite");
+        assert.strictEqual(session.data.node("B1")?.dept, "Operations");
+        const modal = await workspace();
+        const card = await within(modal).findByRole("region", { name: "hr.csv -> Merge" });
+        const rule = await within(card).findByRole<HTMLInputElement>("combobox", { name: "Both have dept" });
+        assert.strictEqual(rule.value, "Use incoming", "open, on the rule it was committed with");
+        await choose(card, "Both have dept", "Keep existing");
+        await done(modal);
+        assert.deepStrictEqual(
+            ["B1", "B2"].map((id) => session.data.node(id)?.dept),
+            ["Ops", "Lab"],
+        );
+        await session.undo();
+        assert.strictEqual(session.data.node("B1")?.dept, "Operations", "one undo step");
+    });
+
+    it("two joins from one source are a card each, its fold showing what it joined, whole", async () => {
+        const { session } = await withPeople();
+        const entries = await joinEntries(session);
+        const doors = await session.data.stage(
+            { type: "csv", config: { data: "door,title\nD1,North\nD2,South" }, name: "doors.csv" },
+            { key: "door", type: "door" },
+        );
+        const draft = session.data.draft();
+        draft.connect({ from: { source: entries, field: "door" }, into: { source: doors } });
+        await draft.commit();
+        const modal = await workspace();
+        const cards = await within(modal).findAllByRole("region", { name: "entries.csv -> Connect" });
+        assert.lengthOf(cards, 2);
+        const shown = cards.map((card) => card.querySelector(".cm-card-summary"));
+        assert.strictEqual(shown[0]?.textContent, "Connect: person.badge = entries.csv.badge; 5 edges");
+        const [first] = shown;
+        assert.isAtMost(first?.scrollWidth ?? 1, first?.clientWidth ?? 0, "never cut");
+        await userEvent.click(within(modal).getAllByRole("button", { name: "Expand entries.csv -> Connect" })[0]);
+        await waitFor(() => {
+            assert.strictEqual(
+                cards[1]?.querySelector(".cm-card-summary")?.textContent,
+                "Connect: door.door = entries.csv.door; 5 edges",
+            );
+        });
     });
 
     it("lists a pick under Reader edits (R) in the workspace, and its Delete takes it back on Done", async () => {

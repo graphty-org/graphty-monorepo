@@ -599,7 +599,9 @@ function withoutSource(prior: SourceSteps, id: string): SourceSteps {
         steps: prior.steps.filter((step) => !reading(step)),
         types: prior.types.map((entry) => ({ ...entry, rules: entry.rules.filter((rule) => rule.source !== id) })),
     };
-    const gone = new Set(prior.steps.filter(reading).flatMap((step) => madeSpaces(step, prior.sources[step.source])));
+    const gone = new Set(
+        prior.steps.filter((step) => reading(step)).flatMap((step) => madeSpaces(step, prior.sources[step.source])),
+    );
     const dead = (step: Step, value: SourceSteps): boolean => {
         if (step.op !== "join.edges" || step.link !== undefined || extractOf(step) !== null) {
             return false;

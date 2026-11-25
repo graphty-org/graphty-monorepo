@@ -247,7 +247,7 @@ describe("the join workspace (source-steps)", () => {
             card !== undefined && within(card).queryByRole("combobox", { name: "Incoming field" }) !== null;
         for (const at of [0, 1]) {
             const expand = within(modal)
-                .getAllByRole("button", { name: /^Expand (?!Rows are)/ })
+                .getAllByRole("button", { name: /^Expand (?!Read as)/ })
                 .find((button) => cards().some((card) => card.contains(button)));
             assert.isDefined(expand);
             if (expand !== undefined) {
@@ -331,7 +331,7 @@ describe("the join workspace (source-steps)", () => {
         await choose(modal, "In graph field", "badge");
         await choose(modal, "Incoming field", "door");
         // The entries' own nodes would land in the space they connect to.
-        await userEvent.click(within(modal).getByRole("button", { name: "Expand Rows are" }));
+        await userEvent.click(within(modal).getByRole("button", { name: "Expand Read as" }));
         await userEvent.fill(within(modal).getByRole("combobox", { name: "Space" }), "person");
         await userEvent.keyboard("{Enter}");
         await eachRow(modal, "A node linked to what it names");
@@ -340,7 +340,7 @@ describe("the join workspace (source-steps)", () => {
     });
     it("door entries read as edges connect a person to the door each names, one edge per entry", async () => {
         const { session, modal } = await opened(false, { name: "doors.csv", text: "door,name\nD1,North\nD2,South" });
-        await userEvent.click(within(modal).getByRole("button", { name: "Expand Rows are" }));
+        await userEvent.click(within(modal).getByRole("button", { name: "Expand Read as" }));
         const rows = within(modal).getByRole("radiogroup", { name: "Rows are" });
         await userEvent.click(within(rows).getByText("Edges"));
         await choose(modal, "From", "badge");
@@ -384,10 +384,10 @@ describe("the join workspace (source-steps)", () => {
         });
         assert.isNotNull(screen.queryByRole("dialog", { name: "Join" }), "B leaves the workspace open");
     });
-    it("Direction 2->1 on a written Connect card rewrites its step the other way, still one card", async () => {
+    it("Direction turned round on a written Connect card rewrites its step the other way, still one card", async () => {
         const { session, modal } = await opened();
         await connect(modal, session);
-        await userEvent.click(within(within(modal).getByRole("radiogroup", { name: "Direction" })).getByText("2->1"));
+        await choose(modal, "Direction", "entries.csv -> badge");
         await waitFor(() => {
             assert.strictEqual(session.data.currentDraft()?.steps().at(-1)?.act?.direction, "from-into");
         });
@@ -421,7 +421,7 @@ describe("the join workspace (source-steps)", () => {
         await connect(modal, session);
         await userEvent.click(within(modal).getByRole("button", { name: /^\+ Join/ }));
         await waitFor(() => {
-            assert.strictEqual(cardCount(modal), 2);
+            assert.strictEqual(cardCount(modal), 3, "doors.csv waits on its own");
         });
         await choose(modal, "In graph type", "doors.csv");
         await choose(modal, "Incoming field", "door");

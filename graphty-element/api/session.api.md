@@ -7797,6 +7797,8 @@ export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "match
     answerOverlap(source: SourceKey, answer: "merge" | "separate"): void;
     // @beta
     batch<T>(acts: () => T): T;
+    readonly canRedo: boolean;
+    readonly canUndo: boolean;
     clearPicks(options: SourceClearPicksOptions): number;
     columns(space: SourceSpaceName, options?: {
         readonly before?: number;
@@ -7826,6 +7828,7 @@ export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "match
     pick(ref: SourceElementRef, column: string, source: SourceKey): void;
     pickAll(options: SourcePickAllOptions): number;
     preview(): SourceDraftPreview;
+    redo(): boolean;
     removeEdit(id: string): void;
     removeSource(source: SourceKey): void;
     removeStep(index: number, options?: {
@@ -7849,7 +7852,7 @@ export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "match
 }
 
 // @public
-export type SourceDraftBucket = keyof SourceStepCountsChange;
+export type SourceDraftBucket = keyof SourceStepCountsChange | "hub";
 
 // @public
 export interface SourceDraftCell extends SourceConflict {
@@ -8082,6 +8085,16 @@ export interface SourceDraftRow {
     readonly codes: readonly SourceDraftPreviewIssue["code"][];
     readonly effect: "added" | "changed" | "removed" | "unchanged" | "left-out";
     readonly element: SourceElementRef | null;
+    readonly ends: {
+        readonly source: {
+            readonly space: SourceSpaceName;
+            readonly key: string;
+        };
+        readonly target: {
+            readonly space: SourceSpaceName;
+            readonly key: string;
+        };
+    } | null;
     readonly held: Readonly<Record<string, SourceValue>> | null;
     readonly incoming: Readonly<Record<string, SourceCellValue | undefined>> | null;
     readonly key: SourceCellValue | null;
@@ -8376,7 +8389,11 @@ export interface SourceMatchCounts {
     readonly emptyRows: number;
     readonly fanOut: number;
     readonly matched: number;
+    readonly matchedNodes: number;
     readonly matchedRows: number;
+    readonly moreNodesWithBoth: number | null;
+    readonly moreNodesWithIgnoreCase: number | null;
+    readonly moreNodesWithIgnoreSpaces: number | null;
     readonly moreRowsWithBoth: number | null;
     readonly moreRowsWithIgnoreCase: number | null;
     readonly moreRowsWithIgnoreSpaces: number | null;
@@ -8670,6 +8687,7 @@ export interface SourceStepAct {
         readonly field: string;
         readonly into: {
             readonly space: SourceSpaceName;
+            readonly field?: string;
         };
         readonly keepRow?: boolean;
         readonly unmatched?: "add";
@@ -8766,6 +8784,7 @@ export interface SourceStepRow {
     readonly held: boolean;
     readonly holders: SourceSpaceName | null;
     readonly index: number;
+    readonly joined?: true;
     readonly link: SourceLinkOptions | null;
     readonly missing: readonly SourceRefreshIssue[];
     readonly off: boolean;

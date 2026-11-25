@@ -191,6 +191,7 @@ export const WORKSPACE_WORDS = {
     addAsIs: "Add as is",
     added: "Added",
     readSettings: "Read as",
+    stagedSource: "Staged source",
     eachRow: "Each row becomes",
     newNodes: "New nodes",
     newType: "New type",

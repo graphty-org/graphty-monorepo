@@ -11,7 +11,6 @@ import React, { useId } from "react";
 
 import { sourceName } from "../data-place/words";
 import { GLYPHS } from "../glyphs";
-import { formatNumber } from "../inspector/words";
 import {
     becoming,
     choiceOfInto,

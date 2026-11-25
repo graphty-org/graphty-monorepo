@@ -82,8 +82,8 @@ async function workspace(): Promise<HTMLElement> {
  * @returns the card's read settings.
  */
 async function readAs(modal: HTMLElement): Promise<HTMLElement> {
-    const settings = await within(modal).findByRole("group", { name: "Read as" });
-    await userEvent.click(within(settings).getByRole("button", { name: "Expand Rows are" }));
+    const settings = await within(modal).findByRole("group", { name: "Staged source" });
+    await userEvent.click(within(settings).getByRole("button", { name: "Expand Read as" }));
     return settings;
 }
 
@@ -164,6 +164,60 @@ describe("a second source arrives staged (source-steps)", () => {
             assert.strictEqual(session.data.nodes().length, 4, "B1 merged, V1 added");
         });
         assert.lengthOf(session.data.staged(), 0, "visitors.csv is a source now");
+    });
+
+    it("asks again after a save and reopen: a picked Space comes back as a proposal, and Done waits for an answer", async () => {
+        const { session } = await emptyProject();
+        await session.data.import(
+            { type: "csv", config: { data: PEOPLE }, name: "people.csv" },
+            { key: "badge", type: "person" },
+        );
+        const key = await session.data.stage(
+            { type: "csv", config: { data: VISITORS }, name: "visitors.csv" },
+            { key: "badge", space: "person" },
+        );
+        assert.strictEqual(session.data.sourceTable(key).summary().mapping.space, "person", "the Space is picked");
+        const { text } = await session.project.save();
+        await session.project.open(text, { discard: true });
+        await screen.findByRole("listitem", { name: "visitors.csv" });
+
+        const modal = await workspace();
+        const settings = await readAs(modal);
+        assert.strictEqual(
+            within(settings).getByRole<HTMLInputElement>("combobox", { name: "Space" }).value,
+            "",
+            "the saved Space is only a proposal",
+        );
+        await userEvent.click(within(settings).getByRole("button", { name: "Add as is" }));
+        await within(modal).findByText("Same person?");
+        await userEvent.click(within(modal).getByRole("button", { name: "Done" }));
+        await within(modal).findByRole("alert");
+        assert.lengthOf(session.data.staged(), 1, "nothing is added before the answer");
+
+        // A New nodes card of the same source leaves the question where it can be answered.
+        await userEvent.keyboard("{Shift>}J{/Shift}");
+        await choose(modal, "Incoming source", "visitors.csv");
+        await userEvent.click(within(modal).getByRole("radio", { name: "A node linked to what it names" }));
+        await choose(modal, "In graph type", "New nodes");
+        await choose(modal, "Incoming field", "name");
+        await waitFor(() => {
+            assert.isTrue(
+                session.data
+                    .currentDraft()
+                    ?.steps()
+                    .some((step) => step.extract !== null),
+            );
+        });
+        await userEvent.click(within(modal).getByRole("button", { name: "Expand visitors.csv -> Added" }));
+        await userEvent.click(await within(modal).findByRole("button", { name: "Keep separate" }));
+        await waitFor(() => {
+            assert.isNull(within(modal).queryByText("Same person?"));
+        });
+        await userEvent.click(within(modal).getByRole("button", { name: "Done" }));
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("dialog", { name: "Join" }));
+        });
+        assert.lengthOf(session.data.staged(), 0);
     });
 
     it("Cancel (Esc) closes the workspace and leaves the source staged", async () => {

@@ -1298,7 +1298,18 @@ function readElement(
     if (lg !== null && lg !== undefined) {
         readLabelGraphics(lg, writer, target === "node", putLabel, at);
     }
-    if (!text && labelKeyDrawn(target, writer, isRec(g) || lg !== undefined) && label !== null && label !== undefined) {
+    const markup = writer.vocabulary === "ogdf" ? ogdfLabelMarkup(label) : null;
+    if (!text && markup !== null && labelKeyDrawn(target, writer, isRec(g) || lg !== undefined)) {
+        put("label", canonText(markup.text, at("label")));
+        readColor(markup.color, "labelColor", "labelOpacity", writer, put, at);
+        put("labelFont", markup.font);
+        put("labelSize", markup.size);
+    } else if (
+        !text &&
+        labelKeyDrawn(target, writer, isRec(g) || lg !== undefined) &&
+        label !== null &&
+        label !== undefined
+    ) {
         put(
             "label",
             writer.vocabulary === "graphviz" ? graphvizText(label, at("label")) : canonText(label, at("label")),
@@ -1309,6 +1320,41 @@ function readElement(
             put("labelPosition", "center");
         }
     }
+}
+
+/** A label OGDF's writer kept as rich text markup: `<label font="Arial,10,..." textColor="ff000000">text</label>`. */
+const OGDF_LABEL_MARKUP = /^\s*<label\b([^>]*)>([\s\S]*)<\/label>\s*$/;
+
+/**
+ * Reads a label kept as rich text markup by an editor built on OGDF (the files in OGDF's own examples, such as
+ * doc/examples/layout/ERDiagram.gml): the text between the tags, its color from `textColor` (Qt's ARGB hex) and its
+ * font from `font` (Qt's QFont::toString: family, then point size).
+ * @param raw - the `label` key's value
+ * @returns the text, color, font family and size, or null when the label is plain text
+ */
+function ogdfLabelMarkup(
+    raw: unknown,
+): { text: string; color: string | undefined; font: string | null; size: number | null } | null {
+    const match = typeof raw === "string" ? OGDF_LABEL_MARKUP.exec(raw) : null;
+    if (match === null) {
+        return null;
+    }
+    const attribute = (name: string): string | undefined =>
+        new RegExp(`\\b${name}\\s*=\\s*"([^"]*)"`).exec(match[1])?.[1];
+    const argb = /^[0-9a-f]{8}$/i.exec(attribute("textColor") ?? "")?.[0];
+    const [family, points] = (attribute("font") ?? "").split(",");
+    const size = Number(points);
+    return {
+        text: match[2]
+            .replaceAll("&lt;", "<")
+            .replaceAll("&gt;", ">")
+            .replaceAll("&quot;", '"')
+            .replaceAll("&amp;", "&"),
+        // ARGB to the CSS spelling, #RRGGBBAA
+        color: argb === undefined ? undefined : `#${argb.slice(2)}${argb.slice(0, 2)}`,
+        font: family ? family.trim() : null,
+        size: Number.isFinite(size) && size > 0 ? size : null,
+    };
 }
 
 /**

@@ -904,6 +904,12 @@ export interface NodeBatchHost {
      * @param row - The row.
      */
     resized?(row: number): void;
+    /**
+     * A row drawn with no `Node` is drawn from a new source of the same size and outline (a translucent one in place
+     * of an opaque one): the `Edge`s built at it measure their ends again, and no layout is woken.
+     * @param row - The row.
+     */
+    edgeEndsChanged?(row: number): void;
     /** Rows drawn with no `Node` that a new view no longer batches: each is to be painted again. */
     repaint?(rows: readonly number[]): void;
 }
@@ -1324,10 +1330,20 @@ export class NodeBatches {
         this.paintedBehindEdges ||= (paint.style.shape?.zIndex ?? 0) < 0;
         // what a fit, an edge's trim and a layout's gap read of the row, which no `Node` measures
         this.host.places.measure(row);
-        // a new source is a new outline (a star's, not the sphere's it was painted over), even at the same size (#9872)
-        if (had === undefined || !sameSize(had, row) || had.paintedSourceMesh !== source) {
+        // as `Node.paintFrom` decides it: a new shape or border is a new outline (a star's, not the sphere's it was
+        // painted over), even at the same size (#9872), which a `nodeGap` layout spaces by
+        if (
+            had === undefined ||
+            !sameSize(had, row) ||
+            !isEqual(had.paint.style.shape, paint.style.shape) ||
+            !isEqual(had.paint.style.border, paint.style.border)
+        ) {
             // as `Node` tells the layout when it is resized: nothing else re-reads a row's size
             this.host.resized?.(index);
+        } else if (had.paintedSourceMesh !== source) {
+            // a translucent source in place of an opaque one keeps the outline: only the edges measure their ends
+            // again, and a settled layout is not woken (#10084, as `Node.edgeEndsChanged`, #9875)
+            this.host.edgeEndsChanged?.(index);
         }
 
         this.sync(row);

@@ -28,7 +28,7 @@ import "../../src/graphty-element";
 
 import { afterEach, assert, describe, it } from "vitest";
 
-import yedLive from "../../../graphty/public/samples/programs/yed-live.graphml?raw";
+import yedLive from "../../../graph-io/test/corpus/programs/cheind__autoregressive__wavenet.graphml?raw";
 import type { Graphty } from "../../index.js";
 import { pickWork } from "../../src/render/PickService";
 import { fileStylesOn } from "../helpers/file-styles-on";

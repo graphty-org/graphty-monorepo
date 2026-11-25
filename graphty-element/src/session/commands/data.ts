@@ -1307,7 +1307,13 @@ function adviseLayout(
                           })),
                       }),
                   );
-        void placedAgain.then(() => then(dispatch)).catch(logUnapplied(advice.id));
+        // A layout computed asynchronously (fixed routing its edges through Graphviz) publishes its
+        // answer after `layout.set` settles: the work waits for it, as a pin made sooner would
+        // hold its node where the layout before put it.
+        void placedAgain
+            .then(() => ctx.services.layout?.answered?.())
+            .then(() => then(dispatch))
+            .catch(logUnapplied(advice.id));
     });
 }
 

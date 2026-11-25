@@ -6001,6 +6001,8 @@ export abstract class LayoutEngine {
 // @public
 export class LayoutManager implements Manager {
     constructor(eventManager: EventManager, dataManager: DataManager, styles: Styles);
+    // @internal
+    answered(): Promise<void>;
     get building(): boolean;
     checkMotion(): void;
     // @internal

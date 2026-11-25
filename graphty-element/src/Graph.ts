@@ -1858,6 +1858,7 @@ export class Graph implements GraphContext {
                 const engine = this.layoutManager.layoutEngine;
                 return engine instanceof SimulationLayoutEngine ? engine.accelerator : "cpu";
             },
+            answered: () => this.layoutManager.answered(),
         };
         lane.register("layout", async (_rendered, target) => {
             const choice = target.layout ?? DEFAULT_LAYOUT;

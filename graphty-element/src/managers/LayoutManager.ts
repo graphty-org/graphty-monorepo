@@ -1887,6 +1887,7 @@ export class LayoutManager implements Manager {
                 this.warnLayout(type, warning);
             },
             fail: (error) => {
+                this.#flushAnswered(built, false);
                 if (this.layoutEngine === built) {
                     this.running = false;
                 }
@@ -1910,8 +1911,54 @@ export class LayoutManager implements Manager {
                 if (this.layoutEngine === built && !this.restoring()) {
                     this.running = true;
                 }
+
+                this.#flushAnswered(built, true);
             },
         });
+    }
+
+    /** Who waits on {@link LayoutManager.answered}, by the engine whose answer they wait for. */
+    readonly #answerWaiters = new Map<LayoutEngine, (() => void)[]>();
+
+    /**
+     * Settles once the layout in force has put its answer in the position array: at once unless it
+     * is still computing one asynchronously, else once that answer arrives (published then, without
+     * waiting for a frame) or the run fails. A replaced engine's waiters are left unsettled.
+     * @returns Settles, never rejecting.
+     * @internal
+     */
+    answered(): Promise<void> {
+        const engine = this.layoutEngine;
+        if (!(engine instanceof StaticLayoutEngine) || !simpleLayoutInternals.waiting.has(engine)) {
+            return Promise.resolve();
+        }
+
+        return new Promise((resolve) => {
+            const waiters = this.#answerWaiters.get(engine) ?? [];
+            waiters.push(resolve);
+            this.#answerWaiters.set(engine, waiters);
+        });
+    }
+
+    /**
+     * Settle whoever waits on an engine's answer.
+     * @param engine - The engine whose run ended.
+     * @param arrived - Whether its answer arrived, to be published now for them.
+     */
+    #flushAnswered(engine: LayoutEngine, arrived: boolean): void {
+        const waiters = this.#answerWaiters.get(engine);
+        if (waiters === undefined) {
+            return;
+        }
+
+        this.#answerWaiters.delete(engine);
+        if (arrived && this.layoutEngine === engine && !this.restoring()) {
+            this.publishOrReport();
+        }
+
+        for (const resolve of waiters) {
+            resolve();
+        }
     }
 
     /**

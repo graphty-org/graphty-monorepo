@@ -1265,9 +1265,8 @@ export class Node implements ModelUser {
      * second time by the render. On a 20,000-node graph that was the root 20,000 times and every node twice a frame
      * (issue #9420). Here the root is computed only when it is itself stale, and a node only when it moved, scaled or
      * its root did.
-     * @returns The anchor's world matrix.
      */
-    private syncWorldMatrix(): Matrix {
+    private syncWorldMatrix(): void {
         const anchor = this.#anchor;
         const { parent } = anchor;
         if (parent !== null && !anchor.isSynchronizedWithParent()) {
@@ -1279,7 +1278,7 @@ export class Node implements ModelUser {
             anchor.markAsDirty();
         }
 
-        return anchor.computeWorldMatrix();
+        anchor.computeWorldMatrix();
     }
 
     /**
@@ -2238,9 +2237,7 @@ export class Node implements ModelUser {
      */
     drawnWorldMatrix(force?: boolean): Matrix {
         this.followRow();
-        // Never Babylon's forced compute: it forces graph-root too, which makes every node's matrix stale and
-        // costs the next frame and the next pick N matrices and boxes (issue #10121, as #9420 was for framing).
-        return force === true ? this.syncWorldMatrix() : this.#anchor.computeWorldMatrix();
+        return this.#anchor.computeWorldMatrix(force);
     }
 
     /**

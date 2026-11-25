@@ -3,7 +3,10 @@ import type { JSX } from "react";
 
 import { useLabels } from "../../i18n";
 import { UiGlyph } from "../../icons";
+import { compactMenuMiddlewares } from "../../theme/styles/overlays";
 import type { PopoutHeaderMore, PopoutHeaderProps } from "../../types/popout";
+import { type Direction, useDirection } from "../../utils/rtl";
+import { resolvePlacement } from "./utils/position";
 
 // Accessibility: the tab strip is the APG "Tabs" pattern, built by Mantine's
 // Tabs: a tablist whose tabs carry aria-selected and aria-controls, with arrow
@@ -18,6 +21,57 @@ import type { PopoutHeaderMore, PopoutHeaderProps } from "../../types/popout";
 // button 8px from the top and the end. The CSS is cm-popout-* in
 // src/theme/css/overlays.css.ts.
 
+/** The gap between "..." and its menu, and between the pop-over and a menu beside it, in px. */
+const MENU_GAP = 4;
+
+/**
+ * Where the "..." menu may open: below its button, else above, else beside the pop-over -- the
+ * start side, then the end side, as a group pop-over placed "beside" does (chooseBesideSide) --
+ * so a long menu opens whole rather than scrolling. Only the main axis is tested: the shift
+ * middleware slides a beside menu up or down into the window. Mantine passes a non-boolean flip
+ * straight to floating-ui.
+ * @param direction - the reading direction, which decides which side is the start
+ * @returns the menu's middlewares
+ */
+function moreMenuMiddlewares(direction: Direction): typeof compactMenuMiddlewares {
+    const flip = {
+        crossAxis: false,
+        fallbackPlacements: [
+            "top-start",
+            `${resolvePlacement("start", direction)}-start`,
+            `${resolvePlacement("end", direction)}-start`,
+        ],
+    };
+    return { ...compactMenuMiddlewares, flip: flip as unknown as boolean };
+}
+
+/**
+ * The menu's distance from "...": the usual gap above or below it, and beside the pop-over the gap
+ * from the pop-over's own edge, so the menu never covers the pop-over. Floating-ui's offset may be
+ * derived from the placement it is trying, which Mantine passes straight through.
+ * @param state - floating-ui's middleware state
+ * @param state.placement - the placement being tried
+ * @param state.elements - the button the menu opens from
+ * @param state.elements.reference - the button
+ * @returns the main-axis offset, in px
+ */
+function moreMenuOffset(state: { placement: string; elements: { reference: unknown } }): number {
+    const { reference } = state.elements;
+    const panel = reference instanceof Element ? reference.closest(".cm-popout") : null;
+    if (!(reference instanceof Element) || panel === null) {
+        return MENU_GAP;
+    }
+    const button = reference.getBoundingClientRect();
+    const edge = panel.getBoundingClientRect();
+    if (state.placement.startsWith("left")) {
+        return button.left - edge.left + MENU_GAP;
+    }
+    if (state.placement.startsWith("right")) {
+        return edge.right - button.right + MENU_GAP;
+    }
+    return MENU_GAP;
+}
+
 /**
  * The header's "..." button: a ghost icon button with a tooltip, drawn in the brand color while
  * something it leads to is set and it is not open. With entries it opens a menu of them; without,
@@ -27,6 +81,7 @@ import type { PopoutHeaderMore, PopoutHeaderProps } from "../../types/popout";
  * @returns The button, with its menu when it has one
  */
 function MoreButton({ more }: Readonly<{ more: PopoutHeaderMore }>): JSX.Element {
+    const direction = useDirection();
     const glyph = <UiGlyph name="more" size={12} />;
     const look = {
         variant: "subtle",
@@ -52,7 +107,7 @@ function MoreButton({ more }: Readonly<{ more: PopoutHeaderMore }>): JSX.Element
     // A pick in the menu is not a click on the panel: React carries it out of the menu's portal to
     // the panel, whose click closes what the panel opened -- the group the pick just reopened.
     return (
-        <Menu>
+        <Menu middlewares={moreMenuMiddlewares(direction)} offset={moreMenuOffset as unknown as number}>
             <Tooltip label={more.label}>
                 <Menu.Target>
                     <ActionIcon {...look}>{glyph}</ActionIcon>

@@ -1972,7 +1972,10 @@ function visStyles(snapshot: GraphSnapshot, src: JsonStyleSource, context: Style
     const geometry = visGeometry(snapshot, node.values, shapes);
     const support = visSupport(options.physics, options.layout, visPlacesAll(snapshot));
     const edges = visLayer(options.edges, "edge");
-    const edge = visEdges(snapshot, edges, borderOf, { ...geometry, support }, notes, context);
+    // vis-network hides an edge with a hidden end; a file graphty wrote holds graphty's drawing, which keeps it drawn
+    const graphty = src.block !== null && parseStyleBlock(src.block, styleFingerprint(snapshot)).ok;
+    const nodeHidden = (i: number): boolean => !graphty && node.values.visible?.[i] === false;
+    const edge = visEdges(snapshot, edges, borderOf, { ...geometry, support }, notes, context, nodeHidden);
     const values = { node: node.values, edge: edge.values };
     exactFromBlock(snapshot, src.block, values, visWritten(snapshot, values.edge));
     return {
@@ -2497,6 +2500,7 @@ function visOwnGroup(
  * @param geometry - the nodes' positions and boxes, for the edges' routes
  * @param notes - where problems are noted
  * @param context - the work budget
+ * @param nodeHidden - whether the file hides a node
  * @returns the edge values, rules and style columns
  */
 function visEdges(
@@ -2506,6 +2510,7 @@ function visEdges(
     geometry: VisGeometry,
     notes: StyleNotes,
     context: StyleReadContext,
+    nodeHidden: (node: number) => boolean,
 ): { values: Values; rules: StyleRule[]; columns: Map<string, StyleColumn> } {
     const m = snapshot.edgeCount;
     const edge = valuesOf(m);
@@ -2539,8 +2544,10 @@ function visEdges(
             ...visEdgeLabel(merged, range, geometry.at(s), geometry.at(t)),
         };
         visDashesAtDrawnWidth(vals, merged, drawn.width);
+        const endHidden = visHideAtEnd(vals, nodeHidden, s, t);
         // a dashed edge sets them before it draws its own band (BezierEdgeBase._bezierCurve draws the band first)
-        roundCaps ||= merged.hidden !== true && ![undefined, false, "false"].includes(merged.dashes as never);
+        roundCaps ||=
+            merged.hidden !== true && !endHidden && ![undefined, false, "false"].includes(merged.dashes as never);
         const band = roundCaps && isJsonObject(merged.background) ? visBandStyle(merged.background, true) : null;
         if (band !== null) {
             vals.outlineStyle = band;
@@ -2557,6 +2564,22 @@ function visEdges(
     context.budget.spend("edge", m);
     const { rules, columns } = visEdgeRules(edgeDefaults, notes, inherited, inheriting);
     return { values: edge.values, rules, columns };
+}
+
+/**
+ * vis.js: an edge with a hidden end is never drawn, whatever the edge's own `hidden`.
+ * @param vals - the edge's values, written in place
+ * @param nodeHidden - whether the file hides a node
+ * @param s - its source node
+ * @param t - its target node
+ * @returns whether an end is hidden
+ */
+function visHideAtEnd(vals: Row, nodeHidden: (node: number) => boolean, s: number, t: number): boolean {
+    const hidden = nodeHidden(s) || nodeHidden(t);
+    if (hidden) {
+        vals.visible = false;
+    }
+    return hidden;
 }
 
 /**

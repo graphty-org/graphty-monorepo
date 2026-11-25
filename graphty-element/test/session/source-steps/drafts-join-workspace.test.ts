@@ -94,9 +94,53 @@ describe("source-steps drafts: the join workspace's reads", () => {
         const step = d.steps().length - 1;
         await d.display(true);
         const p = d.preview();
-        assert.deepStrictEqual(p.marks, { merged: 2, new: 1, untouched: 1 }, "B1, B2 merged; B9 new; B3 untouched");
+        assert.deepStrictEqual(
+            p.marks,
+            {
+                merged: 2,
+                new: 1,
+                untouched: 1,
+                nodes: { merged: 2, new: 1, untouched: 1 },
+                edges: { new: 0 },
+            },
+            "B1, B2 merged; B9 new; B3 untouched",
+        );
         assert.sameMembers([...p.ids({ step, bucket: "merged" }).nodes].map(String), ["B1", "B2"]);
         assert.sameMembers([...p.ids({ refs: [{ space: "person", key: "B3" }] }).nodes].map(String), ["B3"]);
+        d.dispose();
+        session.dispose();
+    });
+
+    it("preview.marks counts a Connect's new edges apart from its new nodes", async () => {
+        const { session, d, entries } = await opened();
+        d.connect({ from: { source: entries, field: "badge" }, into: { space: "person" } });
+        const { marks } = d.preview();
+        assert.strictEqual(marks.edges.new, 3, "E1, E2 and E3 meet a person");
+        assert.strictEqual(marks.nodes.new, 4, "each entry is a node");
+        assert.strictEqual(marks.new, marks.nodes.new + marks.edges.new, "new stays the sum");
+        d.dispose();
+        session.dispose();
+    });
+
+    it("spaces() lists the spaces the draft builds, naming the staged source a step adds", async () => {
+        const { session, d, hr, entries } = await opened();
+        assert.isTrue(
+            d.spaces().every((row) => row.staged === null),
+            "nothing added yet",
+        );
+        d.add(entries);
+        const row = d.spaces().find((each) => each.staged === entries);
+        assert.isDefined(row, "the entries' space names them");
+        assert.include(row?.sources ?? [], entries);
+        assert.strictEqual(
+            d.spaces().find((each) => each.space === "person")?.staged,
+            null,
+            "people were in the graph",
+        );
+        assert.isFalse(
+            d.spaces().some((each) => each.staged === hr),
+            "HR is staged but not added",
+        );
         d.dispose();
         session.dispose();
     });

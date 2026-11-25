@@ -60,6 +60,7 @@ import type {
     SourceDraftChange,
     SourceDraftOptions,
     SourceDraftPreview,
+    SourceDraftSpaceRow,
     SourceElementRef,
     SourceExtractOptions,
     SourceJoinAct,
@@ -554,6 +555,19 @@ export class SourceDraftHandle implements SourceDraft {
     steps(): readonly SourceStepRow[] {
         const { value, copies } = this.state;
         return stepRows(value, buildOf(value, copies), copies);
+    }
+
+    /** @inheritdoc */
+    spaces(): readonly SourceDraftSpaceRow[] {
+        this.live("spaces");
+        const { value, copies } = this.state;
+        const before = new Set(this.base.value.steps.map((step) => step.source));
+        const added = new Set(value.steps.map((step) => step.source).filter((source) => !before.has(source)));
+        return Object.freeze(
+            spaceRows(buildOf(value, copies)).map((row) =>
+                Object.freeze({ ...row, staged: row.sources.find((source) => added.has(source)) ?? null }),
+            ),
+        );
     }
 
     /** @inheritdoc */

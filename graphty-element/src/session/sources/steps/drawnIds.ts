@@ -128,15 +128,29 @@ export function untouchedNodes(state: DraftState, marks: DraftMarks): Set<string
 export function markCounts(
     state: DraftState,
     marks: DraftMarks,
-): { readonly merged: number; readonly new: number; readonly untouched: number } {
+): {
+    readonly merged: number;
+    readonly new: number;
+    readonly untouched: number;
+    readonly nodes: { readonly merged: number; readonly new: number; readonly untouched: number };
+    readonly edges: { readonly new: number };
+} {
     let merged = 0;
-    let added = 0;
+    let newNodes = 0;
+    let newEdges = 0;
     for (const mark of marks.nodes.values()) {
         merged += mark === "merged" ? 1 : 0;
-        added += mark === "new" ? 1 : 0;
+        newNodes += mark === "new" ? 1 : 0;
     }
     for (const mark of marks.edges.values()) {
-        added += mark === "new" ? 1 : 0;
+        newEdges += mark === "new" ? 1 : 0;
     }
-    return { merged, new: added, untouched: untouchedNodes(state, marks).size };
+    const untouched = untouchedNodes(state, marks).size;
+    return {
+        merged,
+        new: newNodes + newEdges,
+        untouched,
+        nodes: { merged, new: newNodes, untouched },
+        edges: { new: newEdges },
+    };
 }

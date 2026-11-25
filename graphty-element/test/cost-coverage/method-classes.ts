@@ -1311,6 +1311,7 @@ export const READ_ONLY: readonly string[] = [
     "SourceDraft.undo",
     "SourceDraft.batch",
     "SourceDraft.suggestMatches",
+    "SourceDraft.spaces",
     "SourceDraft.use",
     "SessionDataApi.types",
     "SessionDataApi.valueCounts",

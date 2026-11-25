@@ -4870,6 +4870,23 @@ export interface SourceDraftMarkCounts {
     readonly new: number;
     /** Nodes of a space a step joins into that no row of the step reached. */
     readonly untouched: number;
+    /**
+     * The node counts alone: merged, added, and untouched (`untouched` counts merge steps only;
+     * a Connect step leaves the nodes it does not reach as they are, and is not counted here).
+     */
+    readonly nodes: {
+        /** Nodes the commit merges another node into. */
+        readonly merged: number;
+        /** Nodes the commit adds. */
+        readonly new: number;
+        /** Nodes of a space a merge step joins into that no row of the step reached. */
+        readonly untouched: number;
+    };
+    /** The edge counts alone. */
+    readonly edges: {
+        /** Edges the commit adds. */
+        readonly new: number;
+    };
 }
 
 /**
@@ -5174,6 +5191,15 @@ export interface SourceSpaceRow {
      * Absent for a space a consumer named.
      */
     readonly ownedBy?: SourceKey;
+}
+
+/**
+ * An id space as `SourceDraft.spaces()` lists it.
+ * @experimental source-steps
+ */
+export interface SourceDraftSpaceRow extends SourceSpaceRow {
+    /** The source, staged before the draft opened, that a step of the draft adds into this space; null for none. */
+    readonly staged: SourceKey | null;
 }
 
 /**
@@ -6137,6 +6163,19 @@ export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "match
      * @returns The steps.
      */
     steps(): readonly SourceStepRow[];
+    /**
+     * The id spaces as the draft builds them, as `data.spaces()` lists the committed graph's, each
+     * naming the staged source a step of this draft adds into it, so an application can name a
+     * space the draft made by its source.
+     * @example
+     * ```ts
+     * const draft = session.data.draft();
+     * draft.add(staged);
+     * draft.spaces().find((row) => row.staged === staged)?.space; // the space its rows went into
+     * ```
+     * @returns The spaces.
+     */
+    spaces(): readonly SourceDraftSpaceRow[];
     /**
      * The draft's type registry.
      * @returns The declared types.

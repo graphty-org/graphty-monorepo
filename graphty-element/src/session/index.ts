@@ -236,6 +236,7 @@ export type {
     SourceDraftMarkCounts,
     SourceDraftOptions,
     SourceDraftPreview,
+    SourceDraftSpaceRow,
     SourceDraftPreviewChanges,
     SourceDraftPreviewIssue,
     SourceDraftPreviewSource,

@@ -255,7 +255,11 @@ to show, and `draft.show("before" | "after")` switches between the graph as it i
 commit would leave it. `session.styles.showDraft({ merged, new })` draws the join preview in the
 two colors you pass: a ring on each node the commit would merge, a dashed border on each node it
 would add, and each edge it would add dashed. It suspends the style layers while it is drawn (they
-stay listed, and it is no undo step), is never saved, and its `end()` takes it off. Each change fires `data:draft-changed` with a `reason` (`"opened"`,
+stay listed, and it is no undo step), is never saved, and its `end()` takes it off.
+`preview.marks` counts what it marks, in all and as `nodes: { merged, new, untouched }` and
+`edges: { new }`. `draft.spaces()` lists the id spaces as the draft builds them, each with the
+staged source a step of the draft adds into it (`staged`), so a space the draft made can be named
+by its source. Each change fires `data:draft-changed` with a `reason` (`"opened"`,
 `"changed"`, `"committed"`, `"discarded"`).
 
 While a draft is open every other data write and `session.undo()` / `redo()` are refused with

@@ -7825,6 +7825,7 @@ export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "match
     setMapping(source: SourceKey, patch: SourceMappingPatch): void;
     show(side: "before" | "after"): Promise<void>;
     readonly side: "before" | "after";
+    spaces(): readonly SourceDraftSpaceRow[];
     stage(source: DataSourceInput, options?: StageOptions): Promise<string>;
     steps(): readonly SourceStepRow[];
     // @beta
@@ -7878,8 +7879,16 @@ export interface SourceDraftIds {
 
 // @public
 export interface SourceDraftMarkCounts {
+    readonly edges: {
+        readonly new: number;
+    };
     readonly merged: number;
     readonly new: number;
+    readonly nodes: {
+        readonly merged: number;
+        readonly new: number;
+        readonly untouched: number;
+    };
     readonly untouched: number;
 }
 

@@ -500,6 +500,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
                 "show",
                 "batch",
                 "suggestMatches",
+                "spaces",
             ],
         },
         { root: "SourceTable", members: ["source", "summary", "profile"] },

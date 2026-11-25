@@ -13,11 +13,17 @@ export { FLIGHTS } from "../ch6/map.js";
 export const AIRPORTS = 140;
 /** The airport the network starts from (Frankfurt, the busiest hub of the sample's top three). */
 export const SEED = "FRA";
+/** The airport the flight's route ends at (San Francisco); flightRoute picks where it starts. */
+export const PATH_END = "SFO";
 /**
- * The two ends of the path the camera follows: Chongqing to San Francisco (the network's shortest
- * path between them runs by Sydney and Manila).
+ * The least length of each leg of the flight's route, in the 3D drawing (scene units, where the
+ * flight flies): at the flight's top speed, about 2 s of take (0.6 s on screen) between one
+ * airport sweeping past and the next, so no two pass as one (Chongqing then Sydney, 16 apart,
+ * did: take44). About 4 APART, so never two airports of one tight clump.
  */
-export const PATH_ENDS = ["CKG", "SFO"];
+const ROUTE_LEG = 40;
+/** The length of route the flight's pacing was set for (scene units: Chongqing's, take44). */
+const ROUTE_LENGTH = 150;
 /** The airport the globe turns toward at the end, so Europe's network passes the camera. */
 export const EUROPE = "FRA";
 /** How wide the force layout's drawing is scaled to (scene units) before its communities are drawn apart. */
@@ -109,8 +115,7 @@ export async function plan(h, preload, flat) {
     const byId = new Map(nodes.map((n) => [n.id, n]));
     const steps = growthOrder(edges).map(({ id, edges: e }) => ({ node: byId.get(id), edges: e }));
     const order = steps.map((x) => x.node.id);
-    for (const end of PATH_ENDS)
-        if (!order.includes(end)) throw new Error(`growth plan: ${end} is not among the airports`);
+    if (!order.includes(PATH_END)) throw new Error(`growth plan: ${PATH_END} is not among the airports`);
     // where the globe will put the last airport of the path: the network laid on the globe once
     // (the same airports, so the same globe) and read; `preload` then looks at the globe from the
     // take's views, so its map tiles are in the browser's cache before the take rolls
@@ -152,9 +157,9 @@ export async function plan(h, preload, flat) {
                 await new Promise((r) => globalThis.requestAnimationFrame(r));
             }
         },
-        [[PATH_ENDS[1], EUROPE], GLOBE, UNDER],
+        [[PATH_END, EUROPE], GLOBE, UNDER],
     );
-    const spot = spots[PATH_ENDS[1]];
+    const spot = spots[PATH_END];
     await preload(spot, spots[EUROPE]);
     // where every airport will be drawn: the force layout of the network the take grows (its
     // airports and the routes they bring), in 3D, seeded and settled once here, then the fixed
@@ -209,9 +214,15 @@ export async function plan(h, preload, flat) {
             n.position = turned(at[n.id]);
             flatById.set(n.id, { position: turned(tight[n.id]) });
         }
-    // in 3D, the route's corner at Manila eased (MANILA): its airport drawn toward the middle of the
-    // two either side, so the flight meets it head on and turns after it gently (the flat tree keeps it)
-    pullIn(byId, MANILA, 0.3);
+    // the flight's route (flightRoute), and in 3D its last corner eased: the last airport but one
+    // drawn toward the middle of the two either side, so the flight meets it head on and turns after
+    // it gently (the flat tree keeps it)
+    steps.route = flightRoute(
+        Object.fromEntries(steps.map((s) => [s.node.id, s.node.position])),
+        steps.flatMap((s) => s.edges.map((e) => [e.source, e.target])),
+        PATH_END,
+    );
+    pullIn(byId, steps.route.slice(-3), 0.3);
     // the airports that join the 3D drawing appear scattered through it, in its open spaces, and
     // glide to their lobes as the communities light (scatter)
     steps.scatter = scatter(
@@ -244,10 +255,64 @@ export async function plan(h, preload, flat) {
 }
 
 /**
- * The flight's corner at Manila, [before, middle, after]: in the force drawing the route turns about
- * 90 degrees at its middle airport (MNL), too sharp to fly past it at speed without whipping the look.
+ * Each airport's hops to `end` and how many shortest paths it has to it (breadth first).
+ * @param adj - each airport's neighbors, by id
+ * @param end - the airport
+ * @returns `hops` and `ways`, maps by id
  */
-const MANILA = ["SYD", "MNL", "SFO"];
+function shortestWays(adj, end) {
+    const hops = new Map([[end, 0]]);
+    const ways = new Map([[end, 1]]);
+    const queue = [end];
+    for (const u of queue)
+        for (const v of adj.get(u)) {
+            if (!hops.has(v)) {
+                hops.set(v, hops.get(u) + 1);
+                ways.set(v, 0);
+                queue.push(v);
+            }
+            if (hops.get(v) === hops.get(u) + 1) ways.set(v, ways.get(v) + ways.get(u));
+        }
+    return { hops, ways };
+}
+
+/**
+ * The flight's route: the network's shortest path to `end` from the airport whose path is the only
+ * shortest one (so the take's shortest-path run lights the same airports), at least three
+ * airports, every leg at least `minLeg` long in the drawing; of those, the one nearest `length`
+ * long, so the flight keeps its pacing.
+ * @param at - each airport's place in the 3D drawing, by id
+ * @param links - the routes, [source, target] pairs
+ * @param end - the airport it ends at
+ * @param [minLeg] - the least length of a leg
+ * @param [length] - the length it is picked nearest to
+ * @returns the route's airport ids, in order, `end` last
+ */
+export function flightRoute(at, links, end, minLeg = ROUTE_LEG, length = ROUTE_LENGTH) {
+    const adj = new Map(Object.keys(at).map((id) => [id, []]));
+    for (const [a, b] of links) {
+        adj.get(a).push(b);
+        adj.get(b).push(a);
+    }
+    const { hops, ways } = shortestWays(adj, end);
+    const pathFrom = (id) => {
+        const p = [id];
+        while (p.at(-1) !== end) p.push(adj.get(p.at(-1)).find((v) => hops.get(v) === hops.get(p.at(-1)) - 1));
+        return p;
+    };
+    const legs = (p) => p.slice(1).map((id, i) => len(sub(at[id], at[p[i]])));
+    let best = null;
+    for (const [id, n] of ways) {
+        if (n !== 1 || hops.get(id) < 2) continue;
+        const p = pathFrom(id);
+        const ls = legs(p);
+        if (Math.min(...ls) < minLeg) continue;
+        const off = Math.abs(ls.reduce((s, l) => s + l, 0) - length);
+        if (!best || off < best.off || (off === best.off && id < best.p[0])) best = { p, off };
+    }
+    if (!best) throw new Error(`flightRoute: no route to ${end} with every leg at least ${minLeg}`);
+    return best.p;
+}
 
 /**
  * A corner of the route eased: its middle airport moved toward the middle of the two either side,

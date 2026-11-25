@@ -8,10 +8,10 @@
 // swells, the camera tilting and circling at once, while airports keep coming, faster, scattered
 // through the drawing's open spaces (scatter); Louvain's communities ignite outward from the
 // middle, gathering their airports into lobes of their own, their routes lit with comets, the
-// brightest moment; then the world darkens toward Chongqing and the route from there to San
-// Francisco (by Sydney and Manila) lights up red airport by airport, while the camera leaves its
-// orbit, carrying its motion on, and swoops in behind Chongqing, its look coming round onto the
-// route; and it flies the route like an airplane -- riding beside it and looking along its line
+// brightest moment; then the world darkens toward Sydney and the route from there to San
+// Francisco (by Manila; plan's flightRoute, every leg long) lights up red airport by airport, while
+// the camera leaves its orbit, carrying its motion on, and swoops in behind Sydney, its look coming
+// round onto the route; and it flies the route like an airplane -- riding beside it and looking along its line
 // ahead, faster and faster, each airport coming up along the line and sweeping by large beside it,
 // never through one, turning after each, banking gently -- and bends onto San Francisco right
 // after Manila, easing into a close-up on it, at its place on the globe (the route's line faded
@@ -49,7 +49,7 @@ import {
     grown,
     lift,
     nearLens,
-    PATH_ENDS,
+    PATH_END,
     place,
     plan,
     playPoses,
@@ -137,7 +137,7 @@ const HUSH_SLOW = 2;
  */
 const H = (ms) => S(ms) * HUSH_SLOW;
 /**
- * How long the swoop takes, from the orbit to the run-in behind Chongqing (take ms at the flight's
+ * How long the swoop takes, from the orbit to the run-in behind the route's first airport (take ms at the flight's
  * speed), and how many times slower the take plays it: the cut plays the hush at 9.6x and the
  * flight at 3.1x (cuts/intro-growth.json's ramp from marks hush and flight), so the camera's speed
  * carries on unchanged into the flight.
@@ -145,11 +145,11 @@ const H = (ms) => S(ms) * HUSH_SLOW;
 const APPROACH = S(3000);
 const APPROACH_SLOW = (4.8 * HUSH_SLOW) / 3.1;
 /**
- * How long the flight's build takes, from the run-in to Manila, the last airport but one (take ms;
- * the route there is shorter than three legs suggest: Chongqing lies near Sydney); the arrival on
- * San Francisco takes what its speeds make it (flightPoses' `flyMs`).
+ * How long the flight's build takes, from the run-in to Manila, the last airport but one (take ms:
+ * the route from Sydney flies as long as Chongqing's did at 2400, at nearly its top speed); the
+ * arrival on San Francisco takes what its speeds make it (flightPoses' `flyMs`).
  */
-const FLY = S(2400);
+const FLY = S(2200);
 /**
  * The stretch of the flight the route's line fades over (take ms before the flight's end: from
  * 2 s of output before the close-up to 1.1 s before, before the line could streak past the lens),
@@ -247,12 +247,12 @@ const SCENE = { "node.sizeSpace": "scene" };
 /**
  * Every airport's size on the globe, San Francisco's too, and San Francisco's through the flight's
  * arrival (a scene size, in world units against the globe's radius 25): the same ball in both
- * plates, large in the close-up only because the camera is near (about 300 px of the output's
- * 1,080 at CLOSE), and small dots on the end globe (about 5 px), every airport shrinking together as
- * the camera pulls back. A size on screen would keep them as large on the end globe as in the
+ * plates, large in the close-up only because the camera is near (about 210 px of the output's
+ * 1,080 at CLOSE), and small dots on the end globe (about 3-4 px), every airport shrinking together
+ * as the camera pulls back. A size on screen would keep them as large on the end globe as in the
  * close-up's neighborhood: a pile of beads over a 370 px globe (cut34).
  */
-const GLOBE_SIZE = 0.27;
+const GLOBE_SIZE = 0.19;
 /** San Francisco on the globe: still red, plain (PLAIN), the globe's size (GLOBE_SIZE). */
 const END_GLOBE = { "node.color": ROUTE_RED, ...PLAIN, ...SCENE, "node.size": GLOBE_SIZE };
 /** How near San Francisco (in the 3D drawing) another airport is hidden for the close-up. */
@@ -641,16 +641,18 @@ export default {
         await bloomSky;
         await h.pause(S(900));
         await gathered;
-        // ---- the hush: the world darkens toward Chongqing (the far side first), the comets and the
+        // ---- the hush: the world darkens toward Sydney (the far side first), the comets and the
         // glow going out with it, while the camera leaves its orbit and closes in on the run-in
-        // behind Chongqing (the flight's approach), its look coming round onto the route; before
+        // behind Sydney (the flight's approach), its look coming round onto the route; before
         // the dark has landed, the route to San Francisco starts to light up airport by airport
         // from here to the flight the take runs HUSH_SLOW times slower (the cut as much faster): the
         // orbit's turn slowed with it at once (its framing has long settled, so a short tau moves nothing)
         await follow(h, { ...orbit, fill: 0.86, share: 1, tau: 50, spin: 0.46 / K / HUSH_SLOW });
         h.mark("hush");
-        const path = await analyze(h, "shortest-path", { source: PATH_ENDS[0], target: PATH_ENDS[1] }, h.gray);
+        const path = await analyze(h, "shortest-path", { source: h.steps.route[0], target: PATH_END }, h.gray);
         console.log(`  growth-world: path ${path.nodes.join(" > ")}`);
+        if (path.nodes.join() !== h.steps.route.join())
+            throw new Error(`growth-world: the path is not plan's route (${h.steps.route.join(" > ")})`);
         const all = await onElement(h, (el) => el.getNodes().map((n) => [n.id, n.getPosition()]));
         const where = new Map(all);
         const pts = path.nodes.map((id) => where.get(id));
@@ -666,7 +668,7 @@ export default {
                 const c = el.getNode(id).drawnInstanceColor;
                 return `#${[c.r, c.g, c.b].map((v) => Math.round(v).toString(16).padStart(2, "0")).join("")}`;
             },
-            PATH_ENDS[1],
+            PATH_END,
         );
         const dimSet = {
             "node.color": "#232838",
@@ -756,7 +758,7 @@ export default {
             selector: { match: "ids", nodes: near },
             set: { "node.size": SIZE_3D },
         });
-        // ---- the flight: the camera leaves its orbit and closes in on Chongqing, then flies the
+        // ---- the flight: the camera leaves its orbit and closes in on Sydney, then flies the
         // route to San Francisco, gathering speed, looking along it, and comes into the close-up,
         // creeping in; the route's line fades as the camera closes on San Francisco, so it never
         // stabs into the lens
@@ -839,7 +841,7 @@ export default {
             end: await addLayer(h, {
                 name: "San Francisco size",
                 target: "node",
-                selector: { match: "ids", nodes: [PATH_ENDS[1]] },
+                selector: { match: "ids", nodes: [PATH_END] },
                 set: { ...SCENE, ...END_LOOK, "node.size": SIZE_3D },
             }),
         };
@@ -959,7 +961,7 @@ export default {
                 endLook: END_GLOBE,
                 routeSize: route.size,
                 routeNodes: route.nodes,
-                endId: PATH_ENDS[1],
+                endId: PATH_END,
                 dimNodes: dim.nodes,
                 dimEdges: dim.edges,
                 hidden: HIDDEN,
@@ -987,7 +989,7 @@ export default {
                     };
                     look();
                 }),
-            [PATH_ENDS[1], GLOBE.size],
+            [PATH_END, GLOBE.size],
         );
         console.log(
             `  growth-world: San Francisco lands ${JSON.stringify(landed)}, plan put it ${JSON.stringify(h.steps.spot)}`,

@@ -6,6 +6,7 @@ import {
     carry,
     flatPlaces,
     flightPoses,
+    flightRoute,
     groupsApart,
     nearLens,
     principalAxes,
@@ -142,6 +143,37 @@ test("the flight swoops in carrying the orbit's motion, rides beside the route l
     assert.ok(Math.abs(dist(end.p, pts[3]) - (2.8 - 0.3 * vEnd)) < 0.01);
     assert.ok(vEnd > 0 && vEnd * 0.3 < 0.1 * 2.8);
     assert.equal(end.r, 0);
+});
+
+test("flightRoute: a unique shortest path, every leg long, the one nearest the pacing's length", () => {
+    // a -- b -- end and s -- a -- b -- end: a to b is a short hop; c -- d -- end is long every leg;
+    // e, nearer the length, has two shortest paths (by d and by b), so the take's run might light either
+    const at = {
+        end: { x: 0, y: 0, z: 0 },
+        b: { x: 50, y: 0, z: 0 },
+        a: { x: 60, y: 0, z: 0 },
+        s: { x: 110, y: 0, z: 0 },
+        d: { x: 0, y: 50, z: 0 },
+        c: { x: 0, y: 105, z: 0 },
+        f: { x: 0, y: 165, z: 0 },
+        e: { x: 50, y: 50, z: 0 },
+    };
+    const links = [
+        ["s", "a"],
+        ["a", "b"],
+        ["b", "end"],
+        ["c", "d"],
+        ["d", "end"],
+        ["f", "c"],
+        ["e", "d"],
+        ["e", "b"],
+    ];
+    const route = flightRoute(at, links, "end", 40, 100);
+    assert.deepEqual(route, ["c", "d", "end"]);
+    for (let i = 1; i < route.length; i++) assert.ok(dist(at[route[i - 1]], at[route[i]]) >= 40);
+    // longer pacing picks the longer route; no route with long legs throws
+    assert.deepEqual(flightRoute(at, links, "end", 40, 160), ["f", "c", "d", "end"]);
+    assert.throws(() => flightRoute(at, links, "end", 200, 100));
 });
 
 test("pullIn eases a corner: the middle airport drawn toward the middle of its two neighbors", () => {

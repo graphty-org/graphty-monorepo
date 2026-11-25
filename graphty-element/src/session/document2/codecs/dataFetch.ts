@@ -5,7 +5,7 @@
  * scratch session with the record's `format`, `options` and roles, so its rows are the ones the
  * original load made, the columns it made from the file's styles included. The rows are kept by
  * the record object for the data codec's `holds` and `read`, which run synchronously inside the
- * open. Experimental (`save-files-v2`).
+ * open.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */

@@ -5,8 +5,9 @@
  * when the loop was resting.
  *
  * Runs in the "gpu-loss" project, on the full Chromium build: the headless shell dies with its
- * GPU process. The picture is read from the page as a reader sees it, never by asking the element
- * to draw: a frame asked for would wake the resting loop this file proves wakes by itself.
+ * GPU process. The picture is read in the frame that drew it (a page screenshot of a WebGPU canvas
+ * reads blank here), and only once the loop has drawn again by itself: a frame asked for earlier
+ * would wake the resting loop this file proves wakes by itself.
  */
 
 import "../../src/graphty-element";
@@ -18,6 +19,7 @@ import { commands } from "vitest/browser";
 import { GraphtyError } from "../../src/errors";
 import { Graph, operationQueueOf, renderManagerOf } from "../../src/Graph";
 import type { RenderManager } from "../../src/managers/RenderManager";
+import { captureNextFrame, type DrawnFrame, inkedPixels } from "../helpers/frame-recorder";
 import { countUncaptured, deviceNowOf, mounted, unmount } from "./device-helpers";
 
 declare module "vitest/browser" {
@@ -41,9 +43,10 @@ afterEach(() => {
  * Builds a ring on WebGPU and waits for its picture.
  * @param onDemand - Whether the loop rests once the picture is final.
  * @param antialias - Whether the engine multisamples.
+ * @param path - The render path.
  * @returns The graph.
  */
-async function openRing(onDemand: boolean, antialias = true): Promise<Graph> {
+async function openRing(onDemand: boolean, antialias = true, path: "objects" | "batched" = "objects"): Promise<Graph> {
     const container = document.createElement("div");
     container.style.width = "480px";
     container.style.height = "360px";
@@ -51,6 +54,7 @@ async function openRing(onDemand: boolean, antialias = true): Promise<Graph> {
     const graph = new Graph(container, { antialias });
     mounted.push({ graph, container });
     graph.setRenderer("webgpu");
+    graph.setRenderPath(path);
     await graph.init();
     assert.strictEqual(graph.rendererStatus?.active, "webgpu", graph.rendererStatus?.reason ?? "");
     graph.setLayoutBehavior({ rendering: { onDemand } });
@@ -139,29 +143,51 @@ async function lose(graph: Graph, loseDevice: (device: GPUDevice) => Promise<voi
 }
 
 /**
- * Waits until the page shows a picture again. Fails at once when the loop has come to rest on a
- * different one -- two reads alike, no frame drawn between them, and the loop resting meanwhile --
- * since a resting loop does not change it again by itself (issue #6422). A picture that never comes
- * back while the loop keeps drawing ends in the run's hang guard.
- * @param graph - The graph drawing it.
- * @param want - The base64 PNG to see.
+ * The graph's finished picture, read in the frame that drew it: a page screenshot of a WebGPU canvas on this
+ * project's Chromium is blank whatever the graph draws, so a blank picture once compared equal to a full one.
+ * Reading asks for one frame, so it is only taken before a loss and after the loop has woken by itself.
+ * @param graph - The graph.
+ * @returns The frame.
  */
-async function waitForPicture(graph: Graph, want: string): Promise<void> {
-    let last = { picture: "", ticks: ticksOf(graph) };
-    for (;;) {
-        // Each read is a round trip to the browser's compositor.
-        const now = { picture: await commands.canvasPicture(), ticks: ticksOf(graph) };
-        if (now.picture === want) {
-            return;
-        }
+async function pictureOf(graph: Graph): Promise<DrawnFrame> {
+    await graph.waitForStableFrame();
+    const frame = await captureNextFrame(graph);
+    assert.isAbove(inkedPixels(frame), 100, "the picture shows the graph");
+    return frame;
+}
 
-        const restedOnIt =
-            now.picture === last.picture &&
-            now.ticks.drawn === last.ticks.drawn &&
-            now.ticks.rested > last.ticks.rested;
-        assert.isFalse(restedOnIt, `the loop rested on a different picture: ${JSON.stringify(now.ticks)}`);
-        last = now;
+/**
+ * Waits until the loop draws again by itself after a loss -- nothing here asks for a frame until it has, since a
+ * resting loop that never wakes is the defect (issue #6422) -- then reads its finished picture and compares it with
+ * the one from before. A loop that never draws again ends in the run's hang guard.
+ * @param graph - The graph drawing it.
+ * @param want - The picture to see.
+ * @param drawnBefore - The loop's drawn frames when `want` was read.
+ */
+async function waitForPicture(graph: Graph, want: DrawnFrame, drawnBefore: number): Promise<void> {
+    while (ticksOf(graph).drawn === drawnBefore) {
+        await new Promise((resolve) => {
+            requestAnimationFrame(resolve);
+        });
     }
+
+    const now = await pictureOf(graph);
+    let differ = 0;
+    for (let i = 0; i < want.pixels.length; i += 4) {
+        if (
+            now.pixels[i] !== want.pixels[i] ||
+            now.pixels[i + 1] !== want.pixels[i + 1] ||
+            now.pixels[i + 2] !== want.pixels[i + 2]
+        ) {
+            differ++;
+        }
+    }
+
+    assert.strictEqual(
+        differ,
+        0,
+        `pixels that differ from the picture before the loss (of ${String(want.pixels.length / 4)})`,
+    );
 }
 
 /**
@@ -206,13 +232,14 @@ describe("a lost WebGPU device", () => {
             const how = `${onDemand ? "resting" : "drawing every tick"}${antialias ? "" : ", antialias off"}`;
             it(`draws the same picture after a ${drill}, ${how}`, async () => {
                 const graph = await openRing(onDemand, antialias);
-                const before = await commands.canvasPicture();
+                const before = await pictureOf(graph);
+                const drawnBefore = ticksOf(graph).drawn;
                 const uncaptured = countUncaptured();
                 const told = vi.fn();
                 graph.canvas.addEventListener("webglcontextrestored", told);
 
                 await lose(graph, loseDevice);
-                await waitForPicture(graph, before);
+                await waitForPicture(graph, before, drawnBefore);
 
                 assert.strictEqual(uncaptured(), 0);
                 assert.isTrue(graph.rendererStatus?.drawing);
@@ -224,15 +251,28 @@ describe("a lost WebGPU device", () => {
         }
     }
 
+    it("draws the same picture after a destroy on the batched path, resting", async () => {
+        const graph = await openRing(true, true, "batched");
+        const before = await pictureOf(graph);
+        const drawnBefore = ticksOf(graph).drawn;
+
+        await lose(graph, DRILLS.destroy);
+        await waitForPicture(graph, before, drawnBefore);
+
+        assert.isTrue(graph.rendererStatus?.drawing);
+    });
+
     it("comes back from a second loss on the device it came back on", async () => {
         const graph = await openRing(true);
-        const before = await commands.canvasPicture();
+        const before = await pictureOf(graph);
+        const drawnBefore = ticksOf(graph).drawn;
         const uncaptured = countUncaptured();
 
         await lose(graph, DRILLS.destroy);
-        await waitForPicture(graph, before);
+        await waitForPicture(graph, before, drawnBefore);
+        const drawnAgain = ticksOf(graph).drawn;
         await lose(graph, DRILLS.destroy);
-        await waitForPicture(graph, before);
+        await waitForPicture(graph, before, drawnAgain);
 
         assert.strictEqual(uncaptured(), 0);
     });
@@ -241,11 +281,11 @@ describe("a lost WebGPU device", () => {
         const healthy = await openRing(true);
         await healthy.addNodes([{ id: "late" }]);
         await operationQueueOf(healthy).waitForCompletion();
-        await healthy.waitForStableFrame();
-        const want = await commands.canvasPicture();
+        const want = await pictureOf(healthy);
         unmount();
 
         const graph = await openRing(true);
+        const drawnBefore = ticksOf(graph).drawn;
         const uncaptured = countUncaptured();
         const engine = graph.engine as WebGPUEngine;
         const added = new Promise<void>((resolve, reject) => {
@@ -256,7 +296,7 @@ describe("a lost WebGPU device", () => {
 
         await lose(graph, DRILLS.destroy);
         await added;
-        await waitForPicture(graph, want);
+        await waitForPicture(graph, want, drawnBefore);
 
         assert.strictEqual(uncaptured(), 0);
     });

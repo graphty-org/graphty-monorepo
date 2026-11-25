@@ -2882,6 +2882,15 @@ export class DataManager implements Manager {
     }
 
     /**
+     * Hold the frames until a frame's update has applied the paint queued so far: rows queued to be
+     * painted again onto new sources (a switch between 2D and 3D) are drawn whole, never part way.
+     * @internal
+     */
+    notePaintQueued(): void {
+        this.paintUndrawn = true;
+    }
+
+    /**
      * Whether a frame drawn now would show an element in the defaults: one was built from them
      * and its style is not painted, or painted and not yet applied.
      * @returns True while the frames should wait.

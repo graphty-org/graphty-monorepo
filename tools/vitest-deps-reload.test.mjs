@@ -120,6 +120,19 @@ describe("vitest-deps-reload", () => {
         await waitForBrowserDeps.onBrowserInit({ browser: { vite: { environments: {} } } });
     });
 
+    // A failed scan reloads pages mid-run, so some files failed to import and which ones varied (#9956).
+    it("opens no page after a failed dependency scan, naming the scan error", async () => {
+        const logger = fakeLogger();
+        watchLogger(logger, () => {});
+        const project = { name: "real-element", vitest: { logger }, browser: { vite: { environments: {} } } };
+        await waitForBrowserDeps.onBrowserInit(project);
+        logger.error("(!) Failed to run dependency scan. Error: @graphty/graph-io/sources could not be resolved");
+        await assert.rejects(
+            waitForBrowserDeps.onBrowserInit(project),
+            /real-element: Vite's dependency scan failed, so no test file was run[\s\S]*graph-io\/sources/,
+        );
+    });
+
     it("records the page's requests and upgrades, and prints them only when a page never connects", () => {
         const timeline = new ConnectTimeline("real-element (chromium)", () => 0);
         const server = new EventEmitter();

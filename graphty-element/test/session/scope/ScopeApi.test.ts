@@ -18,7 +18,15 @@ import {
     type ScopeSources,
     type ScopeVisibilitySource,
 } from "../../../src/session/scope/index";
-import { edgeBetween, type EdgeRow, type Harness, makeSession, type NodeRow, rejectionCode } from "../helpers";
+import {
+    edgeBetween,
+    type EdgeRow,
+    type Harness,
+    makeSession,
+    type NodeRow,
+    rejectionCode,
+    rejectionCodeOf,
+} from "../helpers";
 
 /** A session with data in it, plus the resolver reading the same store. */
 function harnessOf(nodes: readonly NodeRow[], edges: readonly EdgeRow[] = []): Harness {
@@ -415,18 +423,12 @@ describe("counting a scope", () => {
         harness.session.dispose();
     });
 
-    it("refuses a sample that is not a positive whole number", () => {
+    it("refuses a sample that is not a positive whole number", async () => {
         const harness = line();
         const scope = createScopeApi({ snapshot: () => harness.store.getSnapshot() });
 
-        assert.strictEqual(
-            rejectionCode(() => scope.count("selection", { sample: 0 })),
-            "E_OPTION_RANGE",
-        );
-        assert.strictEqual(
-            rejectionCode(() => scope.count("selection", { sample: 1.5 })),
-            "E_OPTION_RANGE",
-        );
+        assert.strictEqual(await rejectionCodeOf(scope.count("selection", { sample: 0 })), "E_OPTION_RANGE");
+        assert.strictEqual(await rejectionCodeOf(scope.count("selection", { sample: 1.5 })), "E_OPTION_RANGE");
         harness.session.dispose();
     });
 });

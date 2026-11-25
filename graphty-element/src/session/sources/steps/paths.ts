@@ -26,8 +26,8 @@ export const RECORD_PATHS: readonly string[] = READABLE_PATHS.filter((path) => p
 export const RECORD_NAMES: Readonly<Record<string, string>> = {
     "graphty.type": "Type",
     "graphty.load": "Source",
-    "graphty.space": "Id space",
-    "graphty.key": "Key",
+    "graphty.space": "Ids from",
+    "graphty.key": "Id in source",
     "graphty.time": "Time",
     "graphty.weight": "Weight",
 };

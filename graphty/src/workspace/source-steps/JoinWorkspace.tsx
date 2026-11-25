@@ -549,11 +549,13 @@ function WorkspaceBody({
         if (joins.stopsDone(unfinishedEnds)) {
             return;
         }
-        const changes = changesOf(marks) > 0;
+        // Said before the commit: the draft it ends closes the workspace by itself.
+        onCommitted(changesOf(marks) > 0);
         void commitWorkspace(store, session, draft, joins.refuse("")).then((ok) => {
             if (ok) {
-                onCommitted(changes);
                 onClose();
+            } else {
+                onCommitted(false);
             }
         });
     };

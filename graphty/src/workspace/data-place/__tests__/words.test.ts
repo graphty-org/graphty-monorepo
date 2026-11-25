@@ -1,8 +1,9 @@
 import type { AttributeDescriptor } from "@graphty/graphty-element/catalog";
-import type { LoadedSource } from "@graphty/graphty-element/session";
+import { createGraphSession, type LoadedSource } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 
 import { count } from "../../inspector/words";
+import { valueName } from "../../style/words";
 import {
     attributeRows,
     columnOf,
@@ -237,6 +238,18 @@ describe("what uses a result", () => {
             "Shortest route x2, Connections",
         );
         assert.strictEqual(namesOnce(["Filter"]), "Filter");
+    });
+});
+
+describe("a value that names a source", () => {
+    it("reads as the source's name, never its key", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        await session.data.import({ type: "csv", config: { data: "id,name\na,Ann" }, name: "people.csv" });
+        for (const path of ["graphty.load", "graphty.space"]) {
+            const read = session.data.valueCounts(path).values.map(({ value }) => valueName(session, path, value));
+            assert.deepEqual(read, ["people.csv"], path);
+        }
+        session.dispose();
     });
 });
 

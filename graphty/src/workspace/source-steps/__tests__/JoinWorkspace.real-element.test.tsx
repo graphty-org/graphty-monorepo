@@ -231,6 +231,23 @@ describe("the join workspace (source-steps)", () => {
         assert.strictEqual(session.history.steps.length, history + 1, "one undo step");
     });
 
+    it("Done leaves every node on the canvas, the joined ones among them", async () => {
+        const { session, modal } = await opened();
+        await connect(modal, session);
+        await done(modal);
+        const element = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
+            "graphty-element:not([data-start-page])",
+        );
+        await waitFor(() => {
+            const off = session.data
+                .nodes()
+                .filter(({ id }) => element?.nodeScreenPosition(id)?.visible !== true)
+                .map(({ id }) => id);
+            assert.deepStrictEqual(off, []);
+            assert.lengthOf(session.data.nodes(), 8);
+        });
+    });
+
     it("stays open under StrictMode, its draft drawn and still open", async () => {
         const { session, modal } = await opened(true);
         await waitFor(() => {

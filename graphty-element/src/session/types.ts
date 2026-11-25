@@ -4894,6 +4894,8 @@ export interface SourceDraftMarkCounts {
         readonly new: number;
         /** Nodes of a space a merge step joins into that no row of the step reached. */
         readonly untouched: number;
+        /** Nodes the commit takes out. */
+        readonly removed: number;
     };
     /** The edge counts alone. */
     readonly edges: {
@@ -4901,6 +4903,8 @@ export interface SourceDraftMarkCounts {
         readonly merged: number;
         /** Edges the commit adds. */
         readonly new: number;
+        /** Edges the commit takes out. */
+        readonly removed: number;
     };
 }
 

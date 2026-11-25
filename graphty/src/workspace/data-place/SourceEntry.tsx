@@ -297,58 +297,120 @@ export function SourceEntry({
 
 /**
  * A staged source's entry (the source-steps experiment): never drawn, matched or joined here. Closed,
- * it shows its name and rows; open, how its rows are read (Rows are, Key, an edge's ends). Its "..."
- * holds Remove. Adding and joining it happen in the join workspace (Join +).
+ * it shows its name and rows; open, how its rows are read (Rows are, Key, an edge's ends), and its
+ * details in the inspector. Its "..." (also by right-click) holds Rename (F2) and Remove. Adding and
+ * joining it happen in the join workspace (Join +), and a filter judges what it then builds.
  * @param props - Component props
  * @param props.source - the staged source
+ * @param props.selected - whether it is the picked source
+ * @param props.opened - whether it is open
+ * @param props.onOpenChange - opens or closes it; opening picks it
  * @returns the entry, or nothing before the element has come up
  */
-export function StagedEntry({ source }: Readonly<{ source: LoadedSource }>): React.JSX.Element | null {
+export function StagedEntry({
+    source,
+    selected,
+    opened,
+    onOpenChange,
+}: Readonly<{
+    source: LoadedSource;
+    selected: boolean;
+    opened: boolean;
+    onOpenChange: (open: boolean) => void;
+}>): React.JSX.Element | null {
     const { session, store } = useWorkspace();
+    // on reload: fresh: in flight: a rename under way
+    const [renaming, setRenaming] = useState(false);
     if (session === null) {
         return null;
     }
+    const rename = (next: string | null): void => {
+        setRenaming(false);
+        if (next === null || next.trim() === "" || next === name) {
+            return;
+        }
+        session.data.renameSource(next.trim(), source.key).catch(() => {
+            store.set({ notice: { message: "Not renamed" } });
+        });
+    };
+    const menuItems = (
+        <>
+            <CommandMenuItem
+                icon={ITEM_GLYPHS["source.rename"]}
+                label="Rename"
+                shortcut={ITEM_KEYS["source.rename"]}
+                reason={null}
+                onRun={() => {
+                    setRenaming(true);
+                }}
+            />
+            <CommandMenuItem
+                icon={ITEM_GLYPHS["source.remove"]}
+                label={STAGED_WORDS.remove}
+                shortcut={undefined}
+                reason={null}
+                onRun={() => {
+                    void removeStaged(store, session, source.key);
+                }}
+            />
+        </>
+    );
     const name = sourceName(source);
     const rows = session.data
         .sourceTable(source.key)
         .summary()
         .tables.reduce((sum, table) => sum + table.rows, 0);
     return (
-        <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- a <ul>/<li> would bring list styling the entries do not use
-            className="dp-source-entry"
-            data-staged={source.key}
-            role="listitem"
-            aria-label={name}
-        >
-            <ControlSection
-                label={name}
-                headingLevel={3}
-                summary={`${formatNumber(rows)} ${rows === 1 ? "row" : "rows"}`}
-                defaultOpened={false}
-                actions={
-                    <span className="dp-source-actions">
-                        <MoreMenu name={name}>
-                            <Menu.Item
-                                leftSection={<GLYPHS.delete size={14} aria-hidden />}
-                                onClick={() => {
-                                    void removeStaged(store, session, source.key);
-                                }}
-                            >
-                                {STAGED_WORDS.remove}
-                            </Menu.Item>
-                        </MoreMenu>
-                    </span>
-                }
-            >
-                <StagedRows
-                    session={session}
-                    reader={session.data}
-                    source={source}
-                    write={(patch) => {
-                        void remap(store, session, source.key, patch);
+        <ContextMenu
+            target={
+                <div // eslint-disable-line jsx-a11y/prefer-tag-over-role, jsx-a11y/no-noninteractive-element-interactions -- a <ul>/<li> would bring list styling the entries do not use; F2 on the entry's header renames it, as its menu shows
+                    className="dp-source-entry"
+                    data-staged={source.key}
+                    data-selected={selected ? "" : undefined}
+                    role="listitem"
+                    aria-label={name}
+                    onKeyDown={(event) => {
+                        if (event.key === "F2" && (event.target as HTMLElement).matches("[aria-expanded]")) {
+                            event.preventDefault();
+                            setRenaming(true);
+                        }
                     }}
-                />
-            </ControlSection>
-        </div>
+                >
+                    {renaming ? (
+                        <RenameInput
+                            name={name}
+                            onDone={rename}
+                            label="Source name"
+                            container=".dp-source-entry"
+                            className="dp-rename"
+                        />
+                    ) : (
+                        <ControlSection
+                            label={name}
+                            headingLevel={3}
+                            summary={`${formatNumber(rows)} ${rows === 1 ? "row" : "rows"}`}
+                            opened={opened}
+                            onOpenChange={onOpenChange}
+                            actions={
+                                <span className="dp-source-actions">
+                                    <MoreMenu name={name}>{menuItems}</MoreMenu>
+                                </span>
+                            }
+                        >
+                            <StagedRows
+                                session={session}
+                                reader={session.data}
+                                source={source}
+                                write={(patch) => {
+                                    void remap(store, session, source.key, patch);
+                                }}
+                            />
+                        </ControlSection>
+                    )}
+                </div>
+            }
+        >
+            {menuItems}
+        </ContextMenu>
     );
 }

@@ -91,6 +91,8 @@ export async function commitWorkspace(
     },
 ): Promise<boolean> {
     const before = undoTarget(session);
+    const joins = (): number => session.data.steps().filter((row) => row.op !== "join.add").length;
+    const joined = joins();
     try {
         await draft.commit();
     } catch (error) {
@@ -99,7 +101,9 @@ export async function commitWorkspace(
     }
     const step = undoTarget(session);
     if (step !== undefined && step !== before) {
-        showUndoNotice(session, workspace, WORKSPACE_WORDS.committed, () => undoTarget(session) === step);
+        // Only sources added, and no join: say so.
+        const words = joins() === joined && joined === 0 ? WORKSPACE_WORDS.committedAdd : WORKSPACE_WORDS.committed;
+        showUndoNotice(session, workspace, words, () => undoTarget(session) === step);
     }
     return true;
 }

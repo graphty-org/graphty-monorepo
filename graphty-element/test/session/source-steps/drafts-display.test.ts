@@ -431,7 +431,7 @@ describe("source-steps drafts: drawing a draft", () => {
                 "edge.style": "dash",
             },
             encode: {
-                "node.haloOpacity": { by: "graphty.draft", map: { merged: 1, new: 0 } },
+                "node.haloOpacity": { by: "graphty.draft", map: { merged: 1, new: 0, removed: 0 } },
                 "node.borderWidth": { by: "graphty.draft", map: { merged: 0, new: 0.1 } },
             },
         });

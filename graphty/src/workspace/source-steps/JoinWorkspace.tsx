@@ -1,7 +1,14 @@
 import "../selection/selection.css";
 import "./source-steps.css";
 
-import { CardList, type CardListItem, DataTable, PANEL_GRID, SegmentedControl } from "@graphty/compact-mantine";
+import {
+    CardList,
+    type CardListItem,
+    ControlSection,
+    DataTable,
+    PANEL_GRID,
+    SegmentedControl,
+} from "@graphty/compact-mantine";
 import {
     DEFAULT_BRANCH_PALETTE,
     type GraphSession,
@@ -11,14 +18,16 @@ import {
     type SourceElementRef,
     type SourceMatchValue,
     type SourceStepPatch,
+    type SourceStepRow,
 } from "@graphty/graphty-element/session";
-import { Button, Group, Kbd, Loader, Stack, Text } from "@mantine/core";
+import { Button, Group, Loader, Stack, Text } from "@mantine/core";
 import React, { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { sourceStepsOn } from "../features";
+import { focusIsLost } from "../frame/focus";
 import { formatNumber } from "../inspector/words";
-import { ariaKey, formatKey, isTypingTarget, matchesKey } from "../keys/keys";
+import { ariaKey, isTypingTarget, matchesKey } from "../keys/keys";
 import { cardPalette } from "../selection/cardPalette";
 import { usePreviewCanvas } from "../selection/previewCanvas";
 import { useSessionEvents } from "../sessionEvents";
@@ -42,12 +51,13 @@ import {
     writeCard,
     writtenFor,
 } from "./joinCards";
+import { KeyWords } from "./KeyWords";
 import { JOIN_WORKSPACE_KEY, READER_EDITS_KEY, SIDE_KEY, WORKSPACE_UNDO_KEY } from "./keys";
 import { ReaderEdits } from "./ReaderEdits";
 import { StagedRows } from "./StagedFields";
 import { EFFECT_COLORS, MATCH_VALUE_COLUMNS, nameOf, rowColumns } from "./tableColumns";
 import { addStepWords, JOIN_WORDS, OVERLAP_FILTERS, PREVIEW_WORDS, refusedWords, WORKSPACE_WORDS } from "./words";
-import { AddStepBody, type CellFilter, CellsPane, FieldsPane, RemoveStrip } from "./WorkspaceParts";
+import { AddStepBody, type CellFilter, CellsPane, FieldsPane, RemoveStrip, TableActions } from "./WorkspaceParts";
 
 /** The element's events after which the workspace reads its draft again. */
 const DRAFT_EVENTS = ["data:draft-changed"] as const;
@@ -56,21 +66,51 @@ const DRAFT_EVENTS = ["data:draft-changed"] as const;
 const SELF_CLOSING =
     "[data-portal], [data-popout-portal-container], .mantine-Combobox-dropdown, .mantine-Popover-dropdown";
 
+/** What can take focus over the workspace: lists, menus, popovers, and a dialog of its own. */
+const OVER_THE_WORKSPACE = `${SELF_CLOSING}, [role=dialog]:not(.jw-modal), [role=alertdialog]`;
+
 /** The colors of what the commit does, as the header key names them: merged, new, unmatched. */
 const [MERGED_COLOR = "#000", NEW_COLOR = "#000", UNTOUCHED_COLOR = "#000"] = DEFAULT_BRANCH_PALETTE;
 
 /** The key's colors, upper case, which no card takes. */
 const KEY_COLORS: ReadonlySet<string> = new Set([MERGED_COLOR, NEW_COLOR, UNTOUCHED_COLOR].map((c) => c.toUpperCase()));
 
+/** No elements picked. */
+const NO_REFS: readonly SourceElementRef[] = [];
+
+/**
+ * Whether a step has a join card of its own.
+ * @param step - the step
+ * @returns true when it does
+ */
+function isCard(step: SourceStepRow): boolean {
+    return step.act !== null || step.link !== null || step.extract !== null;
+}
+
 /** How many rows a table page reads. */
 const PAGE = 200;
 
 /** What the table below the preview lists. */
 type TableShows =
-    | { readonly kind: "values"; readonly card: string; readonly only: (typeof OVERLAP_FILTERS)[number]["value"] }
+    | {
+          readonly kind: "values";
+          readonly card: string;
+          readonly only: (typeof OVERLAP_FILTERS)[number]["value"];
+          /** The card's second match, rather than its first. */
+          readonly other?: true;
+      }
     | { readonly kind: "fields"; readonly card: string }
     | { readonly kind: "rows"; readonly step: number; readonly bucket: string }
     | { readonly kind: "cells"; readonly step: number; readonly column: string; readonly only: CellFilter };
+
+/** The rows picked in the table, for a look and for what the card does with them. */
+interface Picked {
+    /** What the table listed when they were picked. */
+    readonly list: string;
+    readonly ids: readonly string[];
+    readonly refs: readonly SourceElementRef[];
+    readonly keys: readonly SourceCellValue[];
+}
 
 /**
  * An Add step's card id: its place, so a card follows its step through undo.
@@ -110,20 +150,33 @@ function shownFor(card: JoinCardView | undefined): TableShows | null {
 }
 
 /**
+ * A card's second match, when its other end names nodes there are.
+ * @param card - the card
+ * @returns the match, or null
+ */
+function otherMatch(card: JoinCardView): ReturnType<typeof toPairOf> {
+    return card.picks.to?.into?.isNew === true ? null : toPairOf(card.picks);
+}
+
+/**
  * A page of a card's value-overlap list, a step card's counted before its own step.
  * @param draft - the open draft
  * @param card - the card, if it is still there
- * @param only - which values
+ * @param shows - which of its matches, and which values
  * @param offset - the first value
  * @returns the page; empty while unpicked or refused
  */
 function valuesPage(
     draft: SourceDraft,
     card: JoinCardView | undefined,
-    only: (typeof OVERLAP_FILTERS)[number]["value"],
+    shows: Extract<TableShows, { kind: "values" }>,
     offset: number,
 ): { total: number; values: readonly SourceMatchValue[] } {
-    const pair = card === undefined ? null : pairOf(card.picks);
+    const { only } = shows;
+    let pair = null;
+    if (card !== undefined) {
+        pair = shows.other === true ? otherMatch(card) : pairOf(card.picks);
+    }
     if (pair === null || card === undefined) {
         return { total: 0, values: [] };
     }
@@ -154,7 +207,7 @@ function fieldSides(
     draft: SourceDraft,
     card: JoinCardView,
 ): { readonly title: string; readonly side: { source?: string; field?: string; space?: string } }[] {
-    const { from, into, shared = [] } = card.picks;
+    const { from, into, to, shared = [] } = card.picks;
     if (from !== null && shared.length > 0) {
         return shared.map((field) =>
             card.picks.inRows === true || into === null || into.space === ""
@@ -165,41 +218,41 @@ function fieldSides(
                   },
         );
     }
-    return [
-        ...(into === null || into.isNew === true
+    const graphSide = (side: CardPicks["into"]): ReturnType<typeof fieldSides> =>
+        side === null || side.isNew === true
             ? []
             : [
                   {
-                      title: intoWords(session, draft, into),
+                      title: intoWords(session, draft, side),
                       side:
-                          into.source !== undefined && into.field !== undefined
-                              ? { source: into.source, field: into.field }
-                              : { space: into.space, ...(into.field === undefined ? {} : { field: into.field }) },
+                          side.source !== undefined && side.field !== undefined
+                              ? { source: side.source, field: side.field }
+                              : { space: side.space, ...(side.field === undefined ? {} : { field: side.field }) },
                   },
-              ]),
-        ...(from?.field === undefined
+              ];
+    const incoming = (field: string | undefined): ReturnType<typeof fieldSides> =>
+        from === null || field === undefined
             ? []
-            : [
-                  {
-                      title: `${nameOf(session, from.source)}.${from.field}`,
-                      side: { source: from.source, field: from.field },
-                  },
-              ]),
+            : [{ title: `${nameOf(session, from.source)}.${field}`, side: { source: from.source, field } }];
+    return [
+        ...graphSide(into),
+        ...incoming(from?.field),
+        ...(to === undefined || to === null ? [] : [...graphSide(to.into), ...incoming(to.field)]),
     ];
 }
 
 /**
- * The table below the preview: a match's value overlap or its two fields' profiles, the rows behind
- * one count of a step (selected rows can be left out of the step, and left-out keys taken back),
- * or the cells of one Values differ column with Pick 1, Pick 2 and Clear.
+ * The table below the preview, for looking only: a match's value overlap or its fields' profiles, the
+ * rows behind one count of a step, or the cells of one Values differ column. The card says what can be
+ * done with the rows picked in it.
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.draft - the open draft
  * @param props.shows - what it lists
  * @param props.cards - the cards
+ * @param props.picked - the rows picked in it
  * @param props.onShows - changes what it lists
- * @param props.onMark - marks the elements of the picked rows
- * @param props.onError - shows a refusal
+ * @param props.onPick - takes the rows picked
  * @returns the table
  */
 function TablePane({
@@ -207,22 +260,20 @@ function TablePane({
     draft,
     shows,
     cards,
+    picked,
     onShows,
-    onMark,
-    onError,
+    onPick,
 }: Readonly<{
     session: GraphSession;
     draft: SourceDraft;
     shows: TableShows | null;
     cards: readonly JoinCardView[];
+    picked: readonly string[];
     onShows: (shows: TableShows) => void;
-    onMark: (refs: readonly SourceElementRef[]) => void;
-    onError: (error: unknown) => void;
+    onPick: (picked: Omit<Picked, "list">) => void;
 }>): React.JSX.Element | null {
     // on reload: fresh: pointer: the page of a list opened for a look
     const [offset, setOffset] = useState(0);
-    // on reload: fresh: pointer: the keys of the rows picked for a look
-    const [keys, setKeys] = useState<readonly SourceCellValue[]>([]);
     const grid = useBoxSize();
     const height = Math.max(PANEL_GRID.ROW_PITCH * 4, grid.height);
     if (shows === null) {
@@ -246,10 +297,13 @@ function TablePane({
                     column={shows.column}
                     only={shows.only}
                     height={height}
+                    selected={picked}
                     onOnly={(only) => {
                         onShows({ ...shows, only });
                     }}
-                    onError={onError}
+                    onSelect={(ids, refs) => {
+                        onPick({ ids, refs, keys: [] });
+                    }}
                 />
             </div>
         );
@@ -283,11 +337,28 @@ function TablePane({
                 </div>
             );
         }
-        const page = valuesPage(draft, card, shows.only, offset);
+        const page = valuesPage(draft, card, shows, offset);
+        const other = card === undefined ? null : otherMatch(card);
         return (
             <div className="jw-table">
                 <Group gap={6} wrap="nowrap">
                     {view}
+                    {other === null || card?.picks.from?.field === undefined ? null : (
+                        <SegmentedControl
+                            size="xs"
+                            aria-label={WORKSPACE_WORDS.match}
+                            value={shows.other === true ? "other" : "first"}
+                            data={[
+                                { value: "first", label: card.picks.from.field },
+                                { value: "other", label: other.from.field },
+                            ]}
+                            onChange={(value) => {
+                                setOffset(0);
+                                const { other: _was, ...rest } = shows;
+                                onShows(value === "other" ? { ...rest, other: true } : rest);
+                            }}
+                        />
+                    )}
                     <SegmentedControl
                         size="xs"
                         aria-label={PREVIEW_WORDS.valuesDiffer}
@@ -301,7 +372,7 @@ function TablePane({
                 </Group>
                 <div ref={grid.ref} className="jw-table-grid">
                     <DataTable<SourceMatchValue>
-                        key={`${shows.card}:${shows.only}`}
+                        key={`${shows.card}:${shows.only}:${String(shows.other)}`}
                         label={JOIN_WORDS.values}
                         rowHeight={PANEL_GRID.ROW_PITCH}
                         headerHeight={PANEL_GRID.ROW_PITCH}
@@ -325,46 +396,8 @@ function TablePane({
         // A count the step no longer keeps lists nothing.
     }
     const ids = rows.rows.map((row) => JSON.stringify([row.source, row.table, row.row, row.key, row.element]));
-    const except = draft.steps()[shows.step]?.except ?? null;
-    const act = (run: () => void): void => {
-        try {
-            run();
-            setKeys([]);
-        } catch (error) {
-            onError(error);
-        }
-    };
     return (
         <div className="jw-table">
-            <Group gap={6} wrap="wrap">
-                <Button
-                    size="compact-xs"
-                    variant="default"
-                    disabled={keys.length === 0}
-                    onClick={() => {
-                        act(() => {
-                            draft.exclude(shows.step, keys);
-                        });
-                    }}
-                >
-                    {WORKSPACE_WORDS.exclude}
-                </Button>
-                {except?.values.map((key) => (
-                    <Button
-                        key={String(key)}
-                        size="compact-xs"
-                        variant="subtle"
-                        aria-label={`${WORKSPACE_WORDS.include} ${String(key)}`}
-                        onClick={() => {
-                            act(() => {
-                                draft.include(shows.step, [key]);
-                            });
-                        }}
-                    >
-                        {`${WORKSPACE_WORDS.include} ${String(key)}`}
-                    </Button>
-                ))}
-            </Group>
             <div ref={grid.ref} className="jw-table-grid">
                 <DataTable<SourceDraftRow>
                     key={`${String(shows.step)}:${shows.bucket}`}
@@ -380,10 +413,14 @@ function TablePane({
                     height={height}
                     rowColor={(row) => EFFECT_COLORS[row.effect]}
                     selectionMode="multiple"
+                    selectedIds={[...picked]}
                     onSelectionChange={(selected) => {
-                        const picked = rows.rows.filter((_row, at) => selected.includes(ids[at] ?? ""));
-                        onMark(picked.flatMap((row) => (row.element === null ? [] : [row.element])));
-                        setKeys([...new Set(picked.flatMap((row) => (row.key === null ? [] : [row.key])))]);
+                        const now = rows.rows.filter((_row, at) => selected.includes(ids[at] ?? ""));
+                        onPick({
+                            ids: [...selected],
+                            refs: now.flatMap((row) => (row.element === null ? [] : [row.element])),
+                            keys: [...new Set(now.flatMap((row) => (row.key === null ? [] : [row.key])))],
+                        });
                     }}
                 />
             </div>
@@ -431,7 +468,7 @@ function JoinWorkspace({
             // the key-overlap question when a staged source is added as it is.
             const adopted = session.data.currentDraft();
             const opening = adopted ?? session.data.draft({ askOverlap: true });
-            // A draft brought back by a reload holds the removal already.
+            // The draft holds the removal from here: a reload opens on the draft, undone or not.
             if (how.remove !== undefined && opening.steps().some((step) => step.source === how.remove)) {
                 opening.removeSource(how.remove);
             }
@@ -451,7 +488,7 @@ function JoinWorkspace({
             setOpen(first.at(0)?.id ?? (adopted === null ? undefined : made.at(-1)?.id) ?? null);
             setOpened({ draft: opening });
             // The draft holds it from here: a reload opens the workspace on the draft as it is.
-            store.set({ joinWorkspace: how.remove === undefined ? {} : { remove: how.remove } });
+            store.set({ joinWorkspace: {} });
         } catch (error) {
             setOpened({ draft: null });
             store.set({ notice: { message: refusedWords(error), error: true }, joinWorkspace: false });
@@ -466,7 +503,7 @@ function JoinWorkspace({
     // on reload: fresh: in flight: the refusal each card last met, drawn on it
     const [errors, setErrors] = useState<Readonly<Partial<Record<string, string>>>>({});
     // on reload: fresh: pointer: the rows picked for a look
-    const [marked, setMarked] = useState<readonly SourceElementRef[]>([]);
+    const [pickedRows, setPickedRows] = useState<Picked | null>(null);
     // on reload: fresh: pointer: the preview's look, picked for a look
     const [colors, setColors] = useState(true);
     // on reload: fresh: in flight: the first drawing of the draft
@@ -501,6 +538,36 @@ function JoinWorkspace({
         store.set({ joinWorkspace: false });
     };
     const live = draft?.open === true;
+    // The workspace is modal: its keys work from the moment it opens, whatever an undo or a deleted card
+    // took focus away with. Checked after every render, and whenever focus moves.
+    const opener = useRef<Element | null>(null);
+    useEffect(() => {
+        if (!live) {
+            return undefined;
+        }
+        const keep = (): void => {
+            const now = document.activeElement;
+            const inside = box.current?.contains(now) === true || now?.closest(OVER_THE_WORKSPACE) !== null;
+            if (box.current !== null && !inside) {
+                box.current.focus();
+            }
+        };
+        opener.current ??= document.activeElement;
+        keep();
+        document.addEventListener("focusin", keep);
+        return () => {
+            document.removeEventListener("focusin", keep);
+        };
+    });
+    useEffect(
+        () => () => {
+            // Closed, focus goes back where the workspace was opened from.
+            if (opener.current instanceof HTMLElement && focusIsLost()) {
+                opener.current.focus();
+            }
+        },
+        [],
+    );
     // A draft gone by another door (a project opened, the graph cleared) closes the workspace.
     useEffect(() => {
         if (draft !== null && !live) {
@@ -516,9 +583,7 @@ function JoinWorkspace({
               .steps()
               .filter(
                   (step, _at, all) =>
-                      step.act === null &&
-                      step.op === "join.add" &&
-                      !all.some((other) => other.act !== null && other.source === step.source),
+                      step.op === "join.add" && !all.some((other) => isCard(other) && other.source === step.source),
               )
         : [];
     // Cards never take the key's colors, so a color names either a card or what the commit does.
@@ -532,6 +597,14 @@ function JoinWorkspace({
         openAdd === undefined
             ? (cards.find((card) => card.id === open) ?? cards.find((card) => card.step === null))
             : undefined;
+
+    // The table lists what the reader asked for, else the open card's values.
+    const listed = shows?.kind === "values" && !cards.some((card) => card.id === shows.card) ? null : shows;
+    const tableShows = listed ?? shownFor(openCard);
+    // Rows picked in another list are not this one's.
+    const list = JSON.stringify(tableShows);
+    const rowsPicked = pickedRows?.list === list ? pickedRows : null;
+    const marked = rowsPicked?.refs ?? NO_REFS;
 
     // The preview: each card's step in its color, the open card or the picked rows at full strength.
     useEffect(() => {
@@ -585,7 +658,7 @@ function JoinWorkspace({
                 id,
                 picks,
                 guess: card.guess,
-                suggested: false,
+                suggested: card.suggested && picks === card.picks,
                 ...(was?.written === undefined ? {} : { written: was.written }),
             };
             // A step card going back to picks takes the written card behind it along.
@@ -644,7 +717,10 @@ function JoinWorkspace({
     };
     const addCard = (): void => {
         const id = `new:${String(++nextId.current)}`;
-        const source = session.data.staged().at(-1) ?? session.data.sources().at(-1);
+        const carded = new Set(cards.map((card) => card.picks.from?.source));
+        const staged = session.data.staged();
+        const source =
+            staged.findLast((each) => !carded.has(each.key)) ?? staged.at(-1) ?? session.data.sources().at(-1);
         setPending((now) => [...now, newCard(draft, id, source?.key)]);
         setOpen(id);
     };
@@ -660,12 +736,23 @@ function JoinWorkspace({
                 return;
             }
         }
-        // Only a step card takes the written card behind it along; unfinished cards stay.
-        setPending((now) => now.filter((each) => each.id !== id && !(card !== undefined && writtenFor(each, card))));
+        // Only a step card takes the written card behind it along (an undo of the deletion brings it back
+        // behind its step); unfinished cards stay.
+        setPending((now) =>
+            now
+                .filter((each) => each.id !== id)
+                .map((each) => (card !== undefined && writtenFor(each, card) ? { ...each, deleted: true } : each)),
+        );
     };
     const undo = (): void => {
         draft.undo();
-        setMarked([]);
+        const back = cardsOf(draft, []);
+        setPending((now) =>
+            now.map(({ deleted, ...each }) =>
+                deleted === true && !back.some((card) => writtenFor(each, card)) ? { ...each, deleted } : each,
+            ),
+        );
+        setPickedRows(null);
     };
     const { side } = draft;
     const toggleSide = (): void => {
@@ -732,7 +819,8 @@ function JoinWorkspace({
         }
     };
 
-    const { marks } = draft.preview();
+    const { marks, sources: draftSources } = draft.preview();
+    const removed = draftSources.filter((each) => each.state === "removed");
     // The key names each effect by the mark the preview draws for it (a ring, a dashed border, a
     // dotted border), in the color it takes outside a card's own color.
     const keyItems = [
@@ -750,11 +838,13 @@ function JoinWorkspace({
                   },
               ]),
         { id: "untouched", color: UNTOUCHED_COLOR, label: WORKSPACE_WORDS.untouched, count: marks.nodes.untouched },
+        ...(
+            [
+                ["nodes-removed", WORKSPACE_WORDS.nodesRemoved, marks.nodes.removed],
+                ["edges-removed", WORKSPACE_WORDS.edgesRemoved, marks.edges.removed],
+            ] as const
+        ).flatMap(([id, label, count]) => (count === 0 ? [] : [{ id, color: "inherit", label, count }])),
     ];
-    // The table lists what the reader asked for, else the open card's values.
-    const listed = shows?.kind === "values" && !cards.some((card) => card.id === shows.card) ? null : shows;
-    const tableShows = listed ?? shownFor(openCard);
-
     const items: CardListItem[] = cards.map((shown, at) => {
         const waitingTo = pendingTo[shown.id];
         const card: JoinCardView =
@@ -776,7 +866,7 @@ function JoinWorkspace({
             title: words === undefined ? title : `${title} -> ${words}`,
             ...(colors ? { color: colorOf(at) } : {}),
             summary: (
-                <Text size="xs" c="dimmed" truncate>
+                <Text size="xs" c="dimmed" className="jw-summary">
                     {cardSummary(session, draft, card)}
                 </Text>
             ),
@@ -788,22 +878,41 @@ function JoinWorkspace({
                     card={card}
                     onChange={change}
                     error={errors[card.id]}
+                    tableActions={
+                        card.step !== null &&
+                        (tableShows?.kind === "rows" || tableShows?.kind === "cells") &&
+                        tableShows.step === card.step.index ? (
+                            <TableActions
+                                draft={draft}
+                                step={card.step}
+                                column={tableShows.kind === "cells" ? tableShows.column : null}
+                                keys={rowsPicked?.keys ?? []}
+                                refs={rowsPicked?.refs ?? []}
+                                onDone={() => {
+                                    setPickedRows(null);
+                                }}
+                                onError={noticeOn(card.id)}
+                            />
+                        ) : null
+                    }
                     readSettings={
                         staged === undefined || card.step !== null ? null : (
                             <fieldset className="ss-field jw-read" aria-label={WORKSPACE_WORDS.readSettings}>
-                                <StagedRows
-                                    session={session}
-                                    reader={draft}
-                                    source={staged}
-                                    full
-                                    write={(next) => {
-                                        try {
-                                            draft.setMapping(staged.key, next);
-                                        } catch (error) {
-                                            noticeOn(card.id)(error);
-                                        }
-                                    }}
-                                />
+                                <ControlSection label={WORKSPACE_WORDS.readSettings} defaultOpened={false}>
+                                    <StagedRows
+                                        session={session}
+                                        reader={draft}
+                                        source={staged}
+                                        full
+                                        write={(next) => {
+                                            try {
+                                                draft.setMapping(staged.key, next);
+                                            } catch (error) {
+                                                noticeOn(card.id)(error);
+                                            }
+                                        }}
+                                    />
+                                </ControlSection>
                                 <Group>
                                     <Button
                                         size="compact-xs"
@@ -934,7 +1043,15 @@ function JoinWorkspace({
                         value={side}
                         data={[
                             { value: "before", label: PREVIEW_WORDS.before },
-                            { value: "after", label: `${PREVIEW_WORDS.after} ${formatKey(SIDE_KEY)}` },
+                            {
+                                value: "after",
+                                label: (
+                                    <Group gap={4} wrap="nowrap" component="span">
+                                        {`${PREVIEW_WORDS.after} `}
+                                        <KeyWords combo={SIDE_KEY} />
+                                    </Group>
+                                ),
+                            },
                         ]}
                         onChange={(value) => {
                             void draft.show(value === "before" ? "before" : "after");
@@ -944,7 +1061,7 @@ function JoinWorkspace({
                         size="compact-xs"
                         variant="subtle"
                         aria-keyshortcuts={ariaKey(WORKSPACE_UNDO_KEY)}
-                        rightSection={<Kbd size="xs">{formatKey(WORKSPACE_UNDO_KEY)}</Kbd>}
+                        rightSection={<KeyWords combo={WORKSPACE_UNDO_KEY} />}
                         onClick={undo}
                     >
                         {WORKSPACE_WORDS.undo}
@@ -954,7 +1071,7 @@ function JoinWorkspace({
                         size="compact-xs"
                         variant="subtle"
                         aria-keyshortcuts="Escape"
-                        rightSection={<Kbd size="xs">Esc</Kbd>}
+                        rightSection={<KeyWords combo="Escape" />}
                         onClick={cancel}
                     >
                         {WORKSPACE_WORDS.cancel}
@@ -965,9 +1082,9 @@ function JoinWorkspace({
                 </header>
                 <div className="sel-ws-body">
                     <div className="sel-ws-cards">
-                        {how.remove === undefined ? null : (
-                            <RemoveStrip session={session} draft={draft} source={how.remove} />
-                        )}
+                        {removed.map(({ source }) => (
+                            <RemoveStrip key={source} session={session} draft={draft} source={source} />
+                        ))}
                         <CardList
                             label={WORKSPACE_WORDS.matches}
                             items={[...addItems, ...items]}
@@ -977,8 +1094,13 @@ function JoinWorkspace({
                                 setFoldedAdds(new Set([...asks].filter((id) => folded.has(id))));
                                 // The card the reader just unfolded, else whichever is left open.
                                 const unfolded = ids.filter((id) => !asks.has(id) && !folded.has(id));
-                                setOpen(unfolded.find((id) => !isOpen(id)) ?? unfolded.at(0) ?? null);
-                                setMarked([]);
+                                const next = unfolded.find((id) => !isOpen(id)) ?? unfolded.at(0) ?? null;
+                                if (next !== open) {
+                                    // Another card's rows are not this one's.
+                                    setShows(null);
+                                }
+                                setOpen(next);
+                                setPickedRows(null);
                             }}
                             onRemove={removeCard}
                             add={
@@ -986,7 +1108,7 @@ function JoinWorkspace({
                                     size="compact-xs"
                                     variant="subtle"
                                     aria-keyshortcuts={ariaKey(JOIN_WORKSPACE_KEY)}
-                                    rightSection={<Kbd size="xs">{formatKey(JOIN_WORKSPACE_KEY)}</Kbd>}
+                                    rightSection={<KeyWords combo={JOIN_WORKSPACE_KEY} />}
                                     onClick={addCard}
                                 >
                                     {`+ ${WORKSPACE_WORDS.addJoin}`}
@@ -1021,9 +1143,11 @@ function JoinWorkspace({
                                 draft={draft}
                                 shows={tableShows}
                                 cards={cards}
+                                picked={rowsPicked?.ids ?? []}
                                 onShows={setShows}
-                                onMark={setMarked}
-                                onError={noticeOn(openCard?.id ?? "")}
+                                onPick={(next) => {
+                                    setPickedRows({ ...next, list });
+                                }}
                             />
                         </Stack>
                     </div>

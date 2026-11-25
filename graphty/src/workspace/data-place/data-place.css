@@ -56,6 +56,40 @@
     opacity: 0;
 }
 
+/* A closed entry: its name on the first line, cut only where the panel ends, and its counts whole
+   under it. */
+.dp-source-entry > .cm-section > .cm-section-header {
+    height: auto !important;
+    min-height: 40px;
+}
+
+.dp-source-entry > .cm-section > .cm-section-header .cm-section-lead {
+    flex-wrap: wrap;
+    height: auto;
+    min-height: 32px;
+}
+
+.dp-source-entry > .cm-section > .cm-section-header .cm-section-title {
+    flex: 1 1 0;
+}
+
+.dp-source-entry > .cm-section > .cm-section-header .cm-section-summary {
+    flex: 0 0 100%;
+    margin-inline-start: 16px;
+    margin-block-start: -8px;
+    line-height: 24px;
+}
+
+/* Every "+" ends on one line: an entry, and the Filters inside it, reach the panel's own edge, and
+   Filters starts where the rows above it do. */
+.dp-source-sections {
+    margin-inline-end: -8px;
+}
+
+.dp-source-entry .cm-section-content > .cm-section {
+    margin-inline: -16px -8px;
+}
+
 .dp-source-entry:is(:hover, [data-busy], :has(:focus-visible), :has([data-expanded])) .dp-source-actions > * {
     max-width: none;
     overflow: visible;

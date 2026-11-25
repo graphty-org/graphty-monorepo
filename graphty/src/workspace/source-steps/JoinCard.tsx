@@ -23,8 +23,12 @@ import {
     draftColumns,
     intoFields,
     type JoinCardView,
+    keyColumn,
+    type MatchSwitches,
+    newCard,
     newKind,
     sharedColumns,
+    switchesOf,
     toPairOf,
 } from "./joinCards";
 import { Pick } from "./Pick";
@@ -232,43 +236,25 @@ function ColumnsRow({
 }
 
 /**
- * A match's live count, and the "Ignore" switches while one would match more or is on.
+ * A match's live count.
  * @param props - Component props
  * @param props.counts - the element's counts, or null while unpicked
- * @param props.picks - the card's picks
- * @param props.set - changes the picks
  * @param props.suggested - whether the match is still the element's guess
  * @param props.label - the count's name
- * @param props.switches - whether it draws the switches (they set the whole card's matching)
  * @returns the row
  */
 function MatchCount({
     counts,
-    picks,
-    set,
     suggested = false,
     label,
-    switches = true,
 }: Readonly<{
     counts: SourceMatchCounts | null;
-    picks: CardPicks;
-    set: (patch: Partial<CardPicks>) => void;
     suggested?: boolean;
     label: string;
-    switches?: boolean;
 }>): React.JSX.Element | null {
     if (counts === null) {
         return null;
     }
-    const toggles = [
-        { id: "ignoreCase", label: JOIN_WORDS.ignoreCase, on: picks.ignoreCase, more: counts.moreWithIgnoreCase },
-        {
-            id: "ignoreSpaces",
-            label: JOIN_WORDS.ignoreSpaces,
-            on: picks.ignoreSpaces,
-            more: counts.moreWithIgnoreSpaces,
-        },
-    ] as const;
     return (
         <Group gap={12} wrap="wrap" className="jw-match-count">
             <Text size="xs" aria-label={label}>
@@ -279,24 +265,54 @@ function MatchCount({
                     {WORKSPACE_WORDS.suggested}
                 </Text>
             ) : null}
-            {(switches ? toggles : [])
-                // A switch that would change nothing is not offered.
-                .filter((toggle) => toggle.on || (toggle.more ?? 0) > 0)
-                .map((toggle) => {
-                    const more = moreWords(toggle.more);
-                    return (
-                        <Switch
-                            key={toggle.id}
-                            size="xs"
-                            aria-label={toggle.label}
-                            label={more === null ? toggle.label : `${toggle.label} ${more}`}
-                            checked={toggle.on}
-                            onChange={(event) => {
-                                set({ [toggle.id]: event.currentTarget.checked });
-                            }}
-                        />
-                    );
-                })}
+        </Group>
+    );
+}
+
+/**
+ * The "Ignore" switches of a card, which set how all its matches compare: each drawn while it is on
+ * or would match more rows, alone or with the other.
+ * @param props - Component props
+ * @param props.more - what they would add
+ * @param props.picks - the card's picks
+ * @param props.set - changes the picks
+ * @returns the row, or nothing when neither would change anything
+ */
+function IgnoreSwitches({
+    more,
+    picks,
+    set,
+}: Readonly<{
+    more: MatchSwitches;
+    picks: CardPicks;
+    set: (patch: Partial<CardPicks>) => void;
+}>): React.JSX.Element | null {
+    const shown = (
+        [
+            { id: "ignoreCase", label: JOIN_WORDS.ignoreCase, on: picks.ignoreCase, more: more.moreWithCase },
+            { id: "ignoreSpaces", label: JOIN_WORDS.ignoreSpaces, on: picks.ignoreSpaces, more: more.moreWithSpaces },
+        ] as const
+    ).filter((toggle) => toggle.on || (toggle.more ?? 0) > 0 || more.together);
+    if (shown.length === 0) {
+        return null;
+    }
+    return (
+        <Group gap={12} wrap="wrap" className="jw-match-count">
+            {shown.map((toggle) => {
+                const words = toggle.more === 0 ? null : moreWords(toggle.more);
+                return (
+                    <Switch
+                        key={toggle.id}
+                        size="xs"
+                        aria-label={toggle.label}
+                        label={words === null ? toggle.label : `${toggle.label} ${words}`}
+                        checked={toggle.on}
+                        onChange={(event) => {
+                            set({ [toggle.id]: event.currentTarget.checked });
+                        }}
+                    />
+                );
+            })}
         </Group>
     );
 }
@@ -347,7 +363,7 @@ function IntoCells({
                         into === null
                             ? []
                             : [
-                                  { value: KEY_VALUE, label: JOIN_WORDS.key },
+                                  { value: KEY_VALUE, label: keyColumn(draft, into) ?? JOIN_WORDS.key },
                                   ...fields.map((each) => ({ value: JSON.stringify(each.into), label: each.label })),
                               ]
                     }
@@ -443,10 +459,7 @@ function OtherEndCells({
             {pair === null || end.into?.isNew === true ? null : (
                 <MatchCount
                     counts={countsOf(draft, picks, card.step?.index, pair)}
-                    picks={picks}
-                    set={set}
                     label={`${WORKSPACE_WORDS.otherEnd} ${WORKSPACE_WORDS.matchCount.toLowerCase()}`}
-                    switches={false}
                 />
             )}
         </>
@@ -486,6 +499,9 @@ function MatchRows({
     // An edge always names two ends; a node may name a second thing; new nodes at 1 stand alone.
     const two = becomes === "edge" || (isNode && (picks.to ?? null) !== null);
     const cells = { session, draft, card, set };
+    const counts = countsOf(draft, picks, card.step?.index);
+    const otherPair = two && picks.to?.into?.isNew !== true ? toPairOf(picks) : null;
+    const otherCounts = otherPair === null ? null : countsOf(draft, picks, card.step?.index, otherPair);
     return (
         <div className="jw-match" onFocusCapture={onFocusValues}>
             <Text size="xs" fw={600} aria-hidden>
@@ -501,7 +517,7 @@ function MatchRows({
                 data={sources.map((source) => ({ value: source.key, label: sourceName(source) }))}
                 value={from?.source ?? null}
                 onPick={(source) => {
-                    set({ from: { source }, to: null });
+                    onChange(...withSource(draft, card, source));
                 }}
             />
             <Pick
@@ -515,14 +531,9 @@ function MatchRows({
                 }}
             />
             <span />
-            <MatchCount
-                counts={countsOf(draft, picks, card.step?.index)}
-                picks={picks}
-                set={set}
-                suggested={card.suggested}
-                label={WORKSPACE_WORDS.matchCount}
-            />
+            <MatchCount counts={counts} suggested={card.suggested} label={WORKSPACE_WORDS.matchCount} />
             {two ? <OtherEndCells {...cells} fields={fromColumns} removable={isNode} /> : null}
+            <IgnoreSwitches more={switchesOf([counts, otherCounts])} picks={picks} set={set} />
             {isNode && !two && picks.into?.isNew !== true ? (
                 <Button
                     size="compact-xs"
@@ -538,6 +549,26 @@ function MatchRows({
             ) : null}
         </div>
     );
+}
+
+/**
+ * A card with its incoming source changed: what it becomes stays, and the element's guess for the new
+ * source is drawn, never applied.
+ * @param draft - the open draft
+ * @param card - the card
+ * @param source - the source picked
+ * @returns what `onChange` takes
+ */
+function withSource(draft: SourceDraft, card: JoinCardView, source: string): Parameters<CardChange> {
+    const next = newCard(draft, card.id, source);
+    const { becomes, ignoreCase, ignoreSpaces } = card.picks;
+    const other = becomes === "edge" ? { to: next.picks.to ?? { into: null } } : { to: null };
+    // A guess is drawn on a card still asking; a written one waits for the reader's own field.
+    const picks =
+        card.step === null
+            ? { ...next.picks, into: next.picks.into ?? card.picks.into, becomes, ...(becomes === null ? {} : other) }
+            : { ...card.picks, becomes, ignoreCase, ignoreSpaces, from: { source }, ...other };
+    return [{ ...card, picks, guess: next.guess, suggested: card.step === null && next.suggested }, picks, card.result];
 }
 
 /** Where a Links card's values are, when the nodes carry them. */
@@ -563,7 +594,7 @@ function LinkRows({ session, draft, card, onChange }: CardProps): React.JSX.Elem
     const sources = [...session.data.staged(), ...session.data.sources()];
     // The links are the rows' source's own, else those of a source of the nodes.
     const ownerOf = (side: CardInto): CardPicks["from"] => {
-        const key = side.source ?? draft.spaces().find((space) => space.space === side.space)?.sources[0];
+        const key = side.source ?? draft.spaces().find((space) => space.space === side.space)?.rowsOf[0];
         return key === undefined ? from : { source: key };
     };
     return (
@@ -634,9 +665,18 @@ const MANY_ROWS = [
     { value: "count", label: WORKSPACE_WORDS.count },
 ] as const;
 
-/** What a row matching nothing does, for an edge's or a node's ends. */
+/** What a row matching nothing does, for an edge's ends. */
 const NO_MATCH = [
     { value: "add", label: WORKSPACE_WORDS.add },
+    { value: "skip", label: WORKSPACE_WORDS.skip },
+] as const;
+
+/** What a row matching nothing does when each row is a node: it can also stay one, linked to nothing. */
+const NO_MATCH_NODE = [...NO_MATCH, { value: "keep", label: WORKSPACE_WORDS.keep }] as const;
+
+/** What a row whose value names several nodes does. */
+const SEVERAL_MATCH = [
+    { value: "each", label: WORKSPACE_WORDS.each },
     { value: "skip", label: WORKSPACE_WORDS.skip },
 ] as const;
 
@@ -673,6 +713,18 @@ function Options({
     const set = (patch: Partial<CardResult>): void => {
         onChange(card, picks, { ...result, ...patch });
     };
+    // Asked only where a value names several nodes.
+    const several =
+        result.fanOut === "each" && (countsOf(draft, picks, step?.index)?.fanOut ?? 0) === 0 ? null : (
+            <Choice
+                label={WORKSPACE_WORDS.severalMatch}
+                value={result.fanOut}
+                data={SEVERAL_MATCH}
+                onChange={(fanOut) => {
+                    set({ fanOut });
+                }}
+            />
+        );
     if (picks.becomes === "fields") {
         return (
             <>
@@ -684,29 +736,39 @@ function Options({
                         set({ many });
                     }}
                 />
-                {step?.valuesDiffer.map(({ params }) => (
-                    <DifferRow
-                        key={params.column}
-                        step={step}
-                        column={params.column}
-                        rule={params.rule}
-                        rules={params.rules}
-                        onRule={(rule) => {
-                            const picked = params.rules.find((each) => each === rule);
-                            if (picked !== undefined) {
-                                onPatch(step.index, { clash: { [params.column]: picked } });
-                            }
-                        }}
-                        onReduce={(reduce) => {
-                            const { [params.column]: _was, ...rest } = step.act?.aggregate ?? {};
-                            const aggregate = reduce === null ? rest : { ...rest, [params.column]: reduce };
-                            onPatch(step.index, { aggregate: Object.keys(aggregate).length === 0 ? null : aggregate });
-                        }}
-                        onShow={() => {
-                            onShowCells(step.index, params.column);
-                        }}
-                    />
-                ))}
+                {several}
+                {[...(step?.valuesDiffer ?? [])]
+                    .sort((a, b) => a.params.column.localeCompare(b.params.column))
+                    .map(({ params }) =>
+                        step === null ? null : (
+                            <DifferRow
+                                key={params.column}
+                                step={step}
+                                many={
+                                    MANY_ROWS.find((each) => each.value === result.many)?.label ?? WORKSPACE_WORDS.first
+                                }
+                                column={params.column}
+                                rule={params.rule}
+                                rules={params.rules}
+                                onRule={(rule) => {
+                                    const picked = params.rules.find((each) => each === rule);
+                                    if (picked !== undefined) {
+                                        onPatch(step.index, { clash: { [params.column]: picked } });
+                                    }
+                                }}
+                                onReduce={(reduce) => {
+                                    const { [params.column]: _was, ...rest } = step.act?.aggregate ?? {};
+                                    const aggregate = reduce === null ? rest : { ...rest, [params.column]: reduce };
+                                    onPatch(step.index, {
+                                        aggregate: Object.keys(aggregate).length === 0 ? null : aggregate,
+                                    });
+                                }}
+                                onShow={() => {
+                                    onShowCells(step.index, params.column);
+                                }}
+                            />
+                        ),
+                    )}
                 <Choice
                     label={WORKSPACE_WORDS.noMatch}
                     value={result.unmatchedFrom}
@@ -871,14 +933,26 @@ function Options({
                     />
                 </>
             ) : null}
-            <Choice
-                label={WORKSPACE_WORDS.noMatch}
-                value={result.unmatched}
-                data={NO_MATCH}
-                onChange={(unmatched) => {
-                    set({ unmatched });
-                }}
-            />
+            {several}
+            {picks.becomes === "edge" ? (
+                <Choice
+                    label={WORKSPACE_WORDS.noMatch}
+                    value={result.unmatched === "add" ? "add" : "skip"}
+                    data={NO_MATCH}
+                    onChange={(unmatched) => {
+                        set({ unmatched });
+                    }}
+                />
+            ) : (
+                <Choice
+                    label={WORKSPACE_WORDS.noMatch}
+                    value={result.unmatched}
+                    data={NO_MATCH_NODE}
+                    onChange={(unmatched) => {
+                        set({ unmatched });
+                    }}
+                />
+            )}
             <Choice
                 label={JOIN_WORDS.direction}
                 value={result.direction}
@@ -943,6 +1017,7 @@ function StepCounts({
  * @param props.card - the card
  * @param props.onChange - writes the card
  * @param props.error - what the card's last write was refused with, if it was
+ * @param props.tableActions - what can be done with the rows picked in the table, while it lists the card's
  * @param props.readSettings - how a staged source's rows are read, drawn while the choice uses it
  * @param props.onPatch - changes a choice its step keeps
  * @param props.onFocusValues - puts the match's value list in the table
@@ -956,6 +1031,7 @@ export function JoinCardBody({
     card,
     onChange,
     error,
+    tableActions,
     readSettings,
     onPatch,
     onFocusValues,
@@ -964,6 +1040,7 @@ export function JoinCardBody({
 }: CardProps &
     Readonly<{
         error: string | undefined;
+        tableActions: React.ReactNode;
         readSettings: React.ReactNode;
         onPatch: (step: number, patch: SourceStepPatch) => void;
         onFocusValues: () => void;
@@ -973,8 +1050,21 @@ export function JoinCardBody({
     const name = useId();
     const { picks, step, result } = card;
     const becomes = shownBecomes(card);
+    const sources = [...session.data.staged(), ...session.data.sources()];
     return (
         <Stack gap={8} className="jw-card">
+            {becomes === null ? (
+                <Row label={WORKSPACE_WORDS.incomingSource}>
+                    <Pick
+                        name={`${WORKSPACE_WORDS.incoming} ${JOIN_WORDS.source.toLowerCase()}`}
+                        data={sources.map((source) => ({ value: source.key, label: sourceName(source) }))}
+                        value={picks.from?.source ?? null}
+                        onPick={(source) => {
+                            onChange(...withSource(draft, card, source));
+                        }}
+                    />
+                </Row>
+            ) : null}
             <Radio.Group
                 name={name}
                 size="xs"
@@ -1036,6 +1126,7 @@ export function JoinCardBody({
                     }}
                 />
             )}
+            {tableActions}
         </Stack>
     );
 }

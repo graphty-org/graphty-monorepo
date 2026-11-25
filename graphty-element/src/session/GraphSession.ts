@@ -4841,7 +4841,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // A drawn source draft: every element reads `graphty.draft` afresh.
     // ponytail: repaints every element per draft act while one is drawn; repaint only the marks
     // that moved if a large graph's drafting feels it.
-    const repaintDraft = (): void => {
+    const draftMoved = (): void => {
         // Every element's `graphty.draft` moved, as a write to that field would move it: what a rule,
         // a set or a count read of it is stale now.
         const { field } = dependencyOf(DRAFT_PATH) as { readonly field: string };
@@ -4850,6 +4850,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         notifier.notify({ kind: "attributes", element: "node", fields: [field] });
         notifier.notify({ kind: "attributes", element: "edge", fields: [field] });
         stateRevision++;
+    };
+    const repaintDraft = (): void => {
+        draftMoved();
         if (stack === null) {
             return;
         }
@@ -4994,14 +4997,25 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         if (after !== null && after.marks !== wanted) {
             stopAfter();
         }
-        if (wanted !== null && after === null) {
+        const drawn = wanted !== null && after === null;
+        if (drawn) {
             drawAfter(wanted);
         }
         if (!draftShown && shown === null) {
             return;
         }
         draftShown = shown !== null;
-        repaintDraft();
+        draftMoved();
+        if (drawn && after !== null) {
+            // Painted once it lands: a pass over the graph it is still writing meets rows that go.
+            return;
+        }
+        // An After just taken off is still rolling back: painted once its rows are gone.
+        void draftDrawn().then(() => {
+            if (!teardown.signal.aborted) {
+                repaintDraft();
+            }
+        });
     };
     // A pin or a release moves nodes in or out of a `{ match: "state", state: "pinned" }` layer.
     dispatcher.lane.register("pins", (_rendered, _target, dirty) => {

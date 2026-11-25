@@ -142,6 +142,9 @@ export const WORKSPACE_WORDS = {
     manyRows: "Many rows",
     clash: "Both have",
     noMatch: "No match",
+    severalMatch: "Several match",
+    each: "Each",
+    keep: "Keep",
     add: "Add",
     skip: "Skip",
     first: "First",
@@ -157,6 +160,9 @@ export const WORKSPACE_WORDS = {
     nodesMerged: "nodes merged",
     nodesNew: "nodes new",
     edgesNew: "edges new",
+    nodesRemoved: "nodes removed",
+    edgesRemoved: "edges removed",
+    incomingSource: "Incoming source",
     otherEnd: "Other end",
     cardColors: "Card colors",
     styled: "Styled",
@@ -169,6 +175,7 @@ export const WORKSPACE_WORDS = {
     rows: "Rows",
     drawing: "Drawing",
     committed: "Joined",
+    committedAdd: "Added",
     matchCount: "Match count",
     pick1: "Pick 1",
     pick2: "Pick 2",
@@ -219,12 +226,13 @@ export const CARD_ACT_WORDS: Readonly<Record<CardAct, string>> = {
 };
 
 /**
- * A match's live count.
- * @param counts - the element's counts of the incoming field's values.
- * @returns such as "283 of 308 match".
+ * A match's live count, of the incoming source's rows.
+ * @param counts - the element's counts.
+ * @returns such as "283 of 308 match", or "205 of 308 match, 69 empty".
  */
-export function matchWords(counts: Pick<SourceMatchCounts, "matched" | "only2">): string {
-    return `${formatNumber(counts.matched)} of ${formatNumber(counts.matched + counts.only2)} match`;
+export function matchWords(counts: Pick<SourceMatchCounts, "matchedRows" | "rows" | "emptyRows">): string {
+    const empty = counts.emptyRows === 0 ? "" : `, ${formatNumber(counts.emptyRows)} empty`;
+    return `${formatNumber(counts.matchedRows)} of ${formatNumber(counts.rows)} match${empty}`;
 }
 
 /** The value-overlap list's filters, as `data.matchValues` takes them. */
@@ -256,7 +264,7 @@ export function cellWords(value: SourceCellValue): string {
 }
 
 /**
- * The "+n" beside an Ignore switch: how many more keys it would match.
+ * The "+n" beside an Ignore switch: how many more rows it would match.
  * @param more - the element's count, null while the switch is on.
  * @returns such as "+1", or null while on.
  */
@@ -310,20 +318,22 @@ export const BUCKET_WORDS: Readonly<
         { id: "merged", label: "merged" },
         { id: "keptNew", label: "new" },
         { id: "untouched", label: "untouched" },
-        { id: "repeated2", label: "keys repeat" },
-        { id: "fanOut", label: "fan-out" },
+        { id: "emptyKey", label: "empty" },
+        { id: "repeated2", label: "repeated keys" },
+        { id: "fanOut", label: "match several" },
         { id: "typeDiffers", label: "type differs" },
         { id: "namedOnly", label: "named only in 2" },
     ],
     edge: [
         { id: "matched", label: "matched" },
         { id: "unmatched", label: "unmatched" },
+        { id: "emptyKey", label: "empty" },
         { id: "newNodes", label: "new nodes" },
         { id: "newEdges", label: "new edges" },
         { id: "mergedEdges", label: "edges merged" },
         { id: "pairsBelowMin", label: "below the minimum" },
-        { id: "repeated2", label: "keys repeat" },
-        { id: "fanOut", label: "fan-out" },
+        { id: "repeated2", label: "repeated keys" },
+        { id: "fanOut", label: "match several" },
         { id: "parallelPairs", label: "parallel" },
         { id: "selfLoops", label: "self-loops" },
     ],
@@ -337,6 +347,7 @@ export type SourceStepNumberBucket = Extract<
     | "untouched"
     | "repeated2"
     | "fanOut"
+    | "emptyKey"
     | "typeDiffers"
     | "namedOnly"
     | "matched"
@@ -396,7 +407,7 @@ export const DRILL_WORDS = {
     shown: "Shown",
     by: "By",
     /** A cell a reader decision (a pick or an edit) shows. */
-    reader: "R",
+    reader: "Pick",
     excluded: "Excluded",
     remove: "Remove",
 } as const;
@@ -491,13 +502,13 @@ export function stepCountWords(row: SourceStepRow): string {
 /**
  * What an Add step brings, as its card says it.
  * @param step - the step
- * @returns such as "60 nodes new, 0 edges new", or "" while it is not built
+ * @returns such as "60 nodes, 0 edges", or "" while it is not built
  */
 export function addStepWords(step: SourceStepRow): string {
     const b = step.buckets;
     return b === null
         ? ""
-        : `${formatNumber(b.newNodes)} ${STEP_WORDS.nodes.toLowerCase()} ${WORKSPACE_WORDS.new}, ${formatNumber(b.newEdges)} ${STEP_WORDS.edges.toLowerCase()} ${WORKSPACE_WORDS.new}`;
+        : `${formatNumber(b.newNodes)} ${STEP_WORDS.nodes.toLowerCase()}, ${formatNumber(b.newEdges)} ${STEP_WORDS.edges.toLowerCase()}`;
 }
 
 /**

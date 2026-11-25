@@ -132,27 +132,25 @@ export function markCounts(
     readonly merged: number;
     readonly new: number;
     readonly untouched: number;
-    readonly nodes: { readonly merged: number; readonly new: number; readonly untouched: number };
-    readonly edges: { readonly merged: number; readonly new: number };
+    readonly nodes: {
+        readonly merged: number;
+        readonly new: number;
+        readonly untouched: number;
+        readonly removed: number;
+    };
+    readonly edges: { readonly merged: number; readonly new: number; readonly removed: number };
 } {
-    let merged = 0;
-    let newNodes = 0;
-    let mergedEdges = 0;
-    let newEdges = 0;
-    for (const mark of marks.nodes.values()) {
-        merged += mark === "merged" ? 1 : 0;
-        newNodes += mark === "new" ? 1 : 0;
-    }
-    for (const mark of marks.edges.values()) {
-        mergedEdges += mark === "merged" ? 1 : 0;
-        newEdges += mark === "new" ? 1 : 0;
-    }
+    const count = (all: ReadonlyMap<string, string>, mark: string): number =>
+        [...all.values()].filter((each) => each === mark).length;
+    const merged = count(marks.nodes, "merged");
+    const newNodes = count(marks.nodes, "new");
+    const newEdges = count(marks.edges, "new");
     const untouched = untouchedNodes(state, marks).size;
     return {
         merged,
         new: newNodes + newEdges,
         untouched,
-        nodes: { merged, new: newNodes, untouched },
-        edges: { merged: mergedEdges, new: newEdges },
+        nodes: { merged, new: newNodes, untouched, removed: count(marks.nodes, "removed") },
+        edges: { merged: count(marks.edges, "merged"), new: newEdges, removed: count(marks.edges, "removed") },
     };
 }

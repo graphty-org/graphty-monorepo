@@ -72,8 +72,13 @@ export interface CardResult {
     readonly edgeType: string;
     /** Edge: one edge per pair of ends. */
     readonly perPair: boolean;
-    /** Edge and node: a row whose field names no node. */
-    readonly unmatched: "skip" | "add";
+    /**
+     * Edge and node: a row whose field names no node. A node's row that nothing links can also be
+     * kept as it is.
+     */
+    readonly unmatched: "skip" | "add" | "keep";
+    /** A row whose value names several nodes: joined to each of them, or to none. */
+    readonly fanOut: "each" | "skip";
     /** Edge: a row whose ends an edge already joins. */
     readonly existing: "add" | "merge";
     /** New nodes: the separator a cell holds several values by, or "" for none. */
@@ -104,6 +109,8 @@ export interface PendingCard {
      * card once undo takes them all back.
      */
     readonly written?: readonly CardPicks[];
+    /** The reader deleted its step's card: it is drawn again only once an undo brings the step back. */
+    readonly deleted?: true;
 }
 
 /** One card as the workspace draws it. */
@@ -125,13 +132,42 @@ export const DEFAULT_RESULT: CardResult = {
     direction: "into-from",
     edgeType: "",
     perPair: false,
-    unmatched: "skip",
+    unmatched: "keep",
+    fanOut: "each",
     existing: "add",
     split: "",
     type: "",
     columns: [],
     as: "edges",
 };
+
+/** A match's counts as a card shows them, and the Ignore switches its matches would gain by. */
+export interface MatchSwitches {
+    /** How many more rows Ignore case would match, over every match of the card; null while on. */
+    readonly moreWithCase: number | null;
+    /** How many more rows Ignore spaces would match; null while on. */
+    readonly moreWithSpaces: number | null;
+    /** Whether the two together would match rows neither does alone. */
+    readonly together: boolean;
+}
+
+/**
+ * What the Ignore switches, which set a whole card's matching, would add over its matches.
+ * @param all - Each match's counts, or null while unpicked.
+ * @returns The sums.
+ */
+export function switchesOf(all: readonly (SourceMatchCounts | null)[]): MatchSwitches {
+    const sum = (read: (counts: SourceMatchCounts) => number | null): number | null =>
+        all.reduce<number | null>((total, counts) => {
+            const more = counts === null ? null : read(counts);
+            return more === null ? total : (total ?? 0) + more;
+        }, null);
+    return {
+        moreWithCase: sum((counts) => counts.moreRowsWithIgnoreCase),
+        moreWithSpaces: sum((counts) => counts.moreRowsWithIgnoreSpaces),
+        together: (sum((counts) => counts.moreRowsWithBoth) ?? 0) > 0,
+    };
+}
 
 /** Picks with nothing picked. */
 const NO_PICKS: CardPicks = { becomes: null, from: null, into: null, ignoreCase: false, ignoreSpaces: false };
@@ -167,9 +203,7 @@ export function cardsOf(draft: SourceDraft, pending: readonly PendingCard[]): Jo
                   },
               ];
     });
-    const shown = pending.filter(
-        (card) => !steps.some((each) => card.written?.some((picks) => samePicks(each.picks, picks)) === true),
-    );
+    const shown = pending.filter((card) => card.deleted !== true && !steps.some((each) => writtenFor(card, each)));
     return [...steps, ...shown.map((card) => ({ ...card, step: null, result: null }))];
 }
 
@@ -187,7 +221,7 @@ function readBack(
         return actBack(row.act);
     }
     if (row.link !== null) {
-        return linkBack(draft, row.link);
+        return linkBack(row.link, row.holders ?? "");
     }
     return row.extract === null ? null : extractBack(row.source, row.extract);
 }
@@ -204,13 +238,19 @@ function actBack(act: SourceStepAct): { readonly picks: CardPicks; readonly resu
     if (act.act === "merge") {
         return {
             picks: { becomes: "fields", from, into, ...matching },
-            result: { many: manyOf(act.aggregate, act.repeated), unmatchedFrom: act.unmatchedFrom ?? "keep" },
+            result: {
+                many: manyOf(act.aggregate, act.repeated),
+                unmatchedFrom: act.unmatchedFrom ?? "keep",
+                fanOut: act.fanOut ?? "skip",
+            },
         };
     }
+    const asNode = to === undefined || to.keepRow === true;
+    const skipped = asNode && act.unlinked !== "drop" ? "keep" : "skip";
     const isNew = to?.unmatched === "add" ? { isNew: true as const } : {};
     return {
         picks: {
-            becomes: to === undefined || to.keepRow === true ? "node" : "edge",
+            becomes: asNode ? "node" : "edge",
             from,
             into,
             ...matching,
@@ -220,7 +260,8 @@ function actBack(act: SourceStepAct): { readonly picks: CardPicks; readonly resu
             direction: act.direction ?? "into-from",
             edgeType: act.edgeType ?? "",
             perPair: act.perPair === true,
-            unmatched: act.unmatched ?? "skip",
+            unmatched: act.unmatched === "add" ? "add" : skipped,
+            fanOut: act.fanOut ?? "skip",
             existing: act.existing ?? "add",
         },
     };
@@ -242,22 +283,16 @@ function intoBack(into: SourceJoinInto, space: string): CardInto {
 
 /**
  * A step linking nodes that share a value, read back.
- * @param draft - The open draft.
  * @param link - The step's options.
+ * @param holders - The space of the nodes it links.
  * @returns The picks and options.
  */
 function linkBack(
-    draft: SourceDraft,
     link: SourceLinkOptions,
+    holders: string,
 ): { readonly picks: CardPicks; readonly result: Partial<CardResult> } {
     const inRows = link.field !== undefined;
-    const own = draft.spaces().find((space) => space.sources.includes(link.source));
-    let into: CardInto = own === undefined ? { space: "", source: link.source } : { space: own.space };
-    if (link.nodes !== undefined) {
-        into = { space: link.nodes };
-    } else if (inRows && link.into !== undefined) {
-        into = intoBack(link.into, link.into.space ?? "");
-    }
+    const into = inRows && link.into !== undefined ? intoBack(link.into, link.into.space ?? "") : { space: holders };
     return {
         picks: {
             becomes: "links",
@@ -430,6 +465,35 @@ interface IntoField {
 }
 
 /**
+ * The column a side's nodes are keyed by: its source's, when one source made them.
+ * @param draft - The open draft.
+ * @param into - The side.
+ * @returns The column, or null when several sources made them, or the source names none.
+ */
+export function keyColumn(draft: SourceDraft, into: CardInto): string | null {
+    const source = into.space === "" ? into.source : onlySource(draft, into.space);
+    if (source === undefined) {
+        return null;
+    }
+    try {
+        return draft.sourceTable(source).summary().mapping.key ?? null;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * The one source added into a space.
+ * @param draft - The open draft.
+ * @param space - The space.
+ * @returns The source, or undefined when none or several were.
+ */
+function onlySource(draft: SourceDraft, space: string): SourceKey | undefined {
+    const added = draft.steps().filter((step) => step.op === "join.add" && step.spaces.includes(space));
+    return added.length === 1 ? added[0]?.source : undefined;
+}
+
+/**
  * The fields of a card's node 1 besides its key, each a side a match can name: every column the
  * nodes of its space carry as the draft builds them before the card's own step, those earlier merges
  * brought included; a staged source's own columns.
@@ -440,12 +504,14 @@ interface IntoField {
  */
 export function intoFields(draft: SourceDraft, into: CardInto, before?: number): readonly IntoField[] {
     const { space, source } = into;
+    const key = keyColumn(draft, into);
     if (space === "" && source !== undefined) {
-        return columnsOf(draft, source, "nodes").map((field) => ({ label: field, into: { space, source, field } }));
+        return columnsOf(draft, source, "nodes")
+            .filter((field) => field !== key)
+            .map((field) => ({ label: field, into: { space, source, field } }));
     }
-    const suppliers = draft.steps().filter((step) => step.op === "join.add" && step.spaces.includes(space));
-    const only = suppliers.length === 1 ? suppliers[0]?.source : undefined;
-    const own = only === undefined ? [] : columnsOf(draft, only, "nodes");
+    const only = onlySource(draft, space);
+    const own = only === undefined ? [] : columnsOf(draft, only, "nodes").filter((field) => field !== key);
     let carried: readonly string[] = [];
     try {
         carried = draft.columns(space, before === undefined ? {} : { before }).map((column) => column.name);
@@ -454,7 +520,9 @@ export function intoFields(draft: SourceDraft, into: CardInto, before?: number):
     }
     return [
         ...own.map((field) => ({ label: field, into: { space, source: only, field } })),
-        ...carried.filter((field) => !own.includes(field)).map((field) => ({ label: field, into: { space, field } })),
+        ...carried
+            .filter((field) => field !== key && !own.includes(field))
+            .map((field) => ({ label: field, into: { space, field } })),
     ];
 }
 
@@ -534,6 +602,7 @@ function mergeOf(picks: CardPicks, result: CardResult, step: SourceStepRow | nul
             ignoreCase: picks.ignoreCase,
             ignoreSpaces: picks.ignoreSpaces,
             unmatchedFrom: result.unmatchedFrom,
+            fanOut: result.fanOut,
             ...(many === "last" ? { repeated: "last" as const } : {}),
             ...(Object.keys(aggregate).length === 0 ? {} : { aggregate }),
         },
@@ -572,8 +641,11 @@ function connectOf(picks: CardPicks, result: CardResult): SourceJoinAct | null {
             ignoreCase: picks.ignoreCase,
             ignoreSpaces: picks.ignoreSpaces,
             direction: result.direction,
-            unmatched: result.unmatched,
-            ...(picks.becomes === "edge" ? { perPair: result.perPair, existing: result.existing } : {}),
+            unmatched: result.unmatched === "add" ? ("add" as const) : ("skip" as const),
+            fanOut: result.fanOut,
+            ...(picks.becomes === "edge"
+                ? { perPair: result.perPair, existing: result.existing }
+                : { unlinked: result.unmatched === "skip" ? ("drop" as const) : ("keep" as const) }),
             ...(result.edgeType === "" ? {} : { edgeType: result.edgeType }),
             ...to,
         },
@@ -629,6 +701,9 @@ function linkOf(picks: CardPicks, result: CardResult, step: SourceStepRow | null
         holder = { source: from.source, field: from.field, into: intoOf(into) };
     } else if (into.space === "" && into.source !== undefined) {
         holder = { source: into.source };
+    } else if (step?.link?.source === from?.source && step?.link?.nodes === undefined && step?.holders === into.space) {
+        // The rows' own nodes still hold the values: an option changed, not where they are.
+        holder = { source: from?.source ?? "" };
     } else if (from === null) {
         return null;
     } else {

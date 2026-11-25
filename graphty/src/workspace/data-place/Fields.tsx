@@ -32,7 +32,6 @@ import {
     LOCATION_ENTRIES,
     roleHolder,
     ROWS_ARE,
-    sidesOf,
     tableRoles,
     type TypeGlyph,
     unusedWords,
@@ -744,7 +743,7 @@ function attributesOf(
 }
 
 /**
- * The sides Fields shows: the load's own, or for a graph not loaded from one, each side with
+ * The sides Fields shows: both of a load, or for a graph not loaded from one, each side with
  * columns.
  * @param attributes - `data.attributes()`.
  * @param source - the selected load.
@@ -754,17 +753,10 @@ function sidesShown(
     attributes: ReturnType<GraphSession["data"]["attributes"]>,
     source: LoadedSource | undefined,
 ): FieldSide[] {
-    const own = sidesOf(source);
-    // A graph file's load has both sides, whether or not it carries columns for them (the owner,
-    // 2026-11-07: Edges is always there for College football, whose edges have none).
-    if (own === undefined && source !== undefined) {
-        return ["nodes", "edges"];
-    }
-    return (["nodes", "edges"] as const).filter((side) =>
-        own === undefined
-            ? attributes.some((a) => a.kind === KIND_OF[side]) || tableRoles(source, side) !== undefined
-            : own.includes(side),
-    );
+    const sides = ["nodes", "edges"] as const;
+    // A load has both sides, whether or not it made any or carries columns for them (the owner,
+    // 2026-11-07: "Edges should always be present"); a joined file makes edges its own rows are not.
+    return source === undefined ? sides.filter((side) => attributes.some((a) => a.kind === KIND_OF[side])) : [...sides];
 }
 
 /**

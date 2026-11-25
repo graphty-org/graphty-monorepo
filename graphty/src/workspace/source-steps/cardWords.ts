@@ -8,7 +8,7 @@ import type { GraphSession, SourceDraft } from "@graphty/graphty-element/session
 
 import { sourceName } from "../data-place/words";
 import { formatNumber } from "../inspector/words";
-import { draftSpaceChoices } from "./join";
+import { draftSpaceChoices, spaceChoices } from "./join";
 import {
     actOf,
     type Becomes,
@@ -18,6 +18,7 @@ import {
     type CardResult,
     DEFAULT_RESULT,
     type JoinCardView,
+    keyColumn,
     pairOf,
 } from "./joinCards";
 import { nameOf } from "./tableColumns";
@@ -78,7 +79,9 @@ export function intoChoices(
  * @returns its name
  */
 export function spaceName(session: GraphSession, draft: SourceDraft, space: string): string {
-    return draftSpaceChoices(session, draft).find((choice) => choice.value === space)?.label ?? space;
+    // A source the draft removes builds no nodes: its space is still named in the committed graph.
+    const named = [...draftSpaceChoices(session, draft), ...spaceChoices(session)];
+    return named.find((choice) => choice.value === space)?.label ?? space;
 }
 
 /**
@@ -123,7 +126,7 @@ export function intoWords(session: GraphSession, draft: SourceDraft, into: CardI
         into.space === "" && into.source !== undefined
             ? nameOf(session, into.source)
             : spaceName(session, draft, into.space);
-    return `${type}.${into.field ?? JOIN_WORDS.key}`;
+    return `${type}.${into.field ?? keyColumn(draft, into) ?? JOIN_WORDS.key}`;
 }
 
 /**
@@ -156,7 +159,8 @@ export function cardSummary(session: GraphSession, draft: SourceDraft, card: Joi
             : `${intoWords(session, draft, to.into)} = ${name}.${to.field}`,
         shared.length === 0 ? null : shared.join(", "),
     ].filter((each) => each !== null);
-    const match = matches.join(", ");
+    const act = cardActWords(card);
+    const match = act === undefined ? matches.join(", ") : `${act}: ${matches.join(", ")}`;
     const b = card.step?.buckets;
     if (b === null || b === undefined) {
         return match;
@@ -201,7 +205,7 @@ function linking(draft: SourceDraft, picks: CardPicks): CardPicks {
     if (from === null) {
         return { ...links, into, inRows: false };
     }
-    const own = draft.spaces().find((space) => space.sources.includes(from.source));
+    const own = draft.spaces().find((space) => space.rowsOf.includes(from.source));
     const theirs: CardInto = own === undefined ? { space: "", source: from.source } : { space: own.space };
     return { ...links, from: { source: from.source }, into: into ?? theirs, inRows: false };
 }
@@ -219,8 +223,11 @@ export function becoming(draft: SourceDraft, picks: CardPicks, becomes: Becomes)
         return linking(draft, picks);
     }
     const { shared: _shared, inRows: _inRows, to = null, ...rest } = picks;
-    // New nodes at 1 are a node's own: no field or edge matches them.
-    const into = becomes !== "node" && rest.into?.isNew === true ? null : rest.into;
+    // New nodes at 1 are a node's own: no field or edge matches them. With one type of node in the
+    // graph, it is the one a match can name.
+    const types = draft.spaces().filter((space) => !space.rowsOf.includes(rest.from?.source ?? ""));
+    const only: CardInto | null = types.length === 1 && types[0] !== undefined ? { space: types[0].space } : null;
+    const into: CardInto | null = becomes !== "node" && rest.into?.isNew === true ? null : (rest.into ?? only);
     const next: CardPicks = { ...rest, becomes, into };
     if (becomes === "fields" || into?.isNew === true) {
         return { ...next, to: null };

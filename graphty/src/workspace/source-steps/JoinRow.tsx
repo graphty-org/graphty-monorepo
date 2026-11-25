@@ -1,12 +1,13 @@
 import { ControlSection } from "@graphty/compact-mantine";
-import { ActionIcon, Group, Kbd, Tooltip } from "@mantine/core";
+import { ActionIcon, Group, Tooltip } from "@mantine/core";
 import React from "react";
 
 import { GLYPHS } from "../glyphs";
-import { ariaKey, formatKey } from "../keys/keys";
+import { ariaKey } from "../keys/keys";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { openJoinWorkspace } from "./join";
 import { JOIN_WORKSPACE_KEY } from "./keys";
+import { KeyWords } from "./KeyWords";
 import { WORKSPACE_WORDS } from "./words";
 
 /**
@@ -26,7 +27,7 @@ export function JoinRow(): React.JSX.Element {
             empty
             actions={
                 <Group gap={4} wrap="nowrap" data-join-plus="">
-                    <Kbd size="xs">{formatKey(JOIN_WORKSPACE_KEY)}</Kbd>
+                    <KeyWords combo={JOIN_WORKSPACE_KEY} />
                     <Tooltip label={WORKSPACE_WORDS.open}>
                         <ActionIcon
                             variant="subtle"

@@ -2,14 +2,16 @@ import { DataTable, type DataTableColumn, PANEL_GRID, SegmentedControl } from "@
 import type {
     GraphSession,
     JoinReduce,
+    SourceCellValue,
     SourceColumnProfile,
     SourceDraft,
     SourceDraftCell,
+    SourceElementRef,
     SourceKey,
     SourceStepRow,
 } from "@graphty/graphty-element/session";
 import { Button, Group, Stack, Text, UnstyledButton } from "@mantine/core";
-import React, { useState } from "react";
+import React from "react";
 
 import { formatNumber } from "../inspector/words";
 import { DraftEffects, Line } from "./DraftEffects";
@@ -44,7 +46,7 @@ const REDUCE_CHOICES: readonly { readonly value: JoinReduce; readonly label: str
     { value: "mean", label: "Mean" },
 ];
 
-/** A reduce value for "no reduce": the step keeps its row rule for the column. */
+/** A reduce value for "no reduce": the column follows the card's Many rows. */
 const NO_REDUCE = "row";
 
 /**
@@ -52,6 +54,7 @@ const NO_REDUCE = "row";
  * rule, and how its rows reduce when several meet one node (`editStep({ aggregate })`).
  * @param props - Component props
  * @param props.step - the step
+ * @param props.many - the card's Many rows choice, which a column with none of its own follows
  * @param props.column - the column
  * @param props.rule - its clash rule now
  * @param props.rules - the rules its values take
@@ -62,6 +65,7 @@ const NO_REDUCE = "row";
  */
 export function DifferRow({
     step,
+    many,
     column,
     rule,
     rules,
@@ -70,6 +74,7 @@ export function DifferRow({
     onShow,
 }: Readonly<{
     step: SourceStepRow;
+    many: string;
     column: string;
     rule: string;
     rules: readonly string[];
@@ -94,7 +99,10 @@ export function DifferRow({
                 />
                 <Pick
                     name={`${WORKSPACE_WORDS.manyRows} ${column}`}
-                    data={[{ value: NO_REDUCE, label: WORKSPACE_WORDS.row }, ...REDUCE_CHOICES]}
+                    data={[
+                        { value: NO_REDUCE, label: many },
+                        ...REDUCE_CHOICES.filter((each) => each.label !== many || each.value === reduce),
+                    ]}
                     value={reduce}
                     onPick={(value) => {
                         onReduce(REDUCE_CHOICES.find((each) => each.value === value)?.value ?? null);
@@ -208,6 +216,7 @@ function cellColumns(session: GraphSession, cells: readonly SourceDraftCell[]): 
         ...sources.map((source): DataTableColumn<SourceDraftCell> => ({
             id: `source:${source}`,
             header: nameOf(session, source),
+            width: Math.min(240, Math.max(96, nameOf(session, source).length * 7 + 32)),
             sortable: false,
             value: (cell) => valueWords(cell.values.find((each) => each.source === source)?.value),
         })),
@@ -221,14 +230,97 @@ function cellColumns(session: GraphSession, cells: readonly SourceDraftCell[]): 
     ];
 }
 
+/**
+ * What a card can do with the rows the reader picked in the table, while it lists one of the card's
+ * counts (leave them out of the step, or take a left-out key back) or one of its Values differ columns
+ * (take source 1's or source 2's value, or clear the pick). The table itself is for looking only.
+ * @param props - Component props
+ * @param props.draft - the open draft
+ * @param props.step - the card's step
+ * @param props.column - the Values differ column listed, or null while a count's rows are
+ * @param props.keys - the keys of the picked rows
+ * @param props.refs - the elements of the picked cells
+ * @param props.onDone - called once an act was made
+ * @param props.onError - shows a refusal on the card
+ * @returns the buttons
+ */
+export function TableActions({
+    draft,
+    step,
+    column,
+    keys,
+    refs,
+    onDone,
+    onError,
+}: Readonly<{
+    draft: SourceDraft;
+    step: SourceStepRow;
+    column: string | null;
+    keys: readonly SourceCellValue[];
+    refs: readonly SourceElementRef[];
+    onDone: () => void;
+    onError: (error: unknown) => void;
+}>): React.JSX.Element {
+    const act = (run: () => unknown): void => {
+        try {
+            run();
+            onDone();
+        } catch (error) {
+            onError(error);
+        }
+    };
+    const button = (label: string, name: string, disabled: boolean, run: () => unknown): React.JSX.Element => (
+        <Button
+            key={name}
+            size="compact-xs"
+            variant="default"
+            aria-label={name}
+            disabled={disabled}
+            onClick={() => {
+                act(run);
+            }}
+        >
+            {label}
+        </Button>
+    );
+    if (column !== null) {
+        const none = refs.length === 0;
+        const from = step.source;
+        // Pick 1 takes the value no row of the incoming source brought; Pick 2 takes that source's.
+        const picks: readonly (readonly [string, () => unknown])[] = [
+            [WORKSPACE_WORDS.pick1, () => draft.pickAll({ otherThan: from, column, only: "all", refs })],
+            [WORKSPACE_WORDS.pick2, () => draft.pickAll({ source: from, column, only: "all", refs })],
+            [WORKSPACE_WORDS.clearPicks, () => draft.clearPicks({ column, refs })],
+        ];
+        return (
+            <Group gap={6} wrap="wrap" data-table-actions="">
+                <Text size="xs">{column}</Text>
+                {picks.map(([label, run]) => button(label, label, none, run))}
+            </Group>
+        );
+    }
+    return (
+        <Group gap={6} wrap="wrap" data-table-actions="">
+            {button(WORKSPACE_WORDS.exclude, WORKSPACE_WORDS.exclude, keys.length === 0, () => {
+                draft.exclude(step.index, keys);
+            })}
+            {step.except?.values.map((key) => {
+                const name = `${WORKSPACE_WORDS.include} ${String(key)}`;
+                return button(name, name, false, () => {
+                    draft.include(step.index, [key]);
+                });
+            })}
+        </Group>
+    );
+}
+
 /** Which cells of a Values differ column the table lists. */
 export type CellFilter = (typeof CELL_FILTERS)[number]["value"];
 
 /**
  * The cells of one Values differ column at a step, from `preview().cells`: each source's value,
- * the value shown and what shows it; All, Open or Decided. The selected cells take source 1's or
- * source 2's value (`draft.pickAll`), or lose their picks (`draft.clearPicks`): conflict
- * resolution by the reader.
+ * the value shown and what shows it; All, Open or Decided. The card the column is on settles the
+ * selected ones.
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.draft - the open draft
@@ -236,8 +328,9 @@ export type CellFilter = (typeof CELL_FILTERS)[number]["value"];
  * @param props.column - the column
  * @param props.only - which cells
  * @param props.height - the table's height
+ * @param props.selected - the cells selected, by their ids
  * @param props.onOnly - changes which cells
- * @param props.onError - shows a refusal
+ * @param props.onSelect - takes the cells selected
  * @returns the pane
  */
 export function CellsPane({
@@ -247,8 +340,9 @@ export function CellsPane({
     column,
     only,
     height,
+    selected,
     onOnly,
-    onError,
+    onSelect,
 }: Readonly<{
     session: GraphSession;
     draft: SourceDraft;
@@ -256,25 +350,13 @@ export function CellsPane({
     column: string;
     only: CellFilter;
     height: number;
+    selected: readonly string[];
     onOnly: (only: CellFilter) => void;
-    onError: (error: unknown) => void;
+    onSelect: (ids: readonly string[], refs: readonly SourceElementRef[]) => void;
 }>): React.JSX.Element {
-    // on reload: fresh: pointer: the cells picked for a look
-    const [selected, setSelected] = useState<readonly string[]>([]);
     // ponytail: every cell of the column at once; page it as the values list does when counts reach the thousands.
     const { total, cells } = draft.preview().cells({ column, step: step.index, only });
     const ids = cells.map((cell) => JSON.stringify(cell.ref));
-    const refs = cells.filter((_cell, at) => selected.includes(ids[at] ?? "")).map((cell) => cell.ref);
-    const act = (run: () => number): void => {
-        try {
-            run();
-            setSelected([]);
-        } catch (error) {
-            onError(error);
-        }
-    };
-    // Pick 1 takes the value no row of the incoming source brought; Pick 2 takes that source's.
-    const from = step.source;
     return (
         <div className="jw-table">
             <Group gap={6} wrap="wrap">
@@ -287,43 +369,12 @@ export function CellsPane({
                     value={only}
                     data={CELL_FILTERS.map((each) => ({ ...each }))}
                     onChange={(value) => {
-                        setSelected([]);
                         onOnly(CELL_FILTERS.find((each) => each.value === value)?.value ?? "all");
                     }}
                 />
                 <Text size="xs" aria-label={`${column} ${DRILL_WORDS.cells}`}>
                     {formatNumber(total)}
                 </Text>
-                <Button
-                    size="compact-xs"
-                    variant="default"
-                    disabled={refs.length === 0}
-                    onClick={() => {
-                        act(() => draft.pickAll({ otherThan: from, column, only: "all", refs }));
-                    }}
-                >
-                    {WORKSPACE_WORDS.pick1}
-                </Button>
-                <Button
-                    size="compact-xs"
-                    variant="default"
-                    disabled={refs.length === 0}
-                    onClick={() => {
-                        act(() => draft.pickAll({ source: from, column, only: "all", refs }));
-                    }}
-                >
-                    {WORKSPACE_WORDS.pick2}
-                </Button>
-                <Button
-                    size="compact-xs"
-                    variant="subtle"
-                    disabled={refs.length === 0}
-                    onClick={() => {
-                        act(() => draft.clearPicks({ column, refs }));
-                    }}
-                >
-                    {WORKSPACE_WORDS.clearPicks}
-                </Button>
             </Group>
             <div className="jw-table-grid">
                 <DataTable<SourceDraftCell>
@@ -338,7 +389,10 @@ export function CellsPane({
                     selectionMode="multiple"
                     selectedIds={selected}
                     onSelectionChange={(next) => {
-                        setSelected([...next]);
+                        onSelect(
+                            [...next],
+                            cells.filter((_cell, at) => next.includes(ids[at] ?? "")).map((cell) => cell.ref),
+                        );
                     }}
                 />
             </div>

@@ -124,7 +124,7 @@ describe("source-steps drafts: Merge from rows read as edges", () => {
         assert.strictEqual(row.op, "join.merge");
         assert.deepInclude(row.buckets, { merged: 3, keptNew: 1, untouched: 1, emptyKey: 1, unmatched: 1 });
         assert.deepStrictEqual(row.buckets?.groups, [3, 2]);
-        assert.deepStrictEqual(d.preview().marks.nodes, { merged: 2, new: 1, untouched: 1 });
+        assert.deepStrictEqual(d.preview().marks.nodes, { merged: 2, new: 1, untouched: 1, removed: 0 });
         assert.strictEqual(d.preview().marks.edges.new, 0);
         assert.strictEqual(d.preview().rows({ step: row.index, bucket: "merged" }).total, 3);
         await d.commit();
@@ -268,7 +268,7 @@ describe("source-steps drafts: a one-match Connect makes each row a node", () =>
         assert.isFalse(row?.held, "it reads no column the rows lack");
         assert.isUndefined(row?.act?.to);
         assert.deepInclude(row?.act, { act: "connect", direction: "into-from" });
-        assert.deepInclude(d.preview().marks, { edges: { merged: 0, new: 2 } });
+        assert.deepInclude(d.preview().marks, { edges: { merged: 0, new: 2, removed: 0 } });
         await d.commit();
         assert.lengthOf(session.data.edges(), 2);
         assert.deepStrictEqual(await reopened(session), now(session));
@@ -386,7 +386,7 @@ describe("source-steps drafts: Connect with existing edges", () => {
             newEdges: 1,
             parallelPairs: 0,
         });
-        assert.deepStrictEqual(d.preview().marks.edges, { merged: 1, new: 1 });
+        assert.deepStrictEqual(d.preview().marks.edges, { merged: 1, new: 1, removed: 0 });
         assert.strictEqual(d.preview().rows({ step: at, bucket: "mergedEdges" }).total, 1);
         await d.display(true);
         const shown = session.styles.showDraft({ merged: "#7048e8", new: "#e8590c" });
@@ -488,7 +488,7 @@ describe("source-steps drafts: Connect keeping each row as a node", () => {
                 emptyKey: 1,
             });
             assert.deepStrictEqual(d.preview().marks.nodes.new, 5);
-            assert.deepStrictEqual(d.preview().marks.edges, { merged: 0, new: 8 });
+            assert.deepStrictEqual(d.preview().marks.edges, { merged: 0, new: 8, removed: 0 });
             await d.commit();
             assert.deepStrictEqual(drawn(session), KEPT);
             assert.deepStrictEqual(await reopened(session), now(session));

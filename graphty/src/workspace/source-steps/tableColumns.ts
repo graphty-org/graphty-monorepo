@@ -77,23 +77,34 @@ export function rowColumns(session: GraphSession, rows: readonly SourceDraftRow[
             names.add(name);
         }
     }
+    const held = rows.some((row) => Object.keys(row.held ?? {}).length > 0);
+    const incoming = rows.some((row) => Object.keys(row.incoming ?? {}).length > 0);
+    // The side first, so a narrow header still tells the two apart; with one side, only the column.
+    const header = (side: string, name: string): string => (held && incoming ? `${side} ${name}` : name);
+    const width = (text: string): number => Math.min(240, Math.max(96, text.length * 7 + 32));
+    const side = (
+        which: "held" | "incoming",
+        name: string,
+        word: string,
+        value: (row: SourceDraftRow) => SourceValue | undefined,
+    ): DataTableColumn<SourceDraftRow> => ({
+        id: `${which}:${name}`,
+        header: header(word, name),
+        width: width(header(word, name)),
+        sortable: false,
+        value: (row) => valueWords(value(row)),
+    });
     return [
         { id: "key", header: DRILL_WORDS.key, sortable: false, rowHeader: true, value: (row) => cellWords(row.key) },
         { id: "from", header: DRILL_WORDS.from, sortable: false, value: (row) => nameOf(session, row.source) },
         { id: "effect", header: DRILL_WORDS.effect, sortable: false, value: (row) => EFFECT_WORDS[row.effect] },
-        ...[...names].flatMap((name): DataTableColumn<SourceDraftRow>[] => [
-            {
-                id: `held:${name}`,
-                header: `${name} (${DRILL_WORDS.held})`,
-                sortable: false,
-                value: (row) => valueWords(row.held?.[name]),
-            },
-            {
-                id: `incoming:${name}`,
-                header: `${name} (${DRILL_WORDS.incoming})`,
-                sortable: false,
-                value: (row) => valueWords(row.incoming?.[name] ?? undefined),
-            },
+        ...[...names].flatMap((name) => [
+            ...(rows.some((row) => row.held?.[name] !== undefined)
+                ? [side("held", name, DRILL_WORDS.held, (row) => row.held?.[name])]
+                : []),
+            ...(rows.some((row) => row.incoming?.[name] !== undefined)
+                ? [side("incoming", name, DRILL_WORDS.incoming, (row) => row.incoming?.[name] ?? undefined)]
+                : []),
         ]),
     ];
 }

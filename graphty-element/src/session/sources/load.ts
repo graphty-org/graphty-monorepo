@@ -187,6 +187,17 @@ function ownIdColumn(
 }
 
 /**
+ * A node record with its id under the file's own column too.
+ * @param row - The record.
+ * @param column - The column.
+ * @returns The record.
+ */
+function withOwnId(row: Readonly<Record<string, unknown>>, column: string): Record<string, unknown> {
+    const { id } = row;
+    return { id, [column]: id, ...row };
+}
+
+/**
  * Read a source into rows, outside any command.
  * @param id - the source id
  * @param config - its params
@@ -208,7 +219,7 @@ async function readRows(
     const idColumn = ownIdColumn({ ...config, ...report.source?.params }, nodes);
     return {
         held: {
-            nodes: idColumn === undefined ? nodes : nodes.map(({ id, ...row }) => ({ id, [idColumn]: id, ...row })),
+            nodes: idColumn === undefined ? nodes : nodes.map((row) => withOwnId(row, idColumn)),
             edges,
             // ponytail: the direction a source declares is not passed on yet; add it once a source
             // states one in its report.

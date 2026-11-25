@@ -116,7 +116,7 @@ describe("source-steps drafts: link", () => {
             unmatched: 3,
             pairsBelowMin: 0,
         });
-        assert.deepStrictEqual(d.preview().marks.edges, { merged: 0, new: 1 });
+        assert.deepStrictEqual(d.preview().marks.edges, { merged: 0, new: 1, removed: 0 });
         assert.strictEqual(row?.act, null, "no Merge or Connect made it");
         assert.deepStrictEqual(row?.link, {
             source: accounts,

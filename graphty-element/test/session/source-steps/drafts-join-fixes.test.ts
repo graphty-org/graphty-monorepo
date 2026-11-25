@@ -8,6 +8,7 @@
 import { assert, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession, type SourceDraft } from "../../../src/session";
+import { visitsDuring } from "../../helpers/cost";
 
 const csv = (name: string, ...data: string[]): { type: string; config: { data: string }; name: string } => ({
     type: "csv",
@@ -346,6 +347,37 @@ describe("source-steps drafts: a step changed or taken out", () => {
         draft.removeStep(draft.steps().length - 1, { adds: "remove" });
         assert.lengthOf(draft.steps(), 0);
         other.dispose();
+    });
+
+    it("repaints nothing the graph no longer holds when a drawn draft takes nodes away", async () => {
+        const session = on();
+        const rows = Array.from({ length: 60 }, (_, i) => `P${String(i)},t${String(i % 6)}`);
+        const p = await session.data.stage(csv("p.csv", "id,tag", ...rows), { key: "id", type: "person" });
+        const d = session.data.draft();
+        d.extract(p, { column: "tag", type: "tag" });
+        await d.commit();
+        await session.styles.add({
+            name: "by draft",
+            target: "node",
+            selector: { match: "expression", where: "graphty.draft != 'merged' && id != 'nobody'" },
+            set: { "node.size": 2 },
+        });
+        const failed: string[] = [];
+        session.on("style:repaint-failed", (failure) => failed.push(failure.error.code));
+        const draft = session.data.draft();
+        await draft.display(true);
+        session.styles.showDraft({ merged: "#7048e8", new: "#e8590c" });
+        await session.styles.settled();
+        const visits = await visitsDuring(async () => {
+            draft.removeStep(draft.steps().findIndex((step) => step.extract !== null));
+            await draft.display(true);
+            await session.styles.settled();
+        });
+        // One paint of the graph once After landed (about 22,600), not another racing the write (39,700).
+        assert.isBelow(visits, 30_000);
+        assert.strictEqual(session.data.nodes().length, 60);
+        assert.deepStrictEqual(failed, []);
+        session.dispose();
     });
 
     it("keeps the space the reader picked for its rows", async () => {

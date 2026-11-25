@@ -62,29 +62,33 @@ export function DraftEffects({
     const lost = edits.filter((edit) => edit.state === "lost").length;
     return (
         <>
-            <fieldset className="ss-field" aria-label={STEP_WORDS.laterSteps}>
-                <Text component="legend" size="xs" fw={600}>
-                    {`${STEP_WORDS.laterSteps} ${formatNumber(removed.length + changed.length)}`}
-                </Text>
-                {removed.map((params) => (
-                    <Text key={params.step} size="xs">
-                        {stepRemovedWords(params)}
+            {removed.length + changed.length === 0 ? null : (
+                <fieldset className="ss-field" aria-label={STEP_WORDS.laterSteps}>
+                    <Text component="legend" size="xs" fw={600}>
+                        {`${STEP_WORDS.laterSteps} ${formatNumber(removed.length + changed.length)}`}
                     </Text>
-                ))}
-                {changed.map((words) => (
-                    <Text key={words} size="xs">
-                        {words}
+                    {removed.map((params) => (
+                        <Text key={params.step} size="xs">
+                            {stepRemovedWords(params)}
+                        </Text>
+                    ))}
+                    {changed.map((words) => (
+                        <Text key={words} size="xs">
+                            {words}
+                        </Text>
+                    ))}
+                </fieldset>
+            )}
+            {unbound === 0 ? null : <Line label={STEP_WORDS.references} value={formatNumber(unbound)} />}
+            {edits.length === 0 ? null : (
+                <Group gap={6} justify="space-between" wrap="nowrap">
+                    <Text size="xs">{STEP_WORDS.readerEdits}</Text>
+                    <Text size="xs" aria-label={`${STEP_WORDS.readerEdits} after`}>
+                        {`${formatNumber(edits.length - lost)} ${STEP_WORDS.applies}`}
+                        {lost > 0 ? `, ${formatNumber(lost)} ${STEP_WORDS.lost}` : ""}
                     </Text>
-                ))}
-            </fieldset>
-            <Line label={STEP_WORDS.references} value={formatNumber(unbound)} />
-            <Group gap={6} justify="space-between" wrap="nowrap">
-                <Text size="xs">{STEP_WORDS.readerEdits}</Text>
-                <Text size="xs" aria-label={`${STEP_WORDS.readerEdits} after`}>
-                    {`${formatNumber(edits.length - lost)} ${STEP_WORDS.applies}`}
-                    {lost > 0 ? `, ${formatNumber(lost)} ${STEP_WORDS.lost}` : ""}
-                </Text>
-            </Group>
+                </Group>
+            )}
         </>
     );
 }

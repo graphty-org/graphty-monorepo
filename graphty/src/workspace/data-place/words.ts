@@ -375,6 +375,8 @@ interface SourceExtras {
     readonly issues: number;
     /** It is an opened project's network load that has not run. */
     readonly waiting: boolean;
+    /** What reading a staged source recorded, until a save: its size, when it was read, and its rows. */
+    readonly read?: { readonly size?: number; readonly loadedAt?: string; readonly rows: number };
     /** A network load's Start, params, Limit and Expand, drawn after its Address. */
     readonly settings?: readonly SourceFact[];
 }
@@ -426,24 +428,35 @@ export function sourceFacts(
 ): { source: SourceFact[]; statistics: SourceFact[]; join: SourceFact[] } {
     const local = source.kind === "file" || source.kind === "join";
     const server = source.kind === "server";
+    const size = source.size ?? extras.read?.size;
+    const loadedAt = source.loadedAt ?? extras.read?.loadedAt;
     const facts: readonly (SourceFact | false)[] = [
         { name: "Type", value: sourceKindWord(source) },
         local && source.fileName !== undefined && { name: "File", value: source.fileName },
-        !local && source.url !== undefined && { name: "Address", value: source.url },
+        // A network load's settings say its address themselves.
+        !local &&
+            source.url !== undefined &&
+            extras.settings?.some((each) => each.value === source.url) !== true && {
+                name: "Address",
+                value: source.url,
+            },
         ...(extras.settings ?? []),
         !server && source.type !== undefined && { name: "Format", value: formatWord(source) },
-        local && source.size !== undefined && { name: "Size", value: sizeWords(source.size) },
-        source.loadedAt !== undefined && {
+        size !== undefined && !server && { name: "Size", value: sizeWords(size) },
+        loadedAt !== undefined && {
             name: "Retrieved",
-            value: new Date(source.loadedAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }),
+            value: new Date(loadedAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }),
         },
         extras.waiting && { name: "Status", value: "Not fetched yet" },
     ];
     const values = source.join?.shape === "node-values" || source.join?.shape === "edge-values";
     const { nodes, edges } = source.counts;
     const statistics: readonly (SourceFact | false)[] = [
-        !values && { name: "Nodes", value: server ? serverCount(nodes, source.total) : nodes },
-        !values && { name: "Edges", value: server ? serverCount(edges, source.totalEdges) : edges },
+        source.state === "staged" && extras.read !== undefined && { name: "Rows", value: extras.read.rows },
+        source.state !== "staged" &&
+            !values && { name: "Nodes", value: server ? serverCount(nodes, source.total) : nodes },
+        source.state !== "staged" &&
+            !values && { name: "Edges", value: server ? serverCount(edges, source.totalEdges) : edges },
         source.leftOut !== undefined && { name: "Rows left out", value: source.leftOut.rows },
         extras.issues > 0 && { name: "Open issues", value: extras.issues },
     ];
@@ -458,23 +471,26 @@ export function sourceFacts(
  * A server load's count beside its name: how many nodes it brought of how many the source holds.
  * @param loaded - the nodes the load brought.
  * @param total - the nodes the source holds, when it says.
- * @returns such as "500 of 40,000", or "500" when the source does not say.
+ * @returns such as "500 of 40,000", or "500" when the source does not say or holds no more.
  */
 export function serverCount(loaded: number, total: number | undefined): string {
-    return total === undefined ? formatNumber(loaded) : `${formatNumber(loaded)} of ${formatNumber(total)}`;
+    return total === undefined || total === loaded
+        ? formatNumber(loaded)
+        : `${formatNumber(loaded)} of ${formatNumber(total)}`;
 }
 
 /**
- * A Sources row's count chips in words, their name and tooltip; a count of 0 has no chip, so no words.
+ * A source's node and edge counts in words, 0 among them.
  * @param source - the load.
- * @returns such as "13 nodes, 18 edges", or "4 of 12 nodes" for a server load that says its total.
+ * @returns such as "13 nodes, 18 edges", or "4 of 12 nodes, 0 edges" for a server load that brought part.
  */
 export function countWords(source: LoadedSource): string {
     const { nodes, edges } = source.counts;
-    const plural = source.total === 1 ? "" : "s";
-    const nodeWords =
-        source.total === undefined ? count(nodes, "node") : `${serverCount(nodes, source.total)} node${plural}`;
-    return [...(nodes > 0 ? [nodeWords] : []), ...(edges > 0 ? [count(edges, "edge")] : [])].join(", ");
+    const words = (loaded: number, total: number | undefined, noun: string): string =>
+        total === undefined || total === loaded
+            ? count(loaded, noun)
+            : `${serverCount(loaded, total)} ${noun}${total === 1 ? "" : "s"}`;
+    return `${words(nodes, source.total, "node")}, ${words(edges, source.totalEdges, "edge")}`;
 }
 
 /** Which table of a load a Fields row reads its column from. */
@@ -617,24 +633,6 @@ export function loadValue(roles: TableMappingRead | undefined, key: FieldKey | C
 
 /** What Fields' Rows are row offers: what one table's rows load as. */
 export const ROWS_ARE: readonly FieldSide[] = ["nodes", "edges"];
-
-/**
- * The sides a load's own rows hold, so Fields shows only its rows: a join's shape, else what its
- * tables were read as.
- * @param source - the load.
- * @returns the sides, or undefined when the load does not say (a graph file, a network load).
- */
-export function sidesOf(source: LoadedSource | undefined): FieldSide[] | undefined {
-    const shape = source?.join?.shape;
-    if (shape === "node-values") {
-        return ["nodes"];
-    }
-    if (shape === "edge-values" || shape === "edges") {
-        return ["edges"];
-    }
-    const rows = source?.tableRows ?? Object.values(source?.mapping?.tables ?? {}).map((table) => table.rowsAre);
-    return rows.length === 0 ? undefined : [...new Set(rows)];
-}
 
 /**
  * Whether a column holds numbers, so it can be a weight.

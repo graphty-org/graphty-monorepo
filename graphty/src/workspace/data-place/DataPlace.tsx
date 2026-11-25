@@ -39,7 +39,9 @@ export function DataPlace(): React.JSX.Element {
     const graphName = useWorkspaceState((state) => state.project?.name ?? "");
     const picked = useWorkspaceState((state) => state.pickedSource);
     const sources = session?.data.sources() ?? [];
-    const selected = sources.find((each) => each.key === picked) ?? sources.at(-1);
+    // A staged source (the source-steps experiment) can be picked too, to read its details.
+    const all = session?.data.sources({ staged: true }) ?? [];
+    const selected = all.find((each) => each.key === picked) ?? sources.at(-1);
     // Opening an entry picks the load and opens it in the inspector: what it added and what it
     // left out, with Edit source and Replace in its "...".
     const select = (key: SourceKey): void => {

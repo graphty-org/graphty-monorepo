@@ -154,11 +154,25 @@ const SOURCE_ROW_COMMANDS: readonly SourceRowCommand[] = [
         label: "Refresh",
         order: 20,
         icon: "refresh",
-        shown: (ctx, source) => loadOf(ctx.session, source) !== undefined,
+        // A file at an address is read from it again, as a network load is fetched again.
+        shown: (ctx, source) =>
+            loadOf(ctx.session, source) !== undefined ||
+            (source.kind === "url" && source.reloadable === true && source.state === "built"),
         run: (ctx, source) => {
             const load = source.loadKey;
             if (load === undefined) {
-                return undefined;
+                return attempt(
+                    ctx,
+                    async (session) => {
+                        const { nodes, edges } = await session.data.reloadSource(source.key, {});
+                        ctx.workspace.set({
+                            notice: {
+                                message: `+${String(nodes.added)} -${String(nodes.removed)} nodes, ${String(nodes.changed + edges.changed)} changed`,
+                            },
+                        });
+                    },
+                    "Not refreshed",
+                );
             }
             return attempt(
                 ctx,

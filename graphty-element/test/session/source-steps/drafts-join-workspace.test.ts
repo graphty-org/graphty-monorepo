@@ -114,8 +114,8 @@ describe("source-steps drafts: the join workspace's reads", () => {
                 merged: 2,
                 new: 1,
                 untouched: 1,
-                nodes: { merged: 2, new: 1, untouched: 1 },
-                edges: { merged: 0, new: 0 },
+                nodes: { merged: 2, new: 1, untouched: 1, removed: 0 },
+                edges: { merged: 0, new: 0, removed: 0 },
             },
             "B1, B2 merged; B9 new; B3 untouched",
         );

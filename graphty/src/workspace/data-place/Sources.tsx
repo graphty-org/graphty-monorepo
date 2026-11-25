@@ -97,7 +97,18 @@ export function Sources({
                         />
                     ))}
                     {staged.map((source) => (
-                        <StagedEntry key={source.key} source={source} />
+                        <StagedEntry
+                            key={source.key}
+                            source={source}
+                            selected={source.key === selected}
+                            opened={opened[source.key] ?? source.key === selected}
+                            onOpenChange={(open) => {
+                                setOpened((was) => ({ ...was, [source.key]: open }));
+                                if (open) {
+                                    onSelect(source.key);
+                                }
+                            }}
+                        />
                     ))}
                 </div>
             )}

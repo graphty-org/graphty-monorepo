@@ -175,7 +175,7 @@ describe("source-steps drafts: matching on a merged list", () => {
         d.link({ source: ids, nodes: "account", columns: ["device"], ignoreCase: true });
         assert.deepInclude(d.preview().steps.at(-1)?.buckets, { newEdges: 2, matched: 3, unmatched: 0 });
         assert.deepInclude(d.steps().at(-1)?.link, { nodes: "account", columns: ["device"], maxShared: 10 });
-        assert.deepStrictEqual(d.preview().marks.edges, { merged: 0, new: 2 });
+        assert.deepStrictEqual(d.preview().marks.edges, { merged: 0, new: 2, removed: 0 });
         assert.strictEqual(
             d.preview().rows({ step: d.steps().length - 1, bucket: "newEdges" }).total,
             2,

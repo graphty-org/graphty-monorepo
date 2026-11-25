@@ -449,7 +449,7 @@ Tool values are elements drawn with the writing program's default.
 | xgmml/BasicDataVizDemo.xgmml.gz | ok | 331 | 362 | 7 | 5 | 438 | 74% | 0% | 0 | 4158 | 0 | W_STYLE_NOT_CARRIED |
 | xgmml/STRING-BreastCancer_expr.xgmml.gz | ok | 21 | 98 | 4 | 3 | 101 | 19% | 0% | 0 | 714 | 0 | W_STYLE_NOT_CARRIED |
 | xgmml/String_Network-breast_cancer.xgmml.gz | ok | 90 | 378 | 3 | 3 | 324 | 0% | 0% | 0 | 2808 | 0 | W_STYLE_NOT_CARRIED |
-| xgmml/fidelity/aracne-mycccnd1.xgmml.gz | ok | 236 | 241 | 6 | 3 | 50 | 2% | 2% | 0 | 4529 | 0 |  |
+| xgmml/fidelity/aracne-mycccnd1.xgmml.gz | ok | 236 | 241 | 6 | 5 | 52 | 2% | 2% | 0 | 4529 | 0 |  |
 | xgmml/fidelity/dream4-signaling.xgmml | ok | 40 | 58 | 5 | 2 | 13 | 0% | 0% | 0 | 922 | 0 |  |
 | xgmml/fidelity/gcmodeller-demo.xgmml | ok | 20 | 24 | 3 | 3 | 23 | 100% | 0% | 0 | 264 | 0 | W_STYLE_NOT_CARRIED |
 | xgmml/fidelity/imagenet-dog-children.xgmml | ok | 190 | 189 | 5 | 2 | 22 | 100% | 100% | 0 | 3601 | 0 |  |

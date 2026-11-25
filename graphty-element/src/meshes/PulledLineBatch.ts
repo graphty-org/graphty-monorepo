@@ -322,6 +322,12 @@ export class PulledLineBatch {
 
     private routeTable: RawTexture | null = null;
 
+    /**
+     * Whether the route table's CPU copy has grown since its texture was made: the next frame sends it whole, once,
+     * however many times it doubled as a repaint's curves arrived.
+     */
+    private routesGrown = false;
+
     /** Route texels handed out so far, the size of each block handed out by its first texel, and free blocks by size. */
     private routeHighWater = 0;
     private readonly routeSizes = new Map<number, number>();
@@ -889,7 +895,10 @@ export class PulledLineBatch {
 
         routes.fill(0, block * TEXEL_FLOATS, (block + size) * TEXEL_FLOATS);
         for (let k = 0; k < count; k++) {
-            routes.set(points.slice(3 * k, 3 * k + 3), (block + k) * TEXEL_FLOATS);
+            const texel = (block + k) * TEXEL_FLOATS;
+            routes[texel] = points[3 * k];
+            routes[texel + 1] = points[3 * k + 1];
+            routes[texel + 2] = points[3 * k + 2];
         }
         const first = Math.floor(block / this.routeWidth);
         const last = Math.floor((block + size - 1) / this.routeWidth);
@@ -933,10 +942,7 @@ export class PulledLineBatch {
                 const grown = new Float32Array(texels * TEXEL_FLOATS);
                 grown.set(this.routes);
                 this.routes = grown;
-                this.routeTable?.dispose();
-                this.routeTable = this.buildRoutes(grown);
-                this.routesFirst = -1;
-                this.routesLast = -1;
+                this.routesGrown = true;
             }
 
             this.routeHighWater = highWater;
@@ -1128,6 +1134,15 @@ export class PulledLineBatch {
 
     /** Send the route table lines written since the last frame. */
     private flushRoutes(): void {
+        if (this.routesGrown && this.routes !== null) {
+            this.routesGrown = false;
+            this.routeTable?.dispose();
+            this.routeTable = this.buildRoutes(this.routes);
+            this.routesFirst = -1;
+            this.routesLast = -1;
+            return;
+        }
+
         const internal = this.routeTable?.getInternalTexture();
         if (this.routesFirst < 0 || this.routes === null || !internal) {
             return;

@@ -2626,7 +2626,10 @@ export class UpdateManager implements Manager {
         }
 
         if (resized.size > 0) {
-            this.remeasureEdgesOf(resized);
+            // A repaint too large to place by its rows ends in a walk of every edge, which places these edges too.
+            // Placed here as well, a layer turning every node translucent placed its edges on the frames that
+            // painted their ends and again in that walk: 273 ms of a 680 ms restyle at 10,000 nodes (issue #10018).
+            this.remeasureEdgesOf(resized, !this.repaintEndsInWalk(painter));
         }
 
         // A repaint can change how a node is drawn in ways that move where its edges stop without
@@ -2666,6 +2669,17 @@ export class UpdateManager implements Manager {
             this.forceEdgeWalk();
             this.paintIndex = { rows: null };
         }
+    }
+
+    /**
+     * Whether the node repaint under way will end in a walk of every edge ({@link syncNodeStyles}): it has painted
+     * too many rows to place their edges one by one, and it is neither a time window's slide nor only `Node`s built
+     * from their rows.
+     * @param painter - Where the paint is read from.
+     * @returns True when it will.
+     */
+    private repaintEndsInWalk(painter: StylePainter): boolean {
+        return this.paintedRows === null && !painter.nodesFromRowsOnly && !painter.nodesFromBuildsOnly;
     }
 
     /** The Nodes a repaint of only Nodes built from their rows has painted so far ({@link syncNodeStyles}). */
@@ -2734,20 +2748,22 @@ export class UpdateManager implements Manager {
      * Make the edges of resized nodes measure again, and place them this frame. While a load holds
      * the draw they wait for their own paint, or for the walk that ends the repaint.
      * @param resized - The nodes this frame resized.
+     * @param place - False to leave placing them to a walk of every edge already owed.
      */
-    private remeasureEdgesOf(resized: ReadonlySet<Node>): void {
+    private remeasureEdgesOf(resized: ReadonlySet<Node>, place = true): void {
         for (const node of resized) {
-            this.remeasureEdgesAt(node.id);
+            this.remeasureEdgesAt(node.id, place);
         }
     }
 
     /**
      * Make the edges of one node measure again, and place them this frame unless a load holds the draw.
      * @param id - The node.
+     * @param placeNow - False to leave placing them to a walk of every edge already owed.
      */
-    private remeasureEdgesAt(id: NodeIdType): void {
+    private remeasureEdgesAt(id: NodeIdType, placeNow: boolean): void {
         this.sceneChanged = true;
-        const place = !this.dataManager.drawHeld;
+        const place = placeNow && !this.dataManager.drawHeld;
         for (const edge of this.edgesAt(id)) {
             edge.invalidatePositionCache();
             if (place) {

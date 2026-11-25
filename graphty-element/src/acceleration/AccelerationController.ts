@@ -200,6 +200,8 @@ interface Attachment {
      * would never have attached it.
      */
     readonly software: boolean;
+    /** Whether the factory was handed the renderer's device to build it on, rather than opening its own. */
+    readonly shared: boolean;
     released: boolean;
     /** Whether the element has started measuring this accelerator's device, so it does so once. */
     calibrating?: boolean;
@@ -379,6 +381,12 @@ export class AccelerationController {
     #probe: Promise<AccelerationStatus> | null = null;
     #probeSettled = false;
     /**
+     * Whether {@link start} has been called. A policy set before then probes nothing: the probe waits for
+     * whoever starts it, who knows whether a renderer is on its way whose device the accelerator should share.
+     * Probing from the policy change instead opened a device of the accelerator's own (issue #9986).
+     */
+    #started = false;
+    /**
      * Moves on every change a probe in flight must not outlive: a policy change, an injected
      * accelerator, a dispose. A probe remembers the value it started under and, finding it moved
      * after an await, releases what it built instead of attaching it -- otherwise switching
@@ -489,6 +497,15 @@ export class AccelerationController {
     }
 
     /**
+     * Whether the attached accelerator runs on the device the renderer draws with: true when its factory
+     * was handed that device, false when it opened its own or was injected, undefined with none attached.
+     * @returns Where the attached accelerator runs.
+     */
+    get sharesRendererDevice(): boolean | undefined {
+        return this.#attachment?.shared;
+    }
+
+    /**
      * Subscribes to state changes.
      *
      * Called on every transition and never for an unchanged state, so a chip that re-renders on
@@ -547,7 +564,9 @@ export class AccelerationController {
         this.#probe = null;
         this.#probeSettled = false;
         this.#transition("probing", undefined, undefined);
-        void this.start();
+        if (this.#started) {
+            void this.start();
+        }
     }
 
     /**
@@ -663,6 +682,7 @@ export class AccelerationController {
      * @returns The status the probe settled on.
      */
     start(): Promise<AccelerationStatus> {
+        this.#started = true;
         if (this.#probe === null) {
             this.#probe = this.#probeNow();
         }
@@ -1026,7 +1046,7 @@ export class AccelerationController {
             }
 
             try {
-                const { accelerator, software } = await this.#build(registration.factory);
+                const { accelerator, software, shared } = await this.#build(registration.factory);
 
                 if (this.#stale(generation)) {
                     this.#disposeAccelerator(accelerator);
@@ -1034,7 +1054,7 @@ export class AccelerationController {
                 }
 
                 if (accelerator !== null) {
-                    this.#attach(accelerator, true, software);
+                    this.#attach(accelerator, true, software, shared);
                     return true;
                 }
 
@@ -1085,10 +1105,12 @@ export class AccelerationController {
      * factory contract has no other way to say so -- and it costs a hardware host nothing. What
      * it built has checked itself ({@link AccelerationController.#verify}) before it is returned.
      * @param factory - The registered factory.
-     * @returns What it built, and whether that is on a software adapter.
+     * @returns What it built, whether that is on a software adapter, and whether on the renderer's device.
      * @throws Whatever the factory or the self-check threw.
      */
-    async #build(factory: AcceleratorFactory): Promise<{ accelerator: GraphAccelerator | null; software: boolean }> {
+    async #build(
+        factory: AcceleratorFactory,
+    ): Promise<{ accelerator: GraphAccelerator | null; software: boolean; shared: boolean }> {
         const device = this.#sharedDevice === undefined ? undefined : await this.#sharedDevice();
         const exactMaxNodes = this.#exactMaxNodes;
         const asked = device === undefined ? { exactMaxNodes } : { exactMaxNodes, device };
@@ -1108,7 +1130,7 @@ export class AccelerationController {
             await this.#verify(built.accelerator);
         }
 
-        return built;
+        return { ...built, shared: device !== undefined };
     }
 
     /**
@@ -1148,11 +1170,12 @@ export class AccelerationController {
      * @param owned - True when this controller built it, so this controller disposes it. False for
      * an injected one, whose lifetime belongs to whoever built it.
      * @param software - True when it runs on a software adapter, which only `"required"` accepts.
+     * @param shared - True when it was built on the renderer's device.
      */
-    #attach(accelerator: GraphAccelerator, owned: boolean, software = false): void {
+    #attach(accelerator: GraphAccelerator, owned: boolean, software = false, shared = false): void {
         this.#detach();
 
-        const attachment: Attachment = { accelerator, owned, software, released: false };
+        const attachment: Attachment = { accelerator, owned, software, shared, released: false };
         this.#attachment = attachment;
         this.#backend = accelerator.backend;
         this.#device = accelerator.device;

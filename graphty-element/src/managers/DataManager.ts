@@ -27,6 +27,7 @@ import { type EdgeRow, type LayoutEngine, layoutEngineInternals } from "../layou
 import { NGraphEngine } from "../layout/NGraphLayoutEngine";
 import { isEdgeLineBatchMesh } from "../meshes/EdgeLineBatch";
 import { EdgeShaderDrawing } from "../meshes/EdgeShaderDrawing";
+import { disposeSwappedTogether } from "../meshes/handOverTogether";
 import { disposeLabelsTogether } from "../meshes/LabelBatch";
 import { MeshCache } from "../meshes/MeshCache";
 import { NodeShaderDrawing } from "../meshes/NodeShaderDrawing";
@@ -202,9 +203,14 @@ function setAsideAndDispose<T>(nodes: Iterable<Node>, edges: Iterable<Edge>, tea
 
     const meshes = scene.meshes.splice(0);
     const owned = actionManagers.splice(0);
+    // Each dispose also frees the rendering groups, a visit to every texture (one per label): setting the
+    // block frees them once, and nothing is drawn until it lifts (issue #10018).
+    const blocked = scene.blockfreeActiveMeshesAndRenderingGroups;
+    scene.blockfreeActiveMeshesAndRenderingGroups = true;
     try {
         return teardown();
     } finally {
+        scene.blockfreeActiveMeshesAndRenderingGroups = blocked;
         restore(scene.meshes, meshes, (mesh) => !mesh.isDisposed());
         restore(actionManagers, owned, () => true);
         for (const [parent, children, kept] of families) {
@@ -3037,12 +3043,15 @@ export class DataManager implements Manager {
 
         const built: [Node, NodePaint][] = [];
         this.builtTogether = built;
-        try {
-            return work();
-        } finally {
-            this.builtTogether = null;
-            paintBuilt(built);
-        }
+        // A built row a batch draws trades its new mesh for an anchor when painted: those go together too (#10018).
+        return disposeSwappedTogether(() => {
+            try {
+                return work();
+            } finally {
+                this.builtTogether = null;
+                paintBuilt(built);
+            }
+        });
     }
 
     /**

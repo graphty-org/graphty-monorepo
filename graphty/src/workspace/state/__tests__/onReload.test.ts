@@ -40,7 +40,11 @@ describe("what a reload of this tab puts back", () => {
         assert.sameMembers(Object.keys(ON_RELOAD), Object.keys(createWorkspaceStore().get()));
         const kinds = Object.keys(freshKinds);
         for (const [field, rule] of Object.entries(ON_RELOAD as Record<string, string>)) {
-            assert.match(rule, /^(kept|this tab: \S.{5,}|fresh: [a-z ]+: \S.{5,}|gap #\d+: \S.{5,})$/, field);
+            assert.match(
+                rule,
+                /^(kept|kept: element-id|this tab: \S.{5,}|fresh: [a-z ]+: \S.{5,}|gap #\d+: \S.{5,})$/,
+                field,
+            );
             const fresh = /^fresh: ([a-z ]+): /.exec(rule);
             if (fresh !== null) {
                 assert.include(kinds, fresh[1], `${field}: "fresh" names a kind from fresh-kinds.json`);
@@ -55,7 +59,15 @@ describe("what a reload of this tab puts back", () => {
     });
 
     it("keeps the open selection workspace (issue #9655)", () => {
-        assert.strictEqual(ON_RELOAD.selectionWorkspace, "kept");
+        assert.strictEqual(ON_RELOAD.selectionWorkspace, "kept: element-id");
+    });
+
+    it("labels every kept field that holds a graphty-element id, so a restore checks it still names something (issue #9973)", () => {
+        const ids = Object.entries(ON_RELOAD as Record<string, string>)
+            .filter(([, rule]) => rule === "kept: element-id")
+            .map(([field]) => field);
+        assert.includeMembers(ids, ["styleRow", "inspected", "renamingRow", "selectionWorkspace"]);
+        assert.includeMembers([...STASHED_FIELDS], ids);
     });
 
     it("saves exactly the kept fields while a project is open, and forgets them once none is", () => {

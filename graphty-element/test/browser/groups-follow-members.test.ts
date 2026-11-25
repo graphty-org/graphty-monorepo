@@ -195,7 +195,7 @@ describe("a group with no stored position follows its members", () => {
     });
 
     it("keeps a file's nested groups by id, its ids numbers, through a save and an open, an older save's too", async () => {
-        await graph.addDataFromSource("xgmml", { data: NESTED_XGMML });
+        await graph.addDataFromSource("xgmml", { data: NESTED_XGMML, styles: "file" });
         await operationQueueOf(graph).waitForCompletion();
         const { text } = await graph.getSession().project.save();
         // As saved now, and as saved when a record's parent was the parent's row.

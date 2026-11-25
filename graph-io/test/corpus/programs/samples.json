@@ -40,7 +40,7 @@
         "program": "Cytoscape (XGMML)",
         "format": "xgmml",
         "file": "corpus/styles/xgmml/BasicDataVizDemo.xgmml.gz",
-        "app": "cytoscape.xgmml",
+        "app": "cytoscape.xgmml.gz",
         "nodes": 331,
         "edges": 362,
         "styled": true,

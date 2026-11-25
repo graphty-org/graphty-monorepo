@@ -2,8 +2,8 @@
 
 One sample file per program whose files graphty reads, each as the program (or its own tutorials, tests or
 examples) wrote it. The start page lists them in their own section, each under its program's name. Every file here is
-a byte-for-byte copy of a file in graph-io's test corpus (the path given under "Test copy"), except
-`cytoscape.xgmml`, which is the corpus copy unzipped. Do not edit them: they are the official load tests
+a byte-for-byte copy of a file in graph-io's test corpus (the path given under "Test copy"); `cytoscape.xgmml.gz` is
+gzipped, as the corpus stores it, and the app unzips it as it opens it. Do not edit them: they are the official load tests
 (`graph-io/test/programs/program-samples.test.ts` and `graphty-element/test/browser/program-samples.test.ts`), and
 `graph-io/test/corpus/programs/samples.json` lists them with their counts.
 
@@ -54,7 +54,7 @@ every other text is as its publisher gives it.
   The Cytoscape Consortium. It is redistributed under the distribution's license, not under the MIT license of the
   py4cytoscape repository that also holds a copy.
 
-## Cytoscape (XGMML) -- cytoscape.xgmml
+## Cytoscape (XGMML) -- cytoscape.xgmml.gz
 
 - What it is: the network of Cytoscape's Basic Data Visualization tutorial. 331 nodes (rectangles, ellipses, round
   rectangles) colored by expression, 362 edges, stored positions.

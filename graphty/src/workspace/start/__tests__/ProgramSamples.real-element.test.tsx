@@ -131,7 +131,7 @@ describe("the start page's files from other programs", () => {
             const entry = testFileOf(sample.url);
             const served = await bytesOf(`public/samples/programs/${entry.app}`);
             const stored = await bytesOf(`../graph-io/test/${entry.file}`);
-            const tested = entry.file.endsWith(".gz") ? await gunzip(stored) : stored;
+            const tested = entry.file.endsWith(".gz") && !entry.app.endsWith(".gz") ? await gunzip(stored) : stored;
             assert.isTrue(
                 served.length === tested.length && served.every((byte, i) => byte === tested[i]),
                 `public/samples/programs/${entry.app} is graph-io/test/${entry.file}`,

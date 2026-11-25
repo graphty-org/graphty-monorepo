@@ -9,6 +9,10 @@
  * place rather than gliding in from the hidden mesh template.
  *
  * Read from where each node is drawn, in scene units, on the frames after each write.
+ *
+ * Under a particle transition each moving node shrinks into its cloud on the way. A write arriving part way through
+ * starts the next move from the picture as drawn, and that move must take each node's whole size, not the shrunk size
+ * it is drawn at that frame: otherwise the node lands shrunk and stays so.
  */
 
 import "../../src/graphty-element";
@@ -17,6 +21,7 @@ import { afterEach, assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
+import { isPlaced } from "../../src/transitions/LayoutTransitionRunner";
 import { drawnFrames } from "../helpers/drawn-frames";
 
 interface Place {
@@ -89,10 +94,12 @@ function largestMove(before: ReadonlyMap<string, Place>, after: ReadonlyMap<stri
 }
 
 /**
- * An element with a glide set, showing one node under a seeded force layout, at rest.
+ * An element with a layout transition set, showing one node under a seeded force layout, at rest.
+ * @param transition - The layout transition.
+ * @param seconds - How long it takes.
  * @returns The element.
  */
-async function mounted(): Promise<Graphty> {
+async function mounted(transition = "glide", seconds = 0.5): Promise<Graphty> {
     const element = document.createElement("graphty-element");
     element.setAttribute("acceleration", "off");
     element.style.display = "block";
@@ -103,7 +110,7 @@ async function mounted(): Promise<Graphty> {
     await element.updateComplete;
     await operationQueueOf(element.graph).waitForCompletion();
     await element.waitForStableFrame();
-    await element.session.config.set({ layoutTransition: { transition: "glide", seconds: 0.5 } });
+    await element.session.config.set({ layoutTransition: { transition, seconds } });
     await element.session.layout.set("ngraph", { options: { seed: 1 } });
     await element.session.data.addNodes([{ id: idOf(0) }]);
     await operationQueueOf(element.graph).waitForCompletion();
@@ -140,7 +147,7 @@ async function grow(
     let firstDrawnOff: number | undefined;
     const observer = scene.onAfterRenderObservable.add(() => {
         const node = element.graph.getNode(newcomer);
-        if (firstDrawnOff === undefined && node?.placed === true) {
+        if (firstDrawnOff === undefined && node !== undefined && isPlaced(node)) {
             firstDrawnOff = distance(node.drawnPosition, laidOut(element, newcomer));
         }
     });
@@ -186,5 +193,46 @@ describe("ngraph growing one node at a time under a layout transition", () => {
         assert.deepEqual(jumps, [], "no node already drawn jumped on the frame after an add");
         assert.deepEqual(glidedIn, [], "each newcomer was first drawn where the layout put it");
         assert.deepEqual(unfinished, [], "at rest every node is drawn where the layout put it");
+    });
+});
+
+/**
+ * The scale each node is drawn at.
+ * @param element - The element.
+ * @param ids - The nodes.
+ * @returns Their drawn scales.
+ */
+function scales(element: Graphty, ids: readonly string[]): number[] {
+    return ids.map((id) => {
+        const node = element.graph.getNode(id);
+        assert.isDefined(node, id);
+        return node.drawnScale;
+    });
+}
+
+describe.each(["particle-morph", "fade-through"])("data arriving part way through a %s move", (transition) => {
+    it("leaves every node drawn at its whole size once the moves end", async () => {
+        const element = await mounted(transition, 0.8);
+        const scene = element.graph.getScene();
+        const first = Array.from({ length: 6 }, (_, i) => idOf(i));
+        await element.session.data.addNodes(first.slice(1).map((id) => ({ id })));
+        await operationQueueOf(element.graph).waitForCompletion();
+        await element.waitForStableFrame();
+        const [whole] = scales(element, [idOf(0)]);
+
+        const all = Array.from({ length: 12 }, (_, i) => idOf(i));
+        await element.session.data.addNodes(all.slice(6).map((id) => ({ id })));
+        // Part way: a node already drawn has given way to its cloud.
+        while (!scales(element, first).some((scale) => scale < whole / 2)) {
+            await drawnFrames(scene, 1);
+        }
+
+        await element.session.data.addEdges(all.slice(1).map((id, i) => ({ source: all[i], target: id })));
+        await operationQueueOf(element.graph).waitForCompletion();
+        await element.waitForStableFrame();
+
+        const drawnAt = scales(element, all);
+        const shrunk = all.filter((_, i) => Math.abs(drawnAt[i] - whole) > whole * 1e-3);
+        assert.deepEqual(shrunk, [], `every node is drawn at its whole size (${String(whole)})`);
     });
 });

@@ -256,6 +256,5 @@
     "test/interactions/stable-frame-waits-for-pending-visuals.test.ts",
     "test/managers/DataManager.test.ts",
     "test/managers/LayoutManager.test.ts",
-    "test/managers/UpdateManager.test.ts",
-    "test/performance/edge-performance.test.ts"
+    "test/managers/UpdateManager.test.ts"
 ]

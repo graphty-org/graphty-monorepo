@@ -11,7 +11,7 @@
  */
 
 import type { Channel } from "@graphty/graphty-element/catalog";
-import React, { useState } from "react";
+import React, { useId, useState } from "react";
 
 import { useWorkspace } from "../../state/WorkspaceContext";
 import { shownChannel } from "../offered";
@@ -51,6 +51,7 @@ interface ItemListEditorProps {
 export function ItemListEditor({ ctx, list, channel, inline = false }: ItemListEditorProps): React.JSX.Element | null {
     const { store } = useWorkspace();
     const [open, setOpen] = useState(false);
+    const listId = useId();
     const fail = (error: unknown): void => {
         store.set({ notice: { message: failureWords(list.name, "changed", error), error: true } });
     };
@@ -114,6 +115,7 @@ export function ItemListEditor({ ctx, list, channel, inline = false }: ItemListE
                 label={`Edit ${list.name.toLowerCase()}`}
                 swatches={swatchesOf(ctx, list)}
                 opens="dialog"
+                controls={listId}
                 expanded={open}
                 onClick={() => {
                     setOpen(!open);
@@ -124,6 +126,7 @@ export function ItemListEditor({ ctx, list, channel, inline = false }: ItemListE
                 label={`Edit ${list.name.toLowerCase()}`}
                 words={firstItemWords(list, value) || list.item}
                 opens="dialog"
+                controls={listId}
                 expanded={open}
                 onClick={() => {
                     setOpen(!open);
@@ -147,7 +150,7 @@ export function ItemListEditor({ ctx, list, channel, inline = false }: ItemListE
                     }
                 }}
             />
-            <BesidePopover title={list.name} opened={open} onOpenChange={setOpen}>
+            <BesidePopover id={listId} title={list.name} opened={open} onOpenChange={setOpen}>
                 <div data-list-popover="" style={{ maxHeight: "calc(7 * 28px)", overflowY: "auto" }}>
                     <PlusList level="group" title={list.name} add={plus}>
                         {items.lines}

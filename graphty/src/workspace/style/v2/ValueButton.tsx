@@ -14,6 +14,7 @@ import React from "react";
  * @param props.words - what it shows, if words
  * @param props.swatches - what it shows, if colors: a CSS background
  * @param props.opens - what it opens, for assistive technology ("dialog")
+ * @param props.controls - the id of what it opens
  * @param props.expanded - whether what it opens is open
  * @param props.left - a glyph before the words
  * @param props.right - a glyph after the words
@@ -26,6 +27,7 @@ export function ValueButton({
     words,
     swatches,
     opens,
+    controls,
     expanded,
     left,
     right,
@@ -36,6 +38,7 @@ export function ValueButton({
     words?: string;
     swatches?: string;
     opens?: "dialog";
+    controls?: string;
     expanded?: boolean;
     left?: React.ReactNode;
     right?: React.ReactNode;
@@ -51,6 +54,7 @@ export function ValueButton({
             justify={right === undefined ? "flex-start" : "space-between"}
             aria-label={words === undefined || words === "" ? label : `${label}, ${words}`}
             aria-haspopup={opens}
+            aria-controls={controls}
             aria-expanded={opens === undefined ? undefined : expanded === true}
             className={swatches === undefined ? "ws-value-listbox" : "ws-gradient-button"}
             style={swatches === undefined ? undefined : { background: swatches }}

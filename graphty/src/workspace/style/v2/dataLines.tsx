@@ -230,6 +230,7 @@ const BESIDE_WIDTH = 264;
  * @param props.opened - whether it is open
  * @param props.onOpenChange - called when it opens or closes
  * @param props.children - its lines
+ * @param props.id - its id, for the `aria-controls` of the button that opens it
  * @returns The pop-over
  */
 export function BesidePopover({
@@ -237,11 +238,13 @@ export function BesidePopover({
     opened,
     onOpenChange,
     children,
+    id,
 }: Readonly<{
     title: string;
     opened: boolean;
     onOpenChange: (open: boolean) => void;
     children: React.ReactNode;
+    id?: string;
 }>): React.JSX.Element {
     return (
         <Popout opened={opened} onOpenChange={onOpenChange}>
@@ -253,7 +256,7 @@ export function BesidePopover({
                 closeLabel={`Close ${title}`}
             >
                 <Popout.Content>
-                    <div data-thing-popover="" data-beside-pop={title}>
+                    <div id={id} data-thing-popover="" data-beside-pop={title}>
                         {opened ? children : null}
                     </div>
                 </Popout.Content>

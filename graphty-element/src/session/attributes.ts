@@ -111,10 +111,7 @@ function accumulate(accumulator: Accumulator, value: unknown, id?: string | numb
         return;
     }
 
-    // Only text and numbers can name a node; a record value (a GML `graphics` block, built with no prototype) has no
-    // text form at all, and String() of it throws.
-    accumulator.ids &&=
-        id !== undefined && (typeof value === "string" || typeof value === "number") && String(value) === String(id);
+    accumulator.ids &&= id !== undefined && String(value) === String(id);
 
     accumulator.present++;
     accumulator.types.add(type);

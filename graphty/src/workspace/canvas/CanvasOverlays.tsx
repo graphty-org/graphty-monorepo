@@ -85,15 +85,6 @@ function useCanvasReading(session: GraphSession | null, paused: boolean): Canvas
             const totalNodes = session.data.statistics({ scope: "all" }).nodeCount;
             const blocks = keyBlocks(dataBlocks(session));
             readOpen.current ||= nodeCount > 0 && blocks.length > 0;
-            // An effect is listed in a key that shows, and never opens it: a style write of an
-            // effect is no reason for the key to appear. Nor is a file's own drawing, the layers its
-            // styles made: the reader opens its key with Legend. Read before the same-reading check:
-            // the load's report arrives after the blocks it keys.
-            const fileLayers = new Set(session.data.lastImport()?.styles?.layers ?? []);
-            const keyHasEntries = blocks.some((block) => !isEffectBlock(block) && !fileLayers.has(block.layerId));
-            if (store.get().keyHasEntries !== keyHasEntries) {
-                store.set({ keyHasEntries });
-            }
             // The card names and groups each block from the session (a layer's or a run's name, a
             // run's folder), so its sections are part of what it draws: a rename changes no block.
             const key = JSON.stringify([
@@ -109,6 +100,12 @@ function useCanvasReading(session: GraphSession | null, paused: boolean): Canvas
             }
             last = key;
             setReading({ blocks, nodeCount, edgeCount, totalNodes, load });
+            // An effect is listed in a key that shows, and never opens it: a style write of an
+            // effect is no reason for the key to appear.
+            const keyHasEntries = blocks.some((block) => !isEffectBlock(block));
+            if (store.get().keyHasEntries !== keyHasEntries) {
+                store.set({ keyHasEntries });
+            }
         };
         read();
         const offs = [
@@ -369,7 +366,6 @@ export function CanvasOverlays(): React.JSX.Element | null {
     // The selection workspace draws its preview key at its own preview's corner (spec 3.0).
     const workspaceOpen = useWorkspaceState((state) => state.selectionWorkspace !== null);
     const legendAsked = useWorkspaceState((state) => state.legendAsked);
-    const keyHasEntries = useWorkspaceState((state) => state.keyHasEntries);
     // The empty card's doors: the Sources "+" doors a first source most often comes through.
     const doors = [useCommand("data.add-file"), useCommand("data.samples")].filter((door) => door !== null);
     // When filters hide every node the way back is the filters, never loading other data.
@@ -381,8 +377,8 @@ export function CanvasOverlays(): React.JSX.Element | null {
     if (session === null) {
         return null;
     }
-    // Effects and a file's own drawing alone do not show the key: the reader asks for it (Legend), or another row keys.
-    const keyed = keyHasEntries;
+    // Effects alone do not show the key: the reader asks for it (Legend), or another row keys.
+    const keyed = blocks.some((block) => !isEffectBlock(block));
 
     let card: React.ReactNode = null;
     if (load !== null) {

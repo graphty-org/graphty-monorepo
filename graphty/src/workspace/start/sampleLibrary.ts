@@ -11,7 +11,7 @@ import {
     type GeneratorDescriptor,
 } from "@graphty/graphty-element/catalog";
 
-import { PROGRAM_SAMPLES, START_SAMPLES, type StartSample } from "../../data/sampleManifest";
+import { START_SAMPLES, type StartSample } from "../../data/sampleManifest";
 import { serverKinds } from "../server/commands";
 import { kindName } from "../server/words";
 import { countWords, fitsInBrowser, isLarge, megabytes } from "./library";
@@ -244,26 +244,6 @@ export function setSampleCatalogForTests(catalog: SampleCatalog = ELEMENT_CATALO
 export function offeredTiles(): readonly LibraryTile[] {
     return sampleTiles;
 }
-
-/** The field of every sample file from another program, for the field filter. */
-export const PROGRAMS = "Other programs";
-
-/**
- * One sample file from each program whose files graphty reads (PROGRAM_SAMPLES), each card named for its program.
- * The library offers them in their own section, after the samples.
- */
-export const PROGRAM_TILES: readonly LibraryTile[] = PROGRAM_SAMPLES.map((sample): LibraryTile => ({
-    id: sample.id,
-    name: sample.name,
-    hook: sample.program,
-    field: PROGRAMS,
-    size: sample.size,
-    sentence: sample.sentence,
-    picture: () => sample.picture,
-    note: undefined,
-    words: `${sample.program} ${sample.name} ${PROGRAMS} ${sample.sentence}`.toLowerCase(),
-    source: { kind: "sample", sample },
-}));
 
 /** The field of every network sample, for the field filter. */
 export const NETWORK = "Network";

@@ -49,7 +49,7 @@ describe("the Samples dialog", () => {
             .getAllByRole("region")
             .map((section) => section.getAttribute("aria-label"));
         // The start page's library, in its order, and nothing else.
-        assert.deepEqual(headings, ["Samples", "Other programs", "Network", "Generated"]);
+        assert.deepEqual(headings, ["Samples", "Network", "Generated"]);
         // One network sample of each kind of source, between the samples and the generators, as
         // the start page lists them.
         const network = within(dialog).getByRole("region", { name: "Network" });
@@ -64,8 +64,7 @@ describe("the Samples dialog", () => {
                 "deps.dev: webpack 5.90.0: Web API",
             ],
         );
-        // Gephi's and D3's files of the same novel are other programs' samples, in their own section.
-        const names = within(within(dialog).getByRole("region", { name: "Samples" }))
+        const names = within(dialog)
             .getAllByRole("button")
             .map((button) => button.getAttribute("aria-label") ?? "");
         assert.lengthOf(

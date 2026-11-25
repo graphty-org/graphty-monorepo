@@ -1494,11 +1494,7 @@ export class LabelDeclutter {
 
         let best = 0;
         let lowest = Number.POSITIVE_INFINITY;
-        // A label its style puts on its node (centered, or inside it), or whose place a layer states (a file's label
-        // below its node), belongs there: moved elsewhere it would say something the file or style did not, so only
-        // its own place is tried.
-        const places = entry.node.label?.onTarget === true || entry.node.labelPlaced ? 0 : AROUND.length;
-        for (let place = 0; place <= places && lowest > 0; place++) {
+        for (let place = 0; place <= AROUND.length && lowest > 0; place++) {
             this.frame(entry, place);
             const cost = this.cost(entry, size, lowest);
             if (cost < lowest) {

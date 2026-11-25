@@ -1538,7 +1538,6 @@ export interface FileStyleOptions {
     readonly labelSizes?: "proportional" | "file";
     readonly lengths?: "median" | "file" | "spacing";
     readonly toolDefaults?: boolean;
-    readonly valueColumns?: "shown" | "hidden";
 }
 
 // @public

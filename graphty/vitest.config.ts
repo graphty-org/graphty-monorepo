@@ -296,8 +296,7 @@ const config = defineConfig({
         // makes Vite pre-transform main.tsx, which finds both mid-run: Vite re-bundled, reloaded the
         // test page, and the shard hung (CI run 40235438577) or the next file failed (#3762). Tests
         // must never fetch a missing path from the test server; stub fetch instead.
-        // The FBX and USD loaders babylonjs-models imports when such a model first loads, too, and the Graphviz
-        // layout graphty-element loads when a DOT file first opens (the Graphviz sample from another program).
+        // The FBX and USD loaders babylonjs-models imports when such a model first loads, too.
         include: [
             "@mantine/hooks",
             "react-dom/client",
@@ -305,7 +304,6 @@ const config = defineConfig({
             "@babylonjs/loaders/FBX/fbxFileLoader.pure.js",
             "@babylonjs/loaders/USD/usdFileLoader.pure.js",
             "@babylonjs/core/Meshes/Builders/tubeBuilder.js",
-            "@graphty/graphty-element > @hpcc-js/wasm-graphviz",
         ],
         // Re-scan and re-bundle the dependencies at the start of every run. Vite keeps a cached
         // bundle under node_modules/.vite and trusts it while the lockfile and this config are

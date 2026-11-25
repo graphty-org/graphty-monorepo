@@ -98,9 +98,6 @@ algorithms/benchmark-results/
 
 # The style corpus: real files kept byte for byte, and RESULTS.md, which the style harness compares as written
 graph-io/test/corpus/styles/
-# The sample files from other programs, kept byte for byte, and the app's copies of them
-graph-io/test/corpus/programs/
-graphty/public/samples/programs/
 
 # Style fidelity references: scenes written by graph-io/test/fidelity/regenerate.sh, and the samples
 # they hash byte for byte

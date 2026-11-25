@@ -338,18 +338,18 @@ describe("format catalogue", () => {
 
         assert.deepEqual(
             UNSERVED_FORMAT_IDS.map((entry) => entry.id),
-            [],
+            ["sif"],
         );
     });
 
-    it("reports that every built-in format but the project file can be read, and all but OBO, SIF and workbooks written", () => {
+    it("reports that every built-in format but the project file can be read, and all but OBO and workbooks written", () => {
         assert.deepEqual(
             FORMAT_DESCRIPTORS.filter((descriptor) => !descriptor.canImport).map((descriptor) => descriptor.id),
             ["graphty"],
         );
         assert.deepEqual(
             FORMAT_DESCRIPTORS.filter((descriptor) => !descriptor.canExport).map((descriptor) => descriptor.id),
-            ["obo", "sif", "xlsx"],
+            ["obo", "xlsx"],
         );
     });
 
@@ -405,12 +405,12 @@ describe("format catalogue", () => {
     });
 
     it("answers nothing for a format it does not know", () => {
-        assert.isUndefined(formatDescriptor("no-such-format"));
+        assert.isUndefined(formatDescriptor("sif"));
     });
 
     it("refuses a deprecated unserved format name with the reason it is unserved", () => {
-        // A built-in name with no reader stays in FormatId, so autocomplete offers it. A load that
-        // names one must say why it cannot be read, not claim the name is unknown.
+        // "sif" is still in FormatId, so autocomplete offers it. A load that names
+        // one must say why it cannot be read, not claim the name is unknown.
         for (const entry of UNSERVED_FORMAT_IDS) {
             const error = unknownFormat(entry.id);
 

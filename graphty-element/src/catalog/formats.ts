@@ -744,16 +744,6 @@ const SHIPPED_FORMATS: readonly FormatDescriptor[] = [
         styles: { read: false, write: "none" },
     },
     {
-        id: "sif",
-        plainName: "Simple Interaction Format",
-        extensions: [".sif"],
-        mimeTypes: ["text/plain"],
-        canImport: true,
-        canExport: false,
-        options: [],
-        styles: { read: false, write: "none" },
-    },
-    {
         id: "xlsx",
         plainName: "Excel Workbook",
         extensions: [".xlsx", ".xlsm"],
@@ -792,9 +782,19 @@ export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[] = withEachDescripti
 /**
  * The built-in format names no registered data source reads. Listed rather than omitted, so a
  * consumer learns the gap from the catalog instead of from a failed load, and a load that names
- * one fails with the reason given here. Every built-in format is read today, so it is empty.
+ * one fails with the reason given here.
+ *
+ * "sif" is deprecated (issue #306): it is removed from `FormatId` at the next major release unless
+ * graph-io gains a reader for it first.
  */
-export const UNSERVED_FORMAT_IDS: readonly UnservedFormat[] = [];
+export const UNSERVED_FORMAT_IDS: readonly UnservedFormat[] = [
+    {
+        id: "sif",
+        reason:
+            "No data source reads the Cytoscape simple interaction format. " +
+            "The name is deprecated and is removed at the next major release unless a reader lands.",
+    },
+];
 
 /**
  * Find one format's descriptor by its name.

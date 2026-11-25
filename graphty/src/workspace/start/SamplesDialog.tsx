@@ -21,7 +21,6 @@ import {
     openProject,
     openSeparate,
     sampleKey,
-    sampleSource,
 } from "./open";
 import { SampleCard } from "./SampleCard";
 import {
@@ -31,8 +30,6 @@ import {
     NETWORK_TILES,
     type NetworkTile,
     offeredTiles,
-    PROGRAM_TILES,
-    PROGRAMS,
     type SampleCardData,
 } from "./sampleLibrary";
 
@@ -138,10 +135,10 @@ function libraryEntry(ctx: CommandContext, tile: LibraryTile, { ask, configure }
     const { source } = tile;
     const open = (target: Target): void => {
         if (source.kind === "sample") {
-            const { name } = source.sample;
+            const { name, url } = source.sample;
             bringFile(
                 ctx,
-                { name, source: sampleSource(source.sample), origin: "sample", callerKey: sampleKey(source.sample) },
+                { name, source: { config: { url }, name }, origin: "sample", callerKey: sampleKey(source.sample) },
                 target,
             );
         } else if (source.kind === "generator") {
@@ -152,13 +149,8 @@ function libraryEntry(ctx: CommandContext, tile: LibraryTile, { ask, configure }
             bringDataset(ctx, source.dataset, target);
         }
     };
-    // As the start page splits them: the samples, the files from other programs, then the generators.
-    let group = "Samples";
-    if (source.kind === "generator") {
-        group = GENERATED;
-    } else if (tile.field === PROGRAMS) {
-        group = PROGRAMS;
-    }
+    // As the start page splits them: the samples, then the generators.
+    const group = source.kind === "generator" ? GENERATED : "Samples";
     return { key: tile.id, group, card: tile, words: tile.words, open };
 }
 
@@ -173,7 +165,6 @@ function libraryEntry(ctx: CommandContext, tile: LibraryTile, { ask, configure }
  */
 function sampleEntries(ctx: CommandContext, asks: Asks): SampleEntry[] {
     const library = offeredTiles().map((tile) => libraryEntry(ctx, tile, asks));
-    const programs = PROGRAM_TILES.map((tile) => libraryEntry(ctx, tile, asks));
     const network = NETWORK_TILES.map((tile): SampleEntry => ({
         key: tile.id,
         group: NETWORK,
@@ -185,7 +176,6 @@ function sampleEntries(ctx: CommandContext, asks: Asks): SampleEntry[] {
     }));
     return [
         ...library.filter((entry) => entry.group !== GENERATED),
-        ...programs,
         ...network,
         ...library.filter((entry) => entry.group === GENERATED),
     ];
@@ -236,9 +226,6 @@ export function SamplesDialog(): React.JSX.Element {
     );
     const groups = [...new Set(shown.map((entry) => entry.group))];
     const separable = ctx.session !== null && ctx.session.data.sources().length > 0;
-    // Cards that share a name (Les Miserables, and Gephi's and D3's copies of it) give their separate-graph button the
-    // card's whole name, so no two buttons are named alike.
-    const repeated = (name: string): boolean => shown.filter((entry) => entry.card.name === name).length > 1;
     return (
         <>
             <Modal
@@ -275,7 +262,7 @@ export function SamplesDialog(): React.JSX.Element {
                                             close();
                                             entry.open(target);
                                         };
-                                        const separate = `Open ${repeated(entry.card.name) ? cardLabel(entry.card) : entry.card.name} as a separate graph`;
+                                        const separate = `Open ${entry.card.name} as a separate graph`;
                                         return (
                                             <SampleCard
                                                 key={entry.key}

@@ -11,7 +11,6 @@
  *   graph-samples/thumbnails/generator-<generator>.webp  every generator in GENERATOR_CATALOG
  *   graphty/public/samples/<sample>.webp                 the graphty app's own samples in APP_SAMPLES
  *   graphty/public/samples/network-<source>.webp         the start page's network samples in NETWORK_SAMPLES
- *   graphty/public/samples/programs/<id>.webp            the start page's sample files from other programs
  *
  * graph-samples' pack step copies them into dist/data/v1/ (and build-hosted.mjs into the files
  * graphty.app publishes at https://graphty.app/data/graph-samples/v1/), and each is named by the
@@ -36,9 +35,6 @@
  *   connected graph that carries no positions.
  * - A network sample: the source's own public example, read live from its server, so a rerun needs
  *   network access.
- * - A sample file from another program (graph-io/test/corpus/programs/samples.json, named `program-<id>`): the
- *   app's copy of the file, drawn as the app opens a sample, with its file's styles and layout "placed" (where the
- *   file put its nodes, else the layout it asks for), and with its own background when it names one.
  *
  * Needs a built graph-format, graph-samples (with dist/data/v1/) and graphty-element
  * (dist/graphty.bundle.js).
@@ -61,10 +57,6 @@ const hostedDir = path.join(root, "graph-samples/public-data/v1");
 const downloadDir = path.join(root, "tmp/graph-samples-hosted");
 const outDir = path.join(root, "graph-samples/thumbnails");
 const bundle = path.join(root, "graphty-element/dist/graphty.bundle.js");
-const assetsDir = path.join(root, "graphty-element/dist/assets");
-/** The optional Graphviz package graphty-element's Graphviz Worker loads, served at GRAPHVIZ_URL. */
-const graphvizPackage = path.join(root, "graphty-element/node_modules/@hpcc-js/wasm-graphviz/dist/index.js");
-const GRAPHVIZ_URL = "/hpcc-js-wasm-graphviz.js";
 /** The graphty app's own samples that have no graph-samples dataset to take a picture from. */
 const appSamplesDir = path.join(root, "graphty/public/samples");
 const APP_SAMPLES = ["campus-contacts", "graph-research", "marvel-films", "paper-citations"];
@@ -72,10 +64,6 @@ const APP_SAMPLES = ["campus-contacts", "graph-research", "marvel-films", "paper
 const NETWORK_SAMPLES = JSON.parse(
     readFileSync(path.join(root, "graphty/src/workspace/start/network-samples.json"), "utf8"),
 );
-
-/** The start page's sample files from other programs, served from the app's copies. */
-const programsDir = path.join(appSamplesDir, "programs");
-const PROGRAM_SAMPLES = JSON.parse(readFileSync(path.join(root, "graph-io/test/corpus/programs/samples.json"), "utf8"));
 
 /** The picture's size in pixels: twice a 240 x 150 tile, for sharp screens. */
 const WIDTH = 480;
@@ -381,21 +369,6 @@ async function jobs(wanted) {
             layout: { id: "force", options: { seed: SEED } },
         });
     }
-    for (const sample of PROGRAM_SAMPLES.filter(({ id }) => want(`program-${id}`))) {
-        list.push({
-            file: path.join(programsDir, `${sample.id}.webp`),
-            name: `program-${sample.id}`,
-            program: {
-                type: sample.type ?? sample.format,
-                url: `/programs/${sample.app}`,
-                options:
-                    sample.columns === undefined
-                        ? {}
-                        : { edgeSource: sample.columns.source, edgeTarget: sample.columns.target },
-            },
-            layout: { id: "placed" },
-        });
-    }
     for (const meta of DATASETS.filter((each) => want(each.name))) {
         const small = existsSync(path.join(dataDir, `${meta.name}.gsnp.gz`)) && meta.nodes <= 5000;
         const job = small
@@ -444,29 +417,6 @@ const server = createServer((request, response) => {
         response.end(readFileSync(bundle));
         return;
     }
-    // graphty-element's Workers; its Graphviz Worker imports the optional Graphviz package by name, which a page
-    // with no bundler cannot resolve, so it is pointed at the installed copy and a DOT file gets its Graphviz layout
-    if (request.url === GRAPHVIZ_URL) {
-        response.setHeader("Content-Type", "text/javascript");
-        response.end(readFileSync(graphvizPackage));
-        return;
-    }
-    const asset = /^\/assets\/([\w.-]+\.js)$/.exec(request.url ?? "");
-    if (asset !== null && existsSync(path.join(assetsDir, asset[1]))) {
-        response.setHeader("Content-Type", "text/javascript");
-        response.end(
-            readFileSync(path.join(assetsDir, asset[1]), "utf8").replaceAll(
-                "`@hpcc-js/wasm-graphviz`",
-                `\`${GRAPHVIZ_URL}\``,
-            ),
-        );
-        return;
-    }
-    const program = PROGRAM_SAMPLES.find(({ app }) => request.url === `/programs/${app}`);
-    if (program !== undefined) {
-        response.end(readFileSync(path.join(programsDir, program.app)));
-        return;
-    }
     response.setHeader("Content-Type", "text/html");
     response.end(PAGE);
 });
@@ -499,7 +449,6 @@ try {
                 data: job.records === undefined ? null : JSON.stringify({ directed: job.directed, ...job.records }),
                 source: job.source ?? null,
                 example: job.example ?? null,
-                program: job.program ?? null,
                 emphasis: EMPHASIS[job.name] ?? null,
                 layout: job.layout,
                 width: WIDTH,
@@ -507,7 +456,7 @@ try {
                 waitGuardMs: WAIT_GUARD_MS,
             });
             writeFileSync(path.resolve(outDir, job.file), Buffer.from(picture, "base64"));
-            const drawn = job.records === undefined ? (job.example ?? job.name) : `${job.records.nodes.length} nodes`;
+            const drawn = job.records === undefined ? job.example : `${job.records.nodes.length} nodes`;
             console.log(`${job.file} (${job.layout.engine ?? job.layout.id}, ${drawn})`);
         } catch (error) {
             failed += 1;
@@ -529,7 +478,6 @@ process.exit(failed === 0 ? 0 : 1);
  * @param job.data - its records, as graphty-element's JSON, or null for a network sample
  * @param job.source - a network sample's source id, or null
  * @param job.example - a network sample's example id, or null
- * @param job.program - a sample file from another program: its type, address and reader options, or null
  * @param job.layout - the layout: its catalog id, the engine when not the default, and options
  * @param job.width - the picture's width in pixels
  * @param job.height - the picture's height in pixels
@@ -537,39 +485,11 @@ process.exit(failed === 0 ? 0 : 1);
  * @param job.waitGuardMs - the monorepo's one hang guard, which ends a stable-frame wait that hangs
  * @returns the WebP picture, base64
  */
-async function draw({ name, data, source, example, program, layout, width, height, emphasis, waitGuardMs }) {
+async function draw({ name, data, source, example, layout, width, height, emphasis, waitGuardMs }) {
     globalThis.__GRAPHTY_WAIT_GUARD_MS__ = waitGuardMs;
     await globalThis.customElements.whenDefined("graphty-element");
-    let element = globalThis.document.querySelector("graphty-element");
-    if (program !== null) {
-        // the file styles experiment is read when the element comes up, so a program sample gets an element of its own
-        const styled = globalThis.document.createElement("graphty-element");
-        styled.style.cssText = element.style.cssText;
-        styled.features = ["file-styles"];
-        element.replaceWith(styled);
-        element = styled;
-    }
+    const element = globalThis.document.querySelector("graphty-element");
     const { session } = element;
-    // a picture's bytes, base64, to hand back out of the page
-    const base64Of = async (blob) => {
-        let text = "";
-        for (const byte of new Uint8Array(await blob.arrayBuffer())) {
-            text += String.fromCodePoint(byte);
-        }
-        return btoa(text);
-    };
-    if (program !== null) {
-        // drawn as the graphty app opens a sample: with the file's own styles, where the file placed its nodes or
-        // with the layout the file asks for (a DOT file's Graphviz program)
-        await session.layout.setDimension("2d");
-        await session.data.import(
-            { type: program.type, name, config: { ...program.options, url: program.url } },
-            { styles: "file", layout: "placed", styleOptions: { framing: "file", lengths: "spacing" } },
-        );
-        await element.waitForStableFrame();
-        const drawn = await element.captureScreenshot({ format: "webp", quality: 0.85, width, height });
-        return base64Of(drawn.blob);
-    }
     await session.styles.add({
         name: "Thin gray lines",
         target: "edge",
@@ -609,5 +529,10 @@ async function draw({ name, data, source, example, program, layout, width, heigh
     if (corner.getImageData(0, 0, 1, 1).data[3] !== 0) {
         throw new Error("graphty-element drew the background into a transparent screenshot; run it again");
     }
-    return base64Of(shot.blob);
+    const bytes = new Uint8Array(await shot.blob.arrayBuffer());
+    let text = "";
+    for (const byte of bytes) {
+        text += String.fromCodePoint(byte);
+    }
+    return btoa(text);
 }

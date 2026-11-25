@@ -15,7 +15,6 @@ import { DEFAULT_LIMITS } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeEach, describe, it, onTestFailed } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { PROGRAM_SAMPLES } from "../../../data/sampleManifest";
 import { openBy } from "../../../test/open";
 import { swipeOver, wheelOver } from "../../../test/real-pointer";
 import { sampleTile } from "../../../test/samples-dialog";
@@ -267,8 +266,8 @@ describe("the start page in the app's frame", () => {
         const opens = DATASET_DESCRIPTORS.filter(
             (dataset) => dataset.nodes <= DEFAULT_LIMITS.renderCeiling && dataset.edges <= DEFAULT_LIMITS.edgesDrawn,
         );
-        // Plus the app's four timed samples, which have no graph-samples dataset, and the files from other programs.
-        assert.lengthOf(offered, opens.length + 4 + PROGRAM_SAMPLES.length);
+        // Plus the app's four timed samples, which have no graph-samples dataset.
+        assert.lengthOf(offered, opens.length + 4);
         for (const title of [
             "Doubtful Sound dolphins",
             "OpenFlights airline routes",

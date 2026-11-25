@@ -6,7 +6,6 @@
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import { PROGRAM_SAMPLES } from "../../../data/sampleManifest";
 import { count, resetAnalyticsForTests, setPostHogClientForTests, SURVEYS_KEY } from "../../../lib/analytics";
 import { withFeatures, withPostHogSite } from "../../../test/features";
 import { sampleTile } from "../../../test/samples-dialog";
@@ -95,8 +94,7 @@ describe("the start screen", () => {
             "Open the Marvel films sample",
             "Open the Paper citations sample",
         ]);
-        // and last, one sample file from each other program, in its own section
-        assert.lengthOf(names, 24 + PROGRAM_SAMPLES.length);
+        assert.lengthOf(names, 24);
         assert.include(names, "Open the Venice public transport sample");
         assert.include(names, "Open the Doubtful Sound dolphins sample");
         assert.equal(new Set(names).size, names.length, "no sample twice");
@@ -104,11 +102,7 @@ describe("the start screen", () => {
         // generator too, and the picture loads: no tile shows the plain stand-in.
         const pictures = samples.map((button) => button.querySelector<HTMLImageElement>("img.ws-land-sample-pic"));
         for (const [i, picture] of pictures.entries()) {
-            assert.match(
-                picture?.src ?? "",
-                /\/(data\/graph-samples\/v1|samples|samples\/programs)\/[a-z0-9-]+\.webp$/,
-                names[i] ?? "",
-            );
+            assert.match(picture?.src ?? "", /\/(data\/graph-samples\/v1|samples)\/[a-z0-9-]+\.webp$/, names[i] ?? "");
         }
         const generators = within(screen.getByRole("region", { name: "Sample library" })).getAllByRole("button", {
             name: /^Generate a graph: /,
@@ -160,10 +154,7 @@ describe("the start screen", () => {
         assert.isNotNull(within(tiles[0]).getByText("Sports"));
         assert.isNotNull(within(tiles[0]).getByText("Conferences fall out of who played whom"));
         await userEvent.click(within(library).getByRole("button", { name: "Any" }));
-        assert.lengthOf(
-            within(library).getAllByRole("button", { name: /^Open the .+ sample: / }),
-            24 + PROGRAM_SAMPLES.length,
-        );
+        assert.lengthOf(within(library).getAllByRole("button", { name: /^Open the .+ sample: / }), 24);
     });
 
     it("asks about usage data in the owner's words, pinned over the page, with What is collected behind a disclosure", async () => {

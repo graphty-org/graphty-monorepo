@@ -119,17 +119,9 @@ export function dataBlocks(session: GraphSession): LegendBlock[] {
         const layer = session.styles.get(id);
         return layer === undefined || selectorStates(layer.selector).length === 0;
     };
-    // A hidden column is out of the reader's lists, so a binding reading it keys nothing either (the per-element
-    // style values a file's styles carry are loaded hidden).
-    const hidden = new Set(
-        session.data
-            .attributes()
-            .filter((attribute) => attribute.hidden === true)
-            .map((attribute) => attribute.path),
-    );
     return session.styles
         .legend()
-        .filter((block) => onData(block.layerId) && !(block.field?.path !== undefined && hidden.has(block.field.path)))
+        .filter((block) => onData(block.layerId))
         .flatMap((block) => (isEffectBlock(block) ? effectRows(session, block) : [heldRows(session, block)]));
 }
 

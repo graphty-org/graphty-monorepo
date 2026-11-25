@@ -288,8 +288,7 @@ export interface DataImportCommand {
     readonly mode?: "replace" | "merge";
     /**
      * `"recommended"` also chooses a layout for what was loaded, in the same step; `"placed"` draws
-     * it where its data placed every node (the fixed layout), else with the layout the data asks for
-     * (a DOT file's Graphviz program), else leaves the layout as it is.
+     * it where its data placed every node (the fixed layout), else leaves the layout as it is.
      */
     readonly layout?: "recommended" | "placed" | "keep";
     /** `"data"` also pins the nodes the file marks fixed, in the same step; `"keep"` (the default) pins nothing. */
@@ -1134,9 +1133,7 @@ export const dataImport: UndoableDefinition<DataImportCommand> = {
             await pinAll(fixed, ctx.inline);
         }
         // The file's styles, in this same step.
-        const applied = await applyFileStyles(command, outcome ?? null, ctx);
-        ({ sceneScale } = applied);
-        requestLayout(applied.layout, ctx);
+        sceneScale = await applyFileStyles(command, outcome ?? null, ctx);
         if (earlier !== null) {
             await settleEarlierLayers(earlier, ctx);
         }
@@ -1148,17 +1145,6 @@ export const dataImport: UndoableDefinition<DataImportCommand> = {
         }
     },
 };
-
-/**
- * Records the layout the drawn styles ask for, unless the reader asked for its own.
- * @param layout - The layout the file's styles ask for, or null.
- * @param ctx - The import's context.
- */
-function requestLayout(layout: Awaited<ReturnType<typeof applyFileStyles>>["layout"], ctx: UndoableContext): void {
-    if (layout !== null && !ctx.state.graph.values.has(REQUESTED_LAYOUT_VALUE)) {
-        ctx.services.data?.values?.({ [REQUESTED_LAYOUT_VALUE]: layout }, ctx.draft);
-    }
-}
 
 /** What a replacing load reads of the graph and stack before it loads. */
 interface Earlier {
@@ -1261,9 +1247,8 @@ async function repickEdges(picked: readonly PickedEdges[], ctx: UndoableContext)
  * @param ctx - The import's context.
  * @param sceneScale - The scene units one unit of the file's lengths was drawn as, read once the
  *     import is done: a fixed layout draws the file's stored positions in the same unit.
- * @param placedOnly - Apply only the drawing the data gives: the fixed layout, which keeps where it placed every
- *     node, or the layout it asks for ({@link REQUESTED_LAYOUT_VALUE}: a DOT file's Graphviz program); any other
- *     advice leaves the layout as it is.
+ * @param placedOnly - Apply only the fixed layout, which keeps where the data placed every node;
+ *     any other advice leaves the layout as it is.
  * @param then - Work that waits for the layout: run once it is applied, or at once when none is.
  */
 function adviseLayout(
@@ -1275,8 +1260,7 @@ function adviseLayout(
     const advise = ctx.services.layoutAdvice;
     ctx.after("layout:recommended", (dispatch) => {
         const advice = advise?.();
-        const requested = ctx.state.graph.values.get(REQUESTED_LAYOUT_VALUE) as RequestedLayoutValue | undefined;
-        if (advice === undefined || (placedOnly && advice.id !== "fixed" && advice.id !== requested?.layout)) {
+        if (advice === undefined || (placedOnly && advice.id !== "fixed")) {
             void then(dispatch).catch(logUnapplied("none"));
             return;
         }

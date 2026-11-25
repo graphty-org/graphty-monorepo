@@ -260,6 +260,10 @@ export const DEPRECATED_LAYOUT_IDS = ["force-2d"] as const satisfies readonly (t
 /**
  * The built-in file formats.
  *
+ * "sif" and "cx2" are deprecated: no data source reads them (see `UNSERVED_FORMAT_IDS`, and issues
+ * #306 and #307). A load that names either fails with that reason. Both are removed at the next
+ * major release unless a reader lands first.
+ *
  * "graphty" is the project file (Graphty JSON): written by `exportGraph("graphty")` and read by
  * `session.project.open`, never by `session.data.import`.
  */
@@ -301,6 +305,9 @@ export const PROJECT_FILE = Object.freeze({
 
 /**
  * A format id: a built-in name, or a plugin's.
+ *
+ * The built-in name "sif" is deprecated and unserved (issue #306); it is removed at the next major
+ * release unless a reader lands first.
  */
 export type FormatId = (typeof KNOWN_FORMAT_IDS)[number] | (string & {});
 

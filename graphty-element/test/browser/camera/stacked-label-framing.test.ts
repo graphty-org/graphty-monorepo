@@ -8,8 +8,7 @@
  * picture was called final depended on timing: the graphty app's Graphviz story, a DOT file with
  * no positions drawn with every node on the origin, was framed about 60 CSS pixels apart from one
  * capture to the next. A fit now places the labels for the camera it frames before it measures
- * again, so one fit settles it and the same inputs always give the same camera and label places. The labels here come
- * from a layer that states no place for them, so avoidance moves them (a place a file states is kept).
+ * again, so one fit settles it and the same inputs always give the same camera and label places.
  */
 
 import "../../../src/graphty-element";
@@ -82,15 +81,7 @@ async function render(avoidFirst: boolean): Promise<Graphty> {
     await element.waitForStableFrame();
     await element.session.layout.setDimension("2d");
     await element.session.layout.set("fixed");
-    // Labeled by a layer that states no place for them: a label whose place the file states (DOT centers its
-    // labels) stays there, and avoidance moves only a label left at the element's own place.
-    await element.session.data.import({ type: "dot", name: "shapes.gv", config: { data: DOT } }, { styles: "none" });
-    await element.session.styles.add({
-        name: "Labels",
-        target: "node",
-        selector: { match: "everything" },
-        encode: { "node.label": { by: "data.label", scale: "passthrough" } },
-    });
+    await element.session.data.import({ type: "dot", name: "shapes.gv", config: { data: DOT } }, { styles: "file" });
     await element.session.styles.settled();
     await element.waitForStableFrame();
     if (!avoidFirst) {

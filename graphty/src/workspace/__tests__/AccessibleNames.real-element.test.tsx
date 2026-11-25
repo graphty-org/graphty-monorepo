@@ -333,10 +333,6 @@ describe("accessible names in the workspace", () => {
         await userEvent.click(await screen.findByRole("menuitem", { name: /Samples/ }));
         const dialog = await screen.findByRole("dialog", { name: "Samples" });
         // The tiles draw with the dialog, so a missing icon fails at once rather than waits.
-        // Gephi and D3 each have a Les Miserables too, so each button carries its card's whole name.
-        const samples = within(dialog).getByRole("region", { name: "Samples" });
-        await tooltipIsName(
-            within(samples).getByRole("button", { name: /^Open Les Miserables: .+ as a separate graph$/ }),
-        );
+        await tooltipIsName(within(dialog).getByRole("button", { name: "Open Les Miserables as a separate graph" }));
     });
 });

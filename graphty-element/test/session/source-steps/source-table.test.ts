@@ -500,6 +500,20 @@ describe("source-steps: matching choices the join card sets", () => {
     });
 });
 
+describe("a source's columns", () => {
+    it("keep the order its rows hold them, a column empty in the first rows in its own place", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        const file = csv("e.csv", "entry,person,badge,door", "E1,,B1,", "E2,,B2,D1", "E3,P3,,D2");
+        const key = await session.data.stage(file, { key: "entry" });
+        const columns = session.data.sourceTable(key).summary().tables[0]?.columns;
+        assert.deepStrictEqual(
+            columns?.filter((name) => name !== "entry"),
+            ["person", "badge", "door"],
+        );
+        session.dispose();
+    });
+});
+
 describe("what reading a source recorded", () => {
     it("is listed with the source, staged or added, and after a project file is opened", async () => {
         const text = "id,n\na,1\nb,2\n";

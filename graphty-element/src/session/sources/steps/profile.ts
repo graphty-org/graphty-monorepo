@@ -201,21 +201,33 @@ function rowsOf(
 }
 
 /**
- * The columns of some rows, in the order first read, without the element's own `_source.` facts.
+ * The columns of some rows, in the order the rows hold them, without the element's own `_source.`
+ * facts. A row leaves out its empty cells, so a column first met in a later row goes in beside the ones
+ * that row holds round it.
  * @param rows - The rows.
  * @param numbered - The column the rows' key was numbered under, left out too.
  * @returns The column names.
  */
 export function columnsOf(rows: readonly Row[], numbered: string | undefined): string[] {
-    const out = new Set<string>();
+    const known = new Set<string>();
+    const out: string[] = [];
     for (const row of rows) {
-        for (const k of Object.keys(row)) {
-            if (!isSourceFactKey(k) && k !== numbered) {
-                out.add(k);
+        const keys = Object.keys(row).filter((k) => !isSourceFactKey(k) && k !== numbered);
+        if (keys.every((k) => known.has(k))) {
+            continue;
+        }
+        let at = 0;
+        for (const k of keys) {
+            if (known.has(k)) {
+                at = out.indexOf(k) + 1;
+            } else {
+                known.add(k);
+                out.splice(at, 0, k);
+                at++;
             }
         }
     }
-    return [...out];
+    return out;
 }
 
 /**

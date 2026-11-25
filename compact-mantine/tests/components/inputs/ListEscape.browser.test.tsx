@@ -9,6 +9,7 @@ import React, { useState } from "react";
 import { afterEach, assert, describe, expect, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
+import { PickerPopout } from "../../../src/components/inputs/PickerPopout";
 import { Popout, PopoutManager } from "../../../src/components/popout";
 import { renderThemed, resetHarness } from "../../harness/measure";
 
@@ -118,6 +119,25 @@ describe("Escape in a list field inside a compact-mantine pop-over", () => {
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog", { name: "Shape" }));
+        });
+    });
+
+    it("an Escape on a picker's trigger, whose pop-up is a dialog and not a list, still closes the picker", async () => {
+        await renderThemed(
+            <PopoutManager>
+                <PickerPopout label="Font" value="Inter">
+                    {() => <button type="button">Inter</button>}
+                </PickerPopout>
+            </PopoutManager>,
+        );
+        const trigger = screen.getByRole("combobox", { name: "Font" });
+        await userEvent.click(trigger);
+        await screen.findByRole("dialog", { name: "Font" });
+        assert.equal(trigger.getAttribute("aria-expanded"), "true");
+        trigger.focus();
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("dialog", { name: "Font" }));
         });
     });
 });

@@ -15,17 +15,19 @@ function hasOpenTooltip(target: EventTarget | null): boolean {
 }
 
 /**
- * Whether a key went to a field whose drop-down list is open (a combobox or a list trigger with
- * `aria-expanded="true"`): its Escape closes that list, never the pop-out around it.
+ * Whether a key went to a field whose drop-down list is open: `aria-expanded="true"` on a control
+ * whose pop-up is a listbox (said, or a combobox's default). Its Escape closes that list, never the
+ * pop-out around it. A combobox whose pop-up is a dialog (a picker's trigger) is not one.
  * @param target - the element the key went to
  * @returns true when the target's list is open
  */
 function hasOpenList(target: EventTarget | null): boolean {
-    return (
-        target instanceof Element &&
-        target.getAttribute("aria-expanded") === "true" &&
-        (target.getAttribute("role") === "combobox" || target.getAttribute("aria-haspopup") === "listbox")
-    );
+    if (!(target instanceof Element) || target.getAttribute("aria-expanded") !== "true") {
+        return false;
+    }
+    const popup =
+        target.getAttribute("aria-haspopup") ?? (target.getAttribute("role") === "combobox" ? "listbox" : null);
+    return popup === "listbox";
 }
 
 /**

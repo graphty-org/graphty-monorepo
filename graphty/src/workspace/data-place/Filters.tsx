@@ -695,7 +695,8 @@ function FilterCard({
         { id: "delete", label: "Delete", icon: "delete", group: "remove", key: "Delete", onRun: remove },
     ];
     // A card that removes its matches shows none of them; only the others say how many are shown.
-    const shownSuffix = condition?.effect === "exclude" ? "" : shownWords(reading.total);
+    // A waiting source's rows are none of them drawn: no count of what is shown.
+    const shownSuffix = condition?.effect === "exclude" || waitingReason !== null ? "" : shownWords(reading.total);
     const ofAll = `${formatNumber(matched)} of ${formatNumber(reading.total.of)}`;
     const total = selection === null ? undefined : `${ofAll}${shownSuffix}`;
     // Spoken, the kind of thing counted follows the count, before what is shown: "12 of 77 nodes, 0 shown".

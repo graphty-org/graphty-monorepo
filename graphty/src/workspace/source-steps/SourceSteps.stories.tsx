@@ -376,6 +376,25 @@ export const JoinList: Story = {
     },
 };
 
+/** The Data sidebar's Join: every join made, one line each, under its header. */
+export const JoinSidebarList: Story = {
+    ...freshStore(DOORS),
+    play: async (context) => {
+        const session = await staged(context, "entries.csv", ENTRIES);
+        await staged(context, "shifts.csv", TAGGED, false);
+        const [entries, shifts] = session.data.staged().map((each) => each.key);
+        const draft = session.data.draft();
+        draft.connect({ from: { source: entries, field: "badge" }, into: { space: "person" } });
+        draft.extract(shifts, { column: "tags", split: ";" });
+        await draft.commit();
+        const list = await within(context.canvasElement).findByRole("grid", { name: "Joins" });
+        await waitFor(async () => {
+            await expect(within(list).getAllByRole("row")).toHaveLength(2);
+        });
+        await session.styles.settled();
+    },
+};
+
 /** Adding a staged source as it is: the workspace lists it, one line. */
 export const JoinWorkspaceAddStaged: Story = {
     ...freshStore(DOORS),

@@ -1665,7 +1665,7 @@ export function SelectionEditor({
                                       />
                                   )}
                                   <Text size="sm" className="sel-count">
-                                      {`${formatNumber(reading.total.count)} of ${formatNumber(of)}${wsCountWhere}${shownWords(reading.total)}`}
+                                      {`${formatNumber(reading.total.count)} of ${formatNumber(of)}${wsCountWhere}${waitingOn === undefined ? shownWords(reading.total) : ""}`}
                                   </Text>
                                   {(drawing || starting || closing || !warm) && (
                                       <Group gap={4} wrap="nowrap" className="sel-state" data-drawing="">

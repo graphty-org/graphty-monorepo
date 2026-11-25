@@ -33,6 +33,7 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
 import { dataManagerInternals } from "../../src/managers/DataManager";
+import { minimumWorkPerFrame, setMinimumWorkPerFrame } from "../../src/managers/minimumWork";
 import type { RenderPath } from "../../src/meshes/NodeBatch";
 import { drawnFrames, recordDrawnFrames } from "../helpers/drawn-frames";
 import {
@@ -494,41 +495,51 @@ async function checkWhileMoving(
     const all = everything(kind);
     const frames = frameCheck(element, kind, shown ?? (() => all));
     const record = recordDrawnFrames(element, frames.check);
-    await start();
-    const scene = element.graph.getScene();
-    let stepped = during === undefined;
-    let checkedAtStep = 0;
-    const drawOn = afterStart !== "stop";
-    let still = 0;
-    const done = (): boolean =>
-        record.checked >= MOVING_FRAMES || (afterStart === "until settled" ? settled : still >= STILL_FRAMES);
-    for (let i = 0; i < FRAME_BOUND && drawOn && !done(); i++) {
-        const before = record.checked;
-        await drawnFrames(scene, 1);
-        still = record.checked === before ? still + 1 : 0;
-        if (!stepped && record.checked >= MOVING_FRAMES / 3) {
-            stepped = true;
-            checkedAtStep = record.checked;
-            await during?.();
+    // A layout run takes one layout round per drawn frame. Otherwise a slow frame catches up
+    // several rounds (UpdateManager's catch-up, by the clock), so under load the layout settles in
+    // fewer drawn frames than ENOUGH_FRAMES and the case checks almost nothing. The "minimum-work"
+    // project has the mode on already, so it is put back as it was.
+    const wasOn = minimumWorkPerFrame();
+    setMinimumWorkPerFrame(wasOn || afterStart === "until settled");
+    try {
+        await start();
+        const scene = element.graph.getScene();
+        let stepped = during === undefined;
+        let checkedAtStep = 0;
+        const drawOn = afterStart !== "stop";
+        let still = 0;
+        const done = (): boolean =>
+            record.checked >= MOVING_FRAMES || (afterStart === "until settled" ? settled : still >= STILL_FRAMES);
+        for (let i = 0; i < FRAME_BOUND && drawOn && !done(); i++) {
+            const before = record.checked;
+            await drawnFrames(scene, 1);
+            still = record.checked === before ? still + 1 : 0;
+            if (!stepped && record.checked >= MOVING_FRAMES / 3) {
+                stepped = true;
+                checkedAtStep = record.checked;
+                await during?.();
+            }
         }
-    }
 
-    if (!drawOn) {
-        // The last move's frame.
-        await drawnFrames(scene, 2);
-    }
+        if (!drawOn) {
+            // The last move's frame.
+            await drawnFrames(scene, 2);
+        }
 
-    const misses = await record.stop();
-    const missed = /^frame (\d+):/.exec(misses[0] ?? "");
-    const centers = missed === null ? undefined : frames.centers(Number(missed[1]));
-    return {
-        moving: record.checked,
-        afterStep: record.checked - checkedAtStep,
-        misses,
-        travelled: frames.travelled(),
-        picture: record.firstMiss(),
-        centers: centers === undefined ? undefined : JSON.stringify(Object.fromEntries(centers)),
-    };
+        const misses = await record.stop();
+        const missed = /^frame (\d+):/.exec(misses[0] ?? "");
+        const centers = missed === null ? undefined : frames.centers(Number(missed[1]));
+        return {
+            moving: record.checked,
+            afterStep: record.checked - checkedAtStep,
+            misses,
+            travelled: frames.travelled(),
+            picture: record.firstMiss(),
+            centers: centers === undefined ? undefined : JSON.stringify(Object.fromEntries(centers)),
+        };
+    } finally {
+        setMinimumWorkPerFrame(wasOn);
+    }
 }
 
 /**
@@ -844,6 +855,14 @@ describe.each(["objects", "batched"] as const)(
         it("draws every edge between its nodes on every frame, and hovers the node under the real pointer", async () => {
             const element = await mounted(path, "2d", "arrow");
             assertLazy(element);
+            // One layout round per frame from the start, as checkWhileMoving does for its own runs:
+            // switched on only after the inks are added again below, their repaint would be split
+            // part way and frames would be read with edges not yet painted.
+            const wasOn = minimumWorkPerFrame();
+            setMinimumWorkPerFrame(true);
+            cleanups.push(() => {
+                setMinimumWorkPerFrame(wasOn);
+            });
             await element.setLayout("ngraph", { seed: 7 });
             await drawnFrames(element.graph.getScene(), 5);
             assert.isTrue(element.isRunning(), "removed while the layout runs");

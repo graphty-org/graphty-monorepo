@@ -2248,10 +2248,8 @@ describe("Style panel v2's input rules on data pop-overs (spec 2.5)", () => {
             ) {
                 found.push("entry: its source is set on its line and again in the Entry pop-over");
             }
-            const formatMore = within(entry).getByRole("button", { name: / format settings$/ });
-            // Shown on hover of its line, as a reader meets it.
-            await userEvent.hover(formatMore.closest<HTMLElement>(".ws-row") ?? formatMore);
-            await userEvent.click(formatMore);
+            // The Format line is one button showing the sample in the entry's format, opening Format beside.
+            await userEvent.click(within(entry).getByRole("button", { name: / format(, .*)?$/ }));
             const format = await besideNamed("Format");
             found.push(...(await checkedLines("format", format)));
             await userEvent.click(within(format).getByRole("button", { name: "Close Format" }));

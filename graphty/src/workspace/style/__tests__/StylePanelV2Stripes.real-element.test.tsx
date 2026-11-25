@@ -84,11 +84,11 @@ async function openDataStripes(
 
 /**
  * Opens a pop-over from its settings button, hovering its line first as a reader does.
- * @param name - the button's name.
+ * @param name - the button's name, which says "has configured values" after it when the thing is set.
  * @returns the pop-over.
  */
 async function openSettings(name: string): Promise<HTMLElement> {
-    const button = await screen.findByRole("button", { name });
+    const button = await screen.findByRole("button", { name: new RegExp(`^${name}( has configured values)?$`) });
     await userEvent.hover(button.closest<HTMLElement>(".ws-row") ?? button);
     await userEvent.click(button);
     return waitFor(() => {
@@ -120,7 +120,7 @@ async function beside(title: string): Promise<HTMLElement> {
 async function openFormat(entry: string): Promise<HTMLElement> {
     const pop = await openSettings(`${entry} settings`);
     assert.isNull(within(pop).queryByRole("combobox", { name: "Format" }), "no second set of format presets");
-    await userEvent.click(within(pop).getByRole("button", { name: `${entry} format` }));
+    await userEvent.click(within(pop).getByRole("button", { name: new RegExp(`^${entry} format(, |$)`) }));
     return beside("Format");
 }
 
@@ -399,7 +399,7 @@ describe("Style panel v2's Stripes", () => {
         });
         assert.isNull(within(section).queryByRole("button", { name: /^x1,/ }), "no value button opening it again");
         const format = await openFormat("x1");
-        assert.isNotNull(within(format).queryByText("Decimals"));
+        assert.isNotEmpty(within(format).queryAllByText("Decimals"));
         await userEvent.keyboard("{Escape}");
         await userEvent.keyboard("{Escape}");
         const pop = await openSettings("Node stripes settings");

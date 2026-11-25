@@ -27,7 +27,6 @@ import {
     draftAfter,
     entryId,
     entryName,
-    entryWords,
     failed,
     fieldsFor,
     FIXED,
@@ -41,7 +40,7 @@ import {
     word,
     writeSpec,
 } from "./dataEntries";
-import { DataGroups, KeepLine, PaletteLine } from "./DataGroups";
+import { DataGroups, EmptyLine, KeepLine, PaletteLine } from "./DataGroups";
 import { BesidePopover, CommitText, PopLine, Segments, WordNumber } from "./dataLines";
 import { FormatLines } from "./FormatPopover";
 import { firstColors, LISTS, type ListSpec } from "./lists";
@@ -492,7 +491,7 @@ function FormatLine({ args }: Readonly<{ args: EntryArgs }>): React.JSX.Element 
                     setBeside(open ? "format" : null);
                 }}
             >
-                <FormatLines channel={channel} entry={entry} numeric={numeric} sample={entryWords(fact)} put={put} />
+                <FormatLines channel={channel} entry={entry} numeric={numeric} put={put} />
             </BesidePopover>
         </PopLine>
     );
@@ -708,7 +707,11 @@ function WholeLine({ args }: Readonly<{ args: SpecArgs }>): React.JSX.Element {
     const { spec, put } = args;
     const whole = spec.whole as { max?: number; track?: string } | undefined;
     return (
-        <PopLine line="data.whole" name="Whole" wide={whole?.max !== undefined}>
+        <PopLine
+            line="data.whole"
+            name={whole?.max === undefined ? "Whole" : "Whole / Max"}
+            wide={whole?.max !== undefined}
+        >
             <Segments
                 label="Whole"
                 value={whole?.max === undefined ? "total" : "max"}
@@ -788,7 +791,8 @@ function drawnExtent(ctx: RowContext, facts: DataFacts | undefined): { min: numb
 }
 
 /**
- * Stripes' data lines: Direction, Whole, Order and Keep (a pie's, without Hole and On slices: stripes draw no text).
+ * Stripes' data lines: Direction, Whole, Order, Keep and No values (a pie's, without Hole and On slices: stripes draw
+ * no text). No values is a line here, not a group of one line (owner, 2026-11-24), and keeps the pop-over at five rows.
  * @param props - Component props
  * @param props.args - the spec
  * @returns The lines
@@ -800,6 +804,7 @@ function StripeLines({ args }: Readonly<{ args: SpecArgs }>): React.JSX.Element 
             <WholeLine args={args} />
             <OrderLine args={args} />
             <KeepLine args={args} />
+            <EmptyLine args={args} />
         </>
     );
 }

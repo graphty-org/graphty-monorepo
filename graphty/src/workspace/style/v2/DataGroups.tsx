@@ -282,7 +282,7 @@ function ColorsLines({ args }: Readonly<{ args: GroupArgs }>): React.JSX.Element
                     }}
                 />
             )}
-            {channel === "node.pieData" || channel === "node.stripeData" ? <EmptyLine args={args} /> : null}
+            {channel === "node.pieData" ? <EmptyLine args={args} /> : null}
         </>
     );
 }
@@ -297,7 +297,7 @@ export function KeepLine({ args }: Readonly<{ args: GroupArgs }>): React.JSX.Ele
     const { spec, put } = args;
     const keep = typeof spec.keep === "number" ? spec.keep : undefined;
     return (
-        <PopLine line="data.keep" name="Keep" wide={keep !== undefined}>
+        <PopLine line="data.keep" name={keep === undefined ? "Keep" : "Keep / How many"} wide={keep !== undefined}>
             <Segments
                 label="Keep"
                 value={keep === undefined ? "all" : "top"}
@@ -312,7 +312,7 @@ export function KeepLine({ args }: Readonly<{ args: GroupArgs }>): React.JSX.Ele
             {keep === undefined ? null : (
                 <PanelField
                     width="fill"
-                    label="N"
+                    label="How many"
                     kind="number"
                     value={keep}
                     min={1}
@@ -366,12 +366,13 @@ function OtherLines({ args }: Readonly<{ args: GroupArgs }>): React.JSX.Element 
 }
 
 /**
- * The No values line: what a node with no value draws, and its color beside once it draws one.
+ * The No values line: what a node with no value draws, and its color beside once it draws one. A pie's is a line of
+ * its Colors group; stripes', whose main pop-over has room, a line of that (a group of one line joins it).
  * @param props - Component props
  * @param props.args - the spec
  * @returns The line
  */
-function EmptyLine({ args }: Readonly<{ args: GroupArgs }>): React.JSX.Element {
+export function EmptyLine({ args }: Readonly<{ args: GroupArgs }>): React.JSX.Element {
     const { ctx, channel, spec, put } = args;
     const empty = word(spec.empty, "none");
     // Stripes draw a node with no value as one full band; a pie as a ring or one full slice.
@@ -646,11 +647,13 @@ function groupsOf(ctx: RowContext, channel: DataChannel): DataGroup[] {
     if (channel === "node.pieData" || channel === "node.stripeData") {
         const stripes = channel === "node.stripeData";
         return [
-            {
-                ...COLORS,
-                set: (args) => holds(args.spec, [...COLOR_KEYS, "empty", "emptyColor"]),
-                unset: without([...COLOR_KEYS, "empty", "emptyColor"]),
-            },
+            stripes
+                ? COLORS
+                : {
+                      ...COLORS,
+                      set: (args) => holds(args.spec, [...COLOR_KEYS, "empty", "emptyColor"]),
+                      unset: without([...COLOR_KEYS, "empty", "emptyColor"]),
+                  },
             {
                 name: "Other",
                 heading: "Data",

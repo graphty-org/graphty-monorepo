@@ -1,7 +1,7 @@
 /**
  * The Format pop-over (tmp/entries-first/spec.md 2.1): how one entry's value is written -- number, percent, money or
- * date, its decimals and notation, its sign, text before and after -- the sample in that format, and, last, what a
- * missing value does. graphty-element formats (`formatValue`, the facts' text); the panel writes the entry's format.
+ * date, its decimals and notation, its sign, text before and after -- and, last, what a missing value does. The sample
+ * in the format is the Entry pop-over's Format line, beside it. graphty-element formats (`formatValue`, the facts' text); the panel writes the entry's format.
  */
 
 import { PanelField } from "@graphty/compact-mantine";
@@ -42,6 +42,18 @@ const MISSING_DEFAULT: Readonly<Record<DataChannel, string>> = {
     "node.chartData": "gap",
     "node.recordData": "drop",
 };
+
+/**
+ * The currencies the Money tab offers: every ISO 4217 code the browser formats, and the one set if it is not among them.
+ * @param set - the currency the format sets, if any.
+ * @returns the drop-down's choices.
+ */
+function currencies(set: string | undefined): { value: string; label: string }[] {
+    const codes = Intl.supportedValuesOf("currency");
+    const names = new Intl.DisplayNames(undefined, { type: "currency" });
+    const all = set === undefined || codes.includes(set) ? codes : [set, ...codes];
+    return all.map((code) => ({ value: code, label: `${code} ${names.of(code) ?? ""}`.trim() }));
+}
 
 /**
  * The tab a format is.
@@ -107,7 +119,6 @@ function MissingLine({
  * @param props.channel - the data channel
  * @param props.entry - the entry
  * @param props.numeric - whether its value is a number (a text value shows no strip and no number lines)
- * @param props.sample - the sample node's value in the entry's format
  * @param props.put - writes the entry
  * @returns The lines
  */
@@ -115,13 +126,11 @@ export function FormatLines({
     channel,
     entry,
     numeric,
-    sample,
     put,
 }: Readonly<{
     channel: DataChannel;
     entry: DataEntry;
     numeric: boolean;
-    sample: string;
     put: (next: DataEntry) => void;
 }>): React.JSX.Element {
     const { format } = entry;
@@ -179,32 +188,38 @@ export function FormatLines({
                 </div>
             ) : null}
             {numeric && (tab === "number" || tab === "percent") ? (
-                <PopLine line="format.digits" name="Decimals / Notation" wide first={64}>
-                    {decimals}
-                    <Segments
-                        label="Notation"
-                        value={format?.notation ?? "standard"}
-                        options={[
-                            ["standard", "Plain"],
-                            ["compact", "Compact"],
-                            ["scientific", "Sci"],
-                        ]}
-                        onPick={(next) => {
-                            setFormat({
-                                notation: next === "standard" ? undefined : (next as "compact" | "scientific"),
-                            });
-                        }}
-                    />
-                </PopLine>
+                <>
+                    <PopLine line="format.digits" name="Decimals">
+                        {decimals}
+                    </PopLine>
+                    <PopLine line="format.notation" name="Notation">
+                        <Segments
+                            label="Notation"
+                            value={format?.notation ?? "standard"}
+                            options={[
+                                ["standard", "Plain"],
+                                ["compact", "Compact"],
+                                ["scientific", "Scientific"],
+                            ]}
+                            onPick={(next) => {
+                                setFormat({
+                                    notation: next === "standard" ? undefined : (next as "compact" | "scientific"),
+                                });
+                            }}
+                        />
+                    </PopLine>
+                </>
             ) : null}
             {numeric && tab === "money" ? (
                 <PopLine line="format.digits" name="Currency / Decimals" wide>
-                    <CommitText
+                    <PanelField
+                        width="fill"
                         label="Currency"
-                        value={format?.currency}
-                        unset="USD"
-                        onCommit={(words) => {
-                            setFormat({ currency: words === "" ? "USD" : words.toUpperCase() });
+                        kind="select"
+                        value={format?.currency ?? "USD"}
+                        data={currencies(format?.currency)}
+                        onChange={(next) => {
+                            setFormat({ currency: String(next) });
                         }}
                     />
                     {decimals}
@@ -278,9 +293,6 @@ export function FormatLines({
                         setFormat({ suffix: words === "" ? undefined : words });
                     }}
                 />
-            </PopLine>
-            <PopLine line="format.sample" name="Sample">
-                <PanelField label="Sample" kind="text" width="fill" value={sample} readOnly />
             </PopLine>
             <MissingLine channel={channel} entry={entry} put={put} />
         </>

@@ -2,7 +2,8 @@
  * @file On the `"batched"` render path a row is drawn with no `Node` until something asks for one. A real pointer
  * hover, a click and a border on one node of a large connected graph with arrowed edges build a `Node` for that node
  * only: the edges around it trim their ends from the rows, and never build their far ends' `Node`s, which used to
- * build every `Node` in the connected component, one edge after the next (issue #9166).
+ * build every `Node` in the connected component, one edge after the next (issue #9166). Finding the hovered node's
+ * edges looks at those edges only, on either render path, never at every built `Edge` (issue #10028).
  */
 
 import "../../src/graphty-element";
@@ -12,6 +13,7 @@ import { afterEach, assert, describe, it } from "vitest";
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
 import { dataManagerInternals } from "../../src/managers/DataManager";
+import type { RenderPath } from "../../src/meshes/NodeBatch";
 import { click, hover, type Point } from "../helpers/real-input";
 
 const cleanups: (() => void)[] = [];
@@ -26,6 +28,8 @@ const COUNT = 10_000;
 const COLUMNS = 100;
 /** The `Node`s an action on one node may build: that node's. */
 const FEW = 1;
+/** The built `Edge`s a hover may look at to find the hovered node's: its two edges, each asked about a few times. */
+const FEW_EDGES = 16;
 
 /**
  * A chain on the batched path, drawn with the default arrowheads, on a fixed grid.
@@ -34,6 +38,7 @@ const FEW = 1;
  * @param edges - What a layer paints on every edge, if anything.
  * @param count - How many nodes.
  * @param view - The view mode.
+ * @param path - The render path.
  * @returns The element.
  */
 async function mounted(
@@ -42,9 +47,10 @@ async function mounted(
     edges?: Record<string, unknown>,
     count = COUNT,
     view: "2d" | "3d" = "2d",
+    path: RenderPath = "batched",
 ): Promise<Graphty> {
     const element = document.createElement("graphty-element");
-    element.renderPath = "batched";
+    element.renderPath = path;
     element.directed = directed;
     element.style.display = "block";
     element.style.width = "600px";
@@ -110,6 +116,15 @@ function built(element: Graphty): number {
 }
 
 /**
+ * The built `Edge`s looked at so far to find a node's built edges.
+ * @param element - The element.
+ * @returns The count.
+ */
+function walked(element: Graphty): number {
+    return dataManagerInternals.edgesWalkedByEnd(element.graph.getDataManager());
+}
+
+/**
  * Let the frames that follow an action draw: the walk over the edges a new `Node` touches runs in them.
  * @param element - The element.
  */
@@ -148,6 +163,53 @@ describe("one node acted on in a 10,000-node connected batched graph builds that
         await drawn(element);
         assert.deepEqual([...element.session.selection.nodes], [middleOf(COUNT)], "the click selected it");
         assert.isAtMost(built(element), FEW, "the click");
+    });
+
+    // the hovered node's edges are found from the store's incidence lists: a restyle that turns every edge into an
+    // `Edge` (an arrow tail) files none of them by end, and the first hover then filed them all, which took half a
+    // second on a 100,000-node graph with a million edges (issue #10028)
+    it.each(["batched", "objects"] as const)(
+        "a first real hover after a restyle looks at the hovered node's edges only (%s)",
+        async (path) => {
+            const element = await mounted(true, undefined, undefined, COUNT, "2d", path);
+            await element.session.styles.add({
+                name: "tails",
+                target: "edge",
+                selector: { match: "everything" },
+                set: { "edge.arrowTail": "normal" },
+            });
+            await drawn(element);
+            assert.equal(element.rowCounts.objectEdges, COUNT - 1, "every edge is an Edge");
+            const before = walked(element);
+            const middle = middleOf(COUNT);
+            const at = element.nodeScreenPosition(middle);
+            assert.isDefined(at);
+
+            await hover(element, at);
+            await drawn(element);
+            assert.equal(element.session.selection.hovered, middle, "the hover reached the node");
+            assert.isAtMost(walked(element) - before, FEW_EDGES, "the built edges looked at");
+        },
+    );
+
+    // tearing one node and its edges down after the same restyle takes them out of the index without filing every
+    // other `Edge` first, which cost the same half second as the hover did (issue #10028)
+    it("a node removed after a restyle looks at its own edges only", async () => {
+        const element = await mounted(true);
+        await element.session.styles.add({
+            name: "tails",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.arrowTail": "normal" },
+        });
+        await drawn(element);
+        assert.equal(element.rowCounts.objectEdges, COUNT - 1, "every edge is an Edge");
+        const before = walked(element);
+
+        await element.session.data.removeNodes([middleOf(COUNT)]);
+        await drawn(element);
+        assert.equal(element.rowCounts.objectEdges, COUNT - 3, "its two edges went with it");
+        assert.isAtMost(walked(element) - before, FEW_EDGES, "the built edges looked at");
     });
 
     // a shape that is not round is trimmed by its box, its outline or a ray, never a radius

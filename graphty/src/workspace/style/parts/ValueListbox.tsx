@@ -142,13 +142,7 @@ export function ValueListbox({
                     {mixed ? "Mixed" : (current?.plainName ?? "")}
                 </Button>
             </Popout.Trigger>
-            <Popout.Panel
-                width={240}
-                placement="left"
-                alignment="start"
-                header={{ variant: "title", title: label }}
-                closeLabel={`Close ${label}`}
-            >
+            <Popout.Panel width={240} header={{ variant: "title", title: label }} closeLabel={`Close ${label}`}>
                 <QuickActions
                     role="group"
                     aria-label={`${label} values`}
@@ -156,7 +150,8 @@ export function ValueListbox({
                     width={240}
                     height={320}
                     descriptions="end"
-                    {...(current === undefined ? {} : { highlight: current.id })}
+                    // Unset, the default it shows is in force but not chosen: the list checks no value.
+                    {...(current === undefined || unset ? {} : { highlight: current.id })}
                     query={query}
                     onQueryChange={setQuery}
                     actions={opened ? valueRows(session, descriptor, extraChoices) : []}

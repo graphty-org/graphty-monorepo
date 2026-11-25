@@ -4,6 +4,9 @@ import { assert, describe, it } from "vitest";
 import { EDGE_DIRECTED_COLUMN } from "../../src/data/GraphStore";
 import { createElementSession } from "../../src/session/GraphSession";
 import { computeStatistics } from "../../src/session/statistics";
+import { fileStylesOn } from "../helpers/file-styles-on";
+
+fileStylesOn();
 
 const FILE = { by: "file", statedBy: 'edgedefault="directed"' } as const;
 
@@ -80,14 +83,19 @@ describe("a loaded file keeps each edge's own direction (#309)", () => {
         });
     }
 
-    it('reports "mixed" for a mixed GEXF file', async () => {
-        const session = createElementSession();
-        await session.data.import({ type: "gexf", name: "mixed.gexf", config: { data: GEXF } });
+    // Gephi draws no edge of another direction than the graph's: drawing the file's styles hides it, and the graph
+    // still holds it (#9949).
+    for (const styles of ["none", "file"] as const) {
+        it(`reports "mixed" for a mixed GEXF file (styles ${styles})`, async () => {
+            const session = createElementSession();
+            await session.data.import({ type: "gexf", name: "mixed.gexf", config: { data: GEXF } }, { styles });
 
-        assert.strictEqual(session.data.statistics().directedness, "mixed");
-        assert.deepStrictEqual(directions(session), { a: true, b: false });
-        session.dispose();
-    });
+            assert.strictEqual(session.data.statistics().directedness, "mixed");
+            assert.deepStrictEqual(directions(session), { a: true, b: false });
+            assert.strictEqual(session.data.edges().length, 2);
+            session.dispose();
+        });
+    }
 
     it("follows an edit of an edge's direction, and its undo", async () => {
         const session = createElementSession();

@@ -15,7 +15,7 @@ import {
     writeChannelList,
 } from "@graphty/graphty-element/catalog";
 import { Divider } from "@mantine/core";
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import { cosmographOn } from "../../features";
 import { GLYPHS } from "../../glyphs";
@@ -511,8 +511,13 @@ function ThingSection({
         sectionBox,
         holdsShaders,
     );
-    // Things "+" added that the row does not set yet, waiting for their first value.
-    const [waiting, setWaiting] = useState<readonly string[]>([]);
+    // Things "+" added that the row does not set yet, waiting for their first value. Kept while the Node and Edge tabs
+    // switch (which draws the sections anew), so a row "+" added and left empty stays until it is removed.
+    const waitKey = `${ctx.row.join(",")}:${ctx.side}:${part.id}`;
+    const [waiting, setWaiting] = useState<readonly string[]>(() => WAITING.get(waitKey) ?? []);
+    useEffect(() => {
+        WAITING.set(waitKey, waiting);
+    }, [waitKey, waiting]);
     const [menu, setMenu] = useState(false);
     // The thing "+" just added whose pop-over or picker opens at once (a list, an image).
     const [opening, setOpening] = useState<string | undefined>(undefined);
@@ -770,6 +775,12 @@ function ThingSection({
     );
 }
 
+/** Each section's waiting things, by row, kind and section, kept across the sections being drawn anew. */
+const WAITING = new Map<string, readonly string[]>();
+
+/** Keys that commit a panel number field's value: see `StylePanelV2`. */
+const COMMIT_KEYS = new Set(["Enter", "ArrowUp", "ArrowDown"]);
+
 /**
  * One kind's Style panel v2 body: see the file header.
  * @param props - Component props
@@ -780,6 +791,23 @@ export function StylePanelV2({ ctx: row }: Readonly<{ ctx: RowContext }>): React
     const [query, setQuery] = useState("");
     const box = useRef<HTMLInputElement>(null);
     const onKeyDown = useFindKey(box);
+    // Each press or key in the panel starts a new undo step: a drag stays one step, and two deliberate edits of one
+    // setting undo one at a time (graphty-element merges back-to-back edits of a setting otherwise). A number field
+    // committed by Enter or an arrow key holds its committed value, so Control+Z there is the app's Undo, not the
+    // browser's text undo (which moves to another field). Temporary: compact-mantine's ComboInput should mark itself
+    // `data-committed` as its color box does, a change to compact-mantine that needs the owner.
+    const onKeyDownCapture = (event: React.KeyboardEvent): void => {
+        row.session.history.endStep();
+        const field = event.target;
+        if (field instanceof HTMLInputElement && field.role === "spinbutton" && COMMIT_KEYS.has(event.key)) {
+            field.dataset.committed = "";
+        }
+    };
+    const onInputCapture = (event: React.SyntheticEvent): void => {
+        if (event.target instanceof HTMLInputElement) {
+            delete event.target.dataset.committed;
+        }
+    };
     const ctx: RowContext = { ...row, pickers: "listbox", listSections: sectionsOf, namesOnly: true, withNeeds: true };
     // The owner removed Order and groups from the panel (E420, E422): its part draws no section and Find a
     // setting finds none of its settings. graphty-element still draws them from an imported file.
@@ -791,6 +819,7 @@ export function StylePanelV2({ ctx: row }: Readonly<{ ctx: RowContext }>): React
         return part === undefined ? [] : [{ part, section }];
     });
     const homes = query.trim() === "" ? new Map<Channel, FoundHome>() : findHomes(ctx, sections);
+    const drawnLines = new Set<string>();
     const body =
         query.trim() === "" ? (
             // Every section is shown, an empty one as its header with its "+" (there is no reader switch for it); a
@@ -806,7 +835,16 @@ export function StylePanelV2({ ctx: row }: Readonly<{ ctx: RowContext }>): React
                 ctx={ctx}
                 query={query}
                 parts={parts}
-                line={(channel) => foundLine(ctx, channel)}
+                line={(channel) => {
+                    // A pair or a unit line holds several channels: it is drawn once, for the first found.
+                    const found = lineFor(ctx.side, channel);
+                    const key = found === undefined ? channel : `${found.group ?? ""}:${found.line.channel}`;
+                    if (drawnLines.has(key)) {
+                        return null;
+                    }
+                    drawnLines.add(key);
+                    return foundLine(ctx, channel);
+                }}
                 home={(channel) => homes.get(channel)}
                 words={(channel) => {
                     const found = lineFor(ctx.side, channel);
@@ -819,6 +857,11 @@ export function StylePanelV2({ ctx: row }: Readonly<{ ctx: RowContext }>): React
     return (
         <div // eslint-disable-line jsx-a11y/no-static-element-interactions -- only catches the "/" key bubbling from the panel's own controls
             onKeyDown={onKeyDown}
+            onPointerDownCapture={() => {
+                row.session.history.endStep();
+            }}
+            onKeyDownCapture={onKeyDownCapture}
+            onInputCapture={onInputCapture}
         >
             <LabelsProvider labels={V2_LABELS}>
                 <PickerNamesOnly.Provider value>

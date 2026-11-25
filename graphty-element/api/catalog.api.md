@@ -650,6 +650,7 @@ export interface ChannelDescriptor {
     readonly step?: number;
     readonly stylePath: string;
     readonly suggestedMax?: number;
+    readonly supersededBy?: Channel;
     readonly target: "node" | "edge";
     readonly unsupported?: {
         readonly code: "channel.not-drawn";

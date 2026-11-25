@@ -1824,3 +1824,22 @@ describe("textFieldOf", () => {
         assert.isAbove(mapped, 100);
     });
 });
+
+describe("supersededBy", () => {
+    it("names a live channel of the same target, and marks the node gradient's two-color spelling", () => {
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.gradientColor"].supersededBy, "node.gradientColors");
+        for (const descriptor of Object.values(CHANNEL_DESCRIPTORS)) {
+            const by = descriptor.supersededBy;
+            if (by === undefined) {
+                continue;
+            }
+            const replacement = CHANNEL_DESCRIPTORS[by];
+            assert.strictEqual(replacement.target, descriptor.target, descriptor.channel);
+            assert.isTrue(replacement.renderable, descriptor.channel);
+            assert.isUndefined(
+                replacement.supersededBy,
+                `${descriptor.channel} is replaced by a channel replaced itself`,
+            );
+        }
+    });
+});

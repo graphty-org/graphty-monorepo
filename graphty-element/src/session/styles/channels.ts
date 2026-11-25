@@ -1096,6 +1096,15 @@ export interface ChannelDescriptor {
      */
     readonly drawnWhen?: readonly ChannelCondition[];
     /**
+     * The channel that replaced this one, on a channel that is an older spelling of part of it: still drawn, still
+     * read from a file's styles, but saying nothing that channel cannot. `node.gradientColor` (a gradient from the
+     * node's color into one more) is the two-color spelling of `node.gradientColors`, which a layer setting both
+     * draws in its place. A style editor edits that channel and offers no control of this one's own. Absent on
+     * every channel nothing replaced.
+     * @since 3.70.0
+     */
+    readonly supersededBy?: Channel;
+    /**
      * The views an enum value draws in, for a value narrower than its channel: `node.sizeSpace` "pivot" draws a node
      * at the depth the camera turns about, and only a 3D view has depths, so it draws only in 3D. A value not listed
      * draws wherever the channel does.
@@ -4583,7 +4592,9 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         accepts: "color",
         stylePath: "texture.color.colors",
         renderable: true,
+        supersededBy: "node.gradientColors",
         caveat:
+            "The two-color spelling of `node.gradientColors`, which is drawn in its place when a layer sets it. " +
             "Fills the node with a linear gradient from its `node.color` into this color, running " +
             "the way `node.gradientDirection` says. A gradient is part of the node's mesh rather " +
             "than of its instance, so each distinct gradient is its own source mesh and its own ramp " +

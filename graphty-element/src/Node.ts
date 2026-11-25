@@ -1790,7 +1790,7 @@ export class Node implements ModelUser {
         // The same box as the shared source's, which it is but for float32 rounding of the rebuilt vertices: the
         // group's size is read off it (drawAsGroup's stretch, drawnHalfExtents), and must not move by a rebuild.
         const { minimum, maximum } = shared.getBoundingInfo();
-        mesh.buildBoundingInfo(minimum, maximum);
+        mesh.buildBoundingInfo(minimum, maximum, mesh.worldMatrixFromCache);
         if (from !== this.groupFill) {
             // The shared source stays alive under a hidden instance: the mesh cache disposes a source with no
             // instance left, and its material with it, which the group's own fill is drawn with (as groupBorderSource).

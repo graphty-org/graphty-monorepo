@@ -24,6 +24,7 @@ import { SnapshotLayoutEngine, type SnapshotLayoutInput } from "../../src/layout
 import { dataManagerInternals } from "../../src/managers/DataManager";
 import type { RenderPath } from "../../src/meshes/NodeBatch";
 import { curveWork } from "../../src/meshes/pulledCurve";
+import type { NodeShapeValue } from "../../src/session/styles/channels";
 import { drag, hover } from "../helpers/real-input";
 
 const COUNT = 40;
@@ -245,7 +246,7 @@ describe("reads on the batched path", () => {
         assert.strictEqual(built(element).edges, before.edges, "the drag built no Edge");
     });
 
-    it("a curve drawn from its rows is cut again when its node's border or shape changes", async () => {
+    it("a curve drawn from its rows is cut again when its node's border or flat shape changes", async () => {
         const element = await mounted("batched", "3d", FIXED_3D);
         await element.session.styles.add({
             name: "curves",
@@ -284,6 +285,24 @@ describe("reads on the batched path", () => {
         for (const [row, start] of bordered) {
             assert.isAbove(start, (plain.get(row) ?? 0) + 0.1, `curve ${String(row)} starts past the border`);
         }
+
+        // flat shapes of one box, whose outlines the row table keeps only for a seen-through row
+        const shaped = async (shape: NodeShapeValue): Promise<Map<number, number>> => {
+            await element.session.styles.add({
+                name: shape,
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.shape": shape },
+            });
+            await operationQueueOf(element.graph).waitForCompletion();
+            await element.waitForStableFrame();
+            return starts();
+        };
+        const rectangle = await shaped("rectangle");
+        const diamond = await shaped("diamond");
+        assert.strictEqual(diamond.size, EDGES.length, "every curve is still drawn from its rows");
+        const recut = [...diamond].filter(([row, start]) => Math.abs(start - (rectangle.get(row) ?? start)) > 0.05);
+        assert.strictEqual(recut.length, EDGES.length, "every curve is cut again at the diamond's outline");
     });
 
     // An add of more edges than the edge set's log keeps (4,096, `data/edgeSetLog.ts`) names no pairs: every edge is

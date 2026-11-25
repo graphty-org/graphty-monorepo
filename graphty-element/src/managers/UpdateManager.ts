@@ -2789,8 +2789,13 @@ export class UpdateManager implements Manager {
      * @param place - False to leave placing them to a walk of every edge already owed.
      */
     private remeasureEdgesOf(resized: ReadonlySet<Node>, place = true): void {
+        const lines = this.graphContext.getEdgeRowLines?.() ?? null;
         for (const node of resized) {
             this.remeasureEdgesAt(node.id, place);
+            // the curves drawn with no `Edge` on it are cut again at its new outline (`EdgeRowLines.endChanged`)
+            if (node.index !== INVALID_INDEX) {
+                lines?.endChanged(node.index);
+            }
         }
     }
 

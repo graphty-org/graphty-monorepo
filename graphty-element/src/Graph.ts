@@ -5754,12 +5754,15 @@ export class Graph implements GraphContext {
                     resized: (row) => {
                         // a `Node` resized has its edges measured again (`remeasureEdgesOf`); a row has no `Node` to say so (#9857)
                         this.updateManager.placeEdgesOfRow(row);
+                        // ...and its curves drawn with no `Edge` are cut again, whatever its outline turned to
+                        this.#edgeRowLines?.endChanged(row);
                         if (this.layoutManager.layoutEngine?.wakeForResize() === true) {
                             this.layoutManager.running = true;
                         }
                     },
                     edgeEndsChanged: (row) => {
                         this.updateManager.placeEdgesOfRow(row);
+                        this.#edgeRowLines?.endChanged(row);
                     },
                 },
                 this.scene,

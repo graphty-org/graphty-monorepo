@@ -63,6 +63,9 @@ function setsOnly(block: object, keys: ReadonlySet<string>): boolean {
 /** A row's batch column value when the row draws no line here. */
 const NO_LINE = -1;
 
+/** The node rows that moved: a flag a row, 1 for moved; true for every row; null for none. */
+type MovedEnds = Uint8Array | true | null;
+
 /** The first rows the line columns hold before they grow. */
 const FIRST_ROWS = 1024;
 
@@ -265,6 +268,8 @@ export class EdgeRowLines implements StraightPieceHolder {
     private readonly refusedCurves = new Set<number>();
     /** The row table's bounds when the curves were last placed ({@link EdgeRowLines.movedEnds}); null for never. */
     private placedBounds: Float32Array | null = null;
+    /** The node rows {@link EdgeRowLines.endChanged} named since the curves were last placed. */
+    private readonly changedEnds = new Set<number>();
     /** The row table's extents when the curves were last placed (`RowTable.rowExtent`); null for never. */
     private placedExtents: Float32Array | null = null;
     /** A curve's two centers, reused by each placement. */
@@ -820,7 +825,7 @@ export class EdgeRowLines implements StraightPieceHolder {
         }
 
         const { drawnWrites } = this.host.rows;
-        const moved = drawnWrites === this.curvesPlacedAt ? null : this.movedEnds();
+        const moved = this.withChangedEnds(drawnWrites === this.curvesPlacedAt ? null : this.movedEnds());
         this.curvesPlacedAt = drawnWrites;
         if (moved === null && this.unplaced.length === 0) {
             return;
@@ -857,13 +862,54 @@ export class EdgeRowLines implements StraightPieceHolder {
     }
 
     /**
+     * Say a node row's outline or ends changed in a way the row table may not show (a flat shape turned another of the
+     * same box, whose outline it keeps only for a seen-through row): the next {@link EdgeRowLines.placeCurves} cuts the
+     * curves on it again.
+     * @param row - The node row.
+     */
+    endChanged(row: number): void {
+        if (this.curves > 0) {
+            this.changedEnds.add(row);
+            this.host.requestFrame();
+        }
+    }
+
+    /**
+     * The moved node rows with those {@link EdgeRowLines.endChanged} named since the last placement added.
+     * @param moved - What {@link EdgeRowLines.movedEnds} found.
+     * @returns The flags, true or null as `movedEnds` gives them.
+     */
+    private withChangedEnds(moved: MovedEnds): MovedEnds {
+        const changed = this.changedEnds;
+        if (changed.size === 0 || moved === true) {
+            changed.clear();
+            return moved;
+        }
+
+        let highest = 0;
+        for (const row of changed) {
+            highest = Math.max(highest, row);
+        }
+
+        const flags = moved ?? new Uint8Array(highest + 1);
+        for (const row of changed) {
+            if (row < flags.length) {
+                flags[row] = 1;
+            }
+        }
+
+        changed.clear();
+        return flags;
+    }
+
+    /**
      * The node rows whose place, size or outline changed since the curves were last placed, read off the row table's
      * places, bounds and extents (`RowTable.rowPosition`, `RowTable.rowBounds`, `RowTable.rowExtent`), so a drag of one node places only its curves, as it places only its `Edge`s.
      * ponytail: a move below a float32 step of a held row is not seen; the heads' rest placement reads those.
      * @returns A flag a node row, 1 for moved; true for every row (the first placement, or the rows renumbered); null
      *     for none.
      */
-    private movedEnds(): Uint8Array | true | null {
+    private movedEnds(): MovedEnds {
         const { rows } = this.host;
         const places = rows.rowPosition;
         const bounds = rows.rowBounds;

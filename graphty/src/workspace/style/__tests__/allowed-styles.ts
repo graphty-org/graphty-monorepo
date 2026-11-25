@@ -572,4 +572,11 @@ export const OWNER_REQUESTED: readonly Requested[] = [
         quote: "entries first: a pie, a chart and a record each draw an ordered list of entries picked from data",
         date: "2026-11-24",
     })),
+    // Stripes from data: the main session put "one stripe per category from data" in scope for the Stripes panel
+    // the owner ordered, built on the pie's entries model (tmp/stripes-panel/final-design.md, section 4).
+    {
+        channel: "node.stripeData",
+        quote: "start a workflow to design an the panel for the stripes picker ... then implement the panel",
+        date: "2026-11-24",
+    },
 ];

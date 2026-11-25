@@ -189,16 +189,16 @@ function elementDefaultsOf(
  * @param command - The import.
  * @param outcome - What the load left.
  * @param ctx - The import's context.
- * @returns The scene units one unit of the file's lengths was drawn as, which the file's stored
- *     positions take too (1 when the load keeps file lengths); null when no file styles were drawn,
- *     the file gives no length to scale by, or the load merged into a graph whose positions are in
- *     another unit.
+ * @returns `sceneScale`, the scene units one unit of the file's lengths was drawn as, which the file's stored
+ *     positions take too (1 when the load keeps file lengths), null when no file styles were drawn, the file gives
+ *     no length to scale by, or the load merged into a graph whose positions are in another unit; and `layout`, the
+ *     layout the drawn styles ask for ({@link spacedLayout}), or null.
  */
 export async function applyFileStyles(
     command: DataImportCommand,
     outcome: ImportOutcome | null,
     ctx: UndoableContext,
-): Promise<number | null> {
+): Promise<{ readonly sceneScale: number | null; readonly layout: RequestedLayout | null }> {
     const { styles, options } = choiceOf(command);
     const loaded = outcome !== null && command.measure === undefined;
     const replacing = loaded && command.mode !== "merge";
@@ -214,7 +214,7 @@ export async function applyFileStyles(
     }
 
     if (!loaded || styles !== "file") {
-        return null;
+        return { sceneScale: null, layout: null };
     }
 
     const read =
@@ -253,7 +253,24 @@ export async function applyFileStyles(
         }),
     });
     ctx.services.data?.values?.({ importReport: report }, ctx.draft);
-    return sceneScale;
+    return { sceneScale, layout: spacedLayout(read, sceneScale) };
+}
+
+/**
+ * The layout that keeps the clear gap the file's program leaves between its nodes (graph-io's `lengths.gap`: OGDF's
+ * energy layout keeps 20 between the circles round two nodes), for a file that places no node: the element's force
+ * layout with that gap, in scene units, as its `nodeGap`, so no two nodes are drawn over each other.
+ * @param read - The file's styles, or null.
+ * @param sceneScale - The scene units one unit of the file's lengths was drawn as, or null.
+ * @returns The layout, or null when the file states no gap, places its nodes or its lengths were not scaled.
+ */
+function spacedLayout(read: FileStylesRead | null, sceneScale: number | null): RequestedLayout | null {
+    const gap = read?.extracted.styles.lengths?.gap;
+    if (read === null || read.positionsStored === true || gap === undefined || sceneScale === null) {
+        return null;
+    }
+
+    return Object.freeze({ layout: "force", options: Object.freeze({ nodeGap: gap * sceneScale }) });
 }
 
 /**

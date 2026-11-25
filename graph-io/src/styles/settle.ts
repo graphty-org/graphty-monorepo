@@ -952,7 +952,7 @@ function labelGrid(
  * How the lengths are meant to be drawn, and how far apart the program lays out a file's nodes: its stated settled
  * spacing; for a program that scatters the nodes over a square at random (Gephi), the median nearest-node distance
  * of that many uniform points, side * sqrt(ln 2 / (pi n)); for one whose layout keeps a gap between the circles round
- * the nodes (OGDF), the gap plus twice the median half-diagonal.
+ * the nodes (OGDF), the gap plus twice the median half-diagonal, and that gap.
  * @param defaults - the program's defaults, or null
  * @param nodes - how many nodes the file has
  * @param halfDiagonal - the file's median node half-diagonal, read only when the program needs it
@@ -966,7 +966,10 @@ function lengthsOf(defaults: ToolDefaults | null, nodes: number, halfDiagonal: (
         defaults?.layoutSpacing?.value ??
         (side === undefined || nodes < 2 ? undefined : side * Math.sqrt(Math.LN2 / (Math.PI * nodes))) ??
         (gap === undefined || radius === null ? undefined : gap + 2 * radius);
-    return spacing !== undefined && spacing > 0 ? { units: "file", spacing } : { units: "file" };
+    if (spacing === undefined || spacing <= 0) {
+        return { units: "file" };
+    }
+    return gap === undefined || radius === null ? { units: "file", spacing } : { units: "file", spacing, gap };
 }
 
 /**

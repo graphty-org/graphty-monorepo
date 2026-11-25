@@ -1803,6 +1803,12 @@ export interface StyleLengths {
     readonly units: "scene" | "file";
     /** How far apart the nodes of a file that stores no positions are laid out, in the file's lengths. */
     readonly spacing?: number;
+    /**
+     * The clear gap, in the file's lengths, the program's own layout keeps between the circles round any two nodes of
+     * a file that stores no positions (OGDF's energy layout: 20), so no two nodes are drawn over each other. Absent for
+     * a program whose layout lets nodes overlap.
+     */
+    readonly gap?: number;
 }
 
 /**

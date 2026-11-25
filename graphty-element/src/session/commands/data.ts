@@ -1086,7 +1086,12 @@ export const dataImport: UndoableDefinition<DataImportCommand> = {
         // The kind columns the file declares, in this same step.
         await designateDeclaredKinds(outcome?.reader, ctx);
         // The file's styles, in this same step.
-        sceneScale = await applyFileStyles(command, outcome ?? null, ctx);
+        const applied = await applyFileStyles(command, outcome ?? null, ctx);
+        ({ sceneScale } = applied);
+        // The layout the drawn styles ask for, unless the reader asked for its own.
+        if (applied.layout !== null && !ctx.state.graph.values.has(REQUESTED_LAYOUT_VALUE)) {
+            ctx.services.data?.values?.({ [REQUESTED_LAYOUT_VALUE]: applied.layout }, ctx.draft);
+        }
         if (earlier !== null) {
             await settleEarlierLayers(earlier, ctx);
         }

@@ -37,10 +37,22 @@ interface Expected {
     readonly positions?: Readonly<Record<string, readonly [number, number]>>;
     /** How far apart the program's own layout leaves the nodes of a file that stores no positions, in its unit. */
     readonly spacing?: number;
+    /** The clear gap the program's own layout keeps between the circles round two nodes, in its unit. */
+    readonly gap?: number;
+    /** How many nodes the program draws a label on: every node the file gives label text to, less `unlabeled`. */
+    readonly labeled: number;
+    /**
+     * The nodes whose label text the file holds but whose program draws no label, by id: Gephi's Preview hides the
+     * labels its overlap avoidance (on by default) finds crowded, and Cytoscape draws a node's NODE_LABEL, which a
+     * file may leave empty beside a named node.
+     */
+    readonly unlabeled?: readonly string[];
 }
 
 const EXPECTED: Readonly<Record<string, Expected>> = {
     yed: {
+        // every node and group has a NodeLabel
+        labeled: 65,
         nodes: {
             // the file's <y:Fill hasColor="false">: no fill, whatever color a reader would default to
             n0: { shape: "round-rectangle", fillOpacity: 0, label: "External File", borderStyle: "dashed" },
@@ -59,6 +71,8 @@ const EXPECTED: Readonly<Record<string, Expected>> = {
         positions: { "n0::n3": [702.2491435946602, 384], "n1::n7::n0": [-694.146484375, 96] },
     },
     "yed-live": {
+        // 70 of its 183 nodes have a label text
+        labeled: 70,
         nodes: {
             n0: { shape: "ellipse", fill: "#ff8c00", label: "x1", width: 30, height: 30 },
             // SolidColorFill #00000000: hollow
@@ -73,6 +87,7 @@ const EXPECTED: Readonly<Record<string, Expected>> = {
         },
     },
     cytoscape: {
+        labeled: 30,
         nodes: {
             "7541": { shape: "rectangle", fill: "#ffffff", label: "Apoptosis", width: 110, height: 60 },
             "7539": { shape: "ellipse", fill: "#ccffcc", label: "CREB1", borderColor: "#009900" },
@@ -86,6 +101,9 @@ const EXPECTED: Readonly<Record<string, Expected>> = {
         },
     },
     "cytoscape-xgmml": {
+        // two nodes' NODE_LABEL is empty (their COMMON name is), so Cytoscape draws no label on them
+        labeled: 329,
+        unlabeled: ["383", "233"],
         nodes: {
             "392": { shape: "rectangle", fill: "#f2e1df", label: "SNF3", width: 75, height: 35 },
             "390": { shape: "ellipse", fill: "#f7f7f7", label: "YBR043C" },
@@ -94,6 +112,7 @@ const EXPECTED: Readonly<Record<string, Expected>> = {
         edges: { 0: { color: "#848484", lineStyle: "solid", width: 2 } },
     },
     "ndex-cx": {
+        labeled: 34,
         nodes: {
             "1655": {
                 shape: "ellipse",
@@ -113,6 +132,8 @@ const EXPECTED: Readonly<Record<string, Expected>> = {
         positions: { "1655": [-90.96383519643331, -145.72860480281304] },
     },
     "ndex-cx2": {
+        // 168 named nodes and 60 label nodes whose text is a NODE_LABEL bypass; the other 52 are unnamed shapes
+        labeled: 228,
         nodes: {
             "136962": {
                 shape: "rectangle",
@@ -130,6 +151,7 @@ const EXPECTED: Readonly<Record<string, Expected>> = {
         },
     },
     "cytoscape-js": {
+        labeled: 31,
         nodes: {
             "296": { shape: "ellipse", fill: "#999999", label: "MED6", labelColor: "#ffffff" },
             "142": { shape: "ellipse", fill: "#666666", label: "RAD50" },
@@ -137,6 +159,9 @@ const EXPECTED: Readonly<Record<string, Expected>> = {
         edges: { 0: { color: "#f6c28c", width: 2 }, 1: { color: "#a0b3d8" }, 2: { color: "#dad4a8" } },
     },
     gephi: {
+        // Gephi's Preview hides the labels of three crowded nodes (node.label.avoidOverlap)
+        labeled: 74,
+        unlabeled: ["3", "38", "71"],
         nodes: {
             // viz:color r g b, viz:size the radius
             "0": { shape: "ellipse", fill: "#5b5bf5", label: "Myriel", width: 57.37143 },
@@ -148,6 +173,8 @@ const EXPECTED: Readonly<Record<string, Expected>> = {
         positions: { "0": [-102.81979, -185.35468], "16": [-221.21465, 507.8929] },
     },
     graphviz: {
+        // its 13 point and empty-label nodes draw no label
+        labeled: 52,
         nodes: {
             system: { shape: "rectangle", label: "system", borderColor: "#e27dd6" },
             SCI: { shape: "ellipse", fill: "#d9e7ee", label: "System calls" },
@@ -157,6 +184,7 @@ const EXPECTED: Readonly<Record<string, Expected>> = {
         edges: { 0: { color: "#e27dd6", targetArrow: "triangle" }, 6: { color: "#61c2c5" }, 12: { color: "#c46747" } },
     },
     ogdf: {
+        labeled: 43,
         nodes: {
             // the label's text, not the rich text markup around it, and its textColor (ARGB)
             "0": { shape: "rectangle", fill: "#ffd700", label: "Sample Attribute", labelColor: "#000000", width: 130 },
@@ -168,8 +196,10 @@ const EXPECTED: Readonly<Record<string, Expected>> = {
         // OGDF's FMMM layout: a 20 gap between the circles round two joined boxes, plus twice the median half-diagonal
         // (53.85, a 100 x 40 box)
         spacing: 127.703,
+        gap: 20,
     },
     pajek: {
+        labeled: 111,
         nodes: {
             "1": { shape: "ellipse", fill: "#ffccff", label: "207-555-8248", borderColor: "#660000" },
             "2": { shape: "rectangle", fill: "#ccffff", label: "415-555-2188" },
@@ -265,6 +295,23 @@ describe("the sample files from other programs", () => {
                     `${sample.id} spacing`,
                 );
             }
+            if (expected.gap !== undefined) {
+                assert.equal(styles.styles.lengths?.gap, expected.gap, `${sample.id} gap`);
+            }
+            const labels = resolveStyles(styles, "node", "label", result.snapshot);
+            const drawn = (index: number): boolean => typeof labels[index] === "string" && labels[index].trim() !== "";
+            assert.equal(labels.filter((_, index) => drawn(index)).length, expected.labeled, `${sample.id} labeled`);
+            // a node the file gives label text to is drawn with it, unless its program draws it with none
+            const text = result.snapshot.nodes.byRole("label");
+            const named = Array.from({ length: result.snapshot.nodeCount }, (_, index) => index).filter((index) => {
+                const value = text?.value(index);
+                return typeof value === "string" && value.trim() !== "";
+            });
+            assert.deepEqual(
+                named.filter((index) => !drawn(index)).map((index) => String(result.snapshot.ids.idOf(index))),
+                [...(expected.unlabeled ?? [])],
+                `${sample.id} named nodes drawn with no label`,
+            );
             if (expected.positions !== undefined) {
                 const positions = extractPositions(registry.importer(sample.format), result.snapshot, result.report);
                 assert.isTrue(positions?.usable, `${sample.id} stores its positions`);

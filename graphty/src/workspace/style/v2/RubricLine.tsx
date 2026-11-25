@@ -935,6 +935,8 @@ function SidesLines({
                               modifier={
                                   <ByDataLink
                                       ctx={ctx}
+                                      // Each side's link names its side: four alike would read as one control.
+                                      label={`${name} ${side.toLowerCase()} by attribute`}
                                       targets={[{ name: side, descriptor: item, to: listItemAddress(channel, at) }]}
                                   />
                               }

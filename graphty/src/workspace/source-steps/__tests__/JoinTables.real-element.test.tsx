@@ -182,6 +182,19 @@ describe("the join workspace's two tables (source-steps)", () => {
         await press(modal, "people", "dept");
         await joinAs(modal, "Node per dept, linked to people");
         await newest(session, (step) => step.link?.as === "nodes", "shared");
+        const rows = within(modal).getByRole("grid", { name: "people" });
+        assert.strictEqual(rows.getAttribute("aria-rowcount"), String(COUNT + 1), "each row once, under the header");
+    });
+
+    it("keeps the likeliest field of each source in sight, marked and not picked", async () => {
+        const { modal } = await opened();
+        await pickSources(modal, "entries", "people");
+        for (const name of ["people", "entries"]) {
+            const [header] = within(await within(modal).findByRole("grid", { name })).getAllByRole("columnheader");
+            assert.include(header.textContent, "badge");
+            assert.isNotNull(within(header).getByRole("img", { name: "suggested" }));
+        }
+        assert.strictEqual(valueOf(modal, "Field 1"), "");
     });
 
     it("lines both sources' rows up, a copy of a row beside each more, and the wheel scrolls both as one", async () => {
@@ -324,5 +337,36 @@ describe("the join workspace's preview (source-steps)", () => {
         assert.notStrictEqual(look["node.opacity"], 0.2);
         assert.notStrictEqual(look["node.borderStyle"], "dotted", "nor what no entry names");
         assert.strictEqual(session.styles.explain({ node: "E0" }).merged["node.borderStyle"], "dashed", "a new node");
+    });
+
+    it("keeps the reader's camera while a join is made, and frames again only for new nodes out of view", async () => {
+        const { session, modal } = await opened();
+        await atRest();
+        const element = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
+            "graphty-element:not([data-start-page])",
+        );
+        const canvas = element?.querySelector("canvas") ?? element?.shadowRoot?.querySelector("canvas");
+        if (element === null || canvas === null || canvas === undefined) {
+            throw new Error("no canvas");
+        }
+        const camera = (): string => JSON.stringify(element.getCameraState());
+        await element.waitForPainted();
+        const fitted = camera();
+        await wheelOver(canvas, -1500);
+        await waitFor(() => {
+            assert.notStrictEqual(camera(), fitted, "zoomed in, as the reader does");
+        });
+        await element.waitForStableFrame();
+        const close = camera();
+        await pickSources(modal, "people", "entries");
+        await pickFields(modal, "badge", "badge");
+        await joinAs(modal, "Fields of entries on people");
+        await newest(session, (step) => step.act?.act === "merge", "no node added");
+        await element.waitForStableFrame();
+        assert.strictEqual(camera(), close, "two tables and a join that adds no node leave it");
+        await joinAs(modal, "Node per entries row, linked to people");
+        await waitFor(() => {
+            assert.notStrictEqual(camera(), close, "61 new nodes all round are out of a close view");
+        });
     });
 });

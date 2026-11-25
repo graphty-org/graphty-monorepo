@@ -1,7 +1,6 @@
 /**
- * The join workspace's door and the element reads its cards share (the source-steps experiment,
- * design design/data/multiple-data-sources-design.md). Every count, profile and value comes from
- * graphty-element; this only arranges them.
+ * The join workspace's door, and the names its pickers offer (the source-steps experiment, design
+ * design/data/multiple-data-sources-design.md).
  */
 
 import type { GraphSession, NodeId } from "@graphty/graphty-element/session";
@@ -13,7 +12,7 @@ import type { JoinWorkspaceOpen, WorkspaceStore } from "../state/store";
  * Opens the join workspace (Join +, Shift+J, a node's Join, a source's Remove). It adopts any open
  * draft, so nothing else has to be closed first.
  * @param workspace - the workspace store.
- * @param open - how it opens: a staged source for its first card, node 1's type, or a removal.
+ * @param open - how it opens: on a source or a node's kind for its first card, on a join, or a removal.
  */
 export function openJoinWorkspace(workspace: WorkspaceStore, open: JoinWorkspaceOpen = {}): void {
     workspace.set({ joinWorkspace: open });

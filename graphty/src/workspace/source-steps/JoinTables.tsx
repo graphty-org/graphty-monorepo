@@ -12,7 +12,7 @@ import React, { useRef, useState } from "react";
 import { GLYPHS } from "../glyphs";
 import { useBoxSize } from "../useBoxSize";
 import { factWords, nameOf, profileWords, type SourceNames } from "./cardWords";
-import { type CardLine, type Ignoring, ignoringOf, matchOf } from "./joinCards";
+import { type CardLine, type Ignoring, ignoringOf, matchOf, sameSide } from "./joinCards";
 import { valueWords } from "./tableColumns";
 import { WORKSPACE_WORDS } from "./words";
 
@@ -74,6 +74,8 @@ function columnsOf(
         const header = [field.name, ...(from === null ? [] : [from])].join(" ");
         const words = rows.slice(0, 20).map((row) => valueWords(row[end]?.[field.name]).length);
         const picked = side.picked.includes(field.name);
+        // Kept at the start too, so the likeliest field is never out of sight.
+        const first = picked || side.suggested === field.name;
         return {
             id: field.name,
             header: facts === "" ? header : `${header} (${facts})`,
@@ -83,7 +85,8 @@ function columnsOf(
                 Math.max(96, (header.length + facts.length + 3) * 6.5 + 40, ...words.map((n) => n * 8 + 32)),
             ),
             sortable: pickable,
-            ...(picked ? { pinned: "start" as const, rowHeader: true } : {}),
+            ...(first ? { pinned: "start" as const } : {}),
+            ...(picked ? { rowHeader: true } : {}),
             ...markOf(side, field.name),
             value: (row) => valueWords(row[end]?.[field.name]),
             cell: (row) => {
@@ -119,11 +122,13 @@ function pageOf(
     only: RowFilter,
     offset: number,
 ): Pick<SourceJoinRows, "total" | "rows"> {
-    const [a, b] = line.a.side === null ? [line.b.side, null] : [line.a.side, line.b.side];
+    const alike = sameSide(line.a.side, line.b.side);
+    const [a, b] = line.a.side === null ? [line.b.side, null] : [line.a.side, alike ? null : line.b.side];
     if (a === null) {
         return { total: 0, rows: [] };
     }
-    const match = line.b.isNew === true ? null : matchOf(line);
+    // One source's own rows are as it is read: only two sources' line up.
+    const match = b === null ? null : matchOf(line);
     try {
         const page = draft.joinRows({
             a,

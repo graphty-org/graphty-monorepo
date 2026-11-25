@@ -29,7 +29,7 @@ function Harness({ onPick }: Readonly<{ onPick: (id: string) => void }>): React.
         onPick(id);
     };
     return (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, width: 240 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 96px)", gap: 16, width: 208 }}>
             <TileButton
                 name="Alpha"
                 src={DOT}
@@ -98,14 +98,67 @@ describe("TileButton", () => {
         assert.deepEqual(onPick.mock.lastCall, ["a"]);
     });
 
-    it("lights on hover with ImagePicker's hover ground and shows a focus ring from the keyboard", async () => {
+    it("lights on hover with the hover ground and a 4px ring of it, and rings its picture from the keyboard", async () => {
         await renderThemed(<Harness onPick={vi.fn()} />);
         const beta = screen.getByRole("button", { name: "Beta" });
         await userEvent.hover(beta);
         assert.strictEqual(getComputedStyle(beta).backgroundColor, tokenColor("--cm-bg-hover"));
+        assert.strictEqual(getComputedStyle(beta).outlineWidth, "4px", "Figma's 4px hover ring");
+        assert.strictEqual(getComputedStyle(beta).outlineColor, tokenColor("--cm-bg-hover"));
         await userEvent.unhover(beta);
         await userEvent.keyboard("{Tab}{Tab}");
         assert.strictEqual(document.activeElement, beta);
-        assert.notStrictEqual(getComputedStyle(beta).outlineStyle, "none", "a focus ring");
+        const picture = beta.querySelector(".cm-tile-button-picture");
+        assert.isNotNull(picture);
+        assert.strictEqual(getComputedStyle(picture).outlineStyle, "solid", "the picture is ringed");
+        assert.strictEqual(getComputedStyle(picture).outlineWidth, "2px");
+        assert.strictEqual(getComputedStyle(picture).outlineOffset, "-2px", "inside the picture");
+    });
+
+    it("draws each size: sm a 24px row with a 16px thumbnail beside the name, md and lg a 96px or 144px square above it", async () => {
+        await renderThemed(
+            <div style={{ width: 400 }}>
+                <TileButton size="sm" name="Small" src={DOT} />
+                <TileButton name="Medium" src={DOT} />
+                <TileButton size="lg" name="Large" src={DOT} />
+            </div>,
+        );
+        const small = screen.getByRole("button", { name: "Small" });
+        const smallPicture = small.querySelector("img");
+        const smallName = small.querySelector(".cm-tile-button-name");
+        assert.isNotNull(smallPicture);
+        assert.isNotNull(smallName);
+        assert.strictEqual(small.getBoundingClientRect().height, 24);
+        assert.strictEqual(smallPicture.getBoundingClientRect().width, 16);
+        assert.strictEqual(smallPicture.getBoundingClientRect().height, 16);
+        assert.isAtLeast(
+            smallName.getBoundingClientRect().left,
+            smallPicture.getBoundingClientRect().right,
+            "the name is beside the thumbnail",
+        );
+        for (const [name, px] of [
+            ["Medium", 96],
+            ["Large", 144],
+        ] as const) {
+            const tile = screen.getByRole("button", { name });
+            const picture = tile.querySelector("img");
+            assert.isNotNull(picture);
+            const box = picture.getBoundingClientRect();
+            assert.strictEqual(box.width, px, `${name} picture width`);
+            assert.strictEqual(box.height, px, `${name} picture is square`);
+            const label = tile.querySelector(".cm-tile-button-name");
+            assert.isNotNull(label);
+            assert.strictEqual(label.getBoundingClientRect().top - box.bottom, 4, `${name} name 4px under it`);
+        }
+        assert.deepEqual(await axeFindings("figma"), []);
+    });
+
+    it("never draws wider than its grid cell", async () => {
+        await renderThemed(
+            <div style={{ display: "grid", gridTemplateColumns: "80px", width: 80 }}>
+                <TileButton size="lg" name="Large" src={DOT} />
+            </div>,
+        );
+        assert.strictEqual(screen.getByRole("button", { name: "Large" }).getBoundingClientRect().width, 80);
     });
 });

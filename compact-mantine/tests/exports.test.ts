@@ -131,6 +131,8 @@ import type {
     SplitButtonProps,
     StatusBarProps,
     TargetTooltipProps,
+    TileButtonProps,
+    TileButtonSize,
     ToastAction,
     ToastApi,
     ToastOptions,
@@ -297,6 +299,8 @@ type PublicTypeSurface = {
     menuGroupItem: MenuGroupItemProps;
     modalFooter: ModalFooterProps;
     targetTooltip: TargetTooltipProps;
+    tileButton: TileButtonProps;
+    tileButtonSize: TileButtonSize;
     toastAction: ToastAction;
     toastApi: ToastApi;
     toastOptions: ToastOptions;
@@ -392,6 +396,7 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "MenuShortcut",
     "ModalFooter",
     "TargetTooltip",
+    "TileButton",
     "Toast",
     "ToastProvider",
     "TooltipShortcut",
@@ -912,6 +917,8 @@ describe("Package exports", () => {
                     menuGroupItem: true,
                     modalFooter: true,
                     targetTooltip: true,
+                    tileButton: true,
+                    tileButtonSize: true,
                     toastAction: true,
                     toastApi: true,
                     toastOptions: true,

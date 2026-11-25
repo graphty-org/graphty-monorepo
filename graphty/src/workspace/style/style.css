@@ -295,7 +295,8 @@
     opacity: 0.5;
 }
 
-/* The gallery: search, then two columns of tiles (compact-mantine TileButton), each its still picture and name. */
+/* The gallery: search, then two columns of tiles (compact-mantine TileButton), each its still picture and name,
+   laid out as Figma's asset tile grid: 96px columns 16px apart, rows 16px apart. */
 .ws-gallery {
     display: flex;
     flex-direction: column;
@@ -304,16 +305,16 @@
 
 .ws-gallery-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 4px;
+    grid-template-columns: repeat(2, minmax(0, 96px));
+    gap: 16px;
 }
 
 /* The shader editor's preview picture, drawn as a gallery tile's picture. */
 .ws-gallery-picture {
     display: block;
     width: 100%;
-    aspect-ratio: 4 / 3;
-    border-radius: 4px;
+    aspect-ratio: 1;
+    border-radius: 5px;
     background: var(--mantine-color-default-border);
     object-fit: cover;
 }

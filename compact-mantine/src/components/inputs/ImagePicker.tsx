@@ -1,13 +1,12 @@
 import React, { useEffect, useRef } from "react";
 
-import { PANEL_GRID } from "../../constants/panel";
 import { useCompactStyles } from "../../theme/useCompactStyles";
 import type { ChangeHandler } from "../../types/events";
 import { Popout } from "../popout";
-import { EllipsizedName } from "../rows/EllipsizedName";
 import { useRovingFocus } from "../shell/roving";
 import { FileSource } from "./FileSource";
 import { PickerPopout } from "./PickerPopout";
+import { PictureGlyph, TileButton } from "./TileButton";
 
 /** An image the reader can pick. */
 export interface ImagePickerItem {
@@ -91,35 +90,7 @@ export interface ImagePickerProps {
 }
 
 /**
- * A picture glyph on the 16px glyph grid: a frame with a mountain and a sun.
- * @param props - Component props
- * @param props.size - Drawn size in pixels
- * @returns The glyph
- */
-export function PictureGlyph({ size = PANEL_GRID.GLYPH }: Readonly<{ size?: number }>): React.JSX.Element {
-    // The glyph register's grid: a 16-unit box, round 1px strokes in currentColor at any size.
-    const grid = { viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: 16 / size };
-    return (
-        <svg
-            {...grid}
-            width={size}
-            height={size}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-            focusable="false"
-            data-glyph="picture"
-            className="cm-image-picker-glyph"
-        >
-            <rect x="2.5" y="3.5" width="11" height="9" rx="1.5" />
-            <path d="M2.5 11 L6 7.5 L9 10.5 L10.5 9 L13.5 12" />
-            <circle cx="10.5" cy="6" r="1" />
-        </svg>
-    );
-}
-
-/**
- * A 16px thumbnail, or the picture glyph when there is nothing to draw.
+ * The field's 16px thumbnail, or the picture glyph when there is nothing to draw.
  * @param props - Component props
  * @param props.src - the image's address
  * @returns The thumbnail
@@ -164,20 +135,18 @@ function PickerBody(props: Readonly<PickerBodyProps>): React.JSX.Element {
         onChange(id, event);
         close();
     };
-    const tile = (id: string | null, name: string, glyph: React.ReactNode): React.JSX.Element => (
-        <button
+    const tile = (id: string | null, name: string, src?: string): React.JSX.Element => (
+        <TileButton
             key={id === null ? "none" : `image:${id}`}
-            type="button"
-            className="cm-image-picker-tile cm-focus-inside"
-            aria-pressed={id === value}
+            size="sm"
+            name={name}
+            src={src}
+            picked={id === value}
             data-autofocus={id === value ? true : undefined}
             onClick={(event) => {
                 pick(id, event);
             }}
-        >
-            {glyph}
-            <EllipsizedName name={name} className="cm-image-picker-name" />
-        </button>
+        />
     );
     const loads = onFiles !== undefined || onUrl !== undefined;
     return (
@@ -185,13 +154,13 @@ function PickerBody(props: Readonly<PickerBodyProps>): React.JSX.Element {
             {clearable || images.length > 0 ? (
                 // eslint-disable-next-line jsx-a11y/prefer-tag-over-role -- an ARIA group naming a list of tile buttons; a fieldset would draw its own border and legend
                 <div role="group" aria-label={words.library} className="cm-image-picker-tiles" {...roving}>
-                    {clearable ? tile(null, words.none, <PictureGlyph />) : null}
+                    {clearable ? tile(null, words.none) : null}
                     {images.length > 0 ? (
                         <span className="cm-caption cm-image-picker-heading" aria-hidden="true">
                             {words.library}
                         </span>
                     ) : null}
-                    {images.map((image) => tile(image.id, image.name, <Thumb src={image.src} />))}
+                    {images.map((image) => tile(image.id, image.name, image.src))}
                 </div>
             ) : null}
             {loads ? (

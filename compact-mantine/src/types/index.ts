@@ -131,6 +131,7 @@ export type {
     PickFilesOptions,
     SearchInputProps,
     TileButtonProps,
+    TileButtonSize,
     UseFileDropOptions,
     VariablePillProps,
 } from "../components/inputs";

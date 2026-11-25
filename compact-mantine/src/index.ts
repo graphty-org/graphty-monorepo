@@ -323,6 +323,7 @@ export type {
     PickFilesOptions,
     SearchInputProps,
     TileButtonProps,
+    TileButtonSize,
     UseFileDropOptions,
     VariablePillProps,
 } from "./types";

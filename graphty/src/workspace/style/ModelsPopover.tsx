@@ -14,8 +14,8 @@ const WIDTH = 240;
 /** The tile grids' columns (`.ws-gallery-grid`). */
 const COLUMNS = 2;
 
-/** A tile picture's width in CSS pixels: half the pop-over. */
-const TILE_PX = 104;
+/** A tile picture's width in CSS pixels: TileButton's md picture. */
+const TILE_PX = 96;
 
 /** Props for ModelsPopover. */
 interface ModelsPopoverProps {

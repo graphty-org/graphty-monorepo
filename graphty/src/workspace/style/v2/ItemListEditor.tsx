@@ -75,27 +75,6 @@ export function ItemListEditor({ ctx, list, channel, inline = false }: ItemListE
         items = ITEM_KINDS[list.kind]({ ctx, list, descriptor, value, write });
     }
     const { add } = items;
-    const plusOf = (inRow: boolean): React.ReactNode =>
-        add === undefined ? null : (
-            <AddButton
-                kind={ctx.side}
-                title={list.name}
-                name={`Add ${list.item.toLowerCase()}`}
-                inRow={inRow}
-                options={[{ key: "item", label: list.item }]}
-                onAdd={add}
-            />
-        );
-    // The legend's buttons: Equal shares and Reverse order, then "+" (stripes design 3.1).
-    const plus =
-        items.tools === undefined ? (
-            plusOf(false)
-        ) : (
-            <span className="ws-list-tools">
-                {items.tools}
-                {plusOf(false)}
-            </span>
-        );
     if (inline && channel !== undefined) {
         const held = value !== undefined && value !== "";
         return (
@@ -106,7 +85,7 @@ export function ItemListEditor({ ctx, list, channel, inline = false }: ItemListE
                     set={held}
                     rule="R15"
                     control={null}
-                    modifier={plusOf(true)}
+                    modifier={<ListAdd ctx={ctx} list={list} add={add} inRow />}
                     removeName={held ? `Remove ${list.name.toLowerCase()}` : undefined}
                     onRemove={() => {
                         unsetIn(ctx, [channel]).catch(fail);
@@ -159,11 +138,60 @@ export function ItemListEditor({ ctx, list, channel, inline = false }: ItemListE
             />
             <BesidePopover id={listId} title={list.name} opened={open} onOpenChange={setOpen}>
                 <div data-list-popover="" style={{ maxHeight: "calc(7 * 28px)", overflowY: "auto" }}>
-                    <PlusList level="group" title={list.name} add={plus}>
+                    <PlusList
+                        level="group"
+                        title={list.name}
+                        add={<ListAdd ctx={ctx} list={list} add={add} tools={items.tools} inRow={false} />}
+                    >
                         {items.lines}
                     </PlusList>
                 </div>
             </BesidePopover>
         </>
+    );
+}
+
+/**
+ * A list's "+", after its legend's other buttons (stripes design 3.1: Equal shares and Reverse order), or nothing while
+ * the list takes no item.
+ * @param props - Component props
+ * @param props.ctx - the row
+ * @param props.list - the list
+ * @param props.add - adds an item, if the list takes one
+ * @param props.tools - the legend's other buttons
+ * @param props.inRow - drawn in a line's trailing slot rather than a legend
+ * @returns The buttons
+ */
+function ListAdd({
+    ctx,
+    list,
+    add,
+    tools,
+    inRow,
+}: Readonly<{
+    ctx: RowContext;
+    list: ListSpec | ItemList;
+    add: (() => void) | undefined;
+    tools?: React.ReactNode;
+    inRow: boolean;
+}>): React.ReactNode {
+    const plus =
+        add === undefined ? null : (
+            <AddButton
+                kind={ctx.side}
+                title={list.name}
+                name={`Add ${list.item.toLowerCase()}`}
+                inRow={inRow}
+                options={[{ key: "item", label: list.item }]}
+                onAdd={add}
+            />
+        );
+    return tools === undefined ? (
+        plus
+    ) : (
+        <span className="ws-list-tools">
+            {tools}
+            {plus}
+        </span>
     );
 }

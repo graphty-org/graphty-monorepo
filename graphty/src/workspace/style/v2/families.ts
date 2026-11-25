@@ -206,6 +206,26 @@ export function currentMember(
 }
 
 /**
+ * The channels of the member graphty-element says the row's layer draws, while that layer holds something of it: a
+ * Fill that writes `node.color` and `node.gradientColor` draws its gradient, whose main control is the gradient bar.
+ * @param ctx - the row.
+ * @param thing - the thing's id.
+ * @returns the member's channels, or undefined for a thing drawn as no family or a layer holding none of it.
+ */
+export function drawnMemberOwns(ctx: RowContext, thing: string): readonly Channel[] | undefined {
+    const family = familyOf(ctx.side, thing);
+    const layer = family === undefined ? undefined : layerOf(ctx, family);
+    if (family === undefined || layer === undefined) {
+        return undefined;
+    }
+    const id = ctx.session.styles.familyMember(layer.id, family.id);
+    return holdsAny(ctx.session.styles.familyValues(layer.id, family.id, id))
+        ? // A node or edge family's members own channels (a label look's own label style fields).
+          (family.members.find((member) => member.id === id)?.owns as readonly Channel[] | undefined)
+        : undefined;
+}
+
+/**
  * The values left members held, while one row stays selected (design 5, point 2): reader UI state,
  * per session so another project never gets them, keyed by layer, family and member. A switch on
  * another row starts it again.

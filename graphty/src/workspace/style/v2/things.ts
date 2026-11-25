@@ -5,11 +5,12 @@
  * names the parts items it is made of, so the channels stay in one place.
  */
 
-import type { Channel, ChannelDescriptor } from "@graphty/graphty-element/catalog";
+import { type Channel, type ChannelDescriptor, channelsFor } from "@graphty/graphty-element/catalog";
 
 import { shownChannel } from "../offered";
 import type { RowContext, VaryTarget } from "../PropertyRow";
 import { lineIn, partlySet } from "../row";
+import { drawnMemberOwns } from "./families";
 import { PATTERN_CHANNELS, SIZE_CHANNELS } from "./rubric";
 
 /** One thing a section's "+" adds and a row draws. */
@@ -378,7 +379,13 @@ export function setOn(ctx: RowContext, channel: Channel): boolean {
  */
 export function mainOf(ctx: RowContext, thing: ThingSpec, channels: readonly Channel[]): ChannelDescriptor | undefined {
     const mains = thing.main.filter((channel) => channels.includes(channel));
-    const set = mains.find((channel) => setOn(ctx, channel));
+    // The member graphty-element says the layer draws picks the main channel, set or not yet (a gradient written in
+    // its older spelling); else the first main channel the row sets.
+    const owns = drawnMemberOwns(ctx, thing.id);
+    const set =
+        mains.find((channel) => owns?.includes(channel) === true && setOn(ctx, channel)) ??
+        mains.find((channel) => owns?.includes(channel) === true) ??
+        mains.find((channel) => setOn(ctx, channel));
     const offered = (channel: Channel, held: boolean): ChannelDescriptor | undefined => {
         const descriptor = shownChannel(ctx.session, ctx.side, channel, held);
         return descriptor?.renderable === true ? descriptor : undefined;
@@ -434,4 +441,27 @@ export function shapeTargets(ctx: RowContext): readonly VaryTarget[] {
         const descriptor = shownChannel(ctx.session, ctx.side, channel, false);
         return descriptor?.renderable === true ? [{ name, descriptor }] : [];
     });
+}
+
+/**
+ * The older spelling of a gradient's colors the row sets (graphty-element's `supersededBy`: `node.gradientColor`, a
+ * gradient from the node's color into one more), which the bar edits as the list it draws.
+ * @param ctx - the row.
+ * @param colorsChannel - the gradient's colors channel.
+ * @returns the channel, or undefined when the row sets none.
+ */
+export function olderSpelling(ctx: RowContext, colorsChannel: Channel): Channel | undefined {
+    return channelsFor(ctx.side).find(
+        ({ channel, supersededBy }) => supersededBy === colorsChannel && lineIn(ctx, channel) !== undefined,
+    )?.channel;
+}
+
+/**
+ * Whether the row draws a gradient the bar edits: it sets the gradient's colors, or their older spelling.
+ * @param ctx - the row.
+ * @param colorsChannel - the gradient's colors channel.
+ * @returns true when it does.
+ */
+export function gradientSet(ctx: RowContext, colorsChannel: Channel): boolean {
+    return lineIn(ctx, colorsChannel) !== undefined || olderSpelling(ctx, colorsChannel) !== undefined;
 }

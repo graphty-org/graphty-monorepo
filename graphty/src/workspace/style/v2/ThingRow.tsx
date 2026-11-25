@@ -52,7 +52,7 @@ import {
 import { ByDataLink, LineFrame, type RowSlots, RubricLine } from "./RubricLine";
 import { RowSettings } from "./ThingLine";
 import { type ExtraGroup, FirstLines, ThingPopover } from "./ThingPopover";
-import { mainOf, setOn, shapeTargets, type ThingSpec } from "./things";
+import { gradientSet, mainOf, setOn, shapeTargets, type ThingSpec } from "./things";
 import { ValueButton } from "./ValueButton";
 
 /**
@@ -356,7 +356,7 @@ function MainControl({
     );
     if (
         (main.channel === "node.gradientColors" || main.channel === "edge.gradientColors") &&
-        setOn(ctx, main.channel)
+        (setOn(ctx, main.channel) || gradientSet(ctx, main.channel))
     ) {
         return frame(main.channel, "R16", <GradientButton ctx={ctx} />);
     }

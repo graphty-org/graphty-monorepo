@@ -140,7 +140,13 @@ export function ItemListEditor({ ctx, list, channel, inline = false }: ItemListE
                 rule="R15"
                 control={shown}
                 modifier={null}
-                removeName={channel !== undefined && set ? `Remove ${list.name.toLowerCase()}` : undefined}
+                // A color list is its thing (stripes, slices, a chart's values): taking it off is the row's "-", so its
+                // line has none (owner, 2026-11-24: one path to any control); each item keeps its own "-".
+                removeName={
+                    channel !== undefined && set && !("colors" in list)
+                        ? `Remove ${list.name.toLowerCase()}`
+                        : undefined
+                }
                 onRemove={() => {
                     if (channel !== undefined) {
                         unsetIn(ctx, [channel]).catch(fail);

@@ -21,7 +21,16 @@ import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { type RowContext, VarySlot } from "./PropertyRow";
 import { type DataBinding, sourceName } from "./row";
-import { clockWords, colorName, enumWords, failureWords, scrubLetter, SHADER_FACT_WORDS, usesWords } from "./words";
+import {
+    clockWords,
+    colorName,
+    colorPalettes,
+    enumWords,
+    failureWords,
+    scrubLetter,
+    SHADER_FACT_WORDS,
+    usesWords,
+} from "./words";
 
 /** One parameter's value: a number, a color or a word, a switch, or a clock binding. */
 type Value = ShaderParamValue;
@@ -515,6 +524,7 @@ export function ParamControl({
         const hex = typeof shown === "string" ? shown.toUpperCase() : fallback;
         control = (
             <CompactColorInput
+                palettes={colorPalettes(ctx?.session ?? null)}
                 aria-label={label}
                 valueText={colorName(hex)}
                 width="100%"

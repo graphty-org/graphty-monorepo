@@ -964,6 +964,19 @@ export function paletteWord(id: string): string {
 }
 
 /**
+ * The palettes a color picker's Palettes tab offers: graphty-element's, each by the app's name for it.
+ * @param session - the element's session, if any.
+ * @returns the palettes, for CompactColorInput's `palettes`.
+ */
+export function colorPalettes(
+    session: {
+        readonly catalog: { palettes(): readonly { readonly id: string; readonly colors: readonly string[] }[] };
+    } | null,
+): { id: string; name: string; colors: readonly string[] }[] {
+    return (session?.catalog.palettes() ?? []).map((p) => ({ id: p.id, name: paletteWord(p.id), colors: p.colors }));
+}
+
+/**
  * A readable value's name and the heading it is listed under, the same in the vary picker and the
  * rule editor: the catalog plainName, under "Data" for a column or under the run's name for a
  * run's field. A measurement's main value goes by the algorithm's name, as the reader picked it

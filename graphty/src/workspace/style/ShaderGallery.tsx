@@ -1,7 +1,7 @@
-import { ContextMenu } from "@graphty/compact-mantine";
+import { ContextMenu, SearchInput } from "@graphty/compact-mantine";
 import { shaderAnimates, type ShaderDescriptor, type ShaderPlace } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { Menu, Text, TextInput, Tooltip, UnstyledButton, VisuallyHidden } from "@mantine/core";
+import { Menu, Text, Tooltip, UnstyledButton, VisuallyHidden } from "@mantine/core";
 import React, { useId, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
@@ -332,14 +332,13 @@ export function ShaderGallery({
                     <Text size="xs">{GALLERY_WORDS.newShader}</Text>
                 </UnstyledButton>
             )}
-            <TextInput
-                size="xs"
+            <SearchInput
                 aria-label={GALLERY_WORDS.search(tab)}
                 placeholder="Search"
                 data-autofocus
                 value={query}
-                onChange={(event) => {
-                    setQuery(event.currentTarget.value);
+                onChange={(next) => {
+                    setQuery(next);
                 }}
                 onKeyDown={(event) => {
                     if (event.key === "ArrowDown") {

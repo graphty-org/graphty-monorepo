@@ -4,8 +4,9 @@
  * a field (R14), for a Record's fields and a table's cells.
  */
 
+import { PanelField } from "@graphty/compact-mantine";
 import type { ChannelDescriptor, ChannelPoint } from "@graphty/graphty-element/catalog";
-import { Group, TextInput } from "@mantine/core";
+import { Group } from "@mantine/core";
 import React from "react";
 
 import { NumberLine } from "./RubricLine";
@@ -71,10 +72,11 @@ export function WordsField({
     onWrite,
 }: Readonly<{ label: string; value: string; onWrite: (words: string) => void }>): React.JSX.Element {
     return (
-        <TextInput
+        <PanelField
             key={value}
-            size="xs"
-            aria-label={label}
+            kind="text"
+            width="fill"
+            label={label}
             defaultValue={value}
             onBlur={(event) => {
                 if (event.currentTarget.value !== value) {

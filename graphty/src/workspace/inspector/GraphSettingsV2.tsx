@@ -37,9 +37,9 @@ import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { PickerNamesOnly } from "../style/pickerNames";
 import { AddButton } from "../style/Section";
 import { V2_LABELS } from "../style/v2/rubric";
-import { LineFrame, SegmentsLine } from "../style/v2/RubricLine";
+import { AngleLine, LineFrame, SegmentsLine } from "../style/v2/RubricLine";
 import { RowSettings } from "../style/v2/ThingLine";
-import { failureWords, scrubLetter } from "../style/words";
+import { colorPalettes, failureWords, scrubLetter } from "../style/words";
 import { LIGHTING_WORDS, useNotInEffect } from "./graphSettingReads";
 import { BackgroundImage } from "./GraphSettings";
 
@@ -193,6 +193,7 @@ function BackgroundRow({ session }: Readonly<{ session: GraphSession }>): React.
     const control =
         member === "color" ? (
             <CompactColorInput
+                palettes={colorPalettes(session)}
                 label="Background color"
                 hideLabel
                 color={background.color}
@@ -204,10 +205,7 @@ function BackgroundRow({ session }: Readonly<{ session: GraphSession }>): React.
                 }}
             />
         ) : (
-            <BackgroundImage
-                address={sky && !background.data.startsWith("data:") ? background.data : ""}
-                onCommit={pickSky}
-            />
+            <BackgroundImage address={sky ? background.data : ""} onCommit={pickSky} />
         );
     return (
         <ControlSection
@@ -422,11 +420,10 @@ export function GraphSettingsV2(): React.JSX.Element | null {
                             {line(
                                 "viewRotation",
                                 "Rotation",
-                                "R5",
-                                <NumberField
+                                "R18",
+                                <AngleLine
                                     label="Rotation"
-                                    value={viewRotation}
-                                    unset={0}
+                                    value={viewRotation ?? 0}
                                     onWrite={(value) => {
                                         session.config.set({ viewRotation: value }).catch(fail("Rotation"));
                                     }}
@@ -441,6 +438,7 @@ export function GraphSettingsV2(): React.JSX.Element | null {
                                 "Highlight",
                                 "R1",
                                 <CompactColorInput
+                                    palettes={colorPalettes(session)}
                                     label="Highlight color"
                                     hideLabel
                                     color={highlightSet ? highlightNow : undefined}

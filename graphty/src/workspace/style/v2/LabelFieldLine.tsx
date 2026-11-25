@@ -23,9 +23,9 @@ import React from "react";
 
 import { GLYPHS } from "../../glyphs";
 import { useWorkspace } from "../../state/WorkspaceContext";
+import { ImageField } from "../ImageField";
 import { shownChannel } from "../offered";
 import { GradientBar } from "../parts/GradientRow";
-import { PictureLine } from "../PicturePopover";
 import { BoundValue, Field, type RowContext, StopVarying, type VaryTarget } from "../PropertyRow";
 import { lineIn, propose, removeLine, startingValue, writeIn } from "../row";
 import { ValueField } from "../ValueField";
@@ -82,7 +82,7 @@ function describedField(label: LabelLineContext, field: LabelField): ChannelDesc
     if (found === undefined) {
         return undefined;
     }
-    const { plainName, accepts, values, min, max, integer } = found;
+    const { plainName, accepts, values, min, max, integer, angle } = found;
     return {
         channel: label.kind.style,
         target: label.ctx.side,
@@ -96,6 +96,7 @@ function describedField(label: LabelLineContext, field: LabelField): ChannelDesc
         ...(min === undefined ? {} : { min }),
         ...(max === undefined ? {} : { max }),
         ...(integer === undefined ? {} : { integer }),
+        ...(angle === undefined ? {} : { angle }),
     };
 }
 
@@ -522,7 +523,17 @@ function controlOf(args: LineControlArgs, rule: string): React.ReactNode {
         case "R13":
             return <FontSelect label={name} value={value} onPick={write} />;
         case "R16":
-            return <PictureLine label={name} value={valueOf(label.style, field)} onPick={write} />;
+            return (
+                <ImageField
+                    label={name}
+                    value={
+                        typeof valueOf(label.style, field) === "string"
+                            ? String(valueOf(label.style, field))
+                            : undefined
+                    }
+                    onPick={write}
+                />
+            );
         case "field":
             // A list of colors (a background gradient's): the shared gradient editor, spread evenly.
             return (

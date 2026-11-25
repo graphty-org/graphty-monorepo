@@ -77,9 +77,45 @@ describe("Style panel v2's control rubric", () => {
         }
     });
 
+    it("angles, fonts and images use their pickers (owner, 2026-11-24)", () => {
+        // An angle is a number line the rubric leaves to its kind (R5), where NumberLine draws AnglePicker for any
+        // channel graphty-element marks `angle`; a font is R13 (FontPicker), an image R16 (ImagePicker).
+        const lines = [
+            ...LINES.map(({ thing, line }) => ({ at: `${thing}: ${line.channel}`, rule: line.rule, id: line.channel })),
+            ...[
+                ...LABEL_RUBRIC.common,
+                ...LABEL_RUBRIC.main,
+                ...LABEL_RUBRIC.groups.flatMap((group) => group.lines),
+            ].map((line) => ({
+                at: `label: ${line.field}`,
+                rule: line.rule,
+                id: line.field,
+            })),
+        ];
+        const angles = lines.filter(({ id }) => {
+            const descriptor = channelDescriptor(id) ?? labelFieldDescriptor(id as LabelField);
+            return descriptor?.angle === true;
+        });
+        assert.isAbove(angles.length, 4, "the rotations, the gradient's direction and the model's turn");
+        for (const { at, rule } of angles) {
+            assert.include([undefined, "R5"], rule, `${at} is an angle`);
+        }
+        for (const { at, rule, id } of lines) {
+            if (/(^|\.|[a-z])(font|Font)$/.test(id)) {
+                assert.strictEqual(rule, "R13", `${at} is a font`);
+            }
+            const kind = (channelDescriptor(id) ?? labelFieldDescriptor(id as LabelField))?.accepts;
+            if (kind === "text" && (/(^|\.|[a-z])(image|Image|imageFallback)$/.test(id) || id === "node.texture")) {
+                assert.strictEqual(rule, "R16", `${at} is an image`);
+            }
+        }
+    });
+
     it("every segment line names the element's values and fits where it sits", () => {
         const segments = LINES.filter(
-            ({ line }) => line.unit !== undefined || line.rule === "R8" || line.rule === "R8f",
+            // A value list over several channels (a Finish's Shading) names its own choices.
+            ({ line }) =>
+                line.choices === undefined && (line.unit !== undefined || line.rule === "R8" || line.rule === "R8f"),
         );
         assert.isAbove(segments.length, 10);
         for (const { thing, line, place } of segments) {

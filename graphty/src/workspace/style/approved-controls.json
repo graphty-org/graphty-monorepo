@@ -195,6 +195,21 @@
             "name": "Divider",
             "from": "@mantine/core",
             "dom": ".mantine-Divider-root"
+        },
+        {
+            "name": "AnglePicker",
+            "from": "@graphty/compact-mantine",
+            "dom": ".cm-angle-picker"
+        },
+        {
+            "name": "FontPicker",
+            "from": "@graphty/compact-mantine",
+            "dom": ".cm-panel-field"
+        },
+        {
+            "name": "ImagePicker",
+            "from": "@graphty/compact-mantine",
+            "dom": ".cm-image-picker"
         }
     ],
     "containers": [

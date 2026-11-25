@@ -3,7 +3,7 @@ import {
     CompactColorInput,
     ControlSection,
     FieldRow,
-    FileSource,
+    ImagePicker,
     TargetTooltip,
 } from "@graphty/compact-mantine";
 import { DEFAULT_BACKGROUND_COLOR, type GraphBackgroundConfig, LIGHTING_VALUES } from "@graphty/graphty-element/schema";
@@ -384,10 +384,10 @@ function BackgroundSection({ session }: Readonly<{ session: GraphSession }>): Re
 }
 
 /**
- * The background image: an address typed in (Enter), or an image from this computer, chosen or
- * dropped on the row, prepared by graphty-element and kept in the project as a `data:` address.
+ * The background image (compact-mantine's ImagePicker): an address typed in, or an image from this computer, chosen
+ * or dropped, prepared by graphty-element and kept in the project as a `data:` address.
  * @param props - Component props
- * @param props.address - the image address in effect, or "" for none or an uploaded image
+ * @param props.address - the image in effect (an address, or a `data:` address once uploaded), or "" for none
  * @param props.onCommit - writes a new address
  * @returns The field
  */
@@ -397,14 +397,15 @@ export function BackgroundImage({
 }: Readonly<{ address: string; onCommit: (data: string) => void }>): React.JSX.Element {
     const { store } = useWorkspace();
     return (
-        <FileSource
-            submitOnBlur
-            variant="row"
-            defaultValue={address}
-            url
+        <ImagePicker
+            label="Sky picture"
+            title="Picture"
+            value={address === "" ? null : address}
+            valueName={address.startsWith("data:") ? "Uploaded picture" : undefined}
+            images={[]}
+            clearable={false}
             accept="image/*"
-            placeholder="Image address"
-            label="Upload image"
+            onChange={() => undefined}
             onUrl={onCommit}
             onFiles={([file]) => {
                 // graphty-element decodes, turns and scales it; one it cannot use is a failure notice.

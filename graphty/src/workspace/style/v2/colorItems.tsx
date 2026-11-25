@@ -14,6 +14,7 @@ import React from "react";
 import { shownChannel } from "../offered";
 import type { RowContext } from "../PropertyRow";
 import { writeIn } from "../row";
+import { colorPalettes } from "../words";
 import { drawnItems, type ListSpec, nextColor, writeList } from "./lists";
 import { LineFrame, NumberLine } from "./RubricLine";
 
@@ -97,6 +98,7 @@ export function colorItems({
                     control={
                         <Group gap={4} wrap="nowrap">
                             <CompactColorInput
+                                palettes={colorPalettes(ctx.session)}
                                 variant="chip"
                                 aria-label={`${name} color`}
                                 color={color}

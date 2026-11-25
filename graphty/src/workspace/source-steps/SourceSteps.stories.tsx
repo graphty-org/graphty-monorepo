@@ -68,7 +68,7 @@ async function choose(where: HTMLElement, name: string, option: string): Promise
 }
 
 /**
- * Opens the join workspace by Join + and picks Key of person and the staged source's badge on its
+ * Opens the join workspace by Join + and picks the badge, the key of person and the staged source's badge on its
  * card.
  * @param context - the play's context.
  * @returns the workspace.
@@ -78,7 +78,7 @@ async function pickBadge(context: Context): Promise<HTMLElement> {
     await userEvent.click(canvas.getByRole("button", { name: "Join" }));
     const modal = await within(context.canvasElement.ownerDocument.body).findByRole("dialog", { name: "Join" });
     await choose(modal, "In graph type", "person");
-    await choose(modal, "In graph field", "Key");
+    await choose(modal, "In graph field", "badge");
     await choose(modal, "Incoming field", "badge");
     return modal;
 }
@@ -159,6 +159,8 @@ export const AfterCommitSteps: Story = {
         await userEvent.click(within(context.canvasElement).getByRole("button", { name: "Join" }));
         modal = await body.findByRole("dialog", { name: "Join" });
         await within(modal).findByRole("region", { name: "entries.csv -> Connect" });
+        // The Add step that was there before the join is listed beside it.
+        await within(modal).findByRole("region", { name: "people.csv -> Added" });
         await session.styles.settled();
     },
 };

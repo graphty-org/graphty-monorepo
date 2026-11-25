@@ -226,7 +226,8 @@ export function becoming(draft: SourceDraft, picks: CardPicks, becomes: Becomes)
     // New nodes at 1 are a node's own: no field or edge matches them. With one type of node in the
     // graph, it is the one a match can name.
     const types = draft.spaces().filter((space) => !space.rowsOf.includes(rest.from?.source ?? ""));
-    const only: CardInto | null = types.length === 1 && types[0] !== undefined ? { space: types[0].space } : null;
+    const [one] = types;
+    const only: CardInto | null = types.length === 1 ? { space: one.space } : null;
     const into: CardInto | null = becomes !== "node" && rest.into?.isNew === true ? null : (rest.into ?? only);
     const next: CardPicks = { ...rest, becomes, into };
     if (becomes === "fields" || into?.isNew === true) {

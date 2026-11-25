@@ -82,7 +82,9 @@ async function workspace(): Promise<HTMLElement> {
  * @returns the card's read settings.
  */
 async function readAs(modal: HTMLElement): Promise<HTMLElement> {
-    return within(modal).findByRole("group", { name: "Read as" });
+    const settings = await within(modal).findByRole("group", { name: "Read as" });
+    await userEvent.click(within(settings).getByRole("button", { name: "Expand Rows are" }));
+    return settings;
 }
 
 describe("a second source arrives staged (source-steps)", () => {
@@ -240,8 +242,10 @@ describe("a second source arrives staged (source-steps)", () => {
     });
 
     it("lists a staged source nowhere outside its entry: the inspector's graph header names one file", async () => {
-        await withPeopleDropped();
+        const { store } = await withPeopleDropped();
         await stage("buildings.csv", BUILDINGS);
+        // Opening its entry shows the staged source's own details; the graph's header is under them.
+        store.set({ inspected: null });
         const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
         await waitFor(() => {
             assert.isNotNull(inspector.getByRole("button", { name: "From people.csv" }));

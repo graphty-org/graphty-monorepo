@@ -684,6 +684,123 @@ const SEVERAL_MATCH = [
 const SEPARATORS = [{ value: ";" }, { value: "," }, { value: "|" }];
 
 /**
+ * What a row whose value names several nodes does, asked only where a value names several.
+ * @param props - Component props
+ * @param props.draft - the open draft
+ * @param props.card - the card
+ * @param props.result - its options
+ * @param props.set - changes the options
+ * @returns the row, or nothing
+ */
+function SeveralMatch({
+    draft,
+    card,
+    result,
+    set,
+}: Readonly<{
+    draft: SourceDraft;
+    card: JoinCardView;
+    result: CardResult;
+    set: (patch: Partial<CardResult>) => void;
+}>): React.JSX.Element | null {
+    const some = (countsOf(draft, card.picks, card.step?.index)?.fanOut ?? 0) > 0;
+    return some ? (
+        <Choice
+            label={WORKSPACE_WORDS.severalMatch}
+            value={result.fanOut}
+            data={SEVERAL_MATCH}
+            onChange={(fanOut) => {
+                set({ fanOut });
+            }}
+        />
+    ) : null;
+}
+
+/**
+ * The options of rows that become fields on a node: what a node named by several rows keeps, how each
+ * column whose values differ is settled, and what a row naming no node does.
+ * @param props - Component props
+ * @param props.card - the card, with a step
+ * @param props.result - its options
+ * @param props.several - the choice of a value naming several nodes, if it is asked
+ * @param props.set - changes the options
+ * @param props.onPatch - changes a choice its step keeps
+ * @param props.onShowCells - lists a Values differ column's cells in the table
+ * @returns the rows
+ */
+function FieldsOptions({
+    card,
+    result,
+    several,
+    set,
+    onPatch,
+    onShowCells,
+}: Readonly<{
+    card: JoinCardView;
+    result: CardResult;
+    several: React.ReactNode;
+    set: (patch: Partial<CardResult>) => void;
+    onPatch: (step: number, patch: SourceStepPatch) => void;
+    onShowCells: (step: number, column: string) => void;
+}>): React.JSX.Element {
+    const { step } = card;
+    // In one order, whatever changed last.
+    const differing = [...(step?.valuesDiffer ?? [])].sort((a, b) => a.params.column.localeCompare(b.params.column));
+    return (
+        <>
+            <Choice
+                label={WORKSPACE_WORDS.manyRows}
+                value={result.many}
+                data={MANY_ROWS}
+                onChange={(many) => {
+                    set({ many });
+                }}
+            />
+            {several}
+            {differing.map(({ params }) =>
+                step === null ? null : (
+                    <DifferRow
+                        key={params.column}
+                        step={step}
+                        many={MANY_ROWS.find((each) => each.value === result.many)?.label ?? WORKSPACE_WORDS.first}
+                        column={params.column}
+                        rule={params.rule}
+                        rules={params.rules}
+                        onRule={(rule) => {
+                            const picked = params.rules.find((each) => each === rule);
+                            if (picked !== undefined) {
+                                onPatch(step.index, { clash: { [params.column]: picked } });
+                            }
+                        }}
+                        onReduce={(reduce) => {
+                            const { [params.column]: _was, ...rest } = step.act?.aggregate ?? {};
+                            const aggregate = reduce === null ? rest : { ...rest, [params.column]: reduce };
+                            onPatch(step.index, {
+                                aggregate: Object.keys(aggregate).length === 0 ? null : aggregate,
+                            });
+                        }}
+                        onShow={() => {
+                            onShowCells(step.index, params.column);
+                        }}
+                    />
+                ),
+            )}
+            <Choice
+                label={WORKSPACE_WORDS.noMatch}
+                value={result.unmatchedFrom}
+                data={[
+                    { value: "keep", label: WORKSPACE_WORDS.add },
+                    { value: "drop", label: WORKSPACE_WORDS.skip },
+                ]}
+                onChange={(unmatchedFrom) => {
+                    set({ unmatchedFrom });
+                }}
+            />
+        </>
+    );
+}
+
+/**
  * The options of what a card's rows become, one compact row each, and only those it needs.
  * @param props - Component props
  * @param props.session - the element's session
@@ -709,78 +826,21 @@ function Options({
         onPatch: (step: number, patch: SourceStepPatch) => void;
         onShowCells: (step: number, column: string) => void;
     }>): React.JSX.Element {
-    const { picks, step } = card;
+    const { picks } = card;
     const set = (patch: Partial<CardResult>): void => {
         onChange(card, picks, { ...result, ...patch });
     };
-    // Asked only where a value names several nodes.
-    const several =
-        result.fanOut === "each" && (countsOf(draft, picks, step?.index)?.fanOut ?? 0) === 0 ? null : (
-            <Choice
-                label={WORKSPACE_WORDS.severalMatch}
-                value={result.fanOut}
-                data={SEVERAL_MATCH}
-                onChange={(fanOut) => {
-                    set({ fanOut });
-                }}
-            />
-        );
+    const several = <SeveralMatch draft={draft} card={card} result={result} set={set} />;
     if (picks.becomes === "fields") {
         return (
-            <>
-                <Choice
-                    label={WORKSPACE_WORDS.manyRows}
-                    value={result.many}
-                    data={MANY_ROWS}
-                    onChange={(many) => {
-                        set({ many });
-                    }}
-                />
-                {several}
-                {[...(step?.valuesDiffer ?? [])]
-                    .sort((a, b) => a.params.column.localeCompare(b.params.column))
-                    .map(({ params }) =>
-                        step === null ? null : (
-                            <DifferRow
-                                key={params.column}
-                                step={step}
-                                many={
-                                    MANY_ROWS.find((each) => each.value === result.many)?.label ?? WORKSPACE_WORDS.first
-                                }
-                                column={params.column}
-                                rule={params.rule}
-                                rules={params.rules}
-                                onRule={(rule) => {
-                                    const picked = params.rules.find((each) => each === rule);
-                                    if (picked !== undefined) {
-                                        onPatch(step.index, { clash: { [params.column]: picked } });
-                                    }
-                                }}
-                                onReduce={(reduce) => {
-                                    const { [params.column]: _was, ...rest } = step.act?.aggregate ?? {};
-                                    const aggregate = reduce === null ? rest : { ...rest, [params.column]: reduce };
-                                    onPatch(step.index, {
-                                        aggregate: Object.keys(aggregate).length === 0 ? null : aggregate,
-                                    });
-                                }}
-                                onShow={() => {
-                                    onShowCells(step.index, params.column);
-                                }}
-                            />
-                        ),
-                    )}
-                <Choice
-                    label={WORKSPACE_WORDS.noMatch}
-                    value={result.unmatchedFrom}
-                    data={[
-                        { value: "keep", label: WORKSPACE_WORDS.add },
-                        { value: "drop", label: WORKSPACE_WORDS.skip },
-                    ]}
-                    onChange={(unmatchedFrom) => {
-                        set({ unmatchedFrom });
-                    }}
-                />
-            </>
+            <FieldsOptions
+                card={card}
+                result={result}
+                several={several}
+                set={set}
+                onPatch={onPatch}
+                onShowCells={onShowCells}
+            />
         );
     }
     const nodeTypes = session.data.types().filter((type) => type.kind === "node");

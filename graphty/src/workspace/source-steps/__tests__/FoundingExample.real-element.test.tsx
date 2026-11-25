@@ -126,6 +126,7 @@ describe("the founding example through the app (source-steps)", () => {
         assert.strictEqual(session.data.nodes().length, 2, "a staged source draws nothing");
         let modal = await joinPlus();
         let settings = await within(modal).findByRole("group", { name: "Read as" });
+        await userEvent.click(within(settings).getByRole("button", { name: "Expand Rows are" }));
         await typeInto(settings, "Type", "person");
         await waitFor(() => {
             const key = session.data.staged()[0]?.key ?? "";
@@ -140,7 +141,7 @@ describe("the founding example through the app (source-steps)", () => {
         await stage("entries.csv", ENTRIES);
         modal = await joinPlus();
         await choose(modal, "In graph type", "person");
-        await choose(modal, "In graph field", "Key");
+        await choose(modal, "In graph field", "badge");
         await choose(modal, "Incoming field", "badge");
         await userEvent.click(within(modal).getByRole("switch", { name: "Ignore case" }));
         await userEvent.click(within(modal).getByRole("radio", { name: "A node linked to what it names" }));
@@ -189,7 +190,7 @@ describe("the founding example through the app (source-steps)", () => {
         modal = await joinPlus();
         await userEvent.click(within(modal).getByRole("button", { name: /^\+ Join/ }));
         await choose(modal, "In graph type", "buildings.csv");
-        await choose(modal, "In graph field", "Key");
+        await choose(modal, "In graph field", "door");
         await choose(modal, "Incoming source", "entries.csv");
         await choose(modal, "Incoming field", "door");
         await userEvent.click(within(modal).getByRole("radio", { name: "A node linked to what it names" }));
@@ -201,7 +202,7 @@ describe("the founding example through the app (source-steps)", () => {
         await stage("hr.csv", HR);
         modal = await joinPlus();
         await choose(modal, "In graph type", "person");
-        await choose(modal, "In graph field", "Key");
+        await choose(modal, "In graph field", "badge");
         await choose(modal, "Incoming field", "badge");
         await userEvent.click(within(modal).getByRole("radio", { name: "Fields on a node" }));
         await choose(modal, "Both have dept", "Use 2");
@@ -223,6 +224,7 @@ describe("the founding example through the app (source-steps)", () => {
         await stage("visitors.csv", VISITORS);
         modal = await joinPlus();
         settings = await within(modal).findByRole("group", { name: "Read as" });
+        await userEvent.click(within(settings).getByRole("button", { name: "Expand Rows are" }));
         await typeInto(settings, "Type", "person");
         await waitFor(() => {
             const key = session.data.staged()[0]?.key ?? "";

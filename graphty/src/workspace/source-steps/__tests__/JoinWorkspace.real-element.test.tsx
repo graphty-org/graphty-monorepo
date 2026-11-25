@@ -328,9 +328,10 @@ describe("the join workspace (source-steps)", () => {
     it("a refused write is drawn on its card, not behind the modal", async () => {
         const { store, modal } = await opened();
         await choose(modal, "In graph type", "person");
-        await choose(modal, "In graph field", "Key");
+        await choose(modal, "In graph field", "badge");
         await choose(modal, "Incoming field", "door");
         // The entries' own nodes would land in the space they connect to.
+        await userEvent.click(within(modal).getByRole("button", { name: "Expand Rows are" }));
         await userEvent.fill(within(modal).getByRole("combobox", { name: "Space" }), "person");
         await userEvent.keyboard("{Enter}");
         await eachRow(modal, "A node linked to what it names");
@@ -339,12 +340,13 @@ describe("the join workspace (source-steps)", () => {
     });
     it("door entries read as edges connect a person to the door each names, one edge per entry", async () => {
         const { session, modal } = await opened(false, { name: "doors.csv", text: "door,name\nD1,North\nD2,South" });
+        await userEvent.click(within(modal).getByRole("button", { name: "Expand Rows are" }));
         const rows = within(modal).getByRole("radiogroup", { name: "Rows are" });
         await userEvent.click(within(rows).getByText("Edges"));
         await choose(modal, "From", "badge");
         await choose(modal, "To", "door");
         await choose(modal, "In graph type", "person");
-        await choose(modal, "In graph field", "Key");
+        await choose(modal, "In graph field", "badge");
         await choose(modal, "Incoming field", "badge");
         await userEvent.click(within(modal).getByRole("button", { name: "+ Match" }));
         await choose(modal, "Other end field", "door");

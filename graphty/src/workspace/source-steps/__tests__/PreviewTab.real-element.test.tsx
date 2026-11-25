@@ -63,7 +63,7 @@ async function joinOn(
     await userEvent.keyboard("{Shift>}J{/Shift}");
     const modal = await screen.findByRole("dialog", { name: "Join" });
     await choose(modal, "In graph type", "person");
-    await choose(modal, "In graph field", "Key");
+    await choose(modal, "In graph field", "badge");
     await choose(modal, "Incoming field", "badge");
     const becomes = result === "Merge" ? "Fields on a node" : "A node linked to what it names";
     await userEvent.click(within(modal).getByRole("radio", { name: becomes }));

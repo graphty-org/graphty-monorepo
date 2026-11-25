@@ -1338,12 +1338,18 @@ function moveStep(value: SourceSteps, index: number, to: number): SourceSteps {
     const steps = value.steps.filter((_, i) => i !== index);
     steps.splice(to, 0, step);
     const next: SourceSteps = { ...value, steps };
-    const adds = new Set(steps.flatMap((s) => (s.op === "join.add" ? [s.source] : [])));
+    const adds = new Map(steps.flatMap((s) => (s.op === "join.add" ? [[s.source, s] as const] : [])));
     const added = new Set<string>();
+    // a step reading only a source's rows needs none of the nodes its add makes
+    const tooEarly = (s: Step): boolean =>
+        stepSources(s, next).some((id) => {
+            const add = adds.get(id);
+            return add !== undefined && !added.has(id) && needsNodesOf(s, next, add);
+        });
     for (const s of steps) {
         if (s.op === "join.add") {
             added.add(s.source);
-        } else if (stepSources(s, next).some((id) => adds.has(id) && !added.has(id))) {
+        } else if (tooEarly(s)) {
             throw refused("E_BAD_COMMAND", `Step ${String(index)} cannot come before the source it reads.`, {
                 reason: "order",
                 index,

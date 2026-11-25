@@ -239,7 +239,7 @@ import {
 } from "./sources/steps/compile";
 import type { DraftMark, DraftMarks } from "./sources/steps/draft";
 import { matchCounts, matchValues } from "./sources/steps/match";
-import { RECORD_PATHS } from "./sources/steps/paths";
+import { RECORD_NAMES, RECORD_PATHS } from "./sources/steps/paths";
 import { spaceProfile, tableHandle } from "./sources/steps/profile";
 import {
     applyEdit,
@@ -7541,7 +7541,13 @@ export class SessionData implements SessionDataApi {
             return {
                 columns: Object.freeze(all.filter((each) => !isReadable(each))),
                 readable: Object.freeze(
-                    all.filter((each) => isReadable(each)).map((each) => ({ ...each, path: each.name })),
+                    all
+                        .filter((each) => isReadable(each))
+                        .map((each) => ({
+                            ...each,
+                            path: each.name,
+                            plainName: RECORD_NAMES[each.name] ?? each.name,
+                        })),
                 ),
             };
         });

@@ -183,6 +183,32 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
                 });
                 after.view.unmount();
             });
+
+            it("keeps a removal the reader undid undone", async () => {
+                const { before, session } = await peopleProject();
+                const nodes = session.data.nodes().length;
+                const row = await screen.findByRole("listitem", { name: "people.csv" });
+                await userEvent.click(within(row).getByRole("button", { name: "people.csv menu" }));
+                await userEvent.click(await screen.findByRole("menuitem", { name: "Remove" }));
+                const modal = await screen.findByRole("dialog", { name: "Join" });
+                await within(modal).findByRole("region", { name: "Remove people.csv" });
+                await userEvent.click(within(modal).getByRole("button", { name: "Undo" }));
+                await waitFor(() => {
+                    assert.isNull(within(modal).queryByRole("region", { name: "Remove people.csv" }));
+                });
+
+                const after = await reload(before, { lostSession });
+                const back = await screen.findByRole("dialog", { name: "Join" });
+                assert.isNull(within(back).queryByRole("region", { name: "Remove people.csv" }));
+                const reopened = await sessionNow();
+                assert.strictEqual(reopened.data.currentDraft()?.preview().after.nodes, nodes);
+                await userEvent.click(within(back).getByRole("button", { name: "Done" }));
+                await waitFor(() => {
+                    assert.isNull(screen.queryByRole("dialog", { name: "Join" }));
+                });
+                assert.lengthOf(reopened.data.sources(), 1, "people.csv is still there");
+                after.view.unmount();
+            });
         });
     },
 );

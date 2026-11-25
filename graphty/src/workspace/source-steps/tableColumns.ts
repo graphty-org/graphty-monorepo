@@ -95,7 +95,14 @@ export function rowColumns(session: GraphSession, rows: readonly SourceDraftRow[
         value: (row) => valueWords(value(row)),
     });
     return [
-        { id: "key", header: DRILL_WORDS.key, sortable: false, rowHeader: true, value: (row) => cellWords(row.key) },
+        {
+            id: "key",
+            header: DRILL_WORDS.key,
+            width: 160,
+            sortable: false,
+            rowHeader: true,
+            value: (row) => cellWords(row.key),
+        },
         { id: "from", header: DRILL_WORDS.from, sortable: false, value: (row) => nameOf(session, row.source) },
         { id: "effect", header: DRILL_WORDS.effect, sortable: false, value: (row) => EFFECT_WORDS[row.effect] },
         ...[...names].flatMap((name) => [

@@ -349,6 +349,24 @@ describe("source-steps drafts: a step changed or taken out", () => {
         other.dispose();
     });
 
+    it("may change a step that reads only a source's rows, though a later step adds the source", async () => {
+        const session = on();
+        await session.data.import(PEOPLE, { key: "person", type: "person" });
+        const entries = await session.data.stage(ENTRIES, { key: "entry", type: "entry" });
+        const d = session.data.draft();
+        const link = { source: entries, field: "person", into: { space: "person" }, columns: ["building"] };
+        d.link(link);
+        d.connect({ from: { source: entries, field: "person" }, into: { space: "person" } });
+        const at = d.steps().findIndex((step) => step.link !== null);
+        assert.isAbove(
+            d.steps().findIndex((step) => step.op === "join.add" && step.source === entries),
+            at,
+        );
+        d.replaceStep(at, { act: "link", options: { ...link, maxShared: 100 } });
+        assert.strictEqual(d.steps()[at]?.link?.maxShared, 100);
+        session.dispose();
+    });
+
     it("repaints nothing the graph no longer holds when a drawn draft takes nodes away", async () => {
         const session = on();
         const rows = Array.from({ length: 60 }, (_, i) => `P${String(i)},t${String(i % 6)}`);

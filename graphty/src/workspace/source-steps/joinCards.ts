@@ -188,35 +188,40 @@ export function stepCardId(index: number): string {
  * @returns The cards.
  */
 export function cardsOf(draft: SourceDraft, pending: readonly PendingCard[]): JoinCardView[] {
+    const behind = new Set<string>();
     const steps = draft.steps().flatMap((row): JoinCardView[] => {
-        const read = readBack(draft, row);
-        return read === null
-            ? []
-            : [
-                  {
-                      id: stepCardId(row.index),
-                      step: row,
-                      picks: read.picks,
-                      result: { ...DEFAULT_RESULT, ...read.result },
-                      guess: null,
-                      suggested: false,
-                  },
-              ];
+        const read = readBack(row);
+        if (read === null) {
+            return [];
+        }
+        const card: JoinCardView = {
+            id: stepCardId(row.index),
+            step: row,
+            picks: read.picks,
+            result: { ...DEFAULT_RESULT, ...read.result },
+            guess: null,
+            suggested: false,
+        };
+        // The card that wrote the step stays the same card, with the control the reader is in.
+        const own = pending.find((each) => !behind.has(each.id) && each.deleted !== true && writtenFor(each, card));
+        if (own === undefined) {
+            return [card];
+        }
+        behind.add(own.id);
+        return [{ ...card, id: own.id }];
     });
-    const shown = pending.filter((card) => card.deleted !== true && !steps.some((each) => writtenFor(card, each)));
+    const shown = pending.filter(
+        (card) => card.deleted !== true && !behind.has(card.id) && !steps.some((each) => writtenFor(card, each)),
+    );
     return [...steps, ...shown.map((card) => ({ ...card, step: null, result: null }))];
 }
 
 /**
  * A join step read back as a card's picks and options.
- * @param draft - The open draft.
  * @param row - The step.
  * @returns Them, or null for a step no card makes.
  */
-function readBack(
-    draft: SourceDraft,
-    row: SourceStepRow,
-): { readonly picks: CardPicks; readonly result: Partial<CardResult> } | null {
+function readBack(row: SourceStepRow): { readonly picks: CardPicks; readonly result: Partial<CardResult> } | null {
     if (row.act !== null) {
         return actBack(row.act);
     }
@@ -465,32 +470,33 @@ interface IntoField {
 }
 
 /**
- * The column a side's nodes are keyed by: its source's, when one source made them.
+ * The column a side's nodes are keyed by: the one every source that made them names.
  * @param draft - The open draft.
  * @param into - The side.
- * @returns The column, or null when several sources made them, or the source names none.
+ * @returns The column, or null when they name several, or none.
  */
 export function keyColumn(draft: SourceDraft, into: CardInto): string | null {
-    const source = into.space === "" ? into.source : onlySource(draft, into.space);
-    if (source === undefined) {
-        return null;
-    }
+    const sources = into.space === "" && into.source !== undefined ? [into.source] : addedInto(draft, into.space);
     try {
-        return draft.sourceTable(source).summary().mapping.key ?? null;
+        const keys = new Set(sources.map((source) => draft.sourceTable(source).summary().mapping.key ?? null));
+        const [key = null] = keys;
+        return keys.size === 1 ? key : null;
     } catch {
+        // A source an undo took away keys nothing.
         return null;
     }
 }
 
 /**
- * The one source added into a space.
+ * The sources added into a space.
  * @param draft - The open draft.
  * @param space - The space.
- * @returns The source, or undefined when none or several were.
+ * @returns Them.
  */
-function onlySource(draft: SourceDraft, space: string): SourceKey | undefined {
-    const added = draft.steps().filter((step) => step.op === "join.add" && step.spaces.includes(space));
-    return added.length === 1 ? added[0]?.source : undefined;
+function addedInto(draft: SourceDraft, space: string): readonly SourceKey[] {
+    return draft
+        .steps()
+        .flatMap((step) => (step.op === "join.add" && step.spaces.includes(space) ? [step.source] : []));
 }
 
 /**
@@ -510,7 +516,8 @@ export function intoFields(draft: SourceDraft, into: CardInto, before?: number):
             .filter((field) => field !== key)
             .map((field) => ({ label: field, into: { space, source, field } }));
     }
-    const only = onlySource(draft, space);
+    const added = addedInto(draft, space);
+    const only = added.length === 1 ? added[0] : undefined;
     const own = only === undefined ? [] : columnsOf(draft, only, "nodes").filter((field) => field !== key);
     let carried: readonly string[] = [];
     try {
@@ -682,6 +689,34 @@ function extractOf(picks: CardPicks, result: CardResult, step: SourceStepRow | n
 }
 
 /**
+ * What holds the values a Links card matches.
+ * @param picks - The picks.
+ * @param into - The nodes linked.
+ * @param step - The step the card is.
+ * @returns The link's members, or null while a pick is missing.
+ */
+function holderOf(
+    picks: CardPicks,
+    into: CardInto,
+    step: SourceStepRow | null,
+): Pick<SourceLinkOptions, "source" | "field" | "into" | "nodes"> | null {
+    const { from } = picks;
+    if (picks.inRows === true) {
+        return from?.field === undefined ? null : { source: from.source, field: from.field, into: intoOf(into) };
+    }
+    if (into.space === "" && into.source !== undefined) {
+        return { source: into.source };
+    }
+    if (from === null) {
+        return null;
+    }
+    // The rows' own nodes still hold the values: an option changed, not where they are.
+    const was = step?.link ?? null;
+    const own = was?.source === from.source && was.nodes === undefined && was.field === undefined;
+    return own && step?.holders === into.space ? { source: from.source } : { source: from.source, nodes: into.space };
+}
+
+/**
  * The links a card's picks make between nodes sharing a value.
  * @param picks - The picks.
  * @param result - The options.
@@ -689,25 +724,13 @@ function extractOf(picks: CardPicks, result: CardResult, step: SourceStepRow | n
  * @returns The act, or null.
  */
 function linkOf(picks: CardPicks, result: CardResult, step: SourceStepRow | null): SourceJoinAct | null {
-    const { from, into, shared = [] } = picks;
+    const { into, shared = [] } = picks;
     if (into === null || shared.length === 0) {
         return null;
     }
-    let holder: Pick<SourceLinkOptions, "source" | "field" | "into" | "nodes">;
-    if (picks.inRows === true) {
-        if (from?.field === undefined) {
-            return null;
-        }
-        holder = { source: from.source, field: from.field, into: intoOf(into) };
-    } else if (into.space === "" && into.source !== undefined) {
-        holder = { source: into.source };
-    } else if (step?.link?.source === from?.source && step?.link?.nodes === undefined && step?.holders === into.space) {
-        // The rows' own nodes still hold the values: an option changed, not where they are.
-        holder = { source: from?.source ?? "" };
-    } else if (from === null) {
+    const holder = holderOf(picks, into, step);
+    if (holder === null) {
         return null;
-    } else {
-        holder = { source: from.source, nodes: into.space };
     }
     const asNodes = result.as === "nodes";
     const was = step?.link ?? null;

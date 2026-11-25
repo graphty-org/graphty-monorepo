@@ -51,12 +51,20 @@ import {
     writeCard,
     writtenFor,
 } from "./joinCards";
-import { KeyWords } from "./KeyWords";
 import { JOIN_WORKSPACE_KEY, READER_EDITS_KEY, SIDE_KEY, WORKSPACE_UNDO_KEY } from "./keys";
+import { KeyWords } from "./KeyWords";
 import { ReaderEdits } from "./ReaderEdits";
 import { StagedRows } from "./StagedFields";
 import { EFFECT_COLORS, MATCH_VALUE_COLUMNS, nameOf, rowColumns } from "./tableColumns";
-import { addStepWords, JOIN_WORDS, OVERLAP_FILTERS, PREVIEW_WORDS, refusedWords, WORKSPACE_WORDS } from "./words";
+import {
+    addStepWords,
+    JOIN_WORDS,
+    OVERLAP_FILTERS,
+    PREVIEW_WORDS,
+    refusedWords,
+    STAGED_WORDS,
+    WORKSPACE_WORDS,
+} from "./words";
 import { AddStepBody, type CellFilter, CellsPane, FieldsPane, RemoveStrip, TableActions } from "./WorkspaceParts";
 
 /** The element's events after which the workspace reads its draft again. */
@@ -77,6 +85,17 @@ const KEY_COLORS: ReadonlySet<string> = new Set([MERGED_COLOR, NEW_COLOR, UNTOUC
 
 /** No elements picked. */
 const NO_REFS: readonly SourceElementRef[] = [];
+
+/**
+ * A card's id once its step is at a place: a card written here keeps its own, one read from the steps
+ * is named by its place.
+ * @param card - the card as it was
+ * @param step - the place
+ * @returns the id
+ */
+function idAt(card: JoinCardView, step: number): string {
+    return card.step !== null && card.id === stepCardId(card.step.index) ? stepCardId(step) : card.id;
+}
 
 /**
  * Whether a step has a join card of its own.
@@ -242,6 +261,118 @@ function fieldSides(
 }
 
 /**
+ * A card's matches: the values one of them overlaps by, or its fields' profiles.
+ * @param props - Component props
+ * @param props.session - the element's session
+ * @param props.draft - the open draft
+ * @param props.shows - what it lists
+ * @param props.card - the card, if it is still there
+ * @param props.offset - the first value of the page
+ * @param props.grid - measures the table
+ * @param props.height - the table's height
+ * @param props.onShows - changes what it lists, from the top
+ * @param props.onRange - asks for the page holding these rows
+ * @returns the pane
+ */
+function ValuesPane({
+    session,
+    draft,
+    shows,
+    card,
+    offset,
+    grid,
+    height,
+    onShows,
+    onRange,
+}: Readonly<{
+    session: GraphSession;
+    draft: SourceDraft;
+    shows: Extract<TableShows, { kind: "values" | "fields" }>;
+    card: JoinCardView | undefined;
+    offset: number;
+    grid: ReturnType<typeof useBoxSize>["ref"];
+    height: number;
+    onShows: (shows: TableShows) => void;
+    onRange: (start: number, end: number) => void;
+}>): React.JSX.Element {
+    const view = (
+        <SegmentedControl
+            size="xs"
+            aria-label={WORKSPACE_WORDS.fields}
+            value={shows.kind}
+            data={[
+                { value: "values", label: WORKSPACE_WORDS.values },
+                { value: "fields", label: WORKSPACE_WORDS.fields },
+            ]}
+            onChange={(kind) => {
+                onShows(
+                    kind === "fields"
+                        ? { kind: "fields", card: shows.card }
+                        : { kind: "values", card: shows.card, only: "all" },
+                );
+            }}
+        />
+    );
+    if (shows.kind === "fields") {
+        return (
+            <div className="jw-table">
+                {card !== undefined && hasMatch(card) ? view : null}
+                {card === undefined ? null : <FieldsPane draft={draft} sides={fieldSides(session, draft, card)} />}
+            </div>
+        );
+    }
+    const page = valuesPage(draft, card, shows, offset);
+    const other = card === undefined ? null : otherMatch(card);
+    return (
+        <div className="jw-table">
+            <Group gap={6} wrap="nowrap">
+                {view}
+                {other === null || card?.picks.from?.field === undefined ? null : (
+                    <SegmentedControl
+                        size="xs"
+                        aria-label={WORKSPACE_WORDS.match}
+                        value={shows.other === true ? "other" : "first"}
+                        data={[
+                            { value: "first", label: card.picks.from.field },
+                            { value: "other", label: other.from.field },
+                        ]}
+                        onChange={(value) => {
+                            const { other: _was, ...rest } = shows;
+                            onShows(value === "other" ? { ...rest, other: true } : rest);
+                        }}
+                    />
+                )}
+                <SegmentedControl
+                    size="xs"
+                    aria-label={PREVIEW_WORDS.valuesDiffer}
+                    value={shows.only}
+                    data={OVERLAP_FILTERS.map((each) => ({ ...each }))}
+                    onChange={(only) => {
+                        onShows({ ...shows, only: only as typeof shows.only });
+                    }}
+                />
+            </Group>
+            <div ref={grid} className="jw-table-grid">
+                <DataTable<SourceMatchValue>
+                    key={`${shows.card}:${shows.only}:${String(shows.other)}`}
+                    label={JOIN_WORDS.values}
+                    rowHeight={PANEL_GRID.ROW_PITCH}
+                    headerHeight={PANEL_GRID.ROW_PITCH}
+                    data={page.values}
+                    rowCount={page.total}
+                    rowOffset={offset}
+                    onRangeChange={onRange}
+                    columns={MATCH_VALUE_COLUMNS}
+                    getRowId={(row) => `${typeof row.value}:${String(row.value)}`}
+                    height={height}
+                    selectionMode="none"
+                />
+            </div>
+        </div>
+    );
+}
+
+/**
  * The table below the preview, for looking only: a match's value overlap or its fields' profiles, the
  * rows behind one count of a step, or the cells of one Values differ column. The card says what can be
  * done with the rows picked in it.
@@ -309,84 +440,21 @@ function TablePane({
         );
     }
     if (shows.kind === "values" || shows.kind === "fields") {
-        const card = cards.find((each) => each.id === shows.card);
-        const view = (
-            <SegmentedControl
-                size="xs"
-                aria-label={WORKSPACE_WORDS.fields}
-                value={shows.kind}
-                data={[
-                    { value: "values", label: WORKSPACE_WORDS.values },
-                    { value: "fields", label: WORKSPACE_WORDS.fields },
-                ]}
-                onChange={(kind) => {
-                    setOffset(0);
-                    onShows(
-                        kind === "fields"
-                            ? { kind: "fields", card: shows.card }
-                            : { kind: "values", card: shows.card, only: "all" },
-                    );
-                }}
-            />
-        );
-        if (shows.kind === "fields") {
-            return (
-                <div className="jw-table">
-                    {card !== undefined && hasMatch(card) ? view : null}
-                    {card === undefined ? null : <FieldsPane draft={draft} sides={fieldSides(session, draft, card)} />}
-                </div>
-            );
-        }
-        const page = valuesPage(draft, card, shows, offset);
-        const other = card === undefined ? null : otherMatch(card);
         return (
-            <div className="jw-table">
-                <Group gap={6} wrap="nowrap">
-                    {view}
-                    {other === null || card?.picks.from?.field === undefined ? null : (
-                        <SegmentedControl
-                            size="xs"
-                            aria-label={WORKSPACE_WORDS.match}
-                            value={shows.other === true ? "other" : "first"}
-                            data={[
-                                { value: "first", label: card.picks.from.field },
-                                { value: "other", label: other.from.field },
-                            ]}
-                            onChange={(value) => {
-                                setOffset(0);
-                                const { other: _was, ...rest } = shows;
-                                onShows(value === "other" ? { ...rest, other: true } : rest);
-                            }}
-                        />
-                    )}
-                    <SegmentedControl
-                        size="xs"
-                        aria-label={PREVIEW_WORDS.valuesDiffer}
-                        value={shows.only}
-                        data={OVERLAP_FILTERS.map((each) => ({ ...each }))}
-                        onChange={(only) => {
-                            setOffset(0);
-                            onShows({ ...shows, only: only as typeof shows.only });
-                        }}
-                    />
-                </Group>
-                <div ref={grid.ref} className="jw-table-grid">
-                    <DataTable<SourceMatchValue>
-                        key={`${shows.card}:${shows.only}:${String(shows.other)}`}
-                        label={JOIN_WORDS.values}
-                        rowHeight={PANEL_GRID.ROW_PITCH}
-                        headerHeight={PANEL_GRID.ROW_PITCH}
-                        data={page.values}
-                        rowCount={page.total}
-                        rowOffset={offset}
-                        onRangeChange={range}
-                        columns={MATCH_VALUE_COLUMNS}
-                        getRowId={(row) => `${typeof row.value}:${String(row.value)}`}
-                        height={height}
-                        selectionMode="none"
-                    />
-                </div>
-            </div>
+            <ValuesPane
+                session={session}
+                draft={draft}
+                shows={shows}
+                card={cards.find((each) => each.id === shows.card)}
+                offset={offset}
+                grid={grid.ref}
+                height={height}
+                onShows={(next) => {
+                    setOffset(0);
+                    onShows(next);
+                }}
+                onRange={range}
+            />
         );
     }
     let rows: { total: number; rows: readonly SourceDraftRow[] } = { total: 0, rows: [] };
@@ -696,10 +764,9 @@ function JoinWorkspace({
                         : each,
                 ),
             );
-            setOpen(stepCardId(step));
-            setShows((now) =>
-                now?.kind === "values" && now.card === card.id ? { ...now, card: stepCardId(step) } : now,
-            );
+            const id = idAt(card, step);
+            setOpen(id);
+            setShows((now) => (now?.kind === "values" && now.card === card.id ? { ...now, card: id } : now));
         } catch (error) {
             // What was picked stays on the card, beside why it was refused.
             if (at === null) {
@@ -712,15 +779,12 @@ function JoinWorkspace({
         try {
             draft.editStep(step, edit);
         } catch (error) {
-            noticeOn(stepCardId(step))(error);
+            noticeOn(cards.find((each) => each.step?.index === step)?.id ?? "")(error);
         }
     };
     const addCard = (): void => {
         const id = `new:${String(++nextId.current)}`;
-        const carded = new Set(cards.map((card) => card.picks.from?.source));
-        const staged = session.data.staged();
-        const source =
-            staged.findLast((each) => !carded.has(each.key)) ?? staged.at(-1) ?? session.data.sources().at(-1);
+        const source = session.data.staged().at(-1) ?? session.data.sources().at(-1);
         setPending((now) => [...now, newCard(draft, id, source?.key)]);
         setOpen(id);
     };
@@ -740,7 +804,7 @@ function JoinWorkspace({
         // behind its step); unfinished cards stay.
         setPending((now) =>
             now
-                .filter((each) => each.id !== id)
+                .filter((each) => each.id !== id || (card !== undefined && writtenFor(each, card)))
                 .map((each) => (card !== undefined && writtenFor(each, card) ? { ...each, deleted: true } : each)),
         );
     };
@@ -898,7 +962,7 @@ function JoinWorkspace({
                     readSettings={
                         staged === undefined || card.step !== null ? null : (
                             <fieldset className="ss-field jw-read" aria-label={WORKSPACE_WORDS.readSettings}>
-                                <ControlSection label={WORKSPACE_WORDS.readSettings} defaultOpened={false}>
+                                <ControlSection label={STAGED_WORDS.rowsAre} defaultOpened={false}>
                                     <StagedRows
                                         session={session}
                                         reader={draft}

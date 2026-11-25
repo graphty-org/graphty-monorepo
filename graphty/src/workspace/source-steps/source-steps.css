@@ -199,3 +199,33 @@ dialog.jw-modal {
     border-width: 2px 0 0;
     border-radius: 0;
 }
+
+/* A folded join card: its name, then its whole join and what it did on the lines under it. */
+.jw-modal .cm-list-card[data-folded] > .cm-card-head {
+    flex-wrap: wrap;
+    row-gap: 0;
+    height: auto;
+    min-height: 30px;
+    padding-block: 3px 4px;
+}
+
+.jw-modal .cm-list-card[data-folded] > .cm-card-head > .cm-card-title {
+    flex: 1 1 0;
+    max-width: none;
+}
+
+.jw-modal .cm-list-card[data-folded] > .cm-card-head > .cm-card-summary {
+    flex: 0 0 100%;
+    order: 1;
+    padding-inline: 28px 4px;
+    overflow-wrap: anywhere;
+    white-space: normal;
+}
+
+.jw-modal .cm-list-card[data-folded] > .cm-card-head > .cm-card-summary > * {
+    white-space: normal;
+}
+
+.jw-modal .cm-list-card[data-folded] > .cm-card-head > .cm-card-summary:empty {
+    display: none;
+}

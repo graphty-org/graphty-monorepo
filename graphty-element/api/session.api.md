@@ -7734,6 +7734,7 @@ export interface SourceConnectOptions {
     readonly direction?: "into-from" | "from-into";
     readonly edgeType?: SourceTypeName;
     readonly existing?: "add" | "merge";
+    readonly fanOut?: "skip" | "each";
     readonly from: SourceField;
     readonly ignoreCase?: boolean;
     readonly ignoreSpaces?: boolean;
@@ -7746,6 +7747,7 @@ export interface SourceConnectOptions {
         readonly unmatched?: "add";
         readonly type?: SourceTypeName;
     };
+    readonly unlinked?: "keep" | "drop";
     readonly unmatched?: "skip" | "add";
 }
 
@@ -7900,6 +7902,7 @@ export interface SourceDraftMarkCounts {
     readonly edges: {
         readonly merged: number;
         readonly new: number;
+        readonly removed: number;
     };
     readonly merged: number;
     readonly new: number;
@@ -7907,6 +7910,7 @@ export interface SourceDraftMarkCounts {
         readonly merged: number;
         readonly new: number;
         readonly untouched: number;
+        readonly removed: number;
     };
     readonly untouched: number;
 }
@@ -8102,6 +8106,7 @@ export interface SourceDraftRowsQuery extends SourceDraftElementsQuery {
 
 // @public
 export interface SourceDraftSpaceRow extends SourceSpaceRow {
+    readonly rowsOf: readonly SourceKey[];
     readonly staged: SourceKey | null;
 }
 
@@ -8368,14 +8373,20 @@ export interface SourceMappingPatch {
 
 // @public
 export interface SourceMatchCounts {
+    readonly emptyRows: number;
     readonly fanOut: number;
     readonly matched: number;
+    readonly matchedRows: number;
+    readonly moreRowsWithBoth: number | null;
+    readonly moreRowsWithIgnoreCase: number | null;
+    readonly moreRowsWithIgnoreSpaces: number | null;
     readonly moreWithIgnoreCase: number | null;
     readonly moreWithIgnoreSpaces: number | null;
     readonly only1: number;
     readonly only2: number;
     readonly repeated1: number;
     readonly repeated2: number;
+    readonly rows: number;
     readonly textVersusNumber: number;
 }
 
@@ -8424,6 +8435,7 @@ export interface SourceMergeOptions {
     readonly aggregate?: Readonly<Record<string, JoinReduce>>;
     readonly clash?: SourceClashRule | Readonly<Record<string, SourceClashRule>>;
     readonly except?: SourceRowFilter;
+    readonly fanOut?: "skip" | "each";
     readonly from: SourceField;
     readonly ignoreCase?: boolean;
     readonly ignoreSpaces?: boolean;
@@ -8645,6 +8657,7 @@ export interface SourceStepAct {
     readonly direction?: "into-from" | "from-into";
     readonly edgeType?: SourceTypeName;
     readonly existing?: "add" | "merge";
+    readonly fanOut?: "skip" | "each";
     readonly from: SourceField;
     readonly ignoreCase: boolean;
     readonly ignoreSpaces: boolean;
@@ -8662,6 +8675,7 @@ export interface SourceStepAct {
         readonly unmatched?: "add";
         readonly type?: SourceTypeName;
     };
+    readonly unlinked?: "keep" | "drop";
     readonly unmatched?: "skip" | "add";
     readonly unmatchedFrom?: "keep" | "drop";
 }
@@ -8750,6 +8764,7 @@ export interface SourceStepRow {
     readonly except: SourceRowFilter | null;
     readonly extract: SourceExtractOptions | null;
     readonly held: boolean;
+    readonly holders: SourceSpaceName | null;
     readonly index: number;
     readonly link: SourceLinkOptions | null;
     readonly missing: readonly SourceRefreshIssue[];

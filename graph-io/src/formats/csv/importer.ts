@@ -563,10 +563,11 @@ function resolveCsvOptions(options: (CsvImportOptions & CommonImportOptions) | u
     if (o.table === "adjacency") {
         checkAdjacencyOptions(o);
     }
-    if (o.unnamed !== undefined && o.unnamed !== "fail" && o.unnamed !== "nodes") {
+    const { unnamed }: { readonly unnamed?: unknown } = o;
+    if (unnamed !== undefined && unnamed !== "fail" && unnamed !== "nodes") {
         throw new GraphFormatError("E_UNSUPPORTED", 'option unnamed: expected "fail" or "nodes"', {
             option: "unnamed",
-            found: o.unnamed,
+            found: unnamed,
         });
     }
     if (o.rowNumberIds !== undefined && typeof o.rowNumberIds !== "boolean") {

@@ -189,8 +189,10 @@ await draft.commit(); // one undo step: Undo puts the entries back to staged
 
 `matchCounts` (also `data.matchCounts`) hashes the two fields without building anything:
 `matched`, `only1`, `only2`, `repeated1`, `repeated2`, `fanOut`, `textVersusNumber`, and how many
-more would match with `ignoreCase` or `ignoreSpaces` on. `matchValues` lists the values behind
-them, a page at a time.
+more would match with `ignoreCase` or `ignoreSpaces` on. The same by row: `rows`, `matchedRows`,
+`emptyRows`, and the rows that would match with one toggle on, or with both
+(`moreRowsWithIgnoreCase`, `moreRowsWithIgnoreSpaces`, `moreRowsWithBoth`). `matchValues` lists the
+values behind them, a page at a time.
 
 Before a join, a staged source can be read and set up without building anything:
 
@@ -229,7 +231,9 @@ session.data.spaces().filter((row) => row.ownedBy !== undefined); // spaces no l
 A join reads a source's rows whether they are nodes or edges, and a Connect has two options for
 rows that name both ends: `to.keepRow` keeps each row as a node between the two ends, and
 `existing: "merge"` folds a row's columns into the edge that already joins its ends instead of
-adding another (`editStep` takes it too). Merge on rows read as edges folds each row's columns into
+adding another (`editStep` takes it too). An edge made of a row carries the row's columns, but for
+the two naming its ends. Where rows are nodes, `unlinked: "drop"` leaves out a row no edge reaches.
+Merge on rows read as edges folds each row's columns into
 the node it names. `draft.suggestMatches(source)` proposes the fields to match.
 
 ```ts
@@ -257,6 +261,18 @@ draft.connect({
     to: { field: "bldg", into: { space: "building" }, unmatched: "add", type: "building" },
 }); // an edge from each person to a node per building, unknown people left out
 draft.removeStep(draft.steps().length - 1, { adds: "remove" }); // the whole join taken back
+```
+
+A value several nodes hold, such as one phone of two accounts, joins none of them by default
+(`fanOut` counts its rows). `fanOut: "each"` on `merge` or `connect` joins every one:
+
+```ts
+draft.merge({
+    from: { source: watchlist, field: "value" },
+    into: { space: "account", field: "phone" },
+    unmatchedFrom: "drop",
+    fanOut: "each", // both accounts get the watchlist's columns
+});
 ```
 
 `draft.link` links nodes whose rows share a value in a column: an edge per pair of nodes, its
@@ -309,7 +325,7 @@ step its counts (`buckets`) and their change from the committed ones:
 | `merged`                                               | nodes, or edge rows, a merge folds into the node they matched            |
 | `mergedEdges`                                          | edges a Connect's rows folded into (`existing: "merge"`)                 |
 | `matched`, `unmatched`                                 | rows whose key found the element they write to, or none                  |
-| `fanOut`                                               | rows whose key names several elements, so they are left out              |
+| `fanOut`                                               | rows whose key names several elements, left out but for `fanOut: "each"` |
 | `untouched`                                            | nodes of the merged space no row reached                                 |
 | `typeDiffers`                                          | elements given another type than an earlier step gave them               |
 | `newNodes`, `newEdges`, `newNodeTypes`, `newEdgeTypes` | what the step makes, in all and per type                                 |
@@ -332,10 +348,10 @@ commit would leave it. `session.styles.showDraft({ merged, new })` draws the joi
 two colors you pass: a ring on each node the commit would merge, each edge it would fold a row into
 in that color, a dashed border on each node it would add, and each edge it would add dashed. It suspends the style layers while it is drawn (they
 stay listed, and it is no undo step), is never saved, and its `end()` takes it off.
-`preview.marks` counts what it marks, in all and as `nodes: { merged, new, untouched }` and
-`edges: { merged, new }`. `draft.spaces()` lists the id spaces as the draft builds them, each with the
-staged source a step of the draft adds into it (`staged`), so a space the draft made can be named
-by its source. Each change fires `data:draft-changed` with a `reason` (`"opened"`,
+`preview.marks` counts what it marks, in all and as `nodes: { merged, new, untouched, removed }` and
+`edges: { merged, new, removed }`. `draft.spaces()` lists the id spaces as the draft builds them, each
+with the staged source a step of the draft adds into it (`staged`), so a space the draft made can be
+named by its source, and the sources whose own rows are its nodes (`rowsOf`). Each change fires `data:draft-changed` with a `reason` (`"opened"`,
 `"changed"`, `"committed"`, `"discarded"`).
 
 While a draft is open every other data write and `session.undo()` / `redo()` are refused with

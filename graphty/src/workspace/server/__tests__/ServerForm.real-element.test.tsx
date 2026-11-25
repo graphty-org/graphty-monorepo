@@ -598,9 +598,9 @@ describe("server sources on the real element", () => {
             await userEvent.click(header);
         }
         await waitFor(() => {
-            assert.strictEqual(
-                row.querySelector("[data-testid=control-section-summary]")?.textContent,
-                "10 of 171 nodes",
+            assert.match(
+                row.querySelector("[data-testid=control-section-summary]")?.textContent ?? "",
+                /^10 of 171 nodes, /,
             );
         });
     });

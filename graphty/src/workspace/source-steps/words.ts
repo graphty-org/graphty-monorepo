@@ -163,6 +163,7 @@ export const WORKSPACE_WORDS = {
     nodesRemoved: "nodes removed",
     edgesRemoved: "edges removed",
     incomingSource: "Incoming source",
+    removedSource: "removed source",
     otherEnd: "Other end",
     cardColors: "Card colors",
     styled: "Styled",
@@ -407,7 +408,7 @@ export const DRILL_WORDS = {
     shown: "Shown",
     by: "By",
     /** A cell a reader decision (a pick or an edit) shows. */
-    reader: "Pick",
+    reader: "Reader",
     excluded: "Excluded",
     remove: "Remove",
 } as const;

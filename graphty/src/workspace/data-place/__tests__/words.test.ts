@@ -224,8 +224,9 @@ describe("a Sources entry's count words", () => {
 
     it("names the counts with their units, leaving out a count of 0", () => {
         assert.equal(countWords(load({ nodes: 13, edges: 18 })), "13 nodes, 18 edges");
-        assert.equal(countWords(load({ nodes: 1, edges: 0 })), "1 node");
-        assert.equal(countWords(load({ nodes: 4, edges: 0 }, { total: 12 })), "4 of 12 nodes");
+        assert.equal(countWords(load({ nodes: 1, edges: 0 })), "1 node, 0 edges");
+        assert.equal(countWords(load({ nodes: 4, edges: 0 }, { total: 12 })), "4 of 12 nodes, 0 edges");
+        assert.equal(countWords(load({ nodes: 60, edges: 0 }, { total: 60 })), "60 nodes, 0 edges", "nothing partial");
     });
 });
 

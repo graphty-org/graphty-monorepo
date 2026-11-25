@@ -192,7 +192,7 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
                 await userEvent.click(await screen.findByRole("menuitem", { name: "Remove" }));
                 const modal = await screen.findByRole("dialog", { name: "Join" });
                 await within(modal).findByRole("region", { name: "Remove people.csv" });
-                await userEvent.click(within(modal).getByRole("button", { name: "Undo" }));
+                await userEvent.click(within(modal).getByRole("button", { name: /^Undo/ }));
                 await waitFor(() => {
                     assert.isNull(within(modal).queryByRole("region", { name: "Remove people.csv" }));
                 });

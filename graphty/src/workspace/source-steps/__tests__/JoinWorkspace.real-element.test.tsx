@@ -121,7 +121,7 @@ describe("the join workspace (source-steps)", () => {
         await waitFor(() => {
             assert.strictEqual(
                 within(modal).getByLabelText("Match count").textContent,
-                `${String(counts?.matched)} of ${String((counts?.matched ?? 0) + (counts?.only2 ?? 0))} match`,
+                `${String(counts?.matchedRows)} of ${String(counts?.rows)} match`,
             );
         });
         assert.strictEqual(session.data.currentDraft()?.steps().length, steps, "no step before a result is picked");
@@ -247,7 +247,7 @@ describe("the join workspace (source-steps)", () => {
             card !== undefined && within(card).queryByRole("combobox", { name: "Incoming field" }) !== null;
         for (const at of [0, 1]) {
             const expand = within(modal)
-                .getAllByRole("button", { name: /^Expand / })
+                .getAllByRole("button", { name: /^Expand (?!Rows are)/ })
                 .find((button) => cards().some((card) => card.contains(button)));
             assert.isDefined(expand);
             if (expand !== undefined) {

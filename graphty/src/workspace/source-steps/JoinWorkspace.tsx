@@ -721,7 +721,8 @@ function JoinWorkspace({
         const at = card.step?.index ?? null;
         const act = actOf(write, result ?? DEFAULT_RESULT, card.step);
         const keep = (id: string): void => {
-            const was = pending.find((each) => each.id === card.id);
+            // A step card going back to picks is no longer the card that wrote the step.
+            const was = at === null ? pending.find((each) => each.id === card.id) : undefined;
             const next: PendingCard = {
                 id,
                 picks,

@@ -457,7 +457,7 @@ describe("the Data place's sidebar on the real element", () => {
         const label = row.querySelector<HTMLElement>("[data-testid=control-section-name]");
         assert.isAtLeast(label?.getBoundingClientRect().width ?? 0, 40);
         const { nodes } = session.data.sources()[0].counts;
-        // Closed, the entry names its counts, with their units, and no edges for 0 edges.
+        // Closed, the entry names its counts, with their units, 0 edges among them.
         const toggle = header();
         assert.isNotNull(toggle);
         if (toggle !== null) {
@@ -467,7 +467,7 @@ describe("the Data place's sidebar on the real element", () => {
             assert.strictEqual(header()?.getAttribute("aria-expanded"), "false");
         });
         const summary = row.querySelector<HTMLElement>("[data-testid=control-section-summary]");
-        assert.strictEqual(summary?.textContent, `${String(nodes)} nodes`);
+        assert.strictEqual(summary?.textContent, `${String(nodes)} nodes, 0 edges`);
 
         await userEvent.hover(row);
         const menu = within(row).getByRole("button", { name: `${name} menu` });

@@ -75,8 +75,10 @@
 
 .dp-source-entry > .cm-section > .cm-section-header .cm-section-summary {
     flex: 0 0 100%;
-    margin-inline-start: 16px;
+    box-sizing: border-box;
+    margin-inline-start: 0;
     margin-block-start: -8px;
+    padding-inline-start: 16px;
     line-height: 24px;
 }
 

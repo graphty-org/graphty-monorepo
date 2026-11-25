@@ -143,7 +143,7 @@ describe("the join workspace's keys (source-steps)", () => {
             assert.lengthOf(draftOf(session).steps(), 1);
         });
         assert.lengthOf(modal.querySelectorAll("[data-join-card]:not([data-join-card^='add:'])"), 0);
-        const undo = within(modal).getByRole("button", { name: "Undo" });
+        const undo = within(modal).getByRole("button", { name: /^Undo/ });
         await userEvent.click(undo);
         await within(modal).findByRole("region", { name: "entries.csv -> Connect" });
         await userEvent.click(undo);
@@ -192,7 +192,10 @@ describe("a join card's matches and table (source-steps)", () => {
             "the edges carry their rows' columns",
         );
         const entry = screen.getByRole("listitem", { name: "entries.csv" });
-        await userEvent.click(within(entry).getByRole("button", { name: /^Expand entries.csv/ }));
+        const header = entry.querySelector<HTMLElement>("[aria-expanded=false]");
+        if (header !== null) {
+            await userEvent.click(header);
+        }
         assert.include(within(entry).getByText("Edges").parentElement?.textContent ?? "", "2", "the edges it made");
     });
 

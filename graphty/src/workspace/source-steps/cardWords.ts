@@ -81,7 +81,10 @@ export function intoChoices(
 export function spaceName(session: GraphSession, draft: SourceDraft, space: string): string {
     // A source the draft removes builds no nodes: its space is still named in the committed graph.
     const named = [...draftSpaceChoices(session, draft), ...spaceChoices(session)];
-    return named.find((choice) => choice.value === space)?.label ?? space;
+    const found = named.find((choice) => choice.value === space)?.label;
+    // A step can name nodes of a source that is gone, once the removal is committed: never its id.
+    const typed = session.data.types().some((type) => type.name === space);
+    return found ?? (typed ? space : WORKSPACE_WORDS.removedSource);
 }
 
 /**

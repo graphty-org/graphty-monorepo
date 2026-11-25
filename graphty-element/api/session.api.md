@@ -8361,7 +8361,7 @@ export interface SourceMergeOptions {
     readonly ignoreCase?: boolean;
     readonly ignoreSpaces?: boolean;
     readonly into: SourceJoinInto;
-    readonly repeated?: "first" | "last";
+    readonly repeated?: JoinReduce;
     readonly unmatchedFrom?: "keep" | "drop";
 }
 
@@ -8584,7 +8584,7 @@ export interface SourceStepAct {
         readonly space: SourceSpaceName;
     };
     readonly perPair?: boolean;
-    readonly repeated: "first" | "last" | "both" | null;
+    readonly repeated: JoinReduce | "both" | null;
     readonly to?: {
         readonly field: string;
         readonly into: {
@@ -8655,7 +8655,7 @@ export interface SourceStepPatch {
     readonly ignoreCase?: boolean;
     readonly ignoreSpaces?: boolean;
     readonly off?: boolean;
-    readonly repeated?: "first" | "last" | "both" | null;
+    readonly repeated?: JoinReduce | "both" | null;
     readonly unmatchedFrom?: "keep" | "drop";
 }
 

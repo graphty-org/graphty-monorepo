@@ -43,8 +43,8 @@ export interface CardPicks {
 /** A card's result and its options, as the draft's step carries them. */
 export interface CardResult {
     readonly result: "merge" | "connect";
-    /** Merge: what a node named by several rows keeps: the first or last row, or every row's values as a list or a count. */
-    readonly many: "first" | "last" | "list" | "count";
+    /** Merge: several rows naming one node, as the element's `repeated` takes and returns it. */
+    readonly repeated: JoinReduce;
     /** Merge: what a row matching no node does. */
     readonly unmatchedFrom: "keep" | "drop";
     /** Connect: which way the edges run. */
@@ -85,7 +85,7 @@ export interface JoinCardView {
 
 /** The options a new result starts with. */
 export const DEFAULT_RESULT: Omit<CardResult, "result"> = {
-    many: "first",
+    repeated: "first",
     unmatchedFrom: "keep",
     direction: "into-from",
     edgeType: "",
@@ -126,7 +126,7 @@ export function cardsOf(draft: SourceDraft, pending: readonly PendingCard[]): Jo
                 picks: { from: act.from, into, ignoreCase: act.ignoreCase, ignoreSpaces: act.ignoreSpaces, ...to },
                 result: {
                     result: act.act,
-                    many: manyOf(act.aggregate, act.repeated),
+                    repeated: act.repeated === null || act.repeated === "both" ? "first" : act.repeated,
                     unmatchedFrom: act.unmatchedFrom ?? "keep",
                     direction: act.direction ?? "into-from",
                     edgeType: act.edgeType ?? "",
@@ -142,23 +142,6 @@ export function cardsOf(draft: SourceDraft, pending: readonly PendingCard[]): Jo
         (card) => !steps.some((each) => card.written?.some((picks) => samePicks(each.picks, picks)) === true),
     );
     return [...steps, ...shown.map((card) => ({ ...card, step: null, result: null }))];
-}
-
-/**
- * A merge step's "many rows" choice, from its aggregate for every column or its repeated rule.
- * @param aggregate - The step's aggregate.
- * @param repeated - The step's repeated rule.
- * @returns The choice.
- */
-function manyOf(
-    aggregate: Readonly<Record<string, JoinReduce>> | null,
-    repeated: "first" | "last" | "both" | null,
-): CardResult["many"] {
-    const reduce = aggregate?.["*"];
-    if (reduce === "list" || reduce === "count") {
-        return reduce;
-    }
-    return repeated === "last" ? "last" : "first";
 }
 
 /**
@@ -269,15 +252,13 @@ export function draftColumns(draft: SourceDraft, source: SourceKey, table?: "nod
 function actOf(pair: SourceMatchPair, picks: CardPicks, result: CardResult): SourceJoinAct {
     const matching = { ignoreCase: picks.ignoreCase, ignoreSpaces: picks.ignoreSpaces };
     if (result.result === "merge") {
-        const { many } = result;
         return {
             act: "merge",
             options: {
                 ...pair,
                 ...matching,
                 unmatchedFrom: result.unmatchedFrom,
-                ...(many === "last" ? { repeated: "last" } : {}),
-                ...(many === "list" || many === "count" ? { aggregate: { "*": many } } : {}),
+                ...(result.repeated === "first" ? {} : { repeated: result.repeated }),
             },
         };
     }

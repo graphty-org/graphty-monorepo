@@ -6,6 +6,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { modelName } from "../canvas/models";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
+import { closedBy } from "./closedBy";
 import { chipLine, middleCut, modelChip, roleWord } from "./modelWords";
 import { CUSTOM_MODEL, logUnexpected } from "./words";
 
@@ -453,14 +454,7 @@ export function PartsPopover({
     };
 
     return (
-        <Popout
-            opened={opened}
-            onOpenChange={(next) => {
-                if (!next) {
-                    onClose();
-                }
-            }}
-        >
+        <Popout opened={opened} onOpenChange={closedBy(onClose)}>
             <Popout.Panel width={WIDTH} anchorY={anchor} header={{ variant: "title", title }}>
                 <Popout.Content>
                     <Stack

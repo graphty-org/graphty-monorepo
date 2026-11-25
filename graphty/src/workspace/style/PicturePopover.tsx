@@ -7,6 +7,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { fileStem, pictureName } from "../canvas/models";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
+import { closedBy } from "./closedBy";
 import { SectionHeading } from "./ModelsPopover";
 import { chipLine } from "./modelWords";
 import { roveTiles, tileStop } from "./tileRoving";
@@ -270,14 +271,7 @@ export function PicturePopover({
     }
 
     return (
-        <Popout
-            opened={opened}
-            onOpenChange={(next) => {
-                if (!next) {
-                    onClose();
-                }
-            }}
-        >
+        <Popout opened={opened} onOpenChange={closedBy(onClose)}>
             <Popout.Panel
                 width={WIDTH}
                 anchorY={anchor}

@@ -450,6 +450,11 @@ export const dataManagerInternals = {} as {
     edgesLive(manager: DataManager): number;
     /** The `Edge`s built so far by id, building none: what a check of the drawn edges walks. */
     builtEdges(manager: DataManager): ReadonlyMap<string, Edge>;
+    /**
+     * An edge's row (the index the style painter paints it at) and its two ends' node rows, building no `Edge`;
+     * undefined for an id not held.
+     */
+    edgeRowOf(manager: DataManager, id: EdgeId): { row: number; ends: readonly [number, number] } | undefined;
     /** A stored node id's row in the store, read with no `Node`; `INVALID_INDEX` for an id it does not hold. */
     rowOf(manager: DataManager, id: NodeIdType): number;
     /** Run work that changes no setting with the store's direction setting read once; see `GraphStore.withSettingHeld`. */
@@ -509,6 +514,8 @@ export const dataManagerInternals = {} as {
      * the order `nodes` walks them.
      */
     nodeList(manager: DataManager): Node[];
+    /** Every edge as an array, building none until its element is read, as {@link nodeList} does for nodes. */
+    edgeList(manager: DataManager): Edge[];
     /**
      * How the current layout engine is handed a row stored with no `Node`: a function given the
      * ids of each arrival's such rows (a no-op for an engine that reads every row of the
@@ -878,6 +885,11 @@ export class DataManager implements Manager {
         dataManagerInternals.nodesLive = (manager) => manager.nodeMap.builtView().size;
         dataManagerInternals.edgesLive = (manager) => manager.edgeMap.builtView().size;
         dataManagerInternals.builtEdges = (manager) => manager.edgeMap.builtView();
+        dataManagerInternals.edgeRowOf = (manager, id) => {
+            const row = manager.edgeMap.builtView().get(id)?.index ?? manager.unbuiltEdgeIds.get(id);
+            const { reads } = manager.store;
+            return row === undefined || !reads.hasEdge(row) ? undefined : { row, ends: reads.edgeEndpoints(row) };
+        };
         dataManagerInternals.rowOf = (manager, id) => manager.store.reads.indexOf(id);
         dataManagerInternals.withSettingHeld = (manager, work) => {
             manager.store.withSettingHeld(work);
@@ -927,6 +939,7 @@ export class DataManager implements Manager {
         dataManagerInternals.buildRow = (manager, id) => manager.buildRow(id);
         dataManagerInternals.buildRowsTogether = (manager, work) => manager.buildRowsTogether(work);
         dataManagerInternals.nodeList = (manager) => manager.nodeMap.lazyValues();
+        dataManagerInternals.edgeList = (manager) => manager.edgeMap.lazyValues();
         dataManagerInternals.buildAll = (manager) => {
             manager.buildRowsTogether(() => {
                 for (const id of manager.unbuiltRows.ids()) {

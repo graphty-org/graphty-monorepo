@@ -48,6 +48,7 @@ import {
     type StepsEdit,
     type StepsSource,
 } from "./sources/steps/project";
+import type { TableName } from "./sources/steps/types";
 import type {
     DataSourceInput,
     ImportOptions,
@@ -713,16 +714,22 @@ export class SourceDraftHandle implements SourceDraft {
 
     /**
      * The draft as autosave keeps it: every state it went through, so Undo still steps back after a
-     * restore, and the rows of the sources it staged (the committed ones come back with the work).
+     * restore, and the rows of the sources it staged (the committed ones come back with the work),
+     * each state saying which tables it reads a source's rows as where it changed that.
      * @returns It, as plain JSON.
      */
     saved(): SavedSourceDraft {
         const held = this.host.committedCopies();
-        const copies: Record<string, unknown> = {};
+        const copies: Record<string, Copies[string]> = {};
         const states = [...this.history, this.state].map((state) => {
+            const rows: Record<string, readonly TableName[]> = {};
             for (const [id, copy] of Object.entries(state.copies)) {
-                if (!(id in held)) {
+                if (!(id in held) && !(id in copies)) {
                     copies[id] = copy;
+                }
+                const base = id in held ? held[id] : copies[id];
+                if (!sameTables(base, copy)) {
+                    rows[id] = tablesOf(copy);
                 }
             }
             return {
@@ -764,7 +771,9 @@ export class SourceDraftHandle implements SourceDraft {
             );
             states.push({
                 value: { ...each.value, sources },
-                copies: Object.fromEntries(ids.map((id) => [id, rows[id]])),
+                copies: Object.fromEntries(
+                    each.copies.map((was, i) => [ids[i], readAs(rows[ids[i]], each.rows?.[was])]),
+                ),
                 owned: new Set(each.owned),
                 ...(each.origins === undefined ? {} : { origins: each.origins }),
                 ...(each.questions === undefined ? {} : { questions: each.questions }),
@@ -787,11 +796,44 @@ export class SourceDraftHandle implements SourceDraft {
 interface SavedState {
     readonly value: DraftState["value"];
     readonly copies: readonly string[];
+    /** The tables each copy's rows are read as, for a copy the draft reads otherwise than it was first read. */
+    readonly rows?: Readonly<Record<string, readonly TableName[]>>;
     readonly owned: readonly string[];
     readonly origins?: DraftState["origins"];
     readonly questions?: DraftState["questions"];
     readonly asking?: readonly string[];
     readonly given?: DraftState["given"];
+}
+
+/**
+ * The tables a copy holds.
+ * @param copy - The copy.
+ * @returns Their names.
+ */
+function tablesOf(copy: Copies[string]): readonly TableName[] {
+    return (["nodes", "edges"] as const).filter((table) => copy[table] !== undefined);
+}
+
+/**
+ * Whether two copies of one source's rows hold them as the same tables. A draft changes what a
+ * source's rows are, never the rows.
+ * @param a - One copy.
+ * @param b - The other.
+ * @returns True when they do.
+ */
+function sameTables(a: Copies[string], b: Copies[string]): boolean {
+    return a === b || tablesOf(a).join() === tablesOf(b).join();
+}
+
+/**
+ * A copy with its one table's rows held as other tables, as `setMapping` holds them.
+ * @param copy - The copy as first read.
+ * @param tables - The tables; absent, as they are.
+ * @returns The copy.
+ */
+function readAs(copy: Copies[string], tables: readonly TableName[] | undefined): Copies[string] {
+    const rows = copy.nodes ?? copy.edges ?? [];
+    return tables === undefined ? copy : Object.fromEntries(tables.map((table) => [table, rows]));
 }
 
 /**

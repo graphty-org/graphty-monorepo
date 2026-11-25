@@ -327,6 +327,7 @@ export function hugePngGltf(): Map<string, Uint8Array> {
  * @param scale - The stretch along x, y and z.
  * @param color - The base color factor.
  * @param offset - Where the sphere's center sits, away from the file's origin.
+ * @param materialExtensions - The material's glTF extensions, by name (KHR_materials_clearcoat, ...).
  * @returns The GLB.
  */
 export function sphereGlb(
@@ -335,6 +336,7 @@ export function sphereGlb(
     scale: readonly [number, number, number] = [1, 1, 1],
     color: readonly [number, number, number, number] = [1, 1, 1, 1],
     offset: readonly [number, number, number] = [0, 0, 0],
+    materialExtensions: Readonly<Record<string, object>> = {},
 ): Uint8Array {
     const positions: number[] = [];
     const normals: number[] = [];
@@ -366,8 +368,10 @@ export function sphereGlb(
     bin.set(normalBytes, positionBytes.length);
     bin.set(indexBytes, positionBytes.length + normalBytes.length);
     const count = positions.length / 3;
+    const used = Object.keys(materialExtensions);
     const json = {
         asset: { version: "2.0", generator: "graphty fixtures" },
+        ...(used.length === 0 ? {} : { extensionsUsed: used }),
         scene: 0,
         scenes: [{ nodes: [0] }],
         nodes: [{ mesh: 0 }],
@@ -376,6 +380,7 @@ export function sphereGlb(
             {
                 name: "plain",
                 pbrMetallicRoughness: { baseColorFactor: [...color], metallicFactor: 0, roughnessFactor: 1 },
+                ...(used.length === 0 ? {} : { extensions: materialExtensions }),
             },
         ],
         accessors: [

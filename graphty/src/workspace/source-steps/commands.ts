@@ -2,10 +2,10 @@ import { defineRegistration } from "../commands/registry";
 import { sourceStepsOn } from "../features";
 import { cancelCard, commitCard, stagedSources, startAdd } from "./actions";
 import { joinCardOf, nodeField1, openJoin, previewing } from "./join";
-import { ADD_KEY, COMMIT_KEY, JOIN_KEY, PREVIEW_KEY, READER_EDITS_KEY, SIDE_KEY } from "./keys";
+import { ADD_KEY, COMMIT_KEY, JOIN_KEY, JOIN_WORKSPACE_KEY, PREVIEW_KEY, READER_EDITS_KEY, SIDE_KEY } from "./keys";
 import { canPreview, openDraft, showSide, startPreview, undoInCard } from "./preview";
 import { toggleReaderEdits } from "./steps";
-import { JOIN_WORDS, PREVIEW_WORDS, STAGED_WORDS, STEP_WORDS } from "./words";
+import { JOIN_WORDS, PREVIEW_WORDS, STAGED_WORDS, STEP_WORDS, WORKSPACE_WORDS } from "./words";
 
 /** Where Enter belongs to the control under focus: it presses, opens, toggles or walks it. */
 const OWN_ENTER =
@@ -83,6 +83,25 @@ export const registration = defineRegistration({
                     ...(field1 === null ? {} : { field1 }),
                     ...(staged === undefined ? {} : { field2: staged }),
                 });
+            },
+        },
+        {
+            id: "source.join-workspace",
+            label: WORKSPACE_WORDS.open,
+            group: "Data",
+            keys: [JOIN_WORKSPACE_KEY],
+            experiment: true,
+            /** @experimental source-steps */
+            feature: "source-steps",
+            shown: ({ session, workspace }) =>
+                sourceStepsOn(session) &&
+                session !== null &&
+                workspace.get().sourceCard === null &&
+                !workspace.get().joinWorkspace &&
+                session.data.currentDraft() === null &&
+                stagedSources(session).length + session.data.sources().length >= 2,
+            run: ({ workspace }) => {
+                workspace.set({ joinWorkspace: true });
             },
         },
         {

@@ -9,7 +9,7 @@ import type { GraphSnapshot } from "@graphty/graph-format";
 
 import { type BendPoint, canonBends } from "../../styles/canon/bends.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
-import { nonEmpty } from "../../styles/columns.js";
+import { hideEdgesAtHiddenEnds, nonEmpty } from "../../styles/columns.js";
 import { cytoscapeElementProperties, cytoscapeWritableProperties } from "../../styles/cytoscape/emit.js";
 import { exactFromBlock } from "../../styles/cytoscape/exact.js";
 import { normalizeVisualProperties } from "../../styles/cytoscape/lexicon.js";
@@ -336,19 +336,9 @@ function hideEdgesOfHiddenNodes(
     nodes: Partial<Record<string, StyleColumn>>,
     values: Partial<Record<string, StyleColumn>>,
 ): void {
-    const shown = nodes.visible;
-    if (shown === undefined || !shown.includes(false) || snapshot.graph.has(STYLE_BLOCK_NAME)) {
-        return;
+    if (!snapshot.graph.has(STYLE_BLOCK_NAME)) {
+        hideEdgesAtHiddenEnds(snapshot, nodes.visible, values);
     }
-    const { src, dst } = snapshot.edgeList();
-    const visible =
-        values.visible === undefined ? new Array<StyleValue | null>(src.length).fill(null) : [...values.visible];
-    for (let e = 0; e < src.length; e++) {
-        if (shown[src[e]] === false || shown[dst[e]] === false) {
-            visible[e] = false;
-        }
-    }
-    values.visible = visible;
 }
 
 /**

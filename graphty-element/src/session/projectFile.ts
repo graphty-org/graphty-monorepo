@@ -559,7 +559,9 @@ export interface ProjectApi {
      * that point makes it false again. The selection and the extensions never set it. The first
      * `data.import` into a new session -- one with no history that was never saved or opened --
      * is the starting point, so a graph read from a file or a sample is not an unsaved change;
-     * undoing that import sets it. Any later import sets it, like any other change.
+     * undoing that import sets it. Any later import sets it, like any other change. Until the
+     * session is saved or opened, `history.clear()` while it holds no graph makes it new again:
+     * what it held is not an unsaved change, and the next import is the starting point.
      */
     readonly dirty: boolean;
     /**
@@ -3620,6 +3622,10 @@ export function projectOf(
     // (alone, or in a transaction with what the load sets up) is its baseline: a graph read from a
     // sample or a file is not an unsaved change. Undoing past it is.
     let fresh = true;
+    // Whether the project was ever saved or opened: until then, clearing the history of a session
+    // that holds no graph makes it new again, so the next first import is its baseline (an
+    // application's own setup steps before a load, cleared, do not make the load an unsaved change).
+    let settled = false;
     const isFirstImport = (): boolean => {
         const { history } = dispatcher;
         const first = history.stepAt(0);
@@ -3630,14 +3636,24 @@ export function projectOf(
             first !== undefined &&
             first.ops.includes("data.import") &&
             (point.step === null || point.step === first.id) &&
-            !point.lost &&
-            waiting.size === 0
+            !point.lost
         );
     };
 
     session.on("history:changed", ({ reason }) => {
         if (reason === "pending" && fresh) {
             // Still loading: the step it records decides.
+            return;
+        }
+
+        // A load that starts the history clears it too, holding its graph: that load is the baseline.
+        // Read from the records, never by freezing a snapshot: a clear of the data clears the history,
+        // and a snapshot frozen of the emptied store is one an accelerator would be told to release.
+        if (reason === "clear" && !settled && dispatcher.state.graph.nodes.size === 0) {
+            fresh = true;
+            point = { step: null, lost: false, seq: ++seq };
+            top = topNow();
+            tell();
             return;
         }
 
@@ -3779,6 +3795,7 @@ export function projectOf(
         // Its restored source loads on the hosts remembered for it run now.
         projectChanged?.();
         fresh = false;
+        settled = true;
         // Saved at the baseline: anything the reader did while it opened is a change.
         adopt({ ...pointNow(), step: null });
     };
@@ -3802,6 +3819,7 @@ export function projectOf(
             data === undefined || session.data.nodes({ scope: "graph" }).length > 0 ? undefined : nodeLinkOf(data);
         await restoreAssetsOf(session, doc, problems);
         fresh = false;
+        settled = true;
         await session.transaction(
             "Open document",
             async (tx) => {
@@ -3874,13 +3892,16 @@ export function projectOf(
             return saved;
         }
 
-        fresh = false;
         if (options.markSaved === false) {
+            // Not saved until it is marked (a copy the element keeps for itself never is), so the
+            // first import after it can still be where the project starts.
             const waited = pointNow();
             waiting.add(waited);
             pointOf.set(saved, waited);
             rememberOf.set(saved, remember);
         } else {
+            fresh = false;
+            settled = true;
             adopt(pointNow());
             remember();
         }
@@ -4007,6 +4028,7 @@ export function projectOf(
             },
         );
         fresh = false;
+        settled = true;
         if (outcome.replaced) {
             // Saved at the baseline: anything the reader did while it opened is a change.
             adopt({ ...pointNow(), step: null });
@@ -4129,6 +4151,8 @@ export function projectOf(
             rememberOf.delete(saved);
             const waited = pointOf.get(saved);
             if (waited !== undefined && waiting.has(waited)) {
+                fresh = false;
+                settled = true;
                 adopt(waited);
             }
         },

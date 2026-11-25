@@ -28,6 +28,7 @@ import { canonBoolean, canonNumber, canonOpacity, num6 } from "../../styles/cano
 import type { CanonSite } from "../../styles/canon/site.js";
 import { canonText } from "../../styles/canon/text.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
+import { hideEdgesAtHiddenEnds } from "../../styles/columns.js";
 import { cytoscapeJsStyles } from "../../styles/cyjs/cascade.js";
 import {
     cyjsHoldsExactly,
@@ -172,8 +173,12 @@ function cytoscapeStyles(snapshot: GraphSnapshot, src: JsonStyleSource, context:
             CYJS_WRITTEN,
             cyjsHoldsExactly,
         );
-    } else if (sheetless) {
-        tool = "cytoscape";
+    } else {
+        // Cytoscape.js (`display: none`) and Cytoscape desktop draw no edge of a node they hide
+        hideEdgesAtHiddenEnds(snapshot, read.node?.values.visible, read.edge?.values ?? {});
+        if (sheetless) {
+            tool = "cytoscape";
+        }
     }
     return { ...read, tool, block: src.block };
 }

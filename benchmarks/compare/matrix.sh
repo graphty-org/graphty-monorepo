@@ -4,7 +4,8 @@
 #   ./matrix.sh list
 # BENCH_TOOLS names the checkout whose tools/with-browser.sh runs the browser (this one by default).
 # A key is <library>-<size>[-suffix]: s is 10,000 nodes and 100,000 edges, m is 100,000 and 1,000,000,
-# l is 1,000,000 and 1,000,000. A -few key keeps one edge per hundred nodes, to measure the node work alone. A -curves key draws every edge as a curve with no caps, in 3D. A -landing key times the GPU layout's frames alone, with no labels, 1 or 1000 nodes labeled (spread evenly over the rows), or every edge arrowed. A -tail key is the same run without the still-frame stage, for builds
+# l is 1,000,000 and 1,000,000. A quality- key runs only the layout quality stage on a planted partition graph
+# (100 communities; 2,000,000 edges at l), up to BENCH_QUALITY_CAP_S seconds of layout. A -few key keeps one edge per hundred nodes, to measure the node work alone. A -curves key draws every edge as a curve with no caps, in 3D. A -landing key times the GPU layout's frames alone, with no labels, 1 or 1000 nodes labeled (spread evenly over the rows), or every edge arrowed. A -tail key is the same run without the still-frame stage, for builds
 # whose load leaves too little of the ten minutes. Keep one Bash call under ten minutes: see RUNBOOK.md.
 cd "$(dirname "$0")"
 tools=${BENCH_TOOLS:-../..}
@@ -54,11 +55,19 @@ declare -A C=(
   [lean-s-cpu]="graphty lean off 10000 100000 1"
   [lean-m-cpu]="graphty lean off 100000 1000000 1 no-still no-move"
   [default-s-cpu]="graphty default off 10000 100000 1"
+  [lean-l-full]="graphty lean on 1000000 1000000 1"
+  [lean-l-dpr2]="graphty lean on 1000000 1000000 2 skip-layout"
+  [quality-cosmos-s]="cosmos default on 10000 100000 1 quality"
+  [quality-cosmos-m]="cosmos default on 100000 990000 1 quality"
+  [quality-cosmos-l]="cosmos default on 1000000 2000000 1 quality"
+  [quality-lean-s]="graphty lean on 10000 100000 1 quality"
+  [quality-lean-m]="graphty lean on 100000 990000 1 quality"
+  [quality-lean-l]="graphty lean on 1000000 2000000 1 quality"
 )
 [ "$1" = list ] && { printf '%s\n' "${!C[@]}" | sort; exit; }
 args=${C[$1]:?unknown key, try: ./matrix.sh list}
 for ((i = 1; i <= ${2:-1}; i++)); do
   echo "=== $1 run $i"
   # The slots are the machine's rule for every browser; not low-priority.sh, which would skew the timing.
-  "$tools/tools/with-browser.sh" node run.mjs $args 2>&1 | grep -E '^(renderer|setup|load|canvas|still|orbit|memory|hover|layoutFps|layoutSteps|failure|crash|pageerror)' | cut -c1-${BENCH_CUT:-220}
+  "$tools/tools/with-browser.sh" node run.mjs $args 2>&1 | grep -E '^(renderer|setup|load|canvas|still|orbit|memory|hover|layoutFps|layoutSteps|quality|failure|crash|pageerror)' | cut -c1-${BENCH_CUT:-220}
 done

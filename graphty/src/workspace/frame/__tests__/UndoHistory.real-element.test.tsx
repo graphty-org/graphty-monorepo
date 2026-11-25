@@ -1,6 +1,6 @@
 /**
- * Undo on the REAL graphty-element, from the reader's keys: a graph opened from the start screen
- * starts its history (Undo disabled, Control+Z changes nothing), the notice names the act it
+ * Undo on the REAL graphty-element, from the reader's keys: a sample opened from the start screen
+ * is one step Undo takes back (issue #796), the notice names the act it
  * undid, Control+Z in a text box takes back the typing, and the canvas menu's Clear selection
  * is disabled with nothing selected.
  */
@@ -31,28 +31,30 @@ describe("Undo from the reader's keys", () => {
         forgetUsageAnswer();
     });
 
-    it("starts a sample's history: Undo is disabled and Control+Z leaves the graph", async () => {
+    it("a sample's opening is one step: Undo takes it back and leaves the project empty", async () => {
         answerUsageData("declined");
         const { session, store } = await openSampleFromStart("Les Miserables");
-        // The sample is drawn before its load settles; settling clears the history, and Undo's
-        // name drops the load's step.
         await waitFor(() => {
-            assert.isFalse(session.canUndo, "opening is not a change to undo");
-            const undo = screen.getByRole("button", { name: "Undo" });
-            assert.isTrue(undo.hasAttribute("disabled") || undo.getAttribute("aria-disabled") === "true");
+            assert.isTrue(session.canUndo, "the opening is a step to undo");
+            const undo = document.querySelector<HTMLElement>('.ws-header button[aria-label^="Undo"]');
+            assert.isNotNull(undo);
+            assert.notEqual(undo.getAttribute("aria-disabled"), "true");
         });
         assert.isFalse(session.project.dirty, "an opened sample has no unsaved changes");
 
         (document.activeElement as HTMLElement | null)?.blur();
         await userEvent.keyboard("{Control>}z{/Control}");
-        assert.equal(session.data.statistics().nodeCount, NODES);
-        assert.isNull(store.get().notice);
+        await waitFor(() => {
+            assert.match(store.get().notice?.message ?? "", /^Undid /);
+        });
+        assert.equal(session.data.statistics().nodeCount, 0);
+        assert.lengthOf(session.data.sources(), 0, "the sample's source went with it");
+        assert.equal(store.get().project?.name, "Les Miserables", "the project keeps its name");
+        assert.isFalse(session.canUndo, "the name is not a step to undo");
     });
 
-    it("Control+Z while a sample is still loading neither cancels the open nor leaves a step", async () => {
+    it("Control+Z while a sample is still loading neither cancels the open nor loses its step", async () => {
         answerUsageData("declined");
-        // The sample's file is held until the reader has pressed Control+Z, so the key lands
-        // while the load is pending work, whatever the machine's speed.
         const realFetch = globalThis.fetch.bind(globalThis);
         let release = (): void => undefined;
         const held = new Promise<void>((resolve) => {
@@ -80,7 +82,7 @@ describe("Undo from the reader's keys", () => {
             const session = await opening;
             assert.isNull(store.get().notice, "the open was not canceled");
             assert.equal(session.data.statistics().nodeCount, NODES);
-            assert.isFalse(session.canUndo, "opening is not a change to undo");
+            assert.isTrue(session.canUndo, "the opening is still the step Undo takes back");
         } finally {
             spy.mockRestore();
         }
@@ -133,7 +135,6 @@ describe("Undo from the reader's keys", () => {
         });
         await userEvent.keyboard("{Control>}z{/Control}");
         await waitFor(() => {
-            assert.isFalse(session.canUndo);
             assert.equal(store.get().notice?.message, "Undid adding Layer 1");
         });
         await screen.findByText("Undid adding Layer 1", { selector: ".cm-toast-message" });

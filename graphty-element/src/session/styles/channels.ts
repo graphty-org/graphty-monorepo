@@ -7170,21 +7170,29 @@ function mergeListItems(held: unknown, over: object, listOf: "color" | "number")
 
     const list = typeof held === "string" ? held.split(/\s+/).filter((item) => item !== "") : [];
     for (const [at, value] of Object.entries(items)) {
-        const index = Number(at);
-        if (typeof value !== "string" && typeof value !== "number") {
-            continue;
-        }
-        if (listOf === "number") {
-            while (list.length <= index) {
-                list.push("auto");
-            }
-        }
-        if (index < list.length) {
-            list[index] = String(value);
+        if (typeof value === "string" || typeof value === "number") {
+            putListItem(list, Number(at), String(value), listOf === "number");
         }
     }
 
     return list.length === 0 ? held : list.join(" ");
+}
+
+/**
+ * Put one item in a list's place: past its end, a number list grows with unset items (`auto`) up to it, a color
+ * list is left as it is.
+ * @param list - the items, changed in place.
+ * @param index - the item's place.
+ * @param value - its value.
+ * @param grows - whether the list grows to hold it.
+ */
+function putListItem(list: string[], index: number, value: string, grows: boolean): void {
+    while (grows && list.length <= index) {
+        list.push("auto");
+    }
+    if (index < list.length) {
+        list[index] = value;
+    }
 }
 
 /**

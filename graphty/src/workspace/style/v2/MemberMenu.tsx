@@ -539,7 +539,6 @@ export function MemberMenu({
                         go(picking.to.key, ref);
                     }}
                     onCustom={close}
-                    onBack={close}
                     onClose={close}
                 />
             )}

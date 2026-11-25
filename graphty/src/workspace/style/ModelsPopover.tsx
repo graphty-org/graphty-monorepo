@@ -29,8 +29,8 @@ interface ModelsPopoverProps {
     readonly onPick: (ref: string) => void;
     /** Add custom model...: the Load custom model dialog opens in the pop-over's place. */
     readonly onCustom: () => void;
-    /** Back to the Shape list. */
-    readonly onBack: () => void;
+    /** Back to the Shape list, where there is one to go back to (none in Style panel v2: no back buttons). */
+    readonly onBack?: () => void;
     /** Closed, by Escape or its close button. */
     readonly onClose: () => void;
 }
@@ -186,21 +186,25 @@ export function ModelsPopover({
                 closeLabel="Close Models"
                 // The back action sits at the header's end: compact-mantine has no leading header
                 // action yet (issue #6233).
-                actions={[
-                    {
-                        id: "back",
-                        icon: <GLYPHS.back size={14} aria-hidden />,
-                        label: "Back to shapes",
-                        onClick: onBack,
-                    },
-                ]}
+                actions={
+                    onBack === undefined
+                        ? []
+                        : [
+                              {
+                                  id: "back",
+                                  icon: <GLYPHS.back size={14} aria-hidden />,
+                                  label: "Back to shapes",
+                                  onClick: onBack,
+                              },
+                          ]
+                }
             >
                 <Popout.Content>
                     <Stack
                         gap={8}
                         data-testid="models-popover"
                         onKeyDown={(event) => {
-                            if (event.altKey && event.key === "ArrowLeft") {
+                            if (onBack !== undefined && event.altKey && event.key === "ArrowLeft") {
                                 event.preventDefault();
                                 onBack();
                             }

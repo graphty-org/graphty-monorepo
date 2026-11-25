@@ -289,7 +289,7 @@ describe("the row scan on each kind", () => {
         );
     });
 
-    it("gives an exact tie to the lower row, even once a restyle has moved its mesh in scene.meshes", async () => {
+    it("gives an exact tie to the lower row, as scene.pick does once a restyle has rebuilt its mesh", async () => {
         const element = await mounted("2d");
         await drawn(element, { "node.shape": "rectangle" }, 3);
         const { graph } = element;
@@ -302,7 +302,11 @@ describe("the row scan on each kind", () => {
         const rows = graph.scene.meshes
             .map((mesh) => (mesh.metadata as { graphNode?: { index: number } } | null)?.graphNode?.index)
             .filter((row) => row !== undefined);
-        assert.strictEqual(rows.at(-1), NODES - 2, "the rebuilt mesh went to the end of scene.meshes");
+        assert.deepEqual(
+            rows,
+            [...rows].sort((a, b) => a - b),
+            "the rebuilt mesh is listed in its row",
+        );
         for (const node of graph.getNodes()) {
             if (node.index < NODES - 2) {
                 node.setRenderState("hidden");
@@ -315,7 +319,7 @@ describe("the row scan on each kind", () => {
         const x = screen.x * scaling;
         const y = screen.y * scaling;
         assert.strictEqual(rowScanOf(graph.scene)?.shapeRayHit(x, y)?.row, NODES - 2);
-        assert.strictEqual(babylonNodeId(element, x, y), `n${String(NODES - 1)}`, "scene.pick follows mesh order");
+        assert.strictEqual(babylonNodeId(element, x, y), lower, "scene.pick follows mesh order");
         assert.strictEqual(pickNodeId(graph.scene, x, y), lower, "a press follows the scan");
     });
 

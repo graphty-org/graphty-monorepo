@@ -92,6 +92,17 @@ export function styleOpacity(texture: NodeStyleConfig["texture"]): number {
     return typeof color === "object" && "opacity" in color ? (color.opacity ?? 1) : 1;
 }
 
+/**
+ * Where a node body's source draws in the blended pass (Babylon draws a lower `alphaIndex` first),
+ * plus its `uniqueId`: after the node surfaces (`NodeBillboardBatch`, 1e8) and the edges with an
+ * index (about 1e9), before every mesh that keeps the default, as the sources' distance once put
+ * them. The id orders translucent looks among themselves by when each was made, on both render
+ * paths and after any history of instances: a source parks at one place whose distance its
+ * geometry's bounds shift, and ties fell to whichever look's instance `scene.meshes` met first,
+ * so removing and adding back a node could reorder whole looks (issues #10029, #10030).
+ */
+const NODE_BODY_ALPHA_INDEX = 1e12;
+
 /** How deep a node drawn flat is, as a fraction of its smaller side: thin, but never zero. */
 const THIN_DEPTH_RATIO = 0.02;
 
@@ -485,6 +496,7 @@ export class NodeMesh {
             mesh.visibility = styleOpacity(createOptions.texture);
         }
 
+        mesh.alphaIndex = NODE_BODY_ALPHA_INDEX + mesh.uniqueId;
         return mesh;
     }
 

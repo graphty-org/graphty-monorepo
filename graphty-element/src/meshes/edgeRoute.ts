@@ -763,7 +763,7 @@ export function loopTeardrop(center: Xyz, rank: number, count: number, reachAt: 
  *     other than the centers, is outside both.
  */
 export function routeOutside(
-    flat: readonly number[],
+    flat: ArrayLike<number>,
     outsideSrc: (x: number, y: number, z: number) => boolean,
     outsideDst: (x: number, y: number, z: number) => boolean,
     curve = false,

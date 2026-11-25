@@ -2,6 +2,7 @@ import { Ray } from "@babylonjs/core/Culling/ray.js";
 import { Color3 } from "@babylonjs/core/Maths/math.color.js";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 import { INVALID_INDEX } from "@graphty/graph-format";
 import cloneDeep from "lodash/cloneDeep.js";
 import isEqual from "lodash/isEqual.js";
@@ -70,17 +71,9 @@ import { batchUploadFrames } from "./meshes/FrameRoster";
 import type { ColumnRow } from "./meshes/NodeBatch";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { movingTexel } from "./meshes/pulledAnimatedLine";
-import {
-    CURVE_STRIDE,
-    curvePathPoint,
-    type CurveSpan,
-    curveSpan,
-    loopShape,
-    routed,
-    viaShare,
-} from "./meshes/pulledCurve";
+import { CURVE_STRIDE, curvePath, type CurveSpan, curveSpan, loopShape, routed, viaShare } from "./meshes/pulledCurve";
 import { type PulledHead, pulledHeadBatch, pulledHeadOf, roundRow } from "./meshes/pulledHead";
-import { pulledEdgesDefault, type PulledLineBatch } from "./meshes/PulledLineBatch";
+import { holdStraightPieces, pulledEdgesDefault, type PulledLineBatch } from "./meshes/PulledLineBatch";
 import { readColor } from "./meshes/readColor";
 import type { RestSource } from "./meshes/restPlacement";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
@@ -152,6 +145,9 @@ export const pulledLines = { version: 0 };
 /** Each scene's edges whose line is pulled, so a renumbering visits only them (`UpdateManager.followRenumberedRows`). */
 const pulledByScene = new WeakMap<object, Set<Edge>>();
 
+/** The scenes whose pulled edges are named as holders of straight pieces ({@link Edge.holdStraightLines}). */
+const straightHolders = new WeakSet<Scene>();
+
 /**
  * The edges of a scene whose line is pulled ({@link Edge.isPulled}), kept as each line is pulled and let go.
  * @param scene - The scene.
@@ -169,7 +165,7 @@ export function pulledEdgesOf(scene: object): Set<Edge> {
 }
 
 /** Style keys a pulled line can carry; any other set keeps the edge an object edge (`Edge.pullsLine`). */
-const PULLED_STYLE_KEYS = new Set(["line", "label", "arrowHead", "arrowTail", "band", "visible"]);
+const PULLED_STYLE_KEYS = new Set(["line", "label", "tooltip", "arrowHead", "arrowTail", "band", "visible"]);
 
 /** Line keys a pulled line draws exactly as the plain line does. */
 const PULLED_LINE_KEYS = new Set([
@@ -1633,10 +1629,12 @@ export class Edge {
             // a pulled curve's points, as its pieces place them (`meshes/pulledCurve.ts`), in the floats the card
             // holds them in, as the object path reads its slots: the camera frames the graph by these points, and a
             // frame placed from doubles sits a last bit off the object path's and moves a sample (ThreeDBends)
-            return Array.from({ length: path.span.pieces + 1 }, (_, j) => {
-                const { x, y, z } = curvePathPoint(path.src, path.dst, path.span, j);
-                return new Vector3(Math.fround(x), Math.fround(y), Math.fround(z));
-            });
+            const flat = curvePath(path.src, path.dst, path.span);
+            return Array.from(
+                { length: flat.length / 3 },
+                (_, j) =>
+                    new Vector3(Math.fround(flat[3 * j]), Math.fround(flat[3 * j + 1]), Math.fround(flat[3 * j + 2])),
+            );
         }
 
         if (this.mesh instanceof PatternedLineMesh) {
@@ -2595,7 +2593,8 @@ export class Edge {
         // a pulled line that becomes a curve, or stops being one, moves between batches (`EdgeMesh.pullsCurve`)
         const pulls = this.wantsPull(style);
         const samePull =
-            pulls === (this.pulled !== null) && (this.pulled === null || this.pulled.curve === this.pullsCurve(style));
+            pulls === (this.pulled !== null) &&
+            (this.pulled === null || (this.pulled.curve === this.pullsCurve(style) && !this.straightOffCurves()));
         const sameRoute = wantsPattern === this.mesh instanceof PatternedLineMesh && samePull;
         // A surface or a taper keys no source mesh either (`content` channels), but it is drawn
         // from a batch of its own, so asking for another one rebuilds the line.
@@ -3437,7 +3436,12 @@ export class Edge {
         }
 
         const headGone = this.pulled.head !== null && !(this.headEnd("source", rows) && this.headEnd("target", rows));
-        if (!headGone && !this.endHiddenByStyle("source") && !this.endHiddenByStyle("target")) {
+        if (
+            !headGone &&
+            !this.straightOffCurves() &&
+            !this.endHiddenByStyle("source") &&
+            !this.endHiddenByStyle("target")
+        ) {
             return false;
         }
 
@@ -3545,6 +3549,80 @@ export class Edge {
             loop: this.isLoop,
             route: this.routeOf(style),
             lean: this.context.leansLines?.() ?? false,
+            straightInCurve: EdgeMesh.drawsNoCap(style.arrowHead) && this.endsOpaque(rows),
+        });
+    }
+
+    /**
+     * Whether this edge's straight line is drawn from a curve batch, which runs it center to center, while an end is
+     * seen through: it is drawn again from the straight batch, which stops it at the outline
+     * (`EdgeMesh.pulledBatch`'s `straightInCurve`).
+     * @returns True when it must move.
+     */
+    private straightOffCurves(): boolean {
+        const { pulled } = this;
+        const rows = this.context.getRowTable?.() ?? null;
+        return pulled !== null && !pulled.curve && pulled.batch.drawsCurves && rows !== null && !this.endsOpaque(rows);
+    }
+
+    /**
+     * Name a scene's pulled edges as holders of straight pieces, once: a curve batch made for their key takes the
+     * straight lines a curve batch can draw (`PulledLineBatch.moveStraightInto`).
+     * @param scene - The scene.
+     */
+    private static holdStraightLines(scene: Scene): void {
+        if (straightHolders.has(scene)) {
+            return;
+        }
+
+        straightHolders.add(scene);
+        holdStraightPieces(scene, {
+            straightPieces: (batch) => [...pulledEdgesOf(scene)].flatMap((edge) => edge.straightPieceIn(batch)),
+        });
+    }
+
+    /**
+     * This edge's straight line in a straight batch, when a curve batch can draw it: no head, and neither end seen
+     * through ({@link Edge.holdStraightLines}).
+     * @param batch - The straight batch.
+     * @returns The piece, with what moves the line to its new batch and piece; empty for none.
+     */
+    private straightPieceIn(
+        batch: PulledLineBatch,
+    ): { piece: number; moved: (to: PulledLineBatch, piece: number) => void }[] {
+        const { pulled } = this;
+        const rows = this.context.getRowTable?.() ?? null;
+        if (
+            pulled?.batch !== batch ||
+            pulled.curve ||
+            pulled.head !== null ||
+            rows === null ||
+            !this.endsOpaque(rows)
+        ) {
+            return [];
+        }
+
+        return [
+            {
+                piece: pulled.piece,
+                moved: (to, piece) => {
+                    pulled.batch = to;
+                    pulled.piece = piece;
+                    this.mesh = to.mesh;
+                },
+            },
+        ];
+    }
+
+    /**
+     * Whether neither end's row is seen through, so a straight line may run center to center in a curve batch.
+     * @param rows - The row table.
+     * @returns True when neither is.
+     */
+    private endsOpaque(rows: RowTable): boolean {
+        return (["source", "target"] as const).every((end) => {
+            const row = this.endRow(end);
+            return row < 0 || !rows.seenThrough(row);
         });
     }
 
@@ -3625,10 +3703,13 @@ export class Edge {
         if (curve) {
             // nothing drawn until the first placement writes the span
             batch.setCurve(piece, 0, null);
+        } else if (!animationSpeed) {
+            batch.drawStraight(piece);
         }
 
         pulledLines.version++;
         pulledEdgesOf(this.context.getScene()).add(this);
+        Edge.holdStraightLines(this.context.getScene());
         this.pulled = {
             batch,
             piece,
@@ -3718,7 +3799,7 @@ export class Edge {
             // a self-loop's teardrop, whatever else its style asks for, as `bundleRoute` draws it
             const { rank, count } = this.context.getDataManager().drawnBundle(this);
             const around = Edge.outside(this.srcNode, src);
-            const loop = loopShape(rank, count, (dir) => Edge.reachOf(this.srcNode, dir));
+            const loop = loopShape(rank, count, Edge.reachFrom(this.srcNode));
             this.pullSpan(curveSpan(src, src, around, around, { loop }), src, src);
             return;
         }
@@ -3814,20 +3895,17 @@ export class Edge {
         const { batch } = pulled;
         const kept = pulled.route ?? null;
         // a routed path's points themselves (a line through bends' ends and bends, a center arc's cut samples), placed in
-        // doubles as the object path places them, so the card draws the very points the object path does
-        const points =
-            span === null || !routed(span)
-                ? null
-                : Array.from({ length: span.pieces + 1 }, (_, j) => curvePathPoint(src, dst, span, j)).flatMap((p) => [
-                      p.x,
-                      p.y,
-                      p.z,
-                  ]);
+        // doubles as the object path places them, so the card draws the very points the object path does; the span keeps
+        // those it was cut from its samples, so the curve is not worked out again here
+        const points = span === null || !routed(span) ? null : curvePath(src, dst, span);
         if (points === null) {
             batch.releaseRoute(kept?.at ?? -1);
             pulled.route = null;
         } else if (kept?.points.length !== points.length || kept.points.some((v, i) => v !== points[i])) {
             pulled.route = { at: batch.writeRoute(kept?.at ?? -1, points), points };
+        } else {
+            // unchanged: keep the written entry but hold the span's array, so the route and pulled.path share one copy
+            pulled.route = { at: kept.at, points };
         }
         const at = pulled.route?.at ?? 0;
         // an entry a CURVE_STRIDE pieces, taken as the cut grows and kept while the edge is pulled; each entry is
@@ -4762,7 +4840,7 @@ export class Edge {
     private bundleRoute(src: Vector3, dst: Vector3): number[] | null {
         if (this.isLoop) {
             const { rank, count } = this.context.getDataManager().drawnBundle(this);
-            return loopTeardrop(src, rank, count, (dir) => Edge.reachOf(this.srcNode, dir));
+            return loopTeardrop(src, rank, count, Edge.reachFrom(this.srcNode));
         }
 
         const { route } = this;
@@ -4958,14 +5036,21 @@ export class Edge {
      * @returns The distance.
      */
     private static reachOf(node: RowMeasure, dir: Xyz): number {
-        return (
-            surfaceReach(
-                dir,
-                node.drawnHalfExtents,
-                node.roundRadius,
-                node.shapeType === "ellipse" || (node.reachOutline ?? false),
-            ) + node.borderReach
-        );
+        return Edge.reachFrom(node)(dir);
+    }
+
+    /**
+     * {@link Edge.reachOf} for many directions: the node's measures, which its getters work out on every read, read
+     * once, so a placement that tests many points against the node (a curve's cut) reads them once.
+     * @param node - The node.
+     * @returns The distance in a unit direction.
+     */
+    private static reachFrom(node: RowMeasure): (dir: Xyz) => number {
+        const half = node.drawnHalfExtents;
+        const radius = node.roundRadius;
+        const flat = node.shapeType === "ellipse" || (node.reachOutline ?? false);
+        const border = node.borderReach;
+        return (dir) => surfaceReach(dir, half, radius, flat) + border;
     }
 
     /**
@@ -4994,14 +5079,22 @@ export class Edge {
         onOutline = false,
     ): (x: number, y: number, z: number) => boolean {
         const under = onOutline ? node.borderReach + ON_OUTLINE : 0;
+        const radius = node.roundRadius;
+        if (radius !== null) {
+            // a round node reaches as far in every direction, so no direction is worked out (`surfaceReach`)
+            const reach = radius + node.borderReach;
+            return (x, y, z) => {
+                const d = Math.hypot(x - centre.x, y - centre.y, z - centre.z);
+                return d > 0 && d > gap - under + reach;
+            };
+        }
+
+        const reach = Edge.reachFrom(node);
         return (x, y, z) => {
             const d = Math.hypot(x - centre.x, y - centre.y, z - centre.z);
             return (
                 d > 0 &&
-                d >
-                    gap -
-                        under +
-                        Edge.reachOf(node, { x: (x - centre.x) / d, y: (y - centre.y) / d, z: (z - centre.z) / d })
+                d > gap - under + reach({ x: (x - centre.x) / d, y: (y - centre.y) / d, z: (z - centre.z) / d })
             );
         };
     }

@@ -332,6 +332,13 @@ function moveRows(
 const HEAD_FLAGS = ROW_EXTENT_ROUND | ROW_EXTENT_SCREEN_BORDER;
 
 /**
+ * The extent flags whose change asks for the lines pulled onto a row to be checked again ({@link RowTable.roundWrites}):
+ * a head's, and whether the row is seen through, which a straight line drawn from a curve batch does not follow
+ * (`EdgeRowLines.rowsOffEnds`).
+ */
+const TURN_FLAGS = HEAD_FLAGS | ROW_EXTENT_SEEN_THROUGH;
+
+/**
  * The row tables of one graph. `rowPosition` holds what is drawn, which is usually the lane row
  * (z = 0 in 2D) and is otherwise whatever the mesh funnel last said: every other drawn place (a
  * drag, a transition, a group's set-back) reaches a row through {@link RowTable.place}, which
@@ -370,9 +377,10 @@ export class RowTable {
     drawnWrites = 0;
 
     /**
-     * Counts every row whose outline turned round or stopped being round, or whose border turned to or from screen
-     * pixels: a head pulled from the row table stands only
-     * on round rows (`EdgeRowLines`), so a change asks for the edges on it to be painted again.
+     * Counts every row whose outline turned round or stopped being round, whose border turned to or from screen
+     * pixels, or which turned seen through or opaque: a head pulled from the row table stands only on round rows, and
+     * a straight line in a curve batch only between opaque ones (`EdgeRowLines`), so a change asks for the edges on it
+     * to be painted again.
      */
     roundWrites = 0;
 
@@ -1050,7 +1058,7 @@ export class RowTable {
             (node.screenBorder === true ? ROW_EXTENT_SCREEN_BORDER : 0) |
             // not a measure: hide and place keep it
             ((this.extents.floats[base + 3] ?? 0) & ROW_EXTENT_HIDDEN_PLACED);
-        if (((this.extents.floats[base + 3] ?? 0) & HEAD_FLAGS) !== (extentFlags & HEAD_FLAGS)) {
+        if (((this.extents.floats[base + 3] ?? 0) & TURN_FLAGS) !== (extentFlags & TURN_FLAGS)) {
             this.roundWrites++;
             this.turned = this.turned === null || this.turned.size >= MAX_TURNED ? null : this.turned.add(row);
         }

@@ -157,10 +157,11 @@ function channelOf(key: string, channels: readonly ChannelDescriptor[], names: r
  * A channel's value, checked.
  * @param descriptor - The channel.
  * @param value - The value as written.
+ * @param path - Where the value was written.
  * @returns The value as the channel takes it.
  * @throws {ToolRefusal} For a value the channel does not take.
  */
-function channelChecked(descriptor: ChannelDescriptor, value: unknown): unknown {
+function channelChecked(descriptor: ChannelDescriptor, value: unknown, path = `values.${descriptor.channel}`): unknown {
     const parsed = channelValue(descriptor).safeParse(value);
     if (parsed.success) {
         return parsed.data;
@@ -169,7 +170,7 @@ function channelChecked(descriptor: ChannelDescriptor, value: unknown): unknown 
     const issue = parsed.error.issues[0];
     const range = issue.code === "too_big" || issue.code === "too_small";
     throw new ToolRefusal(range ? "AI_ARG_OUT_OF_RANGE" : "AI_ARG_INVALID", {
-        path: `values.${descriptor.channel}`,
+        path,
         expected: descriptor.accepts,
         ...(descriptor.values === undefined ? {} : { allowed: [...descriptor.values] }),
         ...(descriptor.min === undefined ? {} : { min: descriptor.min }),
@@ -437,6 +438,9 @@ async function addLayer(
     };
 }
 
+/** What an encoding paints where an element has no value, of the channel's own type. */
+type MissingValue = string | number | boolean;
+
 /** The `encode` argument of a call. */
 interface EncodeSpec {
     channel: string;
@@ -446,7 +450,7 @@ interface EncodeSpec {
     palette?: string;
     scale?: string;
     domain?: [number, number];
-    missing?: string;
+    missing?: MissingValue;
     midpoint?: number;
     reverse?: boolean;
     scaleOptions?: Record<string, unknown>;
@@ -554,13 +558,20 @@ async function encode(
     }
 
     const { scaleName, scaleOptions } = encodeScale(spec, catalog);
+    const descriptor = catalog.channels.find((each) => each.channel === channel);
+    const checked =
+        spec.missing === undefined || descriptor === undefined
+            ? spec.missing
+            : (channelChecked(descriptor, spec.missing, "encode.missing") as MissingValue);
+    // A binding carries a string or a number; a boolean channel reads 1 and 0 as on and off.
+    const missing = typeof checked === "boolean" ? Number(checked) : checked;
     const kind = channel.startsWith("node.") ? "node" : "edge";
     const { source, path } = encodeSource(tx, spec, kind);
     const binding = {
         ...(spec.palette === undefined ? {} : { palette: spec.palette }),
         ...(scaleName === undefined ? {} : { scale: scaleName }),
         ...(spec.domain === undefined ? {} : { domain: spec.domain }),
-        ...(spec.missing === undefined ? {} : { missing: { value: spec.missing } }),
+        ...(missing === undefined ? {} : { missing: { value: missing } }),
     };
     const name = typeof args.name === "string" ? args.name : undefined;
     const bound = boundIds(args, kind);
@@ -689,7 +700,10 @@ export function styleTool(catalog: CatalogView): ToolDefinition {
                 .length(2)
                 .refine(([low, high]) => low < high, "the first below the second")
                 .optional(),
-            missing: z.string().max(200).optional().describe("Value where there is none."),
+            missing: z
+                .union([z.string().max(200), z.number(), z.boolean()])
+                .optional()
+                .describe("Value where there is none, of the channel's type."),
             midpoint: z.number().optional().describe("Diverging center."),
             reverse: z.boolean().optional().describe("Flip the palette."),
             scaleOptions: z.record(z.string(), z.unknown()).optional().describe("catalog describe kind scale"),

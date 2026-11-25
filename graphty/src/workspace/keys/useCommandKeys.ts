@@ -27,6 +27,12 @@ import {
 } from "./keys";
 
 /**
+ * A native `<dialog>` drawn as a modal (the join workspace): it carries no `role` attribute, so
+ * the role selectors below miss it unless it is named.
+ */
+const NATIVE_MODAL = 'dialog[aria-modal="true"]';
+
+/**
  * An open menu, popover list or dialog keeps its own keys (Esc closes the innermost first). Only
  * a shown one counts: Mantine keeps a closed Select's options and a closed popover mounted with
  * `display: none`, and counting those would switch every single-key shortcut off while any
@@ -34,20 +40,20 @@ import {
  * dialog too, but it opens on hover, never takes focus and holds no keys, so it does not count:
  * otherwise a pointer resting on a circled "i" switched every shortcut off.
  */
-const OVERLAY = '[role="menu"], [role="dialog"]:not(:has(.cm-info-bubble)), [role="listbox"]';
+const OVERLAY = `[role="menu"], [role="dialog"]:not(:has(.cm-info-bubble)), [role="listbox"], ${NATIVE_MODAL}`;
 
 /**
  * The overlays that keep Undo and Redo too: a menu, a list, a modal dialog. A non-modal panel
  * (`aria-modal="false"`, such as a binding's "Color by" panel) edits the page, so Control+Z there
  * takes back the page's last step, as it does in the inspector beside it.
  */
-const HISTORY_OVERLAY = '[role="menu"], [role="dialog"]:not([aria-modal="false"]), [role="listbox"]';
+const HISTORY_OVERLAY = `[role="menu"], [role="dialog"]:not([aria-modal="false"]), [role="listbox"], ${NATIVE_MODAL}`;
 
 /**
  * A modal dialog (Settings, a confirmation): the page behind it is inert, so no command key reaches
  * it -- Mod+I does not take focus out of the dialog to the composer.
  */
-const MODAL = '[role="dialog"][aria-modal="true"]';
+const MODAL = `[role="dialog"][aria-modal="true"], ${NATIVE_MODAL}`;
 
 /**
  * Whether a menu, popover list or dialog is showing.

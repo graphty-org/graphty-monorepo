@@ -1,0 +1,130 @@
+/**
+ * @file What a join workspace reads from one source draft holding several joins: `draft.batch`
+ * makes several acts one undo entry, `draft.suggestMatches` proposes the fields to match,
+ * `connect` takes `perPair` and `unmatched` and reads them back, `preview.marks` counts what the
+ * draft marks, `preview.ids` names elements by session id, and `styles.showDraft` colors each step,
+ * draws untouched nodes, marks a step and reads its view back on `styles.shownDraft`.
+ */
+
+import { assert, describe, it } from "vitest";
+
+import { createGraphSession, type GraphSession, type SourceDraft } from "../../../src/session";
+
+/**
+ * A CSV source.
+ * @param name - Its name.
+ * @param data - Its text.
+ * @returns What `import` and `stage` take.
+ */
+function csv(name: string, data: string): { type: string; config: { data: string }; name: string } {
+    return { type: "csv", config: { data }, name };
+}
+
+/** HR rows: B1 and B2 badge people, B9 badges no one. */
+const HR = "badge,dept\nB1,Ops\nB2,Lab\nB9,Ops";
+/** Door entries: B1 twice through D1, B9 badges no one. */
+const ENTRIES = "entry,badge\nE1,B1\nE2,B1\nE3,B2\nE4,B9";
+
+/**
+ * People in the graph (B3 never meets a row), HR and the entries staged, and a draft open.
+ * @returns The session, the draft and the staged sources.
+ */
+async function opened(): Promise<{ session: GraphSession; d: SourceDraft; hr: string; entries: string }> {
+    const session = createGraphSession({ features: ["source-steps"] });
+    await session.data.import(csv("people.csv", "badge,name\nB1,Ann\nB2,Bo\nB3,Cy"), { key: "badge", type: "person" });
+    const d = session.data.draft();
+    const hr = await d.stage(csv("hr.csv", HR), { key: "badge", type: "hr" });
+    const entries = await d.stage(csv("entries.csv", ENTRIES), { key: "entry", type: "entry" });
+    return { session, d, hr, entries };
+}
+
+describe("source-steps drafts: the join workspace's reads", () => {
+    it("batch makes several acts one undo entry, and a refusal inside leaves the draft as it was", async () => {
+        const { session, d, hr } = await opened();
+        d.batch(() => {
+            d.merge({ from: { source: hr, field: "badge" }, into: { space: "person" } });
+            d.editStep(d.steps().length - 1, { repeated: "last" });
+        });
+        assert.strictEqual(d.steps().at(-1)?.act?.repeated, "last");
+        assert.isTrue(d.undo(), "one undo");
+        assert.isFalse(
+            d.steps().some((row) => row.op === "join.merge"),
+            "one undo takes the merge and its edit back together",
+        );
+        const before = d.steps().length;
+        assert.throws(() =>
+            d.batch(() => {
+                d.merge({ from: { source: hr, field: "badge" }, into: { space: "person" } });
+                d.removeStep(99);
+            }),
+        );
+        assert.strictEqual(d.steps().length, before, "the merge made before the refusal is taken back");
+        d.dispose();
+        session.dispose();
+    });
+
+    it("suggestMatches proposes the column whose values meet a space's keys, best first", async () => {
+        const { session, d, hr } = await opened();
+        const [best] = d.suggestMatches(hr);
+        assert.deepStrictEqual(best?.matches, [{ from: { source: hr, field: "badge" }, into: { space: "person" } }]);
+        assert.strictEqual(best.result, "merge", "the source's key merges");
+        assert.isFalse(best.confident, "two of three values meet: under the confident share");
+        d.dispose();
+        session.dispose();
+    });
+
+    it("connect takes perPair and unmatched, and steps() reads them back", async () => {
+        const { session, d, entries } = await opened();
+        d.connect({
+            from: { source: entries, field: "badge" },
+            into: { space: "person" },
+            perPair: true,
+            unmatched: "add",
+        });
+        const act = d.steps().at(-1)?.act;
+        assert.strictEqual(act?.perPair, true, "one edge per pair");
+        assert.strictEqual(act?.unmatched, "add");
+        d.dispose();
+        session.dispose();
+    });
+
+    it("preview.marks counts merged, new and untouched; preview.ids names a step's elements", async () => {
+        const { session, d, hr } = await opened();
+        d.merge({ from: { source: hr, field: "badge" }, into: { space: "person" } });
+        const step = d.steps().length - 1;
+        await d.display(true);
+        const p = d.preview();
+        assert.deepStrictEqual(p.marks, { merged: 2, new: 1, untouched: 1 }, "B1, B2 merged; B9 new; B3 untouched");
+        assert.sameMembers([...p.ids({ step, bucket: "merged" }).nodes].map(String), ["B1", "B2"]);
+        assert.sameMembers([...p.ids({ refs: [{ space: "person", key: "B3" }] }).nodes].map(String), ["B3"]);
+        d.dispose();
+        session.dispose();
+    });
+
+    it("showDraft colors by step, dots untouched nodes, marks a step and reads back on shownDraft", async () => {
+        const { session, d, hr } = await opened();
+        d.merge({ from: { source: hr, field: "badge" }, into: { space: "person" } });
+        const step = d.steps().length - 1;
+        await d.display(true);
+        const view = { merged: "#7048E8", new: "#E8590C", untouched: "#2F9E44", steps: [{ step, color: "#1971C2" }] };
+        const shown = session.styles.showDraft(view);
+        await session.styles.settled();
+        const look = (id: string): Readonly<Record<string, unknown>> => session.styles.explain({ node: id }).merged;
+        assert.strictEqual(
+            (look("B1")["node.haloColor"] as { hex?: string } | undefined)?.hex,
+            "#1971c2",
+            "a merged node is ringed in its step's color",
+        );
+        assert.strictEqual(look("B3")["node.borderStyle"], "dotted", "an untouched node is dotted");
+        assert.deepStrictEqual(session.styles.shownDraft, view);
+        session.styles.showDraft({ ...view, mark: { refs: [{ space: "person", key: "B3" }] } });
+        await session.styles.settled();
+        assert.strictEqual(look("B3")["node.opacity"], 1, "the marked node is at full strength");
+        assert.strictEqual(look("B1")["node.opacity"], 0.2, "the rest is faint");
+        shown.end();
+        session.styles.showDraft(view).end();
+        assert.isNull(session.styles.shownDraft, "ended, nothing is shown");
+        d.dispose();
+        session.dispose();
+    });
+});

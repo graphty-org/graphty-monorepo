@@ -16,7 +16,7 @@ import { Engine } from "@babylonjs/core/Engines/engine.js";
 import { NullEngine } from "@babylonjs/core/Engines/nullEngine.js";
 import { WebGPUEngine } from "@babylonjs/core/Engines/webgpuEngine.js";
 import { PointerEventTypes } from "@babylonjs/core/Events/pointerEvents.js";
-import { type Matrix, Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { Matrix, Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
 import type { SubMesh } from "@babylonjs/core/Meshes/subMesh.js";
 import { Observable } from "@babylonjs/core/Misc/observable.js";
@@ -25,6 +25,8 @@ import { Scene } from "@babylonjs/core/scene.js";
 import type { WebXRDefaultExperience } from "@babylonjs/core/XR/webXRDefaultExperience.js";
 import { WebXRState } from "@babylonjs/core/XR/webXRTypes.js";
 import type { GraphSnapshot } from "@graphty/graph-format";
+import cloneDeep from "lodash/cloneDeep.js";
+import isEqual from "lodash/isEqual.js";
 
 import { ACCELERATION_POLICY_DEFAULT, AccelerationController } from "./acceleration";
 import { VoiceInputAdapter } from "./ai/input/VoiceInputAdapter";
@@ -178,6 +180,7 @@ import {
 import { type AlgorithmOnLoad, DataConfig } from "./config/DataConfig";
 import { RenderSettingsOpts } from "./config/GraphBehavior";
 import { DEFAULT_LIGHTING, isLighting, type Lighting, LIGHTING_VALUES } from "./config/Lighting";
+import { drawnText, labelTextOf, richTextLabelOptions, type RichTextStyleType } from "./config/RichTextStyle";
 import { type PartialXRConfig, xrConfigSchema } from "./config/xr-config-schema";
 import { type ExportGraphOptions, type ExportResult, exportSession } from "./data/export";
 import { WRITABLE_LANE, writableLane } from "./data/lane";
@@ -267,7 +270,6 @@ import {
     type ModelPreviewOptions,
     PreviewEngines,
 } from "./meshes/ModelPreview";
-import { drawLast } from "./meshes/moveInstance";
 import { type ColumnRow, NodeBatches, type RenderPath, renderPathDefault, type RowCounts } from "./meshes/NodeBatch";
 import { forgetGlyphs } from "./meshes/NodeDecorationMesh";
 import { NodeEffects } from "./meshes/NodeEffects";
@@ -282,6 +284,7 @@ import {
 } from "./meshes/NodeThumbnail";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { type Antialias, type LeanLines, pulledEdgesDefault } from "./meshes/PulledLineBatch";
+import { RichTextLabel } from "./meshes/RichTextLabel";
 import { onRewriteMissed } from "./meshes/RowPullPlugin";
 import { loadChunk, loadModel, ModelLoadFailure } from "./models/loadModel";
 import { type ModelTemplate, optionsOf } from "./models/ModelCache";
@@ -892,6 +895,21 @@ function presentOnly<T extends Record<string, unknown>>(options: T): Partial<{ [
     ) as Partial<{
         [K in keyof T]: NonNullable<T[K]>;
     }>;
+}
+
+/** An edge under the pointer, and its tooltip with what it was drawn from (`Graph.#hoveredEdge`). */
+interface EdgeHover {
+    id: EdgeId;
+    /** How far along the edge the pointer met it: 0 at the first end, 1 at the second. */
+    along: number;
+    /** From that point on the straight run between the ends to where the pointer met the line (a curve's bulge). */
+    offset: Vector3;
+    camera: Camera | null;
+    block: RichTextStyleType | undefined;
+    words: string | undefined;
+    /** The point the tooltip hangs from, moved in place as the edge moves. */
+    anchor: Vector3;
+    tooltip: RichTextLabel | undefined;
 }
 
 /**
@@ -2642,7 +2660,16 @@ export class Graph implements GraphContext {
      * @returns The status once {@link Graph.init} has chosen; null before.
      */
     get rendererStatus(): RendererStatus | null {
-        return this.#rendererStatus;
+        const status = this.#rendererStatus;
+        // Where the attached accelerator really runs, which can differ from what the renderer offered it: one
+        // probed before a renderer was on its way opened its own device (issue #9986).
+        const shared = this.acceleration.sharesRendererDevice;
+        if (status === null || shared === undefined) {
+            return status;
+        }
+
+        const layoutDevice = shared ? "shared" : "separate";
+        return status.layoutDevice === layoutDevice ? status : { ...status, layoutDevice };
     }
 
     /**
@@ -3021,6 +3048,9 @@ export class Graph implements GraphContext {
             setDrawing(true);
             this.settleRestart(null);
             this.eventManager.emit("render-restored", { renderer } satisfies Omit<RenderRestoredEvent, "type">);
+            // The renderer has a working device again, so the GPU is back: the moment to try once more an
+            // accelerator whose reattach failed while it was gone (issue #9987).
+            this.acceleration.deviceAvailable();
         });
         const { signal } = this.#teardown;
         // The browser tried to give a WebGL context back and could not make one.
@@ -5727,6 +5757,9 @@ export class Graph implements GraphContext {
                             this.layoutManager.running = true;
                         }
                     },
+                    edgeEndsChanged: (row) => {
+                        this.updateManager.placeEdgesOfRow(row);
+                    },
                 },
                 this.scene,
             );
@@ -5777,11 +5810,7 @@ export class Graph implements GraphContext {
             this.#edgeRowLines = null;
             this.#nodeBatches.dispose();
             this.#nodeBatches = null;
-            const nodes = [...dataManagerInternals.builtNodes(this.dataManager)];
-            // Translucent instances blend in the order the scene lists them: in row order, as the objects path
-            // builds them, not with the Nodes built under batches (a read, a hover) before the rest.
-            nodes.sort((a, b) => a.index - b.index);
-            drawLast(nodes.flatMap((node) => node.drawnPickMesh ?? []));
+            // the Nodes built under batches (a read, a hover) draw in row order with the rest (`drawInRowOrder`)
         }
 
         // Plain edges are pulled on "batched" (`Edge.pullsLine`): repaint them when that changes.
@@ -6122,7 +6151,7 @@ export class Graph implements GraphContext {
         // Their shared action manager is made here too, so it belongs to the scene from the start.
         // Under "batched" it waits for the first object row's mesh: until a mesh has an action,
         // Babylon runs no pick on a move (design/rendering/row-renderer.md 4.4).
-        nodePointerRosterOf(this.scene);
+        const nodeRoster = nodePointerRosterOf(this.scene);
         if (!this.#batchesDraw()) {
             nodeActionManagerOf(this.scene);
         }
@@ -6135,17 +6164,28 @@ export class Graph implements GraphContext {
         // The newest move whose answer was heard: an older read landing later is dropped, but a
         // pointer that keeps moving still hears each read one late, instead of never (#8016).
         let edgeHoverHeard = 0;
+        // The pointer leaving the canvas ends an edge hover; a read still under way for an earlier move is dropped.
+        const leaveEdge = (): void => {
+            edgeHoverHeard = edgeHoverMoves;
+            this.#hoverEdge(undefined, 0, 0);
+        };
         this.scene.onPointerObservable.add((pointerInfo) => {
             const move = ++edgeHoverMoves;
             const canvas = this.scene.getEngine().getInputElement();
             const { buttons } = pointerInfo.event as { buttons?: number };
+            const { pointerX: x, pointerY: y } = this.scene;
+            // Whether a node is under the pointer is read from what Babylon picked (a mesh with pointer
+            // actions) and from the nodes' own hover (a batched row), never from the cursor: a consumer
+            // may handle cursors itself (`doNotHandleCursors`) or give nodes the default cursor.
             if (
                 !canvas ||
-                this.scene.doNotHandleCursors ||
                 (buttons ?? 0) !== 0 ||
-                canvas.style.cursor === this.scene.hoverCursor ||
+                nodeRoster.overId !== undefined ||
+                this.scene.meshUnderPointer?._getActionManagerForTrigger()?.hasPointerTriggers === true ||
                 (this.scene.metadata as GraphSceneMetadata | null)?.xrHelper?.baseExperience?.state === WebXRState.IN_XR
             ) {
+                // Over a node, in a drag or in XR: no edge is hovered.
+                leaveEdge();
                 return;
             }
 
@@ -6155,15 +6195,21 @@ export class Graph implements GraphContext {
                 }
 
                 edgeHoverHeard = move;
-                if (edgeId !== undefined) {
+                if (edgeId !== undefined && !this.scene.doNotHandleCursors) {
                     canvas.style.cursor = this.scene.hoverCursor;
                 }
+
+                if (edgeId !== undefined) {
+                    canvas.addEventListener("pointerleave", leaveEdge);
+                }
+
+                this.#hoverEdge(edgeId, x, y);
             };
             const edgeId = hoverEdgeAt(
                 this.scene,
                 () => this.builtEdges(),
-                this.scene.pointerX,
-                this.scene.pointerY,
+                x,
+                y,
                 (point) => this.worldToScreen(point),
                 this.rowLinePicks(),
             );
@@ -6173,6 +6219,11 @@ export class Graph implements GraphContext {
                 over(edgeId);
             }
         }, PointerEventTypes.POINTERMOVE);
+
+        // A hovered edge's tooltip is kept true while the pointer is still (removed edge, restyle, layout, camera).
+        this.scene.onBeforeRenderObservable.add(() => {
+            this.#syncHoveredEdge();
+        });
 
         // The pointer cursor over a close button, put back when the pointer leaves it. Only the
         // cursor this set is put back, so nothing else's cursor is touched.
@@ -6191,6 +6242,195 @@ export class Graph implements GraphContext {
                 this.canvas.style.cursor = over ? "pointer" : this.scene.defaultCursor;
             }
         });
+    }
+
+    /**
+     * The edge the pointer is over: how far along it the pointer met it, and the tooltip drawn for it
+     * when a style layer gave it one, with what it was drawn from so a change to any of it is seen.
+     */
+    #hoveredEdge: EdgeHover | undefined;
+
+    /**
+     * The pointer is over an edge, or over none. Arriving at an edge emits `edge-hover` and draws the
+     * edge's tooltip (`edge.tooltip`) where the pointer met the line; leaving it takes the tooltip down.
+     * The same on both render paths: an edge drawn with no `Edge` is read from its row and none is built.
+     * @param edgeId - The edge, or undefined for none.
+     * @param x - The pointer's x on the canvas, in CSS pixels.
+     * @param y - The pointer's y on the canvas, in CSS pixels.
+     */
+    #hoverEdge(edgeId: EdgeId | undefined, x: number, y: number): void {
+        if (edgeId === this.#hoveredEdge?.id) {
+            return;
+        }
+
+        this.#hoveredEdge?.tooltip?.dispose();
+        this.#hoveredEdge = undefined;
+        if (edgeId === undefined) {
+            return;
+        }
+
+        const at = dataManagerInternals.edgeRowOf(this.dataManager, edgeId);
+        const hovered: EdgeHover = {
+            id: edgeId,
+            ...(at === undefined ? { along: 0.5, offset: Vector3.Zero() } : this.#whereOnEdge(at.ends, x, y)),
+            camera: null,
+            block: undefined,
+            words: undefined,
+            anchor: Vector3.Zero(),
+            tooltip: undefined,
+        };
+        this.#hoveredEdge = hovered;
+        if (at !== undefined) {
+            this.#drawEdgeTooltip(hovered, at.row, at.ends);
+        }
+
+        this.eventManager.emitEdgeEvent("edge-hover", {
+            edgeId,
+            ...(hovered.tooltip === undefined ? {} : { tooltip: hovered.words }),
+        });
+    }
+
+    /**
+     * Keep the hovered edge's tooltip true while the pointer is still: it goes when the edge does, is
+     * drawn again when its words, its style or the camera change, and follows the edge as a layout
+     * moves it. Runs before each frame, and costs nothing while no edge is hovered.
+     */
+    #syncHoveredEdge(): void {
+        const hovered = this.#hoveredEdge;
+        if (hovered === undefined) {
+            return;
+        }
+
+        const at = dataManagerInternals.edgeRowOf(this.dataManager, hovered.id);
+        if (at === undefined) {
+            this.#hoverEdge(undefined, 0, 0);
+            return;
+        }
+
+        const { block, words } = this.#edgeTooltipWanted(hovered.id, at.row);
+        if (hovered.camera !== this.scene.activeCamera || words !== hovered.words || !isEqual(block, hovered.block)) {
+            hovered.tooltip?.dispose();
+            hovered.tooltip = undefined;
+            this.#drawEdgeTooltip(hovered, at.row, at.ends);
+            return;
+        }
+
+        const point = hovered.tooltip && this.#pointOnEdge(at.ends, hovered);
+        if (hovered.tooltip && point && !point.equalsWithEpsilon(hovered.anchor)) {
+            hovered.anchor.copyFrom(point);
+            hovered.tooltip.reattach();
+        }
+    }
+
+    /**
+     * What an edge's tooltip says and how it looks, as the style stack resolves it now.
+     * @param edgeId - The edge.
+     * @param row - The edge's row.
+     * @returns The block (a copy of its own) and the words, each undefined when there is no tooltip.
+     */
+    #edgeTooltipWanted(
+        edgeId: EdgeId,
+        row: number,
+    ): { block: RichTextStyleType | undefined; words: string | undefined } {
+        const block = this.stylePainter.owns ? drawnText(this.stylePainter.edgePaint(row)?.style.tooltip) : undefined;
+        if (block === undefined) {
+            return { block: undefined, words: undefined };
+        }
+
+        const data = dataManagerInternals.builtEdges(this.dataManager).get(edgeId)?.data;
+        const words = labelTextOf(data, block);
+        // CLONED: the block belongs to a paint the painter rebuilds on every call (Node.syncTooltip).
+        return { block: cloneDeep(block), words: words === "" ? undefined : words };
+    }
+
+    /**
+     * Draw the hovered edge's tooltip as the style stack resolves it now, on the edge where the pointer met it.
+     * @param hovered - The hover, whose camera, block, words, anchor and tooltip this sets.
+     * @param row - The edge's row.
+     * @param ends - The rows of the edge's two nodes.
+     */
+    #drawEdgeTooltip(hovered: EdgeHover, row: number, ends: readonly [number, number]): void {
+        const { block, words } = this.#edgeTooltipWanted(hovered.id, row);
+        hovered.camera = this.scene.activeCamera;
+        hovered.block = block;
+        hovered.words = words;
+        const point = this.#pointOnEdge(ends, hovered);
+        if (block === undefined || words === undefined || point === undefined) {
+            return;
+        }
+
+        hovered.anchor.copyFrom(point);
+        const location = block.location ?? "top-right";
+        const label = new RichTextLabel(this.scene, {
+            ...richTextLabelOptions(block, {
+                text: words,
+                attachTo: hovered.anchor,
+                attachPosition: location === "automatic" ? "top" : location,
+                attachOffset: block.attachOffset ?? 0,
+            }),
+            onTop: true,
+        });
+        // Under the pointer: it must not take the pointer from the edge or a node beneath it.
+        if (label.labelMesh) {
+            label.labelMesh.isPickable = false;
+        }
+
+        hovered.tooltip = label;
+    }
+
+    /**
+     * Where on an edge the pointer meets it: the point under the pointer at the depth of the edge's middle
+     * (on screen, where the pointer met the line), as how far along the edge it is and how far off the
+     * straight run between the ends, so the point can follow the edge as it moves.
+     * @param ends - The rows of the edge's two nodes.
+     * @param x - The pointer's x on the canvas, in CSS pixels.
+     * @param y - The pointer's y on the canvas, in CSS pixels.
+     * @returns 0 at the first end and 1 at the second, and the offset; the middle when the ends are not drawn.
+     */
+    #whereOnEdge(ends: readonly [number, number], x: number, y: number): { along: number; offset: Vector3 } {
+        const camera = this.scene.activeCamera;
+        const [a, b] = ends.map((row) => this.#rowWorldCentre(row));
+        if (!camera || a === undefined || b === undefined) {
+            return { along: 0.5, offset: Vector3.Zero() };
+        }
+
+        const ray = this.scene.createPickingRay(x, y, Matrix.Identity(), camera);
+        const middle = a.add(b).scaleInPlace(0.5);
+        const point = ray.origin.add(ray.direction.scale(Vector3.Dot(middle.subtract(ray.origin), ray.direction)));
+        const line = b.subtract(a);
+        const length2 = line.lengthSquared();
+        const along = length2 === 0 ? 0.5 : Math.min(1, Math.max(0, Vector3.Dot(point.subtract(a), line) / length2));
+        return { along, offset: point.subtract(Vector3.Lerp(a, b, along)) };
+    }
+
+    /**
+     * The point on an edge where the pointer met it, where the edge's ends are drawn now.
+     * @param ends - The rows of the edge's two nodes.
+     * @param where - How far along the edge, and how far off its straight run.
+     * @param where.along - 0 at the first end, 1 at the second.
+     * @param where.offset - Off the straight run between the ends.
+     * @returns The point, or undefined when the edge's ends are not drawn.
+     */
+    #pointOnEdge(ends: readonly [number, number], where: { along: number; offset: Vector3 }): Vector3 | undefined {
+        const [a, b] = ends.map((row) => this.#rowWorldCentre(row));
+        return a === undefined || b === undefined
+            ? undefined
+            : Vector3.Lerp(a, b, where.along).addInPlace(where.offset);
+    }
+
+    /**
+     * Where a node row is drawn in the world, building no `Node` for a row a batch draws.
+     * @param row - The node's row.
+     * @returns The center, or undefined when the row is not drawn.
+     */
+    #rowWorldCentre(row: number): Vector3 | undefined {
+        const node = dataManagerInternals.builtNodeAtRow(this.dataManager, row);
+        if (node !== undefined) {
+            node.drawnWorldMatrix(true);
+            return node.drawnWorldPosition.clone();
+        }
+
+        return this.#columnSpots([row]).next().value?.centre;
     }
 
     /**
@@ -11142,10 +11382,25 @@ export class Graph implements GraphContext {
 
     /**
      * Get all edges, in the order the edge pick walks them.
+     *
+     * On the `"batched"` render path most edges are drawn from row tables with no `Edge` object.
+     * As with {@link Graph.getNodes}, the array builds an edge's `Edge` only when that element is
+     * first read: the call and `length` stay cheap, and walking the whole array builds every `Edge`.
+     * To enumerate the edges of a large graph, walk {@link Graph.getEdgeIds}.
      * @returns Array of all edge instances
      */
     getEdges(): Edge[] {
-        return Array.from(this.dataManager.edges.values());
+        return dataManagerInternals.edgeList(this.dataManager);
+    }
+
+    /**
+     * Get the id of every edge, building no `Edge` object, in the order {@link Graph.getEdges}
+     * returns the edges.
+     * @returns The ids.
+     * @since 3.40.0
+     */
+    getEdgeIds(): string[] {
+        return [...this.dataManager.edges.keys()];
     }
 
     /**

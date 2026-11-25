@@ -846,6 +846,28 @@ route table, only once that change is made. With that, every curve kind without 
 fanned curves, `fanSpacing`, `arcRadius`, gaps, raised and great-circle routes, the layout's routes, self-loop
 teardrops, support points and bends. The stage's 40 ms target stays missed by about 6 ms (ninth pull request).
 
+As built (issue #9201): a plain straight pulled line (no head, neither end seen through, not patterned, animated or
+lean) is drawn from the curve batch of its batch key (minimum screen width and pass, and in 2D the width) whenever that
+batch exists, so curves and straight lines draw in the order their pieces were taken, as the object path's one line
+batch draws them. Before, the straight batch and the curve batch drew one after the other, so where a curve crossed a
+straight line in one plane the curve's batch was on top whatever the rows' order. When a key's curve batch is made, the
+straight batch's plain lines move into it first, in that batch's draw order and before the new curve takes a piece
+(`EdgeMesh.pulledBatch`, `PulledLineBatch.moveStraightInto`; the `Edge`s and `EdgeRowLines` holding them are told their
+new batch and piece), so every plain line of the key is in one batch and widths and `edge.drawOrder` are ranked among
+all of them. A straight line in a curve batch is drawn with a one-piece straight span (`pulledCurve.STRAIGHT_SPAN`,
+`PulledLineBatch.drawStraight`): a flat raised arc between the two centers, which no move rewrites. Left in the straight
+batch: a line with a head, a patterned, animated or lean one, and one with an end it is seen through, which the straight
+program stops at the outline; beside curves these draw from their own batch, ranked apart from the plain lines. A row
+that turns seen through or opaque counts in `RowTable.roundWrites`, so a straight line in a curve batch whose end turned
+seen through is painted again and takes the straight batch (`EdgeRowLines.rowsOffEnds`, `Edge.redrawPulledOffEnds`);
+its order against the curves is then the two batches'. A curve takes the rest of its draw slots when it is first placed,
+on both paths, so a straight line added in the same write as the curve is under it and one added once it is drawn is
+over it. `test/browser/curve-crossing-draw-order.test.ts` holds both orders, a partly curved bundle, mixed widths and
+draw orders, a curve between two straight lines of one width (in one write and with the last added later), a restyle
+and a node turned translucent after its lines were drawn at 0 pixels against `"objects"`. Not fixed here: in the 2D
+view a curve is not pulled, and `"objects"` draws it over a crossing straight line in either order, where `"batched"`
+draws the straight line over it (#10083).
+
 Correction from stage 22 (code read at origin/master 8593e8751a): the row's "fragment scroll" cannot ride the join shader.
 A straight animated line (`line.animationSpeed`, 3D only: in 2D `EdgeMesh` draws it flat and unanimated before it asks)
 is a Babylon greased line with a two-texel moving texture (`#D3D3D3` and the edge's color, nearest, `uScale` 5), one batch

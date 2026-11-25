@@ -169,6 +169,15 @@ const GROWING_GROUPS: Readonly<Record<string, Readonly<Partial<Record<Channel, C
     "node.label > Wrap": { [TEXT_THINGS.node.label.style]: { wrapWidth: 80 } },
     // Its spacing lines once the words wrap.
     "node.label > Wrap spacing": { [TEXT_THINGS.node.label.style]: { wrapWidth: 80 } },
+    // Its width and opacity once the letters have an outline color.
+    "node.label > Letter outline": { [TEXT_THINGS.node.label.style]: { outline: "#000000" } },
+    // Its color, blur and offset once the shadow is on.
+    "node.label > Text shadow": { [TEXT_THINGS.node.label.style]: { shadow: true } },
+    "node.label > Box shadow": { [TEXT_THINGS.node.label.style]: { panelShadow: true } },
+    // Its direction, size, offset and curve once the pointer is on.
+    "node.label > Callout": { [TEXT_THINGS.node.label.style]: { pointer: true } },
+    // Its curve once the edge is curved (graphty-element draws `edge.bendCurve` only then).
+    "edge.route > Bends": { "edge.curvature": true },
 };
 
 /** The text things (labels, tooltips, captions) share the label's groups, so grow as the node label's do. */

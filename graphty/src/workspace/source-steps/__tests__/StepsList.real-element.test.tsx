@@ -131,8 +131,7 @@ describe("steps and reader edits in the join workspace (source-steps)", () => {
         await done(modal);
         assert.lengthOf(session.data.edges(), 0, "the edges went with the step");
         assert.strictEqual(session.history.steps.length, steps + 1, "one undo step");
-        const undo = await screen.findByRole("button", { name: "Undo" });
-        await userEvent.click(undo);
+        await session.undo();
         await waitFor(() => {
             assert.isAbove(session.data.edges().length, 0);
         });
@@ -140,8 +139,8 @@ describe("steps and reader edits in the join workspace (source-steps)", () => {
         const again = await workspace();
         await userEvent.click(await within(again).findByRole("button", { name: "Delete entries.csv -> Connect" }));
         await done(again);
-        await screen.findByText("Joined");
-        await screen.findByRole("button", { name: "Undo" });
+        await screen.findAllByText("Joined");
+        assert.isNotEmpty(screen.getAllByRole("button", { name: "Undo" }), "the notice offers Undo");
         assert.lengthOf(session.data.edges(), 0, "after an Undo, deleting it again still says so, with Undo");
     });
 

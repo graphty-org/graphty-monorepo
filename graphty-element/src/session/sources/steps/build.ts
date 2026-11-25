@@ -78,12 +78,8 @@ export const ownSpace = (sourceId: string): string => `source:${sourceId}`;
  */
 export const copyKey = (src: Source): string => src.origin.rows ?? src.origin.copy;
 
-/**
- * The name a reader knows a source by, which names the columns and node ids it is told apart by.
- * @param src - The source.
- * @returns Its label, else its id.
- */
-export const namedBy = (src: Source): string => src.label ?? src.id;
+// The name a reader knows a source by, which names the columns and node ids it is told apart by.
+const namedBy = (src: Source): string => src.label ?? src.id;
 
 /**
  * The space a source's node rows key into.
@@ -2591,16 +2587,21 @@ class Builder {
         }
     }
 
+    // The nodes a value folds into: the one it names, or each of several under `fanOut`, noted as such.
+    private mergeTargets({ s, fanned }: MergeAt, ids: readonly string[], value: string, unit: DrillUnit): BuiltNode[] {
+        if (ids.length > 1) {
+            fanned.set(value, fanned.get(value) ?? unit);
+        }
+        return (ids.length === 1 || s.fanOut === "each" ? ids : []).flatMap((id) => this.nodes.get(id) ?? []);
+    }
+
     // One such row, and the node it is in, if any.
     private mergeRowAgain(at: MergeAt, look: Lookup, r: Row, i: number, held: BuiltNode | undefined): void {
-        const { s, si, st, fanned } = at;
+        const { s, si, st } = at;
         const v = r[s.read.key];
         const ids = leftOut(s, r) || isEmpty(v) ? [] : look(v);
         const unit = { table: "nodes", row: i, key: text(v) } as const;
-        if (ids.length > 1) {
-            fanned.set(text(v), fanned.get(text(v)) ?? unit);
-        }
-        const n1s = (ids.length === 1 || s.fanOut === "each" ? ids : []).flatMap((id) => this.nodes.get(id) ?? []);
+        const n1s = this.mergeTargets(at, ids, text(v), unit);
         for (const n1 of n1s) {
             this.countMergedRow(at, n1, { ...unit, element: n1.id });
             this.foldSharedRow(n1, s, si, st, r, i);
@@ -2624,7 +2625,7 @@ class Builder {
 
     // One node 2 of a merge: folded into the node 1 it names (or each of several, under `fanOut`), or kept or dropped.
     private mergeNode2(at: MergeAt, n2: BuiltNode, look: Lookup, kept: Map<string, BuiltNode[]>): void {
-        const { s, si, st, groups, fanned } = at;
+        const { s, si, st, groups } = at;
         const own = ownTouches(n2, s.source);
         const rows = own.map((t) => t.cells);
         const [r] = rows;
@@ -2632,10 +2633,7 @@ class Builder {
         const v = r[s.read.key];
         const ids = excluded || isEmpty(v) ? [] : look(v).filter((id) => id !== n2.id);
         const unit = { table: "nodes", row: own[0].row, element: n2.id, key: n2.key } as const;
-        if (ids.length > 1) {
-            fanned.set(text(v), fanned.get(text(v)) ?? unit);
-        }
-        const n1s = (ids.length === 1 || s.fanOut === "each" ? ids : []).flatMap((id) => this.nodes.get(id) ?? []);
+        const n1s = this.mergeTargets(at, ids, text(v), unit);
         for (const n1 of n1s) {
             groups.set(n1.id, (groups.get(n1.id) ?? 1) + rows.length);
             st.merged++;

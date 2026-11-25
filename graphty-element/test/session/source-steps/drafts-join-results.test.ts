@@ -586,6 +586,10 @@ describe("source-steps drafts: what a step's counts list", () => {
         );
         await d.commit();
         assert.strictEqual(session.data.sources().find((each) => each.key === watch)?.counts.nodes, 2);
+        for (const key of ["A1", "A2"]) {
+            const read = session.data.lineage({ space: "account", key })?.steps.map((step) => step.source) ?? [];
+            assert.include(read, watch, `${key} was read from the list's row`);
+        }
         session.dispose();
     });
 });
@@ -734,6 +738,15 @@ describe("source-steps: a source read from an address", () => {
             const facts = session.data.sourceTable(key).summary();
             assert.strictEqual(facts.mapping.key, undefined);
             assert.deepStrictEqual(facts.tables[0]?.columns, ["value", "kind"]);
+            // loaded rather than staged, as the first source of a project is
+            const loaded = on();
+            const fetched = replayFetch([{ url: ADDRESS, body: "value,kind\na,x\na,y\nb,x\n" }]);
+            await loaded.data.import({ source: "url", config: { url: ADDRESS } }, { fetch: fetched });
+            const first = loaded.data.sourceTable(loaded.data.sources()[0].key).summary();
+            assert.strictEqual(first.mapping.key, undefined);
+            assert.deepStrictEqual(first.tables[0]?.columns, ["value", "kind"]);
+            assert.strictEqual(loaded.data.nodes().length, 3);
+            loaded.dispose();
         } finally {
             globalThis.fetch = real;
         }

@@ -14,10 +14,12 @@ import {
     type GraphSession,
     type SourceCellValue,
     type SourceDraft,
+    type SourceDraftMarkCounts,
     type SourceDraftRow,
     type SourceElementRef,
     type SourceMatchValue,
     type SourceStepPatch,
+    type SourceStepRow,
 } from "@graphty/graphty-element/session";
 import { Button, Group, Loader, Stack, Text } from "@mantine/core";
 import React, { useCallback, useEffect, useId, useRef, useState } from "react";
@@ -107,6 +109,113 @@ type TableShows =
     | { readonly kind: "fields"; readonly card: string }
     | { readonly kind: "rows"; readonly step: number; readonly bucket: string }
     | { readonly kind: "cells"; readonly step: number; readonly column: string; readonly only: CellFilter };
+
+/**
+ * The cards the workspace opens with: one for every source that waits, so each one's guess shows; with
+ * nothing waiting and no join yet, the newest source's, whose own rows can still be split into nodes or
+ * linked; or the one card it was opened for.
+ * @param session - the element's session
+ * @param draft - the open draft
+ * @param how - how it opened
+ * @param fresh - whether the draft was just opened and holds no join
+ * @returns the cards, the open one last
+ */
+function firstCards(
+    session: GraphSession,
+    draft: SourceDraft,
+    how: JoinWorkspaceOpen,
+    fresh: boolean,
+): readonly PendingCard[] {
+    if (how.remove !== undefined) {
+        return [];
+    }
+    const used = new Set(draft.steps().map((step) => step.source));
+    const staged = session.data
+        .staged()
+        .filter((each) => !used.has(each.key))
+        .map((each) => each.key);
+    const newest = fresh ? session.data.sources().at(-1)?.key : undefined;
+    const waiting = staged.length === 0 && newest !== undefined ? [newest] : staged;
+    const into = how.into === undefined ? null : { space: how.into };
+    const sources = how.source !== undefined || into !== null ? [how.source ?? waiting.at(-1)] : waiting;
+    return sources.map((source, at) =>
+        newCard(draft, at === sources.length - 1 ? "new:0" : `${WAITING}${String(at)}`, source, into),
+    );
+}
+
+/**
+ * How many elements a commit changes.
+ * @param marks - the preview's marks
+ * @returns the count
+ */
+function changesOf(marks: SourceDraftMarkCounts): number {
+    const { nodes, edges } = marks;
+    return nodes.merged + nodes.new + nodes.removed + edges.merged + edges.new + edges.removed;
+}
+
+/** One item of the header's key. */
+interface KeyItem {
+    readonly id: string;
+    readonly color: string;
+    readonly label: string;
+    readonly count: number;
+}
+
+/**
+ * The header's key.
+ * @param marks - the preview's marks
+ * @param colors - whether each card has a color
+ * @param changes - how many elements the commit changes
+ * @returns the items
+ */
+function keyOf(marks: SourceDraftMarkCounts, colors: boolean, changes: number): readonly KeyItem[] {
+    // The key names each effect by the mark the preview draws for it (a ring, a dashed border, a
+    // dotted border), in the color it takes outside a card's own color.
+    // While each card has a color, an element is drawn in its card's: the key names the marks alone.
+    const markColor = (color: string): string => (colors ? "inherit" : color);
+    return [
+        { id: "merged", color: markColor(MERGED_COLOR), label: WORKSPACE_WORDS.nodesMerged, count: marks.nodes.merged },
+        { id: "new", color: markColor(NEW_COLOR), label: WORKSPACE_WORDS.nodesNew, count: marks.nodes.new },
+        { id: "edges", color: markColor(NEW_COLOR), label: WORKSPACE_WORDS.edgesNew, count: marks.edges.new },
+        ...(marks.edges.merged === 0
+            ? []
+            : [
+                  {
+                      id: "edges-merged",
+                      color: markColor(MERGED_COLOR),
+                      label: WORKSPACE_WORDS.edgesMerged,
+                      count: marks.edges.merged,
+                  },
+              ]),
+        // With nothing the commit does, nothing is untouched by it.
+        ...(changes === 0
+            ? []
+            : [
+                  {
+                      id: "untouched",
+                      color: UNTOUCHED_COLOR,
+                      label: WORKSPACE_WORDS.untouched,
+                      count: marks.nodes.untouched,
+                  },
+              ]),
+        ...(
+            [
+                ["nodes-removed", WORKSPACE_WORDS.nodesRemoved, marks.nodes.removed],
+                ["edges-removed", WORKSPACE_WORDS.edgesRemoved, marks.edges.removed],
+            ] as const
+        ).flatMap(([id, label, count]) => (count === 0 ? [] : [{ id, color: "inherit", label, count }])),
+    ];
+}
+
+/**
+ * The steps that add a source on its own, and those a join made that ask a question.
+ * @param draft - the open draft
+ * @param asked - the sources a question is asked of
+ * @returns the steps
+ */
+function ownAdds(draft: SourceDraft, asked: ReadonlySet<string>): SourceStepRow[] {
+    return draft.steps().filter((step) => step.op === "join.add" && (step.joined !== true || asked.has(step.source)));
+}
 
 /**
  * Whether a card the workspace opened with for a source that waits is done with: another card has joined
@@ -561,25 +670,7 @@ function JoinWorkspace({
                 opening.removeSource(how.remove);
             }
             const made = cardsOf(opening, []);
-            const used = new Set(opening.steps().map((step) => step.source));
-            // A card for every source that waits, so each one's guess shows.
-            const staged = session.data
-                .staged()
-                .filter((each) => !used.has(each.key))
-                .map((each) => each.key);
-            // With nothing staged and no join yet, the newest source's own rows can still be split
-            // into nodes or linked.
-            const newest = adopted === null && made.length === 0 ? session.data.sources().at(-1)?.key : undefined;
-            const into = how.into === undefined ? null : { space: how.into };
-            const waiting = staged.length === 0 && newest !== undefined ? [newest] : staged;
-            const one: (string | undefined)[] =
-                how.source !== undefined || into !== null ? [how.source ?? waiting.at(-1)] : waiting;
-            const first =
-                how.remove === undefined
-                    ? one.map((source, at) =>
-                          newCard(opening, at === one.length - 1 ? "new:0" : `${WAITING}${String(at)}`, source, into),
-                      )
-                    : [];
+            const first = firstCards(session, opening, how, adopted === null && made.length === 0);
             setPending(first);
             setOpen((first.at(-1) ?? made.at(-1))?.id ?? null);
             setOpened({ draft: opening });
@@ -681,9 +772,7 @@ function JoinWorkspace({
     // The steps that add a staged source as it is: a card each, read-only but for its questions.
     // A join step that adds its own staged source shows on its own card, not as an Add card too.
     const asked = new Set(live ? draft.preview().questions.map((question) => question.params.source) : []);
-    const addSteps = live
-        ? draft.steps().filter((step) => step.op === "join.add" && (step.joined !== true || asked.has(step.source)))
-        : [];
+    const addSteps = live ? ownAdds(draft, asked) : [];
     // Cards never take the key's colors, so a color names either a card or what the commit does.
     const palette = (session.scope.options.branchPalette ?? cardPalette(session.catalog.palettes())).filter(
         (color) => !KEY_COLORS.has(color.toUpperCase()),
@@ -948,49 +1037,8 @@ function JoinWorkspace({
 
     const { marks, sources: draftSources } = draft.preview();
     const removed = draftSources.filter((each) => each.state === "removed");
-    const changes =
-        marks.nodes.merged +
-        marks.nodes.new +
-        marks.nodes.removed +
-        marks.edges.merged +
-        marks.edges.new +
-        marks.edges.removed;
-    // The key names each effect by the mark the preview draws for it (a ring, a dashed border, a
-    // dotted border), in the color it takes outside a card's own color.
-    // While each card has a color, an element is drawn in its card's: the key names the marks alone.
-    const markColor = (color: string): string => (colors ? "inherit" : color);
-    const keyItems = [
-        { id: "merged", color: markColor(MERGED_COLOR), label: WORKSPACE_WORDS.nodesMerged, count: marks.nodes.merged },
-        { id: "new", color: markColor(NEW_COLOR), label: WORKSPACE_WORDS.nodesNew, count: marks.nodes.new },
-        { id: "edges", color: markColor(NEW_COLOR), label: WORKSPACE_WORDS.edgesNew, count: marks.edges.new },
-        ...(marks.edges.merged === 0
-            ? []
-            : [
-                  {
-                      id: "edges-merged",
-                      color: markColor(MERGED_COLOR),
-                      label: WORKSPACE_WORDS.edgesMerged,
-                      count: marks.edges.merged,
-                  },
-              ]),
-        // With nothing the commit does, nothing is untouched by it.
-        ...(changes === 0
-            ? []
-            : [
-                  {
-                      id: "untouched",
-                      color: UNTOUCHED_COLOR,
-                      label: WORKSPACE_WORDS.untouched,
-                      count: marks.nodes.untouched,
-                  },
-              ]),
-        ...(
-            [
-                ["nodes-removed", WORKSPACE_WORDS.nodesRemoved, marks.nodes.removed],
-                ["edges-removed", WORKSPACE_WORDS.edgesRemoved, marks.edges.removed],
-            ] as const
-        ).flatMap(([id, label, count]) => (count === 0 ? [] : [{ id, color: "inherit", label, count }])),
-    ];
+    const changes = changesOf(marks);
+    const keyItems = keyOf(marks, colors, changes);
     const items: CardListItem[] = cards.map((shown, at) => {
         const waitingTo = pendingTo[shown.id];
         const card: JoinCardView =

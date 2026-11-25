@@ -165,12 +165,21 @@ describe("one node acted on in a 10,000-node connected batched graph builds that
         assert.isAtMost(built(element), FEW, "the click");
     });
 
-    // the hovered node's edges are found from the store's incidence lists: filing every built Edge under its ends on
-    // the first hover took half a second on a 100,000-node graph with a million arrowed edges (issue #10028)
+    // the hovered node's edges are found from the store's incidence lists: a restyle that turns every edge into an
+    // `Edge` (an arrow tail) files none of them by end, and the first hover then filed them all, which took half a
+    // second on a 100,000-node graph with a million edges (issue #10028)
     it.each(["batched", "objects"] as const)(
-        "a first real hover looks at the hovered node's edges only (%s)",
+        "a first real hover after a restyle looks at the hovered node's edges only (%s)",
         async (path) => {
             const element = await mounted(true, undefined, undefined, COUNT, "2d", path);
+            await element.session.styles.add({
+                name: "tails",
+                target: "edge",
+                selector: { match: "everything" },
+                set: { "edge.arrowTail": "normal" },
+            });
+            await drawn(element);
+            assert.equal(element.rowCounts.objectEdges, COUNT - 1, "every edge is an Edge");
             const before = walked(element);
             const middle = middleOf(COUNT);
             const at = element.nodeScreenPosition(middle);

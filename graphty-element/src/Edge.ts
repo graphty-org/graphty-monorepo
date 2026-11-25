@@ -3552,7 +3552,6 @@ export class Edge {
             route: this.routeOf(style),
             lean: this.context.leansLines?.() ?? false,
             straightInCurve: EdgeMesh.drawsNoCap(style.arrowHead) && this.endsOpaque(rows),
-            held: this.pulled?.batch,
         });
     }
 

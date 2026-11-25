@@ -846,21 +846,25 @@ route table, only once that change is made. With that, every curve kind without 
 fanned curves, `fanSpacing`, `arcRadius`, gaps, raised and great-circle routes, the layout's routes, self-loop
 teardrops, support points and bends. The stage's 40 ms target stays missed by about 6 ms (ninth pull request).
 
-As built (issue #9201): a straight pulled line and a curve of one width and pass draw from one batch, in the order
-their pieces were taken, as the object path's one line batch draws them. Before, the straight batch and the curve
-batch drew one after the other, so where a curve crossed a straight line in one plane the curve's batch was on top
-whatever the rows' order. Once a curve batch exists, `EdgeMesh.pulledBatch` hands a straight line of its width and pass
-that batch (`straightInCurve`), and the line is drawn there with a one-piece straight span (`pulledCurve.STRAIGHT_SPAN`,
-`PulledLineBatch.drawStraight`): a flat raised arc between the two centers, which no move rewrites. A straight batch made
-before the curve batch holds only lines taken before every curve, and draws first; a line already in it keeps it when
-restyled (`held`), taking back the piece it gave up, as the object path keeps a restyled line's slot. Left in their own batches: a line
-with a head, a patterned, animated or lean one, and one with an end it is seen through, which the straight program
-stops at the outline. A row that turns seen through or opaque counts in `RowTable.roundWrites`, so a straight line in
+As built (issue #9201): when a curve is drawn before any straight pulled line of its batch key (minimum screen width
+and pass, and in 2D the width), the straight lines draw from the curve's batch, so curves and straight lines draw in
+the order their pieces were taken, as the object path's one line batch draws them. Before, the straight batch and the
+curve batch drew one after the other, so where a curve crossed a straight line in one plane the curve's batch was on
+top whatever the rows' order. `EdgeMesh.pulledBatch` hands such a line the curve batch (`straightInCurve`) only while no
+straight batch of its key exists, and the line is drawn there with a one-piece straight span
+(`pulledCurve.STRAIGHT_SPAN`, `PulledLineBatch.drawStraight`): a flat raised arc between the two centers, which no move
+rewrites. Once a straight batch exists every straight line goes there, as before: a straight batch made before the curve
+batch draws first and holds lines taken before every curve, and straight lines are never split between two batches,
+whose widths and `drawOrder`s are each ranked only among their own pieces. Ceiling: a straight batch made after the curve
+batch (for a line with a head or a seen-through end) takes every later straight line, ranked apart from those already in
+the curve batch. Left in the straight batch: a line with a head, a patterned, animated or lean one, and one with an end
+it is seen through, which the straight program stops at the outline. A row that turns seen through or opaque counts in `RowTable.roundWrites`, so a straight line in
 a curve batch whose end turned seen through is painted again and takes the straight batch
-(`EdgeRowLines.rowsOffEnds`, `Edge.redrawPulledOffEnds`); such a line again draws under every curve of its width.
-`test/browser/curve-crossing-draw-order.test.ts` holds both orders, a partly curved bundle and a node turned
-translucent after its lines were drawn at 0 pixels against `"objects"`. Not fixed here: in the 2D view a curve is not pulled, and `"objects"` draws it over a crossing straight
-line in either order, where `"batched"` draws the straight line over it.
+(`EdgeRowLines.rowsOffEnds`, `Edge.redrawPulledOffEnds`); its order against the curves is then the two batches'.
+`test/browser/curve-crossing-draw-order.test.ts` holds both orders, a partly curved bundle, mixed widths and draw
+orders, a restyle and a node turned translucent after its lines were drawn at 0 pixels against `"objects"`. Not fixed
+here: in the 2D view a curve is not pulled, and `"objects"` draws it over a crossing straight line in either order,
+where `"batched"` draws the straight line over it.
 
 Correction from stage 22 (code read at origin/master 8593e8751a): the row's "fragment scroll" cannot ride the join shader.
 A straight animated line (`line.animationSpeed`, 3D only: in 2D `EdgeMesh` draws it flat and unanimated before it asks)

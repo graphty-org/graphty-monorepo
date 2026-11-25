@@ -47,11 +47,19 @@ const MIXED = [
     { src: "e", dst: "f" },
 ];
 
-async function crossing(
-    path: Path,
-    dim: Dim,
-    edges: readonly { id?: string; src: string; dst: string; hot?: boolean; plain?: boolean }[],
-): Promise<Graphty> {
+/** An edge: `hot` curves it, `wide` widens it, `top` and `low` give it `edge.drawOrder` 10 and 1. */
+type Row = {
+    id?: string;
+    src: string;
+    dst: string;
+    hot?: boolean;
+    plain?: boolean;
+    wide?: boolean;
+    top?: boolean;
+    low?: boolean;
+};
+
+async function crossing(path: Path, dim: Dim, edges: readonly Row[]): Promise<Graphty> {
     const element = document.createElement("graphty-element");
     element.renderer = "webgl";
     element.renderPath = path;
@@ -74,6 +82,18 @@ async function crossing(
         selector: { match: "has", path: "data.hot" },
         set: { "edge.color": "#ff0000", "edge.curvature": true },
     } as never);
+    for (const [field, set] of [
+        ["wide", { "edge.width": 1.2 }],
+        ["top", { "edge.drawOrder": 10 }],
+        ["low", { "edge.drawOrder": 1 }],
+    ] as const) {
+        await element.session.styles.add({
+            name: field,
+            target: "edge",
+            selector: { match: "has", path: `data.${field}` },
+            set,
+        } as never);
+    }
     await element.session.data.addNodes(NODES);
     await element.session.data.addEdges([...edges]);
     await operationQueueOf(element.graph).waitForCompletion();
@@ -100,6 +120,51 @@ describe("a curved and a straight edge that cross draw in row order on batched (
             const want = await readCanvas((await crossing("objects", dim, MIXED)).graph);
             document.body.replaceChildren();
             const got = await readCanvas((await crossing("batched", dim, MIXED)).graph);
+            assertSameFrame(want, got, "batched against objects");
+        });
+    }
+
+    // straight lines of several widths and draw orders keep the object path's order beside a curve
+    const STACKED: Record<string, readonly Row[]> = {
+        "widths, straight first": [
+            { src: "a", dst: "d", wide: true },
+            { src: "c", dst: "a" },
+            { src: "a", dst: "b", hot: true },
+            { src: "c", dst: "b" },
+            { src: "e", dst: "f", wide: true },
+        ],
+        "a straight line under a wider curve": [
+            { src: "a", dst: "d" },
+            { src: "e", dst: "f", hot: true, wide: true },
+            { src: "c", dst: "b" },
+        ],
+        "widths, curve first": [
+            { src: "e", dst: "f", hot: true },
+            { src: "a", dst: "d", wide: true },
+            { src: "c", dst: "b" },
+            { src: "a", dst: "b", wide: true },
+        ],
+        "draw orders, straight first": [
+            { src: "a", dst: "d", top: true },
+            { src: "e", dst: "f", hot: true },
+            { src: "c", dst: "b", low: true },
+        ],
+        "no draw order over one, straight first": [
+            { src: "a", dst: "d" },
+            { src: "e", dst: "f", hot: true },
+            { src: "c", dst: "b", low: true },
+        ],
+        "draw orders, curve first": [
+            { src: "e", dst: "f", hot: true, low: true },
+            { src: "a", dst: "d", top: true },
+            { src: "c", dst: "b", low: true },
+        ],
+    };
+    for (const [name, edges] of Object.entries(STACKED)) {
+        it(`${name}: 0 pixels against objects`, async () => {
+            const want = await readCanvas((await crossing("objects", 3, edges)).graph);
+            document.body.replaceChildren();
+            const got = await readCanvas((await crossing("batched", 3, edges)).graph);
             assertSameFrame(want, got, "batched against objects");
         });
     }

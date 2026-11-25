@@ -748,9 +748,7 @@ export class EdgeMesh {
      *     ({@link PulledLineBatch.drawStraight}): a line with no head, between two ends it is not seen through. Once
      *     that batch exists such a line is drawn from it, so straight lines and curves of one width draw in the order
      *     their pieces were taken, as the object path's one line batch draws them, not one batch over the other
-     *     (#9201). A straight batch made before it holds only lines taken before every curve, and draws first.
-     * @param edge.held - The batch the line is drawn from now: a straight line already in the straight batch keeps it,
-     *     so a restyle takes back the piece it gave up, under every curve, as the object path's slot is kept.
+     *     (#9201), but only while no straight batch of that width and pass exists ({@link EdgeMesh.curveBatchFor}).
      * @returns The batch.
      */
     static pulledBatch(
@@ -764,10 +762,9 @@ export class EdgeMesh {
             route?: NonNullable<EdgeStyleConfig["line"]>["route"];
             lean?: LeanLines;
             straightInCurve?: boolean;
-            held?: PulledLineBatch;
         } = {},
     ): PulledLineBatch {
-        const { loop = false, route = style.line?.route, lean = false, straightInCurve = false, held } = edge;
+        const { loop = false, route = style.line?.route, lean = false, straightInCurve = false } = edge;
         // a patterned line is a straight line (`Edge.pullsLine`, `EdgeRowLines.drawsStyle`), never lean: the lean
         // program draws no pattern
         const pattern = this.pulledPattern(style, options.width) ?? undefined;
@@ -802,8 +799,7 @@ export class EdgeMesh {
         // draws (`pulledLineSortsWith`)
         const width = flat ? `|w${String(options.width)}` : "";
         const key = `edge-pulled|${String(style.line?.minScreenWidth ?? 0)}${width}|${pass}${suffix}${flat ? "|2d" : ""}${patterned}`;
-        const curves =
-            straightInCurve && kind === true ? this.curveBatchFor(cache, key, pass, pattern, held) : undefined;
+        const curves = straightInCurve && kind === true ? this.curveBatchFor(cache, key, pass, pattern) : undefined;
         if (curves !== undefined) {
             return curves;
         }
@@ -828,13 +824,13 @@ export class EdgeMesh {
 
     /**
      * The curve batch of a plain straight line's width and pass, when one exists ({@link EdgeMesh.pulledBatch}'s
-     * `straightInCurve`): a patterned line keeps its own batch, and so does a line already drawn from the straight
-     * batch (`held`).
+     * `straightInCurve`), only while no straight batch of that key exists: once one does, every straight line goes
+     * there, so straight lines are never split between two batches, whose widths and `drawOrder`s are each ranked
+     * only among their own pieces. A patterned line keeps its own batch.
      * @param cache - The cache that keeps the batches.
      * @param key - The straight line's batch key.
      * @param pass - Its pass.
      * @param pattern - Its pattern, if any.
-     * @param held - The batch the line is drawn from now, if any.
      * @returns The curve batch, or undefined.
      */
     private static curveBatchFor(
@@ -842,9 +838,10 @@ export class EdgeMesh {
         key: string,
         pass: string,
         pattern: JoinedLineOptions["pattern"] | undefined,
-        held: PulledLineBatch | undefined,
     ): PulledLineBatch | undefined {
-        if (pattern !== undefined || (held !== undefined && held === cache.pulledBatchMap.get(key))) {
+        // ponytail: a straight batch made after the curve batch (for a line with a head, or a seen-through end) takes
+        // every later straight line, so lines taken before it stay in the curve batch, ranked apart from those after
+        if (pattern !== undefined || cache.pulledBatchMap.has(key)) {
             return undefined;
         }
 

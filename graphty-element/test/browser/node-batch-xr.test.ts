@@ -94,6 +94,10 @@ async function rowsInFrontOfTheHeadset(edges: Edges = "no edges", path?: "object
     // which would place them by the edges' lengths.
     await element.graph.setLayout("fixed", { dim: 3, spacing: 0 });
     await operationQueueOf(element.graph).waitForCompletion();
+    // The headset starts where the camera stands, so enter once the camera has framed the rows:
+    // the framing lands on a later frame, and entering before it started from the unframed camera
+    // on some loads and not others.
+    await element.graph.waitForStableFrame();
     await element.setViewMode("vr");
     await drawnFrames(element.graph.getScene(), 10);
     assert.equal(element.graph.getScene().activeCamera?.rigCameras.length, 2, "two eyes are drawing");

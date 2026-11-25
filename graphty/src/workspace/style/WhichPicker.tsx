@@ -481,7 +481,9 @@ export function WhichPicker({
                     buttonRef={rowButton}
                     regionId={regionId}
                     line={
-                        summary === undefined
+                        // A card some layers hold and others do not is no rule of them all: each
+                        // chip says which layers hold it ("name by layer, 1 of 2 layers").
+                        summary === undefined || shown.some((each) => !each.shared)
                             ? undefined
                             : summary(
                                   session,

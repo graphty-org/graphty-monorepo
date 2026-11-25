@@ -260,6 +260,18 @@ describe("keepGroupNumbers", () => {
         ]);
     });
 
+    it("numbers groups no old group matches after every old number, in the order the run gave them", () => {
+        const before = partition({ a: 0, b: 0, c: 1 });
+        const after = partition({ a: 4, b: 4, c: 3, x: 9, y: 9, z: 7 });
+        const kept = keepGroupNumbers(before, after, new Set(["group"]), caveats);
+        assert.deepEqual(
+            ["a", "c", "z", "x"].map((id) => kept.result.node(id)?.group),
+            [0, 1, 2, 3],
+            "old groups keep their numbers; the new ones follow, 7 before 9",
+        );
+        assert.deepEqual(kept.caveats.facts, [], "a group of new nodes neither split nor merged");
+    });
+
     it("leaves a first run, and a field that is not unstable, as they are", () => {
         const after = partition({ a: 3 });
         assert.strictEqual(keepGroupNumbers(undefined, after, new Set(["group"]), caveats).result, after);

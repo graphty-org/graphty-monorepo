@@ -516,6 +516,35 @@ away, where the pass starts at the center. So the pass beats the CPU path at a m
 nearer the exact ray, which also means that on large coordinates it can differ from the `"objects"` path, which casts the
 CPU's ray, by that path's own error (5e-3 world units here, far below a pixel at the harness's zoom).
 
+As built (issue #9467, on by default on `"batched"`): a straight line's head is drawn from the row table
+(`meshes/pulledHead.ts`) for a row line (`EdgeRowLines`) and for an `Edge`'s pulled line, so a directed graph's default
+look and an arrowhead restyle leave no object edge; the line stops at the head's back in the join shader
+(`pulledCapTrim`). Only a billboarded head of one material, with no words, gap, stack or position, between two round
+rows drawn in a node batch. In 2D the same batch shader lies the head flat in the graph's plane, turned only about Z
+(`CAP_FLAT`, a batch keyed `|flat`), as `ArrowCap.place2D` turns a 2D cap's mesh, at the 2D cap's full size (a scale
+factor of 1). A translucent 2D head stays an object edge's: the objects path's 2D cap takes its opacity twice, on its
+material and on its mesh's visibility, which a pulled head does not copy. A pulled head is a slot of the same `ArrowCapBatch` an object edge's cap of its shape takes
+(`ArrowCapBatch.setPulled`, `CAP_PULLED`, keyed `|pulled` on a scene drawn `"batched"`, `pulledCapHosts`), so placed and
+pulled caps draw in the order their slots were taken, as `"objects"` draws them. The "one sample at the tip" recorded
+for stage 17 was not float32: the old separate batch had no `arrowClip` buffer, and an unbound attribute reads 0, which
+clipped every pulled cap at its tip. A batch that pulls caps hands out its lowest free slot, so caps keep their edges'
+order through a restyle. A pulled cap adds one vertex buffer to the cap batch (`capPull`: its rows, its stand-back
+and its length), since WebGPU draws from at most eight and a billboarded cap reads seven; with a ninth, WebGPU drew an
+empty frame with no error. The line under a head and the head itself are trimmed in their shaders by the round-ends
+arithmetic written out (`pulledCapTrim`), not through `edgeTrimEnds`, whose struct-returning call also left WebGPU's
+frame empty. Once the rows rest (no `RowTable.drawnWrites` for a frame and a settled layout), the CPU
+places each pulled head and the ends of every capped or patterned pulled line by the object path's own float64
+arithmetic (`meshes/restPlacement.ts`; heads into the slot's matrix, line ends and pattern spacing into
+`PulledLineBatch`'s `edgeEnds` table), so a still graph draws the objects picture to the pixel; a frame that moves a row
+hands both back to the shader. `drawnWrites` counts only a write that changes a value: a layout transition held at its
+pose writes every row again each frame with the value it holds, and those rows rest. A row held off its lane (a
+transition's pose) is placed from its node's own float64 place (`RowTable.restingPlaceOf`), which `rowPosition` keeps
+only to 32 bits; a lane row's place is float32 on both paths. In 2D the objects path draws its caps in one batch per
+color, the later color on top where two heads meet, so 2D pulled heads are batched by color too, up to 64 colors.
+Dash, dot, box, diamond and star lines and dash arrays are pulled too: a patterned pulled
+batch draws the joined line's pattern with world width, and the shader runs `patternSpacing` for its own length
+(`pulledSpacing`), in 3D and in 2D.
+
 Correction from stage 20: the section 7 pixel bar cannot be run on the pass yet, so it is not adopted. No shader reads a
 trimmed end on master: a pulled line has no cap and no gap (`Edge.pullsLine`), so it runs center to center and needs no
 reach, and the trim include is still read only by its CPU mirror. The two floats per pulled edge first have a reader in a
@@ -536,7 +565,7 @@ Correction: the plan cached the two floats at rest for a shader to read; nothing
 measured end is placed straight into the cap and line, and keeping the floats waits for their reader. An end that
 moves while another drag rests is measured with the rest of the set: one quiet stretch of passes measures them all.
 
-As built (stage 17, dark): `PulledCapBatch` (`meshes/PulledCapBatch.ts`) draws 3D billboarded caps with `CAP_PULLED` in
+Superseded by issue #9467 (above): `PulledCapBatch` is gone, its caps are `ArrowCapBatch` slots. As built (stage 17, dark): `PulledCapBatch` (`meshes/PulledCapBatch.ts`) drew 3D billboarded caps with `CAP_PULLED` in
 the cap shader (`FilledArrowRenderer.applyPulledShader`): a cap is its two rows, head end last (a tail is the head of its edge
 turned round), its gaps and how far its center sits behind its tip, and the shader stands it where `Edge.placeArrowHead` would
 over `EDGE_TRIM_GLSL`'s ends, reading `rowExtent` for scale, round radius and border. Where the ends meet nothing (overlapping
@@ -1796,11 +1825,10 @@ Labels
 
 **Optional, for the owner after stage 38; none blocks a stage:**
 
-| Change                                                         | Why it cannot be additive                                                                                                                                                                                                            | Without it                      |
-| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------- |
-| Default `renderPath` to `"batched"`                            | `scene.meshes`, per-node action managers and Babylon move picks change for a consumer who set nothing                                                                                                                                | A consumer sets one attribute   |
-| Default `renderCeiling` to 1,000,000, `edgesDrawn` as measured | It changes what today refuses                                                                                                                                                                                                        | A consumer sets `limits`        |
-| Turn pulled caps on (`pulledCapsOn`, stage 17)                 | A pulled cap places in float32 on the GPU and differs from the placed cap by one anti-aliasing sample at a cap's tip (3 pixels in 30 caps; [picture](pulled-caps-one-sample.png): circled, then placed and pulled side by side, 16x) | Caps stay objects on every path |
+| Change                                                         | Why it cannot be additive                                                                             | Without it                    |
+| -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ----------------------------- |
+| Default `renderPath` to `"batched"`                            | `scene.meshes`, per-node action managers and Babylon move picks change for a consumer who set nothing | A consumer sets one attribute |
+| Default `renderCeiling` to 1,000,000, `edgesDrawn` as measured | It changes what today refuses                                                                         | A consumer sets `limits`      |
 
 ## 11. Alternatives rejected
 

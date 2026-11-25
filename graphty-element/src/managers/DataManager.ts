@@ -203,9 +203,14 @@ function setAsideAndDispose<T>(nodes: Iterable<Node>, edges: Iterable<Edge>, tea
 
     const meshes = scene.meshes.splice(0);
     const owned = actionManagers.splice(0);
+    // Each dispose also frees the rendering groups, a visit to every texture (one per label): setting the
+    // block frees them once, and nothing is drawn until it lifts (issue #10018).
+    const blocked = scene.blockfreeActiveMeshesAndRenderingGroups;
+    scene.blockfreeActiveMeshesAndRenderingGroups = true;
     try {
         return teardown();
     } finally {
+        scene.blockfreeActiveMeshesAndRenderingGroups = blocked;
         restore(scene.meshes, meshes, (mesh) => !mesh.isDisposed());
         restore(actionManagers, owned, () => true);
         for (const [parent, children, kept] of families) {

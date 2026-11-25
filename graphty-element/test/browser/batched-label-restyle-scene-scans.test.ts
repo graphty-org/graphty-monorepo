@@ -11,6 +11,8 @@
  *
  * The work is counted, not timed: the textures `freeRenderingGroups` visits and the meshes `removeMesh` searches
  * over the whole restyle, per labeled row. It must not grow with the number of rows labeled.
+ *
+ * Removing many labeled nodes at once took the same walk: each node mesh's dispose visited every label's texture.
  */
 
 import "../../src/graphty-element";
@@ -33,11 +35,12 @@ afterEach(() => {
 });
 
 /**
- * A batched graph of n nodes, every row drawn with no `Node`.
+ * A graph of n nodes on a render path; on "batched" every row is drawn with no `Node`.
  * @param n - How many nodes.
+ * @param path - The render path.
  * @returns The element.
  */
-async function mounted(n: number): Promise<Graphty> {
+async function mounted(n: number, path: "batched" | "objects" = "batched"): Promise<Graphty> {
     const element = document.createElement("graphty-element");
     element.style.display = "block";
     element.style.width = "400px";
@@ -48,7 +51,7 @@ async function mounted(n: number): Promise<Graphty> {
     });
     await element.updateComplete;
     await operationQueueOf(element.graph).waitForCompletion();
-    element.graph.setRenderPath("batched");
+    element.graph.setRenderPath(path);
     await element.graph.setLayout("random", { dim: 3, seed: 7 });
     await element.session.data.addNodes(Array.from({ length: n }, (_, id) => ({ id })));
     await element.waitForSettled();
@@ -65,11 +68,27 @@ interface Scans {
 }
 
 /**
- * Label every node and count the scene walks until the labels are drawn.
+ * Label every node and wait until the labels are drawn.
  * @param element - The element.
+ */
+async function label(element: Graphty): Promise<void> {
+    await element.session.styles.add({
+        name: "labels",
+        target: "node",
+        selector: { match: "everything" },
+        encode: { "node.label": { by: "data.id", scale: "passthrough" } },
+    } as never);
+    await element.waitForSettled();
+    await element.waitForStableFrame();
+}
+
+/**
+ * Count the scene walks an action makes.
+ * @param element - The element.
+ * @param action - The action.
  * @returns The walks.
  */
-async function labelAndCount(element: Graphty): Promise<Scans> {
+async function counted(element: Graphty, action: () => Promise<void>): Promise<Scans> {
     const { scene } = element.graph;
     const scans: Scans = { textures: 0, meshes: 0 };
     const free = scene.freeRenderingGroups.bind(scene);
@@ -86,14 +105,7 @@ async function labelAndCount(element: Graphty): Promise<Scans> {
         return remove(...args);
     };
     try {
-        await element.session.styles.add({
-            name: "labels",
-            target: "node",
-            selector: { match: "everything" },
-            encode: { "node.label": { by: "data.id", scale: "passthrough" } },
-        } as never);
-        await element.waitForSettled();
-        await element.waitForStableFrame();
+        await action();
     } finally {
         delete (scene as { freeRenderingGroups?: unknown }).freeRenderingGroups;
         delete (scene as { removeMesh?: unknown }).removeMesh;
@@ -111,7 +123,7 @@ async function perRow(n: number): Promise<Scans> {
     const element = await mounted(n);
     const manager = element.graph.getDataManager();
     assert.strictEqual(dataManagerInternals.nodesBuilt(manager), 0, "every row is drawn with no Node");
-    const scans = await labelAndCount(element);
+    const scans = await counted(element, () => label(element));
     // the picture: every row labeled, and still drawn by its batch
     assert.strictEqual(element.rowCounts.batchedNodes, n, "every node is still on a batch");
     const nodes = element.graph.getNodes();
@@ -144,5 +156,22 @@ describe("a label restyle on batched rows", () => {
             assert.isAtMost(scans.textures, PER_ROW, `textures visited per row at ${String(rows)}. ${said}`);
             assert.isAtMost(scans.meshes, PER_ROW, `meshes searched per row at ${String(rows)}. ${said}`);
         }
+    });
+});
+
+describe("removing many labeled nodes at once", () => {
+    it("walks the label textures a few times in all, not once per node", async () => {
+        const n = 1000;
+        const element = await mounted(n, "objects");
+        await label(element);
+        assert.strictEqual(element.graph.scene.textures.length >= n, true, "every label has a texture");
+        const scans = await counted(element, async () => {
+            await element.session.data.removeNodes(Array.from({ length: n }, (_, id) => id));
+            await element.waitForSettled();
+            await element.waitForStableFrame();
+        });
+        // the picture: every node is gone
+        assert.strictEqual(element.graph.getNodes().length, 0, "every node is removed");
+        assert.isAtMost(scans.textures / n, PER_ROW, `textures visited per removed node: ${JSON.stringify(scans)}`);
     });
 });

@@ -25,7 +25,7 @@ interface MissSink {
  * @param field - the store field.
  * @param id - the id it held.
  */
-export function restoreMiss(field: string, id: string): void {
+function restoreMiss(field: string, id: string): void {
     logger.warn(`[graphty.restore] kept ${field} gone`, { field, id });
     (globalThis as MissSink).__GRAPHTY_RESTORE_MISSES__?.push(`${field}: ${id}`);
 }

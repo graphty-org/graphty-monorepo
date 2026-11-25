@@ -51,8 +51,13 @@ describe.each<ReloadOptions>([{ lostSession: false }, { lostSession: true }, { r
             await userEvent.type(name, "test{Enter}");
             await picked("test");
             await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
+            // Open, not still opening: the header says "Drawing" until the opening is done, and only
+            // then does the workspace name itself as open, which is what a reload keeps. A reload in
+            // that first frame or two reopens without it.
             await waitFor(() => {
-                assert.include(document.querySelector(".sel-ws .sel-ws-head")?.textContent ?? "", "test");
+                const head = document.querySelector(".sel-ws .sel-ws-head");
+                assert.include(head?.textContent ?? "", "test");
+                assert.isNull(head?.querySelector("[data-drawing]") ?? null, "the workspace is still opening");
             });
 
             // Gap #9982: a remount reopens the work and the picked layer, but not the open workspace.

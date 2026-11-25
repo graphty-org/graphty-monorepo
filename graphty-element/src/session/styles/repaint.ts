@@ -230,7 +230,7 @@ export interface ElementPaint {
     styleOf(target: SelectorTarget, index: number): ResolvedStyle;
     /**
      * Whether one element's words in a text channel are drawn as plain text, every character as
-     * written, never as label markup: true where they came from a `graphty.notes.*` binding
+     * written, never as label markup: true where they came from a `store.graphty.notes.*` binding
      * (design/notes 6.3).
      * @param target - Whether it is a node or an edge.
      * @param index - Its dense index.
@@ -554,7 +554,7 @@ type ChannelColumn =
           readonly kind: "ref";
           values: unknown[];
           /**
-           * For a text channel, 1 where the words came from a `graphty.notes.*` binding and are
+           * For a text channel, 1 where the words came from a `store.graphty.notes.*` binding and are
            * drawn as plain text, never as label markup (design/notes 6.3); null for any other
            * channel.
            */

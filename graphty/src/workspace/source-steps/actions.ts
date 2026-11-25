@@ -4,14 +4,20 @@
  * graphty-element's session: a draft for Add, `data.setMapping` and `data.removeSource` for the rest.
  */
 
-import type { GraphSession, LoadedSource, SourceKey, SourceMappingPatch } from "@graphty/graphty-element/session";
+import type {
+    GraphSession,
+    LoadedSource,
+    SourceDraft,
+    SourceKey,
+    SourceMappingPatch,
+} from "@graphty/graphty-element/session";
 
 import { sourceName } from "../data-place/words";
 import { showUndoNotice } from "../frame/undoNotice";
 import type { WorkspaceState, WorkspaceStore } from "../state/store";
 import { askIfDraftOpen } from "./preview";
 import { stepCardSource } from "./steps";
-import { committedWords, refusedWords, removedWords, STAGED_WORDS } from "./words";
+import { committedWords, refusedWords, removedWords, STAGED_WORDS, WORKSPACE_WORDS } from "./words";
 
 /**
  * The staged sources, oldest first.
@@ -191,4 +197,31 @@ export async function removeStaged(workspace: WorkspaceStore, session: GraphSess
             workspace.set({ notice: { message: STAGED_WORDS.notRemoved } });
         }
     });
+}
+
+/**
+ * Done in the join workspace (issue #9796): commit the open draft, every card as one undo step,
+ * then offer to undo it.
+ * @param workspace - The workspace store.
+ * @param session - The element's session.
+ * @param draft - The workspace's draft.
+ * @returns True once committed; false when the commit was refused, which leaves the draft open.
+ */
+export async function commitWorkspace(
+    workspace: WorkspaceStore,
+    session: GraphSession,
+    draft: SourceDraft,
+): Promise<boolean> {
+    const before = undoTarget(session);
+    try {
+        await draft.commit();
+    } catch (error) {
+        workspace.set({ notice: { message: refusedWords(error), error: true } });
+        return false;
+    }
+    const step = undoTarget(session);
+    if (step !== undefined && step !== before) {
+        showUndoNotice(session, workspace, WORKSPACE_WORDS.committed, () => undoTarget(session) === step);
+    }
+    return true;
 }

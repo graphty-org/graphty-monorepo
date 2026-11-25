@@ -12,3 +12,7 @@ export const SIDE_KEY = "B";
 export const DELETE_KEY = "Delete";
 /** The Reader edits list (design 7.17). */
 export const READER_EDITS_KEY = "R";
+/** The join workspace: opens it from the Sources header, and adds a card inside it (issue #9796). */
+export const JOIN_WORKSPACE_KEY = "Shift+J";
+/** Undo inside the join workspace: takes back the draft's newest change. */
+export const WORKSPACE_UNDO_KEY = "Mod+Z";

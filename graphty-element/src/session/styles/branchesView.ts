@@ -2,14 +2,14 @@
  * The stack a branches view (`styles.showBranches`) paints: the layers it draws for each branch,
  * the ghosts it draws faint, and the stack's own layers suspended beneath them.
  */
-import type { LayerSpec, UnionLeaf } from "../../catalog/types";
+import type { EdgeId, LayerSpec, NodeId, UnionLeaf } from "../../catalog/types";
 import { DRAFT_PATH } from "../sources/steps/paths";
 import { inertReason } from "../visibility/union";
 import type { CompiledLayer, LayerCheck } from "./Layer";
 import type { SelectorTarget } from "./predicate";
 import { selectorStates } from "./selector";
 import { badCommand } from "./styleErrors";
-import type { BranchesView, DraftView, StylesSources } from "./StylesApi";
+import type { BranchesView, DraftIdsQuery, DraftView, StylesSources } from "./StylesApi";
 import { drawsOutsideWindow, hidesOutsideWindow } from "./tree";
 
 /**
@@ -202,48 +202,144 @@ function compiled(
     });
 }
 
+/** The counts of a step whose elements a draft view colors as merged, new and untouched. */
+const STEP_MARKS = {
+    merged: ["merged"],
+    new: ["newNodes", "newEdges", "keptNew"],
+    untouched: ["untouched"],
+} as const;
+
+/** The counts of a step whose elements a marked step draws at full strength. */
+const STEP_ALL = ["merged", "newNodes", "newEdges", "keptNew", "matched", "untouched"] as const;
+
+/** The session ids a draft view reads, or null while no draft is drawn. */
+type DraftIds = (
+    query: DraftIdsQuery,
+) => { readonly nodes: readonly NodeId[]; readonly edges: readonly EdgeId[] } | null;
+
 /**
- * The layers a draft view (`styles.showDraft`) draws, bottom first: a ring on each node the
- * commit would merge, a dashed border on each node it would add, and each edge it would add drawn
- * dashed, read from `graphty.draft`; the ghosts drawn faint as under a branches view.
+ * The layers that draw some ids in one look.
+ * @param name - The layers' name.
+ * @param ids - The ids.
+ * @param node - What a node gets.
+ * @param edge - What an edge gets; absent, the edges are left alone.
+ * @returns The layers, none for no ids.
+ */
+function idLayers(
+    name: string,
+    ids: { readonly nodes: readonly NodeId[]; readonly edges: readonly EdgeId[] } | null,
+    node: LayerSpec["set"],
+    edge?: LayerSpec["set"],
+): LayerSpec[] {
+    const out: LayerSpec[] = [];
+    if (ids !== null && ids.nodes.length > 0) {
+        out.push({ name, target: "node", selector: { match: "ids", nodes: [...ids.nodes] }, set: node });
+    }
+    if (ids !== null && edge !== undefined && ids.edges.length > 0) {
+        out.push({ name, target: "edge", selector: { match: "ids", edges: [...ids.edges] }, set: edge });
+    }
+    return out;
+}
+
+/**
+ * What a merged node gets in a color: a ring.
+ * @param color - The color.
+ * @returns The channels.
+ */
+function mergedLook(color: string): LayerSpec["set"] {
+    return { "node.haloColor": color, "node.haloScale": 1.4, "node.haloOpacity": 1 };
+}
+
+/**
+ * What a new node gets in a color: a dashed border.
+ * @param color - The color.
+ * @returns The channels.
+ */
+function newNodeLook(color: string): LayerSpec["set"] {
+    return { "node.borderColor": color, "node.borderStyle": "dashed", "node.borderWidth": 0.1 };
+}
+
+/**
+ * What a new edge gets in a color: dashed.
+ * @param color - The color.
+ * @returns The channels.
+ */
+function newEdgeLook(color: string): LayerSpec["set"] {
+    return { "edge.color": color, "edge.style": "dash" };
+}
+
+/**
+ * What an untouched node gets in a color: a dotted border.
+ * @param color - The color.
+ * @returns The channels.
+ */
+function untouchedLook(color: string): LayerSpec["set"] {
+    return { "node.borderColor": color, "node.borderStyle": "dotted", "node.borderWidth": 0.1 };
+}
+
+/**
+ * The layers a draft view (`styles.showDraft`) draws, bottom first: the rest faint when asked, a
+ * ring on each node the commit would merge, a dashed border on each node it would add, and each
+ * edge it would add drawn dashed, read from `graphty.draft`; a dotted border on the untouched nodes;
+ * each listed step's in its own color over those; the marked elements at full strength; the ghosts
+ * drawn faint as under a branches view.
  * @param view - The colors.
  * @param stack - The stack as project state holds it now.
  * @param check - Checks one layer specification against the session.
+ * @param draftIds - The session ids of the drawn draft's elements.
  * @returns The layers.
  */
 export function draftLayers(
     view: DraftView,
     stack: readonly CompiledLayer[],
     check: (spec: LayerSpec, id: string) => LayerCheck,
+    draftIds?: DraftIds,
 ): CompiledLayer[] {
+    const ids: DraftIds = draftIds ?? ((): null => null);
     const marked = (mark: "merged" | "new"): { match: "expression"; where: string } => ({
         match: "expression",
         where: `${DRAFT_PATH} == '${mark}'`,
     });
-    return compiled(
-        [
-            ...heldLayers("ghosted", false),
-            ...outsideInView(stack),
-            {
-                name: "Merged",
-                target: "node",
-                selector: marked("merged"),
-                set: { "node.haloColor": view.merged, "node.haloScale": 1.4, "node.haloOpacity": 1 },
-            },
-            {
-                name: "New",
-                target: "node",
-                selector: marked("new"),
-                set: { "node.borderColor": view.new, "node.borderStyle": "dashed", "node.borderWidth": 0.1 },
-            },
-            {
-                name: "New",
-                target: "edge",
-                selector: marked("new"),
-                set: { "edge.color": view.new, "edge.style": "dash" },
-            },
-        ],
-        "draft",
-        check,
-    );
+    const strong =
+        view.mark === undefined
+            ? null
+            : ids("refs" in view.mark ? view.mark : { step: view.mark.step, buckets: STEP_ALL });
+    const faint = view.rest === "faint" || strong !== null;
+    const specs: LayerSpec[] = [
+        ...(faint
+            ? [
+                  {
+                      name: "Rest",
+                      target: "node" as const,
+                      selector: { match: "everything" as const },
+                      set: { "node.opacity": 0.2 },
+                  },
+                  {
+                      name: "Rest",
+                      target: "edge" as const,
+                      selector: { match: "everything" as const },
+                      set: { "edge.opacity": 0.15 },
+                  },
+              ]
+            : []),
+        ...heldLayers("ghosted", false),
+        ...outsideInView(stack),
+        ...(view.untouched === undefined
+            ? []
+            : idLayers("Untouched", ids({ untouched: true }), untouchedLook(view.untouched))),
+        { name: "Merged", target: "node", selector: marked("merged"), set: mergedLook(view.merged) },
+        { name: "New", target: "node", selector: marked("new"), set: newNodeLook(view.new) },
+        { name: "New", target: "edge", selector: marked("new"), set: newEdgeLook(view.new) },
+    ];
+    for (const { step, color } of view.steps ?? []) {
+        specs.push(
+            ...idLayers("Untouched", ids({ step, buckets: STEP_MARKS.untouched }), untouchedLook(color)),
+            ...idLayers("Merged", ids({ step, buckets: STEP_MARKS.merged }), mergedLook(color)),
+            ...idLayers("New", ids({ step, buckets: STEP_MARKS.new }), newNodeLook(color), newEdgeLook(color)),
+        );
+    }
+    if (strong !== null) {
+        specs.push(...idLayers("Marked", strong, { "node.opacity": 1 }, { "edge.opacity": 1 }));
+    }
+    return compiled(specs, "draft", check);
 }

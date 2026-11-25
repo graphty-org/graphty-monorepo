@@ -94,8 +94,6 @@ export function CardContents({
                     </Popout.Trigger>
                     <Popout.Panel
                         width={LIST_WIDTH}
-                        placement="left"
-                        alignment="start"
                         header={{ variant: "title", title: "Add card row" }}
                         closeLabel="Close Add card row"
                     >
@@ -252,13 +250,7 @@ function CardRow({
                     {row === null ? "Replace with a value" : value}
                 </Button>
             </Popout.Trigger>
-            <Popout.Panel
-                width={LIST_WIDTH}
-                placement="left"
-                alignment="start"
-                header={{ variant: "title", title: place }}
-                closeLabel={`Close ${place}`}
-            >
+            <Popout.Panel width={LIST_WIDTH} header={{ variant: "title", title: place }} closeLabel={`Close ${place}`}>
                 <ValuePicker
                     title={place}
                     target={target}

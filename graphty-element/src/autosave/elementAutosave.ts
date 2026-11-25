@@ -1662,6 +1662,15 @@ export function listAutosavesIn(
             const before = readOwnBefore(env, key);
             const leaving = takeLeaving(env, key);
             const waited = noted !== null && leaving === noted;
+            // Before the list: an element of this page that was just removed (a remount, such as a
+            // development hot swap) may still be writing this entry's final commit and holding its
+            // lock, which would read as another tab's (issue #9973).
+            const here = noted === null ? undefined : departing.get(noted);
+            if (noted !== null && here !== undefined) {
+                await here;
+                await env.locks.wait(lockName(key, noted));
+            }
+
             // Before the list: the page that left may still be writing this entry's final commit.
             if (waited) {
                 await env.locks.own?.(lockName(key, noted), LEAVING_WAIT_MS);

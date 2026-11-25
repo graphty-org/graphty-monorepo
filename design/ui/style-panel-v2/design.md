@@ -531,10 +531,12 @@ thing's groups when it has more than one, and each opens a new pop-over.
   anywhere else (`@mantine/core`, an app file). Layout that takes no input (`Box`, `Group`, `Stack`, `Text`,
   `VisuallyHidden`, `Tooltip`, `Divider`) is not an input and may come from `@mantine/core`. An app component
   that wires a compact-mantine input to the session (`ImageField`, `FontSelect`, `ValueField`) is linted in its own
-  file. compact-mantine has no component yet for five inputs the panel uses, which the rule names as gaps waiting
-  on the owner, never rebuilt by the app: an icon button (`ActionIcon`: a line's link, settings and minus), a plain
-  button (`Button`: a value that opens its pop-over), a tile button (`UnstyledButton`: model and shader tiles),
-  a check box on a line (`Checkbox`; compact-mantine has only `ToggleRow`, a whole row) and a menu (`Menu`).
+  file. A Mantine component that compact-mantine's theme styles counts as compact-mantine's (owner decision,
+  2026-11-24: "count a Mantine component as compact-mantine when compact-mantine's theme styles it"): the rule reads
+  the styled components from `compact-mantine/src/theme/components/` (`ActionIcon`, `Button`, `Checkbox`, `Menu`,
+  `Textarea`, `TextInput` and the rest) and allows them from `@mantine/core`. Only an unthemed Mantine input is
+  refused. One the panel uses has no compact-mantine component yet, named as a gap waiting on the owner, never
+  rebuilt by the app: a tile button (`UnstyledButton`: model and shader tiles).
 - **Font style.** Bold, Italic, Underline and Strikethrough are toggle icon buttons on one line (compact-mantine
   `ToggleIconButton` or the existing grouped-button component, lucide glyphs, each with a hover tooltip). Bold
   toggles the weight between the regular and the bold weight; the numeric weight is in the label's advanced

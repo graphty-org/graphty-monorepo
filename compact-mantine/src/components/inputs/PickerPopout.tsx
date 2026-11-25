@@ -28,6 +28,8 @@ export interface PickerPopoutProps {
     onDismiss?: () => void;
     /** Whether the pop-out is open when the field first draws (a field just added that needs its first pick). */
     defaultOpened?: boolean;
+    /** Called whenever the pop-out opens or closes, however (a pick, Escape, a click outside). */
+    onOpenChange?: (opened: boolean) => void;
 }
 
 /**
@@ -48,6 +50,7 @@ export interface PickerPopoutProps {
  * @param props.children - The pop-out's content
  * @param props.onDismiss - Called when it closes by itself
  * @param props.defaultOpened - Whether it is open when first drawn
+ * @param props.onOpenChange - Called whenever it opens or closes
  * @returns The field and its pop-out
  */
 export function PickerPopout({
@@ -63,8 +66,13 @@ export function PickerPopout({
     children,
     onDismiss,
     defaultOpened = false,
+    onOpenChange,
 }: Readonly<PickerPopoutProps>): React.JSX.Element {
-    const [opened, setOpened] = useState(defaultOpened);
+    const [opened, setOpenedState] = useState(defaultOpened);
+    const setOpened = (next: boolean): void => {
+        setOpenedState(next);
+        onOpenChange?.(next);
+    };
     const close = (): void => {
         setOpened(false);
     };

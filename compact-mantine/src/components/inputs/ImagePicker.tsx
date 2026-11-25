@@ -86,6 +86,8 @@ export interface ImagePickerProps {
     defaultOpened?: boolean;
     /** Called when the pop-out closes without a pick (Escape, a click outside it, its close button). */
     onDismiss?: () => void;
+    /** Called whenever the pop-out opens or closes. */
+    onOpenChange?: (opened: boolean) => void;
 }
 
 /**
@@ -240,7 +242,7 @@ function PickerBody(props: Readonly<PickerBodyProps>): React.JSX.Element {
 export function ImagePicker(props: Readonly<ImagePickerProps>): React.JSX.Element {
     useCompactStyles();
     const { label, value, images, valueName, title, disabled = false, disabledReason, labels } = props;
-    const { defaultOpened, onDismiss } = props;
+    const { defaultOpened, onDismiss, onOpenChange } = props;
     const words = { ...DEFAULT_IMAGE_PICKER_LABELS, ...labels };
     const picked = value === null ? undefined : images.find((image) => image.id === value);
     let shown = words.none;
@@ -260,6 +262,7 @@ export function ImagePicker(props: Readonly<ImagePickerProps>): React.JSX.Elemen
                 disabledReason={disabledReason}
                 defaultOpened={defaultOpened}
                 onDismiss={onDismiss}
+                onOpenChange={onOpenChange}
             >
                 {(close) => (
                     <Popout.Content>

@@ -48,6 +48,7 @@ import {
 import { convexRayHit } from "./meshes/convexHit";
 import { surfaceReach, type Xyz } from "./meshes/edgeRoute";
 import { applyFlatHalo, flatHaloLift } from "./meshes/flatHalo";
+import { disposeLater } from "./meshes/handOverTogether";
 import { oweLabelAnimations } from "./meshes/labelAnimationDebt";
 import { unfreezeFor } from "./meshes/LabelBatch";
 import { imageAspectExtent, labelFitExtent } from "./meshes/labelFit";
@@ -2089,7 +2090,7 @@ export class Node implements ModelUser {
                     : new TransformNode(this.#anchor.name, scene);
             Node.moveOnto(this.#mesh, anchor);
             this.retargetLabels(this.#mesh, anchor);
-            this.#mesh.dispose();
+            disposeLater(this.#mesh);
             this.#anchor = anchor;
             this.#mesh = null;
             this.forgetMeasuredMesh();
@@ -2098,7 +2099,7 @@ export class Node implements ModelUser {
             this.build(this.#fit.meshKey, this.#fit.style);
             Node.moveOnto(anchor, this.#anchor);
             this.retargetLabels(anchor, this.#anchor);
-            anchor.dispose();
+            disposeLater(anchor);
             this.forgetMeasuredMesh();
             if (this.#actions !== null) {
                 this.makeDrawnPickable(this.#actions);

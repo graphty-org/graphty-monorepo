@@ -1,7 +1,7 @@
 /**
  * @file The open data as version 2 names it (spec/README.md 4.1, 6): its sources and their copy
  * ids, the build stamp, record keys and element references both ways. Owned by the data codec,
- * used by every bound section through the framing's context. Experimental (`save-files-v2`).
+ * used by every bound section through the framing's context.
  *
  * Everything here is derived from today's model (`session.data`), never from the data store of
  * design/data/data-store-options.md, which is not built. data.ts lists what that leaves out.

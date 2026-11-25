@@ -156,7 +156,8 @@ export function ValueListbox({
                     width={240}
                     height={320}
                     descriptions="end"
-                    {...(current === undefined ? {} : { highlight: current.id })}
+                    // Unset, the default it shows is in force but not chosen: the list checks no value.
+                    {...(current === undefined || unset ? {} : { highlight: current.id })}
                     query={query}
                     onQueryChange={setQuery}
                     actions={opened ? valueRows(session, descriptor, extraChoices) : []}

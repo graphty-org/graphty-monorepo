@@ -135,6 +135,33 @@ describe("graphty's drawing in the oracle comparison's model", () => {
         assert.isUndefined(head(half, "arrow-2d-half").misplaced);
     });
 
+    it("carries a route on to its line's own end where the line runs on past its cap's tip", () => {
+        // a sine wave's first period is centered on the line's start, half a period past a half barb's tip, where the
+        // oracle's reader ends Cytoscape's route too (cx-syn-mappings 309 -> 312, #9953)
+        const barb: Pt[] = [
+            [0, 0],
+            [8, 0],
+            [26, 10],
+        ];
+        const tail = cap({ end: "arrowTail", name: "arrow-2d-half-barb", outline: barb });
+        const routed = (lineEnds: [Pt, Pt]): Pt[] => graphOf([tail], "sinewave", null, { lineEnds }).edges[0].points;
+        assert.deepEqual(
+            routed([
+                [-4, 0],
+                [100, 0],
+            ])[0],
+            [-4, 0],
+        );
+        // a line that stops short of the tip leaves the route at the tip
+        assert.deepEqual(
+            routed([
+                [4, 0],
+                [100, 0],
+            ])[0],
+            [0, 0],
+        );
+    });
+
     it("reads a head its style draws at the middle of the line as part-way, not as standing off the line's end", () => {
         // Pajek's `arrowPosition` (pajek-graphstream-b): both programs draw the head at the middle of every line
         const middle: Pt[] = [

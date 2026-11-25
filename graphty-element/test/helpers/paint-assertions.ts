@@ -31,6 +31,7 @@ import type { Graph } from "../../src/Graph";
 import { bootstrapEdgePaint, bootstrapNodePaint } from "../../src/managers/StylePainter";
 import type { ElementSession, GraphSession } from "../../src/session";
 import type { ElementPaint } from "../../src/session/styles/repaint";
+import { captureNextFrame } from "./frame-recorder";
 
 /**
  * The mesh key a node wears before the style stack has ever painted it.
@@ -309,20 +310,26 @@ export async function assertRunSettles<T>(run: Run<T>): Promise<RunOutcomeKind> 
  *
  * Babylon compiles a shader asynchronously and the instanced color buffer is a define on that
  * shader, so the first frames draw in the source material's own color rather than the instance's.
- * A fixed number of frames is a guess at how long that takes; the stable frame waits for it.
+ * A fixed number of frames is a guess at how long that takes; the stable frame waits for it. The
+ * frame after it is read in its own task, on WebGL and WebGPU alike.
  * @param graph - The graph to read.
  * @returns The frame.
  */
 export async function readFrame(graph: Graph): Promise<Frame> {
-    const { engine } = graph;
-
     await graph.waitForStableFrame();
 
-    const width = engine.getRenderWidth();
-    const height = engine.getRenderHeight();
-    const pixels = (await engine.readPixels(0, 0, width, height)) as unknown as Uint8Array;
+    // Read the next frame in its own task: once a frame is presented, a WebGPU canvas hands out a fresh texture
+    // that reads top row first, and a WebGL drawing buffer read later can hold another pass's drawing (one row of
+    // edges read gray where the frame drew them magenta). Turned bottom row first, as `Frame` promises
+    // (test/helpers/frame-recorder.ts).
+    const drawn = await captureNextFrame(graph);
+    const row = drawn.width * 4;
+    const pixels = new Uint8Array(drawn.pixels.length);
+    for (let y = 0; y < drawn.height; y++) {
+        pixels.set(drawn.pixels.subarray((drawn.height - 1 - y) * row, (drawn.height - y) * row), y * row);
+    }
 
-    return { pixels, width, height };
+    return { pixels, width: drawn.width, height: drawn.height };
 }
 
 /**

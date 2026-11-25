@@ -1,5 +1,5 @@
 // BENCH_URL=... BENCH_RESULTS=... node run.mjs <lib> <mode> <accel> <n> <m> <dpr> [skip-layout] [labels] [label-<k>] [arrows] [sampled] [glyphs] [curves] [3d] [no-still] [no-move]
-//     [dim=2d|3d] [style=<name>] [layout=<name>] [edit] [frames=<k>] [allow-objects]
+//     [dim=2d|3d] [style=<name>] [layout=<name>] [edit] [frames=<k>] [allow-objects] [frame-check]
 // lib: cosmos|graphty; mode: default|lean|plain; accel: on|off. Appends one JSON line to BENCH_RESULTS.
 // The flags with "=" and edit and allow-objects are the performance matrix's (perf-matrix.mjs); BENCH_SCENARIO names the
 // matrix scenario in the row.
@@ -49,12 +49,15 @@ const skip = flags.includes("skip-layout"),
     noMove = flags.includes("no-move"),
     // a run whose style is meant to take rows off the batch records them instead of failing
     allowObjects = flags.includes("allow-objects"),
-    edit = flags.includes("edit");
+    edit = flags.includes("edit"),
+    // parity-vs-reference.mjs: after the load, only the per-frame correctness probe (B.frameCheck) runs
+    frameCheck = flags.includes("frame-check");
 const flagValue = (key) => flags.find((f) => f.startsWith(`${key}=`))?.slice(key.length + 1);
 const style = flagValue("style"),
     layout = flagValue("layout"),
     dim = flagValue("dim"),
     FRAMES = Number(flagValue("frames") ?? 200);
+const FRAME_CHECK_DONE = "frame check done";
 const N = Number(n),
     M = Number(m),
     DPR = Number(dpr);
@@ -227,6 +230,7 @@ try {
                 antialias: ANTIALIAS,
                 limits: LIMITS,
                 dim,
+                probe: frameCheck,
                 onDemand: !!process.env.LAYOUT_ONLY,
             },
         ]),
@@ -246,6 +250,12 @@ try {
             throw new Error(`rows left the batched path after ${stage}: ${JSON.stringify(rows)}`);
     };
     await checkBatched("load");
+    if (frameCheck) {
+        log("frameCheck", await page.evaluate(([l, f]) => globalThis.B.frameCheck(l, f), [layout ?? "ngraph", FRAMES]));
+        const shot = `frame-check-${process.env.BENCH_SCENARIO ?? "run"}-${RENDER_PATH ?? "default"}.png`;
+        await page.screenshot({ path: join(dirname(RESULTS), "shots", shot), timeout: 20000 }).catch(() => {});
+        throw new Error(FRAME_CHECK_DONE);
+    }
     if (style) log("restyle", await page.evaluate((name) => globalThis.B.restyle(name), style));
     // What a labeled run really built: with sampling on, only the cells' winners.
     if (labels && lib === "graphty")
@@ -318,7 +328,7 @@ try {
         log("layoutSteps", await page.evaluate(() => B.layoutSteps()));
     }
 } catch (e) {
-    log("failure", String(e?.message ?? e).slice(0, 500));
+    if (e?.message !== FRAME_CHECK_DONE) log("failure", String(e?.message ?? e).slice(0, 500));
 } finally {
     save();
     await ctx.close();

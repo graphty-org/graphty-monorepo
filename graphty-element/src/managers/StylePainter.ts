@@ -1726,6 +1726,15 @@ export class StylePainter {
     }
 
     /**
+     * Whether one edge is waiting to be drawn.
+     * @param index - Its dense index.
+     * @returns True when its paint has not been applied yet.
+     */
+    isEdgePending(index: number): boolean {
+        return this.pendingEdges.has(index);
+    }
+
+    /**
      * Take the nodes waiting to be drawn, or as many of them as one batch holds.
      * @param limit - The most to take; every one when absent.
      * @returns Their dense indices, which leave the set.

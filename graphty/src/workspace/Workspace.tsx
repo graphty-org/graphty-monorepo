@@ -201,8 +201,8 @@ export function Workspace({
         const focusLater = focusOpenedGraphLater(opening.focus);
         defaults
             .then(() => opening.load(session, host))
-            // Each load starts the project's history itself (open.ts passes the element's
-            // `history: "start"`; a project file or kept work does so on opening).
+            // Each load sets the project's history itself (open.ts: a sample's is one undo step, a
+            // file's passes the element's `history: "start"`; a project file or kept work starts it on opening).
             .then(() => {
                 bootSignal({ line: "project opened" });
                 // A project opens with the row that paints every element selected (owner,

@@ -112,8 +112,6 @@ export function GradientRow({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.E
                 </Popout.Trigger>
                 <Popout.Panel
                     width={240}
-                    placement="left"
-                    alignment="start"
                     header={{ variant: "title", title: COLORS }}
                     closeLabel={`Close ${COLORS.toLowerCase()}`}
                 >

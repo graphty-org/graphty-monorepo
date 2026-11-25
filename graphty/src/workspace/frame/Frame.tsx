@@ -1,6 +1,6 @@
 import "./frame.css";
 
-import { Popout, ResizeHandle, StatusBar } from "@graphty/compact-mantine";
+import { Popout, PopoutRegion, ResizeHandle, StatusBar } from "@graphty/compact-mantine";
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import React, { useEffect, useRef } from "react";
@@ -218,33 +218,35 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                     <JoinScreen />
                     <NodeMenu />
                 </main>
-                {/* Every pop-out opened in the inspector opens flush with its edge, level with
-                    the row that opened it (Figma's right panel). */}
-                <Popout.Anchor>
-                    <aside
-                        className="ws-right"
-                        aria-label="Inspector"
-                        hidden={!panels || left.fills}
-                        inert={left.fills || covered !== null}
-                    >
-                        <div className="ws-panel-body">
-                            <PanelBoundary name="Inspector">
-                                <Inspector />
-                            </PanelBoundary>
-                        </div>
-                        <ResizeHandle
-                            edge="start"
-                            label="Resize inspector"
-                            value={rightWidth}
-                            defaultValue={PANEL_MIN}
-                            min={PANEL_MIN}
-                            max={PANEL_MAX}
-                            onChange={(value) => {
-                                store.set({ rightWidth: value });
-                            }}
-                        />
-                    </aside>
-                </Popout.Anchor>
+                {/* Every pop-out opened in the inspector opens to its left, flush with its edge,
+                    level with the row that opened it (Figma's right panel). */}
+                <PopoutRegion id="inspector" placement="left" alignment="start">
+                    <Popout.Anchor>
+                        <aside
+                            className="ws-right"
+                            aria-label="Inspector"
+                            hidden={!panels || left.fills}
+                            inert={left.fills || covered !== null}
+                        >
+                            <div className="ws-panel-body">
+                                <PanelBoundary name="Inspector">
+                                    <Inspector />
+                                </PanelBoundary>
+                            </div>
+                            <ResizeHandle
+                                edge="start"
+                                label="Resize inspector"
+                                value={rightWidth}
+                                defaultValue={PANEL_MIN}
+                                min={PANEL_MIN}
+                                max={PANEL_MAX}
+                                onChange={(value) => {
+                                    store.set({ rightWidth: value });
+                                }}
+                            />
+                        </aside>
+                    </Popout.Anchor>
+                </PopoutRegion>
                 {panels ? null : (
                     <div className="ws-page">
                         <DataPage />

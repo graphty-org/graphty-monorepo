@@ -745,7 +745,7 @@ function LinkRows({ session, draft, card, onChange }: CardProps): React.JSX.Elem
     );
 }
 
-/** Merge's "many rows" ways, as `CardResult.many` names them. */
+/** Merge's "many rows" ways, as the element's `repeated` names them. */
 const MANY_ROWS = [
     { value: "first", label: WORKSPACE_WORDS.first },
     { value: "last", label: WORKSPACE_WORDS.last },
@@ -852,10 +852,10 @@ function FieldsOptions({
         <>
             <Choice
                 label={WORKSPACE_WORDS.manyRows}
-                value={result.many}
+                value={result.repeated}
                 data={MANY_ROWS}
-                onChange={(many) => {
-                    set({ many });
+                onChange={(repeated) => {
+                    set({ repeated });
                 }}
             />
             {several}
@@ -884,7 +884,7 @@ function FieldsOptions({
                         <ReduceRow
                             key={column}
                             step={step}
-                            many={MANY_ROWS.find((each) => each.value === result.many)?.label ?? WORKSPACE_WORDS.first}
+                            many={MANY_ROWS.find((each) => each.value === result.repeated)?.label ?? WORKSPACE_WORDS.first}
                             column={column}
                             onReduce={(reduce) => {
                                 const { [column]: _was, ...rest } = step.act?.aggregate ?? {};

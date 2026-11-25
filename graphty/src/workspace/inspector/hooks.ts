@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from "react";
  * @returns the value, or undefined.
  */
 export function useAsyncValue<T>(read: () => Promise<T> | null, key: string | number): T | undefined {
+    // on reload: fresh: read: read again from graphty-element
     const [value, setValue] = useState<T | undefined>(undefined);
     const latest = useRef(read);
     latest.current = read;

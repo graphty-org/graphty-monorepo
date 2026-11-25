@@ -1,6 +1,6 @@
 /**
  * @file The `notes` section codec, version 2: people's notes on the graph, its elements, sets and results (spec 4.6).
- * Experimental (`save-files-v2`).
+ *
  *
  * The session keeps notes in their version 1 record form (a node by id, an edge by its stable
  * member). This codec translates targets to and from element references at the file boundary and

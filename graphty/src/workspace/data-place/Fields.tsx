@@ -372,6 +372,7 @@ function addOption(
  */
 function useFocusPlus(): [React.RefObject<HTMLDivElement | null>, () => void] {
     const group = useRef<HTMLDivElement>(null);
+    // on reload: fresh: request: a one-time ask to focus a group's "+", cleared once it has
     const [asked, setAsked] = useState(0);
     useEffect(() => {
         if (asked > 0) {

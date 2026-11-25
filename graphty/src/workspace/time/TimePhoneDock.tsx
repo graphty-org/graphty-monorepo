@@ -47,6 +47,7 @@ export function TimePhoneDock({
     // The Drawer slides, and tells its end, only on a change of `opened` after its portal has drawn
     // it closed, so a sheet that comes up with the dock opens a frame later. An effect alone is too
     // soon: it runs before the portal's first draw, and both land in one render.
+    // on reload: fresh: in flight: the sheet's first frame
     const [mounted, setMounted] = useState(false);
     useEffect(() => {
         const frame = requestAnimationFrame(() => {

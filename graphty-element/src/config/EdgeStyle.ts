@@ -431,15 +431,17 @@ const LineStyle = z.strictObject({
      * through each bend with its corner rounded; "midpoints", one smooth curve that uses the bends
      * as its control points rather than passing through them, running from the middle of each
      * segment to the next, pulled toward the bend between them, and leaving each end along its
-     * first and last segments (as Cytoscape desktop draws a curved edge through its handles, and
-     * the loops it draws itself); "bezier", one Bezier curve whose control points are the bends
+     * first and last segments; "midpoints-headroom", the same curve with each end that carries an
+     * arrowhead keeping its control at least the head's length behind the line's end, so a bend just
+     * behind a head draws the line doubling back under it (as Cytoscape desktop draws a curved edge
+     * through its handles, and the loops it draws itself); "bezier", one Bezier curve whose control points are the bends
      * (one bend a quadratic curve, two a cubic), leaving each end toward the bend next to it (as
      * vis-network draws its smooth edges); "arc", an arc of the circle through both ends and its one
      * bend, the bend on the arc between them (as yEd draws an arc edge, saving the arc's apex as its
      * bend; with another number of bends, drawn as "corners"). A file's rule arrives here through its
      * style layer.
      */
-    bendCurve: z.enum(["corners", "midpoints", "bezier", "arc"]).optional(),
+    bendCurve: z.enum(["corners", "midpoints", "midpoints-headroom", "bezier", "arc"]).optional(),
     /**
      * The curve a curved line (`bezier`) is drawn as when it does not fan out of a bundle: unset,
      * the element's own bow; a number, an arc of the circle through both node centers whose radius
@@ -526,22 +528,11 @@ const LineStyle = z.strictObject({
 /**
  * Everything a style layer can say about how one edge is drawn.
  *
- * TWO FIELDS WERE WITHDRAWN IN 2.0, and both were declared here and drawn by nothing.
- *
- * `tooltip` was a full rich-text block, published through 1.x as a channel and never drawn in
- * any released version: a tooltip appears on hover, and an edge cannot be hovered, because
- * `Edge.ts` sets `isPickable = false` in three places and `PatternedLineMesh` declares it false
- * as a field -- the same fact that leaves the element with no `edge-click` event. Keeping the
- * field would have gone on publishing sixty-two settings that reach no pixel.
- *
- * `enabled` was a switch superseded by the session's visibility mask, which is what decides
- * whether an edge is drawn. Nothing read it. Only the label block's own `enabled` is read, and
- * that one stays.
- *
- * Both removals are recorded in `WITHDRAWN_CAPABILITIES` in `src/catalog/unreachable.ts`, with
- * what a consumer who wrote either one should do instead. This object is strict, so a style
- * document that still carries either key is now a parse error rather than a silent no-op --
- * which is the point of removing them in a major rather than leaving them accepted and ignored.
+ * `enabled` was withdrawn in 2.0: a switch superseded by the session's visibility mask, which is
+ * what decides whether an edge is drawn. Nothing read it. Only the label block's own `enabled` is
+ * read, and that one stays. The removal is recorded in `WITHDRAWN_CAPABILITIES` in
+ * `src/catalog/unreachable.ts`. This object is strict, so a style document that still carries the
+ * key is a parse error rather than a silent no-op.
  */
 export const EdgeStyle = z.strictObject({
     /** The cap at the target end of the edge. Unset, no cap, except on a directed graph, which draws a "normal" one. */
@@ -570,6 +561,17 @@ export const EdgeStyle = z.strictObject({
      * centered where the layout placed it when the layout places one (a Graphviz layout's `xlp`).
      */
     xlabel: RichTextStyle.optional(),
+    /**
+     * The edge's tooltip, in the label's style vocabulary: drawn only while the pointer is over the
+     * edge, where the pointer met the line, and only when it has words. Unset fields default to the
+     * top right, black on white, as a node's tooltip.
+     * @since 3.40.0
+     */
+    tooltip: RichTextStyle.prefault({
+        location: "top-right",
+        textColor: "#000000",
+        backgroundColor: "#FFFFFF",
+    }).optional(),
     /**
      * A wider line drawn behind the edge's own, as a casing: the selection look, as a style.
      * Drawn only when it names a color. `scale` is a multiple of twice the line's width; the

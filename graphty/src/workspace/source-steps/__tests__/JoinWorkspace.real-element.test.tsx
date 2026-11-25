@@ -166,6 +166,37 @@ describe("the join workspace (source-steps)", () => {
         assert.strictEqual(session.data.steps().length, steps, "the graph is as it was");
     });
 
+    it("Merge's Many rows writes the element's repeated as it is and reads the step back on the same choice", async () => {
+        const { session, modal } = await opened();
+        const merge = (): ReturnType<GraphSession["data"]["steps"]>[number] | undefined =>
+            session.data
+                .currentDraft()
+                ?.steps()
+                .find((row) => row.op === "join.merge");
+        await eachRow(modal, "Fields on a node");
+        await waitFor(() => {
+            assert.strictEqual(merge()?.act?.repeated ?? "first", "first");
+        });
+        const many = await within(modal).findByRole("radiogroup", { name: "Many rows" });
+        for (const [label, repeated] of [
+            ["List", "list"],
+            ["Last", "last"],
+            ["Count", "count"],
+        ] as const) {
+            await userEvent.click(within(many).getByText(label));
+            await waitFor(() => {
+                assert.strictEqual(merge()?.act?.repeated, repeated, `${label} is the element's ${repeated}`);
+                assert.isTrue(
+                    within(within(modal).getByRole("radiogroup", { name: "Many rows" })).getByRole<HTMLInputElement>(
+                        "radio",
+                        { name: label },
+                    ).checked,
+                    `the step reads back on ${label}`,
+                );
+            });
+        }
+    });
+
     it("Done commits every card as one undo step", async () => {
         const { session, modal } = await opened();
         const history = session.history.steps.length;

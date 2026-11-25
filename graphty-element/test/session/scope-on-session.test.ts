@@ -29,15 +29,23 @@ function harnessOf(): Harness {
 /** Only the hosts. */
 const HOSTS: RuleTree = { kind: "categories", attribute: "data.type", values: ["host"] };
 
-/** The code a call refused with, or null when it did not refuse. */
-function codeOf(call: () => unknown): string | null {
+/**
+ * The code a Promise-returning call rejected with; a synchronous throw fails the test.
+ * @param call - The call.
+ * @returns The code, or null when it resolved.
+ */
+async function rejectionCodeOf(call: () => Promise<unknown>): Promise<string | null> {
+    let pending: Promise<unknown>;
     try {
-        call();
+        pending = call();
     } catch (error) {
-        return isGraphtyError(error) ? error.code : "not-a-graphty-error";
+        assert.fail(`threw instead of rejecting: ${String(error)}`);
     }
 
-    return null;
+    return pending.then(
+        () => null,
+        (error: unknown) => (isGraphtyError(error) ? error.code : "not-a-graphty-error"),
+    );
 }
 
 describe("session.scope", () => {
@@ -148,7 +156,19 @@ describe("session.scope", () => {
 
         assert.strictEqual((await harness.session.scope.count({ where: "data.type == 'host'" })).nodes, 3);
         assert.strictEqual(
-            codeOf(() => harness.session.scope.count({ where: "data.type == `host`" })),
+            await rejectionCodeOf(() => harness.session.scope.count({ where: "data.type == `host`" })),
+            "E_BAD_SELECTOR",
+        );
+        harness.session.dispose();
+    });
+
+    it("rejects the promise count and resolve return, never throwing from the call (#9945)", async () => {
+        const harness = harnessOf();
+        const { scope } = harness.session;
+
+        assert.strictEqual(await rejectionCodeOf(() => scope.count("graph", { sample: 0 })), "E_OPTION_RANGE");
+        assert.strictEqual(
+            await rejectionCodeOf(() => scope.resolve({ where: "data.type == `host`" })),
             "E_BAD_SELECTOR",
         );
         harness.session.dispose();

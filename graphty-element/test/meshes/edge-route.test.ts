@@ -197,6 +197,23 @@ describe("edge route geometry", () => {
         assert.deepEqual(curveThroughMidpoints([0, 0, 0, 1, 1, 1]), [0, 0, 0, 1, 1, 1]);
     });
 
+    it("keeps a curve through midpoints' last control a head's length behind its end, as Cytoscape desktop does", () => {
+        // cx2-wp1449-tlr 137094->136942 in file units: a handle at x 951, the line ending at 953 behind a 14-long head
+        // whose tip is at 967; desktop's last control is 939, so the line doubles back under the head
+        const flat = [911, 0, 0, 951, 0, 0, 953, 0, 0];
+        const plain = curveThroughMidpoints(flat);
+        const headed = curveThroughMidpoints(flat, { end: { tip: { x: 967, y: 0, z: 0 }, length: 14 } });
+        const xs = (out: number[]): number[] => out.filter((_, i) => i % 3 === 0);
+        assert.isAtLeast(Math.min(...xs(plain).slice(-6)), 940);
+        assert.isBelow(Math.min(...xs(headed).slice(-6)), 950);
+        assert.deepEqual(headed.slice(-3), [953, 0, 0]);
+        // a long last leg keeps the pulled control, which lies further from the tip
+        const long = [0, 0, 0, 100, 50, 0, 200, 0, 0];
+        assert.deepEqual(curveThroughMidpoints(long, { end: { tip: { x: 214, y: 0, z: 0 }, length: 14 } }), [
+            ...curveThroughMidpoints(long),
+        ]);
+    });
+
     it("draws an arc of the circle through both centers, bowing to the left, as Gephi curves an edge", () => {
         // Gephi's arc curveness 1.2: a radius of the distance over 1.2, so the arc bows a sixth of the distance
         const out = centerArc(at(0, 0, 0), at(12, 0, 4), 1 / 1.2);

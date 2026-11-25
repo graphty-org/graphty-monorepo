@@ -12,9 +12,8 @@
  * object it had just built, which is true of the label renderer and says nothing about whether
  * an edge or a node ever asks for one.
  *
- * THE EDGE HALF WENT THE OTHER WAY. 2.0 withdrew `edge.tooltip` rather than building it: an edge
- * cannot be hovered, so there is no moment at which one could appear.
- * `test/browser/an-edge-tooltip-is-withdrawn.test.ts` pins that.
+ * The edge half is `test/browser/edge-tooltip-on-hover.test.ts`: `edge.tooltip` is drawn where the
+ * pointer meets the line, on both render paths.
  *
  * This file drives the real pointer. It moves the mouse onto a node and off it again, and asks
  * the scene what is drawn. What a tooltip LOOKS like -- the channel that carries its typeface,

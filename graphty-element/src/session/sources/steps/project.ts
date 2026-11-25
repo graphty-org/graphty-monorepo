@@ -13,7 +13,7 @@
 
 import type { EdgeId, NodeId } from "../../../catalog/types";
 import { GraphtyError } from "../../../errors/GraphtyError";
-import type { JoinRecord, SourceExtractOptions, SourceLinkOptions, SourceStepAct } from "../../types";
+import type { JoinRecord, JoinReduce, SourceExtractOptions, SourceLinkOptions, SourceStepAct } from "../../types";
 import { applyAct, extractOf, movedAfter, type StepsAct, withoutStepAndAdds } from "./acts";
 import {
     build,
@@ -1240,7 +1240,7 @@ interface StepAct {
     readonly edgeType?: string;
     readonly ignoreCase: boolean;
     readonly ignoreSpaces: boolean;
-    readonly repeated: "first" | "last" | "both" | null;
+    readonly repeated: JoinReduce | "both" | null;
     readonly aggregate: Aggregate | null;
     readonly unmatchedFrom?: "keep" | "drop";
     readonly unmatched?: "skip" | "add";
@@ -1253,6 +1253,17 @@ interface StepAct {
     readonly fanOut?: "each";
     /** A row no edge reaches makes no node. */
     readonly unlinked?: "drop";
+}
+
+/**
+ * A merge's aggregate read back as `repeated` (#10056): its rule for every column without one of its
+ * own, except `"first"` and `"last"`, which `repeated` spells as a row winning.
+ * @param aggregate - The step's aggregate.
+ * @returns The rule, or null.
+ */
+function everyReduction(aggregate: Aggregate | undefined): JoinReduce | null {
+    const rule = aggregate?.["*"];
+    return rule !== undefined && rule !== "first" && rule !== "last" ? rule : null;
 }
 
 /**
@@ -1288,7 +1299,7 @@ export function stepAct(value: SourceSteps, step: Step): StepAct | null {
             from: { source: step.source, field: step.read.key },
             into: into(step.read.space, step),
             ...shared,
-            repeated: step.repeated ?? null,
+            repeated: step.repeated ?? everyReduction(step.aggregate),
             aggregate: step.aggregate ?? null,
             unmatchedFrom: step.unmatchedFrom ?? "keep",
             ...defined({ fanOut: step.fanOut }),

@@ -295,6 +295,11 @@ export interface NodeStyleValues {
      */
     readonly labelWrapSkipEndSpace: boolean;
     /**
+     * Whether a line is measured against `labelWrapWidth` without kerning between its letters, as Java measures text
+     * (Cytoscape desktop). Unset or false, kerned, as a browser draws text.
+     */
+    readonly labelWrapUnkerned: boolean;
+    /**
      * Whether a line wider than `labelWrapWidth` is cut to fit with an ellipsis after it, in place of wrapping
      * (Cytoscape.js `text-wrap: ellipsis`). Unset or false, it wraps.
      */
@@ -1082,7 +1087,9 @@ export interface EdgeStyleValues {
     /**
      * How a curved edge is drawn through its bends: `"corners"`, straight through each bend with its corner rounded,
      * or `"midpoints"`, one smooth curve using the bends as control points, from the middle of each segment to the
-     * next and leaving each end along its first and last segments (Cytoscape desktop), or `"bezier"`, one Bezier curve
+     * next and leaving each end along its first and last segments, or `"midpoints-headroom"`, that curve with the
+     * control next to an arrowhead kept at least the head's length behind the line's end (Cytoscape desktop), or
+     * `"bezier"`, one Bezier curve
      * whose control points are the bends (one: quadratic, two: cubic; vis-network's smooth edges), or `"arc"`, the arc
      * of the circle through both ends and the one bend, which lies on it (yEd's arc edge).
      */

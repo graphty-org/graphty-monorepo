@@ -64,8 +64,8 @@ export interface CardPicks {
 
 /** A card's options, as the draft's step carries them. */
 export interface CardResult {
-    /** Fields: what a node named by several rows keeps: the first or last row, or every row's values as a list or a count. */
-    readonly many: "first" | "last" | "list" | "count";
+    /** Fields: several rows naming one node, as the element's `repeated` takes and returns it. */
+    readonly repeated: JoinReduce;
     /** Fields: what a row matching no node does. */
     readonly unmatchedFrom: "keep" | "drop";
     /** Edge and node: which way the edges run. */
@@ -132,7 +132,7 @@ export interface JoinCardView {
 
 /** The options a new step starts with. */
 export const DEFAULT_RESULT: CardResult = {
-    many: "first",
+    repeated: "first",
     unmatchedFrom: "keep",
     direction: "into-from",
     edgeType: "",
@@ -260,7 +260,7 @@ function actBack(act: SourceStepAct): { readonly picks: CardPicks; readonly resu
         return {
             picks: { becomes: "fields", from, into, ...matching },
             result: {
-                many: manyOf(act.aggregate, act.repeated),
+                repeated: act.repeated === null || act.repeated === "both" ? "first" : act.repeated,
                 unmatchedFrom: act.unmatchedFrom ?? "keep",
                 fanOut: act.fanOut ?? "skip",
             },
@@ -361,23 +361,6 @@ function extractBack(
             columns: extract.columns ?? [],
         },
     };
-}
-
-/**
- * A merge step's "many rows" choice, from its aggregate for every column or its repeated rule.
- * @param aggregate - The step's aggregate.
- * @param repeated - The step's repeated rule.
- * @returns The choice.
- */
-function manyOf(
-    aggregate: Readonly<Record<string, JoinReduce>> | null,
-    repeated: "first" | "last" | "both" | null,
-): CardResult["many"] {
-    const reduce = aggregate?.["*"];
-    if (reduce === "list" || reduce === "count") {
-        return reduce;
-    }
-    return repeated === "last" ? "last" : "first";
 }
 
 /**
@@ -635,9 +618,8 @@ function mergeOf(picks: CardPicks, result: CardResult, step: SourceStepRow | nul
     if (pair === null) {
         return null;
     }
-    const { many } = result;
-    const { "*": _all, ...perColumn } = step?.act?.aggregate ?? {};
-    const aggregate = { ...perColumn, ...(many === "list" || many === "count" ? { "*": many } : {}) };
+    // Every other column is `repeated`'s.
+    const { "*": _all, ...aggregate } = step?.act?.aggregate ?? {};
     return {
         act: "merge",
         options: {
@@ -646,7 +628,7 @@ function mergeOf(picks: CardPicks, result: CardResult, step: SourceStepRow | nul
             ignoreSpaces: picks.ignoreSpaces,
             unmatchedFrom: result.unmatchedFrom,
             fanOut: result.fanOut,
-            ...(many === "last" ? { repeated: "last" as const } : {}),
+            ...(result.repeated === "first" ? {} : { repeated: result.repeated }),
             ...(Object.keys(aggregate).length === 0 ? {} : { aggregate }),
         },
     };

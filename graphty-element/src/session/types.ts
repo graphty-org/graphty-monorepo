@@ -2861,7 +2861,7 @@ export interface SessionDataApi {
      * values, and what it added arrives. A source that has not changed dispatches nothing and
      * reports zeros. Expansions of the load are not fetched again. Experimental.
      *
-     * With the `save-files-v2` experiment, it also takes the id of a source a version 2 open held
+     * It also takes the id of a source a version 2 open held
      * (`W_SOURCE_UNAVAILABLE`: its copy changed, it needed permission, or it was not found): the
      * call is the permission, so it fetches the source from where the open would have, reads its
      * new bytes with its saved roles, and builds it into the graph with the reader's edits on it
@@ -2997,7 +2997,8 @@ export interface SessionDataApi {
      */
     generate(name: string, params?: GeneratorParams, options?: ImportOptions): Promise<void>;
     /**
-     * Download one of `catalog.datasets()` by name and load it, as one undoable step.
+     * Download one of `catalog.datasets()` by name and load it, as one undoable step. Its source in
+     * `sources()` is named by the dataset's catalog `title` (`"Zachary's karate club"`).
      *
      * The element names no download host of its own: `baseUrl` says where graph-samples' dataset
      * files are published. graph-samples exports the address of its own copy:
@@ -3677,7 +3678,8 @@ export interface LoadedSource extends DataSourceDescriptor {
     /**
      * True when this session holds what the load was read from, so
      * {@link SessionDataApi.reloadSource} can read it again; absent otherwise (a project opened
-     * from a file, a network source, a generated graph).
+     * from a file, a network source, a generated graph). The reader's own work restored by
+     * autosave keeps it: autosave keeps what each such load was read from beside the work.
      * @since 3.30.0
      */
     readonly reloadable?: true;
@@ -4323,6 +4325,14 @@ export interface ImportOptions {
      * layout as it is; `"keep"` (the default) leaves the layout as it is.
      */
     readonly layout?: "recommended" | "placed" | "keep";
+    /**
+     * `"data"` also pins, in the same step, every node the file marks fixed -- a Graphviz node
+     * written `pos="x,y!"` or `pin=true`, a Cytoscape.js node with `"locked": true`, any column
+     * graph-io gives the `fixed` role -- so a layout keeps those nodes where the file put them and
+     * lays out the rest. `"keep"` (the default) pins nothing. Undoing the load undoes the pins.
+     * @since 3.40.0
+     */
+    readonly pins?: "data" | "keep";
     /**
      * `"step"` (the default) records the load as one undoable step. `"start"` makes the loaded
      * graph where the history starts, as opening a new project does: the load is never undone or
@@ -5185,8 +5195,13 @@ export interface SourceStepAct {
     readonly ignoreCase: boolean;
     /** Values that differ only in spaces match. */
     readonly ignoreSpaces: boolean;
-    /** Which row a key the source repeats keeps; null when `aggregate` settles it or nothing was set. */
-    readonly repeated: "first" | "last" | "both" | null;
+    /**
+     * Several rows naming one key, as `merge` and `connect` take it: which row wins (`"first"`,
+     * `"last"`, `"both"` for an edge step) or, for a merge whose `aggregate` has a rule for every
+     * column (`"*"`, other than `"first"` or `"last"`), that rule, whatever columns have their own;
+     * null when neither was set.
+     */
+    readonly repeated: JoinReduce | "both" | null;
     /** The columns reduced over a repeated key's rows; null for none. */
     readonly aggregate: Readonly<Record<string, JoinReduce>> | null;
     /** Merge: what becomes of source 2's rows that meet no node 1. */
@@ -5673,11 +5688,17 @@ export interface SourceMergeOptions {
     readonly unmatchedFrom?: "keep" | "drop";
     /** How a cell both sides fill is settled, for every column or per column (`"*"` for the rest). */
     readonly clash?: SourceClashRule | Readonly<Record<string, SourceClashRule>>;
-    /** Two rows naming one node: `"first"` (default) or `"last"` wins. */
-    readonly repeated?: "first" | "last";
+    /**
+     * Several rows naming one node: `"first"` (default) or `"last"` row wins; any other reduction
+     * (`"list"`, `"count"`, `"sum"`, ...) reduces every column but the one matched on over those
+     * rows, the same as `aggregate: { "*": rule }`. `steps()` reads it back in this one spelling
+     * ({@link SourceStepAct.repeated}), so an application passes back what it read.
+     */
+    readonly repeated?: JoinReduce;
     /**
      * Per column, how the rows naming one node reduce into one value, as `draft.editStep` takes it;
-     * `"*"` sets every column but the one matched on, such as `{ "*": "list" }`.
+     * `"*"` sets every column but the one matched on, such as `{ "*": "list" }`. A column it names
+     * wins over a reduction given as `repeated`.
      */
     readonly aggregate?: Readonly<Record<string, JoinReduce>>;
     /** Rows that stay their own nodes; of a source read as edges, rows left out. */
@@ -5901,8 +5922,13 @@ export interface SourceStepPatch {
     readonly ignoreCase?: boolean;
     /** Match keys ignoring spaces. */
     readonly ignoreSpaces?: boolean;
-    /** Two rows naming one key: `"first"`, `"last"`, or `"both"` (an edge step only); `null` for the default. */
-    readonly repeated?: "first" | "last" | "both" | null;
+    /**
+     * Two rows naming one key: `"first"`, `"last"`, or `"both"` (an edge step only); `null` for the
+     * default. A merge step also takes any other reduction (`"list"`, `"count"`, ...) for every
+     * column, as `merge` does, and on a merge `repeated` replaces the step's `aggregate` unless the
+     * patch gives one, so a value read back from `steps()` is passed back as it is.
+     */
+    readonly repeated?: JoinReduce | "both" | null;
     /** Keep the step but build nothing from it. */
     readonly off?: boolean;
     /**
@@ -7315,7 +7341,7 @@ export interface HoverDrawn {
      * The radius hover picks the node within: the radius it is drawn at, but never under 0.71
      * device pixels (half a pixel's diagonal), so a node drawn smaller than a pixel can still be
      * pointed at. Where nothing else is drawn near it, hover also finds such a node a little
-     * farther out, up to 1.5 device pixels from its center.
+     * farther out, up to 1.5 device pixels from its center, and a hover found there reports 1.5.
      */
     readonly radius: number;
 }
@@ -9468,11 +9494,8 @@ export interface GraphSession {
     /** Saving the whole session to one project file and opening one again. */
     readonly project: ProjectApi;
     /**
-     * A session's analysis and style layers as one recipe file, applied to other data. Needs the
-     * `save-files-v2` experiment.
+     * A session's analysis and style layers as one recipe file, applied to other data.
      * @since 3.40.0
-     * @experimental save-files-v2
-     * @beta
      */
     readonly recipes: RecipesApi;
     /**

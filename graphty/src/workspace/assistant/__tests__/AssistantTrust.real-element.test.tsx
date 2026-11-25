@@ -896,6 +896,7 @@ describe("checking what the Assistant says", () => {
         await say("Remove them");
         await screen.findByRole("region", { name: "Waiting for you" });
 
+        // Gap #9977: the waiting reply's open step list is component state, closed by the reload.
         await reload(before);
         if (screen.queryByRole("region", { name: "Assistant" }) === null) {
             await userEvent.click(await screen.findByRole("button", { name: "Assistant" }));

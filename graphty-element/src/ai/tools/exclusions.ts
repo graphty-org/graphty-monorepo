@@ -1278,6 +1278,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
             "takeFrameHold",
             "updatePositions",
             "publishOrReport",
+            "answered",
             "onRest",
             "restoring",
             "replacing",

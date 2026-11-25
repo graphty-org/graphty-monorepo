@@ -48,6 +48,21 @@ beforeEach(async () => {
     localStorage.removeItem(WORKSPACE_LAYOUT.key);
 });
 
+// A kept reference that names nothing after a restore (restoreCheck.ts) fails the test that met
+// it, unless the test said it expects the loss (expectRestoreMiss in reload.tsx): the reader's pick
+// silently became something else (issue #9973). A plain global, so this file imports no app code.
+const misses = ((globalThis as { __GRAPHTY_RESTORE_MISSES__?: string[] }).__GRAPHTY_RESTORE_MISSES__ = []);
+beforeEach(() => {
+    misses.length = 0;
+    (globalThis as { __GRAPHTY_RESTORE_MISS_EXPECTED__?: boolean }).__GRAPHTY_RESTORE_MISS_EXPECTED__ = false;
+});
+afterEach(() => {
+    const expected = (globalThis as { __GRAPHTY_RESTORE_MISS_EXPECTED__?: boolean }).__GRAPHTY_RESTORE_MISS_EXPECTED__;
+    if (misses.length > 0 && expected !== true) {
+        throw new Error(`a restore lost what the reader had picked: ${misses.join(", ")}`);
+    }
+});
+
 // Cleanup after each test case
 afterEach(() => {
     cleanup();

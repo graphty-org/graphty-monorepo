@@ -1069,10 +1069,26 @@ class Runs implements SessionRunsApi {
         return this.startRun(via, algorithm, params, options, undefined);
     }
 
+    /**
+     * Start one algorithm as `start()` does, except that a listed run of other settings is never
+     * re-run in place: see {@link SessionRunsApi.startOwn}.
+     * @param algorithm - Which algorithm to run.
+     * @param params - Its parameters.
+     * @param options - The scope, the seed and the rest; `as` is not read.
+     * @returns The run.
+     */
     startOwn(algorithm: AlgorithmKey, params?: Readonly<Record<string, unknown>>, options: StartOptions = {}): Run {
         return this.startRun(this.dispatch, algorithm, params, options, undefined, true);
     }
 
+    /**
+     * The finished run `startOwn()` would hand back without computing, or undefined: see
+     * {@link SessionRunsApi.answeredOwn}.
+     * @param algorithm - Which algorithm.
+     * @param params - Its parameters.
+     * @param options - As `startOwn()` takes them.
+     * @returns The run, or undefined.
+     */
     answeredOwn(
         algorithm: AlgorithmKey,
         params?: Readonly<Record<string, unknown>>,
@@ -1450,6 +1466,13 @@ class Runs implements SessionRunsApi {
         this.names.set(id, suggestRunName(this.descriptorFor(run.algorithm), run.params));
     }
 
+    /**
+     * How many elements a run over a scope would hold if it started now: see
+     * {@link SessionRunsApi.scopeCountOf}.
+     * @param spec - The scope; absent, the default run scope.
+     * @returns The counts, or null when the scope does not resolve (a GraphtyError from the
+     *   resolver); any other error is thrown.
+     */
     scopeCountOf(spec?: Scope): { readonly nodes: number; readonly edges: number } | null {
         try {
             const resolved = this.options.resolveScope(spec ?? this.defaultScope);
@@ -1463,6 +1486,12 @@ class Runs implements SessionRunsApi {
         }
     }
 
+    /**
+     * What a run keeps of earlier executions' items that live references hold: see
+     * {@link SessionRunsApi.heldOf}.
+     * @param id - The run id.
+     * @returns The captures; empty for a run this session does not hold.
+     */
     heldOf(id: RunId): HeldCaptures {
         return this.runs.get(id)?.held ?? NO_HELD;
     }

@@ -238,6 +238,31 @@ describe("a file's stored positions", () => {
         assertAt(graph, gexf.expected);
     });
 
+    for (const layout of ["placed", "recommended"] as const) {
+        it(`draws pinned and free nodes in one unit with pins: data and layout: ${layout} (issue #2004)`, async () => {
+            const graph = await newGraph();
+            const text =
+                'digraph { a [pos="0,0!"]; b [pos="1,0"]; c [pos="0,1"]; d [pos="2,0!"]; a -> b; a -> c; b -> d; }';
+            await graph.loadFromFile(new File([text], "pins.dot"), { layout, pins: "data" });
+            await settled(graph);
+            await published(graph);
+
+            assert.strictEqual(graph.getSession().layout.id, "fixed");
+            assert.sameMembers([...graph.getSession().positions.pinned], ["a", "d"]);
+            const at = lane(graph);
+            const [ax] = at.get("a") ?? [0];
+            const [bx] = at.get("b") ?? [0];
+            const [dx] = at.get("d") ?? [0];
+            assert.isAbove(bx - ax, 0, "b right of a");
+            assert.closeTo(
+                dx - ax,
+                2 * (bx - ax),
+                1e-6,
+                "d twice as far as b: the pinned nodes take the layout's unit",
+            );
+        });
+    }
+
     it("leaves the layout alone with layout: placed when the file places no node", async () => {
         const graph = await newGraph();
         await graph.setLayout("circular");

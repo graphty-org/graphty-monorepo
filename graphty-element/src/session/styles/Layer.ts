@@ -247,11 +247,11 @@ export interface ValidationResult {
      */
     readonly unresolvedPaths: readonly Path[];
     /**
-     * The bare `graphty.` paths read where the data also has a column of that name.
+     * The bare `graphty.` and `store.` paths read where the data also has a column of that name.
      *
-     * Not errors: every path starting `graphty.` reads a value graphty-element provides, never a
-     * column (`graphty.notes.count` is the note count). They are reported because the author may
-     * have meant the column, which reads as `data.graphty.<name>`.
+     * Not errors: every path starting `graphty.` or `store.` reads a value graphty-element provides,
+     * never a column (`store.graphty.notes.count` is the note count). They are reported because the
+     * author may have meant the column, which reads as `data.<name>`.
      */
     readonly shadowedPaths: readonly Path[];
     /**
@@ -1887,7 +1887,11 @@ export function checkLayerSpec(given: LayerSpec, options: LayerCheckOptions): La
         directory === undefined || target === null
             ? NO_PATHS
             : Object.freeze(
-                  log.paths.filter((path) => path.startsWith("graphty.") && directory.answers(`data.${path}`, target)),
+                  log.paths.filter(
+                      (path) =>
+                          (path.startsWith("graphty.") || path.startsWith("store.")) &&
+                          directory.answers(`data.${path}`, target),
+                  ),
               );
 
     if (log.problems.length > 0 || compiled === null || target === null) {

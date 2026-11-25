@@ -17,12 +17,10 @@
             "textValue",
             "textareaValue"
         ],
-        "src/useElementDefined.ts": ["attempt", "defined", "failed"],
         "src/workspace/Workspace.tsx": ["Frame", "checking", "element", "startProjectId", "store"],
         "src/workspace/analyze/AnalyzePopover.tsx": ["chosen", "filter", "moved", "picked", "values"],
         "src/workspace/analyze/PathForm.tsx": ["active", "ends", "errors", "focused", "onPicked", "picking", "values"],
         "src/workspace/assistant-door/AssistantPlace.tsx": ["Panel"],
-        "src/workspace/assistant-door/leftPanel.ts": ["windowWidth"],
         "src/workspace/assistant-door/provider.ts": ["text"],
         "src/workspace/assistant/AiProviderSection.tsx": [
             "confirming",
@@ -43,8 +41,6 @@
         "src/workspace/assistant/Waiting.tsx": ["picked"],
         "src/workspace/assistant/chats.ts": ["saved"],
         "src/workspace/assistant/useAssistantView.ts": ["view"],
-        "src/workspace/autosave/AutosaveChip.tsx": ["said", "status"],
-        "src/workspace/canvas/CanvasMenu.tsx": ["overEdge", "overNode"],
         "src/workspace/canvas/CanvasOverlays.tsx": ["reading"],
         "src/workspace/canvas/LegendCard.tsx": ["below", "scrolls", "src"],
         "src/workspace/canvas/models.ts": ["attempt", "attempt", "drawn", "pending", "state", "states"],
@@ -75,11 +71,8 @@
             "source",
             "tableId"
         ],
-        "src/workspace/data-place/Fields.tsx": ["asked"],
-        "src/workspace/data-place/Runs.tsx": ["asking"],
-        "src/workspace/data-place/ScoreDialog.tsx": ["name", "terms"],
+        "src/workspace/data-place/ScoreDialog.tsx": ["name"],
         "src/workspace/export/CameraImageOutput.tsx": ["backgroundCheck"],
-        "src/workspace/export/DataOutput.tsx": ["busy", "failure", "open", "preview", "styleLosses"],
         "src/workspace/export/DocumentOutput.tsx": ["contents"],
         "src/workspace/export/ExportDialog.tsx": [
             "cameraImage",
@@ -93,7 +86,6 @@
         ],
         "src/workspace/export/ReportOutput.tsx": ["configs", "counts", "savedName"],
         "src/workspace/export/TourVideoOutput.tsx": ["estimate", "failure", "progress", "recording"],
-        "src/workspace/export/outputHooks.ts": ["preview", "previewError", "refused", "status"],
         "src/workspace/frame/ElementHost.tsx": ["hosted"],
         "src/workspace/frame/Frame.tsx": [
             "ResizeHandle.defaultValue",
@@ -102,12 +94,7 @@
         ],
         "src/workspace/frame/Header.tsx": ["?"],
         "src/workspace/frame/HelpDialogs.tsx": ["current"],
-        "src/workspace/frame/NoticeSlot.tsx": ["focused", "hovered"],
         "src/workspace/frame/RenameInput.tsx": ["text"],
-        "src/workspace/frame/SiteChip.tsx": ["site"],
-        "src/workspace/frame/useAccelerationStatus.ts": ["status"],
-        "src/workspace/frame/useLayoutId.ts": ["id"],
-        "src/workspace/frame/useSizeBound.ts": ["bound"],
         "src/workspace/graph-place/FindBox.tsx": [
             "active",
             "listOpen",
@@ -125,7 +112,6 @@
         "src/workspace/inspector/Inspector.tsx": ["draft", "picked", "seen"],
         "src/workspace/inspector/LayerValues.tsx": ["all"],
         "src/workspace/inspector/NodeValues.tsx": ["all"],
-        "src/workspace/inspector/hooks.ts": ["value"],
         "src/workspace/join/JoinScreen.tsx": ["busy", "choices", "chosenShow", "how", "rows", "sort", "target"],
         "src/workspace/layout/LayoutForm.tsx": ["error", "start", "values"],
         "src/workspace/layout/LayoutPopover.tsx": ["focusKey", "picked"],
@@ -151,14 +137,7 @@
         ],
         "src/workspace/privacy/usageData.ts": ["?", "?"],
         "src/workspace/project/NetworkPrompt.tsx": ["waiting"],
-        "src/workspace/project/ProjectDialogs.tsx": [
-            "choices",
-            "discarding",
-            "name",
-            "pending",
-            "saving",
-            "settingsOpen"
-        ],
+        "src/workspace/project/ProjectDialogs.tsx": ["choices", "discarding"],
         "src/workspace/project/RecentProjects.tsx": ["mayBeCleared", "missing", "removing"],
         "src/workspace/project/SaveFilesV2Dialogs.tsx": [
             "bind",
@@ -208,7 +187,6 @@
         "src/workspace/selection/useSteps.ts": ["held", "reading", "shown"],
         "src/workspace/server/NodeMenu.tsx": ["expandWith", "opened"],
         "src/workspace/server/ServerForm.tsx": ["busy", "failed", "failure", "form", "preview"],
-        "src/workspace/sessionEvents.ts": ["version"],
         "src/workspace/settings/SettingsDialog.tsx": [
             "importStyles",
             "name",
@@ -360,17 +338,14 @@
         "src/workspace/style/parts/PartPage.tsx": ["page", "waiting"],
         "src/workspace/style/parts/PartsPanel.tsx": ["query"],
         "src/workspace/style/parts/ValueListbox.tsx": ["opened", "query"],
-        "src/workspace/style/useStyleVersion.ts": ["version"],
         "src/workspace/table/HeaderCell.tsx": ["text"],
         "src/workspace/table/IssuesList.tsx": ["showIgnored", "showResolved"],
         "src/workspace/table/RecordTable.tsx": ["marked", "range", "shown"],
         "src/workspace/table/TableDock.tsx": ["arrangement", "renaming"],
         "src/workspace/time/TimeDock.tsx": ["at", "drag", "from", "opened", "refused", "to"],
-        "src/workspace/time/TimePhoneDock.tsx": ["mounted"],
         "src/workspace/time/useTimeZoom.ts": ["chart", "view"],
         "src/workspace/toolbar/WorkspaceToolbar.tsx": ["?"],
         "src/workspace/toolbar/useViewsChanged.ts": ["?"],
-        "src/workspace/useBoxSize.ts": ["element", "size"],
         "src/workspace/views-place/TourStops.tsx": ["ident"],
         "src/workspace/views-place/useNamedList.ts": ["open", "preview", "renaming"]
     }

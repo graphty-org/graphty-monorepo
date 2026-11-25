@@ -13,6 +13,7 @@ import type { CommandContext } from "../commands/registry";
 import { baseName } from "../data-page/words";
 import { focusMainHeading } from "../frame/focus";
 import { keptName, keptPlace, newProjectId, startOpening, stashedPlace, type WorkspaceStore } from "../state/store";
+import { lostReferences } from "./restoreCheck";
 import { reopenedSentence, reopenedTabSentence } from "./words";
 
 /** The key graphty-element keeps the workspace's work under. */
@@ -89,7 +90,7 @@ function reopen(
                 const opened = report.name ?? (shown === undefined ? dataName(session) : null) ?? name;
                 store.set((now) => ({ project: now.project && { ...now.project, name: opened } }));
                 after(opened, place);
-                closeUnclaimedWorkspace(store, session);
+                store.set((now) => lostReferences(now, session));
             },
             ...(focus === undefined ? {} : { focus }),
         }),
@@ -158,29 +159,6 @@ export function reopenOwn(store: WorkspaceStore, entry: AutosaveEntry): void {
     // Graph place first and a place the reader left open (the Assistant) is open from the start,
     // never flipped on under a click that meant to open it.
     store.set(where);
-}
-
-/**
- * Closes a kept selection workspace whose editor cannot come back once the work is in: a new
- * filter card reloaded before its first edit has no draft in graphty-element, and a filter or
- * layer can be gone. Left open, it would keep the panels inert with no editor to close it.
- * @param store - the workspace store.
- * @param session - the restored session.
- */
-function closeUnclaimedWorkspace(store: WorkspaceStore, session: GraphSession): void {
-    const owner = store.get().selectionWorkspace?.owner;
-    if (owner === undefined) {
-        return;
-    }
-    // The key is `<kind>:<id>:<side>` (SelectionEditor's workspaceKey).
-    const id = owner.slice(owner.indexOf(":") + 1, owner.lastIndexOf(":"));
-    const { visibility } = session;
-    const back = owner.startsWith("filter:")
-        ? visibility.conditions.some((each) => each.id === id) || visibility.draftOf(id) !== null
-        : session.styles.get(id) !== undefined;
-    if (!back) {
-        store.set({ selectionWorkspace: null });
-    }
 }
 
 /**

@@ -320,7 +320,12 @@ export interface FilterDraft {
      * @throws A `GraphtyError` (`E_BAD_COMMAND`) once the draft is no longer open, or when the
      *     condition is malformed.
      */
-    commit(options?: RunOptions): Run<FilterResult & { readonly id: string }>;
+    commit(options?: RunOptions): Run<
+        FilterResult & {
+            /** The id of the condition written. */
+            readonly id: string;
+        }
+    >;
     /** Close the draft and write nothing. Does nothing once it is closed. */
     cancel(): void;
 }
@@ -352,7 +357,10 @@ export interface HiddenNotDrawn {
     /** What kind of fact this is. */
     readonly code: "W_HIDDEN_NOT_DRAWN";
     /** What was asked for. */
-    readonly params: { readonly asked: "showContext" | "hold" | "full" };
+    readonly params: {
+        /** What was asked for: `"showContext"`, a view's `"hold"`, or a view's `"full"` base. */
+        readonly asked: "showContext" | "hold" | "full";
+    };
 }
 
 /** No {@link HiddenNotDrawn} fact. */
@@ -576,7 +584,15 @@ export interface VisibilityApi {
      * @since 3.32.0
      * @beta
      */
-    addCondition(condition: FilterConditionInput, options?: RunOptions): Run<FilterResult & { readonly id: string }>;
+    addCondition(
+        condition: FilterConditionInput,
+        options?: RunOptions,
+    ): Run<
+        FilterResult & {
+            /** The id of the condition added: the one passed, or the one made for it. */
+            readonly id: string;
+        }
+    >;
     /**
      * Change one filter condition's effect, rule or `on`: one undoable step.
      * @param id - The condition's id.
@@ -870,8 +886,13 @@ interface Counts {
 
 /** What a steps list would leave: before any step, and after each step that is on. */
 export interface StepCounts {
+    /** What the filter and the time window alone leave visible, before the first step. */
     readonly start: Counts;
-    readonly steps: readonly (Counts & { readonly id: string })[];
+    /** What is left visible after each step that is on, in order. */
+    readonly steps: readonly (Counts & {
+        /** The step's id. */
+        readonly id: string;
+    })[];
 }
 
 /** Everything the visibility model is built from. */

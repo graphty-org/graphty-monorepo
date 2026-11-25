@@ -20,13 +20,14 @@
 import "../../src/graphty-element";
 
 import { afterEach, assert, describe, it } from "vitest";
+import { server } from "vitest/browser";
 
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
 import { dataManagerInternals } from "../../src/managers/DataManager";
 import { drawnFrames } from "../helpers/drawn-frames";
 import { inkNear } from "../helpers/drawn-invariants";
-import { click, hover, type Modifiers, type Point, rightClick } from "../helpers/real-input";
+import { click, drag, hover, type Modifiers, type Point, reachable, rightClick, wheel } from "../helpers/real-input";
 import REFERENCE from "./pick-parity.reference.json";
 
 type Path = "objects" | "batched";
@@ -103,14 +104,22 @@ async function settle(element: Graphty): Promise<void> {
  * @param nodes - The nodes, at fixed places.
  * @param edges - The edges; `kind` is data a layer can select.
  * @param layers - Style layers added before the data.
+ * @param size - The element's width and height, in CSS pixels.
  * @returns The element.
  */
-async function mount(path: Path, view: View, nodes: NodeIn[], edges: EdgeIn[], layers: Layer[] = []): Promise<Graphty> {
+async function mount(
+    path: Path,
+    view: View,
+    nodes: NodeIn[],
+    edges: EdgeIn[],
+    layers: Layer[] = [],
+    size = SIZE,
+): Promise<Graphty> {
     const element = document.createElement("graphty-element");
     element.renderPath = path;
     element.style.display = "block";
-    element.style.width = `${String(SIZE)}px`;
-    element.style.height = `${String(SIZE)}px`;
+    element.style.width = `${String(size)}px`;
+    element.style.height = `${String(size)}px`;
     document.body.appendChild(element);
     cleanups.push(() => {
         element.remove();
@@ -189,12 +198,14 @@ function selection(element: Graphty): string {
 /**
  * Move the real pointer to a point, read every reader there, then click it and read the selection.
  * @param element - The element.
- * @param point - The point, in CSS pixels.
+ * @param asked - The point, in CSS pixels.
  * @param fromEmpty - Rest the pointer on empty canvas first, so the move onto the point is heard as a hover
  *     even when the last point was on the same node; false moves straight there from the last point.
  * @returns The answer.
  */
-async function answer(element: Graphty, point: Point, fromEmpty = true): Promise<Answer> {
+async function answer(element: Graphty, asked: Point, fromEmpty = true): Promise<Answer> {
+    // Every reader is asked about the point the pointer really reaches (in WebKit, a whole pixel of the top page).
+    const point = reachable(element, asked);
     if (fromEmpty) {
         await hover(element, EMPTY);
         await settle(element);
@@ -265,8 +276,13 @@ function disagreements(name: string, a: Answer): string[] {
     return out;
 }
 
-/** The objects answers of the build before the optimizations, by case. */
-const reference = REFERENCE as Record<string, Answer | string | undefined>;
+/**
+ * The objects answers of the build before the optimizations, by case. They were recorded in Chromium, whose pointer
+ * lands on the exact fractional point asked; WebKit's lands on the nearest whole pixel (`reachable`), half a pixel
+ * off, where a one-pixel line or a label's edge may or may not be, so outside Chromium the two paths and each
+ * answer's readers are still compared with each other, but not with these.
+ */
+const reference = (server.browser === "chromium" ? REFERENCE : {}) as Record<string, Answer | string | undefined>;
 
 /**
  * Print one answer, so a run on the reference build can be recorded as pick-parity.reference.json.
@@ -452,6 +468,8 @@ describe.each(VIEWS)("pointing at nodes in %s", (view) => {
             await step("right-click b0", spot(element, "b0"), { right: true });
             await step("right-click empty canvas", EMPTY, { right: true });
             await step("ctrl-click t0", spot(element, "t0"), { modifiers: { ctrl: true } });
+            await step("shift-click a1", a1, { modifiers: { shift: true } });
+            await step("ctrl-click t0 again", spot(element, "t0"), { modifiers: { ctrl: true } });
             await step("click empty canvas", EMPTY);
             element.remove();
         }
@@ -463,6 +481,10 @@ describe.each(VIEWS)("pointing at nodes in %s", (view) => {
             "shift-click the a0-a1 edge -> edge:ea,node:b0",
             "right-click b0 -> edge:ea,node:b0",
             "right-click empty canvas -> edge:ea,node:b0",
+            // A modifier click on a node changes only that node: the selected edge stays (issue #10020).
+            "ctrl-click t0 -> edge:ea,node:b0,node:t0",
+            "shift-click a1 -> edge:ea,node:a1,node:b0,node:t0",
+            "ctrl-click t0 again -> edge:ea,node:a1,node:b0",
         ];
         assert.deepEqual(steps.objects.slice(0, want.length), want, "objects");
         assert.deepEqual(steps.batched, steps.objects, "batched selects as objects does");
@@ -528,10 +550,13 @@ function edgeFixture(): { nodes: NodeIn[]; edges: EdgeIn[] } {
  * @returns The point, or undefined.
  */
 function firstOn(element: Graphty, id: string, points: Point[]): Point | undefined {
-    return points.find((p) => {
-        const hit = element.elementAt(p);
-        return hit?.kind === "edge" && edgeName(element, hit.id) === id;
-    });
+    // Only points the pointer can reach exactly (every point in Chromium, whole pixels in WebKit).
+    return points
+        .map((p) => reachable(element, p))
+        .find((p) => {
+            const hit = element.elementAt(p);
+            return hit?.kind === "edge" && edgeName(element, hit.id) === id;
+        });
 }
 
 describe.each(VIEWS)("pointing at edges in %s", (view) => {
@@ -839,6 +864,43 @@ function chainFixture(): { nodes: NodeIn[]; edges: EdgeIn[] } {
 }
 
 /**
+ * Move the real pointer onto a point while a layout moves the nodes, and read what is hovered once the frame is
+ * stable, beside the node that was drawn under the point when the browser handed the move over: the contract is
+ * that hover names that node.
+ * @param element - The element.
+ * @param nodes - The nodes that may be under the point.
+ * @param point - Where the pointer goes.
+ * @returns The node under the point when the move arrived (or `none`), what was hovered, and whether the layout
+ *     was running then.
+ */
+async function hoverWhileMoving(
+    element: Graphty,
+    nodes: readonly NodeIn[],
+    point: Point,
+): Promise<{ want: string; hovered: string; running: boolean }> {
+    const canvas = element.graph.engine.getInputElement();
+    assert.isNotNull(canvas);
+    let under: string | null = null;
+    let running = false;
+    const onMove = (): void => {
+        running = element.isRunning();
+        let best = Infinity;
+        for (const node of nodes) {
+            const at = element.nodeScreenPosition(node.id);
+            const d = at === undefined ? Infinity : Math.hypot(at.x - point.x, at.y - point.y);
+            if (at !== undefined && d <= (at.radius ?? 0) && d < best) {
+                best = d;
+                under = node.id;
+            }
+        }
+    };
+    canvas?.addEventListener("pointermove", onMove, { once: true });
+    await hover(element, point);
+    await element.waitForStableFrame();
+    return { want: under ?? "none", hovered: String(element.session.selection.hovered ?? "none"), running };
+}
+
+/**
  * Draw frames until the layout reports it is no longer running.
  * @param element - The element.
  */
@@ -871,31 +933,10 @@ describe.each(PATHS.flatMap((path) => VIEWS.map((view) => ({ path, view }))))(
                 if (fixture === "pairs") {
                     assertLazy(element, path, nodes.length);
                 }
-                const canvas = element.graph.engine.getInputElement();
-                assert.isNotNull(canvas);
                 await element.setLayout(layout, { seed: 5 });
                 await drawnFrames(element.graph.scene, 1);
                 const point = spot(element, id);
-                // What was under the point as drawn when the browser handed the move over.
-                let under: string | null = null;
-                let running = false;
-                const onMove = (): void => {
-                    running = element.isRunning();
-                    let best = Infinity;
-                    for (const node of nodes) {
-                        const at = element.nodeScreenPosition(node.id);
-                        const d = at === undefined ? Infinity : Math.hypot(at.x - point.x, at.y - point.y);
-                        if (at !== undefined && d <= (at.radius ?? 0) && d < best) {
-                            best = d;
-                            under = node.id;
-                        }
-                    }
-                };
-                canvas?.addEventListener("pointermove", onMove, { once: true });
-                await hover(element, point);
-                await element.waitForStableFrame();
-                const hovered = String(element.session.selection.hovered ?? "none");
-                const want = under ?? "none";
+                const { want, hovered, running } = await hoverWhileMoving(element, nodes, point);
                 const now = want === "none" ? point : spot(element, want);
                 const moved = Math.hypot(now.x - point.x, now.y - point.y);
                 if (running && want !== "none" && moved > (element.nodeScreenPosition(want)?.radius ?? 0)) {
@@ -968,3 +1009,226 @@ describe.each(PATHS.flatMap((path) => VIEWS.map((view) => ({ path, view }))))(
         );
     },
 );
+
+/** The nodes pointed at after a removal: rows after the removed one, near and far, and one in the last pair. */
+const MOVED_ROWS = ["m1", "m5", "m13", "m23"];
+
+describe.each(PATHS.flatMap((path) => VIEWS.map((view) => ({ path, view }))))(
+    "pointing after a removal while a force layout runs on $path in $view",
+    ({ path, view }) => {
+        // Removing the first node renumbers every row after it on the batched path while the layout still places
+        // nodes by row; undo brings the row back through the records. Hover answers from the ID buffer by row and a
+        // click names a row's node, so an old row number names the wrong node or none.
+        it.each(["removed", "removed and the removal undone"] as const)(
+            "hover, its event, elementAt and a click name each node once m0 is %s mid-run",
+            async (how) => {
+                const { nodes, edges } = motionFixture();
+                const element = await mount(path, view, nodes, edges);
+                assertLazy(element, path, nodes.length);
+                const scene = element.graph.getScene();
+                // hovered and selected, so a hover or a selection left on the removed node shows
+                await hover(element, spot(element, "m0"));
+                await click(element, spot(element, "m0"));
+                await settle(element);
+                assert.strictEqual(selection(element), "node:m0", "m0 is selected before the run");
+                await element.setLayout("ngraph", { seed: 5 });
+                await drawnFrames(scene, 3);
+                await element.session.data.removeNodes(["m0"]);
+                const runningAtRemoval = element.isRunning();
+                await drawnFrames(scene, 1);
+                const left = {
+                    hovered: String(element.session.selection.hovered ?? "none"),
+                    selected: selection(element),
+                };
+                // still running, on the renumbered rows: the node under the pointer when the move arrives is hovered
+                const moving = await hoverWhileMoving(
+                    element,
+                    nodes.filter(({ id }) => id !== "m0"),
+                    spot(element, "m13"),
+                );
+                if (how !== "removed") {
+                    await drawnFrames(scene, 2);
+                    await element.session.undo();
+                }
+
+                await untilSettled(element);
+                const ids = how === "removed" ? MOVED_ROWS : ["m0", ...MOVED_ROWS];
+                const wrong: string[] = [];
+                const answers: string[] = [];
+                for (const id of ids) {
+                    const a = await answer(element, spot(element, id));
+                    answers.push(`${id}: ${JSON.stringify(a)}`);
+                    wrong.push(...disagreements(id, a));
+                    if (a.at !== `node:${id}`) {
+                        wrong.push(`${id}: elementAt gives ${a.at} at the node's own center`);
+                    }
+                }
+
+                // The last pair's edge, at the middle of its two drawn ends: edge ids do not move with rows.
+                const [a, b] = [spot(element, "m22"), spot(element, "m23")];
+                const edge = await answer(element, { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+                answers.push(`me11: ${JSON.stringify(edge)}`);
+                wrong.push(...disagreements("me11", edge));
+                if (edge.at !== "edge:me11") {
+                    wrong.push(`me11: elementAt gives ${edge.at} at the middle of the edge`);
+                }
+
+                record(`${view} pointing after m0 ${how} mid-run`, path, { left, moving, answers });
+                assert.isTrue(runningAtRemoval, "the layout was running when m0 was removed");
+                assert.strictEqual(
+                    moving.hovered,
+                    moving.want,
+                    `hover mid-run names the node under the pointer when the move arrived (running ${String(moving.running)})`,
+                );
+                assert.notStrictEqual(left.hovered, "m0", "hover does not name the removed node");
+                assert.notInclude(left.selected, "node:m0", "the selection does not name the removed node");
+                if (how === "removed") {
+                    assert.isUndefined(element.nodeScreenPosition("m0"), "the removed node is not placed");
+                }
+
+                assert.deepEqual(wrong, [], answers.join("\n"));
+            },
+        );
+    },
+);
+
+/** Where the view-change cases start: small enough that a bigger size still fits the test iframe. */
+const START = 320;
+
+/**
+ * Change the element's CSS size and wait until the engine draws at it: the element's
+ * ResizeObserver resizes the engine, and the ID buffers batched picks from must follow.
+ * @param element - The element.
+ * @param width - The new CSS width.
+ * @param height - The new CSS height.
+ */
+async function resizeTo(element: Graphty, width: number, height: number): Promise<void> {
+    element.style.width = `${String(width)}px`;
+    element.style.height = `${String(height)}px`;
+    const { engine } = element.graph;
+    const at = (): boolean => {
+        const canvas = engine.getRenderingCanvas();
+        const scale = engine.getHardwareScalingLevel();
+        return (
+            canvas?.clientWidth === width &&
+            canvas.clientHeight === height &&
+            Math.abs(engine.getRenderWidth() - width / scale) <= 1 &&
+            Math.abs(engine.getRenderHeight() - height / scale) <= 1
+        );
+    };
+    while (!at()) {
+        await drawnFrames(element.graph.getScene(), 1);
+    }
+
+    await settle(element);
+}
+
+/**
+ * Set the element's pixel ratio (the engine's hardware scaling level) and wait until the drawing
+ * buffer is that many pixels per CSS pixel.
+ * @param element - The element.
+ * @param ratio - The ratio.
+ */
+async function pixelRatioTo(element: Graphty, ratio: number): Promise<void> {
+    element.pixelRatio = ratio;
+    const { engine } = element.graph;
+    const canvas = engine.getRenderingCanvas();
+    while (Math.abs(engine.getRenderWidth() - (canvas?.clientWidth ?? 0) * ratio) > 1) {
+        await drawnFrames(element.graph.getScene(), 1);
+    }
+
+    await settle(element);
+}
+
+/** What a reader does to the view between two probes, each with the real mouse or the element's own size. */
+const VIEW_CHANGES: readonly { name: string; change: (element: Graphty) => Promise<void> }[] = [
+    { name: "a resize bigger", change: (element) => resizeTo(element, 400, 460) },
+    { name: "a resize smaller", change: (element) => resizeTo(element, 240, 250) },
+    { name: "a resize to an odd size", change: (element) => resizeTo(element, 333, 271) },
+    { name: "a pixel ratio of 2", change: (element) => pixelRatioTo(element, 2) },
+    { name: "a pixel ratio of 1.5", change: (element) => pixelRatioTo(element, 1.5) },
+    {
+        name: "a real wheel zoom",
+        change: async (element) => {
+            await wheel(element, { x: START / 2, y: START / 2 }, -150);
+            await settle(element);
+        },
+    },
+    {
+        name: "a real camera orbit drag",
+        change: async (element) => {
+            // From empty canvas: in 3D the drag turns the camera, in 2D it pans.
+            await drag(element, EMPTY, { x: EMPTY.x + 70, y: EMPTY.y + 40 }, 10);
+            await settle(element);
+        },
+    },
+];
+
+/** The nodes probed after a view change: every fixture node but the overlapping pair, whose answer is either. */
+const VIEW_PROBES = ["a0", "a1", "b0", "b1", "t0", "t1", "t2", "tiny", "big", "small", "lab", "ul", "grow", "gone"];
+
+/** The edges probed after a view change, at their middles: undirected pairs and a directed triangle side. */
+const VIEW_EDGES: readonly (readonly [string, string, string])[] = [
+    ["ea", "a0", "a1"],
+    ["eb", "b0", "b1"],
+    ["t01", "t0", "t1"],
+];
+
+describe.each(VIEWS)("pointing after the view changes in %s", (view) => {
+    it.each(VIEW_CHANGES)(
+        "after $name, hover and a click name the node or edge under the pointer, on both paths and as before",
+        async ({ name, change }) => {
+            const answers: Record<Path, Map<string, Answer>> = { objects: new Map(), batched: new Map() };
+            const expected = new Map<string, string>();
+            const offscreen: Record<Path, string[]> = { objects: [], batched: [] };
+            for (const path of PATHS) {
+                const nodes = nodeFixture(view);
+                const element = await mount(path, view, nodes, NODE_EDGES, NODE_LAYERS, START);
+                // A pick before the change, so the ID buffers already exist at the old size.
+                await hover(element, spot(element, "ul"));
+                await settle(element);
+                await hover(element, EMPTY);
+                await settle(element);
+                await change(element);
+                assertLazy(element, path, nodes.length);
+                const canvas = element.graph.engine.getRenderingCanvas();
+                const inside = (p: Point): boolean =>
+                    p.x > 2 && p.y > 2 && p.x < (canvas?.clientWidth ?? 0) - 2 && p.y < (canvas?.clientHeight ?? 0) - 2;
+                const put = async (key: string, point: Point, want: string | undefined): Promise<void> => {
+                    const full = `${view} ${name} ${key}`;
+                    if (!inside(point)) {
+                        offscreen[path].push(key);
+                        return;
+                    }
+
+                    if (want !== undefined) {
+                        expected.set(full, want);
+                    }
+
+                    const a = await answer(element, point);
+                    answers[path].set(full, a);
+                    record(full, path, a);
+                };
+
+                for (const id of VIEW_PROBES) {
+                    await put(`node ${id}`, spot(element, id), id === "tiny" ? undefined : `node:${id}`);
+                }
+
+                for (const [edge, s, t] of VIEW_EDGES) {
+                    const a = spot(element, s);
+                    const b = spot(element, t);
+                    await put(`edge ${edge} middle`, { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, `edge:${edge}`);
+                }
+
+                element.remove();
+            }
+
+            if (PATHS.includes("batched")) {
+                assert.deepEqual(offscreen.batched, offscreen.objects, "both paths put the same nodes off the canvas");
+            }
+
+            assert.isAtLeast(answers.objects.size, 10, "most of the fixture is still on the canvas to point at");
+            assert.deepEqual(problems(answers, expected), []);
+        },
+    );
+});

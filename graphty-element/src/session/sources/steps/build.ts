@@ -454,13 +454,26 @@ function ruleFor(step: Step, column: string): ClashRule {
 }
 
 /**
- * The `aggregate` rule a step sets for one working column.
+ * The `aggregate` rule a step sets for one working column: its own, else the `"*"` rule, which
+ * never reduces a column the step matches or keys its rows by.
  * @param step - The step.
  * @param column - A working column name.
  * @returns The rule, or undefined when the column follows `repeated`.
  */
 function aggregateFor(step: Step, column: string): JoinReduce | undefined {
-    return "aggregate" in step ? step.aggregate?.[column] : undefined;
+    if (!("aggregate" in step) || step.aggregate === undefined) {
+        return undefined;
+    }
+    const own = step.aggregate[column];
+    if (own !== undefined || column === "*") {
+        return own;
+    }
+    const r = step.read;
+    const matched =
+        ("key" in r && r.key === column) ||
+        ("source" in r && (r.source === column || r.target === column)) ||
+        ("edgeId" in r && r.edgeId === column);
+    return matched ? undefined : step.aggregate["*"];
 }
 
 type Held = [origin: string, value: Value];

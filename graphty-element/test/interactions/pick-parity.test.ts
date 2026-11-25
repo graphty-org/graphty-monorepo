@@ -20,13 +20,14 @@
 import "../../src/graphty-element";
 
 import { afterEach, assert, describe, it } from "vitest";
+import { server } from "vitest/browser";
 
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
 import { dataManagerInternals } from "../../src/managers/DataManager";
 import { drawnFrames } from "../helpers/drawn-frames";
 import { inkNear } from "../helpers/drawn-invariants";
-import { click, drag, hover, type Modifiers, type Point, rightClick, wheel } from "../helpers/real-input";
+import { click, drag, hover, type Modifiers, type Point, reachable, rightClick, wheel } from "../helpers/real-input";
 import REFERENCE from "./pick-parity.reference.json";
 
 type Path = "objects" | "batched";
@@ -197,12 +198,14 @@ function selection(element: Graphty): string {
 /**
  * Move the real pointer to a point, read every reader there, then click it and read the selection.
  * @param element - The element.
- * @param point - The point, in CSS pixels.
+ * @param asked - The point, in CSS pixels.
  * @param fromEmpty - Rest the pointer on empty canvas first, so the move onto the point is heard as a hover
  *     even when the last point was on the same node; false moves straight there from the last point.
  * @returns The answer.
  */
-async function answer(element: Graphty, point: Point, fromEmpty = true): Promise<Answer> {
+async function answer(element: Graphty, asked: Point, fromEmpty = true): Promise<Answer> {
+    // Every reader is asked about the point the pointer really reaches (in WebKit, a whole pixel of the top page).
+    const point = reachable(element, asked);
     if (fromEmpty) {
         await hover(element, EMPTY);
         await settle(element);
@@ -273,8 +276,13 @@ function disagreements(name: string, a: Answer): string[] {
     return out;
 }
 
-/** The objects answers of the build before the optimizations, by case. */
-const reference = REFERENCE as Record<string, Answer | string | undefined>;
+/**
+ * The objects answers of the build before the optimizations, by case. They were recorded in Chromium, whose pointer
+ * lands on the exact fractional point asked; WebKit's lands on the nearest whole pixel (`reachable`), half a pixel
+ * off, where a one-pixel line or a label's edge may or may not be, so outside Chromium the two paths and each
+ * answer's readers are still compared with each other, but not with these.
+ */
+const reference = (server.browser === "chromium" ? REFERENCE : {}) as Record<string, Answer | string | undefined>;
 
 /**
  * Print one answer, so a run on the reference build can be recorded as pick-parity.reference.json.
@@ -542,10 +550,13 @@ function edgeFixture(): { nodes: NodeIn[]; edges: EdgeIn[] } {
  * @returns The point, or undefined.
  */
 function firstOn(element: Graphty, id: string, points: Point[]): Point | undefined {
-    return points.find((p) => {
-        const hit = element.elementAt(p);
-        return hit?.kind === "edge" && edgeName(element, hit.id) === id;
-    });
+    // Only points the pointer can reach exactly (every point in Chromium, whole pixels in WebKit).
+    return points
+        .map((p) => reachable(element, p))
+        .find((p) => {
+            const hit = element.elementAt(p);
+            return hit?.kind === "edge" && edgeName(element, hit.id) === id;
+        });
 }
 
 describe.each(VIEWS)("pointing at edges in %s", (view) => {

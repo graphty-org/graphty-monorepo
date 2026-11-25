@@ -16,7 +16,7 @@ import {
 import { type EdgeLineMeta, markEdgeLineBatchMesh, patternSpacing } from "./EdgeLineBatch";
 import { batchUploadFrames } from "./FrameRoster";
 import { takePoolReserve } from "./poolReserve";
-import { CURVE_STRIDE, curveShape, type CurveSpan } from "./pulledCurve";
+import { CURVE_STRIDE, curveShape, type CurveSpan, STRAIGHT_SPAN } from "./pulledCurve";
 import { placedEnds, type PulledCapLook, type RestSource, RestWatch, roundRowsEnds } from "./restPlacement";
 
 /**
@@ -166,6 +166,40 @@ export const LEAN_TEMPLATE = { indices: LEAN_TEMPLATE_INDICES, vertices: LEAN_TE
 
 /** The lean program's define, which a batch that switches program adds to and takes from its material. */
 const LEAN_DEFINE = "#define EDGE_PULLED_LEAN";
+
+/**
+ * What holds pieces of a scene's straight batches (`Edge`s, `EdgeRowLines`): asked for the pieces of a straight
+ * batch that a curve batch can draw (no head, no seen-through end), and told where each moved
+ * ({@link PulledLineBatch.moveStraightInto}).
+ */
+export interface StraightPieceHolder {
+    /**
+     * The pieces of a batch this holds that a curve batch can draw.
+     * @param batch - The straight batch.
+     * @returns Each piece, with what to call once it has moved.
+     */
+    straightPieces(
+        batch: PulledLineBatch,
+    ): Iterable<{ piece: number; moved: (to: PulledLineBatch, piece: number) => void }>;
+}
+
+/** Each scene's {@link StraightPieceHolder}s. */
+const HOLDERS = new WeakMap<Scene, Set<StraightPieceHolder>>();
+
+/**
+ * Name a holder of a scene's straight pieces ({@link PulledLineBatch.moveStraightInto}).
+ * @param scene - The scene.
+ * @param holder - The holder.
+ */
+export function holdStraightPieces(scene: Scene, holder: StraightPieceHolder): void {
+    let holders = HOLDERS.get(scene);
+    if (holders === undefined) {
+        holders = new Set();
+        HOLDERS.set(scene, holders);
+    }
+
+    holders.add(holder);
+}
 
 /** Each scene's batches that can draw their pieces with either program; see {@link drawLinesLean}. */
 const SWITCHING = new WeakMap<Scene, Set<PulledLineBatch>>();
@@ -321,6 +355,12 @@ export class PulledLineBatch {
     private routes: Float32Array<ArrayBuffer> | null = null;
 
     private routeTable: RawTexture | null = null;
+
+    /**
+     * Whether the route table's CPU copy has grown since its texture was made: the next frame sends it whole, once,
+     * however many times it doubled as a repaint's curves arrived.
+     */
+    private routesGrown = false;
 
     /** Route texels handed out so far, the size of each block handed out by its first texel, and free blocks by size. */
     private routeHighWater = 0;
@@ -498,6 +538,15 @@ export class PulledLineBatch {
      */
     get drawnCount(): number {
         return this.highWater;
+    }
+
+    /**
+     * Whether this is a curve batch (`EDGE_PULLED_CURVE`), whose straight pieces run center to center
+     * ({@link PulledLineBatch.drawStraight}).
+     * @returns True for a curve batch.
+     */
+    get drawsCurves(): boolean {
+        return this.curve;
     }
 
     /**
@@ -848,6 +897,17 @@ export class PulledLineBatch {
     }
 
     /**
+     * Draw a straight piece between its rows' centers: in a curve batch, an entry with the one-piece straight span
+     * ({@link STRAIGHT_SPAN}); nothing to do in a straight batch, which draws every piece so.
+     * @param piece - The piece.
+     */
+    drawStraight(piece: number): void {
+        if (this.curve) {
+            this.setCurve(piece, 0, STRAIGHT_SPAN);
+        }
+    }
+
+    /**
      * Keep a line's cut path in the route table, in the block it holds when it fits there, else in another.
      * @param at - The block the line holds, or -1.
      * @param points - The path's points, flat (x, y, z) triples.
@@ -869,7 +929,10 @@ export class PulledLineBatch {
 
         routes.fill(0, block * TEXEL_FLOATS, (block + size) * TEXEL_FLOATS);
         for (let k = 0; k < count; k++) {
-            routes.set(points.slice(3 * k, 3 * k + 3), (block + k) * TEXEL_FLOATS);
+            const texel = (block + k) * TEXEL_FLOATS;
+            routes[texel] = points[3 * k];
+            routes[texel + 1] = points[3 * k + 1];
+            routes[texel + 2] = points[3 * k + 2];
         }
         const first = Math.floor(block / this.routeWidth);
         const last = Math.floor((block + size - 1) / this.routeWidth);
@@ -913,10 +976,7 @@ export class PulledLineBatch {
                 const grown = new Float32Array(texels * TEXEL_FLOATS);
                 grown.set(this.routes);
                 this.routes = grown;
-                this.routeTable?.dispose();
-                this.routeTable = this.buildRoutes(grown);
-                this.routesFirst = -1;
-                this.routesLast = -1;
+                this.routesGrown = true;
             }
 
             this.routeHighWater = highWater;
@@ -1108,6 +1168,15 @@ export class PulledLineBatch {
 
     /** Send the route table lines written since the last frame. */
     private flushRoutes(): void {
+        if (this.routesGrown && this.routes !== null) {
+            this.routesGrown = false;
+            this.routeTable?.dispose();
+            this.routeTable = this.buildRoutes(this.routes);
+            this.routesFirst = -1;
+            this.routesLast = -1;
+            return;
+        }
+
         const internal = this.routeTable?.getInternalTexture();
         if (this.routesFirst < 0 || this.routes === null || !internal) {
             return;
@@ -1374,6 +1443,42 @@ export class PulledLineBatch {
     }
 
     /**
+     * Compare two pieces' draw places: `edge.drawOrder` first, then the width group's rank and slot, then the piece.
+     * @param a - A piece.
+     * @param b - Another.
+     * @returns Below 0 when `a` draws first.
+     */
+    private drawsBefore(a: number, b: number): number {
+        const { keys, orders } = this;
+        return (orders?.[a] ?? UNORDERED) - (orders?.[b] ?? UNORDERED) || (keys?.[a] ?? a) - (keys?.[b] ?? b) || a - b;
+    }
+
+    /**
+     * Move this straight batch's pieces that a curve batch can draw into a curve batch of the same key that was just
+     * made, in this batch's draw order, before the curve that made it takes a piece: straight lines and curves of one
+     * key then draw from one batch, in the order their pieces were taken, as the object path's one line batch draws
+     * them, with widths and `edge.drawOrder` ranked among all of them (#9201). A piece under a pulled head stays.
+     * @param to - The curve batch.
+     */
+    moveStraightInto(to: PulledLineBatch): void {
+        const moving = [...(HOLDERS.get(this.scene) ?? [])]
+            .flatMap((holder) => [...holder.straightPieces(this)])
+            .filter(({ piece }) => this.rows[piece * this.pieceFloats + 7] === 0 && !this.endLooks.has(piece))
+            .sort((a, b) => this.drawsBefore(a.piece, b.piece));
+        for (const { piece, moved } of moving) {
+            const at = piece * this.pieceFloats;
+            const order = this.orders?.[piece];
+            const taken = to.acquire(this.rows[at + 2], order === UNORDERED ? undefined : order);
+            to.rows.set(this.rows.subarray(at, at + 7), taken * to.pieceFloats);
+            to.touch(taken);
+            to.setHidden(taken, this.hidden[piece] === 255);
+            to.drawStraight(taken);
+            this.release(piece);
+            moved(to, taken);
+        }
+    }
+
+    /**
      * Put the pieces handed out in draw order ({@link PulledLineBatch.keys}): in the draw order table while two widths
      * interleave, else in plain piece order with no table read.
      */
@@ -1391,11 +1496,8 @@ export class PulledLineBatch {
         if (ordered) {
             // ponytail: sorts every handed-out piece, at most once a frame and only while widths interleave; give
             // each group its own slot range if a large mixed-width load shows it
-            const drawn = Uint32Array.from({ length: highWater }, (_, piece) => piece).sort(
-                (a, b) =>
-                    (orders?.[a] ?? UNORDERED) - (orders?.[b] ?? UNORDERED) ||
-                    (keys?.[a] ?? a) - (keys?.[b] ?? b) ||
-                    a - b,
+            const drawn = Uint32Array.from({ length: highWater }, (_, piece) => piece).sort((a, b) =>
+                this.drawsBefore(a, b),
             );
             const shape = this.flagShape(capacity);
             this.orderWidth = shape.width;

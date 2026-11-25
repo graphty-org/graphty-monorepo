@@ -1373,6 +1373,7 @@ const STYLES_API: Readonly<Record<string, Door>> = {
     showDraft: exempt("a preview view: it suspends the stack's picture while a source draft is drawn, never the stack"),
     showingBranches: READ,
     shownBranches: READ,
+    shownDraft: READ,
     list: READ,
     get: READ,
     validate: READ,
@@ -1733,6 +1734,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getNodes: READ,
             getNodeIds: READ,
             getEdges: READ,
+            getEdgeIds: READ,
             getNodeCount: READ,
             getEdgeCount: READ,
             selectNode: SELECTION,
@@ -2105,6 +2107,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getNodes: READ,
             getNodeIds: READ,
             getEdges: READ,
+            getEdgeIds: READ,
             render: RENDER,
             enableAiControl: ASSISTANT,
             disableAiControl: ASSISTANT,
@@ -2526,6 +2529,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             updatePositions: TRANSPORT,
             // The frame's own publish of a stale static layout, reporting a refusal as updatePositions does.
             publishOrReport: TRANSPORT,
+            // Waits for an asynchronous layout's answer and publishes it then, as the next frame would.
+            answered: TRANSPORT,
             onRest: RENDER,
             onMotion: RENDER,
             checkMotion: RENDER,
@@ -3704,6 +3709,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             editStep: DRAFT_ACT,
             removeStep: DRAFT_ACT,
             moveStep: DRAFT_ACT,
+            replaceStep: DRAFT_ACT,
             removeSource: DRAFT_ACT,
             removeEdit: DRAFT_ACT,
             setMapping: DRAFT_ACT,
@@ -3720,6 +3726,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             clearPicks: DRAFT_ACT,
             exclude: DRAFT_ACT,
             include: DRAFT_ACT,
+            batch: DRAFT_ACT,
+            suggestMatches: READ,
             commit: SOURCE_STEPS_WRITE,
             dispose: exempt("closes the draft, writing nothing"),
             displayed: READ,
@@ -3762,6 +3770,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             rows: READ,
             elements: READ,
             cells: READ,
+            marks: READ,
+            ids: READ,
         },
     },
     {
@@ -3901,7 +3911,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                     kind: "call",
                     args: ["set_door-kept"],
                     // A set a rule names keeps its record once removed, so it can be restored.
-                    around: async (target) => {
+                    around: (target) => {
                         const sets = target as {
                             create(definition: unknown, options: { name: string }): string;
                             remove(id: string): void;

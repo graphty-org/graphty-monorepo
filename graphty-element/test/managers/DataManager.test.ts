@@ -351,7 +351,14 @@ describe("DataManager", () => {
         });
     });
 
+    // The engine holding the graph's own `Node`s and `Edge`s is the "objects" path; under "batched" it is
+    // handed rows ("edges stored with no Edge, handed to the layout" below), so this runs on "objects" in
+    // every project.
     describe("layout engine integration", () => {
+        beforeEach(() => {
+            graph.setRenderPath("objects");
+        });
+
         it("should work with layout engine", async () => {
             // Set a layout
             await graph.setLayout("ngraph", {});
@@ -372,7 +379,12 @@ describe("DataManager", () => {
     });
     // The count the lazy-node stage of design/rendering/row-renderer.md drives toward zero under
     // "batched". Under "objects", the default, every node a load stores is built once, at the load.
+    // Under "batched" a load builds none: "getNodes on the batched path" below.
     describe("nodes built", () => {
+        beforeEach(() => {
+            graph.setRenderPath("objects");
+        });
+
         it("counts one Node per stored node, and none for a read", () => {
             assert.equal(dataManagerInternals.nodesBuilt(dataManager), 0);
 
@@ -441,6 +453,10 @@ describe("DataManager", () => {
     // The count the lazy-edge stage of design/rendering/row-renderer.md drives toward zero under
     // "batched". Under "objects", the default, every edge a load stores is built once, when both ends are.
     describe("edges built", () => {
+        beforeEach(() => {
+            graph.setRenderPath("objects");
+        });
+
         it("counts one Edge per stored edge, a deferred one once its ends arrive, and none for a read", () => {
             assert.equal(dataManagerInternals.edgesBuilt(dataManager), 0);
 

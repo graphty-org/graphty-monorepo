@@ -124,6 +124,7 @@ export interface AccelerationStatus {
     readonly params?: Readonly<Record<string, CodedFactParam>>;
     readonly policy: AccelerationPolicy;
     readonly reason?: string;
+    readonly recovering?: true;
     readonly state: AccelerationState;
     readonly vendor?: string;
 }
@@ -548,7 +549,7 @@ export interface Caveats {
 }
 
 // @public
-export type Channel = "node.color" | "node.size" | "node.sizeMode" | "node.sizeSpace" | "node.shape" | "node.label" | "node.labelStyle" | "node.labelColor" | "node.labelSize" | "node.labelLetterSize" | "node.labelFont" | "node.labelWeight" | "node.labelItalic" | "node.labelWrapWidth" | "node.labelWrapTrailingSpace" | "node.labelWrapSkipEndSpace" | "node.labelWrapEllipsis" | "node.labelWrapAnywhere" | "node.labelWrapSpaceCount" | "node.labelMaxLines" | "node.labelMaxLinesEllipsis" | "node.labelRunAlign" | "node.labelMinScreenSize" | "node.labelOnTop" | "node.labelDeclutter" | "node.labelMinNodeScreenSize" | "node.labelTextAlign" | "node.labelLocation" | "node.labelRotation" | "node.labelBackground" | "node.labelOutline" | "node.labelOutlineWidth" | "node.labelBorder" | "node.labelBorderWidth" | "node.labelOpacity" | "node.labelBackgroundOpacity" | "node.labelOutlineOpacity" | "node.labelBorderOpacity" | "node.labelPadding" | "node.labelCornerRadius" | "node.labelLineHeight" | "node.labelLineBox" | "node.labelBorderAlign" | "node.labelBorderStyle" | "node.labelBackgroundShape" | "node.labelImage" | "node.labelImageWidth" | "node.labelImageHeight" | "node.labelImageOffsetX" | "node.labelImageOffsetY" | "node.labelOffsetX" | "node.labelOffsetY" | "node.labelShiftX" | "node.labelShiftY" | "node.labelShiftOf" | "node.labelGapOf" | "node.labelBox" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.outlineWidth" | "node.glow" | "node.glowStrength" | "node.halo" | "node.haloColor" | "node.haloScale" | "node.haloOpacity" | "node.wireframe" | "node.meshDetail" | "node.flat" | "node.unlit" | "node.marker" | "node.width" | "node.height" | "node.depth" | "node.relativeExtents" | "node.planar" | "node.zIndex" | "node.drawOrder" | "node.borderColor" | "node.borderWidth" | "node.borderScreenWidth" | "node.borderOpacity" | "node.borderStyle" | "node.borderPosition" | "node.borderWaveAmplitude" | "node.borderWavePeriod" | "node.outerBorderColor" | "node.outerBorderWidth" | "node.outerBorderOpacity" | "node.outerBorderStyle" | "node.outerBorderOffset" | "node.outerBorderCount" | "node.raisedBorderWidth" | "node.raisedBorderLightColor" | "node.raisedBorderDarkColor" | "node.shadowColor" | "node.shadowOpacity" | "node.shadowBlur" | "node.shadowOffsetX" | "node.shadowOffsetY" | "node.underlayColor" | "node.underlayOpacity" | "node.underlayPadding" | "node.underlayShape" | "node.underlayCornerRadius" | "node.overlayColor" | "node.overlayOpacity" | "node.overlayPadding" | "node.overlayShape" | "node.overlayCornerRadius" | "node.cornerRadius" | "node.exactCornerRadius" | "node.cornerFraction" | "node.shapePoints" | "node.shapeStretchPoints" | "node.shapeRotation" | "node.shapeParts" | "node.shapeLines" | "node.shapeTexts" | "node.labelTable" | "node.shapeLineWidth" | "node.shapeLineHaloColor" | "node.shapeLineHaloWidth" | "node.labelFit" | "node.labelPaddingX" | "node.labelPaddingY" | "node.labelFitSquare" | "node.labelFitQuantum" | "node.labelFitImage" | "node.labelFitImagePadding" | "node.imageAspect" | "node.gradientColor" | "node.gradientDirection" | "node.gradientColors" | "node.gradientStops" | "node.gradientKind" | "node.gradientCenterX" | "node.gradientCenterY" | "node.gradientRadius" | "node.image" | "node.imageFallback" | "node.imageFit" | "node.imageWidth" | "node.imageHeight" | "node.imagePixelSize" | "node.imagePositionX" | "node.imagePositionY" | "node.imageOffsetX" | "node.imageOffsetY" | "node.imageRepeat" | "node.imageClip" | "node.imageSmoothing" | "node.imageAutoSize" | "node.imageOpacity" | "node.glyph" | "node.glyphFont" | "node.glyphSize" | "node.glyphWeight" | "node.glyphColor" | "node.pieColors" | "node.pieSizes" | "node.pieOpacities" | "node.pieRadius" | "node.pieHole" | "node.pieRotation" | "node.pieFitBox" | "node.pieOffsetX" | "node.pieOffsetY" | "node.stripeColors" | "node.stripeSizes" | "node.stripeOpacities" | "node.stripeDirection" | "node.stripeSize" | "node.stripeFrame" | "node.chartKind" | "node.chartValues" | "node.chartColors" | "node.chartMin" | "node.chartMax" | "node.chartHorizontal" | "node.chartSize" | "node.chartWidth" | "node.chartHeight" | "node.chartOffsetX" | "node.chartOffsetY" | "node.chartMargin" | "node.chartGap" | "node.chartLineWidth" | "node.chartBorderColor" | "node.chartBorderWidth" | "node.chartBackgroundColor" | "node.chartBackgroundOpacity" | "node.model" | "node.modelSourceUp" | "node.modelTurn" | "node.modelTint" | "node.modelDoubleSided" | "node.modelAnimation" | "node.modelAnimationSpeed" | "node.modelAnimationOffset" | "node.modelFit" | "node.modelCenter" | "node.texture" | "node.groupPadding" | "node.groupPaddingRatio" | "node.groupPaddingOf" | "node.groupMinWidth" | "node.groupMinHeight" | "node.groupMinWidthBiasLeft" | "node.groupMinHeightBiasTop" | "node.groupIncludeLabels" | "edge.color" | "edge.colorFrom" | "edge.width" | "edge.minScreenWidth" | "edge.drawOrder" | "edge.fadeStart" | "edge.fadeEnd" | "edge.fadeOpacity" | "edge.blending" | "edge.opacity" | "edge.bandColor" | "edge.bandWidth" | "edge.bandOpacity" | "edge.outlineColor" | "edge.outlineWidth" | "edge.outlineOpacity" | "edge.outlineStyle" | "edge.underlayColor" | "edge.underlayOpacity" | "edge.underlayPadding" | "edge.overlayColor" | "edge.overlayOpacity" | "edge.overlayPadding" | "edge.gradientColors" | "edge.gradientStops" | "edge.gradientKind" | "edge.strandColors" | "edge.strandSpacing" | "edge.style" | "edge.patternCount" | "edge.waveAmplitude" | "edge.wavePeriod" | "edge.dashLength" | "edge.dashGap" | "edge.dashArray" | "edge.curvature" | "edge.bends" | "edge.fanSpacing" | "edge.fanned" | "edge.bendCurve" | "edge.arcRadius" | "edge.supportModel" | "edge.supportSpringLength" | "edge.supportSpringConstant" | "edge.supportRepulsion" | "edge.supportCentralGravity" | "edge.supportUnit" | "edge.supportScale" | "edge.route" | "edge.arcHeight" | "edge.nodeGap" | "edge.sourceNodeGap" | "edge.targetNodeGap" | "edge.sourcePort" | "edge.targetPort" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadWidth" | "edge.arrowHeadSide" | "edge.arrowHeadOutlineWidth" | "edge.arrowHeadPosition" | "edge.arrowHeadGap" | "edge.arrowHeadStack" | "edge.arrowHeadColor" | "edge.arrowHeadFillColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadImage" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowHeadTextSize" | "edge.arrowHeadTextLetterSize" | "edge.arrowHeadTextFont" | "edge.arrowHeadTextColor" | "edge.arrowHeadTextWeight" | "edge.arrowHeadTextOpacity" | "edge.arrowHeadTextDistance" | "edge.arrowHeadTextRotation" | "edge.arrowHeadTextOffsetX" | "edge.arrowHeadTextOffsetY" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailWidth" | "edge.arrowTailSide" | "edge.arrowTailOutlineWidth" | "edge.arrowTailPosition" | "edge.arrowTailGap" | "edge.arrowTailStack" | "edge.arrowTailColor" | "edge.arrowTailFillColor" | "edge.arrowTailOpacity" | "edge.arrowTailImage" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.arrowTailTextSize" | "edge.arrowTailTextLetterSize" | "edge.arrowTailTextFont" | "edge.arrowTailTextColor" | "edge.arrowTailTextWeight" | "edge.arrowTailTextOpacity" | "edge.arrowTailTextDistance" | "edge.arrowTailTextRotation" | "edge.arrowTailTextOffsetX" | "edge.arrowTailTextOffsetY" | "edge.arrowMiddleHead" | "edge.arrowMiddleHeadSize" | "edge.arrowMiddleHeadWidth" | "edge.arrowMiddleHeadSide" | "edge.arrowMiddleHeadOutlineWidth" | "edge.arrowMiddleHeadPosition" | "edge.arrowMiddleHeadColor" | "edge.arrowMiddleHeadFillColor" | "edge.arrowMiddleHeadOpacity" | "edge.arrowMiddleHeadImage" | "edge.arrowMiddleTail" | "edge.arrowMiddleTailSize" | "edge.arrowMiddleTailWidth" | "edge.arrowMiddleTailSide" | "edge.arrowMiddleTailOutlineWidth" | "edge.arrowMiddleTailPosition" | "edge.arrowMiddleTailColor" | "edge.arrowMiddleTailFillColor" | "edge.arrowMiddleTailOpacity" | "edge.arrowMiddleTailImage" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle" | "edge.labelColor" | "edge.labelSize" | "edge.labelLetterSize" | "edge.labelFont" | "edge.labelWeight" | "edge.labelItalic" | "node.visible" | "node.tooltipSize" | "node.tooltipColor" | "node.tooltipBackground" | "edge.visible" | "edge.labelBackground" | "edge.arrowHeadTextBackground" | "edge.arrowTailTextBackground" | "node.shaders" | "edge.shaders" | "edge.taper" | "edge.taperSource" | "edge.lift" | "edge.labelWrapWidth" | "edge.labelWrapTrailingSpace" | "edge.labelWrapSkipEndSpace" | "edge.labelWrapEllipsis" | "edge.labelWrapAnywhere" | "edge.labelWrapSpaceCount" | "edge.labelMaxLines" | "edge.labelMaxLinesEllipsis" | "edge.labelRunAlign" | "edge.labelMinScreenSize" | "edge.labelOnTop" | "edge.labelTextAlign" | "edge.labelLocation" | "edge.labelRotation" | "edge.labelOutline" | "edge.labelOutlineWidth" | "edge.labelBorder" | "edge.labelBorderWidth" | "edge.labelOpacity" | "edge.labelBackgroundOpacity" | "edge.labelOutlineOpacity" | "edge.labelBorderOpacity" | "edge.labelPadding" | "edge.labelTable" | "edge.labelCornerRadius" | "edge.labelLineHeight" | "edge.labelLineBox" | "edge.labelBorderAlign" | "edge.labelBorderStyle" | "edge.labelBackgroundShape" | "edge.labelImage" | "edge.labelImageWidth" | "edge.labelImageHeight" | "edge.labelImageOffsetX" | "edge.labelImageOffsetY" | "edge.labelOffsetX" | "edge.labelOffsetY" | "edge.labelShiftX" | "edge.labelShiftY" | "edge.labelShiftOf" | "edge.labelGapOf" | "edge.labelBox" | "node.xlabel" | "node.xlabelStyle" | "node.xlabelLocation" | "node.xlabelOffsetX" | "node.xlabelOffsetY" | "node.xlabelTextAlign" | "node.xlabelColor" | "node.xlabelFont" | "node.xlabelWeight" | "node.xlabelItalic" | "edge.xlabel" | "edge.xlabelStyle" | "edge.xlabelLocation" | "edge.xlabelOffsetX" | "edge.xlabelOffsetY";
+export type Channel = "node.color" | "node.size" | "node.sizeMode" | "node.sizeSpace" | "node.shape" | "node.label" | "node.labelStyle" | "node.labelColor" | "node.labelSize" | "node.labelLetterSize" | "node.labelFont" | "node.labelWeight" | "node.labelItalic" | "node.labelWrapWidth" | "node.labelWrapTrailingSpace" | "node.labelWrapSkipEndSpace" | "node.labelWrapEllipsis" | "node.labelWrapAnywhere" | "node.labelWrapSpaceCount" | "node.labelMaxLines" | "node.labelMaxLinesEllipsis" | "node.labelRunAlign" | "node.labelMinScreenSize" | "node.labelOnTop" | "node.labelDeclutter" | "node.labelMinNodeScreenSize" | "node.labelTextAlign" | "node.labelLocation" | "node.labelRotation" | "node.labelBackground" | "node.labelOutline" | "node.labelOutlineWidth" | "node.labelBorder" | "node.labelBorderWidth" | "node.labelOpacity" | "node.labelBackgroundOpacity" | "node.labelOutlineOpacity" | "node.labelBorderOpacity" | "node.labelPadding" | "node.labelCornerRadius" | "node.labelLineHeight" | "node.labelLineBox" | "node.labelBorderAlign" | "node.labelBorderStyle" | "node.labelBackgroundShape" | "node.labelImage" | "node.labelImageWidth" | "node.labelImageHeight" | "node.labelImageOffsetX" | "node.labelImageOffsetY" | "node.labelOffsetX" | "node.labelOffsetY" | "node.labelShiftX" | "node.labelShiftY" | "node.labelShiftOf" | "node.labelGapOf" | "node.labelBox" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.outlineWidth" | "node.glow" | "node.glowStrength" | "node.halo" | "node.haloColor" | "node.haloScale" | "node.haloOpacity" | "node.wireframe" | "node.meshDetail" | "node.flat" | "node.unlit" | "node.marker" | "node.width" | "node.height" | "node.depth" | "node.relativeExtents" | "node.planar" | "node.zIndex" | "node.drawOrder" | "node.borderColor" | "node.borderWidth" | "node.borderScreenWidth" | "node.borderOpacity" | "node.borderStyle" | "node.borderPosition" | "node.borderWaveAmplitude" | "node.borderWavePeriod" | "node.outerBorderColor" | "node.outerBorderWidth" | "node.outerBorderOpacity" | "node.outerBorderStyle" | "node.outerBorderOffset" | "node.outerBorderCount" | "node.raisedBorderWidth" | "node.raisedBorderLightColor" | "node.raisedBorderDarkColor" | "node.shadowColor" | "node.shadowOpacity" | "node.shadowBlur" | "node.shadowOffsetX" | "node.shadowOffsetY" | "node.underlayColor" | "node.underlayOpacity" | "node.underlayPadding" | "node.underlayShape" | "node.underlayCornerRadius" | "node.overlayColor" | "node.overlayOpacity" | "node.overlayPadding" | "node.overlayShape" | "node.overlayCornerRadius" | "node.cornerRadius" | "node.exactCornerRadius" | "node.cornerFraction" | "node.shapePoints" | "node.shapeStretchPoints" | "node.shapeRotation" | "node.shapeParts" | "node.shapeLines" | "node.shapeTexts" | "node.labelTable" | "node.shapeLineWidth" | "node.shapeLineHaloColor" | "node.shapeLineHaloWidth" | "node.labelFit" | "node.labelPaddingX" | "node.labelPaddingY" | "node.labelFitSquare" | "node.labelFitQuantum" | "node.labelFitImage" | "node.labelFitImagePadding" | "node.imageAspect" | "node.gradientColor" | "node.gradientDirection" | "node.gradientColors" | "node.gradientStops" | "node.gradientKind" | "node.gradientCenterX" | "node.gradientCenterY" | "node.gradientRadius" | "node.image" | "node.imageFallback" | "node.imageFit" | "node.imageWidth" | "node.imageHeight" | "node.imagePixelSize" | "node.imagePositionX" | "node.imagePositionY" | "node.imageOffsetX" | "node.imageOffsetY" | "node.imageRepeat" | "node.imageClip" | "node.imageSmoothing" | "node.imageAutoSize" | "node.imageOpacity" | "node.glyph" | "node.glyphFont" | "node.glyphSize" | "node.glyphWeight" | "node.glyphColor" | "node.pieColors" | "node.pieSizes" | "node.pieOpacities" | "node.pieRadius" | "node.pieHole" | "node.pieRotation" | "node.pieFitBox" | "node.pieOffsetX" | "node.pieOffsetY" | "node.stripeColors" | "node.stripeSizes" | "node.stripeOpacities" | "node.stripeDirection" | "node.stripeSize" | "node.stripeFrame" | "node.chartKind" | "node.chartValues" | "node.chartColors" | "node.chartMin" | "node.chartMax" | "node.chartHorizontal" | "node.chartSize" | "node.chartWidth" | "node.chartHeight" | "node.chartOffsetX" | "node.chartOffsetY" | "node.chartMargin" | "node.chartGap" | "node.chartLineWidth" | "node.chartBorderColor" | "node.chartBorderWidth" | "node.chartBackgroundColor" | "node.chartBackgroundOpacity" | "node.model" | "node.modelSourceUp" | "node.modelTurn" | "node.modelTint" | "node.modelDoubleSided" | "node.modelAnimation" | "node.modelAnimationSpeed" | "node.modelAnimationOffset" | "node.modelFit" | "node.modelCenter" | "node.texture" | "node.groupPadding" | "node.groupPaddingRatio" | "node.groupPaddingOf" | "node.groupMinWidth" | "node.groupMinHeight" | "node.groupMinWidthBiasLeft" | "node.groupMinHeightBiasTop" | "node.groupIncludeLabels" | "edge.color" | "edge.colorFrom" | "edge.width" | "edge.minScreenWidth" | "edge.drawOrder" | "edge.fadeStart" | "edge.fadeEnd" | "edge.fadeOpacity" | "edge.blending" | "edge.opacity" | "edge.bandColor" | "edge.bandWidth" | "edge.bandOpacity" | "edge.outlineColor" | "edge.outlineWidth" | "edge.outlineOpacity" | "edge.outlineStyle" | "edge.underlayColor" | "edge.underlayOpacity" | "edge.underlayPadding" | "edge.overlayColor" | "edge.overlayOpacity" | "edge.overlayPadding" | "edge.gradientColors" | "edge.gradientStops" | "edge.gradientKind" | "edge.strandColors" | "edge.strandSpacing" | "edge.style" | "edge.patternCount" | "edge.waveAmplitude" | "edge.wavePeriod" | "edge.dashLength" | "edge.dashGap" | "edge.dashArray" | "edge.curvature" | "edge.bends" | "edge.fanSpacing" | "edge.fanned" | "edge.bendCurve" | "edge.arcRadius" | "edge.supportModel" | "edge.supportSpringLength" | "edge.supportSpringConstant" | "edge.supportRepulsion" | "edge.supportCentralGravity" | "edge.supportUnit" | "edge.supportScale" | "edge.route" | "edge.arcHeight" | "edge.nodeGap" | "edge.sourceNodeGap" | "edge.targetNodeGap" | "edge.sourcePort" | "edge.targetPort" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadWidth" | "edge.arrowHeadSide" | "edge.arrowHeadOutlineWidth" | "edge.arrowHeadPosition" | "edge.arrowHeadGap" | "edge.arrowHeadStack" | "edge.arrowHeadColor" | "edge.arrowHeadFillColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadImage" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowHeadTextSize" | "edge.arrowHeadTextLetterSize" | "edge.arrowHeadTextFont" | "edge.arrowHeadTextColor" | "edge.arrowHeadTextWeight" | "edge.arrowHeadTextOpacity" | "edge.arrowHeadTextDistance" | "edge.arrowHeadTextRotation" | "edge.arrowHeadTextOffsetX" | "edge.arrowHeadTextOffsetY" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailWidth" | "edge.arrowTailSide" | "edge.arrowTailOutlineWidth" | "edge.arrowTailPosition" | "edge.arrowTailGap" | "edge.arrowTailStack" | "edge.arrowTailColor" | "edge.arrowTailFillColor" | "edge.arrowTailOpacity" | "edge.arrowTailImage" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.arrowTailTextSize" | "edge.arrowTailTextLetterSize" | "edge.arrowTailTextFont" | "edge.arrowTailTextColor" | "edge.arrowTailTextWeight" | "edge.arrowTailTextOpacity" | "edge.arrowTailTextDistance" | "edge.arrowTailTextRotation" | "edge.arrowTailTextOffsetX" | "edge.arrowTailTextOffsetY" | "edge.arrowMiddleHead" | "edge.arrowMiddleHeadSize" | "edge.arrowMiddleHeadWidth" | "edge.arrowMiddleHeadSide" | "edge.arrowMiddleHeadOutlineWidth" | "edge.arrowMiddleHeadPosition" | "edge.arrowMiddleHeadColor" | "edge.arrowMiddleHeadFillColor" | "edge.arrowMiddleHeadOpacity" | "edge.arrowMiddleHeadImage" | "edge.arrowMiddleTail" | "edge.arrowMiddleTailSize" | "edge.arrowMiddleTailWidth" | "edge.arrowMiddleTailSide" | "edge.arrowMiddleTailOutlineWidth" | "edge.arrowMiddleTailPosition" | "edge.arrowMiddleTailColor" | "edge.arrowMiddleTailFillColor" | "edge.arrowMiddleTailOpacity" | "edge.arrowMiddleTailImage" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle" | "edge.tooltip" | "edge.tooltipStyle" | "edge.labelColor" | "edge.labelSize" | "edge.labelLetterSize" | "edge.labelFont" | "edge.labelWeight" | "edge.labelItalic" | "node.visible" | "node.tooltipSize" | "node.tooltipColor" | "node.tooltipBackground" | "edge.visible" | "edge.labelBackground" | "edge.tooltipSize" | "edge.tooltipColor" | "edge.tooltipBackground" | "edge.arrowHeadTextBackground" | "edge.arrowTailTextBackground" | "node.shaders" | "edge.shaders" | "edge.taper" | "edge.taperSource" | "edge.lift" | "edge.labelWrapWidth" | "edge.labelWrapTrailingSpace" | "edge.labelWrapSkipEndSpace" | "edge.labelWrapEllipsis" | "edge.labelWrapAnywhere" | "edge.labelWrapSpaceCount" | "edge.labelMaxLines" | "edge.labelMaxLinesEllipsis" | "edge.labelRunAlign" | "edge.labelMinScreenSize" | "edge.labelOnTop" | "edge.labelTextAlign" | "edge.labelLocation" | "edge.labelRotation" | "edge.labelOutline" | "edge.labelOutlineWidth" | "edge.labelBorder" | "edge.labelBorderWidth" | "edge.labelOpacity" | "edge.labelBackgroundOpacity" | "edge.labelOutlineOpacity" | "edge.labelBorderOpacity" | "edge.labelPadding" | "edge.labelTable" | "edge.labelCornerRadius" | "edge.labelLineHeight" | "edge.labelLineBox" | "edge.labelBorderAlign" | "edge.labelBorderStyle" | "edge.labelBackgroundShape" | "edge.labelImage" | "edge.labelImageWidth" | "edge.labelImageHeight" | "edge.labelImageOffsetX" | "edge.labelImageOffsetY" | "edge.labelOffsetX" | "edge.labelOffsetY" | "edge.labelShiftX" | "edge.labelShiftY" | "edge.labelShiftOf" | "edge.labelGapOf" | "edge.labelBox" | "node.xlabel" | "node.xlabelStyle" | "node.xlabelLocation" | "node.xlabelOffsetX" | "node.xlabelOffsetY" | "node.xlabelTextAlign" | "node.xlabelColor" | "node.xlabelFont" | "node.xlabelWeight" | "node.xlabelItalic" | "edge.xlabel" | "edge.xlabelStyle" | "edge.xlabelLocation" | "edge.xlabelOffsetX" | "edge.xlabelOffsetY";
 
 // @public
 export type ChannelAgreement = {
@@ -1145,8 +1146,19 @@ export interface DraftTable {
 
 // @beta
 export interface DraftView {
+    readonly mark?: {
+        readonly step: number;
+    } | {
+        readonly refs: readonly SourceElementRef[];
+    };
     readonly merged: string;
     readonly new: string;
+    readonly rest?: "faint" | "plain";
+    readonly steps?: readonly {
+        readonly step: number;
+        readonly color: string;
+    }[];
+    readonly untouched?: string;
 }
 
 // @public
@@ -3486,6 +3498,7 @@ export interface ImportOptions {
     readonly layout?: "recommended" | "placed" | "keep";
     readonly mode?: "replace" | "merge";
     readonly overlap?: "separate" | "merge";
+    readonly pins?: "data" | "keep";
     readonly space?: SourceSpaceName;
     readonly type?: SourceTypeName;
 }
@@ -7714,6 +7727,12 @@ export interface SourceConnectOptions {
     readonly ignoreCase?: boolean;
     readonly ignoreSpaces?: boolean;
     readonly into: SourceJoinInto;
+    readonly perPair?: boolean;
+    readonly to?: {
+        readonly field: string;
+        readonly into: SourceJoinInto;
+    };
+    readonly unmatched?: "skip" | "add";
 }
 
 export { SourceContext }
@@ -7760,6 +7779,8 @@ export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "match
         readonly overlap?: "separate" | "merge";
     }): void;
     answerOverlap(source: SourceKey, answer: "merge" | "separate"): void;
+    // @beta
+    batch<T>(acts: () => T): T;
     clearPicks(options: SourceClearPicksOptions): number;
     commit(): Promise<void>;
     connect(options: SourceConnectOptions): number;
@@ -7791,11 +7812,14 @@ export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "match
     renameColumn(column: ColumnRef, name: string, options: {
         readonly source: SourceKey;
     }): void;
+    replaceStep(index: number, act: SourceJoinAct): void;
     setMapping(source: SourceKey, patch: SourceMappingPatch): void;
     show(side: "before" | "after"): Promise<void>;
     readonly side: "before" | "after";
     stage(source: DataSourceInput, options?: StageOptions): Promise<string>;
     steps(): readonly SourceStepRow[];
+    // @beta
+    suggestMatches(source: SourceKey): readonly SourceMatchSuggestion[];
     types(): readonly SourceTypeEntry[];
     undo(): boolean;
     use(ref: SourceElementRef, column: string, source: SourceKey): void;
@@ -7838,6 +7862,19 @@ export interface SourceDraftElementsQuery {
 }
 
 // @public
+export interface SourceDraftIds {
+    readonly edges: readonly EdgeId[];
+    readonly nodes: readonly NodeId_2[];
+}
+
+// @public
+export interface SourceDraftMarkCounts {
+    readonly merged: number;
+    readonly new: number;
+    readonly untouched: number;
+}
+
+// @public
 export interface SourceDraftOptions {
     readonly askOverlap?: boolean;
 }
@@ -7851,7 +7888,13 @@ export interface SourceDraftPreview {
     readonly edges: SourceDraftPreviewChanges;
     readonly edits: readonly ReaderEditRow[];
     elements(query: SourceDraftElementsQuery): readonly SourceElementRef[];
+    // @beta
+    ids(query: SourceDraftElementsQuery | {
+        readonly refs: readonly SourceElementRef[];
+    }): SourceDraftIds;
     readonly issues: readonly SourceDraftPreviewIssue[];
+    // @beta
+    readonly marks: SourceDraftMarkCounts;
     readonly nodes: SourceDraftPreviewChanges;
     readonly questions: readonly SourceOverlapQuestion[];
     rows(query: SourceDraftRowsQuery): SourceDraftRows;
@@ -8133,6 +8176,15 @@ export { SourceIssueCode }
 export { SourceIssueParams }
 
 // @public
+export type SourceJoinAct = {
+    readonly act: "merge";
+    readonly options: SourceMergeOptions;
+} | {
+    readonly act: "connect";
+    readonly options: SourceConnectOptions;
+};
+
+// @public
 export type SourceJoinInto = {
     readonly source: SourceKey;
     readonly field?: string;
@@ -8262,6 +8314,7 @@ export interface SourceMatchCounts {
 
 // @public
 export interface SourceMatchOptions {
+    readonly before?: number;
     readonly ignoreCase?: boolean;
     readonly ignoreSpaces?: boolean;
 }
@@ -8270,6 +8323,13 @@ export interface SourceMatchOptions {
 export interface SourceMatchPair {
     readonly from: SourceField;
     readonly into: SourceJoinInto;
+}
+
+// @public
+export interface SourceMatchSuggestion {
+    readonly confident: boolean;
+    readonly matches: readonly SourceMatchPair[];
+    readonly result: "merge" | "connect";
 }
 
 // @public
@@ -8294,6 +8354,7 @@ export interface SourceMatchValuesOptions extends SourceMatchOptions {
 
 // @public
 export interface SourceMergeOptions {
+    readonly aggregate?: Readonly<Record<string, JoinReduce>>;
     readonly clash?: SourceClashRule | Readonly<Record<string, SourceClashRule>>;
     readonly except?: SourceRowFilter;
     readonly from: SourceField;
@@ -8522,7 +8583,15 @@ export interface SourceStepAct {
     readonly into: SourceJoinInto & {
         readonly space: SourceSpaceName;
     };
+    readonly perPair?: boolean;
     readonly repeated: "first" | "last" | "both" | null;
+    readonly to?: {
+        readonly field: string;
+        readonly into: {
+            readonly space: SourceSpaceName;
+        };
+    };
+    readonly unmatched?: "skip" | "add";
     readonly unmatchedFrom?: "keep" | "drop";
 }
 
@@ -9089,6 +9158,8 @@ export interface StylesApi {
     readonly showingBranches: boolean;
     // @beta
     readonly shownBranches: BranchesView | null;
+    // @beta
+    readonly shownDraft: DraftView | null;
     toDocument(): StyleDocument;
     toFile(): StyleFileDocument;
     tree(): readonly StyleRow[];

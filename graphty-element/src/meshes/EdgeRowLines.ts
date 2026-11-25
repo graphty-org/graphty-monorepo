@@ -16,10 +16,10 @@ import { EdgeMesh } from "./EdgeMesh";
 import { batchUploadFrames } from "./FrameRoster";
 import type { MeshCache } from "./MeshCache";
 import { type PulledHead, pulledHeadBatch, pulledHeadOf, roundRow } from "./pulledHead";
-import type { LeanLines, PulledLineBatch } from "./PulledLineBatch";
+import { holdStraightPieces, type LeanLines, type PulledLineBatch, type StraightPieceHolder } from "./PulledLineBatch";
 
 /** Style keys a row line may set: any other needs an `Edge` (a label or a band is drawn by one). */
-const ROW_STYLE_KEYS = new Set(["line", "label", "arrowHead", "arrowTail", "band", "visible"]);
+const ROW_STYLE_KEYS = new Set(["line", "label", "tooltip", "arrowHead", "arrowTail", "band", "visible"]);
 
 /**
  * Line keys a row line draws exactly as an `Edge`'s pulled straight line does. A curve, a fan, a gap, bends, a
@@ -175,7 +175,7 @@ export interface EdgeRowLinesHost {
  * design/rendering/row-renderer.md. {@link EdgeRowLines.paintRow} returns false for a paint only an `Edge` draws;
  * a self-loop, a route the layout's map arcs, and an end drawn behind edges are the caller's to rule out.
  */
-export class EdgeRowLines {
+export class EdgeRowLines implements StraightPieceHolder {
     /**
      * Each drawn row's line, at its row: a million-row load spent about 0.3 s of CPU in a map keyed by row
      * (design/rendering/cosmos-gap.md G8). Rows are dense, so the array stays packed when a load paints in order.
@@ -198,7 +198,9 @@ export class EdgeRowLines {
      * Start with no edge row drawn.
      * @param host - What it reads from the graph.
      */
-    constructor(private readonly host: EdgeRowLinesHost) {}
+    constructor(private readonly host: EdgeRowLinesHost) {
+        holdStraightPieces(host.scene, this);
+    }
 
     /**
      * How many edge rows are drawn here.
@@ -459,6 +461,7 @@ export class EdgeRowLines {
         const batch = EdgeMesh.pulledBatch(cache, { styleId: meshKey, width, color }, style, scene, () => rows, {
             route: "straight",
             lean: this.host.lean(),
+            straightInCurve: this.joinsCurves(head, source, target),
         });
         // as `Edge.pullLine` gives its piece the look: in 2D, or with a pattern, a world width
         const drawnWidth = EdgeMesh.drawsFlat(scene) || look.patterned ? width / 40 : width * 20;
@@ -481,6 +484,7 @@ export class EdgeRowLines {
 
         batch.setLook(piece, look.rgb, look.opacity, drawnWidth);
         batch.setRows(piece, source, target);
+        batch.drawStraight(piece);
         batch.restFrom(this.host);
         let at = this.batches.indexOf(batch);
         if (at === -1) {
@@ -688,7 +692,8 @@ export class EdgeRowLines {
 
     /**
      * The edge rows a row line can no longer draw: a head on an end that is no longer round, or an end the caller says
-     * is gone (its style hid it). An `Edge` draws them now, so they are painted again (`UpdateManager.syncStyles`).
+     * is gone (its style hid it). An `Edge` draws them now, so they are painted again (`UpdateManager.syncStyles`). Also
+     * a straight line in a curve batch with an end turned seen through, which painted again takes the straight batch.
      * @param endGone - Whether a node row is no end a row line draws to.
      * @param among - Only these edge rows; every row drawn here when left out.
      * @returns The rows.
@@ -701,7 +706,12 @@ export class EdgeRowLines {
                 continue;
             }
 
-            if (endGone(lines.source[row]) || endGone(lines.target[row])) {
+            if (
+                endGone(lines.source[row]) ||
+                endGone(lines.target[row]) ||
+                (this.batches[lines.batchOf[row]].drawsCurves &&
+                    !this.joinsCurves(null, lines.source[row], lines.target[row]))
+            ) {
                 off.push(row);
                 continue;
             }
@@ -715,6 +725,57 @@ export class EdgeRowLines {
         }
 
         return off;
+    }
+
+    /**
+     * The row lines of a straight batch that a curve batch can draw ({@link EdgeRowLines.joinsCurves}), for a curve
+     * batch of its key just made (`PulledLineBatch.moveStraightInto`).
+     * @param batch - The straight batch.
+     * @returns Each line's piece, with what moves the line to its new batch and piece.
+     */
+    straightPieces(batch: PulledLineBatch): ReturnType<StraightPieceHolder["straightPieces"]> {
+        const from = this.batches.indexOf(batch);
+        const { lines } = this;
+        return from === -1
+            ? []
+            : this.drawnRows(lines)
+                  .filter(
+                      (row) =>
+                          lines.batchOf[row] === from &&
+                          (lines.capBatchOf[row] ?? NO_LINE) === NO_LINE &&
+                          this.joinsCurves(null, lines.source[row], lines.target[row]),
+                  )
+                  .map((row) => ({
+                      piece: lines.piece[row],
+                      moved: (to: PulledLineBatch, piece: number) => {
+                          let at = this.batches.indexOf(to);
+                          if (at === -1) {
+                              at = this.batches.push(to) - 1;
+                          }
+
+                          if (this.plainBatches.has(from)) {
+                              this.plainBatches.add(at);
+                          }
+
+                          lines.batchOf[row] = at;
+                          lines.piece[row] = piece;
+                      },
+                  }));
+    }
+
+    /**
+     * Whether a row line may be drawn from a curve batch, which runs it center to center with no head
+     * (`EdgeMesh.pulledBatch`'s `straightInCurve`): it has no head and neither end is seen through, as the straight
+     * program trims a line at a seen-through end's outline. A row turned seen through later is painted again
+     * ({@link EdgeRowLines.rowsOffEnds}).
+     * @param head - Its head, or null.
+     * @param source - The source node's row.
+     * @param target - The target node's row.
+     * @returns True when it may.
+     */
+    private joinsCurves(head: PulledHead | null, source: number, target: number): boolean {
+        const { rows } = this.host;
+        return head === null && !rows.seenThrough(source) && !rows.seenThrough(target);
     }
 
     /**

@@ -372,6 +372,8 @@ export interface WorkspaceState {
      * (`data.currentDraft()`).
      */
     readonly sourceCard: { readonly kind: "add"; readonly source: SourceKey } | JoinCardState | StepCardState | null;
+    /** The join workspace is open over the canvas (the source-steps experiment, issue #9796). */
+    readonly joinWorkspace: boolean;
     /** The Data place's Reader edits list is open (the source-steps experiment). */
     readonly readerEditsOpen: boolean;
     /**
@@ -610,6 +612,8 @@ export const ON_RELOAD = {
     editingJoin: "kept",
     ends: "kept",
     sourceCard: "kept",
+    joinWorkspace:
+        "fresh: in flight: the workspace closes on a reload; its draft, which autosave keeps, opens with it the next time",
     readerEditsOpen: "fresh: pointer: a list opened for a look",
     stagedEnds: "kept",
     draftOpen: "fresh: in flight: asks about a write this page made, which a reload ends",
@@ -767,6 +771,7 @@ const INITIAL: WorkspaceState = {
     editingJoin: null,
     ends: null,
     sourceCard: null,
+    joinWorkspace: false,
     readerEditsOpen: false,
     stagedEnds: null,
     draftOpen: null,

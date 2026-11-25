@@ -6,6 +6,7 @@ import { z } from "zod";
 import type { AdHocData } from "../config/common";
 import { GraphtyError } from "../errors";
 import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "./DataSource";
+import { declarePins } from "./declaredPins";
 import { resolveEndpoints } from "./endpoints";
 import { type DataLoadingError, ErrorAggregator } from "./ErrorAggregator";
 import { filePositionsOf } from "./filePositions";
@@ -573,6 +574,7 @@ export class JsonDataSource extends DataSource {
             : null;
         if (records !== null) {
             rememberImport(this, () => ({ imported: records.imported, path: records.path }));
+            declarePins(this, records.imported.snapshot);
             yield* this.chunkData(records.nodes as AdHocData[], records.edges as AdHocData[]);
             return true;
         }

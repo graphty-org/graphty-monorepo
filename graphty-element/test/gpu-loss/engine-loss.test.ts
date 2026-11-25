@@ -360,6 +360,39 @@ describe("a lost WebGPU device", () => {
         assert.strictEqual(restored.mock.calls.length, 0);
     });
 
+    // Chromium destroys every map-readable buffer still alive when the page's frame goes away, and one from a
+    // crashed GPU process's device took the renderer down (issue #9850).
+    it("leaves no map-readable buffer alive after a crash, a picture read and a dispose", async () => {
+        const alive = new Set<GPUBuffer>();
+        const { createBuffer } = GPUDevice.prototype;
+        vi.spyOn(GPUDevice.prototype, "createBuffer").mockImplementation(function (
+            this: GPUDevice,
+            descriptor: GPUBufferDescriptor,
+        ) {
+            const buffer = createBuffer.call(this, descriptor);
+            if ((descriptor.usage & (GPUBufferUsage.MAP_READ | GPUBufferUsage.MAP_WRITE)) !== 0) {
+                alive.add(buffer);
+            }
+
+            return buffer;
+        });
+        const { destroy } = GPUBuffer.prototype;
+        vi.spyOn(GPUBuffer.prototype, "destroy").mockImplementation(function (this: GPUBuffer) {
+            alive.delete(this);
+            destroy.call(this);
+        });
+
+        const graph = await openRing(true);
+        const before = await pictureOf(graph);
+        const drawnBefore = ticksOf(graph).drawn;
+        await lose(graph, DRILLS.crash);
+        await waitForPicture(graph, before, drawnBefore);
+        assert.isAbove(alive.size, 0, "the engine reads through map-readable buffers");
+        unmount();
+
+        assert.strictEqual(alive.size, 0);
+    });
+
     it("says the graph stopped drawing when no new device can be had", async () => {
         const graph = await openRing(false);
         vi.spyOn(GPU.prototype, "requestAdapter").mockResolvedValue(null);

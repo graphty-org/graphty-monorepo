@@ -98,6 +98,7 @@ import type {
     LayerSpec,
     MeasurementDeclaration,
     NodeId,
+    PaletteId,
     Path,
     RunId,
     Scope,
@@ -173,6 +174,7 @@ import {
     type StyleGrayCollisionOptions,
 } from "./colors";
 import type { PreparedData } from "./dataLists";
+import { DEFAULT_CATEGORICAL_PALETTE } from "./defaultPalettes";
 import {
     type BindingPreview,
     type PreparedBinding,
@@ -3046,7 +3048,23 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                           params: { channel, layerId: above.layerId, filled: above.channel },
                       },
             categories: prepared.categories(),
+            ...paletteOfSpec(byId().get(layerId)?.layer.set?.[channel]),
         });
+    };
+
+    /**
+     * The palette a data spec colors its categories from: its own, else the default for groups; none when it lists
+     * its own colors.
+     * @param spec - The spec as the layer holds it.
+     * @returns The palette, as a facts member.
+     */
+    const paletteOfSpec = (spec: unknown): { palette?: PaletteId } => {
+        const own = spec as { readonly palette?: PaletteId; readonly colors?: readonly string[] } | undefined;
+        if (own?.colors !== undefined) {
+            return {};
+        }
+
+        return { palette: own?.palette ?? DEFAULT_CATEGORICAL_PALETTE };
     };
 
     /**

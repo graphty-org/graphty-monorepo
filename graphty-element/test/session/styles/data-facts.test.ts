@@ -87,12 +87,12 @@ describe("data facts", () => {
     it("marks a pattern's parts as columns, so a category spelled with a dot is not read as one", async () => {
         const session = createGraphSession();
         await session.config.set({ data: { knownFields: { nodeLabelPath: "label" } } });
-        await session.data.addNodes([{ id: "a", label: "Farm A", city: ["St. Louis", "St. Louis"], x_1: 4, x_2: 7 }]);
+        await session.data.addNodes([{ id: "a", label: "Farm A", city: ["St. Louis", "St. Louis"], xa: 4, xb: 7 }]);
         const layer = await session.styles.add({
             name: "Data",
             target: "node",
             selector: { match: "everything" },
-            set: { "node.chartData": { entries: [{ pattern: "x_" }, { field: "data.city" }] } },
+            set: { "node.chartData": { entries: [{ pattern: "x" }, { field: "data.city" }] } },
         });
         const label = await session.styles.add({
             name: "Label",
@@ -111,6 +111,7 @@ describe("data facts", () => {
             [["St. Louis", undefined]],
         );
         assert.strictEqual(facts.name, "Farm A", "named by its label in the data, not its id or the template");
+        assert.isString(facts.palette, "the palette its categories take colors from, the default when it names none");
         assert.isString(label.id);
     });
 

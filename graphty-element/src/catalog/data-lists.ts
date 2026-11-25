@@ -334,6 +334,8 @@ export interface DataFacts {
     readonly undrawn: CodedFact<DataUndrawnCode> | null;
     /** Every key the spec yields over the nodes the layer covers, in color order. */
     readonly categories: readonly DataCategoryFact[];
+    /** The palette the categories take their colors from: the spec's own, else the default; absent when the spec lists its own colors. */
+    readonly palette?: PaletteId;
 }
 
 /** The keys of {@link BindingNumberFormat} that are not `Intl.NumberFormat` options. */

@@ -992,6 +992,7 @@ export interface DataFacts {
     readonly name: string;
     // (undocumented)
     readonly node: NodeId;
+    readonly palette?: PaletteId;
     readonly undrawn: CodedFact<DataUndrawnCode> | null;
 }
 

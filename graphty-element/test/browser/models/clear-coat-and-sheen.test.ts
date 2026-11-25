@@ -24,16 +24,17 @@ const RED = (r: number, g: number, b: number): boolean => r > 90 && r > g + 50 &
 /** Pure white, the unfixed shader's color. */
 const WHITE = (r: number, g: number, b: number): boolean => r > 250 && g > 250 && b > 250;
 
-const LAYERS = {
-    "clear coat": { KHR_materials_clearcoat: { clearcoatFactor: 1, clearcoatRoughnessFactor: 0 } },
-    sheen: { KHR_materials_sheen: { sheenColorFactor: [1, 1, 1], sheenRoughnessFactor: 0.5 } },
-};
+/** Each coating layer: its name, its glTF extension and the extension's values. */
+const LAYERS: readonly (readonly [string, string, object])[] = [
+    ["clear coat", "KHR_materials_clearcoat", { clearcoatFactor: 1, clearcoatRoughnessFactor: 0 }],
+    ["sheen", "KHR_materials_sheen", { sheenColorFactor: [1, 1, 1], sheenRoughnessFactor: 0.5 }],
+];
 
 describe("a model with a coating layer under graphty-element's lights", () => {
-    for (const [layer, extensions] of Object.entries(LAYERS)) {
+    for (const [layer, extension, values] of LAYERS) {
         it(`draws a ${layer} part in its own color, not white`, async () => {
             const element = await mount();
-            const ball = sphereGlb(32, 16, [1, 1, 1], [0.8, 0.05, 0.05, 1], [0, 0, 0], extensions);
+            const ball = sphereGlb(32, 16, [1, 1, 1], [0.8, 0.05, 0.05, 1], [0, 0, 0], { [extension]: values });
             await drawModel(element, new Map([["ball.glb", ball]]), [{ id: "a", x: 0 }], { "node.size": 4 });
             const blank = await mount();
             const background = countIn(await readFrame(blank), WHITE);

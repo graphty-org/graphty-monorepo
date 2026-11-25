@@ -66,7 +66,11 @@ export function ItemListEditor({ ctx, list, channel, inline = false }: ItemListE
     const fail = (error: unknown): void => {
         store.set({ notice: { message: failureWords(list.name, "changed", error), error: true } });
     };
-    let items: { readonly lines: React.ReactNode; readonly add: () => void };
+    let items: {
+        readonly lines: React.ReactNode;
+        readonly add: (() => void) | undefined;
+        readonly tools?: React.ReactNode;
+    };
     let value: unknown = undefined;
     if ("colors" in list) {
         items = colorItems({ ctx, list, fail });
@@ -81,16 +85,7 @@ export function ItemListEditor({ ctx, list, channel, inline = false }: ItemListE
         };
         items = ITEM_KINDS[list.kind]({ ctx, list, descriptor, value, write });
     }
-    const plus = (
-        <AddButton
-            kind={ctx.side}
-            title={list.name}
-            name={`Add ${list.item.toLowerCase()}`}
-            inRow={false}
-            options={[{ key: "item", label: list.item }]}
-            onAdd={items.add}
-        />
-    );
+    const { add } = items;
     if (inline && channel !== undefined) {
         const held = value !== undefined && value !== "";
         return (
@@ -101,16 +96,7 @@ export function ItemListEditor({ ctx, list, channel, inline = false }: ItemListE
                     set={held}
                     rule="R15"
                     control={null}
-                    modifier={
-                        <AddButton
-                            kind={ctx.side}
-                            title={list.name}
-                            name={`Add ${list.item.toLowerCase()}`}
-                            inRow
-                            options={[{ key: "item", label: list.item }]}
-                            onAdd={items.add}
-                        />
-                    }
+                    modifier={<ListAdd ctx={ctx} list={list} add={add} inRow />}
                     removeName={held ? `Remove ${list.name.toLowerCase()}` : undefined}
                     onRemove={() => {
                         unsetIn(ctx, [channel]).catch(fail);
@@ -154,7 +140,13 @@ export function ItemListEditor({ ctx, list, channel, inline = false }: ItemListE
                 rule="R15"
                 control={shown}
                 modifier={null}
-                removeName={channel !== undefined && set ? `Remove ${list.name.toLowerCase()}` : undefined}
+                // A color list is its thing (stripes, slices, a chart's values): taking it off is the row's "-", so its
+                // line has none (owner, 2026-11-24: one path to any control); each item keeps its own "-".
+                removeName={
+                    channel !== undefined && set && !("colors" in list)
+                        ? `Remove ${list.name.toLowerCase()}`
+                        : undefined
+                }
                 onRemove={() => {
                     if (channel !== undefined) {
                         unsetIn(ctx, [channel]).catch(fail);
@@ -163,11 +155,60 @@ export function ItemListEditor({ ctx, list, channel, inline = false }: ItemListE
             />
             <BesidePopover id={listId} title={list.name} opened={open} onOpenChange={setOpen}>
                 <div data-list-popover="" style={{ maxHeight: "calc(7 * 28px)", overflowY: "auto" }}>
-                    <PlusList level="group" title={list.name} add={plus}>
+                    <PlusList
+                        level="group"
+                        title={list.name}
+                        add={<ListAdd ctx={ctx} list={list} add={add} tools={items.tools} inRow={false} />}
+                    >
                         {items.lines}
                     </PlusList>
                 </div>
             </BesidePopover>
         </>
+    );
+}
+
+/**
+ * A list's "+", after its legend's other buttons (stripes design 3.1: Equal shares and Reverse order), or nothing while
+ * the list takes no item.
+ * @param props - Component props
+ * @param props.ctx - the row
+ * @param props.list - the list
+ * @param props.add - adds an item, if the list takes one
+ * @param props.tools - the legend's other buttons
+ * @param props.inRow - drawn in a line's trailing slot rather than a legend
+ * @returns The buttons
+ */
+function ListAdd({
+    ctx,
+    list,
+    add,
+    tools,
+    inRow,
+}: Readonly<{
+    ctx: RowContext;
+    list: ListSpec | ItemList;
+    add: (() => void) | undefined;
+    tools?: React.ReactNode;
+    inRow: boolean;
+}>): React.ReactNode {
+    const plus =
+        add === undefined ? null : (
+            <AddButton
+                kind={ctx.side}
+                title={list.name}
+                name={`Add ${list.item.toLowerCase()}`}
+                inRow={inRow}
+                options={[{ key: "item", label: list.item }]}
+                onAdd={add}
+            />
+        );
+    return tools === undefined ? (
+        plus
+    ) : (
+        <span className="ws-list-tools">
+            {tools}
+            {plus}
+        </span>
     );
 }

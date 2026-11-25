@@ -419,7 +419,12 @@ describe("the binding popover on the real element", () => {
             assert.isAtLeast(count.getBoundingClientRect().left, words.right - 1, "the count follows the name");
             // The row reads its name, size and every property it varies but the list's own, color,
             // which its field says: the field is named for the group and the color.
-            assert.match(name.textContent, new RegExp(`^${keyNames[at]}, ${String(categories[at].count)} nodes?$`));
+            assert.strictEqual(
+                within(row).getByRole("gridcell", {
+                    name: new RegExp(`^${keyNames[at]}, ${String(categories[at].count)} nodes?$`),
+                }),
+                name,
+            );
             assert.isNotNull(
                 chit.querySelector(`[aria-label*="${keyNames[at]} color, "]`),
                 `${keyNames[at]}'s field names its color`,

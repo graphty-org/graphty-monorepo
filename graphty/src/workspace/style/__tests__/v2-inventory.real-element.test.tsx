@@ -304,6 +304,13 @@ function homed(side: Side): ReadonlySet<Channel> {
             placed.add(channel);
         }
     }
+    // A channel graphty-element marks as an older spelling of another (`supersededBy`: `node.gradientColor`, the
+    // gradient list's two-color spelling) is edited through that channel's control, never one of its own.
+    for (const { channel, supersededBy } of channelsFor(side)) {
+        if (supersededBy !== undefined && placed.has(supersededBy)) {
+            placed.add(channel);
+        }
+    }
     return placed;
 }
 

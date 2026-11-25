@@ -28,9 +28,12 @@ export type StyleFamilyId = "node.shape" | "node.fill" | "edge.line" | "label.lo
  * One member of a style family. A member is told apart by exactly one of `owns` (the member is
  * drawn while a layer sets one of these), `place` (a shader use at that place on the target's
  * shader list), `shader` (a use of that shader) or `value` (the family's `field` holds this value).
+ *
+ * `Name` is what its family's settings are called: a `Channel` on a node or edge family
+ * ({@link ChannelStyleFamily}), a label style or background field name on the others.
  * @since 3.58.0
  */
-export interface StyleFamilyMember {
+export interface StyleFamilyMember<Name extends string = string> {
     /** Its id, unique in its family. */
     readonly id: string;
     /** The default name to show for it. An application may replace it by id. */
@@ -40,9 +43,9 @@ export interface StyleFamilyMember {
      * `label.look`, background fields on `graph.background`. Switching to another member takes
      * them off.
      */
-    readonly owns: readonly string[];
+    readonly owns: readonly Name[];
     /** Another member's settings this one keeps through a switch to it (a model's fallback shape). */
-    readonly keeps?: readonly string[];
+    readonly keeps?: readonly Name[];
     /** The member is a shader use at this place, on the target's shader list (`node.shaders`). */
     readonly place?: ShaderPlace;
     /** The member is a use of this shader (a catalog id), on the target's shader list. */
@@ -52,22 +55,41 @@ export interface StyleFamilyMember {
 }
 
 /**
- * A style family: its members and what belongs to the thing whichever member draws it.
- * @since 3.58.0
+ * What every style family has: its members and what belongs to the thing whichever member draws it.
+ * @since 3.70.0
  */
-export interface StyleFamilyDescriptor {
+export interface StyleFamilyBase<Target extends string, Name extends string> {
     readonly id: StyleFamilyId;
     /** What it styles: nodes, edges, a label style (any of them), or the graph's background. */
-    readonly target: "node" | "edge" | "label" | "graph";
+    readonly target: Target;
     /** The default name to show for it. An application may replace it by id. */
     readonly plainName: string;
     /** The field whose value names the member, on a family told apart by `value`. */
     readonly field?: string;
     /** Its members, the one drawn when nothing else is set first. */
-    readonly members: readonly StyleFamilyMember[];
+    readonly members: readonly StyleFamilyMember<Name>[];
     /** What stays through every switch, in the same kind of names as the members' `owns`. */
-    readonly shared: readonly string[];
+    readonly shared: readonly Name[];
 }
+
+/**
+ * A node or edge style family, whose members own channels: tell it apart by its `target`.
+ * @since 3.70.0
+ */
+export type ChannelStyleFamily = StyleFamilyBase<"node" | "edge", Channel>;
+
+/**
+ * A label style or graph background family, whose members own field names.
+ * @since 3.70.0
+ */
+export type FieldStyleFamily = StyleFamilyBase<"label" | "graph", string>;
+
+/**
+ * A style family: a node or edge family owns channels, a label or graph family field names. Its
+ * `target` tells which.
+ * @since 3.58.0
+ */
+export type StyleFamilyDescriptor = ChannelStyleFamily | FieldStyleFamily;
 
 /** A node's basic shape and the settings only a basic shape draws. */
 const BASIC_SHAPE: readonly Channel[] = [

@@ -870,3 +870,21 @@
 [data-plus-list="section"] [data-testid="control-section-chevron-slot"] {
     cursor: pointer;
 }
+
+/* A parallel list's legend buttons (Equal shares, Reverse order, "+"), side by side in its header (stripes
+   design 3.1). */
+.ws-list-tools {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+}
+
+/* A grip drags with a finger; a vertical swipe on a share's slider scrolls the list instead of moving it. */
+.ws-list-grip {
+    touch-action: none;
+    cursor: grab;
+}
+
+.ws-share .mantine-Slider-root {
+    touch-action: pan-y;
+}

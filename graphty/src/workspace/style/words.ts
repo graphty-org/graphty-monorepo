@@ -644,6 +644,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.glyphColor": "Glyph color",
     "node.pieColors": "Pie colors",
     "node.pieData": "Pie data",
+    "node.stripeData": "Stripe data",
     "node.chartData": "Chart data",
     "node.recordData": "Record data",
     "node.pieSizes": "Pie sizes",
@@ -2068,9 +2069,6 @@ export const MODEL_TILE = "Model...";
 /** The value the Shape list's Model... entry carries: never written, it opens the Models pop-over. */
 export const MODEL_PICK = "+model";
 
-/** The value Style panel v2's Shape list's Custom model... carries: it opens the Load custom model dialog. */
-export const CUSTOM_MODEL_PICK = "+custom-model";
-
 /** The value the Shape list's New shader... carries: it opens the code dialog at the shapes' place. */
 export const NEW_REPLACE_PICK = "+new-shader";
 
@@ -2078,7 +2076,7 @@ export const NEW_REPLACE_PICK = "+new-shader";
 export const REPLACE_PICK = "+shader:";
 
 /** Style panel v2's Shape list's sections after the shapes' own (E378). */
-export const SHAPE_LIST_SECTIONS = { models: "Models", shaders: "Shaders", customModel: "Custom model..." } as const;
+export const SHAPE_LIST_SECTIONS = { models: "Models", shaders: "Shaders" } as const;
 
 /**
  * What a refused file should be instead: "choose a GLB, GLTF, OBJ, STL file".

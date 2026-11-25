@@ -10,11 +10,11 @@
 
 import {
     type Channel,
+    type ChannelStyleFamily,
     type ChannelValue,
     type ShaderParams,
     type ShaderUse,
     STYLE_FAMILIES,
-    type StyleFamilyDescriptor,
     type StyleFamilyId,
     writeChannelList,
 } from "@graphty/graphty-element/catalog";
@@ -75,9 +75,11 @@ export interface MemberChoice {
  * @param thing - the thing's id.
  * @returns the element's family, or undefined for a thing that is not one.
  */
-export function familyOf(side: "node" | "edge", thing: string): StyleFamilyDescriptor | undefined {
+export function familyOf(side: "node" | "edge", thing: string): ChannelStyleFamily | undefined {
     const id = THING_FAMILIES[side][thing] as StyleFamilyId | undefined;
-    const family = id === undefined ? undefined : STYLE_FAMILIES.find((each) => each.id === id);
+    const found = id === undefined ? undefined : STYLE_FAMILIES.find((each) => each.id === id);
+    // A thing's family is a node or edge family, whose members own channels.
+    const family = found?.target === "node" || found?.target === "edge" ? found : undefined;
     const left = LEFT_OUT[side][thing] ?? [];
     return family === undefined
         ? undefined
@@ -123,11 +125,11 @@ export function replaceUse(ctx: RowContext): ShaderUse | undefined {
  * @param family - the family.
  * @returns the members, in the element's order.
  */
-export function membersOf(ctx: RowContext, family: StyleFamilyDescriptor): readonly MemberChoice[] {
+export function membersOf(ctx: RowContext, family: ChannelStyleFamily): readonly MemberChoice[] {
     const off = experimentChannelsOff({ cosmograph: cosmographOn(ctx.session) });
     return family.members.flatMap((member): MemberChoice[] => {
-        const owns = member.owns as readonly Channel[];
-        const keeps = (member.keeps ?? []) as readonly Channel[];
+        const { owns } = member;
+        const keeps = member.keeps ?? [];
         if (member.place === "replace") {
             return ctx.session.catalog
                 .shaders()
@@ -178,7 +180,7 @@ function memberId(member: MemberChoice): string {
  * @param family - the family.
  * @returns the layer, or undefined for a row with none yet.
  */
-function layerOf(ctx: RowContext, family: StyleFamilyDescriptor): Layer | undefined {
+function layerOf(ctx: RowContext, family: ChannelStyleFamily): Layer | undefined {
     const layers = ctx.layers.filter((layer) => !layer.locked);
     return layers.find((layer) => holdsAny(ctx.session.styles.familyValues(layer.id, family.id))) ?? layers[0];
 }
@@ -190,11 +192,7 @@ function layerOf(ctx: RowContext, family: StyleFamilyDescriptor): Layer | undefi
  * @param members - the family's members as the strip lists them.
  * @returns its key.
  */
-export function currentMember(
-    ctx: RowContext,
-    family: StyleFamilyDescriptor,
-    members: readonly MemberChoice[],
-): string {
+export function currentMember(ctx: RowContext, family: ChannelStyleFamily, members: readonly MemberChoice[]): string {
     const layer = layerOf(ctx, family);
     const id = layer === undefined ? undefined : ctx.session.styles.familyMember(layer.id, family.id);
     const use = id === "replace" ? replaceUse(ctx) : undefined;
@@ -203,6 +201,25 @@ export function currentMember(
     }
     const plain = members.filter((member) => member.shader === undefined);
     return (plain.find((member) => member.key === id) ?? plain[0]).key;
+}
+
+/**
+ * The channels of the member graphty-element says the row's layer draws, while that layer holds something of it: a
+ * Fill that writes `node.color` and `node.gradientColor` draws its gradient, whose main control is the gradient bar.
+ * @param ctx - the row.
+ * @param thing - the thing's id.
+ * @returns the member's channels, or undefined for a thing drawn as no family or a layer holding none of it.
+ */
+export function drawnMemberOwns(ctx: RowContext, thing: string): readonly Channel[] | undefined {
+    const family = familyOf(ctx.side, thing);
+    const layer = family === undefined ? undefined : layerOf(ctx, family);
+    if (family === undefined || layer === undefined) {
+        return undefined;
+    }
+    const id = ctx.session.styles.familyMember(layer.id, family.id);
+    return holdsAny(ctx.session.styles.familyValues(layer.id, family.id, id))
+        ? family.members.find((member) => member.id === id)?.owns
+        : undefined;
 }
 
 /**
@@ -286,7 +303,7 @@ function startOf(ctx: RowContext, to: MemberChoice, leaving: Readonly<Record<str
  */
 export async function switchMember(
     ctx: RowContext,
-    family: StyleFamilyDescriptor,
+    family: ChannelStyleFamily,
     members: readonly MemberChoice[],
     fromKey: string,
     toKey: string,
@@ -341,7 +358,7 @@ export async function switchMember(
  * @param key - the member.
  * @returns true when they are.
  */
-export function isHeld(ctx: RowContext, family: StyleFamilyDescriptor, key: string): boolean {
+export function isHeld(ctx: RowContext, family: ChannelStyleFamily, key: string): boolean {
     const layer = layerOf(ctx, family);
     return layer !== undefined && holdsAny(heldFor(ctx).get(`${layer.id}|${family.id}|${key}`));
 }
@@ -358,7 +375,7 @@ export function isHeld(ctx: RowContext, family: StyleFamilyDescriptor, key: stri
  */
 export async function pickReplace(
     ctx: RowContext,
-    family: StyleFamilyDescriptor,
+    family: ChannelStyleFamily,
     shader: string,
     params: ShaderParams = {},
     scope: TransactionScope = ctx.session,

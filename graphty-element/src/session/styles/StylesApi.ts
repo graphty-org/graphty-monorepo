@@ -82,7 +82,7 @@ import { type GraphSnapshot, maskToIndices } from "@graphty/graph-format";
 
 import type { DataChannel, DataFacts } from "../../catalog/data-lists";
 import { drawnDefault } from "../../catalog/drawnWhen";
-import { styleFamily, type StyleFamilyDescriptor, type StyleFamilyId } from "../../catalog/families";
+import { type ChannelStyleFamily, styleFamily, type StyleFamilyId } from "../../catalog/families";
 import { type LabelEntry, MAIN_LABEL_ID } from "../../catalog/label-style";
 import type { ShaderProblem } from "../../catalog/shaders";
 import type {
@@ -240,6 +240,7 @@ import {
     type LegendBlock,
     type LegendSources,
 } from "./legend";
+import { moveListItemsPatch } from "./listMoves";
 import { assertDefaultPalettes, createPaletteDefaults } from "./paletteDefaults";
 import { colorsProblem } from "./palettes";
 import { quotePath, type SelectorSource, type SelectorTarget } from "./predicate";
@@ -624,7 +625,9 @@ export interface StylesApi {
      *
      * The patch is applied over the layer's current specification, one key deep. A key present
      * with `undefined` CLEARS it, so `{ set: undefined }` drops the literal values; a key absent
-     * leaves what was there. The merged specification is checked exactly as a new one would be,
+     * leaves what was there. Inside `set` and `encode` the same holds for a channel: one written
+     * as `undefined` is left out, so `{ set: { ...layer.set, "node.gradientColor": undefined } }`
+     * takes that one value off (since 3.70.0). The merged specification is checked exactly as a new one would be,
      * so an update cannot leave a layer in a state `add` would have refused. A patch that takes
      * the last value away leaves the layer in place, painting nothing.
      * @param id - The layer to change.
@@ -1418,6 +1421,32 @@ export interface StylesApi {
      */
     setFoldBelow(id: LayerId, by: Path, below: number | undefined, options?: RunOptions): Run<Layer>;
     /**
+     * Reorder or remove items of parallel list channels on one layer, as one undoable step: each list the layer
+     * holds, and every item value and item binding (`node.stripeColors.1`) of those channels, moves with its item.
+     * `order[newIndex]` is the old index of the item that goes there; an old index left out is removed, with its item
+     * values and bindings.
+     *
+     * ```ts
+     * // Move a node's third stripe first, with its size, opacity and any binding on them.
+     * const lists = ["node.stripeColors", "node.stripeSizes", "node.stripeOpacities"] as const;
+     * await session.styles.moveListItems(layer.id, lists, [2, 0, 1]);
+     * ```
+     * @param id - The layer.
+     * @param channels - The parallel list channels (each a channel whose descriptor has `listOf`).
+     * @param order - The old index of each new place.
+     * @param options - A signal to cancel with, and a progress handler.
+     * @returns A run that resolves with the layer, and rejects with `E_BAD_COMMAND` when a channel is not a list
+     *   (`details.reason` `"not-a-list"`) or the order is not distinct whole numbers from 0 (`"bad-order"`),
+     *   `E_UNKNOWN_LAYER`, `E_PROTECTED` and `E_LOCKED`.
+     * @since 3.69.0
+     */
+    moveListItems(
+        id: LayerId,
+        channels: readonly Channel[],
+        order: readonly number[],
+        options?: RunOptions,
+    ): Run<Layer>;
+    /**
      * The value one node or edge carries for a path, read the way a layer reads it: which group of
      * `results.louvain.group` the selected node is in, say, so a group list can put it first.
      *
@@ -2205,6 +2234,24 @@ export interface StyleRepaintFailure {
 }
 
 /**
+ * A layer patch with every channel its `set` or `encode` writes as `undefined` left out, so writing one undefined
+ * clears it as writing the whole key undefined clears that key; a map left with no channel is cleared whole.
+ * @param patch - The patch.
+ * @returns The patch as it is applied.
+ */
+function clearedEntries(patch: Partial<LayerSpec>): Partial<LayerSpec> {
+    const kept = (map: object | undefined): object | undefined => {
+        const entries = Object.entries(map ?? {}).filter(([, value]) => value !== undefined);
+        return entries.length === 0 ? undefined : Object.fromEntries(entries);
+    };
+    return {
+        ...patch,
+        ...("set" in patch ? { set: kept(patch.set) } : {}),
+        ...("encode" in patch ? { encode: kept(patch.encode) as LayerSpec["encode"] } : {}),
+    };
+}
+
+/**
  * The failure a repaint nobody awaited publishes.
  * @param cause - What the repaint was for.
  * @param error - What it threw.
@@ -2303,7 +2350,7 @@ function layerIn(state: ProjectState, id: LayerId): Layer | undefined {
  * @param id - The family's id.
  * @returns The family, or undefined for a label or graph family or an unknown id.
  */
-function drawnFamily(id: StyleFamilyId): StyleFamilyDescriptor | undefined {
+function drawnFamily(id: StyleFamilyId): ChannelStyleFamily | undefined {
     const family = styleFamily(id);
     return family?.target === "node" || family?.target === "edge" ? family : undefined;
 }
@@ -3518,7 +3565,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         }
 
         const before = specOf(existing.layer);
-        const merged: LayerSpec = { ...before, ...patch };
+        const merged: LayerSpec = { ...before, ...clearedEntries(patch) };
 
         if (isElementSource(sourceOf(merged))) {
             throw protectedLayer(existing.layer, "given an element source");
@@ -5545,6 +5592,25 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                     action: "update",
                     id,
                     patch: foldPatch(layerIn(state, id), by, below),
+                }),
+                options,
+            );
+        },
+
+        moveListItems(
+            id: LayerId,
+            channels: readonly Channel[],
+            order: readonly number[],
+            options: RunOptions = {},
+        ): Run<Layer> {
+            return edit<Layer>(
+                "update",
+                `Move items of ${channels.join(", ")} on layer ${id}`,
+                (state) => ({
+                    op: "style.patch",
+                    action: "update",
+                    id,
+                    patch: moveListItemsPatch(layerIn(state, id), channels, order),
                 }),
                 options,
             );

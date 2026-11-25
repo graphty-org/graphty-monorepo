@@ -969,6 +969,26 @@ describe("refusals, and where they arrive", () => {
         assert.deepStrictEqual(namesOf(styles), ["Default", "Sound"]);
         assert.isUndefined(styles.get(added.id)?.set?.["node.color"]);
     });
+
+    it("clears a channel a patch's set or encode writes as undefined, and keeps the rest", async () => {
+        const { styles } = makeStyles();
+        const added = await styles.add({
+            name: "Fill",
+            selector: { match: "everything" },
+            set: { "node.color": "#ff0000", "node.gradientColor": "#0000ff" },
+            encode: { "node.size": { by: "data.w" } },
+        });
+        const layer = styles.get(added.id);
+
+        await styles.update(added.id, {
+            set: { ...layer?.set, "node.gradientColor": undefined },
+            encode: { ...layer?.encode, "node.size": undefined },
+        });
+
+        const now = styles.get(added.id);
+        assert.deepStrictEqual(now?.set, { "node.color": "#ff0000" });
+        assert.isUndefined(now?.encode);
+    });
 });
 
 describe("the consumer's own bag", () => {

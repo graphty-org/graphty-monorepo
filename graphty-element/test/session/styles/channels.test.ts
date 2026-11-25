@@ -206,6 +206,7 @@ const DECLARED = [
     "node.shapeTexts",
     "node.labelTable",
     "node.pieData",
+    "node.stripeData",
     "node.chartData",
     "node.recordData",
     "node.shapeLineWidth",
@@ -470,8 +471,8 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into two hundred and twenty-five node channels and one hundred and ninety edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 225);
+    it("splits into two hundred and twenty-six node channels and one hundred and ninety edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 226);
         assert.strictEqual(channelsFor("edge").length, 190);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
@@ -696,6 +697,7 @@ describe("what a style editor needs to draw a row", () => {
         "edge.labelTable",
         // A data spec draws nothing unset: the lists it fills keep what the layers beneath give.
         "node.pieData",
+        "node.stripeData",
         "node.chartData",
         "node.recordData",
         "node.shapeLineWidth",
@@ -1820,5 +1822,24 @@ describe("textFieldOf", () => {
             mapped += 1;
         }
         assert.isAbove(mapped, 100);
+    });
+});
+
+describe("supersededBy", () => {
+    it("names a live channel of the same target, and marks the node gradient's two-color spelling", () => {
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.gradientColor"].supersededBy, "node.gradientColors");
+        for (const descriptor of Object.values(CHANNEL_DESCRIPTORS)) {
+            const by = descriptor.supersededBy;
+            if (by === undefined) {
+                continue;
+            }
+            const replacement = CHANNEL_DESCRIPTORS[by];
+            assert.strictEqual(replacement.target, descriptor.target, descriptor.channel);
+            assert.isTrue(replacement.renderable, descriptor.channel);
+            assert.isUndefined(
+                replacement.supersededBy,
+                `${descriptor.channel} is replaced by a channel replaced itself`,
+            );
+        }
     });
 });

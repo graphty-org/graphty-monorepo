@@ -54,7 +54,7 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import type { Channel, ChannelValue } from "@graphty/graphty-element/catalog";
+import type { Channel, ChannelValue, DataChannel } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { afterAll, assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
@@ -854,6 +854,8 @@ interface Found {
     names: string[];
     /** A value edited twice, or shown as raw data. */
     twice?: string[];
+    /** Inputs that do not describe themselves (notDescribed). */
+    described?: string[];
     /** Drop-downs of fewer than six options. */
     few?: string[];
     /** Groups of one line. */
@@ -1377,6 +1379,7 @@ async function walkGroups(
         found.rest.push(...at(shownAtRest(lines)));
         found.empty.push(...at(emptyInputs(lines)));
         found.twice = [...(found.twice ?? []), ...at(editedTwice(lines))];
+        found.described = [...(found.described ?? []), ...at(notDescribed(lines))];
         found.paths = mergePaths(found.paths, controlsOf(lines));
         const reopenGroup = async (): Promise<HTMLElement> => {
             surface = await reopen();
@@ -2107,11 +2110,11 @@ const DATA_WALKS = [
             entries: [
                 { field: "data.animals" },
                 { graph: { over: "neighbors", measure: "count", groupBy: { by: "value", path: "data.kind" } } },
+                // A plain entry: its color and name are its Entry pop-over's alone, never Colors' too.
+                { field: "data.amount" },
             ],
             keep: 2,
             whole: { max: 10 },
-            // No values is one line until it draws something: Ring adds its color.
-            empty: "ring",
         },
     },
     {
@@ -2127,6 +2130,98 @@ const DATA_WALKS = [
         spec: { entries: [{ field: "data.amount" }, { graph: { over: "edges", measure: "count" } }] },
     },
 ] as const;
+
+/**
+ * Inputs that do not describe themselves (design "Input rules": every input must be self describing, and shows the
+ * value drawn when unset): a field showing graphty-element's internal key ("data.x1") for a name; a slider with an
+ * unnamed thumb, or without a number field for each thumb beside it; more than one unnamed color chip in a surface,
+ * so a chip does not say which color it sets; a name "A / B" over a line drawing fewer inputs than it names.
+ * @param lines - the surface's lines.
+ * @returns what is wrong.
+ */
+function notDescribed(lines: readonly HTMLElement[]): string[] {
+    const out: string[] = [];
+    let unnamedChips = 0;
+    for (const line of lines) {
+        const fields = own(line, "input, textarea") as HTMLInputElement[];
+        if (fields.some((field) => /^(data|graph|value)\.[\w.]+$/.test(field.value))) {
+            out.push(`${nameOf(line)}: shows an internal key`);
+        }
+        const thumbs = own(line, '[role="slider"]');
+        const numbers = fields.filter(
+            (field) =>
+                !["checkbox", "radio", "hidden", "range"].includes(field.type) &&
+                field.closest('[role="slider"]') === null,
+        );
+        if (thumbs.some((thumb) => (thumb.getAttribute("aria-label") ?? "") === "")) {
+            out.push(`${nameOf(line)}: a slider thumb has no name`);
+        }
+        if (thumbs.length > numbers.length) {
+            out.push(
+                `${nameOf(line)}: ${String(thumbs.length)} slider thumbs, ${String(numbers.length)} number fields`,
+            );
+        }
+        const legend = line.querySelector(".cm-legend-text, .cm-field-label, .cm-caption")?.textContent.trim() ?? "";
+        const chip = own(line, "button[aria-label]").some((button) =>
+            /, #[\dA-F]{6}$/i.test(button.getAttribute("aria-label") ?? ""),
+        );
+        if (chip && legend === "") {
+            unnamedChips += 1;
+        }
+        const names = legend.split(" / ").length;
+        const inputs =
+            own(line, CONTROLS).filter(
+                (each) =>
+                    each.closest(".ws-vary") === null &&
+                    !/^Remove /.test(each.getAttribute("aria-label") ?? "") &&
+                    each.closest('[role="radiogroup"]') === null,
+            ).length + new Set(own(line, '[role="radiogroup"]')).size;
+        if (legend.includes(" / ") && inputs < names) {
+            out.push(`${nameOf(line)}: named "${legend}" over ${String(inputs)} input`);
+        }
+    }
+    if (unnamedChips > 1) {
+        out.push(`${String(unnamedChips)} color chips with no name`);
+    }
+    return out;
+}
+
+/**
+ * Lines with two ways to open one pop-over (owner, 2026-11-24: "there should only be one path to any control"): a
+ * control of the line that opens the pop-over its "..." opens. Each control is clicked as a reader does, and what it
+ * opened is closed again.
+ * @param lines - the lines.
+ * @returns what is wrong.
+ */
+async function twoOpeners(lines: readonly HTMLElement[]): Promise<string[]> {
+    const out: string[] = [];
+    for (const line of lines) {
+        const more = own(line, ".ws-vary button[aria-label]").find((each) =>
+            / settings( has configured values)?$/.test(each.getAttribute("aria-label") ?? ""),
+        );
+        if (more === undefined) {
+            continue;
+        }
+        const title = (more.getAttribute("aria-label") ?? "").replace(/ settings( has configured values)?$/, "");
+        const buttons = own(line, "button[aria-label]").filter(
+            (each) => each.closest(".ws-vary") === null && !/^Remove /.test(each.getAttribute("aria-label") ?? ""),
+        );
+        for (const button of buttons) {
+            const before = openCount();
+            await userEvent.click(button);
+            const titles = [...document.querySelectorAll<HTMLElement>('[data-popout-id] [data-testid="popout-header"]')]
+                .filter(laidOut)
+                .map((each) => each.textContent.trim());
+            if (titles.includes(title)) {
+                out.push(`${nameOf(line)}: ${button.getAttribute("aria-label") ?? ""} opens what its "..." opens`);
+            }
+            if (openCount() > before) {
+                await closeAll();
+            }
+        }
+    }
+    return out;
+}
 
 /**
  * A pop-over's lines checked as every pop-over's are: at most six lines tall, the minus last, a slot after its control,
@@ -2147,6 +2242,7 @@ async function checkedLines(what: string, pop: HTMLElement): Promise<string[]> {
         ...emptyInputs(lines),
         ...namesNotBuiltIn(lines),
         ...editedTwice(lines),
+        ...notDescribed(lines),
     ].map((each) => `${what}: ${each}`);
 }
 
@@ -2161,6 +2257,57 @@ async function besideNamed(title: string): Promise<HTMLElement> {
         assert.isNotNull(found, `${title} is open`);
         return found.closest<HTMLElement>("[data-popout-id]") ?? found;
     });
+}
+
+/**
+ * The categories of a data pop-over's Colors group that are a plain entry's (one part, no list, pattern or group),
+ * whose color and name its Entry pop-over already sets (owner, 2026-11-24: one path to any control).
+ * @param session - the session.
+ * @param layer - the layer.
+ * @param key - the data channel.
+ * @param openData - opens the data pop-over.
+ * @returns each such category's name.
+ */
+async function plainInColors(
+    session: GraphSession,
+    layer: string,
+    key: DataChannel,
+    openData: () => Promise<HTMLElement>,
+): Promise<string[]> {
+    const node = session.styles.dataSample(layer, key, "first");
+    if (node === null) {
+        return [];
+    }
+    const facts = session.styles.dataFacts(layer, key, node);
+    const { entries } = (session.styles.get(layer)?.set?.[key] ?? { entries: [] }) as {
+        entries: Record<string, unknown>[];
+    };
+    // graphty-element's key for a plain entry's one part: its field, else its kind and place.
+    const plain = new Set(
+        entries.flatMap((entry, at) => {
+            if ((facts.entries[at]?.parts?.length ?? 0) > 0 || "pattern" in entry) {
+                return [];
+            }
+            if (typeof entry.field === "string") {
+                return [entry.field];
+            }
+            return ["graph" in entry ? `graph.${String(at)}` : `value.${String(at)}`];
+        }),
+    );
+    const names = facts.categories.filter((each) => plain.has(each.key)).map((each) => each.name);
+    const data = await openData();
+    if (names.length === 0 || !(await menuOf(data)).some((entry) => entry.name === "Colors")) {
+        return [];
+    }
+    const colors = await openGroup(data.isConnected ? data : await openData(), "Colors");
+    const category = within(colors).queryByRole("combobox", { name: "Category" });
+    if (category === null) {
+        return [];
+    }
+    await userEvent.click(category);
+    const listed = (await screen.findAllByRole("option")).map((each) => each.textContent.trim());
+    await userEvent.keyboard("{Escape}");
+    return names.filter((name) => listed.includes(name)).map((name) => `${name} is listed`);
 }
 
 describe("Style panel v2's input rules on data pop-overs (spec 2.5)", () => {
@@ -2225,6 +2372,16 @@ describe("Style panel v2's input rules on data pop-overs (spec 2.5)", () => {
             );
             await closeAll();
 
+            // One path to an entry's pop-over: its line's own controls never open what its "..." opens.
+            found.push(
+                ...(await twoOpeners(linesIn(row).filter((line) => line.closest("[data-entry]") !== null))).map(
+                    (each) => `row: ${each}`,
+                ),
+            );
+            // A plain entry's color and name are set in its Entry pop-over: its category is not in Colors' list too.
+            found.push(...(await plainInColors(session, nodes, walk.key, openData)).map((each) => `Colors: ${each}`));
+            await closeAll();
+
             // The Graph value's entry: its pop-over, Format beside it, then Calculate beside it.
             const entryButton = (): HTMLElement => {
                 const line = row.querySelector<HTMLElement>('[data-entry="1"]');
@@ -2239,17 +2396,35 @@ describe("Style panel v2's input rules on data pop-overs (spec 2.5)", () => {
             await userEvent.click(entryButton());
             const entry = await openedBy(entryButton());
             found.push(...(await checkedLines("entry", entry)));
-            const formatMore = within(entry).getByRole("button", { name: / format settings$/ });
+            // An entry's source is set on its line under the row alone: the Entry pop-over holds no source control.
+            if (
+                entry.querySelector(
+                    '[data-line^="entry.field"], [data-line^="entry.graph"], [data-line="entry.value"], [data-line="entry.text"]',
+                ) !== null ||
+                within(entry).queryByRole("button", { name: /^Graph value/ }) !== null
+            ) {
+                found.push("entry: its source is set on its line and again in the Entry pop-over");
+            }
+            // The Format pop-over is the one place a format is set: no drop-down of presets beside it.
+            if (within(entry).queryByRole("combobox", { name: "Format" }) !== null) {
+                found.push("entry: a format is set from the Format drop-down and from the Format pop-over");
+            }
+            // The Format line is one button showing the sample in the entry's format, opening Format beside.
+            const formatOpener = within(entry).getByRole("button", { name: / format(, .*| settings)?$/ });
             // Shown on hover of its line, as a reader meets it.
-            await userEvent.hover(formatMore.closest<HTMLElement>(".ws-row") ?? formatMore);
-            await userEvent.click(formatMore);
+            await userEvent.hover(formatOpener.closest<HTMLElement>(".ws-row") ?? formatOpener);
+            await userEvent.click(formatOpener);
             const format = await besideNamed("Format");
             found.push(...(await checkedLines("format", format)));
             await userEvent.click(within(format).getByRole("button", { name: "Close Format" }));
             await waitFor(() => {
                 assert.isNull(document.querySelector('[data-beside-pop="Format"]'), "Format closed");
             });
-            await userEvent.click(within(entry).getByRole("button", { name: /^Graph value/ }));
+            await closeAll();
+            // Calculate opens from the Graph value on the entry's line, its one source control.
+            const graphLine = row.querySelector<HTMLElement>('[data-entry="1"]');
+            assert.isNotNull(graphLine, "the Graph value's line");
+            await userEvent.click(within(graphLine).getByRole("button", { name: /^Graph value/ }));
             const calculate = await besideNamed("Calculate");
             found.push(...(await checkedLines("calculate", calculate)));
             // Its drop-downs and pickers are the third level: none opens a fourth.

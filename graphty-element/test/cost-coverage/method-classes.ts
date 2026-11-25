@@ -340,6 +340,7 @@ export const MUTATING: readonly string[] = [
     "StylesApi.lockRow",
     "StylesApi.mark",
     "StylesApi.move",
+    "StylesApi.moveListItems",
     "StylesApi.moveRow",
     "StylesApi.pinRow",
     "StylesApi.remove",

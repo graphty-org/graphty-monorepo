@@ -424,12 +424,14 @@ describe("Style panel v2's edge things", () => {
         assert.isAbove(pixelsApart(before, strands), 0, "the strands are drawn");
 
         const pop = await found(document, "[data-thing-popover]");
-        assert.isNotNull(pop.querySelector('[data-line="edge.strandColors:1"]'), "each strand is a line of the list");
         await typeInto(await found(pop, '.ws-row[data-line="edge.strandSpacing"]'), "3");
         await waitFor(() => {
             assert.equal(written(session, id, "edge.strandSpacing"), 3);
         });
         assert.isAbove(pixelsApart(strands, await settledPicture(session, element)), 0, "the strands spread apart");
+        // The strands' list opens beside the pop-over from its line, as a pie's slices do: each strand a line.
+        await userEvent.click(within(pop).getByRole("button", { name: /^Edit strands/ }));
+        await found(document, '[data-line="edge.strandColors:1"]');
     });
 
     it("Pattern's Custom dash list draws its own dashes on a dashed line", async () => {

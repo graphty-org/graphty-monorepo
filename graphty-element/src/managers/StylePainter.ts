@@ -3,6 +3,7 @@ import get from "lodash/get.js";
 import isEqual from "lodash/isEqual.js";
 
 import { BadgeStyleManager } from "../BadgeStyleManager";
+import { UNPAINTED_NODE_HEX } from "../catalog/channelValues";
 import { labelLook } from "../catalog/label-looks";
 import { type LabelBadge, type LabelEntry, MAIN_LABEL_ID, RICH_TEXT_KEYS } from "../catalog/label-style";
 import type { Channel, LabelStyle, Rgba } from "../catalog/types";
@@ -200,7 +201,7 @@ export function plainEdgePaint(paint: EdgePaint): EdgePaint {
 const PLAIN_TEXTURE_KEYS: ReadonlySet<string> = new Set(["color"]);
 
 /** The color a source mesh's material is built in when the instance carries the real one. */
-const NEUTRAL_HEX = "#FFFFFF";
+const NEUTRAL_HEX = UNPAINTED_NODE_HEX;
 
 /** The node style every painted node is filled out from, parsed once. */
 const NODE_BASE: NodeStyleConfig = NodeStyle.parse(defaultNodeStyle);

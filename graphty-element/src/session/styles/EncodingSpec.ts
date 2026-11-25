@@ -47,6 +47,7 @@ import type {
     FieldDescriptor,
     LabelFieldAddress,
     LayerSpec,
+    ListItemAddress,
     MeasurementDeclaration,
     PaletteId,
     ReadableValueKind,
@@ -65,6 +66,7 @@ import {
     labelFieldChannel,
     modelBindingProblem,
     parseLabelFieldAddress,
+    parseListItemAddress,
     parseShaderParamAddress,
 } from "./channels";
 import { DEFAULT_EDGE_WIDTH_RANGE, DEFAULT_SIZE_RANGE } from "./derive";
@@ -168,7 +170,10 @@ export interface ColumnEncodingSpec extends EncodingOptions {
      *
      * On `node.model` every value must be an asset id (`"asset:..."`, from `session.assets.add`
      * or `session.catalog`) or an `http`/`https` URL; a URL is fetched once, and only when its host
-     * is allowed by the page or the reader (`session.network`).
+     * is allowed by the page or the reader (`session.network`). Without `values` (and without a
+     * `scale`), a `node.model` or `node.texture` encoding draws nothing until a value is mapped
+     * (`unmapped: "skip"`, its entries added with `styles.setValueEntries`): a value of the data is
+     * never fetched as an address unless a map names it, or the caller names `scale: "passthrough"`.
      *
      * ```ts
      * await session.styles.encode({
@@ -202,13 +207,15 @@ export type EncodingRefusalCode = "E_UNSUPPORTED" | "E_CAP_EXCEEDED" | (string &
 
 /**
  * A run or column encoding asked of `styles.proposeEncoding()` for one shader parameter declared
- * `varies`, named by its address (`"node.shaders.uncertainty-aura.intensity"`), or for one field of
- * one label of a label list, named by its address (`"node.labels.top.color"`), in place of a channel.
+ * `varies`, named by its address (`"node.shaders.uncertainty-aura.intensity"`), for one field of
+ * one label of a label list, named by its address (`"node.labels.top.color"`), or (since 3.69.0) for
+ * one item of a list channel (`"node.stripeColors.1"`, a color or a number in the list's item range),
+ * in place of a channel.
  * @since 3.36.0
  */
 export type ParamEncodingSpec = (Omit<EncodingSpec, "channel"> | Omit<ColumnEncodingSpec, "channel">) & {
-    /** The shader parameter or label field to encode, by its address. */
-    readonly channel: ShaderParamAddress | LabelFieldAddress;
+    /** The shader parameter, label field or list item to encode, by its address. */
+    readonly channel: ShaderParamAddress | LabelFieldAddress | ListItemAddress;
 };
 
 /** What `styles.proposeEncoding()` answers: the binding `encode()` would store, or why not. */
@@ -544,6 +551,19 @@ function overflowCompanion(spec: EncodingOptions, colour: RuleBinding, descripto
  * @throws A `GraphtyError`: `E_UNKNOWN_CHANNEL`, `E_UNKNOWN_SHADER` or `E_UNKNOWN_SHADER_PARAM`.
  */
 function requireEncodable(name: string): ChannelDescriptor {
+    // One item of a list (`node.stripeColors.1`): a color, or a number in the list's item range.
+    const item = parseListItemAddress(name);
+    if (item !== null) {
+        const list = requireChannel(item.channel);
+        const range = list.listItems;
+        return {
+            ...list,
+            channel: name as Channel,
+            accepts: list.listOf === "color" ? "color" : "number",
+            ...(range === undefined ? {} : { min: range.min, max: range.max }),
+        };
+    }
+
     const label = parseLabelFieldAddress(name);
     if (label !== null) {
         return labelFieldChannel(label) ?? requireChannel(name);
@@ -901,6 +921,13 @@ export function proposeColumnBinding(
     // A scale the caller named is the caller's decision: written as asked.
     if (spec.scale !== undefined) {
         return bind(spec.scale);
+    }
+
+    // A model or a picture names a file to fetch: a value of the data is drawn only once a map names what it draws,
+    // so a word in the data ("farm") is never fetched as a web address. Every value is left to the layers beneath
+    // until then; a caller who wants the data's own values read as addresses names `scale: "passthrough"`.
+    if (descriptor.channel === "node.model" || descriptor.channel === "node.texture") {
+        return bind("passthrough", { unmapped: "skip" });
     }
 
     if (descriptor.accepts === "text" || descriptor.accepts === "boolean") {

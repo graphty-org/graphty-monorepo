@@ -189,7 +189,8 @@ function lookWords(
         .flatMap(([channel, values]) => {
             const descriptor = channel === except ? undefined : descriptorOf(target, channel);
             const paint = values.get(key);
-            return descriptor === undefined || paint === undefined
+            // A group the property draws nothing for (null: a model by data before it is mapped) says nothing.
+            return descriptor === undefined || paint === undefined || paint === null
                 ? []
                 : [`${channelWord(channel).toLowerCase()} ${valueWords(descriptor, paint)}`];
         })
@@ -806,10 +807,13 @@ function GroupNameCell({
                 />
             ) : (
                 <ControlLabel size="xs" truncate data-group-name title={[row.name, ...more].join(" ")}>
-                    {row.name}
-                    {/* What a screen reader hears after the name: what it has, whether it is in Other, its size
-                        and every other property (the row's own field already says this list's property). */}
+                    {/* The name as drawn is hidden from a screen reader, which hears it in the words below as one
+                        run of text: a hidden box after a visible name is read with a space before its comma. */}
+                    <span aria-hidden>{row.name}</span>
+                    {/* What a screen reader hears: the name, what it has, whether it is in Other, its size and
+                        every other property (the row's own field already says this list's property). */}
                     <span style={VISUALLY_HIDDEN}>
+                        {row.name}
                         {more.length === 0 ? "" : ` ${more.join(" ")}`}
                         {`, ${[countOf(row.group.count, target), lookWords(target, from.paints, row.key, channel)]
                             .filter((part) => part !== "")
@@ -1000,7 +1004,7 @@ function groupRowLabel(descriptor: ChannelDescriptor, paints: GroupSource["paint
     const folded = row.group.folded === true ? " in Other" : "";
     return [
         `${row.name}${has}${folded}`,
-        ...(painted === undefined ? [] : [valueWords(descriptor, painted)]),
+        ...(painted === undefined || painted === null ? [] : [valueWords(descriptor, painted)]),
         countOf(row.group.count, target),
         lookWords(target, paints, row.key, channel),
     ]

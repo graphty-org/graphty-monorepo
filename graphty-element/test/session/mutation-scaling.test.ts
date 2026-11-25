@@ -516,6 +516,22 @@ const CASES: readonly Case[] = [
         },
     },
     {
+        method: "StylesApi.moveListItems",
+        growth: "linear",
+        prepare: async (session) => {
+            const layer = await session.styles.add({
+                name: "Stripes",
+                selector: { match: "everything" },
+                set: { "node.stripeColors": "red green blue", "node.stripeSizes": "0.5 0.3 0.2" },
+            });
+            await session.styles.settled();
+            return async () => {
+                await session.styles.moveListItems(layer.id, ["node.stripeColors", "node.stripeSizes"], [2, 0, 1]);
+                await session.styles.settled();
+            };
+        },
+    },
+    {
         method: "StylesApi.applyTemplate",
         growth: "linear",
         prepare: async (session) => {

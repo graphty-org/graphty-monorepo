@@ -8,10 +8,10 @@
 import { PanelField, Popout } from "@graphty/compact-mantine";
 import {
     type Channel,
+    type ChannelStyleFamily,
     type ChannelValue,
     LABEL_LOOKS,
     type ShaderPlace,
-    type StyleFamilyDescriptor,
 } from "@graphty/graphty-element/catalog";
 import React, { useLayoutEffect, useRef } from "react";
 
@@ -403,7 +403,7 @@ export function EntryLookMenu({ ctx, entry }: Readonly<{ ctx: RowContext; entry:
 export function MemberMenu({
     ctx,
     family,
-}: Readonly<{ ctx: RowContext; family: StyleFamilyDescriptor }>): React.JSX.Element {
+}: Readonly<{ ctx: RowContext; family: ChannelStyleFamily }>): React.JSX.Element {
     const { store } = useWorkspace();
     const members = membersOf(ctx, family);
     const now = currentMember(ctx, family, members);

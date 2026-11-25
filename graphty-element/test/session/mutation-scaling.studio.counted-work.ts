@@ -13,6 +13,7 @@ export default {
         "StylesApi.duplicateRow",
         "StylesApi.hideRow",
         "StylesApi.lockRow",
+        "StylesApi.moveListItems",
         "StylesApi.moveRow",
         "StylesApi.pinRow",
         "StylesApi.renameRow",

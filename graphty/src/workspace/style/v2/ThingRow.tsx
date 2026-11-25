@@ -37,6 +37,7 @@ import { LabelRow } from "./LabelRow";
 import { TEXT_THINGS, type TextThing } from "./labelRubric";
 import { unsetIn } from "./lineWrites";
 import { firstItemWords, ITEM_LISTS, listOf } from "./lists";
+import { listChanged } from "./listState";
 import { EntryLookMenu, KindMenu, MemberMenu } from "./MemberMenu";
 import { takeReopening } from "./reopening";
 import { rowNames } from "./rowNames";
@@ -48,10 +49,10 @@ import {
     SHAPE_REPLACE_RUBRIC,
     type ThingRubric,
 } from "./rubric";
-import { LineFrame, type RowSlots, RubricLine } from "./RubricLine";
+import { ByDataLink, LineFrame, type RowSlots, RubricLine } from "./RubricLine";
 import { RowSettings } from "./ThingLine";
 import { type ExtraGroup, FirstLines, ThingPopover } from "./ThingPopover";
-import { mainOf, setOn, type ThingSpec } from "./things";
+import { gradientSet, mainOf, setOn, shapeTargets, type ThingSpec } from "./things";
 import { ValueButton } from "./ValueButton";
 
 /**
@@ -184,6 +185,28 @@ function setLinesOf(
 }
 
 /**
+ * A row's pop-over title: its name with its kind ("Node pie"), Stripes' its name alone (stripes design 3, 4).
+ * @param thing - the thing's id.
+ * @param name - the row's name.
+ * @param title - its name with its kind.
+ * @returns the title.
+ */
+function headingOf(thing: string, name: string, title: string): string {
+    return thing === "stripes" ? name : title;
+}
+
+/**
+ * Whether a data row just added opens its data picker at once, as a Pie's from Fill's "+" (design 5.1). Stripes open
+ * nothing: "+" wrote two fixed stripes, a finished look (stripes design 6).
+ * @param thing - the thing's id.
+ * @param opening - whether it was just added.
+ * @returns whether it opens.
+ */
+function opensAdded(thing: string, opening: boolean | undefined): boolean {
+    return opening === true && thing !== "stripes";
+}
+
+/**
  * The pop-over's first main line, the row's main value's: none where a list (strands, stripes, a record's fields)
  * edits it, as the list is its one editor (owner, 2026-11-24), and none on a Shape, whose row's drop-down is the one
  * control choosing its shape, model or shader (owner, 2026-11-24: one path to any control).
@@ -201,6 +224,53 @@ function popoverHead(rubric: ThingRubric, main: Channel, listed: boolean): LineS
         return undefined;
     }
     return listed ? undefined : { channel: main };
+}
+
+/**
+ * Whether the row's model varies by data (a binding on `node.model`).
+ * @param ctx - the row.
+ * @returns true when it does.
+ */
+function modelBound(ctx: RowContext): boolean {
+    return lineIn(ctx, "node.model")?.binding !== undefined;
+}
+
+/**
+ * A basic Shape row's by-data link: its list opens with a choice of which value varies, the shape or the model, so the
+ * model varies by data from the one link the row already has (owner, 2026-11-24: one path to any control; every style
+ * stays editable).
+ * @param ctx - the row.
+ * @param plainShape - whether the row is a basic Shape's; any other row with no "..." has no link here.
+ * @returns the link.
+ */
+function shapeLink(ctx: RowContext, plainShape: boolean): React.ReactNode {
+    if (!plainShape) {
+        return null;
+    }
+    return <ByDataLink ctx={ctx} targets={shapeTargets(ctx)} />;
+}
+
+/**
+ * A row's rubric channels, and on a Shape its shape too: while a shader draws, the row's drop-down is the shape's one
+ * control; while a model draws, its rubric's Fallback shape line sets the shape under it (owner, 2026-11-25).
+ * @param thingId - the thing.
+ * @param covered - its rubric's channels.
+ * @returns the channels no other line draws.
+ */
+function withShape(thingId: string, covered: ReadonlySet<Channel>): ReadonlySet<Channel> {
+    return thingId === "shape" ? new Set([...covered, "node.shape"]) : covered;
+}
+
+/**
+ * Whether a pop-over has no line for the row's main value: a list edits it, or it is a Shape's, whose row draws its
+ * one control (the drop-down choosing the shape, model or shader, or a model varying by data's binding): a model's
+ * pop-over has no Model line (owner, 2026-11-24: one path to any control).
+ * @param thingId - the thing.
+ * @param listed - whether the pop-over draws a list of it.
+ * @returns true when it has none.
+ */
+function headless(thingId: string, listed: boolean): boolean {
+    return listed || thingId === "shape";
 }
 
 /** What a thing row's main line is drawn from: see `MainLine`. */
@@ -236,10 +306,10 @@ function MainLine(props: Readonly<MainLineProps>): React.JSX.Element {
     // A rubric line drawing the row dims itself.
     const dimmed =
         props.replacing === undefined && props.row === undefined ? dimOf(props.ctx, props.main.channel) : undefined;
-    return dimmed === undefined ? (
-        <MainControl {...props} />
-    ) : (
-        <div className="ws-dim" data-dimmed="" title={dimmed}>
+    // The same box dimmed or not, so the row's control (and a pop-over it holds open) is never drawn anew when a
+    // value elsewhere starts or stops drawing it (a Size pop-over's Fit to label).
+    return (
+        <div className="ws-dim" data-dimmed={dimmed === undefined ? undefined : ""} title={dimmed}>
             <MainControl {...props} />
         </div>
     );
@@ -286,7 +356,7 @@ function MainControl({
     );
     if (
         (main.channel === "node.gradientColors" || main.channel === "edge.gradientColors") &&
-        setOn(ctx, main.channel)
+        (setOn(ctx, main.channel) || gradientSet(ctx, main.channel))
     ) {
         return frame(main.channel, "R16", <GradientButton ctx={ctx} />);
     }
@@ -319,8 +389,9 @@ function MainControl({
     }
     // A model or a shader drawn in the shapes' place: the row is still the Shape list, naming what it draws, so one
     // drop-down chooses a basic shape, a model or a shader in every state (owner, 2026-11-24: one path to any control).
+    // A model varying by data draws its binding instead, as every bound row does.
     const shapeList =
-        thing.id === "shape" && (replacing !== undefined || main.channel === "node.model")
+        thing.id === "shape" && (replacing !== undefined || (main.channel === "node.model" && !modelBound(ctx)))
             ? shownChannel(ctx.session, "node", "node.shape", false)
             : undefined;
     return (
@@ -485,13 +556,14 @@ export function ThingRow({
     // Every channel the minus takes off: the thing's own and every line of its rubric.
     const all = [...new Set([...channels, ...covered])];
     // The thing's set lines its rubric has no line for (or, with no rubric yet, every other set line).
-    const others = othersOf(ctx, channels, main.channel, covered);
+    const others = othersOf(ctx, channels, main.channel, withShape(thing.id, covered));
     const common = rubric?.common ?? [];
     // A label row (its Glyph kind here) always draws its Size and Color lines (ia-design 2).
     const setLines = setLinesOf(ctx, rubric, main.channel, thing.id === "label");
     const commonChannels = new Set(common.flatMap((line) => [line.channel, ...(line.units ?? [])]));
     const changed =
         others.length > 0 ||
+        listChanged(ctx, list) ||
         [...covered].some((channel) => channel !== main.channel && !commonChannels.has(channel) && setOn(ctx, channel));
     const items = ITEM_LISTS[main.channel];
     const listed = list ?? items;
@@ -499,7 +571,13 @@ export function ThingRow({
         listed === undefined ? undefined : <ItemListEditor ctx={ctx} channel={main.channel} list={listed} />;
     // Every thing's pop-over holds at least its main value's line, which varies by data (design 2.6, 7.1).
     const settings = (
-        <RowSettings label={`${title} settings`} title={title} changed={changed} opened={open} onOpenChange={setOpen}>
+        <RowSettings
+            label={`${title} settings`}
+            title={headingOf(thing.id, name, title)}
+            changed={changed}
+            opened={open}
+            onOpenChange={setOpen}
+        >
             {rubric === undefined ? (
                 <>
                     {member}
@@ -518,7 +596,7 @@ export function ThingRow({
                             <FirstLines ctx={ctx} main={main} />
                         </>
                     }
-                    head={popoverHead(rubric, main.channel, popoverList !== undefined || thing.id === "shape")}
+                    head={popoverHead(rubric, main.channel, headless(thing.id, popoverList !== undefined))}
                     extra={params?.main}
                     moreGroups={params?.groups}
                     after={popoverList}
@@ -544,8 +622,8 @@ export function ThingRow({
             <div ref={box} data-thing={thing.id}>
                 <DataRow
                     ctx={ctx}
-                    // Just added: its data picker opens at once, as a Pie's from Fill's "+" (design 5.1).
-                    picking={opening}
+                    picking={opensAdded(thing.id, opening)}
+                    heading={headingOf(thing.id, name, title)}
                     thing={thing.id}
                     start={thing.start ?? main.channel}
                     channel={data}
@@ -630,7 +708,7 @@ export function ThingRow({
         others.length === 0;
     const slots: RowSlots =
         plainShape || bare
-            ? { slot: null, removeLabel, onRemove: remove }
+            ? { slot: shapeLink(ctx, plainShape), removeLabel, onRemove: remove }
             : {
                   slot: settings,
                   removeLabel,

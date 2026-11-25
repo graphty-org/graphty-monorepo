@@ -27,6 +27,11 @@ interface ExtraChoice {
     readonly disabled?: boolean;
     /** The section it is listed in, after the list's own (Shape's Models and Shaders); unset, "More". */
     readonly section?: string;
+    /**
+     * A dedicated component picking this choice opens beside the list, which stays open under its own title (Style
+     * panel v2's Model... opens the Models gallery; design "Input rules", "Nesting"). Given the two closers.
+     */
+    readonly beside?: (closeSelf: () => void, closeList: () => void) => React.ReactNode;
 }
 
 /**
@@ -194,6 +199,9 @@ export function ValueListbox({
         sections?.[0]?.name ??
         "";
     const [section, setSection] = useState(startSection);
+    // The choice whose dedicated component is open beside the list, if any.
+    const [besideOf, setBesideOf] = useState<string | null>(null);
+    const opener = extraChoices.find((choice) => choice.value === besideOf)?.beside;
     const rows = opened ? valueRows(session, descriptor, extraChoices, counts, icons) : [];
     // The extra choices' own sections follow the list's, in the order the choices come.
     const allSections =
@@ -225,6 +233,7 @@ export function ValueListbox({
             onOpenChange={(open) => {
                 setQuery("");
                 setSection(startSection);
+                setBesideOf(null);
                 setOpened(open);
             }}
         >
@@ -266,7 +275,11 @@ export function ValueListbox({
                             data={allSections.map((each) => ({ value: each.name, label: each.name }))}
                             value={section}
                             onChange={(next) => {
-                                setSection(String(next));
+                                // compact-mantine's select gives "" when the section shown is picked again: the
+                                // section stays, so its values stay listed.
+                                if (next !== "") {
+                                    setSection(String(next));
+                                }
                             }}
                         />
                     </Box>
@@ -285,6 +298,10 @@ export function ValueListbox({
                     onQueryChange={setQuery}
                     actions={listed}
                     onRun={(picked) => {
+                        if (extraChoices.some((choice) => choice.value === picked && choice.beside !== undefined)) {
+                            setBesideOf(picked);
+                            return;
+                        }
                         setOpened(false);
                         onPick(picked);
                     }}
@@ -292,6 +309,15 @@ export function ValueListbox({
                         setOpened(false);
                     }}
                 />
+                {opener?.(
+                    () => {
+                        setBesideOf(null);
+                    },
+                    () => {
+                        setBesideOf(null);
+                        setOpened(false);
+                    },
+                )}
             </Popout.Panel>
         </Popout>
     );

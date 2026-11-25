@@ -76,10 +76,14 @@ describe("Style panel v2's record from data", () => {
                 entries: [{ field: "data.gene" }, { field: "data.degree" }, { field: "data.logFC" }],
             });
         });
+        // Each entry's line holds its source, the field it reads (never one node's value).
         await waitFor(() => {
-            assert.isNotNull(screen.queryByRole("button", { name: /^degree, 34$/ }));
+            const fields = screen.queryAllByRole<HTMLInputElement>("combobox", { name: "Field" });
+            assert.deepEqual(
+                fields.map((each) => each.value),
+                ["gene", "degree", "logFC"],
+            );
         });
-        assert.isNotNull(screen.queryByRole("button", { name: /^logFC, -2\.31$/ }));
         const picker = screen.getByRole("combobox", { name: "Node record data" });
         const row = picker.closest<HTMLElement>(".ws-row");
         assert.isNotNull(row);
@@ -90,16 +94,19 @@ describe("Style panel v2's record from data", () => {
         );
     });
 
-    it("opens an entry from its value, keeps it open on a tab pick, and formats a value as Signed", async () => {
+    it('opens an entry from its "...", keeps it open on a tab pick, and signs a value from Format', async () => {
         const { session, layer } = await withGenes();
         const tab = await openStyle("Key people");
         await recordOf(tab, ["logFC"]);
-        const value = await screen.findByRole("button", { name: /^logFC, -2\.31$/ });
-        await userEvent.click(value);
+        const more = await screen.findByRole("button", { name: "logFC settings" });
+        await userEvent.hover(more.closest<HTMLElement>(".ws-row") ?? more);
+        await userEvent.click(more);
         const pop = await openFrom("logFC settings");
-        const format = within(pop).getByRole("combobox", { name: "Format" });
-        await userEvent.click(format);
-        await userEvent.click(await screen.findByRole("option", { name: /^Signed: -2\.31/ }));
+        // The Format line's button is the one way to the Format pop-over (one path to any control).
+        assert.isNull(within(pop).queryByRole("combobox", { name: "Format" }), "no preset drop-down beside it");
+        await userEvent.click(within(pop).getByRole("button", { name: /^logFC format, -2\.31$/ }));
+        const format = await openFrom("logFC format");
+        await userEvent.click(within(format).getByText("Always"));
         await waitFor(() => {
             const spec = written(session, layer, "node.recordData") as { entries: { format?: unknown }[] };
             assert.deepEqual(spec.entries[0].format, { signDisplay: "exceptZero" });
@@ -133,7 +140,8 @@ describe("Style panel v2's record from data", () => {
         assert.match(within(pop).getByRole<HTMLInputElement>("combobox", { name: "Sample" }).value, /^TP53/);
         await userEvent.keyboard("{Escape}");
 
-        const first = await screen.findByRole("button", { name: /^degree, 34$/ });
+        // The first entry's line moves from any of its own controls: its "..." here.
+        const first = await screen.findByRole("button", { name: "degree settings" });
         first.focus();
         await userEvent.keyboard("{Alt>}{ArrowDown}{/Alt}");
         await waitFor(() => {

@@ -369,8 +369,10 @@ Text, Card, Dark, Pill, Callout and Glyph; it is the only way to Glyph, which no
    state, like an unsent draft, and switching back writes them: Basic shape (star, rounded) -> a replace shader
    -> Basic shape gives the star with its corners. Once the selected row id changes, switching back writes the
    member's start (5.1). Undo reverses each switch in one step, so the star is always one undo away.
-3. **Shared**: Model's popover shows `node.shape` as **Fallback shape** (`x-shape-model`); switching to Model
-   keeps it.
+3. **Shared**: switching to Model keeps `node.shape` (`x-shape-model`), drawn while the model loads or if it
+   fails. A model's pop-over has a Fallback shape line, which sets that shape and leaves the model in place, fixed
+   or varying by data (owner, 2026-11-25). It is not a second path: a shape picked in the row's drop-down replaces
+   the model, while the Fallback shape line sets the shape drawn under it.
 
 ### 5.1 Starting writes
 
@@ -626,10 +628,20 @@ thing's groups when it has more than one, and each opens a new pop-over.
   Shape list: its shapes, then a Models section and a Shaders section) is the one control choosing a basic shape,
   a model or a shader, in every state: while a model or a shader draws, the drop-down names it and picks any other.
   There are no Kind buttons under the row and no Basic / Model / Shader tabs in its pop-over, and a model's
-  pop-over has no Model line; each pop-over holds only its own settings (a model's Fallback shape, Tint, Fit and
-  Center; a shader's parameters). A line under a row repeats the same control as the pop-over's line for that
+  pop-over has no Model line, fixed or varying by data; each pop-over holds only its own settings (a model's
+  Fallback shape, Tint, Fit and Center; a shader's parameters). The Fallback shape line sets the shape drawn under
+  the model, a different value from the drop-down's shape, which replaces the model (owner, 2026-11-25). A line under a row repeats the same control as the pop-over's line for that
   value (2.5), in the same component and words: that is one control drawn in two places, not a second path. The
-  rules test fails a value edited by two different controls.
+  rules test fails a value edited by two different controls. Model... opens the Models gallery beside the list,
+  which stays open, and the gallery's Add custom model... is the one way to the Load custom model dialog from the
+  Shape. The model varies by data from the Shape's by-data link, whose list opens with a "Which value" choice
+  (Shape or Model): the basic Shape row's link, and while a model draws the Fallback shape line's, so a fixed model
+  becomes one varying by data without being removed first. A model varying by data is drawn as every bound row is;
+  each value of the field draws the model it is mapped to in the binding's group list (a value to a model, picked
+  from the Models gallery), and a value mapped to none keeps the fallback shape. A value of the data is never
+  fetched as a web address unless it is mapped to one. A pie's, chart's or record's
+  entry is chosen on its line under the row (its field, Graph value, value or text) and nowhere else: its Entry
+  pop-over holds its kind and its other settings, and a new Graph value's Calculate opens from that line.
 - **No button group opens menus (2026-11-24).** Picking a grouped button or a tab writes its value at once: it
   never opens a menu, a list, a picker or a pop-over. A choice that needs a pick (a model, a picture, a shader) is
   an entry in a drop-down, whose list may open the picker. The rules test clicks every grouped button in the
@@ -721,7 +733,7 @@ follows.
 | Fill: Solid                            | color R1                          | -           | -                                                                                                                                                                                                                                               |
 | Fill: Gradient                         | stops (`GradientRow`)             | -           | Main: kind R8 icons, direction R5 or center X \| Y and radius R5 (by kind), endColor R1, opacity R5                                                                                                                                             |
 | Image                                  | image R16                         | Opacity     | Main: Wrap around shape R7, imageFit R9, fallback R16. Size: width \| height or pixelSize R5 (by fit), autoSize R8f, keep aspect R7. Place: position X \| Y, offset X \| Y. Tiling: repeat R8 icons, clip R8, smoothing R7                      |
-| Stripes                                | colors R15r                       | -           | Main: Stripes R15 (color, size, opacity), direction R8 icons, size R5. Frame: R17                                                                                                                                                               |
+| Stripes                                | entries R12: Fixed or data (Pie)  | -           | Fixed: direction R8 (Rows, Columns), Stripes R15 (grip, color, share, link). Data: as Pie. Stripe area: Scale R5, Band frame (Whole, Rim, sides)                                                                                                |
 | Pie                                    | slices R15r                       | -           | Main: Slices R15 (color, size, opacity). Disc: hole, radius, rotation R5, pieFitBox R7, offset X \| Y                                                                                                                                           |
 | Chart                                  | kind R10                          | -           | Main: values R12, colors R15, min \| max, horizontal R7 (by kind). Box: size or width \| height, offset X \| Y, margin, gap R5. Strokes: lineWidth R5, borderColor R1, borderWidth R5, backgroundColor R1                                       |
 | Finish (3D only)                       | shading R10 (Smooth, Flat, Unlit) | -           | -                                                                                                                                                                                                                                               |

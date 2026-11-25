@@ -316,6 +316,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.glyphColor": "Glyph color",
     // A data spec: what a node's pie, chart or record is drawn from.
     "node.pieData": "Pie from data",
+    "node.stripeData": "Stripes from data",
     "node.pieColors": "Pie colors",
     "node.pieSizes": "Pie sizes",
     "node.pieOpacities": "Pie opacities",

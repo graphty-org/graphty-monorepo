@@ -23,12 +23,17 @@ interface ModelsPopoverProps {
     readonly opened: boolean;
     /** The row it opens beside. */
     readonly anchor: React.RefObject<HTMLElement | null>;
+    /** Opens beside the pop-out it is drawn in (Style panel v2's Shape list), which stays open, not at the row. */
+    readonly beside?: boolean;
     /** What the layer's `node.model` names now, so its sample or project model reads as chosen. */
     readonly current?: string;
     /** Called with what the layer's `node.model` should name: an asset id or a sample's id. */
     readonly onPick: (ref: string) => void;
-    /** Add custom model...: the Load custom model dialog opens in the pop-over's place. */
-    readonly onCustom: () => void;
+    /**
+     * Add custom model...: the Load custom model dialog opens in the pop-over's place. Left out (a group's model in a
+     * by-data list), there is no such button: the Shape's gallery is the one way to add a model to the project.
+     */
+    readonly onCustom?: () => void;
     /** Back to the Shape list, where there is one to go back to (none in Style panel v2: no back buttons). */
     readonly onBack?: () => void;
     /** Closed, by Escape or its close button. */
@@ -122,6 +127,7 @@ export function SectionHeading({ children }: Readonly<{ children: string }>): Re
  * @param props - Component props
  * @param props.opened - whether it is open
  * @param props.anchor - the row it opens beside
+ * @param props.beside - opens beside the pop-out it is drawn in
  * @param props.current - what `node.model` names now
  * @param props.onPick - called with what `node.model` should name
  * @param props.onCustom - opens the Load custom model dialog
@@ -132,6 +138,7 @@ export function SectionHeading({ children }: Readonly<{ children: string }>): Re
 export function ModelsPopover({
     opened,
     anchor,
+    beside = false,
     current,
     onPick,
     onCustom,
@@ -176,9 +183,9 @@ export function ModelsPopover({
         >
             <Popout.Panel
                 width={WIDTH}
-                placement="left"
-                alignment="start"
-                anchorY={anchor}
+                {...(beside
+                    ? { placement: "beside", gap: 8 }
+                    : { placement: "left", alignment: "start", anchorY: anchor })}
                 header={{ variant: "title", title: "Models" }}
                 closeLabel="Close Models"
                 // The back action sits at the header's end: compact-mantine has no leading header
@@ -258,16 +265,18 @@ export function ModelsPopover({
                                 </div>
                             </>
                         )}
-                        <Button
-                            size="compact-xs"
-                            variant="default"
-                            fullWidth
-                            leftSection={<GLYPHS.upload size={12} aria-hidden />}
-                            aria-haspopup="dialog"
-                            onClick={onCustom}
-                        >
-                            {CUSTOM_MODEL.button}
-                        </Button>
+                        {onCustom === undefined ? null : (
+                            <Button
+                                size="compact-xs"
+                                variant="default"
+                                fullWidth
+                                leftSection={<GLYPHS.upload size={12} aria-hidden />}
+                                aria-haspopup="dialog"
+                                onClick={onCustom}
+                            >
+                                {CUSTOM_MODEL.button}
+                            </Button>
+                        )}
                     </Stack>
                 </Popout.Content>
             </Popout.Panel>

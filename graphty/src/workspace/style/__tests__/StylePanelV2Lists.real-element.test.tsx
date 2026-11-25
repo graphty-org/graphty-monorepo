@@ -56,6 +56,18 @@ function shareNear(
     return all === 0 ? 0 : near / all;
 }
 
+/**
+ * A segment's label, the part a reader presses (its radio is hidden).
+ * @param box - where the segments are.
+ * @param name - the segment's name.
+ * @returns the label.
+ */
+function segment(box: HTMLElement, name: string): HTMLElement {
+    const found = box.querySelector<HTMLElement>(`label[for="${within(box).getByRole("radio", { name }).id}"]`);
+    assert.isNotNull(found, name);
+    return found;
+}
+
 describe("Style panel v2's list things", () => {
     withFeatures(["file-styles", "style-panel-v2"]);
 
@@ -138,9 +150,8 @@ describe("Style panel v2's list things", () => {
         assert.isAbove(first, second * 1.5, "the first stripe is the wider");
     });
 
-    // E495: the first side typed made the Frame line appear in the sidebar row too, and focus, between the side it
-    // left and the next, was handed to that sidebar copy; the pop-over's other sides were then out of reach.
-    it("a Frame side typed and tabbed past leaves focus on the next side in the pop-over", async () => {
+    // A band frame is Whole or Rim; each side then writes its own item and leaves the others (stripes design 5).
+    it("a band frame's Rim shows four sides, and a side typed writes that side alone", async () => {
         const { session, nodes } = await openGraph();
         const tab = await openStyle("Key people");
         const fill = sectionOf(tab, "node-fill");
@@ -161,28 +172,22 @@ describe("Style panel v2's list things", () => {
             assert.isNotNull(found);
             return found;
         });
-        // Frame is in the Bands group, its "..." opening it directly (design "Input rules"), each side showing 0.
-        await userEvent.click(await within(await openGroup(pop)).findByRole("spinbutton", { name: "Frame top" }));
-        await userEvent.keyboard("{Control>}a{/Control}0.2{Tab}");
+        // Fixed has one group, Stripe area, which its "..." opens directly.
+        const area = await openGroup(pop);
+        assert.isNull(within(area).queryByRole("spinbutton", { name: "Band frame top" }), "Whole shows no sides");
+        await userEvent.click(segment(area, "Rim"));
         await waitFor(() => {
-            assert.strictEqual(written(session, nodes, "node.stripeFrame"), "0.2 0 0 0");
-            assert.isNotNull(fill.querySelector('[data-line="node.stripeFrame"]'), "the sidebar row shows the frame");
+            assert.strictEqual(written(session, nodes, "node.stripeFrame"), "0.1 0.1 0.1 0.1", "a rim shows at once");
         });
-        // The element's change has drawn: focus is still where the Tab put it.
-        await session.styles.settled();
+        const top = await within(area).findByRole("spinbutton", { name: "Band frame top" });
+        await userEvent.click(top);
+        await userEvent.keyboard("{Control>}a{/Control}20{Enter}");
         await waitFor(() => {
-            const right = document.querySelector('[data-thing-popover] input[aria-label="Frame right"]');
-            assert.isNotNull(right, "the pop-over is still open");
-            const active = document.activeElement;
-            assert.strictEqual(
-                active,
-                right,
-                `focus is on ${active?.getAttribute("aria-label") ?? active?.tagName ?? "nothing"}, in the pop-over: ${String(active?.closest("[data-thing-popover]") !== null)}`,
-            );
+            assert.strictEqual(written(session, nodes, "node.stripeFrame"), "0.2 0.1 0.1 0.1", "the other sides stay");
         });
-        await userEvent.keyboard("{Control>}a{/Control}0.3{Tab}");
+        await userEvent.click(segment(area, "Whole"));
         await waitFor(() => {
-            assert.strictEqual(written(session, nodes, "node.stripeFrame"), "0.2 0.3 0 0", "the next side writes");
+            assert.isUndefined(written(session, nodes, "node.stripeFrame"), "Whole unsets the frame");
         });
     });
 

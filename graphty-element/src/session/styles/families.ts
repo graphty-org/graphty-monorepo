@@ -12,7 +12,7 @@
  * `switchFamily`). Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import type { StyleFamilyDescriptor, StyleFamilyMember } from "../../catalog/families";
+import type { ChannelStyleFamily, StyleFamilyMember } from "../../catalog/families";
 import type { ShaderUse } from "../../catalog/shaders";
 import type { Channel, Encoding, StaticStyle } from "../../catalog/types";
 import { placeOfUse } from "./channels";
@@ -38,7 +38,7 @@ export interface StyleFamilyValues {
  * @param family - The family.
  * @returns `node.shaders` or `edge.shaders`.
  */
-function shadersOf(family: StyleFamilyDescriptor): "node.shaders" | "edge.shaders" {
+function shadersOf(family: ChannelStyleFamily): "node.shaders" | "edge.shaders" {
     return family.target === "edge" ? "edge.shaders" : "node.shaders";
 }
 
@@ -48,7 +48,7 @@ function shadersOf(family: StyleFamilyDescriptor): "node.shaders" | "edge.shader
  * @param family - The family.
  * @returns The uses, in order.
  */
-function usesOf(layer: Layer, family: StyleFamilyDescriptor): readonly ShaderUse[] {
+function usesOf(layer: Layer, family: ChannelStyleFamily): readonly ShaderUse[] {
     const uses = layer.set?.[shadersOf(family)];
     return Array.isArray(uses) ? (uses as readonly ShaderUse[]) : [];
 }
@@ -59,7 +59,7 @@ function usesOf(layer: Layer, family: StyleFamilyDescriptor): readonly ShaderUse
  * @param use - The use.
  * @returns True when the use draws that member.
  */
-function usesMember(member: StyleFamilyMember, use: ShaderUse): boolean {
+function usesMember(member: StyleFamilyMember<Channel>, use: ShaderUse): boolean {
     if (member.place !== undefined) {
         return placeOfUse(use) === member.place;
     }
@@ -74,8 +74,8 @@ function usesMember(member: StyleFamilyMember, use: ShaderUse): boolean {
  * @param member - The member.
  * @returns True when the layer holds something of it.
  */
-function holds(layer: Layer, family: StyleFamilyDescriptor, member: StyleFamilyMember): boolean {
-    const own = member.owns as readonly Channel[];
+function holds(layer: Layer, family: ChannelStyleFamily, member: StyleFamilyMember<Channel>): boolean {
+    const own = member.owns;
     return (
         own.some((channel) => layer.set?.[channel] !== undefined || layer.encode?.[channel] !== undefined) ||
         usesOf(layer, family).some((use) => usesMember(member, use))
@@ -89,7 +89,7 @@ function holds(layer: Layer, family: StyleFamilyDescriptor, member: StyleFamilyM
  * @param family - A node or edge family.
  * @returns The member.
  */
-export function memberOf(layer: Layer, family: StyleFamilyDescriptor): StyleFamilyMember {
+export function memberOf(layer: Layer, family: ChannelStyleFamily): StyleFamilyMember<Channel> {
     const [first, ...rest] = family.members;
     const byUse = family.members.find(
         (member) => (member.place !== undefined || member.shader !== undefined) && holds(layer, family, member),
@@ -104,8 +104,12 @@ export function memberOf(layer: Layer, family: StyleFamilyDescriptor): StyleFami
  * @param member - The member.
  * @returns Its values, bindings and shader uses there.
  */
-export function valuesOf(layer: Layer, family: StyleFamilyDescriptor, member: StyleFamilyMember): StyleFamilyValues {
-    const own = member.owns as readonly Channel[];
+export function valuesOf(
+    layer: Layer,
+    family: ChannelStyleFamily,
+    member: StyleFamilyMember<Channel>,
+): StyleFamilyValues {
+    const own = member.owns;
     const set: StaticStyle = {};
     const encode: Record<string, unknown> = {};
     for (const channel of own) {
@@ -137,8 +141,8 @@ export function valuesOf(layer: Layer, family: StyleFamilyDescriptor, member: St
  */
 export function switchedPatch(
     layer: Layer,
-    family: StyleFamilyDescriptor,
-    to: StyleFamilyMember,
+    family: ChannelStyleFamily,
+    to: StyleFamilyMember<Channel>,
     start: Partial<StyleFamilyValues> = {},
 ): { readonly set: StaticStyle; readonly encode: Encoding } {
     const from = memberOf(layer, family);

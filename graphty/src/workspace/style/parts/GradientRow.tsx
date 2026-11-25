@@ -9,13 +9,20 @@
  */
 
 import { type ColorStop, GradientEditor, Popout } from "@graphty/compact-mantine";
-import { readChannelList, toColorValue, writeChannelList } from "@graphty/graphty-element/catalog";
+import {
+    type Channel,
+    readChannelList,
+    supersedingValue,
+    toColorValue,
+    writeChannelList,
+} from "@graphty/graphty-element/catalog";
 import { Button } from "@mantine/core";
 import React, { useRef, useState } from "react";
 
 import { useWorkspace } from "../../state/WorkspaceContext";
 import type { RowContext } from "../PropertyRow";
 import { lineIn, writeIn } from "../row";
+import { olderSpelling } from "../v2/things";
 import { failureWords } from "../words";
 
 /** The stops a gradient the row does not set yet starts from, for the reader to change. */
@@ -96,17 +103,22 @@ export function GradientButton({ ctx }: Readonly<{ ctx: RowContext }>): React.JS
     const { store } = useWorkspace();
     const colorsChannel = ctx.side === "edge" ? "edge.gradientColors" : "node.gradientColors";
     const stopsChannel = ctx.side === "edge" ? "edge.gradientStops" : "node.gradientStops";
+    const older = olderSpelling(ctx, colorsChannel);
     return (
         <GradientBar
             label={`Edit ${ctx.side} ${COLORS.toLowerCase()}`}
-            colors={readChannelList(colorsChannel, lineIn(ctx, colorsChannel)?.value)}
+            colors={readChannelList(colorsChannel, drawnColors(ctx, colorsChannel, older))}
             offsets={readChannelList(stopsChannel, lineIn(ctx, stopsChannel)?.value)}
             onWrite={(colors, offsets) => {
                 writeIn(
                     ctx,
                     colorsChannel,
                     { value: writeChannelList(colorsChannel, colors) },
-                    { [stopsChannel]: writeChannelList(stopsChannel, offsets) },
+                    // The older spelling the bar started from is cleared in the same step: the list replaces it.
+                    {
+                        [stopsChannel]: writeChannelList(stopsChannel, offsets),
+                        ...(older === undefined ? {} : { [older]: undefined }),
+                    },
                     true,
                 ).catch((error: unknown) => {
                     store.set({ notice: { message: failureWords("The gradient", "changed", error), error: true } });
@@ -114,6 +126,20 @@ export function GradientButton({ ctx }: Readonly<{ ctx: RowContext }>): React.JS
             }}
         />
     );
+}
+
+/**
+ * The gradient's colors as drawn: the row's list, else its older spelling read as the list by graphty-element.
+ * @param ctx - the row.
+ * @param colorsChannel - the gradient's colors channel.
+ * @param older - the older spelling the row sets.
+ * @returns the list's value.
+ */
+function drawnColors(ctx: RowContext, colorsChannel: Channel, older: Channel | undefined): unknown {
+    const own = lineIn(ctx, colorsChannel)?.value;
+    return own !== undefined || older === undefined
+        ? own
+        : supersedingValue(older, (channel) => lineIn(ctx, channel)?.value);
 }
 
 /**

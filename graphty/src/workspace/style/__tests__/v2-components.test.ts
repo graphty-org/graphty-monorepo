@@ -40,9 +40,10 @@ describe("Style panel v2's shared components", () => {
     });
 
     it("no v2 file draws a section or a group but PlusList", () => {
-        // Graph settings v2's sections hold no "+": they stay plain sections.
+        // Graph settings v2's sections hold no "+": they stay plain sections. A color list's ControlGroup is the
+        // legend naming one line's two inputs (chip, then number), not a section.
         const imports = /import \{[^}]*\bControl(Section|Group)\b[^}]*\} from "@graphty\/compact-mantine"/;
-        assert.deepEqual(using(imports, ["PlusList.tsx", "GraphSettingsV2.tsx"]), []);
+        assert.deepEqual(using(imports, ["PlusList.tsx", "GraphSettingsV2.tsx", "ListItems.tsx"]), []);
     });
 
     it("no v2 file draws a '+' glyph of its own: every '+' is an AddButton", () => {

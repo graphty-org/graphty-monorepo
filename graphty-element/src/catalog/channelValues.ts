@@ -9,8 +9,8 @@
  * few ids that do not read as words named outright.
  */
 
-import { cssWords } from "../meshes/nodeDecoration";
-import { type ChannelDescriptor, channelDescriptor } from "../session/styles/channels";
+import { cssWords, shareSizes } from "../meshes/nodeDecoration";
+import { asColorValue, type ChannelDescriptor, channelDescriptor, toColorValue } from "../session/styles/channels";
 import { EDGE_ARROW_DESCRIPTORS, EDGE_LINE_DESCRIPTORS, type GlyphDescriptor, NODE_SHAPE_DESCRIPTORS } from "./shapes";
 import type { Channel } from "./types";
 
@@ -122,33 +122,184 @@ export function channelValuesOf(descriptor: ChannelDescriptor | undefined): read
     return values;
 }
 
+/** The word a number list holds in an unset item's place, so the items after it keep their places. */
+export const UNSET_LIST_ITEM = "auto";
+
+/** How {@link readChannelList} reads a list. */
+export interface ReadChannelListOptions {
+    /**
+     * Keep each item in its place: an item of a number list that is no number (the `auto` placeholder) reads as
+     * `undefined` rather than being dropped, so item `i` is always the list's `i`th word.
+     */
+    readonly keepPlace?: boolean;
+}
+
+/** A list item as {@link readChannelList} reads it with `keepPlace`: an unset item is `undefined`. */
+export type PlacedListItem = string | number | undefined;
+
 /**
  * The items of a list channel's value (`listOf` on its descriptor): the colors of
  * `node.gradientColors` as written ("rgb(1, 2, 3)" stays one item), the numbers of
  * `node.gradientStops`. What the renderer reads, so an editor that shows the items never splits the
- * text itself.
+ * text itself. A number list's word that is no number is dropped.
  * @param channel - The channel.
  * @param value - Its value, as a layer holds it.
  * @returns The items in order; empty for a channel that holds no list, or a value that is not text.
  * @since 3.40.0
  */
-export function readChannelList(channel: Channel, value: unknown): readonly (string | number)[] {
+export function readChannelList(channel: Channel, value: unknown): readonly (string | number)[];
+/**
+ * The items of a list channel's value, each in its place: a number list's word that is no number (the `auto`
+ * placeholder) reads as `undefined`.
+ * @param channel - The channel.
+ * @param value - Its value, as a layer holds it.
+ * @param options - `keepPlace`.
+ * @returns The items in order.
+ * @since 3.69.0
+ */
+export function readChannelList(
+    channel: Channel,
+    value: unknown,
+    options: ReadChannelListOptions,
+): readonly PlacedListItem[];
+/**
+ * See the overloads.
+ * @param channel - The channel.
+ * @param value - Its value.
+ * @param options - How to read it.
+ * @returns The items.
+ */
+export function readChannelList(
+    channel: Channel,
+    value: unknown,
+    options: ReadChannelListOptions = {},
+): readonly PlacedListItem[] {
     const listOf = channelDescriptor(channel)?.listOf;
     if (listOf === undefined || typeof value !== "string") {
         return Object.freeze([]);
     }
     const words = cssWords(value);
-    return Object.freeze(listOf === "color" ? words : words.map(Number).filter((number) => Number.isFinite(number)));
+    if (listOf === "color") {
+        return Object.freeze(words);
+    }
+    const numbers = words.map(Number);
+    return Object.freeze(
+        options.keepPlace === true
+            ? numbers.map((number) => (Number.isFinite(number) ? number : undefined))
+            : numbers.filter((number) => Number.isFinite(number)),
+    );
+}
+
+/** Where a node's gradient starts while no layer paints the node a color: the neutral fill the renderer draws. */
+export const UNPAINTED_NODE_HEX = "#FFFFFF";
+
+/**
+ * The value of the channel that replaced an older spelling (`ChannelDescriptor.supersededBy`), as the renderer draws
+ * what a row writes in that spelling: `node.gradientColor` "#0000ff" over `node.color` "#ff0000" draws the gradient
+ * list (`node.gradientColors`) "#FF0000 #0000FF". An editor of the replacing channel starts from it, and writing the
+ * replacing channel leaves the older spelling nothing to draw.
+ *
+ * ```ts
+ * const read = (channel: Channel) => layer.set?.[channel];
+ * supersedingValue("node.gradientColor", read); // "#FF0000 #0000FF"
+ * ```
+ * @param channel - The older spelling, such as `"node.gradientColor"`.
+ * @param read - What the row holds for a channel; undefined where it sets none (or binds it to data).
+ * @returns The replacing channel's value, or undefined when the row writes no value of the older spelling, or the
+ *     channel replaces nothing.
+ * @since 3.70.0
+ */
+export function supersedingValue(channel: Channel, read: (other: Channel) => unknown): string | undefined {
+    if (channel !== "node.gradientColor") {
+        return undefined;
+    }
+    // A row holds a color as written (a hex, a CSS name); a resolved style holds the parsed color.
+    const hex = (value: unknown): string | undefined =>
+        (asColorValue(value) ?? (typeof value === "string" ? toColorValue(value) : null))?.hex
+            .slice(0, 7)
+            .toUpperCase();
+    const to = hex(read(channel));
+    return to === undefined ? undefined : `${hex(read("node.color")) ?? UNPAINTED_NODE_HEX} ${to}`;
 }
 
 /**
- * A list channel's value written from its items, as {@link readChannelList} reads it back.
+ * A list channel's value written from its items, as {@link readChannelList} reads it back. An `undefined` item is
+ * written as the placeholder `auto` ({@link UNSET_LIST_ITEM}), which the renderer reads as unset.
  * @param channel - The channel.
  * @param items - The items in order.
  * @returns The value to write.
  * @since 3.40.0
  */
-export function writeChannelList(channel: Channel, items: readonly (string | number)[]): string {
+export function writeChannelList(channel: Channel, items: readonly PlacedListItem[]): string {
     const listOf = channelDescriptor(channel)?.listOf;
-    return items.map((item) => (listOf === "number" ? String(Number(item)) : String(item).trim())).join(" ");
+    return items
+        .map((item) => {
+            if (item === undefined) {
+                return UNSET_LIST_ITEM;
+            }
+            return listOf === "number" ? String(Number(item)) : String(item).trim();
+        })
+        .join(" ");
+}
+
+/**
+ * The share each item of a share list (`listItems.share`, such as `node.stripeSizes`) draws: its own where set,
+ * capped at what the items before it left, and an unset item an equal part of what the set ones leave. The renderer
+ * reads the same numbers, so an editor shows what is drawn.
+ * @param channel - The share list channel.
+ * @param value - Its value.
+ * @param count - How many items are drawn (the colors list's length).
+ * @returns One share per item, 0 to 1.
+ * @since 3.69.0
+ */
+export function listShares(channel: Channel, value: unknown, count: number): readonly number[] {
+    const text = channelDescriptor(channel)?.listOf === "number" && typeof value === "string" ? value : undefined;
+    return Object.freeze(shareSizes(text, Math.max(0, Math.floor(count))));
+}
+
+/**
+ * A share list's new value after item `index` is set to `share`: that item as given (0 to 1), and when the set items
+ * then add up to more than the whole, the others give way, the later ones first from the end, then the earlier ones
+ * nearest first, each lowered until the shares fit. Unset items stay unset (written `auto` where an item after them is
+ * set), taking what is left.
+ * @param channel - The share list channel.
+ * @param value - Its value before the edit (for a drag, its value when the drag began).
+ * @param count - How many items are drawn.
+ * @param index - The item set.
+ * @param share - Its share, 0 to 1; `undefined` unsets it.
+ * @returns The value to write.
+ * @since 3.69.0
+ */
+export function setListShare(
+    channel: Channel,
+    value: unknown,
+    count: number,
+    index: number,
+    share: number | undefined,
+): string {
+    const items: (number | undefined)[] = Array.from({ length: Math.max(count, index + 1) }, (_, at) => {
+        const item = readChannelList(channel, value, { keepPlace: true })[at];
+        return typeof item === "number" ? Math.max(0, Math.min(1, item)) : undefined;
+    });
+    items[index] = share === undefined ? undefined : Math.max(0, Math.min(1, share));
+    let excess = items.reduce<number>((sum, item) => sum + (item ?? 0), 0) - 1;
+    const order = [
+        ...Array.from({ length: items.length - index - 1 }, (_, k) => items.length - 1 - k),
+        ...Array.from({ length: index }, (_, k) => index - 1 - k),
+    ];
+    for (const at of order) {
+        const item = items[at];
+        if (excess <= 1e-9) {
+            break;
+        }
+        if (item !== undefined) {
+            const cut = Math.min(item, excess);
+            items[at] = Math.round((item - cut) * 1e6) / 1e6;
+            excess -= cut;
+        }
+    }
+    while (items.length > 0 && items.at(-1) === undefined) {
+        items.pop();
+    }
+    return writeChannelList(channel, items);
 }

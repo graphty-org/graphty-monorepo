@@ -68,9 +68,40 @@ interface Share {
 }
 
 /**
+ * The share each of `count` items of a share list draws: its own share where `sizes` gives it one (a number from 0),
+ * else an equal part of what the given shares leave; each capped at what the items before it left. An item `skip`
+ * says is not drawn takes nothing.
+ * @param sizes - Fractions separated by spaces; a word that is no number (`auto`) leaves its item unset.
+ * @param count - How many items.
+ * @param skip - Whether an item is not drawn (a color that does not parse).
+ * @returns The shares, one per item.
+ */
+export function shareSizes(
+    sizes: string | undefined,
+    count: number,
+    skip: (index: number) => boolean = () => false,
+): number[] {
+    const given = cssWords(sizes).map(Number);
+    const valid = (s: number | undefined): s is number => s !== undefined && Number.isFinite(s) && s >= 0;
+    const known = given.slice(0, count).filter((s) => valid(s));
+    const unsized = count - known.length;
+    const rest = unsized > 0 ? Math.max(0, 1 - known.reduce((a, b) => a + b, 0)) / unsized : 0;
+    let used = 0;
+    return Array.from({ length: count }, (_, i) => {
+        const s = valid(given[i]) ? given[i] : rest;
+        const size = Math.max(0, Math.min(s, 1 - used));
+        if (skip(i) || !isPositive(size)) {
+            return 0;
+        }
+        used += size;
+        return size;
+    });
+}
+
+/**
  * The colors of a pie or a striped fill with their shares and opacities: one per color that parses,
  * its share from `sizes` (fractions of the whole) or, without one, an equal part of what the given
- * shares leave; the shares stop where they reach the whole.
+ * shares leave; the shares stop where they reach the whole ({@link shareSizes}).
  * @param colors - CSS colors separated by spaces.
  * @param sizes - Fractions separated by spaces.
  * @param opacities - Opacities separated by spaces.
@@ -78,20 +109,14 @@ interface Share {
  */
 function sharesOf(colors?: string, sizes?: string, opacities?: string): Share[] {
     const parsed = cssWords(colors).map((c) => toColorValue(c));
-    const given = cssWords(sizes).map(Number);
     const alphas = cssWords(opacities).map(Number);
-    const known = given.slice(0, parsed.length).filter((s) => Number.isFinite(s) && s >= 0);
-    const unsized = parsed.length - known.length;
-    const rest = unsized > 0 ? Math.max(0, 1 - known.reduce((a, b) => a + b, 0)) / unsized : 0;
+    const shares = shareSizes(sizes, parsed.length, (i) => parsed[i] === null);
     const out: Share[] = [];
-    let used = 0;
     parsed.forEach((c, i) => {
-        const s = Number.isFinite(given[i]) && given[i] >= 0 ? given[i] : rest;
-        const size = Math.min(s, 1 - used);
+        const size = shares[i];
         if (c === null || !isPositive(size)) {
             return;
         }
-        used += size;
         const a = Number.isFinite(alphas[i]) ? Math.max(0, Math.min(1, alphas[i])) : 1;
         out.push({ rgb: [c.r / 255, c.g / 255, c.b / 255], alpha: c.a * a, size });
     });
@@ -174,15 +199,16 @@ export function stripeBands(
 }
 
 /**
- * The parts of a band a `frame` keeps: the four strips round the box left inside it, or the whole
- * band without a frame of four numbers.
+ * The parts of a band a `frame` keeps: the four strips round the box left inside it. A side the frame does not give
+ * (or gives no number) is 0; without a frame, or with four zeros, the whole band.
  * @param frame - The stripes' `frame`: fractions "top right bottom left" of the band's height and width.
  * @param box - The band.
  * @returns The boxes to fill.
  */
 export function framedBand(frame: string | undefined, box: PieceBox): PieceBox[] {
-    const insets = cssWords(frame).map(Number);
-    if (insets.length !== 4 || !insets.every(Number.isFinite)) {
+    const words = cssWords(frame).map(Number);
+    const insets = [0, 1, 2, 3].map((i) => (Number.isFinite(words[i]) ? Math.max(0, words[i]) : 0));
+    if (insets.every((inset) => inset === 0)) {
         return [box];
     }
     const [w, h] = [box.x1 - box.x0, box.y1 - box.y0];

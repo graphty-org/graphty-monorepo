@@ -12,7 +12,7 @@
 
 import "../../src/graphty-element";
 
-import type { WebGPUEngine } from "@babylonjs/core";
+import { Geometry, type WebGPUEngine } from "@babylonjs/core";
 import { afterEach, assert, describe, it, onTestFailed, vi } from "vitest";
 import { commands } from "vitest/browser";
 
@@ -261,6 +261,30 @@ describe("a lost WebGPU device", () => {
 
         assert.isTrue(graph.rendererStatus?.drawing);
     });
+
+    for (const path of ["objects", "batched"] as const) {
+        it(`rebuilds each geometry once after a destroy on the ${path} path`, async () => {
+            const graph = await openRing(true, true, path);
+            const before = await pictureOf(graph);
+            const drawnBefore = ticksOf(graph).drawn;
+            const rebuilds = new Map<Geometry, number>();
+            const rebuild = Geometry.prototype._rebuild;
+            vi.spyOn(Geometry.prototype, "_rebuild").mockImplementation(function (this: Geometry) {
+                rebuilds.set(this, (rebuilds.get(this) ?? 0) + 1);
+                rebuild.call(this);
+            });
+
+            await lose(graph, DRILLS.destroy);
+            await waitForPicture(graph, before, drawnBefore);
+
+            assert.isAbove(rebuilds.size, 0, "no geometry was rebuilt");
+            assert.deepEqual(
+                [...rebuilds.values()].filter((count) => count !== 1),
+                [],
+                "geometries rebuilt more than once",
+            );
+        });
+    }
 
     it("comes back from a second loss on the device it came back on", async () => {
         const graph = await openRing(true);

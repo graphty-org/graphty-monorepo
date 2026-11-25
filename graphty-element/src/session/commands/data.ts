@@ -31,6 +31,7 @@ import type { RequestedLayout } from "@graphty/graph-io";
 
 import type { EdgeId, EdgeMember, LayerId, MeasurementDeclaration, NodeId, Path, SourceKey } from "../../catalog/types";
 import type { DeclaredDirection } from "../../data/DataSource";
+import { declaredPinsOf } from "../../data/declaredPins";
 import type { RepeatGroup } from "../../data/edgeIdentity";
 import { searchRecord } from "../../data/endpoints";
 import type { DataLoadingError } from "../../data/ErrorAggregator";
@@ -290,6 +291,8 @@ export interface DataImportCommand {
      * it where its data placed every node (the fixed layout), else leaves the layout as it is.
      */
     readonly layout?: "recommended" | "placed" | "keep";
+    /** `"data"` also pins the nodes the file marks fixed, in the same step; `"keep"` (the default) pins nothing. */
+    readonly pins?: "data" | "keep";
     /** Rows a draft already read: loaded in place of reading the source again, on redo too. */
     readonly held?: HeldRows;
     /** An edge naming a node no node record holds: made (the default), or left out. */
@@ -388,7 +391,7 @@ export interface HeldRows {
 /** The load choices a `data.import` command carries. */
 export type ImportChoices = Pick<
     DataImportCommand,
-    "mode" | "layout" | "existing" | "styles" | "styleOptions" | "unmatched" | "duplicateIds"
+    "mode" | "layout" | "pins" | "existing" | "styles" | "styleOptions" | "unmatched" | "duplicateIds"
 >;
 
 /**
@@ -401,7 +404,7 @@ export type ImportChoices = Pick<
  */
 export function importCommand(source: ImportSource, choices: ImportChoices, held?: HeldRows): DataImportCommand {
     const optional = Object.fromEntries(
-        (["layout", "existing", "styles", "styleOptions", "unmatched", "duplicateIds"] as const)
+        (["layout", "pins", "existing", "styles", "styleOptions", "unmatched", "duplicateIds"] as const)
             .filter((key) => choices[key] !== undefined)
             .map((key) => [key, choices[key]]),
     );
@@ -1038,6 +1041,38 @@ function layoutChoiceOf(command: DataImportCommand): "recommended" | "placed" | 
     return layout;
 }
 
+/**
+ * The import's `pins` choice: the command's own, else the one its source config names.
+ * @param command - the import
+ * @returns `"data"` or `"keep"`
+ * @throws A `GraphtyError` with `E_BAD_COMMAND` when it names any other value.
+ */
+function pinsChoiceOf(command: DataImportCommand): "data" | "keep" {
+    const pins = command.pins ?? command.source.config?.pins ?? "keep";
+    if (pins !== "data" && pins !== "keep") {
+        throw new GraphtyError({
+            code: "E_BAD_COMMAND",
+            message: `A load's pins is "data" or "keep", not ${JSON.stringify(pins)}.`,
+            source: "data",
+            details: { reason: "bad-pins-choice", pins: JSON.stringify(pins) },
+        });
+    }
+
+    return pins;
+}
+
+/**
+ * Pin the nodes the file an import read marks fixed, in the import's step.
+ * @param reader - The data source that read the file.
+ * @param ctx - The import's context.
+ */
+async function pinDeclared(reader: object | null | undefined, ctx: UndoableContext): Promise<void> {
+    const ids = reader === null || reader === undefined ? [] : declaredPinsOf(reader);
+    if (ids.length > 0) {
+        await ctx.inline({ op: "positions.pin", ids, pinned: true });
+    }
+}
+
 export const dataImport: UndoableDefinition<DataImportCommand> = {
     op: "data.import",
     undo: { kind: "undoable", label: importLabel, fact: importFact },
@@ -1063,6 +1098,7 @@ export const dataImport: UndoableDefinition<DataImportCommand> = {
         // the stored drawing a recommended fixed layout keeps takes the same unit (issue #2322).
         let sceneScale: number | null = null;
         const choice = layoutChoiceOf(command);
+        const pins = pinsChoiceOf(command);
         if (choice !== "keep") {
             adviseLayout(ctx, () => sceneScale, choice === "placed");
         }
@@ -1084,6 +1120,10 @@ export const dataImport: UndoableDefinition<DataImportCommand> = {
         await designateDeclaredTime(outcome?.reader?.declaredTime, ctx);
         // The kind columns the file declares, in this same step.
         await designateDeclaredKinds(outcome?.reader, ctx);
+        // The nodes the file marks fixed, pinned in this same step.
+        if (pins === "data") {
+            await pinDeclared(outcome?.reader, ctx);
+        }
         // The file's styles, in this same step.
         sceneScale = await applyFileStyles(command, outcome ?? null, ctx);
         if (earlier !== null) {

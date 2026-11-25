@@ -505,6 +505,7 @@ export interface BaseDataSourceConfig {
     graphIndex?: number;
     graphName?: string;
     layout?: "recommended" | "placed" | "keep";
+    pins?: "data" | "keep";
     styles?: "file" | "none";
     url?: string;
 }
@@ -2845,6 +2846,7 @@ export interface FileLoadOptions {
     graphName?: string;
     layout?: "recommended" | "placed" | "keep";
     nodeIdPath?: string;
+    pins?: "data" | "keep";
     replace?: boolean;
     signal?: AbortSignal;
     styleOptions?: FileStyleOptions;

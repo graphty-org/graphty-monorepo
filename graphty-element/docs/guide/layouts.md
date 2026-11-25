@@ -665,6 +665,22 @@ element.pinnedNodes; // a Set of the pinned node ids
 Turn the drag behavior off with `pinOnDrag: false` in the graph's behavior configuration; the
 verbs above still work.
 
+### Pinning the nodes a file marks fixed
+
+Some files say which nodes must not move: Graphviz writes `pos="x,y!"` or `pin=true`, Cytoscape.js
+writes `"locked": true`. Load with `pins: "data"` and those nodes arrive pinned where the file put
+them; the layout places every other node around them. Without the option (`pins: "keep"`, the
+default) a load pins nothing.
+
+```typescript
+await element.loadFromUrl("network.dot", { pins: "data" });
+// or, on a session
+await session.data.import({ type: "dot", config: { data: dotText } }, { pins: "data" });
+element.pinnedNodes; // the nodes the file marked fixed
+```
+
+The pins are part of the load's undo step, and `unpin` releases any of them.
+
 ## Laying out part of the graph
 
 `setLayout` takes a `scope` as its third argument. The layout moves only the scope's nodes and

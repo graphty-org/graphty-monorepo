@@ -141,7 +141,7 @@
         "edges": 250,
         "styled": false,
         "source": "https://github.com/neo4j/apoc/blob/07c551a0be6277e35afd0e55138a4cad7f8530db/common/src/main/resources/movies.cypher",
-        "license": "Apache-2.0",
+        "license": "Apache-2.0 AND GPL-3.0",
         "type": "csv"
     },
     {
@@ -153,7 +153,7 @@
         "nodes": 77,
         "edges": 75,
         "styled": false,
-        "source": "http://purl.obolibrary.org/obo/taxrank.obo",
+        "source": "http://purl.obolibrary.org/obo/taxrank/releases/2025-09-24/taxrank.obo",
         "license": "CC0-1.0"
     },
     {

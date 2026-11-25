@@ -132,7 +132,8 @@ quotes written as plain quotes and its section sign as "Section"; every other te
   boxes and diamonds in 7 colors, stored positions, 193 arcs. Pajek's own sample files are tiny or carry no license.
 - Source: https://github.com/graphstream/gs-core/blob/950b87280075f92a85b564b47ce6522ced5ba53a/src-test/org/graphstream/stream/file/pajek/test/B.NET
 - Test copy: graph-io/test/corpus/styles/pajek/graphstream_gs-core__B.net
-- License: LGPL 3.0 or CeCILL-C, GraphStream's COPYING (https://github.com/graphstream/gs-core/blob/master/COPYING).
+- License: LGPL 3.0 or CeCILL-C, GraphStream's COPYING at that commit
+  (https://github.com/graphstream/gs-core/blob/950b87280075f92a85b564b47ce6522ced5ba53a/COPYING).
   Redistributed under LGPL 3.0 (`licenses/LGPL-3.0.txt`, with the GPL 3.0 it builds on, `licenses/GPL-3.0.txt`).
 
 ## Neo4j -- neo4j-movies.csv
@@ -142,13 +143,15 @@ quotes written as plain quotes and its section sign as "Section"; every other te
 - Source: https://github.com/neo4j/apoc/blob/07c551a0be6277e35afd0e55138a4cad7f8530db/common/src/main/resources/movies.cypher,
   converted by us from Cypher to import CSV (no redistributable import CSV from Neo4j exists).
 - Test copy: graph-io/test/corpus/programs/neo4j-movies.csv
-- License: Apache License 2.0 (https://www.apache.org/licenses/LICENSE-2.0). Copyright Neo4j, Inc. Changed: rewritten
-  from the CREATE statements of movies.cypher into neo4j-admin import CSV.
+- License: Apache License 2.0 or GPL 3.0; the repository states both at that commit (LICENSE, readme and source
+  headers: Apache 2.0; NOTICE.txt: GPL 3.0 for the software Neo4j develops there). Copyright (c) 2002-2023 Neo4j
+  Sweden AB. The NOTICE is graphty/public/samples/programs/licenses/neo4j-apoc-NOTICE.txt. Changed: rewritten from the
+  CREATE statements of movies.cypher into neo4j-admin import CSV.
 
 ## OBO Foundry -- obo-foundry.obo
 
 - What it is: the Taxonomic Rank Vocabulary (taxrank). 77 terms in one tree, 75 edges. No styles.
-- Source: http://purl.obolibrary.org/obo/taxrank.obo
+- Source: http://purl.obolibrary.org/obo/taxrank/releases/2025-09-24/taxrank.obo
 - Test copy: graph-io/test/corpus/obo/taxrank.obo
 - License: CC0 1.0 Universal (the file's own license line and the OBO Foundry registry).
 

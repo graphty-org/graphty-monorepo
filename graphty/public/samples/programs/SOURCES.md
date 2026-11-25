@@ -8,10 +8,11 @@ a byte-for-byte copy of a file in graph-io's test corpus (the path given under "
 `graph-io/test/corpus/programs/samples.json` lists them with their counts.
 
 The licenses below are the licenses of the files. Files under GPL, LGPL, EPL or CDDL are redistributed unchanged,
-under their own license, with their source named, and the Neo4j file, changed, under the Apache License 2.0; each of
-those licenses' full text is in `licenses/`, beside the app's copies of the files
+under their own license, with their source named, and the Neo4j file, changed, under the Apache License 2.0 and
+GPL 3.0 its repository states; each of those licenses' full text is in `licenses/`, beside the app's copies of the files
 (`graphty/public/samples/programs/licenses/`). The CDDL text there has its typographic
-quotes written as plain quotes and its section sign as "Section"; every other text is as its publisher gives it.
+quotes written as plain quotes and its section sign as "Section", and the Neo4j NOTICE its copyright sign as "(c)";
+every other text is as its publisher gives it.
 
 ## yEd -- yed.graphml
 
@@ -135,7 +136,8 @@ quotes written as plain quotes and its section sign as "Section"; every other te
   boxes and diamonds in 7 colors, stored positions, 193 arcs. Pajek's own sample files are tiny or carry no license.
 - Source: https://github.com/graphstream/gs-core/blob/950b87280075f92a85b564b47ce6522ced5ba53a/src-test/org/graphstream/stream/file/pajek/test/B.NET
 - Test copy: graph-io/test/corpus/styles/pajek/graphstream_gs-core__B.net
-- License: LGPL 3.0 or CeCILL-C, GraphStream's COPYING (https://github.com/graphstream/gs-core/blob/master/COPYING).
+- License: LGPL 3.0 or CeCILL-C, GraphStream's COPYING at that commit
+  (https://github.com/graphstream/gs-core/blob/950b87280075f92a85b564b47ce6522ced5ba53a/COPYING).
   Redistributed under LGPL 3.0 (`licenses/LGPL-3.0.txt`, with the GPL 3.0 it builds on, `licenses/GPL-3.0.txt`).
 
 ## Neo4j -- neo4j-movies.csv
@@ -145,13 +147,20 @@ quotes written as plain quotes and its section sign as "Section"; every other te
 - Source: https://github.com/neo4j/apoc/blob/07c551a0be6277e35afd0e55138a4cad7f8530db/common/src/main/resources/movies.cypher,
   converted by us from Cypher to import CSV (no redistributable import CSV from Neo4j exists).
 - Test copy: graph-io/test/corpus/programs/neo4j-movies.csv
-- License: Apache License 2.0 (https://www.apache.org/licenses/LICENSE-2.0; `licenses/Apache-2.0.txt`). Copyright
-  Neo4j, Inc. Changed: rewritten from the CREATE statements of movies.cypher into neo4j-admin import CSV.
+- License: Apache License 2.0 or GPL 3.0; the repository states both at that commit. Its LICENSE file
+  (https://github.com/neo4j/apoc/blob/07c551a0be6277e35afd0e55138a4cad7f8530db/LICENSE), its readme and the header
+  it puts on its source code give the Apache License 2.0; its NOTICE.txt
+  (https://github.com/neo4j/apoc/blob/07c551a0be6277e35afd0e55138a4cad7f8530db/NOTICE.txt) says the software Neo4j
+  develops there is licensed under GPL 3.0. movies.cypher carries no license line of its own. The file is
+  redistributed meeting both: both texts (`licenses/Apache-2.0.txt`, `licenses/GPL-3.0.txt`) and the NOTICE
+  (`licenses/neo4j-apoc-NOTICE.txt`, its copyright sign written as "(c)") are here, the source is named and the
+  change is stated. Copyright (c) 2002-2023 Neo4j Sweden AB. Changed: rewritten from the CREATE statements of
+  movies.cypher into neo4j-admin import CSV.
 
 ## OBO Foundry -- obo-foundry.obo
 
 - What it is: the Taxonomic Rank Vocabulary (taxrank). 77 terms in one tree, 75 edges. No styles.
-- Source: http://purl.obolibrary.org/obo/taxrank.obo
+- Source: http://purl.obolibrary.org/obo/taxrank/releases/2025-09-24/taxrank.obo
 - Test copy: graph-io/test/corpus/obo/taxrank.obo
 - License: CC0 1.0 Universal (the file's own license line and the OBO Foundry registry).
 

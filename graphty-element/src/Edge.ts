@@ -4989,6 +4989,16 @@ export class Edge {
         onOutline = false,
     ): (x: number, y: number, z: number) => boolean {
         const under = onOutline ? node.borderReach + ON_OUTLINE : 0;
+        const radius = node.roundRadius;
+        if (radius !== null) {
+            // a round node reaches as far in every direction, so no direction is worked out (`surfaceReach`)
+            const reach = radius + node.borderReach;
+            return (x, y, z) => {
+                const d = Math.hypot(x - centre.x, y - centre.y, z - centre.z);
+                return d > 0 && d > gap - under + reach;
+            };
+        }
+
         const reach = Edge.reachFrom(node);
         return (x, y, z) => {
             const d = Math.hypot(x - centre.x, y - centre.y, z - centre.z);

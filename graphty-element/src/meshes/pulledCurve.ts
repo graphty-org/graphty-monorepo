@@ -720,28 +720,29 @@ export function curveSpan(
         endAt: crossingAlong(at(span.last + 1), at(span.last), outsideDst),
         ...shape,
     };
-    return routed(shape) ? { ...cut, points: cutPath(at, cut) } : cut;
+    return routed(shape) ? { ...cut, points: cutPath(flat, cut) } : cut;
 }
 
 /**
  * A cut path's points, flat x, y, z: point 0 where it leaves the source, point `pieces` where it meets the target, and
  * the samples between.
- * @param at - Sample i of the path the span cuts.
+ * @param flat - The samples of the path the span cuts, flat x, y, z.
  * @param span - The span.
  * @returns The points.
  */
-function cutPath(at: (i: number) => Xyz, span: CurveSpan): number[] {
+function cutPath(flat: ArrayLike<number>, span: CurveSpan): number[] {
     const { first, pieces } = span;
     const out: number[] = [];
     const cut = (inside: number, outside: number, t: number): void => {
-        const a = at(inside);
-        const b = at(outside);
-        out.push(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t);
+        for (let k = 0; k < 3; k++) {
+            const a = flat[3 * inside + k];
+            out.push(a + (flat[3 * outside + k] - a) * t);
+        }
     };
     cut(first - 1, first, span.startAt);
     for (let j = 1; j < pieces; j++) {
-        const p = at(first + j - 1);
-        out.push(p.x, p.y, p.z);
+        const at = 3 * (first + j - 1);
+        out.push(flat[at], flat[at + 1], flat[at + 2]);
     }
 
     cut(first + pieces - 1, first + pieces - 2, span.endAt);
@@ -757,7 +758,18 @@ function cutPath(at: (i: number) => Xyz, span: CurveSpan): number[] {
  * @returns The points, `span.pieces + 1` of them.
  */
 export function curvePath(src: Xyz, dst: Xyz, span: CurveSpan): readonly number[] {
-    return span.points ?? cutPath(pathSampler(src, dst, span.samples, span), span);
+    if (span.points !== undefined) {
+        return span.points;
+    }
+
+    const sample = pathSampler(src, dst, span.samples, span);
+    const flat: number[] = [];
+    for (let i = 0; i <= span.samples; i++) {
+        const p = sample(i);
+        flat.push(p.x, p.y, p.z);
+    }
+
+    return cutPath(flat, span);
 }
 
 /**

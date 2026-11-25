@@ -234,7 +234,9 @@ describe("edge surfaces", () => {
         assert.isAbove(plainWidth, 2);
         assert.closeTo(surfaceWidth, plainWidth, 1, "the surface keeps the line's width");
         assert.lengthOf(shaded.drawnCaps, 1, "the surface keeps the arrowhead");
-        assert.strictEqual(shaded.drawnCaps[0].span, plain.drawnCaps[0].span, "the same arrowhead as the plain line");
+        // on renderPath "batched" the plain line's head is pulled from the row table and its span read from its shape's
+        // box (`ArrowCapBatch.flatSpanOf`), not from a slot matrix built through a turn, so the two agree to rounding
+        assert.closeTo(shaded.drawnCaps[0].span, plain.drawnCaps[0].span, 1e-9, "the same arrowhead as the plain line");
 
         await element.session.styles.add({
             name: "Taper",

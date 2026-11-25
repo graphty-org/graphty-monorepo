@@ -15,7 +15,7 @@ import type { NodeIdType } from "../config/GraphBehavior";
 import { WRITABLE_LANE, writableLane } from "../data/lane";
 import { Edge, pulledEdgesOf, pulledLines } from "../Edge";
 import { drawnCurveInWorld } from "../edgeWorldCurve";
-import { type LayoutEngine, StaticLayoutEngine } from "../layout/LayoutEngine";
+import { type LayoutEngine, laysEdgeRoutes, StaticLayoutEngine } from "../layout/LayoutEngine";
 import type { LocationMapFrame } from "../layout/locationMap/place";
 import { SimulationLayoutEngine } from "../layout/SimulationLayoutEngine";
 import { EdgeShaderDrawing } from "../meshes/EdgeShaderDrawing";
@@ -47,6 +47,9 @@ import { MINIMUM_PAINT_BATCH, minimumWorkPerFrame } from "./minimumWork";
 import { attachPendingWork, PendingWork } from "./PendingWork";
 import type { StatsManager } from "./StatsManager";
 import { type NodePaint, type NodeSizeSpace, plainEdgePaint, plainNodePaint, type StylePainter } from "./StylePainter";
+
+/** How many mask rows each built `Edge` must stand for before a row pass walks the built edges instead of the rows. */
+const EDGE_ROWS_PER_WALK = 64;
 
 /** How much room a framed globe leaves around itself, as a share of its radius: its air's glow. */
 const GLOBE_FRAMING = 1.1;
@@ -1399,10 +1402,11 @@ export class UpdateManager implements Manager {
             this.buildMaskedRowLines(rows);
         }
 
-        // Fewer `Edge`s than rows, as on a graph loaded on `"batched"` where most rows are row lines: visit the
-        // `Edge`s, since a state already right is left alone.
+        // Far fewer `Edge`s than rows, as on a graph loaded on `"batched"` where most rows are row lines and a time
+        // window slides a million: visit the `Edge`s, since a state already right is left alone. A few rows, as an
+        // edit's, are looked up by row, so an edit never walks the built edges.
         const built = dataManagerInternals.builtEdges(this.dataManager);
-        if (built.size < rows.length) {
+        if (built.size * EDGE_ROWS_PER_WALK < rows.length) {
             for (const edge of built.values()) {
                 this.applyEdgeRow(edge, edgeVisibility);
             }
@@ -1714,6 +1718,49 @@ export class UpdateManager implements Manager {
         return nodesMoved || edgesMoved || this.edgesToMask.length > 0;
     }
 
+    /** `RowTable.roundWrites` when the pulled edges' ends were last checked ({@link UpdateManager.repaintPulledOffEnds}). */
+    private roundWritesSeen = 0;
+
+    /**
+     * The rows stored with no `Node` that their style hides (`node.visible` false), as opposed to a filter or a time
+     * window: drawn at w = 0, while the object path still draws their edges ({@link UpdateManager.rowHiddenByStyle}).
+     * ponytail: kept across a renumbering freeze as it was; the rows are painted again after one.
+     */
+    private readonly styleHiddenRows = new Set<number>();
+
+    /** The node rows whose style hid or showed them since the pulled edges' ends were last checked. */
+    private endRows = new Set<number>();
+
+    /**
+     * Note that a node's style hid or showed it: the edges pulled onto it are checked at the next frame
+     * ({@link UpdateManager.repaintPulledOffEnds}).
+     * @param row - The node's row.
+     * @internal
+     */
+    noteEndsChanged(row: number): void {
+        this.endRows.add(row);
+    }
+
+    /**
+     * Whether a node row is hidden by its style (`node.visible` false) rather than by a filter or a time window: the
+     * row table draws it at w = 0, and the object path still draws its edges.
+     * @param row - The node row.
+     * @returns True when it is.
+     * @internal
+     */
+    rowHiddenByStyle(row: number): boolean {
+        return this.styleHiddenRows.has(row);
+    }
+
+    /**
+     * Whether a node row's own style hides it, whether or not a `Node` draws it ({@link UpdateManager.rowHiddenByStyle}).
+     * @param row - The node row.
+     * @returns True when it does.
+     */
+    private endHiddenByStyle(row: number): boolean {
+        return this.dataManager.nodesByIndex[row]?.hiddenByStyle ?? this.styleHiddenRows.has(row);
+    }
+
     /**
      * Bring the meshes into line with what the session's style stack painted.
      *
@@ -1732,6 +1779,8 @@ export class UpdateManager implements Manager {
      */
     syncStyles(budgetMs = Number.POSITIVE_INFINITY): void {
         const painter = this.graphContext.getStylePainter?.();
+        this.repaintPulledOffEnds(painter);
+        this.repaintRowLinesForMap(painter);
 
         // NOT WHILE A PASS IS PAINTING. A pass yields to the event loop part way through, and
         // until it announces, the columns it is rewriting and the mesh keys it has not interned
@@ -1953,6 +2002,76 @@ export class UpdateManager implements Manager {
     }
 
     /**
+     * Paint again the edges pulled from the row table whose ends no longer allow it -- a head on a row that stopped
+     * being round, or an end its style hid -- so an `Edge` draws them as the object path does: a node's shape or
+     * visibility changing does not paint its edges. Walks the pulled edges only when a row's outline turned
+     * (`RowTable.roundWrites`) or a style hid or showed a node.
+     * @param painter - Where the rows are queued.
+     */
+    private repaintPulledOffEnds(painter: StylePainter | undefined): void {
+        const table = this.graphContext.getRowTable?.() ?? null;
+        const lines = this.graphContext.getEdgeRowLines?.() ?? null;
+        if (
+            painter === undefined ||
+            table === null ||
+            lines === null ||
+            (table.roundWrites === this.roundWritesSeen && this.endRows.size === 0)
+        ) {
+            return;
+        }
+
+        this.roundWritesSeen = table.roundWrites;
+        const turned = table.takeTurned();
+        const rows = turned === null ? null : new Set([...turned, ...this.endRows]);
+        this.endRows = new Set();
+        // only the edges at the rows that turned, so an edit's outline change costs its degree, not the graph; every
+        // edge after a clear or past RowTable's list of turned rows
+        const at =
+            rows === null
+                ? [{ built: this.builtEdges(), rows: undefined }]
+                : Array.from(rows, (row) => dataManagerInternals.edgesAtRow(this.dataManager, row));
+        let redrawn = false;
+        for (const { built, rows: edgeRows } of at) {
+            for (const edgeRow of lines.rowsOffEnds((end) => this.endHiddenByStyle(end), edgeRows)) {
+                painter.queue("edge", edgeRow);
+            }
+
+            for (const edge of built) {
+                redrawn = edge.redrawPulledOffEnds() || redrawn;
+            }
+        }
+
+        // a placed line and cap are placed by the next walk, as after a render path change
+        if (redrawn) {
+            this.forceEdgeWalk();
+            this.meshesAdded();
+        }
+    }
+
+    /** Whether the layout's map arced edges when the row lines were last checked ({@link repaintRowLinesForMap}). */
+    private mapArcedRows = false;
+
+    /**
+     * Paint every row line again when the layout starts laying edges itself (a map layout in the 3D view arrives, or
+     * the view turns 3D under one; a layout that reports edge ends arrives), so each is drawn by an `Edge` that lays
+     * its route ({@link unbuiltEdgePainted}): a row line runs straight between its nodes, and nothing else paints it when only the layout changed.
+     * @param painter - Where the rows are queued.
+     */
+    private repaintRowLinesForMap(painter: StylePainter | undefined): void {
+        const arcs = this.mapArcsEdges();
+        if (arcs === this.mapArcedRows || painter === undefined) {
+            return;
+        }
+
+        this.mapArcedRows = arcs;
+        if (arcs) {
+            for (const row of this.graphContext.getEdgeRowLines?.()?.rows() ?? []) {
+                painter.queue("edge", row);
+            }
+        }
+    }
+
+    /**
      * Paint one batch of pending edges.
      * @param painter - Where the paint is read from.
      * @param walkComing - Whether the run ends in a walk of every edge, which places each fan.
@@ -2128,12 +2247,18 @@ export class UpdateManager implements Manager {
     }
 
     /**
-     * Whether the layout's map raises edges in arcs (`Edge.routeOf`): a map layout drawn in the 3D view.
+     * Whether the layout lays edges somewhere other than straight between their nodes' rows: its map raises them in
+     * arcs (`Edge.routeOf`, a map layout drawn in the 3D view), or it reports their ends itself (`laysEdgeRoutes`,
+     * Graphviz's splines or a third party's `getEdgePosition`). A row line cannot follow either.
      * @returns True when it does.
      */
     private mapArcsEdges(): boolean {
-        const engine = this.graphContext.getLayoutManager().layoutEngine as { geoFrame?: unknown } | undefined;
-        return (engine?.geoFrame ?? null) !== null && !this.graphContext.is2D();
+        const engine = this.graphContext.getLayoutManager().layoutEngine;
+        if (laysEdgeRoutes(engine)) {
+            return true;
+        }
+
+        return ((engine as { geoFrame?: unknown } | undefined)?.geoFrame ?? null) !== null && !this.graphContext.is2D();
     }
 
     /**
@@ -2165,6 +2290,11 @@ export class UpdateManager implements Manager {
      * @returns True when it is.
      */
     private endInvisible(row: number): boolean {
+        // a row its style hides is drawn at w = 0, which a row line reads as no end; the object path draws the edge
+        if (this.endHiddenByStyle(row)) {
+            return true;
+        }
+
         const node = this.dataManager.nodesByIndex[row];
         if (node !== undefined) {
             return node.drawnOpacity <= 0;
@@ -2232,6 +2362,25 @@ export class UpdateManager implements Manager {
     }
 
     /**
+     * The `Node` a filtered row drawn in context needs, as `applyColumnRows` builds one: a row painted after the masks
+     * were applied (a load under a filter) drew no context point. None while hidden nodes are not drawn in context.
+     * @param id - The row's node.
+     * @returns The `Node` to paint, or undefined.
+     */
+    private contextNodeOf(id: NodeIdType): Node | undefined {
+        if (this.viewMasks?.showContext?.() !== true) {
+            return undefined;
+        }
+
+        const node = dataManagerInternals.buildRow(this.dataManager, id);
+        if (node?.setRenderState("context") === true) {
+            this.sceneChanged = true;
+        }
+
+        return node;
+    }
+
+    /**
      * Draw a row stored with no `Node` from its paint, and build its `Node` only for a paint the
      * batches cannot draw (`NodeBatches.paintRow`).
      * @param painter - Where the paint is read from.
@@ -2250,7 +2399,16 @@ export class UpdateManager implements Manager {
         if (paint?.style.visible === false) {
             batches?.unpaintRow(index);
             table?.hide(index, true);
+            if (!this.styleHiddenRows.has(index)) {
+                this.styleHiddenRows.add(index);
+                this.noteEndsChanged(index);
+            }
+
             return undefined;
+        }
+
+        if (this.styleHiddenRows.delete(index)) {
+            this.noteEndsChanged(index);
         }
 
         if (id === undefined || paint === null) {
@@ -2261,14 +2419,7 @@ export class UpdateManager implements Manager {
             // shown again: hidden now only if a filter hides it, as `applyColumnRows` writes
             const hidden = filtered();
             table?.hide(index, hidden);
-            // A row a filter hides while hidden nodes are drawn faintly takes a `Node` for its faint point, as
-            // `applyColumnRows` gives one to a row already drawn: a row painted after the masks were applied had
-            // none, and only a later walk of every mask, which an edit no longer causes, gave it one (issue #9164).
-            if (hidden && this.viewMasks?.showContext?.() === true) {
-                return dataManagerInternals.buildRow(this.dataManager, id);
-            }
-
-            return undefined;
+            return hidden ? this.contextNodeOf(id) : undefined;
         }
 
         // Past `limits.objectRows`, a row whose look no batch draws is drawn as a plain body, and
@@ -2632,8 +2783,8 @@ export class UpdateManager implements Manager {
     }
 
     /**
-     * A node's built edges, from the store's incidence lists through the data manager: no edit lists every built edge
-     * again to find one node's (issues #9164, #10028).
+     * A node's built edges, from the store's incidence lists through the data manager: no edit or hover lists every
+     * built edge to find one node's (issues #9164, #10028).
      * @param id - The node's id.
      * @returns They.
      */
@@ -4237,14 +4388,25 @@ export class UpdateManager implements Manager {
             }
         }
 
+        const built: Node[] = [];
         dataManagerInternals.buildRowsTogether(this.dataManager, () => {
             for (const row of faint) {
                 const id = dataManagerInternals.unbuiltAt(this.dataManager, row);
-                if (id !== undefined) {
-                    dataManagerInternals.buildRow(this.dataManager, id);
+                const node = id === undefined ? undefined : dataManagerInternals.buildRow(this.dataManager, id);
+                if (node !== undefined) {
+                    built.push(node);
                 }
             }
         });
+
+        // Built after the walk that set every built `Node`'s state, so each is told it is drawn in context here: a
+        // graph whose edges built no `Node` (pulled lines on "batched") drew no context point at all.
+        for (const node of built) {
+            const ownMeshes = node.togglesOwnMeshes();
+            if (node.setRenderState("context")) {
+                this.sceneChanged ||= ownMeshes || node.togglesOwnMeshes();
+            }
+        }
     }
 
     /**

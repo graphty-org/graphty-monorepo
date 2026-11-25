@@ -2,7 +2,7 @@
  * @file A layout that places its edges itself, through its own `getEdgePosition`, has every edge drawn where it says,
  * on both render paths: on `"batched"` a plain edge is otherwise drawn from the shared batch straight between its
  * nodes, which never asks the layout (issue #10032). A layout that does not override it still has its plain edges
- * drawn from the batch.
+ * drawn from the batch, and a plain edge is pulled again once a layout that lays edges is gone, or failed to build.
  */
 
 import "../../src/graphty-element";
@@ -18,6 +18,7 @@ import {
 } from "../../extend";
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
+import { nextFrame } from "../helpers/real-input";
 import { edgeBetween } from "../helpers/testSetup";
 
 /** How far up the layout below draws each edge off its nodes, in scene units. */
@@ -58,6 +59,28 @@ class RaisedEdgesLayout extends SimpleLayoutEngine {
 
 LayoutEngine.register(RaisedEdgesLayout);
 
+/** Releases the build of {@link FailingRaisedEdgesLayout} under way, which then fails. */
+let failBuild: () => void = () => undefined;
+
+/** {@link RaisedEdgesLayout}, whose build waits for {@link failBuild} and then fails, as a Graphviz run can. */
+class FailingRaisedEdgesLayout extends RaisedEdgesLayout {
+    static override type = "test-failing-raised-edges";
+    static override descriptor: AuthoredLayoutDescriptor = {
+        ...RaisedEdgesLayout.descriptor,
+        id: "test-failing-raised-edges",
+        engine: "test-failing-raised-edges",
+    };
+
+    override async init(): Promise<void> {
+        await new Promise<void>((resolve) => {
+            failBuild = resolve;
+        });
+        throw new Error("this layout always fails");
+    }
+}
+
+LayoutEngine.register(FailingRaisedEdgesLayout);
+
 afterEach(() => {
     document.body.replaceChildren();
 });
@@ -89,25 +112,53 @@ function drawnEdge(element: Graphty): { raised: number; pulled: boolean } {
     };
 }
 
+/**
+ * An element on the given render path with two nodes and the plain edge between them, laid out by `fixed`.
+ * @param path - The render path.
+ * @returns The element, drawn.
+ */
+async function twoNodes(path: "objects" | "batched"): Promise<Graphty> {
+    const element = document.createElement("graphty-element");
+    element.renderer = "webgl";
+    element.renderPath = path;
+    element.style.display = "block";
+    element.style.width = "400px";
+    element.style.height = "300px";
+    document.body.appendChild(element);
+    await element.updateComplete;
+    await drawn(element);
+    await element.session.data.addNodes([
+        { id: 0, position: { x: -3, y: 2, z: 0 } },
+        { id: 1, position: { x: 3, y: 2, z: 0 } },
+    ]);
+    await element.session.data.addEdges([{ source: 0, target: 1, directed: false }]);
+    await element.graph.setLayout("fixed");
+    await drawn(element);
+    return element;
+}
+
 describe("a layout's own getEdgePosition", () => {
+    it('pulls a plain edge again on "batched" when a layout that lays edges fails to build', async () => {
+        const element = await twoNodes("batched");
+        assert.isTrue(drawnEdge(element).pulled, "pulled from the batch under fixed");
+
+        // while the build runs, its engine already lays the edge, which leaves the batch at its next placement
+        const failing = element.graph.setLayout("test-failing-raised-edges");
+        while (drawnEdge(element).pulled) {
+            await nextFrame();
+        }
+        assert.closeTo(drawnEdge(element).raised, RAISE, 1e-3, "placed where the building layout says");
+        failBuild();
+        await failing.catch(() => undefined);
+        await drawn(element);
+
+        assert.closeTo(drawnEdge(element).raised, 0, 1e-3, "the line runs between its nodes");
+        assert.isTrue(drawnEdge(element).pulled, "pulled from the batch again once fixed is back");
+    });
+
     for (const path of ["objects", "batched"] as const) {
         it(`places a plain edge where the layout says on "${path}", and a layout that does not override it draws it between its nodes`, async () => {
-            const element = document.createElement("graphty-element");
-            element.renderer = "webgl";
-            element.renderPath = path;
-            element.style.display = "block";
-            element.style.width = "400px";
-            element.style.height = "300px";
-            document.body.appendChild(element);
-            await element.updateComplete;
-            await drawn(element);
-            await element.session.data.addNodes([
-                { id: 0, position: { x: -3, y: 2, z: 0 } },
-                { id: 1, position: { x: 3, y: 2, z: 0 } },
-            ]);
-            await element.session.data.addEdges([{ source: 0, target: 1, directed: false }]);
-            await element.graph.setLayout("fixed");
-            await drawn(element);
+            const element = await twoNodes(path);
 
             await element.graph.setLayout("test-raised-edges");
             await drawn(element);

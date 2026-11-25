@@ -192,7 +192,7 @@ import {
 } from "./events";
 import { attachRegionGesture } from "./input/RegionSelectGesture";
 import { FixedLayout } from "./layout/FixedLayoutEngine";
-import { layoutEngineInternals, laysEdgeRoutes } from "./layout/LayoutEngine";
+import { layoutEngineInternals } from "./layout/LayoutEngine";
 import { SimulationLayoutEngine } from "./layout/SimulationLayoutEngine";
 import {
     type AddEdgesOptions,
@@ -1113,8 +1113,6 @@ export class Graph implements GraphContext {
 
     /** Whether plain edges were last painted as pulled lines, the `"batched"` path's. */
     #edgesPulled = false;
-    /** Whether the layout edges were last painted under lays their routes itself (`laysEdgeRoutes`). */
-    #layoutRoutesEdges = false;
     /** Imports reading now: the passes between their chunks build what arrived but do not paint. */
     #importsReading = 0;
 
@@ -2261,19 +2259,6 @@ export class Graph implements GraphContext {
             if (this.#initialCameraStateOwed) {
                 this.#initialCameraStateOwed = false;
                 this.initialCameraState = this.getCameraState();
-            }
-        });
-
-        // A layout that lays edge routes (Graphviz's, a third party's own `getEdgePosition`) keeps plain edges from
-        // being pulled (`Edge.pullsLine`), and a pulled line leaves its batch at its next placement
-        // (`Edge.followRoute`). The way back is here: a placed line is never asked again unless its ends move, so
-        // when the layout that came in runs edges straight, every built edge is painted afresh and pulled again.
-        this.eventManager.addListener("layout-changed", () => {
-            const routes = laysEdgeRoutes(this.layoutManager.layoutEngine);
-            const stopped = this.#layoutRoutesEdges && !routes;
-            this.#layoutRoutesEdges = routes;
-            if (stopped && (this.#nodeBatches !== null || pulledEdgesDefault.value)) {
-                this.#repaintEdges();
             }
         });
 
@@ -5750,21 +5735,15 @@ export class Graph implements GraphContext {
         const pulls = this.#nodeBatches !== null;
         if (pulls !== this.#edgesPulled) {
             this.#edgesPulled = pulls;
-            this.#repaintEdges();
+            for (const edge of this.builtEdges()) {
+                edge.updateStyle();
+            }
+
+            // A rebuilt placed line is placed by the next edge walk.
+            this.updateManager.forceEdgeWalk();
+            this.updateManager.meshesAdded();
         }
 
-        this.renderManager.requestFrame();
-    }
-
-    /** Restyle every built edge, so each line is pulled or placed afresh, and have the next edge walk place them. */
-    #repaintEdges(): void {
-        for (const edge of this.builtEdges()) {
-            edge.updateStyle();
-        }
-
-        // A rebuilt placed line is placed by the next edge walk.
-        this.updateManager.forceEdgeWalk();
-        this.updateManager.meshesAdded();
         this.renderManager.requestFrame();
     }
 

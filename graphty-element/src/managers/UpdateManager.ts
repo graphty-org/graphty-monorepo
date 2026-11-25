@@ -25,6 +25,7 @@ import { withoutEyeLine } from "../meshes/labelEyeLine";
 import { screenFitFrames } from "../meshes/labelScreenFit";
 import { NodeShaderDrawing } from "../meshes/NodeShaderDrawing";
 import { armPoolReserve, clearPoolReserve } from "../meshes/poolReserve";
+import { pulledEdgesDefault } from "../meshes/PulledLineBatch";
 import { modelsFreeing, modelsLoading } from "../models/ModelCache";
 import { texturesFreeing, texturesLoading } from "../models/TextureCache";
 import { collectResizedNodes, type Node, type NodeRenderState } from "../Node";
@@ -2055,6 +2056,10 @@ export class UpdateManager implements Manager {
      * Paint every row line again when the layout starts laying edges itself (a map layout in the 3D view arrives, or
      * the view turns 3D under one; a layout that reports edge ends arrives), so each is drawn by an `Edge` that lays
      * its route ({@link unbuiltEdgePainted}): a row line runs straight between its nodes, and nothing else paints it when only the layout changed.
+     *
+     * When it stops (the layout that came in runs edges straight, or one that would have laid them failed or was
+     * cancelled and the last one is back), every built edge is restyled so a plain one is pulled again: the edges
+     * built or taken out of the batch meanwhile (`Edge.followRoute`) never return to it on their own.
      * @param painter - Where the rows are queued.
      */
     private repaintRowLinesForMap(painter: StylePainter | undefined): void {
@@ -2068,6 +2073,14 @@ export class UpdateManager implements Manager {
             for (const row of this.graphContext.getEdgeRowLines?.()?.rows() ?? []) {
                 painter.queue("edge", row);
             }
+        } else if (pulledEdgesDefault.value || (this.graphContext.getNodeBatches?.() ?? null) !== null) {
+            for (const edge of this.builtEdges()) {
+                edge.updateStyle();
+            }
+
+            // a rebuilt placed line is placed by the next walk, as after a render path change
+            this.forceEdgeWalk();
+            this.meshesAdded();
         }
     }
 

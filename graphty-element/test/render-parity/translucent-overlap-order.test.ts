@@ -53,7 +53,12 @@ async function settle(element: Graphty): Promise<void> {
  * @param shapes - The even nodes' shape and the odd nodes'.
  * @returns The element, settled.
  */
-async function mount(path: Path, view: "2d" | "3d", shapes: [string, string]): Promise<Graphty> {
+async function mount(
+    path: Path,
+    view: "2d" | "3d",
+    shapes: [string, string],
+    nodes: readonly (typeof NODES)[number][] = NODES,
+): Promise<Graphty> {
     const element = document.createElement("graphty-element");
     element.renderPath = path;
     element.style.display = "block";
@@ -61,23 +66,23 @@ async function mount(path: Path, view: "2d" | "3d", shapes: [string, string]): P
     element.style.height = "300px";
     document.body.append(element);
     await element.updateComplete;
-    await element.session.data.addNodes(NODES);
+    await element.session.data.addNodes([...nodes]);
     await element.graph.setLayout("fixed", { dim: 3 });
     await element.setViewMode(view);
     for (const [parity, shape] of shapes.entries()) {
         await element.session.styles.add({
             name: `shape ${shape}`,
             target: "node",
-            selector: { match: "ids", nodes: NODES.filter(({ id }) => id % 2 === parity).map(({ id }) => id) },
+            selector: { match: "ids", nodes: nodes.filter(({ id }) => id % 2 === parity).map(({ id }) => id) },
             set: { "node.shape": shape, "node.size": 1.6, "node.opacity": 0.6 },
         });
     }
 
-    for (const color of new Set(NODES.map((node) => node.color))) {
+    for (const color of new Set(nodes.map((node) => node.color))) {
         await element.session.styles.add({
             name: `fill ${color}`,
             target: "node",
-            selector: { match: "ids", nodes: NODES.filter((node) => node.color === color).map(({ id }) => id) },
+            selector: { match: "ids", nodes: nodes.filter((node) => node.color === color).map(({ id }) => id) },
             set: { "node.color": color },
         });
     }
@@ -225,4 +230,43 @@ describe("overlapping translucent looks", () => {
         assert.isDefined(batched);
         assertSameFrame(objects, batched, "the restyled node blends in another order on one path");
     });
+});
+
+/** Six nodes on a diagonal, each nearer the front camera than the last and overlapping its neighbors. */
+const DIAGONAL = Array.from({ length: 6 }, (_, id) => ({
+    id,
+    position: { x: id * 0.6 - 1.5, y: 0, z: id * 0.9 - 2.25 },
+    color: ["#e11d48", "#16a34a", "#f59e0b", "#2563eb"][id % 4] ?? "",
+}));
+
+describe("overlapping translucent nodes of one look (#10045)", () => {
+    it.for(["front", "behind"] as const)(
+        "blend back to front from the camera whatever their data order, alike on both paths, camera %s",
+        async (camera) => {
+            const frames: Record<string, CanvasFrame> = {};
+            for (const path of ["objects", "batched"] as const) {
+                for (const [order, nodes] of Object.entries({ data: DIAGONAL, reversed: [...DIAGONAL].reverse() })) {
+                    // one shape for every node: one look
+                    const element = await mount(path, "3d", ["sphere", "sphere"], nodes);
+                    if (path === "batched") {
+                        assert.equal(
+                            element.graph.rowCounts.batchedNodes,
+                            nodes.length,
+                            "every node is drawn by a batch",
+                        );
+                    }
+
+                    frames[`${path} ${order}`] = await from(element, camera);
+                    document.body.replaceChildren();
+                }
+            }
+
+            const first = frames["objects data"];
+            assert.isDefined(first);
+            assert.isAbove(ink(first), 5000, "the frame holds the graph");
+            for (const [name, frame] of Object.entries(frames)) {
+                assertSameFrame(first, frame, `${name} blends the nodes in another order than objects in data order`);
+            }
+        },
+    );
 });

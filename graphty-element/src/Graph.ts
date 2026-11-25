@@ -791,8 +791,10 @@ export interface FileLoadOptions {
     /**
      * `"recommended"` chooses a layout for what was loaded once it is loaded: `fixed`, which draws
      * each node where the file put it, when every node arrived with a position, and a computed one
-     * otherwise. `"placed"` chooses `fixed` in the same case and otherwise leaves the layout as it
-     * is. `"keep"` (the default) leaves the layout as it is.
+     * otherwise. `"placed"` chooses `fixed` in the same case, else the layout the file asks for (a
+     * DOT file's Graphviz program; with file styles, the force layout keeping the gap the file's
+     * program keeps between nodes, as an OGDF file's), and otherwise leaves the layout as it is.
+     * `"keep"` (the default) leaves the layout as it is.
      */
     layout?: "recommended" | "placed" | "keep";
     /**
@@ -6444,11 +6446,15 @@ export class Graph implements GraphContext {
      */
     private handleBackgroundClick(event: ClickModifiers): void {
         const { pointerX: x, pointerY: y } = this.scene;
-        if (this.handledOnCloseLabel(x, y)) {
+        // Each pick walks every mesh on the "objects" path: only a scene with a close button looks for one.
+        if (hasCloseLabels(this.scene) && this.handledOnCloseLabel(x, y)) {
             return;
         }
 
-        if (pickNodeId(this.scene, x, y) !== undefined) {
+        // The press already picked here; released at the same point, its answer stands.
+        const { pressed } = nodePointerRosterOf(this.scene);
+        const node = pressed !== null && pressed.x === x && pressed.y === y ? pressed.id : pickNodeId(this.scene, x, y);
+        if (node !== undefined) {
             return;
         }
 

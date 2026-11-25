@@ -70,7 +70,7 @@ describe("the Data page's choices", () => {
             unmatched: "leave-out",
             directed: "auto",
             styles: "file",
-            styleOptions: { lengths: "spacing", framing: "file" },
+            styleOptions: { lengths: "spacing", framing: "file", valueColumns: "hidden" },
             layout: "recommended",
         });
         const report = await draft.report(choices);

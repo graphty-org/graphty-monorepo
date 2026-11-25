@@ -3,6 +3,7 @@ import { Camera } from "@babylonjs/core/Cameras/camera.js";
 import { Frustum } from "@babylonjs/core/Maths/math.frustum.js";
 import { Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import type { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh.js";
 import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import type { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
 import type { Scene } from "@babylonjs/core/scene.js";
@@ -4504,6 +4505,9 @@ export class UpdateManager implements Manager {
     /** Counts freeze requests and changes, so a freeze Babylon runs late knows it was withdrawn. */
     private freezeRequest = 0;
 
+    /** The source meshes whose instances' matrices a landed freeze froze; see `freezeInstanceSources`. */
+    private readonly frozenSources = new Set<Mesh>();
+
     /** The camera's view and projection stamps at the last frame, or null before the first. */
     private lastCameraState: readonly number[] | null = null;
 
@@ -5552,6 +5556,34 @@ export class UpdateManager implements Manager {
             this.graphContext.getScene().unfreezeActiveMeshes();
             this.activeMeshesFrozen = false;
         }
+
+        for (const source of this.frozenSources) {
+            source._unFreeze();
+        }
+
+        this.frozenSources.clear();
+    }
+
+    /**
+     * Freeze the matrices of every drawn instance along with the list, once a freeze has landed.
+     *
+     * Babylon's freeze freezes only the meshes in the list, and the list holds a node's INSTANCE, not
+     * the source mesh it is drawn from; the source keeps the matrices of its instances, so unfrozen, it
+     * read and uploaded every instance's world matrix on every frame of a still graph: at 99,000 nodes
+     * about 20 ms of a 48 ms frame (issue #10116). Everything that would change one of those matrices
+     * thaws the list (`settleActiveMeshFreeze`), and the thaw unfreezes these sources with it.
+     * @param scene - The scene.
+     */
+    private freezeInstanceSources(scene: Scene): void {
+        const active = scene.getActiveMeshes();
+        for (let i = 0; i < active.length; i++) {
+            const mesh = active.data[i];
+            const source = mesh.isAnInstance ? (mesh as InstancedMesh).sourceMesh : undefined;
+            if (source !== undefined && !this.frozenSources.has(source)) {
+                this.frozenSources.add(source);
+                source._freeze();
+            }
+        }
     }
 
     /**
@@ -5666,11 +5698,17 @@ export class UpdateManager implements Manager {
             // id -- into the list the withdrawn walk just filled -- so the frozen frames after it
             // drew instances twice (test/browser/frozen-frame-draws-each-instance-once.test.ts).
             // A new render id gives the next walk a list of its own.
+            //
+            // AND NO WORLD MATRIX IS RECOMPUTED WHILE FROZEN (`skipEvaluateActiveMeshes`). Babylon otherwise still
+            // recomputes every listed mesh's world matrix each frame, about 15 ms a frame at 99,000 nodes, for a list
+            // that is only frozen while nothing moves: whatever moves thaws it first (issue #10116).
             const request = ++this.freezeRequest;
-            scene.freezeActiveMeshes(false, () => {
+            scene.freezeActiveMeshes(true, () => {
                 if (request !== this.freezeRequest) {
                     scene.unfreezeActiveMeshes();
                     scene.incrementRenderId();
+                } else {
+                    this.freezeInstanceSources(scene);
                 }
             });
         }

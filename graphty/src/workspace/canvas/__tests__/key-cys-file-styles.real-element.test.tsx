@@ -9,11 +9,11 @@
 import "@graphty/graphty-element";
 
 import { assert, describe, it } from "vitest";
-import { page } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import CYS_URL from "../../../../../graph-io/test/corpus/styles/cys/BasicDataVizDemo.cys?url";
 import { withFeatures } from "../../../test/features";
-import { render, screen, waitFor } from "../../../test/test-utils";
+import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { IMPORT_FILE_STYLES } from "../../settings/preferences";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -58,6 +58,13 @@ describe("a Cytoscape session opened with its styles", () => {
         assert.isTrue(channels.has("edge.arrowHeadTextFont"), "the file sets the end captions' face");
         assert.isTrue(channels.has("node.drawOrder"), "the file sets the draw order");
 
+        // A file's own drawing opens no key over it: the reader opens it with Legend.
+        assert.isNull(screen.queryByRole("region", { name: "Legend" }));
+        const legendButton = within(screen.getByRole("toolbar", { name: "Canvas tools" })).getByRole("button", {
+            name: "Legend",
+        });
+        assert.equal(legendButton.getAttribute("aria-pressed"), "false");
+        await userEvent.click(legendButton);
         const legend = await screen.findByRole("region", { name: "Legend" });
         // The session's look, top layer first: its edge line and color, then its node shape and color.
         await waitFor(() => {

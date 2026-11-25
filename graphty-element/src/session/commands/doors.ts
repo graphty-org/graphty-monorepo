@@ -2167,6 +2167,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             shapeType: RENDER,
             // Whether a style hides the node: read by the pulled edges at its ends.
             hiddenByStyle: READ,
+            // Whether a style layer states where the node's label goes: read by the label declutter.
+            labelPlaced: READ,
             update: RENDER,
             setMeshPosition: RENDER,
             updateStyle: RENDER,

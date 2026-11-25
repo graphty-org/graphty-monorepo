@@ -45,7 +45,7 @@
             "labelLineHeight": 1,
             "curved": false,
             "fanned": true,
-            "bendCurve": "midpoints"
+            "bendCurve": "midpoints-headroom"
         },
         "graph": {
             "background": "#ffffff"
@@ -97,7 +97,7 @@
             "labelSize": 10,
             "labelPadding": 0,
             "labelLineHeight": 1,
-            "bendCurve": "midpoints"
+            "bendCurve": "midpoints-headroom"
         },
         "graph": {
             "background": "#ffffff"

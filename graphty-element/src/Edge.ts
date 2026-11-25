@@ -258,6 +258,16 @@ const OUTLINE_BEHIND = 0.002;
 export type EdgeCapEnd = "arrowHead" | "arrowTail" | "arrowMiddleHead" | "arrowMiddleTail";
 
 /**
+ * Whether a line's curve through its bends uses them as control points from midpoint to midpoint
+ * (`line.bendCurve` "midpoints" or "midpoints-headroom").
+ * @param bendCurve - The line's bend curve.
+ * @returns True for a curve through midpoints.
+ */
+function isMidpointCurve(bendCurve: string | undefined): boolean {
+    return bendCurve === "midpoints" || bendCurve === "midpoints-headroom";
+}
+
+/**
  * Points from a flat x, y, z list.
  * @param flat - The coordinates.
  * @returns The points.
@@ -5300,7 +5310,7 @@ export class Edge {
         }
         // a line drawn through its bends (straight or with its corners rounded) hangs its label on them, not on a curve
         // that uses them as control points
-        const throughBends = line?.bezier !== true || (!sampled && line.bendCurve !== "midpoints");
+        const throughBends = line?.bezier !== true || (!sampled && !isMidpointCurve(line.bendCurve));
         this.bentMiddle = throughBends ? Vector3.FromArray(routeMiddle(through)) : null;
 
         const a = Vector3.FromArray(route, 3 * span.first);
@@ -5550,7 +5560,7 @@ export class Edge {
      * its corners rounded or through the segments' midpoints (`line.bendCurve`; a "bezier" curve is sampled before).
      * @param line - The line's style.
      * @param flat - The line's points, flat x, y, z, ends included.
-     * @param heads - The arrowheads at its ends, for a curve through midpoints.
+     * @param heads - The arrowheads at its ends, for a curve through midpoints that keeps room for them.
      * @returns The points it is drawn through.
      */
     private static curveThroughBends(
@@ -5562,7 +5572,11 @@ export class Edge {
             return flat;
         }
 
-        return line.bendCurve === "midpoints" ? curveThroughMidpoints(flat, heads) : roundCorners(flat);
+        if (line.bendCurve === "midpoints-headroom") {
+            return curveThroughMidpoints(flat, heads);
+        }
+
+        return line.bendCurve === "midpoints" ? curveThroughMidpoints(flat) : roundCorners(flat);
     }
 
     /**

@@ -270,7 +270,7 @@ const MIDPOINT_STEPS = 12;
 
 /**
  * A polyline drawn as one smooth curve that uses its interior points as control points rather than passing
- * through them (`line.bendCurve` "midpoints"): one cubic piece from each end, or from the middle of a segment
+ * through them (`line.bendCurve` "midpoints", and "midpoints-headroom" with `heads`): one cubic piece from each end, or from the middle of a segment
  * between two bends, to the next, each of its two controls pulled from its own end toward the bend between them by
  * {@link MIDPOINT_PULL}. It leaves each end along its first and last segments. Cytoscape desktop draws a curved
  * edge through its handles this way (`GraphGraphics.computeCubicPolyEdgePath`).

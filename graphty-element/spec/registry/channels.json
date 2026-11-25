@@ -1994,7 +1994,7 @@
             "channel": "edge.bendCurve",
             "target": "edge",
             "accepts": "enum",
-            "values": ["corners", "midpoints", "bezier", "arc"],
+            "values": ["corners", "midpoints", "midpoints-headroom", "bezier", "arc"],
             "experimental": "file-styles"
         },
         {

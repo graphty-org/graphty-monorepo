@@ -1001,7 +1001,7 @@ export class NodeDragHandler {
                 this.handleClick();
             }
         } else if (this.pressedAt !== null) {
-            // A press that never travelled: no drag was started, so there is nothing to drop.
+            // A press that never traveled: no drag was started, so there is nothing to drop.
             this.pressedAt = null;
             this.releaseCamera();
             if (this.isClick(pointerEventTime(pointerInfo.event))) {

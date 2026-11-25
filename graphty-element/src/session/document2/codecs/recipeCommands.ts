@@ -2,13 +2,14 @@
  * @file The recipe commands of version 2 (spec 4.3) and their mapping to and from today's session
  * state: which members each command knows, which filter steps are exact `graph.filter` commands,
  * which rules and scopes name elements, and the `results.<as>` rewriting between a recipe's run
- * names and the session's run ids. Experimental (`save-files-v2`).
+ * names and the session's run ids.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
 import { loadSetDefinition } from "../../../catalog/sets/parse";
 import type { Measurement, RuleTree, Scope } from "../../../catalog/types";
+import { PATH_MEMBERS } from "../../storePaths";
 import { expressionPaths, renamePaths, renameRunInPath, renameRunPaths } from "../../styles/predicate";
 import { ignorableOf, isExtensions } from "../framing";
 import type { JsonObject } from "../types";
@@ -203,20 +204,7 @@ export function splitRunId(id: string): { namespace: string; as: string } | unde
     return isNamespace(namespace) && isRunName(as) ? { namespace, as } : undefined;
 }
 
-/**
- * The members whose text is one raw path, never an expression (spec 4.8.1 rule 2): a selector's
- * `path`, a binding's `by`, a leaf's `attribute`, `path` and `reads`, the window's `attribute`,
- * `end` and `spells`, and a collapse's `groupBy`.
- */
-export const PATH_MEMBERS: ReadonlySet<string> = new Set([
-    "path",
-    "by",
-    "attribute",
-    "reads",
-    "end",
-    "spells",
-    "groupBy",
-]);
+export { PATH_MEMBERS } from "../../storePaths";
 
 /**
  * A value with every run it names renamed: the run of each `results.<run>.<field>` path in a path
@@ -436,7 +424,7 @@ const READABLE_PATHS: readonly string[] = Object.freeze([
 const unanswered = (path: string): boolean => path === "graphty.types" || READABLE_PATHS.includes(path);
 
 /** The roots a path starts with (spec 4.8.1 rule 1). */
-const ROOTED = /^(data|results|graphty|_source)\./;
+const ROOTED = /^(data|results|store|graphty|_source)\./;
 
 /**
  * The first path a value reads that graphty-element cannot answer (see `unanswered`): in a member

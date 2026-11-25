@@ -823,7 +823,7 @@ describe("the project file", () => {
         assert.strictEqual(await refusal(session, "{ not json"), "E_PARSE_FAILED");
         assert.strictEqual(await refusal(session, "<not a graph>"), "E_UNKNOWN_FORMAT");
         assert.strictEqual(
-            // A version no reader takes: version 2 is read with the save-files-v2 experiment on.
+            // A version no reader takes.
             await refusal(session, '{ "kind": "graphty-document", "version": 99, "members": [] }'),
             "E_UNSUPPORTED_VERSION",
         );

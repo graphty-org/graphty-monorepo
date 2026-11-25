@@ -238,6 +238,7 @@ export function errorsOf(graph: Graph): Error[] {
  * @param maxIter - Iterations before the layout rests; by default more than any test waits for.
  * @param renderer - The renderer: WebGPU shares the layout's device, WebGL does not.
  * @param nodeCount - Nodes in the graph.
+ * @param policy - The acceleration policy.
  * @returns The graph.
  */
 export async function running(
@@ -245,9 +246,10 @@ export async function running(
     maxIter?: number,
     renderer: "webgpu" | "webgl" = "webgpu",
     nodeCount = NODE_COUNT,
+    policy: "auto" | "required" = "auto",
 ): Promise<Graph> {
     adapterSays("test-hardware");
-    const graph = await open("auto", renderer);
+    const graph = await open(policy, renderer);
     graph.setRenderPath(path);
     await startLayout(graph, maxIter, nodeCount);
     assert.strictEqual(graph.rendererStatus?.layoutDevice, renderer === "webgpu" ? "shared" : "separate");

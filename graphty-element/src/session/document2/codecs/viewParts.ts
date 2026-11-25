@@ -2,7 +2,7 @@
  * @file The parts the `view` section codec is built from (spec/README.md 4.7, 5 and 7): what a view
  * section keeps between an open and the next save, the file ids sets and layers are saved under,
  * cameras in both directions, and the walk that turns the ids a rule tree, a selector, a scope or a
- * set definition names into element references and back. Experimental (`save-files-v2`).
+ * set definition names into element references and back.
  *
  * Nothing here reaches a Babylon.js scene, Lit or the DOM.
  */

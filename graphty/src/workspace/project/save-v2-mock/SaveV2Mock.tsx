@@ -1,7 +1,7 @@
 /**
  * A mock of the graphty app's save and open dialogs for version 2 save files (issue #8029):
  * presentation only, with static data and local state, wired to nothing. When graphty-element
- * saves and opens version 2 files (the "save-files-v2" experiment), the real dialogs read its save
+ * saves and opens version 2 files, the real dialogs read its save
  * report and load plan instead of mockData.ts.
  */
 

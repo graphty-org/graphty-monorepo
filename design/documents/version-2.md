@@ -7,7 +7,7 @@ this page says how the parts are cut, saved, loaded, versioned and kept readable
 and a version 1 page disagree, this page wins. The data section's model -- source records, types,
 ids, the reader source, the build and how saved sections name nodes and edges -- is specified in
 design/data/data-store-options.md (sections 4 and 5); this page summarizes it and points there.
-Version 2 stays behind the save-files-v2 experiment, and its single data section is not final: a
+Version 2's single data section is not final: a
 later version may let one file hold more than one graph.
 
 ## Why version 2

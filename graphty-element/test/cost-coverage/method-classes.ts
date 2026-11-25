@@ -1174,6 +1174,7 @@ export const READ_ONLY: readonly string[] = [
     "RenderManager.applyLighting",
     "RenderManager.getRenderStats",
     "RenderManager.holdFrames",
+    "RenderManager.relightBatches",
     "RenderManager.requestFrame",
     "RenderManager.setPixelRatio",
     "RenderManager.startRenderLoop",

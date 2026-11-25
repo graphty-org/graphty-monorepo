@@ -1,5 +1,5 @@
 /**
- * The version 2 Save as, Open and report dialogs (the "save-files-v2" experiment) on the REAL
+ * The version 2 Save as, Open and report dialogs on the REAL
  * graphty-element, past the paths SaveFilesV2.real-element.test.tsx walks: a custom choice of
  * sections, nothing chosen and no name; copy or reference for each source; a source on the web that
  * Open asks before fetching and whose Refresh fails; runs rerun or restored; sections written on
@@ -13,7 +13,6 @@ import { browserProjects, type GraphSession } from "@graphty/graphty-element/ses
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { commands, userEvent } from "vitest/browser";
 
-import { withFeatures } from "../../../test/features";
 import { openBy } from "../../../test/open";
 import { pickSample } from "../../../test/samples-dialog";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
@@ -103,8 +102,6 @@ afterEach(() => {
 });
 
 describe("version 2 Save as, Open and report dialogs", () => {
-    withFeatures(["save-files-v2"]);
-
     it("Save as: a custom choice, a full file again, nothing chosen, no name, and Cancel", async () => {
         await start();
         const dialog = await saveAs(SAMPLE);
@@ -138,6 +135,35 @@ describe("version 2 Save as, Open and report dialogs", () => {
             assert.isNull(screen.queryByRole("dialog"));
         });
         assert.strictEqual((await browserProjects.list()).length, 0, "Cancel saves nothing");
+    });
+
+    it("keeps the whole project as a version 1 file, so Save loses nothing version 2 does not hold yet", async () => {
+        const { store, session } = await start();
+        const dialog = await saveAs(SAMPLE);
+        await userEvent.click(within(dialog).getByRole("button", { name: /^Save/ }));
+        await waitFor(() => {
+            assert.strictEqual(store.get().notice?.message, `Saved ${SAMPLE} in this browser.`);
+            assert.isNull(screen.queryByRole("dialog"));
+        });
+
+        // A renamed column is work version 2 files do not hold yet: Save keeps it.
+        const column = session.data.attributes().find((each) => each.kind === "node" && each.name === "name");
+        assert.isDefined(column);
+        if (column !== undefined) {
+            await session.data.renameColumn(column, "family");
+        }
+        store.set({ notice: null });
+        await userEvent.keyboard("{Control>}s{/Control}");
+        await waitFor(() => {
+            assert.strictEqual(store.get().notice?.message, `Saved ${SAMPLE} in this browser.`);
+        });
+        assert.isNull(screen.queryByRole("dialog"), "nothing was left out to report");
+        const [stored] = await browserProjects.list();
+        const file = stored === undefined ? undefined : await browserProjects.get(stored.id);
+        assert.isDefined(file);
+        const text = (await file?.text()) ?? "";
+        assert.strictEqual((JSON.parse(text) as { version?: number }).version, 1);
+        assert.include(text, "family");
     });
 
     it("closes Save as and says so when graphty-element cannot say what the project holds", async () => {

@@ -32,6 +32,8 @@ import { stripVTControlCharacters } from "node:util";
 
 const WRAPPED = Symbol.for("graphty.vitest-deps-reload");
 const HOOKED = Symbol.for("graphty.vitest-deps-hold");
+// The failed scan's message, kept on the logger so the page hold can refuse to open a page after it.
+const SCAN_ERROR = Symbol.for("graphty.vitest-deps-scan-error");
 
 const RELOAD = "optimized dependencies changed. reloading";
 const SCAN_FAILED = "Failed to run dependency scan";
@@ -73,6 +75,7 @@ export function watchLogger(logger, fail) {
                     ),
                 );
             } else if (text.includes(SCAN_FAILED) && !text.includes(CLOSING)) {
+                logger[SCAN_ERROR] = text;
                 fail(
                     new Error(
                         "Vite's dependency scan failed, so dependencies will be found while tests run and reload test pages. " +
@@ -178,6 +181,19 @@ export const waitForBrowserDeps = {
         timeline.watch(project.browser?.vite.httpServer);
         timeline.mark("dependency hold begins");
         await depsOptimized(project.browser?.vite.environments.client?.depsOptimizer);
+        // After a failed scan every dependency is found mid-run, and each find re-bundles and reloads the
+        // page under whichever file is importing, so some test files failed "Failed to fetch dynamically
+        // imported module" and which ones changed from run to run (#9956: a workspace package's build in
+        // the checkout older than the source importing it). No page opens: the run stops here, naming the cause.
+        const scanError = project.vitest?.logger?.[SCAN_ERROR];
+        if (scanError) {
+            timeline.mark("dependency scan failed; no page opens");
+            throw new Error(
+                `${project.name}: Vite's dependency scan failed, so no test file was run. Most often a workspace ` +
+                    "package's build is missing or older than the source importing it: build it " +
+                    `(pnpm exec nx run <package>:build) and run again (#4145, #9956).\n${scanError}`,
+            );
+        }
         timeline.mark("dependency hold ends; vitest opens the page");
     },
     /**

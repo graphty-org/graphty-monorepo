@@ -8,7 +8,6 @@ import { readFileSync } from "node:fs";
 import { assert, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../../session";
-import { isGraphtyError } from "../../../src/errors";
 import { createRunResult } from "../../../src/session/results";
 import type { RunExecutionContext, RunOutcome } from "../../../src/session/runs";
 import { assertScalesLinearly, visitsDuring } from "../../helpers/cost";
@@ -177,21 +176,6 @@ describe("session.recipes", () => {
             },
             { sizes: [200, 800], counter: "elements visited by RecipesApi.apply" },
         );
-    });
-
-    it("is refused without the save-files-v2 experiment", async () => {
-        // Off explicitly: the "-features-on" projects switch every experiment on by default.
-        const session = createGraphSession({ features: [] });
-        for (const call of [() => session.recipes.export(), () => session.recipes.apply("{}")]) {
-            try {
-                await call();
-                assert.fail("expected a refusal");
-            } catch (error) {
-                assert.isTrue(isGraphtyError(error) && error.code === "E_FEATURE_OFF", String(error));
-            }
-        }
-
-        session.dispose();
     });
 });
 

@@ -1,17 +1,15 @@
 /**
  * @file Recipes: a session's analysis (filters, sets, runs, layout) and its style layers as one
- * file, applied to other data. `session.recipes`, behind the `save-files-v2` experiment; a thin
+ * file, applied to other data. `session.recipes`, a thin
  * door onto `project.save` and `project.open`, which do the work.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import { type EnabledFeatures, featureOff } from "../../features/resolve";
 import type { ProjectApi, ProjectOpenReport, ProjectSource, SavedProject } from "../projectFile";
 
 /**
- * Recipes: `session.recipes`. Needs the `save-files-v2` experiment; without it each method
- * rejects with `E_FEATURE_OFF`.
+ * Recipes: `session.recipes`.
  *
  * ```ts
  * const { text } = await first.recipes.export();
@@ -19,8 +17,6 @@ import type { ProjectApi, ProjectOpenReport, ProjectSource, SavedProject } from 
  * await second.recipes.apply(text);
  * ```
  * @since 3.40.0
- * @experimental save-files-v2
- * @beta
  */
 export interface RecipesApi {
     /**
@@ -43,24 +39,15 @@ export interface RecipesApi {
 /**
  * The session's recipes API.
  * @param project - The session's project API, which saves and opens.
- * @param features - The session's experiments, read at each call.
  * @returns The API.
  */
-export function recipesOf(project: ProjectApi, features: () => EnabledFeatures): RecipesApi {
-    const gate = (key: string): Promise<never> | undefined =>
-        features().has("save-files-v2") ? undefined : Promise.reject(featureOff("save-files-v2", key));
+export function recipesOf(project: ProjectApi): RecipesApi {
     return Object.freeze<RecipesApi>({
         export() {
-            return (
-                gate("recipes.export") ??
-                project.save({ format: 2, sections: ["recipe", "style"], rewriteRecipe: true, markSaved: false })
-            );
+            return project.save({ format: 2, sections: ["recipe", "style"], rewriteRecipe: true, markSaved: false });
         },
         apply(recipe) {
-            return (
-                gate("recipes.apply") ??
-                project.open(recipe, { sections: ["recipe", "style"], applyRecipe: true, migrate: true })
-            );
+            return project.open(recipe, { sections: ["recipe", "style"], applyRecipe: true, migrate: true });
         },
     });
 }

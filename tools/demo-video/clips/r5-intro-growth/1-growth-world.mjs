@@ -19,9 +19,9 @@
 // world (GLOBE_SIZE), large on screen only because the camera comes near (CLOSE).
 // The cut dissolves the earth in behind it (tmp/demo-video/intros/growth/shots.md), and the camera
 // pulls back from it, starting within the dissolve, in one long eased move to the whole globe
-// (evenly lit, no night side), large and a little above the frame's middle, the network's colors
-// coming back outward from San Francisco, muted (MUTED: each community's hue at half its
-// saturation, quiet dots on the map), San Francisco one ordinary airport of the globe (its size all
+// (evenly lit, no night side), large and a little above the frame's middle, the whole network
+// there as the earth dissolves in, muted (MUTED: each community's hue at half its
+// saturation, quiet dots on the map), its routes one color and width all the way, San Francisco one ordinary airport of the globe (its size all
 // along, every airport shrinking together as the camera pulls back; its community's muted color
 // eased in; every airport of the globe a plain ball, PLAIN), the globe turning behind the title's
 // logo, its line under the globe. While the
@@ -176,8 +176,8 @@ const REST = 200 * END;
 /** The pull back from the close-up to the whole globe (take ms). */
 const PULL = S(12000);
 /**
- * How long the light comes back over in the pull back (take ms from SEAM, at the cut's speed), and
- * how many times slower the take plays that stretch (cuts/intro-growth.json plays it as much
+ * The pull back's first stretch, over which San Francisco's color eases (take ms from SEAM, at the cut's
+ * speed), and how many times slower the take plays it (cuts/intro-growth.json plays it as much
  * faster: its ramp entries from mark pull + SEAM through pull + SEAM + PULL_LIGHT x PULL_SLOW).
  */
 const PULL_LIGHT = S(6000);
@@ -189,10 +189,11 @@ const ROUTE_SIZE = 3.2;
 /** The comets on the routes, in their source airports' colors (their speed slowed with the take). */
 const COMETS = { useEdgeColor: true, intensity: 2.6, bloom: 2, tail: 200, spacing: 260, speed: 1.2 / K };
 /**
- * The routes on the globe: wide and near opaque, so they read as lines over the map behind the
- * logo, at 1080p and at README size (at width 5 and opacity 0.5 they were hairlines, cut39).
+ * The routes on the globe: this many pixels wide on screen at every distance (as drawn in the world
+ * they went from 25 px to 3 px as the camera pulled back), near opaque, so they read as lines over
+ * the map behind the logo, at 1080p and at README size.
  */
-const GLOBE_EDGE = 9;
+const GLOBE_EDGE = 3;
 const GLOBE_EDGE_OPACITY = 0.85;
 /** The route's line and its airports: a rich red that reads on the dark sky and on the map. */
 const ROUTE_RED = "#e0262f";
@@ -658,14 +659,16 @@ export default {
         );
         const others = all.filter(([id]) => !path.nodes.includes(id));
         // San Francisco's community color: on the end globe it is one ordinary airport again
-        const endColor = await onElement(
-            h,
-            (el, id) => {
-                const c = el.getNode(id).drawnInstanceColor;
-                return `#${[c.r, c.g, c.b].map((v) => Math.round(v).toString(16).padStart(2, "0")).join("")}`;
-            },
-            PATH_END,
+        // (and every airport's, for its routes' color there)
+        const colors = await onElement(h, (el) =>
+            Object.fromEntries(
+                el.getNodes().map(({ id }) => {
+                    const c = el.getNode(id).drawnInstanceColor;
+                    return [id, `#${[c.r, c.g, c.b].map((v) => Math.round(v).toString(16).padStart(2, "0")).join("")}`];
+                }),
+            ),
         );
+        const endColor = colors[PATH_END];
         const dimSet = {
             "node.color": "#232838",
             "node.shaders": [{ ...GLASS, params: { ...GLASS.params, sparkle: 0.5 } }],
@@ -920,12 +923,10 @@ export default {
                     selector: { match: "ids", nodes: [o.endId] },
                     set: { "node.color": o.endLook["node.color"], "node.opacity": 1, ...o.plain },
                 });
-                // hidden by opacity: on the map a node has a least size on screen, so 0.01 is no help;
-                // their shaders off, as a shaded node draws at any opacity (defects.md 21)
-                await styles.update(o.dimNodes, { set: o.hidden });
-                // the route's line gone until the light comes back (it may still be drawn, if the
-                // flight's fade ended late)
-                await styles.update(o.routeEdges, { set: o.lineOff });
+                // the dark lifted and the flight's line gone, here in the cut-away: the whole network is
+                // on the globe in its end look as the earth dissolves in, and nothing restyles a route
+                // as the camera pulls back
+                for (const id of [o.dimNodes, o.dimEdges, o.routeEdges]) await styles.remove(id);
                 // the airports the globe draws on or under San Francisco stay hidden: they would
                 // crowd it in the close-up
                 await styles.add({
@@ -933,9 +934,6 @@ export default {
                     target: "node",
                     selector: { match: "ids", nodes: o.under },
                     set: o.hidden,
-                });
-                await styles.update(o.dimEdges, {
-                    set: { "edge.color": "#2a3045", "edge.opacity": 0.01, "edge.width": 2, "edge.arrowHead": "none" },
                 });
                 // every airport plain (PLAIN: a shaded node might not keep the globe's size)
                 await styles.update(o.glass, { selector: { match: "everything" }, set: o.plain });
@@ -962,7 +960,6 @@ export default {
                 dimEdges: dim.edges,
                 hidden: HIDDEN,
                 routeEdges: route.edges,
-                lineOff: LINE_OFF,
                 under: h.steps.under,
                 glass: h.glass,
                 plain: PLAIN,
@@ -990,25 +987,38 @@ export default {
         console.log(
             `  growth-world: San Francisco lands ${JSON.stringify(landed)}, plan put it ${JSON.stringify(h.steps.spot)}`,
         );
-        // in the same cut-away, the layer the pull back brings in, painting nothing yet (adding a
-        // layer over every route costs the globe a few hundred ms): every route in its airport's color
-        // beneath the dark veil (dim.edges), so they show as it lifts. No comets here: where routes
+        // in the same cut-away, every route in its airport's quiet color (by id, not from the node: San
+        // Francisco's eases from red as the camera pulls back) and GLOBE_EDGE wide on screen at every
+        // distance, so no route changes color or width in the shot. No comets here: where routes
         // crowd, as over Europe and the North Atlantic, their glow adds up to a white flare
         await onElement(
             h,
-            (el, [above, set]) =>
-                el.session.styles.add(
-                    { name: "Globe routes", target: "edge", selector: { match: "everything" }, set },
-                    { above },
-                ),
+            async (el, [above, set, quiet]) => {
+                const byColor = new Map();
+                for (const e of el.session.data.edges()) {
+                    const c = quiet[e.source];
+                    byColor.set(c, [...(byColor.get(c) ?? []), e.id]);
+                }
+                for (const [color, edges] of byColor)
+                    await el.session.styles.add(
+                        {
+                            name: "Globe routes",
+                            target: "edge",
+                            selector: { match: "ids", edges },
+                            set: { ...set, "edge.color": color },
+                        },
+                        { above },
+                    );
+            },
             [
                 arrows,
                 {
-                    "edge.colorFrom": "source",
                     "edge.arrowHead": "none",
                     "edge.opacity": GLOBE_EDGE_OPACITY,
-                    "edge.width": GLOBE_EDGE,
+                    "edge.width": 0.1,
+                    "edge.minScreenWidth": GLOBE_EDGE,
                 },
+                Object.fromEntries(Object.entries(colors).map(([id, c]) => [id, muted(c)])),
             ],
         );
         const pull = reveal(landed, h.steps.europe, atRest);
@@ -1029,29 +1039,11 @@ export default {
                 },
             ),
         );
-        // the light comes back outward from San Francisco as the camera pulls back, once the dissolve
-        // is over: the network's colors and routes, and the route's line
-        await h.pause(SEAM);
-        const L = (ms) => ms * PULL_SLOW;
-        // each started a little after the last, so their restyles never land in the same frame
-        const after = async (ms, run) => {
-            await h.pause(L(ms));
-            await run();
-        };
-        await Promise.all([
-            // a restyle on the globe stalls the page 100-200 ms (defects.md 5): few layers, slow steps
-            sweep(h, { id: dim.nodes, by: landed, ms: L(S(5000)), stepMs: L(700) }),
-            after(140, () => sweep(h, { id: dim.edges, edges: true, by: landed, ms: L(S(5000)), stepMs: L(700) })),
-            after(560, () =>
-                tween(h, route.edges, routeLine(0, 2), routeLine(0.9, ROUTE_WIDTH[1]), L(S(3000)), L(800)),
-            ),
-            // San Francisco becomes one ordinary airport of the globe as the globe comes into view,
-            // at its place and at their size all along: its color eased to its community's
-            after(S(1500), () => {
-                const look = (color) => ({ ...END_GLOBE, "node.color": color });
-                return tween(h, route.end, look(ROUTE_RED), look(muted(endColor)), L(S(3000)), L(700));
-            }),
-        ]);
+        // San Francisco becomes one ordinary airport of the globe as the globe comes into view, at its
+        // place and at their size all along: its color eased to its community's, once the dissolve is over
+        await h.pause(SEAM + S(1500) * PULL_SLOW);
+        const look = (color) => ({ ...END_GLOBE, "node.color": color });
+        await tween(h, route.end, look(ROUTE_RED), look(muted(endColor)), S(3000) * PULL_SLOW, 700 * PULL_SLOW);
         await ride;
     },
     holdMs: 300,

@@ -5,7 +5,7 @@
  * - `element.pinnedNodes` asked every `Node` whether it was pinned: 747 ms and +52 MB at 20,000 nodes
  *   to return an empty set.
  * - `graph.getEdges()` was `Array.from` over the edge map, which builds every `Edge`.
- * - a layout built for 2D put each node with a Z onto the plane through its `Node`.
+ * - a 2D layout put each node with a Z onto the plane through its `Node`.
  *
  * What is asserted is counted work: the `Node`s and `Edge`s each step builds. The pin is made by
  * the browser's own input pipeline, a drag of the node.
@@ -13,10 +13,14 @@
 
 import "../../src/graphty-element";
 
+import type { F32 } from "@graphty/graph-format";
 import { afterEach, assert, describe, it } from "vitest";
 
+import type { AuthoredLayoutDescriptor } from "../../extend";
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
+import { LayoutEngine } from "../../src/layout/LayoutEngine";
+import { SnapshotLayoutEngine, type SnapshotLayoutInput } from "../../src/layout/SnapshotLayoutEngine";
 import { dataManagerInternals } from "../../src/managers/DataManager";
 import type { RenderPath } from "../../src/meshes/NodeBatch";
 import { drag } from "../helpers/real-input";
@@ -101,6 +105,47 @@ function zs(element: Graphty): number[] {
 
 const FIXED_3D = ["fixed", { dim: 3 }] as const;
 
+/**
+ * A layout that places every node at its data position, Z included, whatever the view, as a third party's may: the
+ * element, not the engine, has to put its rows on the plane in 2D.
+ */
+class Echo extends SnapshotLayoutEngine {
+    static override type = "test-echo-stored";
+    static maxDimensions = 3;
+    static override readonly descriptor: AuthoredLayoutDescriptor = {
+        id: "test-echo-stored",
+        plainName: "Echo",
+        technicalName: "Echo",
+        description: "Places every node at its data position, Z included, whatever the view.",
+        family: "geometric",
+        kind: "batch",
+        maxDimensions: 3,
+        sizeRating: "any",
+        structuralInputs: [],
+        engine: "test-echo-stored",
+        options: [],
+    };
+    protected readonly dimensions = 3 as const;
+    protected readonly options = {};
+
+    protected compute(input: SnapshotLayoutInput): F32 {
+        return Float32Array.from(input.dataPositions(), (v) => (Number.isNaN(v) ? 0 : v));
+    }
+}
+
+/** {@link Echo} under a second name, so a layout can be built again over the first one's arrangement. */
+class EchoAgain extends Echo {
+    static override type = "test-echo-stored-again";
+    static override readonly descriptor: AuthoredLayoutDescriptor = {
+        ...Echo.descriptor,
+        id: "test-echo-stored-again",
+        engine: "test-echo-stored-again",
+    };
+}
+
+LayoutEngine.register(Echo);
+LayoutEngine.register(EchoAgain);
+
 describe("reads on the batched path", () => {
     it("pinnedNodes, getEdges and getEdgeIds build no Node or Edge", async () => {
         const element = await mounted("batched", "3d", FIXED_3D);
@@ -143,16 +188,25 @@ describe("reads on the batched path", () => {
 });
 
 describe.each(["batched", "objects"] as const)("a layout built for 2D on %s", (path) => {
-    it("puts a fixed arrangement held off the plane onto it, building no Node or Edge", async () => {
-        // Fixed keeps each node's Z when it is added, as the objects path always drew it.
+    it("draws a fixed arrangement whose data carries a Z on the plane", async () => {
         const element = await mounted(path, "2d", ["fixed", {}]);
+        assert.deepStrictEqual(
+            zs(element),
+            NODES.map(() => 0),
+            "every node is on the plane",
+        );
+    });
+
+    it("puts a layout that keeps the data's Z onto the plane, building no Node or Edge", async () => {
+        // The layout keeps each node's Z from its data, which the view's 2D does not stop.
+        const element = await mounted(path, "2d", [Echo.type, {}]);
         assert.isTrue(
             zs(element).some((z) => z !== 0),
             "the arrangement holds nodes off the plane",
         );
         const before = built(element);
 
-        await element.graph.setLayout("fixed", { scalingFactor: 1 });
+        await element.graph.setLayout(EchoAgain.type, {});
         await operationQueueOf(element.graph).waitForCompletion();
         await element.waitForStableFrame();
 

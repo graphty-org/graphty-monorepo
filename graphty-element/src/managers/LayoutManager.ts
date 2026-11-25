@@ -2675,8 +2675,11 @@ export class LayoutManager implements Manager {
             return;
         }
 
-        // Walked by row. A row stored with no `Node` (renderPath "batched") is flattened in the array and
-        // handed to the engine by row: getting its `Node` built one for every row with a Z (issue #10031).
+        // Walked by row. Under a static engine, a row stored with no `Node` (renderPath "batched") is flattened in
+        // the array and the engine takes it by row: getting its `Node` built one for every row with a Z (issue
+        // #10031). Any other engine is handed the row's `Node`, as before: reloading a simulation for it restarts
+        // its run, and under one only a pinned or held row keeps a Z past its own 2D publish.
+        const takesRows = engine instanceof StaticLayoutEngine;
         const lane = this.dataManager[WRITABLE_LANE];
         const { ids, nodeCount } = wholeGraph(this.dataManager);
         const placed = { x: 0, y: 0, z: 0 };
@@ -2692,7 +2695,9 @@ export class LayoutManager implements Manager {
             }
 
             const id = ids.idOf(row);
-            const node = dataManagerInternals.builtNode(this.dataManager, id);
+            const node = takesRows
+                ? dataManagerInternals.builtNode(this.dataManager, id)
+                : this.dataManager.nodes.get(id);
             if (node !== undefined) {
                 layoutEngineInternals.setNodePosition(engine, node, this.onEnginePlane(placed));
             } else if (this.dataManager.nodes.has(id)) {
@@ -2701,8 +2706,8 @@ export class LayoutManager implements Manager {
             }
         }
 
-        if (rowsWritten) {
-            layoutEngineInternals.takeRows(engine);
+        if (rowsWritten && takesRows) {
+            engine.takeRows();
         }
     }
 

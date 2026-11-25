@@ -5704,8 +5704,6 @@ export abstract class LayoutEngine {
     abstract step(): void;
     // @internal
     storeRowOf: ((id: NodeIdType) => number) | null;
-    // @internal
-    protected takeRows(): void;
     // (undocumented)
     static type: string;
     get type(): string;

@@ -319,8 +319,6 @@ function duplicateBuiltInEngine(type: string): GraphtyError {
 export const layoutEngineInternals = {} as {
     /** See `LayoutEngine.setNodePosition`. */
     setNodePosition(engine: LayoutEngine, n: Node, p: Position): void;
-    /** See `LayoutEngine.takeRows`. */
-    takeRows(engine: LayoutEngine): void;
     /** See `LayoutEngine.pin`. */
     pin(engine: LayoutEngine, n: Node): void;
     /** See `LayoutEngine.unpin`. */
@@ -442,9 +440,6 @@ export abstract class LayoutEngine {
     static {
         layoutEngineInternals.setNodePosition = (engine, n, p) => {
             engine.setNodePosition(n, p);
-        };
-        layoutEngineInternals.takeRows = (engine) => {
-            engine.takeRows();
         };
         layoutEngineInternals.pin = (engine, n) => {
             engine.pin(n);
@@ -1154,16 +1149,6 @@ export abstract class LayoutEngine {
                 this.setNodePosition(n, at);
             }
         }
-    }
-
-    /**
-     * Take what the element wrote into its array for rows stored with no `Node` (renderPath
-     * "batched"), as {@link LayoutEngine.setNodePosition} takes a node's place. Only an engine that
-     * reads rows has such rows; the default takes the whole array again.
-     * @internal
-     */
-    protected takeRows(): void {
-        this.loadArrangement();
     }
 
     /**
@@ -2736,8 +2721,13 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
         this.#adoptRows();
     }
 
-    /** Into the answer only, so a stale layout still recomputes; see {@link StaticLayoutEngine.loadArrangement}. */
-    protected override takeRows(): void {
+    /**
+     * Take what the element wrote into its array for rows stored with no `Node` (renderPath "batched"), as
+     * {@link StaticLayoutEngine.setNodePosition} takes a node's place: into the answer only, so a stale layout
+     * still recomputes; see {@link StaticLayoutEngine.loadArrangement}.
+     * @internal
+     */
+    takeRows(): void {
         this.#adoptRows();
     }
 

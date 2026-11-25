@@ -1,12 +1,9 @@
 /**
- * @file A 2D graph whose fixed layout keeps each node's Z (fixed echoes the stored coordinates) draws its nodes, and
- * so its edges' ends, at that Z on the `"objects"` path. Under `renderPath: "batched"` the first walk puts each built
- * node there before the row table has turned 2D; the table then held none of them and its turn flattened them, so
- * the arrowheads and lines ran full length where the objects path draws them foreshortened. The picture is the
- * objects path's.
- *
- * The nodes are built before the layout, so the first walk puts built nodes. A row with no `Node` is drawn flat in
- * 2D by the row table, where the objects path draws it at its Z: that gap is issue #10039.
+ * @file A 2D fixed layout over nodes whose data carries a Z draws one picture on both render paths, whichever comes
+ * first, the nodes or the layout. The batched row table draws every 2D row at Z = 0, and fixed used to publish the
+ * data's Z again on a later run (here the first edges, which re-place every node), so the objects path drew those
+ * nodes at their Z, their edges foreshortened (issue #10039). Fixed now publishes Z = 0 under a 2D view. No `Node`
+ * is built on purpose: a row drawn with none must match as well.
  */
 
 import "../../src/graphty-element";
@@ -35,9 +32,10 @@ const EDGES = [
 /**
  * Mount a 2D element with the graph on fixed positions that carry a Z, in the directed default look.
  * @param path - The render path.
+ * @param layoutFirst - Whether the layout is set before the nodes are added.
  * @returns The element, its picture final.
  */
-async function loaded(path: RenderPath): Promise<Graphty> {
+async function loaded(path: RenderPath, layoutFirst: boolean): Promise<Graphty> {
     const element = document.createElement("graphty-element");
     element.renderPath = path;
     element.viewMode = "2d";
@@ -47,10 +45,15 @@ async function loaded(path: RenderPath): Promise<Graphty> {
     document.body.appendChild(element);
     await element.updateComplete;
     await operationQueueOf(element.graph).waitForCompletion();
+    if (layoutFirst) {
+        await element.graph.setLayout("fixed", { dim: 2 });
+    }
+
     await element.session.data.addNodes(NODES);
-    // Walking the array builds every `Node` (see the file comment).
-    assert.lengthOf([...element.graph.getNodes()], N);
-    await element.graph.setLayout("fixed", { dim: 2 });
+    if (!layoutFirst) {
+        await element.graph.setLayout("fixed", { dim: 2 });
+    }
+
     await element.session.data.addEdges(EDGES);
     await operationQueueOf(element.graph).waitForCompletion();
     await element.waitForStableFrame();
@@ -58,11 +61,14 @@ async function loaded(path: RenderPath): Promise<Graphty> {
 }
 
 describe("a 2D fixed layout whose nodes keep a Z", () => {
-    it("draws the objects path's picture on the batched path", async () => {
-        const objects = await loaded("objects");
+    it.each([
+        ["nodes first", false],
+        ["layout first", true],
+    ])("draws the objects path's picture on the batched path, %s", async (_, layoutFirst) => {
+        const objects = await loaded("objects", layoutFirst);
         const want = await readCanvas(objects.graph);
         objects.remove();
-        const batched = await loaded("batched");
+        const batched = await loaded("batched", layoutFirst);
         assert.equal(pixelsOverBar(want, await readCanvas(batched.graph)), 0);
     });
 });

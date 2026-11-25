@@ -30,7 +30,6 @@ import { currentMember, familyOf, membersOf, pickReplace, replaceUse, switchMemb
 import { ModelValueField, ValueField } from "./ValueField";
 import {
     CUSTOM_MODEL,
-    CUSTOM_MODEL_PICK,
     failureWords,
     fieldName,
     GALLERY_WORDS,
@@ -168,10 +167,10 @@ export function useAssetLine(args: AssetLineArgs): AssetLine | undefined {
             setCustomOpen,
             focusField,
         });
-        return listed ? shapeList(line, base, { replaceCode, setReplaceCode, setCustomOpen }) : base;
+        return listed ? shapeList(line, base, { replaceCode, setReplaceCode }) : base;
     }
     if (listed) {
-        return shapeList(line, undefined, { replaceCode, setReplaceCode, setCustomOpen });
+        return shapeList(line, undefined, { replaceCode, setReplaceCode });
     }
     if (channel === "node.texture") {
         return pictureLine(line, { pictureOpen, setPictureOpen, focusField });
@@ -192,12 +191,11 @@ const CURRENT_MODEL = "+model:";
 interface ShapeListState {
     readonly replaceCode: boolean;
     readonly setReplaceCode: (open: boolean) => void;
-    readonly setCustomOpen: (open: boolean) => void;
 }
 
 /**
  * Style panel v2's Shape list (E378, E381): after the shapes, a Models section (with the node-models
- * experiment on: Model... and Custom model...) and a Shaders section, "New shader..." first and then every
+ * experiment on: Model..., opening the Models gallery beside the list) and a Shaders section, "New shader..." first and then every
  * shader that declares it draws in the node's place, built-in and custom alike, by the catalog's place. It is the
  * one control choosing a basic shape, a model or a shader (owner, 2026-11-24: one path to any control): while a model
  * or a shader draws, the list names it and picks any other, the row's family switching with it.
@@ -209,17 +207,8 @@ interface ShapeListState {
 function shapeList(args: LineHelpers, base: AssetLine | undefined, state: ShapeListState): AssetLine {
     const { ctx, store } = args;
     const family = familyOf(ctx.side, "shape");
-    const models =
-        base === undefined
-            ? []
-            : [
-                  ...(base.extraChoices ?? []).map((choice) => ({ ...choice, section: SHAPE_LIST_SECTIONS.models })),
-                  {
-                      value: CUSTOM_MODEL_PICK,
-                      label: SHAPE_LIST_SECTIONS.customModel,
-                      section: SHAPE_LIST_SECTIONS.models,
-                  },
-              ];
+    // Model... alone: the Models gallery it opens holds Add custom model... (owner, 2026-11-24: one path to any control).
+    const models = (base?.extraChoices ?? []).map((choice) => ({ ...choice, section: SHAPE_LIST_SECTIONS.models }));
     // Picking a shader writes through the Shape family, so with no family the list offers none.
     const shaders =
         family === undefined
@@ -259,10 +248,6 @@ function shapeList(args: LineHelpers, base: AssetLine | undefined, state: ShapeL
         }
         if (value === NEW_REPLACE_PICK) {
             state.setReplaceCode(true);
-            return true;
-        }
-        if (value === CUSTOM_MODEL_PICK) {
-            state.setCustomOpen(true);
             return true;
         }
         if (typeof value === "string" && value.startsWith(REPLACE_PICK) && family !== undefined) {
@@ -377,9 +362,6 @@ function shapeLine(args: LineHelpers, state: ShapeState): AssetLine {
     const { model, setModelsOpen, focusField } = state;
     const { line: modelLine } = modelOf(ctx, channel);
     const name = fieldName(channel);
-    // Model... is one more row of the list, not a trailing action under a rule line, until
-    // compact-mantine's select has one (issue #6233).
-    const extraChoices = [{ value: MODEL_PICK, label: MODEL_TILE, glyph: <GLYPHS.model size={14} aria-hidden /> }];
     const own = lineIn(ctx, channel);
     // A built-in shape picked while the field holds a model: the model and its settings go, in one undo step.
     const shapeOverModel = (value: ChannelValue): void => {
@@ -506,7 +488,38 @@ function shapeLine(args: LineHelpers, state: ShapeState): AssetLine {
         }
         return false;
     };
-    const popover = (
+    // Style panel v2's Shape list: Model... opens the Models gallery beside the list, which stays open (design "Input
+    // rules", "Nesting": no pop-over in place, no back button). Its Add custom model... is the one way to the Load
+    // custom model dialog (owner, 2026-11-24: one path to any control).
+    const listed = ctx.listSections !== undefined;
+    const gallery = (closeSelf: () => void, closeList: () => void): React.ReactNode => (
+        <ModelsPopover
+            opened
+            beside
+            anchor={box}
+            current={model}
+            onPick={(ref) => {
+                closeList();
+                pickModel(ref, "node.model");
+            }}
+            onCustom={() => {
+                closeList();
+                state.setCustomOpen(true);
+            }}
+            onClose={closeSelf}
+        />
+    );
+    // Model... is one more row of the list, not a trailing action under a rule line, until
+    // compact-mantine's select has one (issue #6233).
+    const extraChoices = [
+        {
+            value: MODEL_PICK,
+            label: MODEL_TILE,
+            glyph: <GLYPHS.model size={14} aria-hidden />,
+            ...(listed ? { beside: gallery } : {}),
+        },
+    ];
+    const popover = listed ? null : (
         <ModelsPopover
             opened={state.modelsOpen}
             anchor={box}

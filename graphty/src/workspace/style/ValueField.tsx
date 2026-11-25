@@ -96,6 +96,10 @@ interface ValueFieldProps {
         /** A drawing in place of a picture (the Shape list's Model... entry). */
         readonly glyph?: React.ReactNode;
         readonly disabled?: boolean;
+        /** Its section in a sectioned list. */
+        readonly section?: string;
+        /** A dedicated component it opens beside a sectioned list (Style panel v2's Model...). */
+        readonly beside?: (closeSelf: () => void, closeList: () => void) => React.ReactNode;
     }[];
     /** Writes a value, once per gesture. */
     readonly onChange: (value: string | number | boolean) => void;

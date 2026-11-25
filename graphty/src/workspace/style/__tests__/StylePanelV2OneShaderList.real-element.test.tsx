@@ -277,7 +277,7 @@ describe("custom and built-in shaders are one list", () => {
 describe("the Shape menu's Models section", () => {
     withFeatures(["file-styles", "style-panel-v2", "node-models"]);
 
-    it("holds Custom model... and sits beside the Shaders section", async () => {
+    it("holds Model... alone, its gallery the one way to a custom model, and sits beside the Shaders section", async () => {
         await openGraph();
         await openShapeList();
         const sections = await screen.findByRole("combobox", { name: "Node shape section" });
@@ -291,7 +291,9 @@ describe("the Shape menu's Models section", () => {
             const shown = within(list)
                 .queryAllByRole("option")
                 .map((option) => option.textContent);
-            assert.include(shown, "Custom model...", "Custom model... is under Models");
+            assert.include(shown, "Model...", "Model... is under Models");
+            // The Models gallery's Add custom model... is the one way to the dialog (one path to any control).
+            assert.notInclude(shown, "Custom model...");
             assert.notInclude(shown, "New shader...", "the shaders are another section's");
         });
         await userEvent.keyboard("{Escape}");

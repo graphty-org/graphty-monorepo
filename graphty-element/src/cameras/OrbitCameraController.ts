@@ -901,6 +901,35 @@ function seenCorners(
 export const centeringWork = { corners: 0, sorted: 0 };
 
 /**
+ * The corners extreme along eight directions in the plane `(x, depth)`: x, depth and both diagonals, in turning order,
+ * so they make an octagon on the outline of all of them ({@link outline}). Four (x and depth alone) left a quarter of
+ * a round drawing's corners outside, every one of them sorted.
+ * @param xs - Each corner's place along the axis.
+ * @param depths - Each one's depth.
+ * @returns The octagon's corners, a corner extreme two ways in a row given once.
+ */
+function octagon(xs: Float64Array, depths: Float64Array): number[] {
+    // each direction is (weight of x, weight of depth), toward the smallest x * wx + depth * wd
+    const directions = [1, 0, 1, 1, 0, 1, -1, 1, -1, 0, -1, -1, 0, -1, 1, -1];
+    const extreme = new Int32Array(8);
+    const best = new Float64Array(8);
+    for (let k = 0; k < 8; k++) {
+        best[k] = xs[0] * directions[2 * k] + depths[0] * directions[2 * k + 1];
+    }
+    for (let i = 1; i < xs.length; i++) {
+        for (let k = 0; k < 8; k++) {
+            const reach = xs[i] * directions[2 * k] + depths[i] * directions[2 * k + 1];
+            if (reach < best[k]) {
+                best[k] = reach;
+                extreme[k] = i;
+            }
+        }
+    }
+
+    return [...extreme].filter((v, k, all) => v !== all[(k + 7) % 8]);
+}
+
+/**
  * The corners on the outline of all of them, as seen along one screen axis and in depth: the convex hull of the
  * points `(x, depth)`. {@link centeredOffset} needs no other corner: its tangent `(x - offset) / depth`, with every
  * depth positive, is widest over the corners at a corner of their hull, and so are the smallest and largest `x` and
@@ -915,28 +944,9 @@ function outline(corners: { xs: Float64Array; depths: Float64Array }): { x: numb
     type Corner = { x: number; depth: number };
     const { xs, depths } = corners;
     const count = xs.length;
-    // the extremes along eight directions in the plane (x, depth, and both diagonals), in turning order: an octagon
-    // on the outline. Four (x and depth alone) left a quarter of a round drawing's corners outside, all sorted below.
-    // Each direction is (weight of x, weight of depth), toward the smallest x * wx + depth * wd.
-    const directions = [1, 0, 1, 1, 0, 1, -1, 1, -1, 0, -1, -1, 0, -1, 1, -1];
-    const extreme = new Int32Array(8);
-    const best = new Float64Array(8);
-    for (let k = 0; k < 8; k++) {
-        best[k] = xs[0] * directions[2 * k] + depths[0] * directions[2 * k + 1];
-    }
-    for (let i = 1; i < count; i++) {
-        for (let k = 0; k < 8; k++) {
-            const reach = xs[i] * directions[2 * k] + depths[i] * directions[2 * k + 1];
-            if (reach < best[k]) {
-                best[k] = reach;
-                extreme[k] = i;
-            }
-        }
-    }
-
-    // drop every corner strictly inside that octagon first, which is nearly all of them, so the sort below sees few
-    // (Akl and Toussaint); a corner that is the extreme two ways is one vertex, else no corner is strictly inside
-    const ring = [...extreme].filter((v, k, all) => v !== all[(k + 7) % 8]);
+    // drop every corner strictly inside the octagon of the extremes first, which is nearly all of them, so the sort
+    // below sees few (Akl and Toussaint)
+    const ring = octagon(xs, depths);
     const ringX = ring.map((i) => xs[i]);
     const ringDepth = ring.map((i) => depths[i]);
     const turnAt = (ox: number, oz: number, ax: number, az: number, bx: number, bz: number): number =>

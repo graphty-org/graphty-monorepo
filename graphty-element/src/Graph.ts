@@ -3024,6 +3024,9 @@ export class Graph implements GraphContext {
             setDrawing(true);
             this.settleRestart(null);
             this.eventManager.emit("render-restored", { renderer } satisfies Omit<RenderRestoredEvent, "type">);
+            // The renderer has a working device again, so the GPU is back: the moment to try once more an
+            // accelerator whose reattach failed while it was gone (issue #9987).
+            this.acceleration.deviceAvailable();
         });
         const { signal } = this.#teardown;
         // The browser tried to give a WebGL context back and could not make one.

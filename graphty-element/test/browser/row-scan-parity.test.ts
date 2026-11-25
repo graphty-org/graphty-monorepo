@@ -289,7 +289,7 @@ describe("the row scan on each kind", () => {
         );
     });
 
-    it("gives an exact tie to the lower row, as scene.pick does once a restyle has rebuilt its mesh", async () => {
+    it("gives an exact tie to the lower row, even where scene.meshes lists the higher row first", async () => {
         const element = await mounted("2d");
         await drawn(element, { "node.shape": "rectangle" }, 3);
         const { graph } = element;
@@ -314,12 +314,21 @@ describe("the row scan on each kind", () => {
         }
 
         await settled(element);
+        // The element keeps its instances in row order, so list the two tied meshes out of it: a scan
+        // that broke the tie by scene.meshes order would now give it to the higher row, as scene.pick does.
+        const { meshes } = graph.scene;
+        const at = (row: number): number =>
+            meshes.findIndex(
+                (mesh) => (mesh.metadata as { graphNode?: { index: number } } | null)?.graphNode?.index === row,
+            );
+        const [low, high] = [at(NODES - 2), at(NODES - 1)];
+        [meshes[low], meshes[high]] = [meshes[high], meshes[low]];
         const screen = graph.worldToScreen(graph.getNode(lower)?.drawnWorldPosition ?? Vector3.Zero());
         const scaling = graph.scene.getEngine().getHardwareScalingLevel();
         const x = screen.x * scaling;
         const y = screen.y * scaling;
         assert.strictEqual(rowScanOf(graph.scene)?.shapeRayHit(x, y)?.row, NODES - 2);
-        assert.strictEqual(babylonNodeId(element, x, y), lower, "scene.pick follows mesh order");
+        assert.strictEqual(babylonNodeId(element, x, y), `n${String(NODES - 1)}`, "scene.pick follows mesh order");
         assert.strictEqual(pickNodeId(graph.scene, x, y), lower, "a press follows the scan");
     });
 

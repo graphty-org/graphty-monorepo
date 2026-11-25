@@ -2,6 +2,7 @@ import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
 import { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh.js";
 import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import type { Scene } from "@babylonjs/core/scene.js";
+import { INVALID_INDEX } from "@graphty/graph-format";
 
 /** What an instance draws: a node, whose row may change as rows are renumbered. */
 interface RowOwner {
@@ -34,6 +35,11 @@ export function drawInRowOrder(mesh: AbstractMesh, owner: RowOwner): void {
     }
 
     owners.set(mesh, owner);
+    // A node gets its row after its mesh is built; it is listed again when it does (`placeNodeRow`).
+    if (owner.index === INVALID_INDEX) {
+        return;
+    }
+
     const scene = mesh.getScene();
     const last = lastRow.get(mesh.sourceMesh) ?? -1;
     if (owner.index < last) {

@@ -555,7 +555,12 @@ export class Node implements ModelUser {
 
     static {
         writeNodeRow = (node, row) => {
+            const placed = node.row === INVALID_INDEX && row !== INVALID_INDEX;
             node.index = row;
+            // The constructor built the mesh before the node had a row; list it by the row it now has.
+            if (placed && node.#mesh !== null) {
+                drawInRowOrder(node.#mesh, node);
+            }
         };
         writeRecord = (node, record) => {
             node.#record = frozenRecord(record);

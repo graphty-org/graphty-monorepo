@@ -174,6 +174,37 @@ describe("overlapping translucent looks", () => {
             assertSameFrame(a, b, `the paths blend the translucent looks differently, ${step}`);
         }
     });
+    it("keep a look's place among the others in 2D once the only node wearing it leaves it and comes back", async () => {
+        for (const path of ["objects", "batched"] as const) {
+            const element = await mount(path, "2d", ["ellipse", "rectangle"]);
+            // node 1 is the only rectangle left, and the diamonds are a look made after it
+            await element.session.styles.add({
+                name: "odd nodes but 1 as diamonds",
+                target: "node",
+                selector: { match: "ids", nodes: [3, 5, 7, 9, 11] },
+                set: { "node.shape": "diamond" },
+            });
+            await settle(element);
+            const before = await readCanvas(element.graph);
+            const away = await element.session.styles.add({
+                name: "node 1 as an ellipse",
+                target: "node",
+                selector: { match: "ids", nodes: [1] },
+                set: { "node.shape": "ellipse" },
+            });
+            await settle(element);
+            await element.session.styles.remove(away.id);
+            await settle(element);
+            assert.isAbove(ink(before), 5000, "the frame holds the graph");
+            assertSameFrame(
+                before,
+                await readCanvas(element.graph),
+                `the rectangle blends in another place on ${path}`,
+            );
+            document.body.replaceChildren();
+        }
+    });
+
     it("blend in row order on both paths in 2D after a node is restyled into a look its neighbors wear", async () => {
         const frames: CanvasFrame[] = [];
         for (const path of ["objects", "batched"] as const) {

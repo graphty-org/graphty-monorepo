@@ -547,6 +547,40 @@ describe("source-steps drafts: what matches can make", () => {
         session.dispose();
     });
 
+    it("reads as rows the side with no nodes of its own, then the one loaded later", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        const first = await session.data.stage(FILES.suppliersA, { key: "id" });
+        const second = await session.data.stage(FILES.suppliersB, { key: "id" });
+        const match = { a: { source: first, field: "duns" }, b: { source: second, field: "duns" } };
+        const rowsOf = (): unknown => {
+            const draft = session.data.draft();
+            const { rowsOf: side } = draft.joinRows({ a: { source: first }, b: { source: second }, match });
+            draft.dispose();
+            return side;
+        };
+        assert.strictEqual(rowsOf(), "b", "both wait: the one loaded later");
+        await session.data.add(second);
+        assert.strictEqual(rowsOf(), "a", "the one that waits, though it was loaded first");
+        session.dispose();
+    });
+
+    it("never chains through a column the third source has of its own", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        await session.data.import(csv("n.csv", "id,symbol", "N1,x", "N2,y"), { key: "id" });
+        const map = await session.data.stage(FILES.map, {});
+        const expression = await session.data.stage(FILES.expression, { key: "symbol" });
+        const matches = [
+            { a: { source: session.data.sources()[0].key, field: "id" }, b: { source: map, field: "protein" } },
+            { a: { source: map, field: "symbol" }, b: { source: expression, field: "symbol" } },
+        ];
+        const codes = session.data
+            .draft()
+            .joinOutcomes({ matches })
+            .outcomes.map((each) => each.code);
+        assert.deepStrictEqual(codes, ["edge", "middle"], "its own symbol would stand in for the map's");
+        session.dispose();
+    });
+
     it("suggests a column an earlier merge brought", async () => {
         const { session, draft, key } = await opened(["accounts"], ["ids", "watch"]);
         draft.merge({

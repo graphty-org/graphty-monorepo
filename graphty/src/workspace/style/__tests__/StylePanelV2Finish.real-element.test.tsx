@@ -30,10 +30,11 @@ function dimmed(element: Element): string | null {
  * @param name - the choice.
  */
 async function pickShading(row: HTMLElement, name: string): Promise<void> {
-    const input = row.querySelector<HTMLInputElement>('.ws-row[data-line="node.flat"] input');
-    assert.isNotNull(input, "the Shading list");
-    await userEvent.click(input);
-    await userEvent.click(await screen.findByRole("option", { name }));
+    // Three choices: grouped buttons (design "Input rules": fewer than six options).
+    const line = row.querySelector<HTMLElement>('.ws-row[data-line="node.flat"]');
+    assert.isNotNull(line, "the Shading line");
+    const choice = within(line).getByRole("radio", { name });
+    await userEvent.click(line.querySelector<HTMLElement>(`label[for="${choice.id}"]`) ?? choice);
 }
 
 describe("Style panel v2's Finish", () => {

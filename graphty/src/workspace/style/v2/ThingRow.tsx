@@ -306,10 +306,10 @@ function MainLine(props: Readonly<MainLineProps>): React.JSX.Element {
     // A rubric line drawing the row dims itself.
     const dimmed =
         props.replacing === undefined && props.row === undefined ? dimOf(props.ctx, props.main.channel) : undefined;
-    return dimmed === undefined ? (
-        <MainControl {...props} />
-    ) : (
-        <div className="ws-dim" data-dimmed="" title={dimmed}>
+    // The same box dimmed or not, so the row's control (and a pop-over it holds open) is never drawn anew when a
+    // value elsewhere starts or stops drawing it (a Size pop-over's Fit to label).
+    return (
+        <div className="ws-dim" data-dimmed={dimmed === undefined ? undefined : ""} title={dimmed}>
             <MainControl {...props} />
         </div>
     );

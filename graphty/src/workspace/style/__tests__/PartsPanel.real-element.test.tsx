@@ -489,6 +489,11 @@ describe("the Model line, with node models on", () => {
         const tab = await openStyle("Key");
         const field = await within(tab).findByRole<HTMLInputElement>("textbox", { name: "Node model" });
         assert.equal(field.value, "wedge");
-        assert.equal(field.title, record.id, "the id stays in its title");
+        // The field's tooltip sits on its outer box (compact-mantine's PanelField), so the name is read once.
+        assert.equal(
+            field.closest('[data-testid="panel-field"]')?.getAttribute("title"),
+            record.id,
+            "the id stays in its title",
+        );
     });
 });

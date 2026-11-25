@@ -5100,9 +5100,13 @@ export class Node implements ModelUser {
         // Its animation starts on the first frame at rest with no style paint left to draw.
         oweLabelAnimations(scene);
         labelOptions.glyphs = this.context.getStyles().config.behavior.labels.labelText === "glyphs";
-        const label = Node.passThrough(new RichTextLabel(scene, labelOptions));
+        const created = new RichTextLabel(scene, labelOptions);
         // The plane lets the pointer through, so a click on a name drawn over its node reaches the
-        // node; `pickable` makes the plane itself answer this node's id.
+        // node; `pickable` makes the plane itself answer this node's id. A card -- a label with a
+        // close button, or one drawn over the whole graph -- still takes the click, as the reader
+        // sees it on top: a click on it reaches no node behind it (`Graph.handledOnCloseLabel`).
+        const card = styleConfig.label?.closeButton === true || styleConfig.label?.onTop === true;
+        const label = card ? created : Node.passThrough(created);
         if (styleConfig.label?.pickable === true && label.labelMesh) {
             label.labelMesh.isPickable = true;
             label.labelMesh.metadata = { nodeId: this.id };

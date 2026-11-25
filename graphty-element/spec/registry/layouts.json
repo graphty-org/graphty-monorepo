@@ -897,7 +897,7 @@
                 {
                     "name": "gazetteer",
                     "type": "unknown",
-                    "default": "https://graphty.app/data/gazetteer/v1/"
+                    "default": true
                 },
                 {
                     "name": "flatNodeScale",

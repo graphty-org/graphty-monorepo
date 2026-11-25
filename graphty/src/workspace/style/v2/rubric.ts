@@ -483,7 +483,7 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
     chart: {
         // Five kinds as grouped icon buttons (140 px): the row holds the data picker, so the Kind is the pop-over's
         // first line in both modes (tmp/entries-first/spec.md 2.3), where a full-width line has room.
-        row: { channel: "node.chartKind", name: "Kind", rule: "R8" },
+        row: { channel: "node.chartKind", name: "Kind", rule: "R8f" },
         rowOwns: ["node.chartValues", "node.chartColors"],
         main: [{ channel: "node.chartLineWidth", name: "Line width" }],
         groups: [

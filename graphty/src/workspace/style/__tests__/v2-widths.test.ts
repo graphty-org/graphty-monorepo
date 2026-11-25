@@ -9,6 +9,7 @@
 import { channelDescriptor, LABEL_STYLE_FIELDS } from "@graphty/graphty-element/catalog";
 import { assert, describe, it } from "vitest";
 
+import { DATA_OF } from "../v2/dataEntries";
 import {
     LABEL_COVERED,
     LABEL_OPTION_NAMES,
@@ -34,9 +35,15 @@ const RUBRICS = [
     ...Object.entries(EDGE_RUBRIC).map(([thing, rubric]) => [`edge:${thing}`, rubric] as const),
 ];
 
+/** The things whose row is a data picker, by "node:thing". */
+const DATA_ROWS = Object.fromEntries(Object.keys(DATA_OF).map((thing) => [`node:${thing}`, true]));
+
 /** Every line of every rubric, with where it sits. */
 const LINES = RUBRICS.flatMap(([thing, rubric]) => [
-    ...(rubric.row === undefined ? [] : [{ thing, line: rubric.row, place: "panel" as const }]),
+    // A node's Pie, Chart or Record row holds its data picker (DataRow.tsx): its row line is its pop-over's first.
+    ...(rubric.row === undefined
+        ? []
+        : [{ thing, line: rubric.row, place: thing in DATA_ROWS ? ("popover" as const) : ("panel" as const) }]),
     ...(rubric.common ?? []).map((line) => ({ thing, line, place: "panel" as const })),
     ...[...rubric.main, ...(rubric.groups ?? []).flatMap((group) => group.lines)].map((line) => ({
         thing,

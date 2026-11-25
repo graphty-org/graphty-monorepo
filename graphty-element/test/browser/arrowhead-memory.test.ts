@@ -4,9 +4,9 @@
  * Giving every edge of a 1,000,000-node graph an arrowhead crashed the renderer after 45-50 seconds.
  * What an arrowed edge costs comes in two parts, and this file counts both on each render path:
  *
- * - On batched, an arrowed edge is drawn as an `Edge` object of its own (about 1.4-1.8 KB of JS heap
- *   each), so how many there are is what bounds that memory: at most `limits.objectEdges`, past which
- *   an edge is drawn as a plain line with `W_OBJECT_CAP`.
+ * - On batched, an arrowed edge is drawn from the row tables with its head pulled too
+ *   (`ArrowCapBatch.setPulled`), so arrowheads build no `Edge` object (about 1.4-1.8 KB of JS heap
+ *   each) and `limits.objectEdges` never comes into it.
  * - On both paths, each cap is a slot in an `ArrowCapBatch`: a 4x4 matrix and the billboard values,
  *   26 floats (104 bytes) in Float32Arrays. Those are ArrayBuffers outside the JS heap, so
  *   `performance.memory` never sees them: they are counted here from the batches themselves. A batch
@@ -48,7 +48,7 @@ describe("arrowheads on every edge, counted", () => {
                 "arrowed edges drawn as objects stay within objectEdges",
             );
             if (path === "batched") {
-                assert.strictEqual(objectEdges, edges, "every arrowed edge is an object on batched");
+                assert.strictEqual(objectEdges, 0, "no arrowed edge is an object on batched");
             }
         });
     }

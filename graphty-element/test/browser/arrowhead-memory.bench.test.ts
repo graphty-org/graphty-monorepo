@@ -18,9 +18,9 @@
  *
  * A 1,000,000-node graph cannot reach the objects path: it is refused there with `E_TOO_LARGE`
  * (`DEFAULT_LIMITS.renderCeiling`), so on that path the largest arrowed graph is 100,000 nodes and
- * 1,000,000 edges. On batched an arrowed edge is still an `Edge` of its own, the whole of its cost,
- * and `limits.objectEdges` (1,000,000 by default) bounds how many: past it an edge is drawn as a
- * plain line and `limits-warning` says so with `W_OBJECT_CAP`.
+ * 1,000,000 edges. When the batched rows above were measured, an arrowed edge there was an `Edge` of
+ * its own, bounded by `limits.objectEdges`; batched now draws the head from the row tables
+ * (`ArrowCapBatch.setPulled`), so an arrowed edge builds no `Edge` and costs less than those rows.
  *
  * WHAT IS ASSERTED. The bytes arrowheads add per edge, at 50,000 edges, stay under a bound that
  * keeps the largest arrowed graph each path accepts within three quarters of that 4,096 MB heap

@@ -6,6 +6,7 @@
  */
 
 import type { EdgeId, NodeId } from "../../../catalog/types";
+import type { SourceDraftMarkCounts } from "../../types";
 import { nodeId } from "./build";
 import type { DraftMarks, DraftState } from "./draft";
 import { drillElements } from "./drill";
@@ -125,21 +126,7 @@ export function untouchedNodes(state: DraftState, marks: DraftMarks): Set<string
  * @param marks - What the commit does to each element.
  * @returns The counts.
  */
-export function markCounts(
-    state: DraftState,
-    marks: DraftMarks,
-): {
-    readonly merged: number;
-    readonly new: number;
-    readonly untouched: number;
-    readonly nodes: {
-        readonly merged: number;
-        readonly new: number;
-        readonly untouched: number;
-        readonly removed: number;
-    };
-    readonly edges: { readonly merged: number; readonly new: number; readonly removed: number };
-} {
+export function markCounts(state: DraftState, marks: DraftMarks): SourceDraftMarkCounts {
     const count = (all: ReadonlyMap<string, string>, mark: string): number =>
         [...all.values()].filter((each) => each === mark).length;
     const merged = count(marks.nodes, "merged");

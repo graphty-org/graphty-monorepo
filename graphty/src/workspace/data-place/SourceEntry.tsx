@@ -121,6 +121,100 @@ function MoreMenu({ name, children }: Readonly<{ name: string; children: React.R
 }
 
 /**
+ * Renaming a source in its entry.
+ * @param source - the source
+ * @returns whether a rename is under way, and what starts and ends it
+ */
+function useRename(source: LoadedSource): {
+    readonly renaming: boolean;
+    readonly start: () => void;
+    readonly done: (next: string | null) => void;
+} {
+    const { session, store } = useWorkspace();
+    // on reload: fresh: in flight: a rename under way
+    const [renaming, setRenaming] = useState(false);
+    return {
+        renaming,
+        start: () => {
+            setRenaming(true);
+        },
+        done: (next) => {
+            setRenaming(false);
+            if (next === null || next.trim() === "" || next === sourceName(source) || session === null) {
+                return;
+            }
+            session.data.renameSource(next.trim(), source.key).catch(() => {
+                store.set({ notice: { message: "Not renamed" } });
+            });
+        },
+    };
+}
+
+/**
+ * What every source entry is: a list item with its menu by right-click, whose header F2 or a
+ * double-click renames, drawn as the rename box while it does.
+ * @param props - Component props
+ * @param props.name - the source's name
+ * @param props.rename - its rename
+ * @param props.attributes - the item's data attributes
+ * @param props.menuItems - its menu
+ * @param props.children - its section
+ * @returns the entry
+ */
+function EntryFrame({
+    name,
+    rename,
+    attributes,
+    menuItems,
+    children,
+}: Readonly<{
+    name: string;
+    rename: ReturnType<typeof useRename>;
+    attributes: Readonly<Record<`data-${string}`, string | undefined>>;
+    menuItems: React.ReactNode;
+    children: React.ReactNode;
+}>): React.JSX.Element {
+    return (
+        <ContextMenu
+            target={
+                <div // eslint-disable-line jsx-a11y/prefer-tag-over-role, jsx-a11y/no-noninteractive-element-interactions -- a <ul>/<li> would bring list styling the entries do not use; F2 on the entry's header renames it, as its menu shows
+                    className="dp-source-entry"
+                    {...attributes}
+                    role="listitem"
+                    aria-label={name}
+                    onKeyDown={(event) => {
+                        if (event.key === "F2" && (event.target as HTMLElement).matches("[aria-expanded]")) {
+                            event.preventDefault();
+                            rename.start();
+                        }
+                    }}
+                    // A double-click on the header renames the source, as in the layer tree.
+                    onDoubleClick={(event) => {
+                        if ((event.target as HTMLElement).closest("[aria-expanded]") !== null) {
+                            rename.start();
+                        }
+                    }}
+                >
+                    {rename.renaming ? (
+                        <RenameInput
+                            name={name}
+                            onDone={rename.done}
+                            label="Source name"
+                            container=".dp-source-entry"
+                            className="dp-rename"
+                        />
+                    ) : (
+                        children
+                    )}
+                </div>
+            }
+        >
+            {menuItems}
+        </ContextMenu>
+    );
+}
+
+/**
  * The summary a closed entry shows after its name: its node and edge counts ("13 nodes, 18
  * edges"). How a joined table matched is in the inspector's details, not here: the sidebar holds no
  * join information.
@@ -160,10 +254,9 @@ export function SourceEntry({
     primary: boolean;
 }>): React.JSX.Element {
     const workspace = useWorkspace();
-    const { session, registry, store } = workspace;
+    const { session, registry } = workspace;
     useSessionEvents(session, TIME_FIELD_EVENTS);
-    // on reload: fresh: in flight: a rename under way
-    const [renaming, setRenaming] = useState(false);
+    const renamed = useRename(source);
     // The hover action still running (Load more, Refresh), drawn busy until it settles.
     // on reload: fresh: in flight: a Load more or Refresh under way
     const [busy, setBusy] = useState<string | null>(null);
@@ -182,20 +275,9 @@ export function SourceEntry({
             id: "source.rename",
             label: "Rename",
             order: RENAME_ORDER,
-            run: () => {
-                setRenaming(true);
-            },
+            run: renamed.start,
         },
     ].sort((a, b) => a.order - b.order);
-    const rename = (next: string | null): void => {
-        setRenaming(false);
-        if (next === null || next.trim() === "" || next === name || session === null) {
-            return;
-        }
-        session.data.renameSource(next.trim(), source.key).catch(() => {
-            store.set({ notice: { message: "Not renamed" } });
-        });
-    };
     const menuItems = items.map((item) => (
         <CommandMenuItem
             key={item.id}
@@ -244,54 +326,28 @@ export function SourceEntry({
     );
     const summary = summaryOf(source);
     return (
-        <ContextMenu
-            target={
-                <div // eslint-disable-line jsx-a11y/prefer-tag-over-role, jsx-a11y/no-noninteractive-element-interactions -- a <ul>/<li> would bring list styling the entries do not use; F2 on the entry's header renames it, as its menu shows
-                    className="dp-source-entry"
-                    data-source={source.key}
-                    data-selected={selected ? "" : undefined}
-                    data-busy={busy === null ? undefined : ""}
-                    role="listitem"
-                    aria-label={name}
-                    onKeyDown={(event) => {
-                        if (event.key === "F2" && (event.target as HTMLElement).matches("[aria-expanded]")) {
-                            event.preventDefault();
-                            setRenaming(true);
-                        }
-                    }}
-                    // A double-click on the header renames the source, as in the layer tree.
-                    onDoubleClick={(event) => {
-                        if ((event.target as HTMLElement).closest("[aria-expanded]") !== null) {
-                            setRenaming(true);
-                        }
-                    }}
-                >
-                    {renaming ? (
-                        <RenameInput
-                            name={name}
-                            onDone={rename}
-                            label="Source name"
-                            container=".dp-source-entry"
-                            className="dp-rename"
-                        />
-                    ) : (
-                        <ControlSection
-                            label={name}
-                            headingLevel={3}
-                            {...(summary === undefined ? {} : { summary })}
-                            actions={actions}
-                            opened={opened}
-                            onOpenChange={onOpenChange}
-                        >
-                            {session === null ? null : <SourceFields session={session} source={source} />}
-                            <FiltersSection source={source.key} primary={primary} headingLevel={4} />
-                        </ControlSection>
-                    )}
-                </div>
-            }
+        <EntryFrame
+            name={name}
+            rename={renamed}
+            attributes={{
+                "data-source": source.key,
+                "data-selected": selected ? "" : undefined,
+                "data-busy": busy === null ? undefined : "",
+            }}
+            menuItems={menuItems}
         >
-            {menuItems}
-        </ContextMenu>
+            <ControlSection
+                label={name}
+                headingLevel={3}
+                {...(summary === undefined ? {} : { summary })}
+                actions={actions}
+                opened={opened}
+                onOpenChange={onOpenChange}
+            >
+                {session === null ? null : <SourceFields session={session} source={source} />}
+                <FiltersSection source={source.key} primary={primary} headingLevel={4} />
+            </ControlSection>
+        </EntryFrame>
     );
 }
 
@@ -319,20 +375,10 @@ export function StagedEntry({
     onOpenChange: (open: boolean) => void;
 }>): React.JSX.Element | null {
     const { session, store } = useWorkspace();
-    // on reload: fresh: in flight: a rename under way
-    const [renaming, setRenaming] = useState(false);
+    const renamed = useRename(source);
     if (session === null) {
         return null;
     }
-    const rename = (next: string | null): void => {
-        setRenaming(false);
-        if (next === null || next.trim() === "" || next === name) {
-            return;
-        }
-        session.data.renameSource(next.trim(), source.key).catch(() => {
-            store.set({ notice: { message: "Not renamed" } });
-        });
-    };
     const menuItems = (
         <>
             <CommandMenuItem
@@ -340,9 +386,7 @@ export function StagedEntry({
                 label="Rename"
                 shortcut={ITEM_KEYS["source.rename"]}
                 reason={null}
-                onRun={() => {
-                    setRenaming(true);
-                }}
+                onRun={renamed.start}
             />
             <CommandMenuItem
                 icon={ITEM_GLYPHS["source.remove"]}
@@ -361,56 +405,33 @@ export function StagedEntry({
         .summary()
         .tables.reduce((sum, table) => sum + table.rows, 0);
     return (
-        <ContextMenu
-            target={
-                <div // eslint-disable-line jsx-a11y/prefer-tag-over-role, jsx-a11y/no-noninteractive-element-interactions -- a <ul>/<li> would bring list styling the entries do not use; F2 on the entry's header renames it, as its menu shows
-                    className="dp-source-entry"
-                    data-staged={source.key}
-                    data-selected={selected ? "" : undefined}
-                    role="listitem"
-                    aria-label={name}
-                    onKeyDown={(event) => {
-                        if (event.key === "F2" && (event.target as HTMLElement).matches("[aria-expanded]")) {
-                            event.preventDefault();
-                            setRenaming(true);
-                        }
-                    }}
-                >
-                    {renaming ? (
-                        <RenameInput
-                            name={name}
-                            onDone={rename}
-                            label="Source name"
-                            container=".dp-source-entry"
-                            className="dp-rename"
-                        />
-                    ) : (
-                        <ControlSection
-                            label={name}
-                            headingLevel={3}
-                            summary={`${formatNumber(rows)} ${rows === 1 ? "row" : "rows"}`}
-                            opened={opened}
-                            onOpenChange={onOpenChange}
-                            actions={
-                                <span className="dp-source-actions">
-                                    <MoreMenu name={name}>{menuItems}</MoreMenu>
-                                </span>
-                            }
-                        >
-                            <StagedRows
-                                session={session}
-                                reader={session.data}
-                                source={source}
-                                write={(patch) => {
-                                    void remap(store, session, source.key, patch);
-                                }}
-                            />
-                        </ControlSection>
-                    )}
-                </div>
-            }
+        <EntryFrame
+            name={name}
+            rename={renamed}
+            attributes={{ "data-staged": source.key, "data-selected": selected ? "" : undefined }}
+            menuItems={menuItems}
         >
-            {menuItems}
-        </ContextMenu>
+            <ControlSection
+                label={name}
+                headingLevel={3}
+                summary={`${formatNumber(rows)} ${rows === 1 ? "row" : "rows"}`}
+                opened={opened}
+                onOpenChange={onOpenChange}
+                actions={
+                    <span className="dp-source-actions">
+                        <MoreMenu name={name}>{menuItems}</MoreMenu>
+                    </span>
+                }
+            >
+                <StagedRows
+                    session={session}
+                    reader={session.data}
+                    source={source}
+                    write={(patch) => {
+                        void remap(store, session, source.key, patch);
+                    }}
+                />
+            </ControlSection>
+        </EntryFrame>
     );
 }

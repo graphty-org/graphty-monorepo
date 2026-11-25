@@ -162,3 +162,50 @@ describe("the url source in a session", () => {
         });
     });
 });
+
+describe("a CSV column of codes", () => {
+    const ROWS = ["id,duns,rating", "V1,081676307,5", "V2,081 781 036,n/a", "V3,500000000,2", ""].join("\n");
+
+    it("stays text on every row of a file or a URL, so a join's column is one type; other columns type each cell", async () => {
+        const url = `${HOST}/data/vendors.csv`;
+        for (const source of [
+            { source: "url", config: { url } },
+            { type: "csv", config: { data: ROWS }, name: "vendors.csv" },
+        ]) {
+            for (const features of [[], ["source-steps" as const]]) {
+                const session = createGraphSession({ features });
+                await session.data.import(source, { fetch: replayFetch([{ url, body: ROWS }]) });
+                const nodes = session.data.nodes();
+                assert.deepStrictEqual(
+                    nodes.map((node) => node.duns),
+                    ["081676307", "081 781 036", "500000000"],
+                );
+                if (!("source" in source)) {
+                    assert.deepStrictEqual(
+                        nodes.map((node) => node.rating),
+                        [5, "n/a", 2],
+                    );
+                }
+                session.dispose();
+            }
+        }
+    });
+
+    it("is one type once merged with a file whose codes are all led by a zero", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        await session.data.import(
+            { type: "csv", config: { data: "id,duns\nS1,081676307\nS2,081571578\n" }, name: "a.csv" },
+            { key: "id" },
+        );
+        const b = await session.data.stage({ type: "csv", config: { data: ROWS }, name: "b.csv" }, { key: "id" });
+        const draft = session.data.draft();
+        draft.merge({
+            from: { source: b, field: "duns" },
+            into: { source: session.data.sources()[0].key, field: "duns" },
+            ignoreSpaces: true,
+        });
+        await draft.commit();
+        assert.deepStrictEqual([...new Set(session.data.nodes().map((node) => typeof node.duns))], ["string"]);
+        session.dispose();
+    });
+});

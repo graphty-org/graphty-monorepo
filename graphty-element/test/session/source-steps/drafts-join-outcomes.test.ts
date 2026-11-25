@@ -572,3 +572,53 @@ describe("source-steps drafts: a join's rows that are nodes already", () => {
         session.dispose();
     });
 });
+
+describe("source-steps: removing the source a join went into", () => {
+    const joinedWatch = async (unmatchedFrom: "keep" | "drop"): Promise<{ session: GraphSession; watch: string }> => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        await session.data.import(FILES.contacts, { key: "contact" });
+        await session.data.import(FILES.buildings, { key: "building", mode: "merge" });
+        const watch = await session.data.stage(FILES.watch, { key: "value" });
+        const draft = session.data.draft();
+        const into = { source: session.data.sources()[0].key, field: "phone" };
+        draft.merge({ from: { source: watch, field: "value" }, into, unmatchedFrom });
+        await draft.commit();
+        return { session, watch };
+    };
+
+    it("puts a source whose rows it skipped back to waiting, none of them a node", async () => {
+        const { session, watch } = await joinedWatch("drop");
+        assert.lengthOf(session.data.nodes(), 4, "two contacts and two buildings");
+        const draft = session.data.draft();
+        draft.removeSource(session.data.sources()[0].key, { adds: "remove" });
+        await draft.commit();
+        assert.sameMembers(
+            session.data.nodes().map((node) => node.id),
+            ["D1", "D2"],
+        );
+        assert.include(
+            session.data.staged().map((each) => each.key),
+            watch,
+        );
+        await session.undo();
+        assert.lengthOf(session.data.nodes(), 4);
+        session.dispose();
+    });
+
+    it("leaves the rows a join kept as nodes, and by default the skipped ones too", async () => {
+        for (const [unmatchedFrom, adds] of [
+            ["keep", "remove"],
+            ["drop", "keep"],
+        ] as const) {
+            const { session } = await joinedWatch(unmatchedFrom);
+            const draft = session.data.draft();
+            draft.removeSource(session.data.sources()[0].key, { adds });
+            await draft.commit();
+            assert.includeMembers(
+                session.data.nodes().map((node) => String(node.id)),
+                ["d1", "404"],
+            );
+            session.dispose();
+        }
+    });
+});

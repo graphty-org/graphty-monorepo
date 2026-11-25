@@ -7,7 +7,8 @@
 
 import { assert, describe, it } from "vitest";
 
-import type { GraphSession } from "../../../src/session";
+import { createGraphSession, type GraphSession } from "../../../src/session";
+import { conditionFields } from "../../../src/session/styles/conditions";
 import { clashing, full, phase1, phase2 } from "./scenario";
 
 /**
@@ -153,6 +154,73 @@ describe("source-steps: a source's filter", () => {
         const { nodes } = await shown(session);
         assert.isFalse(nodes.has("D-1"), "T's device nodes are judged and hidden");
         assert.isTrue(nodes.has("A-1"));
+        session.dispose();
+    });
+});
+
+describe("a filter made for a source that waits", () => {
+    const csv = (name: string, ...data: string[]): { type: string; config: { data: string }; name: string } => ({
+        type: "csv",
+        config: { data: data.join("\n") },
+        name,
+    });
+
+    it("lists the waiting source's own fields, and counts over its rows until it is added", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        await session.data.import(csv("people.csv", "id,name,age", "P1,Ann,30", "P2,Bo,41"), { key: "id" });
+        const rooms = await session.data.stage(
+            csv("rooms.csv", "room,floor,wing", "R1,1,east", "R2,2,east", "R3,3,west"),
+            { key: "room" },
+        );
+        const fields = conditionFields(session, "node", { source: rooms }).map((each) => [each.path, each.kind]);
+        assert.deepInclude(fields, ["data.floor", "number"]);
+        assert.deepInclude(fields, ["data.wing", "category"]);
+        assert.notInclude(
+            fields.map(([path]) => path),
+            "data.age",
+        );
+        assert.deepEqual(
+            session.data.readableValues({ source: rooms }).find((value) => value.path === "data.floor")?.range,
+            { min: 1, max: 3 },
+        );
+        const count = (): unknown => session.visibility.conditionCounts()[0]?.nodes;
+        await session.visibility.addCondition({
+            id: "east",
+            effect: "keep",
+            on: true,
+            source: rooms,
+            rule: { kind: "categories", attribute: "data.wing", values: ["east"] },
+        });
+        assert.deepEqual(count(), { matched: 2, total: 3, shown: 0 }, "two of three rooms, none drawn yet");
+        assert.strictEqual(session.visibility.summary.visibleNodes, 2, "the people stay");
+        assert.deepInclude(session.visibility.summaryOf(rooms), { visibleNodes: 2, totalNodes: 3 });
+        const draft = session.visibility.draft({
+            effect: "keep",
+            source: rooms,
+            rule: { kind: "range", attribute: "data.floor", min: 2, max: 3 },
+        });
+        assert.deepEqual(draft.counts().nodes, { matched: 2, total: 3, shown: 0 });
+        draft.cancel();
+        await session.data.add(rooms);
+        assert.deepEqual(count(), { matched: 2, total: 3, shown: 2 }, "added, it judges them");
+        session.dispose();
+    });
+
+    it("counts a waiting edge list's rows as edges, and follows its Rows are", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        const links = await session.data.stage(csv("links.csv", "from,to,kind", "a,b,x", "b,c,y", "c,a,x"), {
+            edges: { from: { column: "from" }, to: { column: "to" } },
+        });
+        await session.visibility.addCondition({
+            id: "x",
+            effect: "keep",
+            on: true,
+            source: links,
+            rule: { kind: "categories", attribute: "data.kind", values: ["x"] },
+        });
+        assert.deepEqual(session.visibility.conditionCounts()[0]?.edges, { matched: 2, total: 3, shown: 0 });
+        await session.data.setMapping(links, { rows: "nodes" });
+        assert.deepEqual(session.visibility.conditionCounts()[0]?.nodes, { matched: 2, total: 3, shown: 0 });
         session.dispose();
     });
 });

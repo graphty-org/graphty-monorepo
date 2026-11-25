@@ -532,7 +532,7 @@ function needsNodesOf(step: Step, value: SourceSteps, add: Step): boolean {
  * @param value - The value without it.
  * @returns The value.
  */
-function withoutAddsOf(before: SourceSteps, gone: Step, value: SourceSteps): SourceSteps {
+export function withoutAddsOf(before: SourceSteps, gone: Step, value: SourceSteps): SourceSteps {
     const made = new Set(
         before.steps.flatMap((add) =>
             add.op === "join.add" && add.joined === true && needsNodesOf(gone, before, add) ? [add.source] : [],

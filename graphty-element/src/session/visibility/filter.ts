@@ -365,6 +365,16 @@ export interface FilterSources {
      */
     readonly own?: (source: SourceKey) => FilterValueSource | undefined;
     /**
+     * Under the source-steps experiment, a staged source's rows as a graph of their own, which a
+     * condition made for it is counted over while it waits. Absent, or undefined for a source that is
+     * not staged, a condition is counted over the graph.
+     * @param source - The source.
+     * @returns Its graph and its elements' values, or undefined.
+     */
+    readonly waiting?: (
+        source: SourceKey,
+    ) => { readonly graph: GraphSnapshot; readonly values: FilterValueSource } | undefined;
+    /**
      * Whether the source-steps experiment is on. Under it, a `source` leaf with `side: "edges"`
      * also keeps the ends of the listed sources' edges, or for sources that supplied no edges,
      * their nodes and the edges between them (design 8.6). Absent reads off.

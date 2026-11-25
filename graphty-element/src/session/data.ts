@@ -289,6 +289,7 @@ import {
 } from "./sources/steps/refresh";
 import { stepsMemberFields } from "./sources/steps/saved";
 import type { BuildResult, BuiltEdge, BuiltNode, CopyTables, Row } from "./sources/steps/types";
+import { waitingColumns, type WaitingGraph, waitingGraph } from "./sources/steps/waiting";
 import type {
     CollapseResult,
     ExpandOptions,
@@ -4608,6 +4609,16 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * Under the source-steps experiment, a staged source as a graph of its own: what a filter made for
+     * it counts while it waits.
+     * @param source - The source's id.
+     * @returns It, or undefined for a source that is not staged, or with the experiment off.
+     */
+    waitingGraph(source: string): WaitingGraph | undefined {
+        return this.stepsOn() ? waitingGraph(this.stepsValue(), this.stepsCopies(), source) : undefined;
+    }
+
+    /**
      * Which halves of the source-steps build carry a value at a readable path, for the rule and
      * filter readers; none with the experiment off.
      * @param path - A readable path, such as `graphty.type`.
@@ -7801,11 +7812,23 @@ export class SessionData implements SessionDataApi {
     /**
      * Every value a rule or a binding can read: the node id, the data columns and the fields
      * finished runs published per element.
+     * @param options - Whose values.
+     * @param options.source - A staged source: the values its rows will carry.
      * @returns the values, the node id first, then the data columns, then each run's fields
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
      */
-    readableValues(): readonly ReadableValue[] {
+    readableValues(options: { readonly source?: SourceKey } = {}): readonly ReadableValue[] {
         const snapshot = this.current();
+        const waiting = options.source === undefined ? undefined : this.waitingGraph(options.source);
+        if (waiting !== undefined) {
+            return readableValues({
+                snapshot: waiting.graph,
+                directed: true,
+                attributes: waitingColumns(this.stepsValue(), this.stepsCopies(), options.source ?? ""),
+                declarationOf: () => undefined,
+                runs: [],
+            });
+        }
         const declarations = this.writes.declarations();
         const runs: Run[] = [];
         for (const id of this.pages.runIds()) {

@@ -502,7 +502,7 @@ export class SourceDraftHandle implements SourceDraft {
     }
 
     /** @inheritdoc */
-    removeSource(source: SourceKey): void {
+    removeSource(source: SourceKey, options: { readonly adds?: "keep" | "remove" } = {}): void {
         this.live("removeSource");
         if (this.state.value.sources[source] === undefined) {
             // A source a file saved without the experiment brought in: the steps do not build it,
@@ -514,7 +514,7 @@ export class SourceDraftHandle implements SourceDraft {
                 details: { reason: "not-in-steps", source },
             });
         }
-        this.edit("removeSource", { kind: "remove-source", id: source });
+        this.edit("removeSource", { kind: "remove-source", id: source, ...options });
     }
 
     /** @inheritdoc */

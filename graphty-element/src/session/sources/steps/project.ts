@@ -14,7 +14,7 @@
 import type { EdgeId, NodeId } from "../../../catalog/types";
 import { GraphtyError } from "../../../errors/GraphtyError";
 import type { JoinRecord, JoinReduce, SourceExtractOptions, SourceLinkOptions, SourceStepAct } from "../../types";
-import { applyAct, extractOf, movedAfter, type StepsAct, withoutStepAndAdds } from "./acts";
+import { applyAct, extractOf, movedAfter, type StepsAct, withoutAddsOf, withoutStepAndAdds } from "./acts";
 import {
     build,
     copyKey,
@@ -178,7 +178,7 @@ export type StepsEdit =
     /** Take back one reader operation. */
     | { readonly kind: "remove-edit"; readonly id: string }
     /** Take out one source, every step that reads it and its type rules (section 8, removal). */
-    | { readonly kind: "remove-source"; readonly id: string }
+    | { readonly kind: "remove-source"; readonly id: string; readonly adds?: "keep" | "remove" }
     /**
      * The whole value, read back from a project file, over the graph the file embeds: the graph
      * becomes the build, keeping every element the embedded graph already holds as built.
@@ -553,7 +553,7 @@ export function applyEdit(prior: SourceSteps, edit: StepsEdit, copies: Copies): 
         case "remove-edit":
             return { ...prior, reader: prior.reader.filter((op) => op.id !== edit.id) };
         case "remove-source":
-            return withoutSource(prior, edit.id);
+            return withoutSource(prior, edit.id, edit.adds);
         case "act":
             return applyAct(prior, edit.act, copies);
         case "replace-copy":
@@ -603,9 +603,11 @@ function madeSpaces(step: Step, src: StepsSource | undefined): readonly (string 
  * node the source alone built binds to nothing.
  * @param prior - The value.
  * @param id - The source's id.
+ * @param adds - `"remove"` also takes the adds of the sources a merge leaving unmatched rows out was made
+ *   with: with nothing left to match, every row it left out would be a node.
  * @returns The value without it.
  */
-function withoutSource(prior: SourceSteps, id: string): SourceSteps {
+function withoutSource(prior: SourceSteps, id: string, adds: "keep" | "remove" = "keep"): SourceSteps {
     const sources = Object.fromEntries(Object.entries(prior.sources).filter(([each]) => each !== id));
     const reading = (step: Step): boolean => stepSources(step, prior).includes(id);
     const bare: SourceSteps = {
@@ -631,6 +633,11 @@ function withoutSource(prior: SourceSteps, id: string): SourceSteps {
         });
     };
     let value = bare;
+    for (const step of adds === "remove" ? prior.steps : []) {
+        if (step.op === "join.merge" && step.unmatchedFrom === "drop" && step.source !== id && reading(step)) {
+            value = withoutAddsOf(prior, step, value);
+        }
+    }
     for (let at = 0; at !== -1;) {
         at = value.steps.findIndex((s) => lost(s, value).length > 0);
         const step = value.steps[at] as Step | undefined;

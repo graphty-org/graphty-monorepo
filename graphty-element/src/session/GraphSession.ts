@@ -4243,6 +4243,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         values: valueSourceOf(records, snapshot, fieldKinds, () => elements),
         supplied: suppliedNow,
         own: (source: SourceKey) => data.ownValues(source),
+        waiting: (source: SourceKey) => data.waitingGraph(source),
         sourceSteps: sourceStepsOn,
         onChange: (change) => {
             // What the filter keeps is read by the style stack's kept readings (`styles.counts`,

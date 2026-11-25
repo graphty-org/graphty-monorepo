@@ -2260,11 +2260,15 @@ export interface SessionDataApi {
      *     set: { "node.color": "#d62728" },
      * });
      * ```
+     * @param options - Whose values; absent, the graph's.
+     * @param options.source - Under the `source-steps` experiment, a staged source: the values its rows
+     *     carry once it is added, so a filter can be made for it while it waits. A source that is not
+     *     staged reads as the graph. Experimental (`source-steps`).
      * @returns the values, the node id first, then the data columns, then each run's fields in
      *     run order
      * @since 3.26.0
      */
-    readableValues(): readonly ReadableValue[];
+    readableValues(options?: { readonly source?: SourceKey }): readonly ReadableValue[];
     /**
      * The values every node carries from the graph's structure, which a rule reads with no run
      * and no column, each with its catalog name: `graphty.degree` ("Degree"), and on a directed
@@ -6667,11 +6671,15 @@ export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "match
     /**
      * Take out one source and every step that reads it.
      * @param source - The source.
+     * @param options - What becomes of the rows its joins left out.
+     * @param options.adds - Where a merge into its nodes left rows out (`unmatchedFrom: "drop"`): `"keep"`
+     *   (default) leaves the merged source added, so with nothing left to match each of its rows is a
+     *   node; `"remove"` takes that join's add along, so the source is staged again.
      * @throws A `GraphtyError` with `E_BAD_COMMAND`, `details.reason` `"not-in-steps"`, for a
      *   source no step reads, such as one a file saved without the source-steps experiment brought
      *   in: `data.removeSource` takes that one out.
      */
-    removeSource(source: SourceKey): void;
+    removeSource(source: SourceKey, options?: { readonly adds?: "keep" | "remove" }): void;
     /**
      * Take back one of the reader's edits (as `data.removeEdit` does).
      * @param id - The edit's id.

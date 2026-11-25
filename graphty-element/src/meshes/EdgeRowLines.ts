@@ -690,7 +690,8 @@ export class EdgeRowLines {
 
     /**
      * The edge rows a row line can no longer draw: a head on an end that is no longer round, or an end the caller says
-     * is gone (its style hid it). An `Edge` draws them now, so they are painted again (`UpdateManager.syncStyles`).
+     * is gone (its style hid it). An `Edge` draws them now, so they are painted again (`UpdateManager.syncStyles`). Also
+     * a straight line in a curve batch with an end turned seen through, which painted again takes the straight batch.
      * @param endGone - Whether a node row is no end a row line draws to.
      * @param among - Only these edge rows; every row drawn here when left out.
      * @returns The rows.
@@ -703,7 +704,12 @@ export class EdgeRowLines {
                 continue;
             }
 
-            if (endGone(lines.source[row]) || endGone(lines.target[row])) {
+            if (
+                endGone(lines.source[row]) ||
+                endGone(lines.target[row]) ||
+                (this.batches[lines.batchOf[row]].drawsCurves &&
+                    !this.joinsCurves(null, lines.source[row], lines.target[row]))
+            ) {
                 off.push(row);
                 continue;
             }
@@ -721,9 +727,9 @@ export class EdgeRowLines {
 
     /**
      * Whether a row line may be drawn from a curve batch, which runs it center to center with no head
-     * (`EdgeMesh.pulledBatch`'s `straightInCurve`): it has no head and neither end is seen through.
-     * ponytail: judged once, when the row is painted; a node turned translucent later leaves a line already in a curve
-     * batch drawn to its center (the straight program trims it at the outline)
+     * (`EdgeMesh.pulledBatch`'s `straightInCurve`): it has no head and neither end is seen through, as the straight
+     * program trims a line at a seen-through end's outline. A row turned seen through later is painted again
+     * ({@link EdgeRowLines.rowsOffEnds}).
      * @param head - Its head, or null.
      * @param source - The source node's row.
      * @param target - The target node's row.

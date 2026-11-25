@@ -103,4 +103,24 @@ describe("a curved and a straight edge that cross draw in row order on batched (
             assertSameFrame(want, got, "batched against objects");
         });
     }
+
+    it("a straight line beside a curve stops at a node turned translucent after it was drawn", async () => {
+        // the straight line (c to a) is drawn from the curve's batch, and crosses nothing
+        const translucent = async (path: Path): Promise<Graphty> => {
+            const element = await crossing(path, 3, [EDGES[0], { src: "c", dst: "a" }]);
+            await element.session.styles.add({
+                name: "faded",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.opacity": 0.5 },
+            } as never);
+            await operationQueueOf(element.graph).waitForCompletion();
+            await element.waitForStableFrame();
+            return element;
+        };
+        const want = await readCanvas((await translucent("objects")).graph);
+        document.body.replaceChildren();
+        const got = await readCanvas((await translucent("batched")).graph);
+        assertSameFrame(want, got, "batched against objects");
+    });
 });

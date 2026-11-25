@@ -501,6 +501,15 @@ export class PulledLineBatch {
     }
 
     /**
+     * Whether this is a curve batch (`EDGE_PULLED_CURVE`), whose straight pieces run center to center
+     * ({@link PulledLineBatch.drawStraight}).
+     * @returns True for a curve batch.
+     */
+    get drawsCurves(): boolean {
+        return this.curve;
+    }
+
+    /**
      * Pieces an entry holds: `CURVE_STRIDE` in a curve batch, 1 in a straight batch.
      * @returns The count.
      */

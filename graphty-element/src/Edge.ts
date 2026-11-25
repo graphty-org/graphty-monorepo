@@ -3437,7 +3437,10 @@ export class Edge {
         }
 
         const headGone = this.pulled.head !== null && !(this.headEnd("source", rows) && this.headEnd("target", rows));
-        if (!headGone && !this.endHiddenByStyle("source") && !this.endHiddenByStyle("target")) {
+        // a straight line in a curve batch runs center to center: one with an end turned seen through takes the
+        // straight batch, which stops it at the outline (`EdgeMesh.pulledBatch`'s `straightInCurve`)
+        const seenGone = !this.pulled.curve && this.pulled.batch.drawsCurves && !this.endsOpaque(rows);
+        if (!headGone && !seenGone && !this.endHiddenByStyle("source") && !this.endHiddenByStyle("target")) {
             return false;
         }
 
@@ -3541,15 +3544,23 @@ export class Edge {
         style: EdgeStyleConfig,
         rows: RowTable,
     ): PulledLineBatch {
-        const seen = (end: "source" | "target"): boolean => {
-            const row = this.endRow(end);
-            return row >= 0 && rows.seenThrough(row);
-        };
         return EdgeMesh.pulledBatch(this.context.getMeshCache(), options, style, this.context.getScene(), () => rows, {
             loop: this.isLoop,
             route: this.routeOf(style),
             lean: this.context.leansLines?.() ?? false,
-            straightInCurve: EdgeMesh.drawsNoCap(style.arrowHead) && !seen("source") && !seen("target"),
+            straightInCurve: EdgeMesh.drawsNoCap(style.arrowHead) && this.endsOpaque(rows),
+        });
+    }
+
+    /**
+     * Whether neither end's row is seen through, so a straight line may run center to center in a curve batch.
+     * @param rows - The row table.
+     * @returns True when neither is.
+     */
+    private endsOpaque(rows: RowTable): boolean {
+        return (["source", "target"] as const).every((end) => {
+            const row = this.endRow(end);
+            return row < 0 || !rows.seenThrough(row);
         });
     }
 

@@ -5508,7 +5508,7 @@ export class UpdateManager implements Manager {
         // Before every render, a frame of the loop's or one drawn by hand: the loop's own pass does
         // not run for a frame drawn by hand, and a consumer's change asks for no frame.
         this.watchingHeld ??= this.graphContext.getScene().onBeforeRenderObservable.add(() => {
-            if (this.heldMeshesToggled()) {
+            if (this.heldMeshesChanged()) {
                 this.sceneChanged = true;
                 this.thawActiveMeshes();
             }
@@ -5519,11 +5519,15 @@ export class UpdateManager implements Manager {
     private watchingHeld: Nullable<Observer<Scene>> = null;
 
     /**
-     * Whether a read mesh was shown or hidden since the last frame, and forget the nodes gone.
+     * Whether a read mesh was shown, hidden, moved, scaled or turned since the last frame, and
+     * forget the nodes gone. A frozen scene neither recomputes a listed mesh's world matrix nor
+     * uploads its instance's matrix (`settleActiveMeshFreeze`), so a consumer scaling the mesh it
+     * read would not be drawn until something else thawed the scene. Whether its position,
+     * scaling or rotation changed is Babylon's own dirty flags, a few reads per read mesh.
      * @returns True when one was.
      */
-    private heldMeshesToggled(): boolean {
-        let toggled = false;
+    private heldMeshesChanged(): boolean {
+        let changed = false;
         for (const [node, shown] of this.heldMeshes) {
             if (node.isDisposed()) {
                 this.heldMeshes.delete(node);
@@ -5534,11 +5538,13 @@ export class UpdateManager implements Manager {
             const now = mesh !== null && mesh.isVisible && mesh.isEnabled();
             if (now !== shown) {
                 this.heldMeshes.set(node, now);
-                toggled = true;
+                changed = true;
+            } else if (mesh !== null && !mesh._isSynchronized()) {
+                changed = true;
             }
         }
 
-        return toggled;
+        return changed;
     }
 
     /**

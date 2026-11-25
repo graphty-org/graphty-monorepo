@@ -95,9 +95,9 @@ import type {
     MeasurementDeclaration,
     NodeId,
     Path,
+    RuleTree,
     RunId,
     Scope,
-    Selector,
     StaticStyle,
     StyleDocument,
     UnionLeaf,
@@ -142,6 +142,7 @@ import {
 } from "../runs";
 import { resolutionBehind } from "../scope/ScopeApi";
 import { sealedSet } from "../sealed";
+import { dependenciesOf } from "../sets/dependencies";
 import type { Resolution } from "../sets/resolve";
 import type { CodedFact, ColumnRef } from "../shared";
 import type { HistoryCause, SourceElementRef } from "../types";
@@ -1889,21 +1890,58 @@ const DRAWN: Scope = "visible";
 /** A style edit publishes no per-element field: the stack is not a result bag. */
 const NO_FIELDS: readonly FieldDescriptor[] = Object.freeze([]);
 
-/**
- * What in a selector can follow the reader: a state or hover selector, a state leaf, the live
- * hover-or-selection reference, a scope on the selection or the focus, or a kept set (a set can
- * follow the selection). Read off the selector's JSON, so a new selector form that names any of
- * these counts as following the reader, and an id that happens to spell one only costs a recount.
- */
-const FOLLOWS_READER = /"(?:match|kind)":"(?:state|hover|selection|focus)"|"hovered-or-selected"|"set":/;
+/** The node column holding the reader's pins: a path reading it follows a pin as a state leaf does. */
+const PINNED_PATH = "graphty.pinned";
 
 /**
- * Whether a selector can match differently when the selection, the hover or the pins move.
- * @param selector - The selector.
+ * Whether a scope or a rule tree can hold different elements when the selection, the hover or the
+ * pins move: it reads a state leaf, the selection, or the hovered-or-selected reference, at any
+ * depth of `all`, `any`, `not`, a union step or an inline definition. A kept set or a saved scope
+ * counts too, since a saved scope may name the selection; following it would cost a lookup the
+ * stack does not have, and the price of a wrong yes is only a recount.
+ * @param value - The scope or rule tree.
  * @returns True when it may follow them.
  */
-function followsReader(selector: Selector): boolean {
-    return FOLLOWS_READER.test(JSON.stringify(selector));
+function readsReader(value: Scope | RuleTree): boolean {
+    return dependenciesOf(value).some(({ kind }) => kind === "selection" || kind === "set");
+}
+
+/**
+ * Whether a layer can paint differently when the selection, the hover or the pins move: its
+ * selector follows the reader (a state or hover selector, a member of the selection, a rule
+ * reading either), or the selector or a binding reads the pins' column. Decided by the selector's
+ * kind and its scope, never by the layer's name, and a selector kind added later counts as
+ * following until it is listed here.
+ * @param layer - The layer.
+ * @returns True when it may follow them.
+ */
+function followsReader(layer: Layer): boolean {
+    const { selector } = layer;
+    switch (selector.match) {
+        case "state":
+        case "hover":
+            return true;
+        case "member":
+            if (readsReader(selector.of)) {
+                return true;
+            }
+            break;
+        case "rule":
+            if (readsReader(selector.where)) {
+                return true;
+            }
+            break;
+        case "everything":
+        case "expression":
+        case "has":
+        case "ids":
+        case "top":
+        case "type":
+            break;
+        default:
+            return true;
+    }
+    return JSON.stringify([selector, layer.encode ?? null]).includes(PINNED_PATH);
 }
 
 /**
@@ -4790,12 +4828,12 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     const pointerFree = (id: LayerId): boolean => {
         const stack = basePainting(current());
         const own = stack.find((entry) => entry.layer.id === id)?.layer;
-        if (own === undefined || !own.enabled || followsReader(own.selector)) {
+        if (own === undefined || !own.enabled || followsReader(own)) {
             return false;
         }
         const mine = channelsOf(own);
         return stack.every(({ layer }) => {
-            if (!layer.enabled || layer.target !== own.target || !followsReader(layer.selector)) {
+            if (!layer.enabled || layer.target !== own.target || !followsReader(layer)) {
                 return true;
             }
             const theirs = channelsOf(layer);

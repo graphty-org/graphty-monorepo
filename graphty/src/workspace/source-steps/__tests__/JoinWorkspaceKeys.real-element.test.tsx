@@ -196,7 +196,7 @@ describe("a join card's matches and table (source-steps)", () => {
         if (header !== null) {
             await userEvent.click(header);
         }
-        assert.strictEqual(entry.querySelector('[data-kind="edge"]')?.textContent, "2", "the edges it made");
+        assert.strictEqual(entry.querySelector('[data-kind="edge"]')?.textContent, "Edge 2", "the edges it made");
     });
 
     it("flags every node a watchlist's value names, or none of them", async () => {

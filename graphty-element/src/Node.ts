@@ -1120,6 +1120,8 @@ export class Node implements ModelUser {
             graphNode: this,
             styleId: paint.meshKey,
             nodeId: this.id,
+            // A mesh channel, so a new order builds a new mesh: a pick in 3D honors it among flat nodes (PickService)
+            drawOrder: o.shape?.drawOrder,
         };
 
         this.syncBorder(fit.meshKey, fit.style);
@@ -3677,6 +3679,7 @@ export class Node implements ModelUser {
             graphNode: this,
             styleId: meshKey,
             nodeId: this.id,
+            drawOrder: o.shape?.drawOrder,
         };
 
         // Restore position from layout engine after mesh recreation

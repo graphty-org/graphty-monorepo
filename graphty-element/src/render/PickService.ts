@@ -315,6 +315,60 @@ export interface DrawnHit {
 const drawnPickable = (mesh: AbstractMesh): boolean => mesh.isPickable && mesh.isVisible && mesh.isEnabled();
 const rayPickable = (mesh: AbstractMesh): boolean => mesh.isPickable && mesh.isEnabled();
 
+/** What a node mesh's metadata says of its file's draw order, for {@link drawnLaterOver}. */
+interface DrawnOrder {
+    readonly drawOrder?: number;
+}
+
+/**
+ * The file's draw order of the node a mesh draws (`shape.drawOrder`), or undefined for none.
+ * @param mesh - The mesh.
+ * @returns The order.
+ */
+function drawOrderOf(mesh: AbstractMesh | null): number | undefined {
+    return (mesh?.metadata as DrawnOrder | null | undefined)?.drawOrder;
+}
+
+/**
+ * The hit of a node a file draws later (a higher `shape.drawOrder`) inside the slab of the node the ray hit nearest,
+ * or the nearest hit itself.
+ *
+ * In 3D a flat node is a slab as deep as a fiftieth of its smaller side, and its draw order does not move it (it only
+ * orders 2D, `NodeMesh.placeByDrawOrder`). So where a file draws a box first and nodes over it in the same plane, the
+ * bigger box's front face is the nearer, and a click on a node inside it took the box: every gene of the NDEx CX2
+ * "Toll-like receptor pathway" sample selected its pathway box in 3D (issue #10116). Only when the nearest hit has a
+ * draw order is the ray walked again, for the other hits.
+ * @param scene - The scene.
+ * @param ray - The pick's world ray.
+ * @param admit - Which meshes may be picked.
+ * @param nearest - The nearest hit.
+ * @returns The hit to answer with.
+ */
+function drawnLaterOver(
+    scene: Scene,
+    ray: Ray,
+    admit: (mesh: AbstractMesh) => boolean,
+    nearest: PickingInfo,
+): PickingInfo {
+    const picked = nearest.pickedMesh;
+    let order = drawOrderOf(picked);
+    if (picked === null || order === undefined) {
+        return nearest;
+    }
+
+    const slab = 2 * picked.getBoundingInfo().boundingBox.extendSizeWorld.z;
+    let best = nearest;
+    for (const hit of scene.multiPickWithRay(ray, alongRay(scene, ray, admit)) ?? []) {
+        const hitOrder = drawOrderOf(hit.pickedMesh);
+        if (hitOrder !== undefined && hitOrder > order && hit.distance - nearest.distance <= slab) {
+            best = hit;
+            order = hitOrder;
+        }
+    }
+
+    return best;
+}
+
 /**
  * The on-top rule of {@link pickAsDrawn}: a mesh drawn on top that is hit wins, otherwise the
  * nearest hit does.
@@ -339,7 +393,10 @@ function pickMeshes(
     );
     const answer = onTop.hit
         ? { info: onTop, onTop: true }
-        : { info: babylonPick(scene)(x, y, alongRay(scene, ray, admit)), onTop: false };
+        : {
+              info: drawnLaterOver(scene, ray, admit, babylonPick(scene)(x, y, alongRay(scene, ray, admit))),
+              onTop: false,
+          };
     lastMeshPick = { scene, mesh: answer.info.pickedMesh, onTop: answer.onTop };
     return answer;
 }

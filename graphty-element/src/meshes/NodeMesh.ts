@@ -188,33 +188,25 @@ function nearestDrawing(ring: Mesh, view: Matrix, ahead: number, at: Vector3): T
 function placeByZIndex(mesh: Mesh, shape: NodeStyleConfig["shape"], is2D: boolean): void {
     const zIndex = shape?.zIndex ?? 0;
     if (zIndex >= 0) {
-        // in 3D only a flat shape, for the reason a negative zIndex moves only a flat one: a group box drawn first
-        // is the bigger, so thicker, slab, and its front face was nearer than its members', taking their clicks
-        if (is2D || isThin(mesh)) {
+        if (is2D) {
             placeByDrawOrder(mesh, shape?.drawOrder);
         }
 
         return;
     }
 
-    if (!is2D && !isThin(mesh)) {
-        return;
+    mesh.refreshBoundingInfo();
+    if (!is2D) {
+        const { extendSize } = mesh.getBoundingInfo().boundingBox;
+        // a flat shape is THIN_DEPTH_RATIO of its smaller side deep; twice that leaves room for rounding
+        if (extendSize.z > 2 * THIN_DEPTH_RATIO * Math.min(extendSize.x, extendSize.y)) {
+            return;
+        }
     }
 
     const front = mesh.getBoundingInfo().boundingBox.minimum.z;
     mesh.bakeTransformIntoVertices(Matrix.Translation(0, 0, -zIndex * Z_INDEX_STEP - front));
     mesh.refreshBoundingInfo();
-}
-
-/**
- * Whether a mesh is drawn flat: THIN_DEPTH_RATIO of its smaller side deep, twice that leaving room for rounding.
- * @param mesh - The source mesh.
- * @returns True for a flat shape.
- */
-function isThin(mesh: Mesh): boolean {
-    mesh.refreshBoundingInfo();
-    const { extendSize } = mesh.getBoundingInfo().boundingBox;
-    return extendSize.z <= 2 * THIN_DEPTH_RATIO * Math.min(extendSize.x, extendSize.y);
 }
 
 /**

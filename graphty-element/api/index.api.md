@@ -185,6 +185,7 @@ export interface AccelerationStatus {
     readonly params?: Readonly<Record<string, CodedFactParam>>;
     readonly policy: AccelerationPolicy;
     readonly reason?: string;
+    readonly recovering?: true;
     readonly state: AccelerationState;
     readonly vendor?: string;
 }

@@ -1062,17 +1062,53 @@ describe("AccelerationController: device loss", () => {
 
         lost.resolve({ reason: "the GPU process crashed" });
 
-        // Two transitions, not one: the loss is reported first and recovery happens after it,
-        // so waiting for "idle" alone would pass on the idle the controller is already in.
-        await vi.waitUntil(() => seen.length === 2);
+        // The loss is reported first, then the reattach under way, then the recovered state, so
+        // waiting for "idle" alone would pass on the idle the controller is already in.
+        await vi.waitUntil(() => seen.length === 3);
         assert.deepStrictEqual(
-            seen.map((status) => status.state),
-            ["error", "idle"],
+            seen.map((status) => [status.state, status.recovering]),
+            [
+                ["error", undefined],
+                ["error", true],
+                ["idle", undefined],
+            ],
         );
         assert.strictEqual(seen[0]?.code, "E_DEVICE_LOST");
         assert.include(seen[0]?.reason, "the GPU process crashed");
         assert.strictEqual(controller.accelerator?.name, "second");
         assert.isUndefined(controller.status.code);
+        controller.dispose();
+    });
+
+    it("tries a failed reattach again when a device becomes available (issue #9987)", async () => {
+        const lost = deferred<{ reason: string }>();
+        const first = fakeAccelerator({ name: "first", lost: lost.promise });
+        const second = fakeAccelerator({ name: "second" });
+        const registry = new AcceleratorRegistry();
+        let built = 0;
+        registry.register({
+            name: "fake",
+            factory: () => {
+                built += 1;
+                return built === 2
+                    ? Promise.reject(new Error("the GPU is not back yet"))
+                    : Promise.resolve(built === 1 ? first : second);
+            },
+        });
+        const controller = new AccelerationController({ registry });
+        await controller.start();
+
+        lost.resolve({ reason: "destroyed" });
+        await vi.waitUntil(() => built === 2 && controller.status.recovering !== true);
+        assert.strictEqual(controller.status.state, "error");
+        assert.isNull(controller.accelerator);
+
+        controller.deviceAvailable();
+        assert.isTrue(controller.status.recovering);
+        await vi.waitUntil(() => controller.status.recovering !== true);
+        assert.strictEqual(built, 3, "the second try built the accelerator");
+        assert.strictEqual(controller.status.state, "idle");
+        assert.strictEqual(controller.status.backend, second.backend);
         controller.dispose();
     });
 

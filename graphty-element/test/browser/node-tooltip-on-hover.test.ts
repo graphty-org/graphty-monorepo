@@ -225,13 +225,13 @@ describe("a tooltip a layer asks for", () => {
         assert.isNull(tooltipMesh(node), "the pointer left and the tooltip went with it");
     });
 
-    it("draws nothing for empty words, even on a white panel", async () => {
+    it.each(["", " ", "\n"])("draws nothing for empty words (%j), even on a white panel", async (words) => {
         // A Cytoscape file writes NODE_TOOLTIP="" on every node; the panel's margins around no
         // words drew an opaque white square over whatever was beside the node (issue #10116).
         await graph.getSession().styles.add({
             name: "empty tooltips",
             selector: { match: "ids", nodes: ["alpha"] },
-            set: { "node.tooltip": "", "node.tooltipStyle": { background: "#FFFFFF" } },
+            set: { "node.tooltip": words, "node.tooltipStyle": { background: "#FFFFFF" } },
         });
         await settle();
 

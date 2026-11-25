@@ -18,7 +18,7 @@ import { SimulationLayoutEngine } from "./layout/SimulationLayoutEngine";
 import type { GraphContext } from "./managers/GraphContext";
 import type { Node as GraphNode, NodeIdType } from "./Node";
 import { HOVER_RADIUS_PX } from "./render/NodeIdTarget";
-import { filterPointerPicks, hoverNodeId, type HoverPick, pickNodeId } from "./render/PickService";
+import { filterPointerPicks, hoverNodeId, type HoverPick, pickNodeId, pickPressedNodeId } from "./render/PickService";
 import { dispatcherOf } from "./session/GraphSession";
 import {
     cancelReasonOf,
@@ -181,7 +181,7 @@ function deliverPointerEvent(scene: Scene, roster: NodePointerRoster, pointerInf
     switch (pointerInfo.type) {
         case PointerEventTypes.POINTERDOWN: {
             // nodeId from mesh metadata works with both regular and instanced meshes
-            const pickedId = pickNodeId(scene, scene.pointerX, scene.pointerY);
+            const pickedId = pickPressedNodeId(scene);
             roster.pressed = { id: pickedId, x: scene.pointerX, y: scene.pointerY };
             if (pickedId !== undefined) {
                 roster.byId.get(pickedId)?.dragHandler?.onPointerDown(pointerInfo);

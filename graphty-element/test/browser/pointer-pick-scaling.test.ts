@@ -189,6 +189,7 @@ describe("one click on a node", () => {
         element.graph.engine.stopRenderLoop();
 
         const before = pickWork.meshPicks;
+        const babylonBefore = pickWork.pointerPicks;
         await click(element, at);
         await vi.waitFor(() => {
             assert.strictEqual(element.getSelectedNode()?.id, "t", "the click selected the node");
@@ -199,5 +200,9 @@ describe("one click on a node", () => {
         // from the background, and again to look for a close button no label in the scene has:
         // four walks for one click (issue #10116).
         assert.strictEqual(pickWork.meshPicks - before, 2, "the hover's walk and the press's, nothing more");
+        // Babylon picks the move, the press and the release again, for the cursor and the node's actions. The press and
+        // the release are answered from the press's walk, where they were two more walks of every mesh, about 45 ms
+        // each at 99,000 nodes (issue #10116).
+        assert.strictEqual(pickWork.pointerPicks - babylonBefore, 1, "Babylon walks the meshes for the move only");
     });
 });

@@ -1265,11 +1265,16 @@ export class Node implements ModelUser {
      * second time by the render. On a 20,000-node graph that was the root 20,000 times and every node twice a frame
      * (issue #9420). Here the root is computed only when it is itself stale, and a node only when it moved, scaled or
      * its root did.
+     * @returns The anchor's world matrix.
      */
-    private syncWorldMatrix(): void {
+    private syncWorldMatrix(): Matrix {
         const anchor = this.#anchor;
         const { parent } = anchor;
-        if (parent !== null && !anchor.isSynchronizedWithParent()) {
+        // The root only when it is itself out of date: an anchor merely computed before the root's last compute is
+        // brought up to date by its own compute below, while forcing a root that was current bumped its child counter
+        // and left every other node's matrix to compute again, about 45 ms on the next pick at 99,000 nodes once
+        // hovering a node had asked where it is drawn (issue #10116).
+        if (parent !== null && !parent.isSynchronized()) {
             parent.computeWorldMatrix(true);
         }
 
@@ -1278,7 +1283,7 @@ export class Node implements ModelUser {
             anchor.markAsDirty();
         }
 
-        anchor.computeWorldMatrix();
+        return anchor.computeWorldMatrix();
     }
 
     /**
@@ -2237,7 +2242,10 @@ export class Node implements ModelUser {
      */
     drawnWorldMatrix(force?: boolean): Matrix {
         this.followRow();
-        return this.#anchor.computeWorldMatrix(force);
+        // Forced through `syncWorldMatrix`, which forces the graph root only when it is out of date.
+        return force === true && !this.#anchor.isDisposed()
+            ? this.syncWorldMatrix()
+            : this.#anchor.computeWorldMatrix();
     }
 
     /**
@@ -4992,7 +5000,8 @@ export class Node implements ModelUser {
         const text = this.extractLabelText(this.wantedTooltip);
         // Empty words draw nothing, as an edge's tooltip and an external label already rule: a file that writes an
         // empty tooltip on every node (Cytoscape's NODE_TOOLTIP="") would otherwise get a blank box on each hover.
-        if (text === "") {
+        // Only white space is as empty: it draws the same box around no visible words.
+        if (text.trim() === "") {
             return;
         }
 

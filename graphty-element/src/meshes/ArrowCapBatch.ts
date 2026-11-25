@@ -288,6 +288,28 @@ export class ArrowCapBatch {
     }
 
     /**
+     * The bytes this batch's per-slot buffers hold, live or free: its matrices and billboard values.
+     * They are ArrayBuffers, outside the JS heap, so `performance.memory` never counts them.
+     * @returns The bytes.
+     */
+    get bufferBytes(): number {
+        let bytes = this.matrices.byteLength;
+        for (const buffer of Object.values(this.billboard ?? {})) {
+            bytes += buffer.byteLength;
+        }
+
+        return bytes;
+    }
+
+    /**
+     * Slots currently drawing a cap.
+     * @returns The count.
+     */
+    get liveCaps(): number {
+        return this.live;
+    }
+
+    /**
      * How see-through one cap is drawn: the batch's opacity times the cap's own.
      * @param index - The slot.
      * @param own - The cap's own opacity as it was given, read in place of the float its slot holds.
@@ -1180,6 +1202,24 @@ export function arrowCapMeshes(scene: Scene): Mesh[] {
     return [...(batchesByScene.get(scene)?.values() ?? [])]
         .filter((batch) => !batch.disposed)
         .map((batch) => batch.mesh);
+}
+
+/**
+ * What every cap batch in a scene holds in its per-slot buffers, outside the JS heap.
+ * @param scene - The scene.
+ * @returns The bytes, and how many caps are drawn.
+ */
+export function arrowCapBuffers(scene: Scene): { bytes: number; caps: number } {
+    let bytes = 0;
+    let caps = 0;
+    for (const batch of batchesByScene.get(scene)?.values() ?? []) {
+        if (!batch.disposed) {
+            bytes += batch.bufferBytes;
+            caps += batch.liveCaps;
+        }
+    }
+
+    return { bytes, caps };
 }
 
 /**

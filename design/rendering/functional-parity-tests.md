@@ -160,11 +160,12 @@ drag of a hub node. Includes the confirmed transition defect and its fix.
 in `drawn-invariants.test.ts`; probes `tmp/parity/features/edges-follow-simulation.probe.ts`,
 `tmp/parity/risks/probes/zz-parity-edges-follow.test.ts` and `zz-glide-disjoint.test.ts`.
 
-**CI tier.** Pull request: browser, forced-batched, interactions and minimum-work projects. About
-8 seconds per path and view at this size.
+**CI tier.** Pull request: browser and minimum-work projects. forced-batched skips
+`edges-follow-running-layout.test.ts` (listed in `test/forced-batched/skipped.json`), since each case
+sets its render path itself. About 8 seconds per path and view at this size.
 
-**Run.** `tools/low-priority.sh npx vitest run --project=browser --project=forced-batched
-test/browser/edges-follow-running-layout.test.ts test/browser/transitions/layout-transition.test.ts`
+**Run.** `tools/low-priority.sh npx vitest run --project=browser --project=minimum-work
+test/browser/edges-follow-running-layout.test.ts test/browser/view-switch-draws-every-node.test.ts`
 
 ### 2. GPU layout landings, skipped frames, WebGPU pictures and device loss
 

@@ -236,6 +236,9 @@ export function SamplesDialog(): React.JSX.Element {
     );
     const groups = [...new Set(shown.map((entry) => entry.group))];
     const separable = ctx.session !== null && ctx.session.data.sources().length > 0;
+    // Cards that share a name (Les Miserables, and Gephi's and D3's copies of it) give their separate-graph button the
+    // card's whole name, so no two buttons are named alike.
+    const repeated = (name: string): boolean => shown.filter((entry) => entry.card.name === name).length > 1;
     return (
         <>
             <Modal
@@ -272,7 +275,7 @@ export function SamplesDialog(): React.JSX.Element {
                                             close();
                                             entry.open(target);
                                         };
-                                        const separate = `Open ${entry.card.name} as a separate graph`;
+                                        const separate = `Open ${repeated(entry.card.name) ? cardLabel(entry.card) : entry.card.name} as a separate graph`;
                                         return (
                                             <SampleCard
                                                 key={entry.key}

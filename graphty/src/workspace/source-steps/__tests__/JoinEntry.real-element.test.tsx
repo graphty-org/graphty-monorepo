@@ -128,8 +128,11 @@ describe("the doors into the join workspace (source-steps)", () => {
         await userEvent.click(await screen.findByRole("menuitem", { name: "Remove" }));
         const modal = await screen.findByRole("dialog", { name: "Join" });
         assert.deepStrictEqual(joinLines(modal), []);
-        await within(modal).findByText("edges removed");
-        assert.isAbove(session.data.edges().length, 0, "nothing is committed before Done");
+        await within(modal).findByText("edges removed 3");
+        assert.isTrue(
+            session.data.steps().some((row) => row.op === "join.edges"),
+            "nothing is committed before Done",
+        );
         const steps = session.history.steps.length;
         await done(modal);
         assert.lengthOf(session.data.edges(), 0);

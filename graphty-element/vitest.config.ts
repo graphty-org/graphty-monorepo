@@ -265,10 +265,28 @@ const XR_BROWSER_TESTS = [
     "test/browser/xr-drag-amplification.test.ts",
 ];
 
-/** The files the "browser" project runs, which "forced-batched" runs again under "batched". */
-const BROWSER_INCLUDE = JSON.parse(
-    readFileSync(new URL("test/browser-include.json", import.meta.url), "utf8"),
-) as string[];
+/**
+ * The files the "browser" project runs, which "forced-batched" runs again under "batched". A literal
+ * `include: [...]`, so tools/check-test-integrity.mjs sees an entry dropped from it, and
+ * test/contracts/forced-batched-honesty.test.ts reads it from this file's text.
+ */
+const BROWSER_FILES = {
+    include: [
+        "test/browser/**/*.test.ts",
+        "test/managers/DataManager.test.ts",
+        "test/managers/LayoutManager.test.ts",
+        "test/managers/LifecycleManager.test.ts",
+        "test/managers/UpdateManager.test.ts",
+        "test/managers/SelectionManager.test.ts",
+        "test/mesh-testing/real-mesh-simple.test.ts",
+        "test/performance/**/*.test.ts",
+        "test/examples/**/*.test.ts",
+        // Edge tests require browser (hammerjs dependency)
+        "test/Edge.bezier.test.ts",
+        "test/edge-cases/**/*.test.ts",
+        "test/integration/Edge.integration.test.ts",
+    ],
+};
 
 /** The files "forced-batched" leaves out, each with its reason. */
 const forcedBatchedSkips = JSON.parse(
@@ -1134,9 +1152,8 @@ const config = defineConfig({
                 test: {
                     name: "browser",
                     setupFiles: [BROWSER_COVERAGE_SETUP, MAP_TILES_SETUP, "./test/setup.ts"],
-                    // test/browser-include.json; "forced-batched" runs the same files (Edge tests need a
-                    // browser for hammerjs). Interaction tests have their own project.
-                    include: BROWSER_INCLUDE,
+                    // "forced-batched" runs the same files. Interaction tests have their own project.
+                    include: BROWSER_FILES.include,
                     exclude: [
                         // Interaction tests have their own project
                         "test/interactions/**/*.test.ts",
@@ -1281,7 +1298,7 @@ const config = defineConfig({
                     setupFiles: [MAP_TILES_SETUP, "./test/setup.ts", "./test/forced-batched/setup.ts"],
                     // Every file "browser" runs, and the interaction suite: test/contracts/forced-batched-honesty.test.ts
                     // reads the same lists to check each file really draws batched rows.
-                    include: [...BROWSER_INCLUDE, "test/interactions/**/*.test.ts"],
+                    include: [...BROWSER_FILES.include, "test/interactions/**/*.test.ts"],
                     exclude: [
                         "test/browser/**/*.bench.test.ts",
                         ...forcedBatchedSkips.map(({ file }) => file),

@@ -1,7 +1,7 @@
 # forced-batched
 
 The `forced-batched` vitest project runs every file the `browser` project runs (the list is
-`test/browser-include.json`) and the interaction suite again, with `renderPath: "batched"` as the
+`BROWSER_FILES` in `vitest.config.ts`) and the interaction suite again, with `renderPath: "batched"` as the
 default (`setup.ts`). `minimum-work-batched` does the same for the `minimum-work` files. Both run in
 the `graphty-element-forced-batched-<n>` CI shards, so on any pull request that runs the browser
 shards.

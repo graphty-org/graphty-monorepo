@@ -31,7 +31,17 @@ function json(file: string): unknown {
     return JSON.parse(readFileSync(path.join(ROOT, file), "utf8"));
 }
 
-const include = [...(json("test/browser-include.json") as string[]), "test/interactions/**/*.test.ts"];
+/**
+ * The "browser" project's include list, read from vitest.config.ts's `BROWSER_FILES` literal.
+ * @returns Its patterns.
+ */
+function browserInclude(): string[] {
+    const config = readFileSync(path.join(ROOT, "vitest.config.ts"), "utf8");
+    const block = /const BROWSER_FILES = \{\s*include: \[([^\]]*)\]/u.exec(config)?.[1] ?? "";
+    return [...block.matchAll(/"([^"]+)"/gu)].map(([, pattern]) => pattern);
+}
+
+const include = [...browserInclude(), "test/interactions/**/*.test.ts"];
 const skipped = json("test/forced-batched/skipped.json") as { file: string; reason: string }[];
 const legacy = json("test/forced-batched/builds-objects.json") as string[];
 /** Every file under test/, relative to the package with forward slashes. */

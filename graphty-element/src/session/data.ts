@@ -4204,6 +4204,7 @@ export class SessionData implements SessionDataApi {
                 emit: (change) => this.writes.emit?.("data:draft-changed", change),
                 drawn: () => this.writes.drawing?.drawn() ?? Promise.resolve(),
                 redraw: () => this.writes.drawing?.resume(),
+                edgeIds: (side) => (side === "after" ? this.afterEdgeIds : null) ?? this.stepsEdgeIds(),
             },
             { value: this.stepsValue(), copies: this.stepsCopies() },
             { ...(options.askOverlap === undefined ? {} : { askOverlap: options.askOverlap }) },
@@ -4454,6 +4455,15 @@ export class SessionData implements SessionDataApi {
             this.shownMarks = { marks, ids, edges };
         }
         return { nodes: marks.nodes, edges: this.shownMarks.edges, side: draft.side };
+    }
+
+    /**
+     * The session ids of some elements of the drawn draft, on the side it draws.
+     * @param query - Element references, some counts of one step, or the untouched nodes.
+     * @returns The ids, or null while no draft is drawn or the experiment is off.
+     */
+    drawnDraftIds(query: Parameters<SourceDraftHandle["drawnIds"]>[0]): ReturnType<SourceDraftHandle["drawnIds"]> {
+        return this.stepsOn() ? (this.sourceDraft?.drawnIds(query) ?? null) : null;
     }
 
     /**

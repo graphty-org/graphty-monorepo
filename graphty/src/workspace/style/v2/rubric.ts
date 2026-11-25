@@ -658,7 +658,8 @@ function edgeEnd(end: EdgeEnd): ThingRubric {
         // Arrow color varies in more files than arrow size, so both are lines under the row (ia-design 2).
         common: [
             { channel: at("Size"), name: "Size" },
-            { channel: at("Color"), name: "Color" },
+            // Named, not a bare swatch: an open cap's pop-over draws its Fill color too.
+            { channel: at("Color"), name: "Cap color" },
         ],
         // The Outline appears for an open cap, the Image for the image cap.
         main: [

@@ -804,7 +804,6 @@ export function StylePanelV2({ ctx: row }: Readonly<{ ctx: RowContext }>): React
         return part === undefined ? [] : [{ part, section }];
     });
     const homes = query.trim() === "" ? new Map<Channel, FoundHome>() : findHomes(ctx, sections);
-    const drawnLines = new Set<string>();
     const body =
         query.trim() === "" ? (
             // Every section is shown, an empty one as its header with its "+" (there is no reader switch for it); a
@@ -820,15 +819,11 @@ export function StylePanelV2({ ctx: row }: Readonly<{ ctx: RowContext }>): React
                 ctx={ctx}
                 query={query}
                 parts={parts}
-                line={(channel) => {
+                line={(channel) => foundLine(ctx, channel)}
+                lineKey={(channel) => {
                     // A pair or a unit line holds several channels: it is drawn once, for the first found.
                     const found = lineFor(ctx.side, channel);
-                    const key = found === undefined ? channel : `${found.group ?? ""}:${found.line.channel}`;
-                    if (drawnLines.has(key)) {
-                        return null;
-                    }
-                    drawnLines.add(key);
-                    return foundLine(ctx, channel);
+                    return found === undefined ? channel : `${found.group ?? ""}:${found.line.channel}`;
                 }}
                 home={(channel) => homes.get(channel)}
                 words={(channel) => {

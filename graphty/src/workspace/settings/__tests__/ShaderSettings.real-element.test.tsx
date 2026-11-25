@@ -87,7 +87,7 @@ async function openGraphSettings(): Promise<Element> {
     await element.session.data.addNodes([{ id: "a" }, { id: "b" }]);
     await element.session.data.addEdges([{ source: "a", target: "b" }]);
     await userEvent.click(await screen.findByRole("tab", { name: "Style" }));
-    await screen.findByRole("combobox", { name: "Quality" });
+    await screen.findByRole("radiogroup", { name: "Quality" });
     return element;
 }
 
@@ -97,8 +97,7 @@ async function openGraphSettings(): Promise<Element> {
  * @param option - the option's name.
  */
 async function choose(name: string, option: string): Promise<void> {
-    await userEvent.click(screen.getByRole("combobox", { name }));
-    await userEvent.click(await screen.findByRole("option", { name: option }));
+    await userEvent.click(within(screen.getByRole("radiogroup", { name })).getByText(option));
 }
 
 /**
@@ -398,7 +397,7 @@ describe("the graph's shader settings", () => {
             // Either way the line says what it stepped to.
             const line = await screen.findByText(/^Now /, {});
             assert.isTrue(
-                screen.getByRole("combobox", { name: "Quality" }).getAttribute("aria-describedby")?.includes(line.id),
+                screen.getByRole("radiogroup", { name: "Quality" }).getAttribute("aria-describedby")?.includes(line.id),
             );
             // The guard may step again while the slow frames go on: the line follows it.
             await waitFor(() => {

@@ -32,11 +32,11 @@ import { ValueListbox } from "../parts/ValueListbox";
 import { Field, FieldLine, type RowContext, VarySlot, type VaryTarget } from "../PropertyRow";
 import { lineIn, needsFor, writeIn } from "../row";
 import { ValueField } from "../ValueField";
-import { channelWord, failureWords, fieldName, isPercent, scrubLetter, takesBinding } from "../words";
+import { channelWord, failureWords, fieldName, scrubLetter, takesBinding } from "../words";
 import { dimOf, drawnValue, valueDimOf } from "./drawn";
 import { PointPair } from "./ItemFields";
 import { ItemListEditor } from "./ItemListEditor";
-import { moveUnit, rangeOf, ruleOf, unsetIn } from "./lineWrites";
+import { moveUnit, rangeOf, readsAsPercent, ruleOf, unsetIn } from "./lineWrites";
 import { coordinateDescriptor, ITEM_LISTS } from "./lists";
 import {
     isPictured,
@@ -100,7 +100,7 @@ export function NumberLine({
     zeroAt?: "right";
     onWrite: (value: number | undefined) => void;
 }>): React.JSX.Element {
-    const scale = (percent ?? isPercent(descriptor)) ? 100 : 1;
+    const scale = (percent ?? readsAsPercent(descriptor)) ? 100 : 1;
     const { min, max } = descriptor;
     const name = label ?? fieldName(descriptor.channel);
     // An angle (graphty-element's `angle`) is picked with the angle picker (owner's input rules, 2026-11-24).

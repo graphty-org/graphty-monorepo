@@ -5,6 +5,7 @@
  * The owner's rule (2026-11-24): "The style panel may only use components from compact-mantine". In the files
  * eslint.config.js switches the rule on for, it reports an input control imported from any module but
  * `@graphty/compact-mantine`, and a native `<input>`, `<select>`, `<textarea>` or `<button>` drawn by hand.
+ * A namespace import (`import * as MC from "@mantine/core"`) is checked where an input is read from it (`<MC.Select>`).
  * Layout that takes no input (`Group`, `Stack`, `Box`, `Text`, `Tooltip`, `VisuallyHidden`, `Divider`) is not an
  * input and is left alone. An app component that wraps compact-mantine inputs (a font or picture field wired to the
  * session) is checked in its own file, so it may be imported.
@@ -74,6 +75,32 @@ export default {
     create(context) {
         /** @type {Record<string, string>} */
         const gaps = context.options[0]?.gaps ?? {};
+        /** Namespace imports from modules other than compact-mantine, by local name, to the module. */
+        /** @type {Map<string, string>} */
+        const namespaces = new Map();
+        /**
+         * Reports `name` read from `from` when it is an input that is not a named gap.
+         * @param {import("eslint").Rule.Node | import("estree").Node} node - where to report
+         * @param {string} name - the export read
+         * @param {string} from - the module
+         */
+        const check = (node, name, from) => {
+            if (INPUTS.has(name) && !(from === "@mantine/core" && name in gaps)) {
+                context.report({ node, messageId: "imported", data: { name, from } });
+            }
+        };
+        /**
+         * Checks `ns.name` when `ns` is a namespace import.
+         * @param {import("eslint").Rule.Node} node - the member read
+         * @param {string} ns - the object's name
+         * @param {string} name - the property's name
+         */
+        const checkMember = (node, ns, name) => {
+            const from = namespaces.get(ns);
+            if (from !== undefined) {
+                check(node, name, from);
+            }
+        };
         return {
             ImportDeclaration(node) {
                 const from = String(node.source.value);
@@ -81,14 +108,25 @@ export default {
                     return;
                 }
                 for (const spec of node.specifiers) {
+                    if (spec.type === "ImportNamespaceSpecifier") {
+                        namespaces.set(spec.local.name, from);
+                        continue;
+                    }
                     if (spec.type !== "ImportSpecifier" || spec.importKind === "type") {
                         continue;
                     }
                     const name = spec.imported.type === "Identifier" ? spec.imported.name : String(spec.imported.value);
-                    if (!INPUTS.has(name) || (from === "@mantine/core" && name in gaps)) {
-                        continue;
-                    }
-                    context.report({ node: spec, messageId: "imported", data: { name, from } });
+                    check(spec, name, from);
+                }
+            },
+            MemberExpression(node) {
+                if (node.object.type === "Identifier" && node.property.type === "Identifier" && !node.computed) {
+                    checkMember(node, node.object.name, node.property.name);
+                }
+            },
+            JSXMemberExpression(node) {
+                if (node.object.type === "JSXIdentifier") {
+                    checkMember(node, node.object.name, node.property.name);
                 }
             },
             JSXOpeningElement(node) {

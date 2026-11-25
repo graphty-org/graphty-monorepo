@@ -1,18 +1,6 @@
-import {
-    colorWord,
-    CompactColorInput,
-    ControlSection,
-    FieldRow,
-    ImagePicker,
-    TargetTooltip,
-} from "@graphty/compact-mantine";
+import { colorWord, CompactColorInput, ControlSection, FieldRow, TargetTooltip } from "@graphty/compact-mantine";
 import { DEFAULT_BACKGROUND_COLOR, type GraphBackgroundConfig, LIGHTING_VALUES } from "@graphty/graphty-element/schema";
-import {
-    type GraphSession,
-    type GraphSettingKey,
-    prepareBackgroundImage,
-    type TransactionScope,
-} from "@graphty/graphty-element/session";
+import { type GraphSession, type GraphSettingKey, type TransactionScope } from "@graphty/graphty-element/session";
 import { ActionIcon, Box, Menu, Select, Stack, Switch, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
@@ -24,6 +12,7 @@ import { BackgroundShader, ShaderSection } from "../settings/ShaderSettings";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { BACKGROUND_SECTION_WORDS, BACKGROUND_WORDS } from "../style/words";
+import { BackgroundImage } from "./BackgroundImage";
 import { LIGHTING_WORDS, useNotInEffect } from "./graphSettingReads";
 import { SHOWN_SETTINGS } from "./settingsInEffect";
 
@@ -380,45 +369,5 @@ function BackgroundSection({ session }: Readonly<{ session: GraphSession }>): Re
                     ))}
             </Stack>
         </ControlSection>
-    );
-}
-
-/**
- * The background image (compact-mantine's ImagePicker): an address typed in, or an image from this computer, chosen
- * or dropped, prepared by graphty-element and kept in the project as a `data:` address.
- * @param props - Component props
- * @param props.address - the image in effect (an address, or a `data:` address once uploaded), or "" for none
- * @param props.onCommit - writes a new address
- * @returns The field
- */
-export function BackgroundImage({
-    address,
-    onCommit,
-}: Readonly<{ address: string; onCommit: (data: string) => void }>): React.JSX.Element {
-    const { store } = useWorkspace();
-    return (
-        <ImagePicker
-            label="Sky picture"
-            title="Picture"
-            value={address === "" ? null : address}
-            valueName={address.startsWith("data:") ? "Uploaded picture" : undefined}
-            images={[]}
-            clearable={false}
-            accept="image/*"
-            onChange={() => undefined}
-            onUrl={onCommit}
-            onFiles={([file]) => {
-                // graphty-element decodes, turns and scales it; one it cannot use is a failure notice.
-                void prepareBackgroundImage(file).then((prepared) => {
-                    if (prepared.ok) {
-                        onCommit(prepared.data);
-                    } else {
-                        store.set({
-                            notice: { message: BACKGROUND_SECTION_WORDS.notDrawn(prepared.problem), error: true },
-                        });
-                    }
-                });
-            }}
-        />
     );
 }

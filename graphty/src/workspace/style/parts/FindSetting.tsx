@@ -113,6 +113,7 @@ function AlsoSetBy({
  * @param props.line - draws a found setting as this panel's own line, with no other layers named (Style panel v2)
  * @param props.words - more words a setting is found by (Style panel v2's line and sub-group names)
  * @param props.home - where this panel holds a setting, heading its results (Style panel v2's sections and things)
+ * @param props.lineKey - the line a found setting is drawn on: settings sharing one (a pair, a unit line) draw it once
  * @returns The results
  */
 export function FindSettingResults({
@@ -122,6 +123,7 @@ export function FindSettingResults({
     line,
     words,
     home,
+    lineKey,
 }: Readonly<{
     ctx: RowContext;
     query: string;
@@ -129,12 +131,23 @@ export function FindSettingResults({
     line?: (channel: Channel) => React.ReactNode;
     words?: (channel: Channel) => readonly string[];
     home?: (channel: Channel) => FoundHome | undefined;
+    lineKey?: (channel: Channel) => string;
 }>): React.JSX.Element {
     const { session } = ctx;
     const own = new Set(ctx.layers.map((layer) => layer.row ?? layer.id));
     const rows = layerRows(session.styles.tree()).filter((id) => !own.has(id));
     const reaches = rows.length === 0 ? [] : session.styles.layersUnder(rows);
     const groups = findSettings(ctx.side, query, parts, words, home);
+    // Made in this render, so a render of the results alone draws every line again.
+    const drawn = new Set<string>();
+    const drawOnce = (channel: Channel): React.ReactNode => {
+        const key = lineKey?.(channel) ?? channel;
+        if (drawn.has(key)) {
+            return null;
+        }
+        drawn.add(key);
+        return line?.(channel);
+    };
     return (
         <div data-find-results="">
             {groups.map((group) => (
@@ -153,7 +166,7 @@ export function FindSettingResults({
                                     />
                                 </>
                             ) : (
-                                line(channel)
+                                drawOnce(channel)
                             )}
                         </div>
                     ))}

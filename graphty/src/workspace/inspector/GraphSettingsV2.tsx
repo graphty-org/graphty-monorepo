@@ -40,8 +40,8 @@ import { V2_LABELS } from "../style/v2/rubric";
 import { AngleLine, LineFrame, SegmentsLine } from "../style/v2/RubricLine";
 import { RowSettings } from "../style/v2/ThingLine";
 import { colorPalettes, failureWords, scrubLetter } from "../style/words";
+import { BackgroundImage } from "./BackgroundImage";
 import { LIGHTING_WORDS, useNotInEffect } from "./graphSettingReads";
-import { BackgroundImage } from "./GraphSettings";
 
 /** The graph's background family, from graphty-element. */
 const BACKGROUND = styleFamily("graph.background");

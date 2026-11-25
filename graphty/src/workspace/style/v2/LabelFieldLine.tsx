@@ -151,6 +151,19 @@ function shownOf(style: Readonly<LabelStyle>, field: LabelField): unknown {
     return valueOf(style, field) ?? labelFieldDescriptor(field)?.default;
 }
 
+/**
+ * A line's whole name: the label's title, then the line's, a word they share said once ("Node label" and "Label
+ * image" make "Node label image").
+ * @param title - the label's title ("Node label").
+ * @param own - the line's name.
+ * @returns the name.
+ */
+function lineName(title: string, own: string): string {
+    const words = own.toLowerCase().split(" ");
+    const shared = words.length > 1 && title.toLowerCase().endsWith(` ${words[0]}`);
+    return `${title} ${(shared ? words.slice(1) : words).join(" ")}`;
+}
+
 /** A drop-down's option for an unset field that draws nothing: never one of the element's values. */
 const NONE = "(none)";
 
@@ -783,7 +796,7 @@ export function LabelFieldLine({
     const fields = labelLineFields(line);
     const set = line.unit === undefined ? fields.some((each) => valueOf(style, each) !== undefined) : false;
     const shownName = line.name ?? descriptor.plainName;
-    const name = `${title} ${(line.fullName ?? shownName).toLowerCase()}`;
+    const name = lineName(title, line.fullName ?? shownName);
     // The field's own kind: a list of colors (a gradient's) is described to the controls as text, but draws the
     // gradient editor.
     const kind = labelFieldDescriptor(field)?.accepts ?? descriptor.accepts;

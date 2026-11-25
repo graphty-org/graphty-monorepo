@@ -29,6 +29,10 @@ tester.run("style-panel-inputs", rule, {
         'import type { TextInputProps } from "@mantine/core";',
         { code: 'import { Checkbox } from "@mantine/core";', options: gaps },
         "<div><span>x</span></div>;",
+        // A namespace's layout, and compact-mantine's inputs read through a namespace.
+        'import * as MC from "@mantine/core"; <MC.Group />;',
+        'import * as CM from "@graphty/compact-mantine"; <CM.SegmentedControl />;',
+        { code: 'import * as MC from "@mantine/core"; <MC.Checkbox />;', options: gaps },
     ],
     invalid: [
         { code: 'import { TextInput } from "@mantine/core";', errors: [{ messageId: "imported" }] },
@@ -37,6 +41,9 @@ tester.run("style-panel-inputs", rule, {
         { code: 'import { Checkbox } from "./MyCheckbox";', options: gaps, errors: [{ messageId: "imported" }] },
         { code: 'import { Select } from "../parts/Select";', errors: [{ messageId: "imported" }] },
         { code: '<input type="range" />;', errors: [{ messageId: "native" }] },
+        // An input read through a namespace import, in JSX or as a value.
+        { code: 'import * as MC from "@mantine/core"; <MC.Select data={[]} />;', errors: [{ messageId: "imported" }] },
+        { code: 'import * as MC from "@mantine/core"; const S = MC.TextInput;', errors: [{ messageId: "imported" }] },
         { code: "<button>Go</button>;", errors: [{ messageId: "native" }] },
     ],
 });

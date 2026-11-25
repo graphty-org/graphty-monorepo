@@ -1,7 +1,7 @@
-import { ControlSection, Popout } from "@graphty/compact-mantine";
+import { ControlSection, Popout, SegmentedControl } from "@graphty/compact-mantine";
 import type { ShaderParams as Params } from "@graphty/graphty-element/catalog";
 import type { GraphSession, TransactionScope } from "@graphty/graphty-element/session";
-import { Button, Group, Select, Stack, Text, UnstyledButton } from "@mantine/core";
+import { Button, Group, Input, Stack, Text, UnstyledButton } from "@mantine/core";
 import React, { useState } from "react";
 
 import { SettingsPopout } from "../options/SettingsPopout";
@@ -320,33 +320,40 @@ export function ShaderSection(): React.JSX.Element | null {
     return (
         <ControlSection label="Shaders" collapsible={false} headingLevel={3}>
             <Stack gap={6}>
-                <Select
+                <Input.Wrapper
                     label="Quality"
                     size="xs"
-                    allowDeselect={false}
                     description={guard?.code === undefined ? undefined : `Now ${renderQualityWords(guard)}`}
-                    value={settings.quality ?? SHADER_QUALITY.fallback}
-                    data={SHADER_QUALITY.values.map((value) => ({ value, label: SHADER_QUALITY_WORDS[value] }))}
-                    onChange={(picked) => {
-                        const quality = SHADER_QUALITY.values.find((value) => value === picked);
-                        if (quality !== undefined) {
-                            writeShaderPreference({ quality });
-                        }
-                    }}
-                />
-                <Select
-                    label="Motion"
-                    size="xs"
-                    allowDeselect={false}
-                    value={settings.motion ?? SHADER_MOTION.fallback}
-                    data={SHADER_MOTION.values.map((value) => ({ value, label: SHADER_MOTION_WORDS[value] }))}
-                    onChange={(picked) => {
-                        const motion = SHADER_MOTION.values.find((value) => value === picked);
-                        if (motion !== undefined) {
-                            writeShaderPreference({ motion });
-                        }
-                    }}
-                />
+                >
+                    <SegmentedControl
+                        label="Quality"
+                        fullWidth
+                        size="xs"
+                        value={settings.quality ?? SHADER_QUALITY.fallback}
+                        data={SHADER_QUALITY.values.map((value) => ({ value, label: SHADER_QUALITY_WORDS[value] }))}
+                        onChange={(picked) => {
+                            const quality = SHADER_QUALITY.values.find((value) => value === picked);
+                            if (quality !== undefined) {
+                                writeShaderPreference({ quality });
+                            }
+                        }}
+                    />
+                </Input.Wrapper>
+                <Input.Wrapper label="Motion" size="xs">
+                    <SegmentedControl
+                        label="Motion"
+                        fullWidth
+                        size="xs"
+                        value={settings.motion ?? SHADER_MOTION.fallback}
+                        data={SHADER_MOTION.values.map((value) => ({ value, label: SHADER_MOTION_WORDS[value] }))}
+                        onChange={(picked) => {
+                            const motion = SHADER_MOTION.values.find((value) => value === picked);
+                            if (motion !== undefined) {
+                                writeShaderPreference({ motion });
+                            }
+                        }}
+                    />
+                </Input.Wrapper>
                 <HeldShadersRow session={session} />
             </Stack>
         </ControlSection>

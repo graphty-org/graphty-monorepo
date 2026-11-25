@@ -48,7 +48,7 @@ import {
     SHAPE_REPLACE_RUBRIC,
     type ThingRubric,
 } from "./rubric";
-import { LineFrame, type RowSlots, RubricLine } from "./RubricLine";
+import { ByDataLink, LineFrame, type RowSlots, RubricLine } from "./RubricLine";
 import { RowSettings } from "./ThingLine";
 import { type ExtraGroup, FirstLines, ThingPopover } from "./ThingPopover";
 import { mainOf, setOn, type ThingSpec } from "./things";
@@ -203,6 +203,62 @@ function popoverHead(rubric: ThingRubric, main: Channel, listed: boolean): LineS
     return listed ? undefined : { channel: main };
 }
 
+/**
+ * Whether the row's model varies by data (a binding on `node.model`).
+ * @param ctx - the row.
+ * @returns true when it does.
+ */
+function modelBound(ctx: RowContext): boolean {
+    return lineIn(ctx, "node.model")?.binding !== undefined;
+}
+
+/**
+ * A basic Shape row's by-data link: its list opens with a choice of which value varies, the shape or the model, so the
+ * model varies by data from the one link the row already has (owner, 2026-11-24: one path to any control; every style
+ * stays editable).
+ * @param ctx - the row.
+ * @param plainShape - whether the row is a basic Shape's; any other row with no "..." has no link here.
+ * @returns the link.
+ */
+function shapeLink(ctx: RowContext, plainShape: boolean): React.ReactNode {
+    if (!plainShape) {
+        return null;
+    }
+    const targets = (
+        [
+            ["node.shape", "Shape"],
+            ["node.model", "Model"],
+        ] as const
+    ).flatMap(([channel, name]) => {
+        const descriptor = shownChannel(ctx.session, ctx.side, channel, false);
+        return descriptor?.renderable === true ? [{ name, descriptor }] : [];
+    });
+    return <ByDataLink ctx={ctx} targets={targets} />;
+}
+
+/**
+ * A row's rubric channels, and on a Shape its shape too: the row's drop-down is the shape's one control, never a line
+ * under the row or in its pop-over, while a model or a shader draws (owner, 2026-11-24: one path to any control).
+ * @param thingId - the thing.
+ * @param covered - its rubric's channels.
+ * @returns the channels no other line draws.
+ */
+function withShape(thingId: string, covered: ReadonlySet<Channel>): ReadonlySet<Channel> {
+    return thingId === "shape" ? new Set([...covered, "node.shape"]) : covered;
+}
+
+/**
+ * Whether a pop-over has no line for the row's main value: a list edits it, or it is a Shape's (its row's drop-down
+ * chooses the shape, model or shader), but for a model varying by data, whose bound line is drawn as every bound row's.
+ * @param ctx - the row.
+ * @param thingId - the thing.
+ * @param listed - whether the pop-over draws a list of it.
+ * @returns true when it has none.
+ */
+function headless(ctx: RowContext, thingId: string, listed: boolean): boolean {
+    return listed || (thingId === "shape" && !modelBound(ctx));
+}
+
 /** What a thing row's main line is drawn from: see `MainLine`. */
 interface MainLineProps {
     ctx: RowContext;
@@ -319,8 +375,9 @@ function MainControl({
     }
     // A model or a shader drawn in the shapes' place: the row is still the Shape list, naming what it draws, so one
     // drop-down chooses a basic shape, a model or a shader in every state (owner, 2026-11-24: one path to any control).
+    // A model varying by data draws its binding instead, as every bound row does.
     const shapeList =
-        thing.id === "shape" && (replacing !== undefined || main.channel === "node.model")
+        thing.id === "shape" && (replacing !== undefined || (main.channel === "node.model" && !modelBound(ctx)))
             ? shownChannel(ctx.session, "node", "node.shape", false)
             : undefined;
     return (
@@ -485,7 +542,7 @@ export function ThingRow({
     // Every channel the minus takes off: the thing's own and every line of its rubric.
     const all = [...new Set([...channels, ...covered])];
     // The thing's set lines its rubric has no line for (or, with no rubric yet, every other set line).
-    const others = othersOf(ctx, channels, main.channel, covered);
+    const others = othersOf(ctx, channels, main.channel, withShape(thing.id, covered));
     const common = rubric?.common ?? [];
     // A label row (its Glyph kind here) always draws its Size and Color lines (ia-design 2).
     const setLines = setLinesOf(ctx, rubric, main.channel, thing.id === "label");
@@ -518,7 +575,7 @@ export function ThingRow({
                             <FirstLines ctx={ctx} main={main} />
                         </>
                     }
-                    head={popoverHead(rubric, main.channel, popoverList !== undefined || thing.id === "shape")}
+                    head={popoverHead(rubric, main.channel, headless(ctx, thing.id, popoverList !== undefined))}
                     extra={params?.main}
                     moreGroups={params?.groups}
                     after={popoverList}
@@ -630,7 +687,7 @@ export function ThingRow({
         others.length === 0;
     const slots: RowSlots =
         plainShape || bare
-            ? { slot: null, removeLabel, onRemove: remove }
+            ? { slot: shapeLink(ctx, plainShape), removeLabel, onRemove: remove }
             : {
                   slot: settings,
                   removeLabel,

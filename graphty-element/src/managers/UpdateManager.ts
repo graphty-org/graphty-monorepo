@@ -161,6 +161,8 @@ export interface ColumnFraming {
     readonly root: TransformNode | null;
     /** Where a row's box is centered about its place, unscaled; the place itself when not given. */
     readonly boxCenterOf?: (row: number) => Readonly<{ x: number; y: number; z: number }> | undefined;
+    /** The curves drawn with no `Edge`, whose points can reach outside their nodes' box (`EdgeRowLines.forEachShownCurve`). */
+    readonly curves?: (visit: (row: number, points: Float32Array) => void) => void;
 }
 
 /**
@@ -404,6 +406,17 @@ export function framingBox(
         growForLabel(box, edge.arrowTailText?.labelMesh);
         growForCurve(box, curve ?? []);
     }
+
+    const world = columns?.root?.getWorldMatrix() ?? null;
+    columns?.curves?.((_, points) => {
+        const curve: Vector3[] = [];
+        for (let at = 0; at < points.length; at += 4) {
+            const point = new Vector3(points[at], points[at + 1], points[at + 2]);
+            curve.push(world === null ? point : Vector3.TransformCoordinates(point, world));
+        }
+
+        growForCurve(box, curve);
+    });
 
     return box;
 }
@@ -4410,6 +4423,9 @@ export class UpdateManager implements Manager {
             table,
             root: this.graphContext.getScene().getTransformNodeByName("graph-root"),
             boxCenterOf: (row) => batches.columnRowOf(row)?.drawnBoxCenter,
+            curves: (visit) => {
+                this.graphContext.getEdgeRowLines?.()?.forEachShownCurve(visit);
+            },
         };
     }
 
@@ -4595,6 +4611,12 @@ export class UpdateManager implements Manager {
             this.edgesToPlace = [];
         } else {
             this.placeTouchedEdges(walk);
+        }
+
+        // the curves drawn with no `Edge` are placed after the edges, as a walk places them (`EdgeRowLines.placeCurves`);
+        // while a load holds the draw they wait with the edges, so their pieces' order does not follow the paint batches
+        if (!this.dataManager.drawHeld) {
+            this.graphContext.getEdgeRowLines?.()?.placeCurves();
         }
 
         this.settleEnds();

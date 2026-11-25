@@ -701,6 +701,8 @@ export const edgeInternals = {} as {
      * graph-root's space.
      */
     seenThroughStop(node: RowMeasure, centre: Vector3, toward: Vector3): Vector3;
+    /** A test of whether a point lies outside a node's drawn shape, as a curve is cut there; see `Edge.outside`. */
+    outside(node: RowMeasure, centre: Xyz): (x: number, y: number, z: number) => boolean;
 };
 
 /**
@@ -885,6 +887,7 @@ export class Edge {
         edgeInternals.leaveNode = (edge, node, centre, toward) => edge.leaveNode(node, centre, toward);
         edgeInternals.bareEnd = (edge, end, centre, toward) => edge.bareEnd(end, centre, toward);
         edgeInternals.boxReachOf = (node, direction) => Edge.boxReachOf(node, direction);
+        edgeInternals.outside = (node, centre) => Edge.outside(node, centre);
         edgeInternals.lineInWorld = (edge) => {
             const curve = edge.drawnCurve;
             if (curve !== null) {
@@ -5085,7 +5088,7 @@ export class Edge {
      */
     private static outside(
         node: RowMeasure,
-        centre: Vector3,
+        centre: Xyz,
         gap = 0,
         onOutline = false,
     ): (x: number, y: number, z: number) => boolean {

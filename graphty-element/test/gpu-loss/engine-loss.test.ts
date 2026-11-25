@@ -301,6 +301,42 @@ describe("a lost WebGPU device", () => {
         assert.strictEqual(uncaptured(), 0);
     });
 
+    it("hears every frame read a capture left in flight when the loss fails it (issue #10033)", async () => {
+        const graph = await openRing(false);
+        const engine = graph.engine as WebGPUEngine;
+        const readPixels = engine.readPixels.bind(engine);
+        // The first read is held until two more frames have started theirs; those two fail as a crash fails them.
+        let release: () => void = () => undefined;
+        const held = new Promise<void>((resolve) => {
+            release = resolve;
+        });
+        let reads = 0;
+        vi.spyOn(engine, "readPixels").mockImplementation((...args) => {
+            reads++;
+            if (reads === 1) {
+                const first = readPixels(...args);
+                return held.then(async () => await first);
+            }
+
+            if (reads === 3) {
+                release();
+            }
+
+            return Promise.reject(
+                new DOMException(
+                    "Failed to execute 'mapAsync' on 'GPUBuffer': A valid external Instance reference no longer exists.",
+                    "AbortError",
+                ),
+            );
+        });
+
+        await captureNextFrame(graph);
+        // A task later, for an unhandled rejection to reach test/setup.ts, which fails the test.
+        await commands.canvasPicture();
+
+        assert.isAtLeast(reads, 3);
+    });
+
     it("takes no offense at a shader the crash left unanswered", async () => {
         const graph = await openRing(true);
         vi.spyOn(GPUShaderModule.prototype, "getCompilationInfo").mockRejectedValue(

@@ -141,7 +141,7 @@ export const LABEL_RUBRIC: LabelRubric = {
         { field: "enabled", name: "Show" },
         { field: "font", name: "Font", rule: "R13" },
         // Bold, Italic, Underline and Strikethrough as a text editor's toggles (owner, 2026-11-23); Bold writes the
-        // weight, whose number is the Letters group's.
+        // weight, its one control (owner, 2026-11-24: one path to any control): no Weight number beside it.
         { field: "weight", name: "Style", rule: "R7t", toggles: ["italic", "underline", "strikethrough"] },
         { field: "location", name: "Location", rule: "R2" },
     ],
@@ -185,8 +185,6 @@ export const LABEL_RUBRIC: LabelRubric = {
             heading: "Letters",
             lines: [
                 { field: "size", name: "Unit", fullName: "Size unit", rule: "R8f", unit: SIZE_UNIT },
-                // The number of the weight (Bold is the Style line's toggle).
-                { field: "weight", name: "Weight", rule: "R5" },
                 { field: "opacity", name: "Opacity" },
                 { field: "lineHeight", name: "Line height" },
                 { field: "rotation", name: "Rotation" },

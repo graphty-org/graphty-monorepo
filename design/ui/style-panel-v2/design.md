@@ -546,8 +546,8 @@ thing's groups when it has more than one, and each opens a new pop-over.
   rebuilt by the app: a tile button (`UnstyledButton`: model and shader tiles).
 - **Font style.** Bold, Italic, Underline and Strikethrough are toggle icon buttons on one line (compact-mantine
   `ToggleIconButton` or the existing grouped-button component, lucide glyphs, each with a hover tooltip). Bold
-  toggles the weight between the regular and the bold weight; the numeric weight is in the label's advanced
-  settings. graphty-element's label style carries underline and strikethrough (an additive API change where
+  toggles the weight between the regular and the bold weight, and is the weight's one control (owner, 2026-11-24:
+  one path to any control): there is no Weight number line. graphty-element's label style carries underline and strikethrough (an additive API change where
   missing).
 - **Names above, never beside (approved 2026-11-24).** Names go above inputs, never beside them: every input's
   visible name is a compact-mantine caption (FieldRow label above) or group legend (ControlGroup); app code never

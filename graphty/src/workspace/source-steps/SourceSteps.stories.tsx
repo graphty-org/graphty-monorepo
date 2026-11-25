@@ -68,20 +68,86 @@ async function choose(where: HTMLElement, name: string, option: string): Promise
 }
 
 /**
- * Opens the join workspace by Join + and picks the badge, the key of person and the staged source's badge on its
- * card.
+ * Opens the join workspace by Join +.
  * @param context - the play's context.
  * @returns the workspace.
  */
-async function pickBadge(context: Context): Promise<HTMLElement> {
-    const canvas = within(context.canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "Join" }));
-    const modal = await within(context.canvasElement.ownerDocument.body).findByRole("dialog", { name: "Join" });
-    await choose(modal, "In graph type", "person");
-    await choose(modal, "In graph field", "badge");
-    await choose(modal, "Incoming field", "badge");
+async function openJoin(context: Context): Promise<HTMLElement> {
+    await userEvent.click(within(context.canvasElement).getByRole("button", { name: "Join" }));
+    return within(context.canvasElement.ownerDocument.body).findByRole("dialog", { name: "Join" });
+}
+
+/**
+ * Picks one field in a field list, whose options also say each field's facts.
+ * @param modal - the workspace.
+ * @param name - the list.
+ * @param field - the field.
+ */
+async function pickField(modal: HTMLElement, name: string, field: string): Promise<void> {
+    await userEvent.click(within(modal).getByRole("combobox", { name }));
+    const named = new RegExp(`^${field}( |$)`);
+    await userEvent.click(await within(modal.ownerDocument.body).findByRole("option", { name: named }));
+}
+
+/**
+ * Picks two sources and a field of each on the selected card, or on a further match of it.
+ * @param modal - the workspace.
+ * @param one - the first source and its field.
+ * @param two - the second one and its field, the field null for new nodes.
+ * @param place - the match's place, from 1.
+ */
+async function match(
+    modal: HTMLElement,
+    one: readonly [string, string],
+    two: readonly [string, string | null],
+    place = 1,
+): Promise<void> {
+    const of = (word: string): string => (place === 1 ? word : `Match ${String(place)} ${word.toLowerCase()}`);
+    await choose(modal, of("Source 1"), one[0]);
+    await choose(modal, of("Source 2"), two[0]);
+    await pickField(modal, of("Field 1"), one[1]);
+    if (two[1] !== null) {
+        await pickField(modal, of("Field 2"), two[1]);
+    }
+}
+
+/**
+ * Adds a match to the selected card.
+ * @param modal - the workspace.
+ * @param one - the first source and its field.
+ * @param two - the second one and its field, the field null for new nodes.
+ */
+async function addMatch(
+    modal: HTMLElement,
+    one: readonly [string, string],
+    two: readonly [string, string | null],
+): Promise<void> {
+    await userEvent.click(within(modal).getByRole("button", { name: "+ Match" }));
+    await match(modal, one, two, 2);
+}
+
+/**
+ * Says how the selected card joins.
+ * @param modal - the workspace.
+ * @param words - the way, as the card words it.
+ */
+async function joinAs(modal: HTMLElement, words: string): Promise<void> {
+    await userEvent.click(await within(modal).findByRole("radio", { name: words }));
+}
+
+/**
+ * Opens the join workspace and matches people and the staged source by badge.
+ * @param context - the play's context.
+ * @param source - the staged source.
+ * @returns the workspace.
+ */
+async function pickBadge(context: Context, source: string): Promise<HTMLElement> {
+    const modal = await openJoin(context);
+    await match(modal, ["people", "badge"], [source, "badge"]);
     return modal;
 }
+
+const ENTRY_NODES = "Node per entries row, linked to people";
 
 const meta: Meta<typeof Workspace> = {
     title: "Workspace/Source steps",
@@ -120,13 +186,14 @@ export const StagedSource: Story = {
     },
 };
 
-/** The workspace card picking Key of person and the entries' badge, its values in the table. */
+/** Two sources and a field of each picked: the rows of both lined up under the graph, and how they can be joined. */
 export const PickFields: Story = {
     ...freshStore(DOORS),
     play: async (context) => {
         await staged(context, "entries.csv", ENTRIES);
-        const modal = await pickBadge(context);
-        await within(modal).findByRole("grid", { name: "Values" });
+        const modal = await pickBadge(context, "entries");
+        await within(modal).findByRole("grid", { name: "people" });
+        await within(modal).findByRole("radiogroup", { name: "Join as" });
     },
 };
 
@@ -135,20 +202,20 @@ export const PreviewValuesDiffer: Story = {
     ...freshStore(DOORS),
     play: async (context) => {
         await staged(context, "hr.csv", HR);
-        const modal = await pickBadge(context);
-        await userEvent.click(within(modal).getByRole("radio", { name: "Fields on a node" }));
+        const modal = await pickBadge(context, "hr");
+        await joinAs(modal, "Fields of hr on people");
         await userEvent.click(await within(modal).findByRole("button", { name: "Cells dept" }));
         await within(modal).findByRole("grid", { name: "Cells" });
     },
 };
 
-/** After a join is committed, the workspace lists every step as a card, the Add steps too. */
+/** After a join is committed, the workspace lists it, one line, and its card reads back as it was made. */
 export const AfterCommitSteps: Story = {
     ...freshStore(DOORS),
     play: async (context) => {
         const session = await staged(context, "entries.csv", ENTRIES);
-        let modal = await pickBadge(context);
-        await userEvent.click(within(modal).getByRole("radio", { name: "A node linked to what it names" }));
+        let modal = await pickBadge(context, "entries");
+        await joinAs(modal, ENTRY_NODES);
         await userEvent.click(within(modal).getByRole("button", { name: "Done" }));
         const body = within(context.canvasElement.ownerDocument.body);
         await waitFor(() => {
@@ -156,29 +223,23 @@ export const AfterCommitSteps: Story = {
                 throw new Error("Done closes the workspace");
             }
         });
-        await userEvent.click(within(context.canvasElement).getByRole("button", { name: "Join" }));
-        modal = await body.findByRole("dialog", { name: "Join" });
-        await within(modal).findByRole("region", { name: "entries.csv -> Connect" });
-        // The Add step that was there before the join is listed beside it.
-        await within(modal).findByRole("region", { name: "people.csv -> Added" });
+        modal = await openJoin(context);
+        await userEvent.click(await within(modal).findByRole("gridcell", { name: "people + entries" }));
+        await within(modal).findByRole("radio", { checked: true, name: ENTRY_NODES });
         await session.styles.settled();
     },
 };
 
 /**
- * The join workspace (issue #9796): Join + opens the modal over the canvas with one card for
- * the staged entries, its match the element's guess; Connect makes the card's step, drawn in the
- * card's color in the preview.
+ * The join workspace (issue #9796): Join + opens the modal over the canvas; two sources, a field of each
+ * and how to join them make the card's step, drawn in the card's color over the graph as it is.
  */
 export const JoinWorkspace: Story = {
     ...freshStore(DOORS),
     play: async (context) => {
         const session = await staged(context, "entries.csv", ENTRIES);
-        const canvas = within(context.canvasElement);
-        await userEvent.click(canvas.getByRole("button", { name: "Join" }));
-        const body = within(context.canvasElement.ownerDocument.body);
-        const modal = await body.findByRole("dialog", { name: "Join" });
-        await userEvent.click(within(modal).getByRole("radio", { name: "A node linked to what it names" }));
+        const modal = await pickBadge(context, "entries");
+        await joinAs(modal, ENTRY_NODES);
         await waitFor(() => {
             if ((session.styles.shownDraft?.steps?.length ?? 0) === 0) {
                 throw new Error("the card's step is drawn in its color");
@@ -188,37 +249,57 @@ export const JoinWorkspace: Story = {
     },
 };
 
-/**
- * Opens the join workspace by Join +.
- * @param context - the play's context.
- * @returns the workspace.
- */
-async function openJoin(context: Context): Promise<HTMLElement> {
-    await userEvent.click(within(context.canvasElement).getByRole("button", { name: "Join" }));
-    return within(context.canvasElement.ownerDocument.body).findByRole("dialog", { name: "Join" });
-}
+/** A new card: two blank pickers over the graph as it is. */
+export const JoinWorkspaceBlank: Story = {
+    ...freshStore(DOORS),
+    play: async (context) => {
+        const session = await staged(context, "entries.csv", ENTRIES);
+        const modal = await openJoin(context);
+        await within(modal).findByRole("gridcell", { name: "New join" });
+        await expect(within(modal).queryByRole("grid", { name: "people" })).toBeNull();
+        await session.styles.settled();
+    },
+};
 
-/** A card with no guess asks only what each row becomes, then how its rows are read. */
+/** Two sources picked: their rows side by side, each field's facts in its header, the likeliest pair marked. */
+export const JoinWorkspaceTables: Story = {
+    ...freshStore(DOORS),
+    play: async (context) => {
+        const session = await staged(context, "entries.csv", ENTRIES);
+        const modal = await openJoin(context);
+        await choose(modal, "Source 1", "people");
+        await choose(modal, "Source 2", "entries");
+        await within(modal).findByRole("grid", { name: "entries" });
+        await waitFor(async () => {
+            await expect(within(modal).getAllByRole("img", { name: "suggested" })).toHaveLength(2);
+        });
+        await session.styles.settled();
+    },
+};
+
+/** Fields picked: what the matches can make, in words that say what appears, none picked. */
 export const JoinWorkspaceEachRowBecomes: Story = {
     ...freshStore(DOORS),
     play: async (context) => {
         await staged(context, "doors.csv", DOORS_CSV);
-        const modal = await openJoin(context);
-        await within(modal).findByRole("radiogroup", { name: "Each row becomes" });
-        await within(modal).findByRole("button", { name: "Add as is" });
+        await staged(context, "entries.csv", ENTRIES, false);
+        const modal = await pickBadge(context, "entries");
+        await addMatch(modal, ["entries", "door"], ["doors", "door"]);
+        const ways = await within(modal).findByRole("radiogroup", { name: "Join as" });
+        await expect(within(ways).queryByRole("radio", { checked: true })).toBeNull();
     },
 };
 
-/** Each entry an edge between its person and its door, Existing edge and Direction under the two ends. */
+/** Each entry an edge between its person and its door, from one card of two matches. */
 export const JoinWorkspaceEdge: Story = {
     ...freshStore(DOORS),
     play: async (context) => {
         const session = await staged(context, "doors.csv", DOORS_CSV);
         await staged(context, "entries.csv", ENTRIES, false);
-        const modal = await openJoin(context);
-        await userEvent.click(within(modal).getByRole("radio", { name: "An edge between two nodes" }));
-        await choose(modal, "Other end field", "door");
-        await choose(modal, "Other end type", "doors.csv");
+        const modal = await pickBadge(context, "entries");
+        await addMatch(modal, ["entries", "door"], ["doors", "door"]);
+        await joinAs(modal, "Edge per entries row, people to doors");
+        await userEvent.click(await within(modal).findByRole("button", { name: "Expand Advanced" }));
         await within(modal).findByRole("radiogroup", { name: "Existing edge" });
         await session.styles.settled();
     },
@@ -230,15 +311,13 @@ export const JoinWorkspaceKeepMiddle: Story = {
     play: async (context) => {
         const session = await staged(context, "doors.csv", DOORS_CSV);
         await staged(context, "entries.csv", ENTRIES, false);
-        const modal = await openJoin(context);
-        await userEvent.click(within(modal).getByRole("button", { name: "+ Match" }));
-        await choose(modal, "Other end field", "door");
-        await choose(modal, "Other end type", "doors.csv");
-        await userEvent.click(within(modal).getByRole("radio", { name: "A node linked to what it names" }));
-        await within(modal).findByRole("button", { name: "Remove Other end" });
+        const modal = await pickBadge(context, "entries");
+        await addMatch(modal, ["entries", "door"], ["doors", "door"]);
+        await joinAs(modal, "Node per entries row, linked to people and doors");
+        await userEvent.click(await within(modal).findByRole("button", { name: "Expand Advanced" }));
         const direction = await within(modal).findByRole<HTMLInputElement>("combobox", { name: "Direction" });
         await waitFor(async () => {
-            await expect(direction.value).toBe("badge -> entries.csv -> door");
+            await expect(direction.value).toBe("people -> entries -> doors");
         });
         await session.styles.settled();
     },
@@ -250,9 +329,8 @@ export const JoinWorkspaceNewNodes: Story = {
     play: async (context) => {
         const session = await staged(context, "shifts.csv", TAGGED);
         const modal = await openJoin(context);
-        await userEvent.click(within(modal).getByRole("radio", { name: "A node linked to what it names" }));
-        await choose(modal, "In graph type", "New nodes");
-        await choose(modal, "Incoming field", "tags");
+        await match(modal, ["shifts", "tags"], ["New nodes", null]);
+        await joinAs(modal, "Node per tags, linked to shifts");
         const split = await within(modal).findByRole("combobox", { name: "Split on" });
         await userEvent.type(split, ";{Enter}");
         await waitFor(() => {
@@ -264,30 +342,49 @@ export const JoinWorkspaceNewNodes: Story = {
     },
 };
 
-/** People linked by the department they share, with the hub cap and the minimum shared. */
+/** Shifts linked by the one they share, with the hub cap and the minimum shared. */
 export const JoinWorkspaceSharedValue: Story = {
     ...freshStore(DOORS),
     play: async (context) => {
         const session = await staged(context, "shifts.csv", TAGGED);
         const modal = await openJoin(context);
-        await userEvent.click(within(modal).getByRole("radio", { name: "Links between nodes sharing a value" }));
-        await userEvent.click(within(modal).getByLabelText("Shared field", { selector: "input" }));
-        const body = within(context.canvasElement.ownerDocument.body);
-        await userEvent.click(await body.findByRole("option", { name: "shift" }));
+        await match(modal, ["shifts", "shift"], ["shifts", "shift"]);
+        await joinAs(modal, "Edge between shifts sharing shift");
         await within(modal).findByRole("combobox", { name: "Hub cap" });
-        await userEvent.keyboard("{Escape}");
         await session.styles.settled();
     },
 };
 
-/** Adding a staged source as it is: the workspace lists it as a card beside people's. */
+/** Several joins, one line each, with a source added as it is. */
+export const JoinList: Story = {
+    ...freshStore(DOORS),
+    play: async (context) => {
+        const session = await staged(context, "doors.csv", DOORS_CSV);
+        await staged(context, "entries.csv", ENTRIES, false);
+        const modal = await openJoin(context);
+        await choose(modal, "Source 1", "doors");
+        await userEvent.click(await within(modal).findByRole("button", { name: "Add as is" }));
+        await userEvent.click(within(modal).getByRole("button", { name: "Join" }));
+        await match(modal, ["people", "badge"], ["entries", "badge"]);
+        await joinAs(modal, ENTRY_NODES);
+        await userEvent.click(within(modal).getByRole("button", { name: "Join" }));
+        const list = await within(modal).findByRole("grid", { name: "Joins" });
+        await waitFor(async () => {
+            await expect(within(list).getAllByRole("row")).toHaveLength(3);
+        });
+        await session.styles.settled();
+    },
+};
+
+/** Adding a staged source as it is: the workspace lists it, one line. */
 export const JoinWorkspaceAddStaged: Story = {
     ...freshStore(DOORS),
     play: async (context) => {
         const session = await staged(context, "doors.csv", DOORS_CSV);
         const modal = await openJoin(context);
+        await choose(modal, "Source 1", "doors");
         await userEvent.click(await within(modal).findByRole("button", { name: "Add as is" }));
-        await within(modal).findByRole("region", { name: "doors.csv -> Added" });
+        await within(modal).findByRole("gridcell", { name: "doors, added" });
         await session.styles.settled();
     },
 };
@@ -297,8 +394,8 @@ export const JoinWorkspaceRemoveSource: Story = {
     ...freshStore(DOORS),
     play: async (context) => {
         const session = await staged(context, "entries.csv", ENTRIES);
-        const modal = await pickBadge(context);
-        await userEvent.click(within(modal).getByRole("radio", { name: "A node linked to what it names" }));
+        const modal = await pickBadge(context, "entries");
+        await joinAs(modal, ENTRY_NODES);
         await userEvent.click(within(modal).getByRole("button", { name: "Done" }));
         const body = within(context.canvasElement.ownerDocument.body);
         await waitFor(() => {
@@ -309,7 +406,7 @@ export const JoinWorkspaceRemoveSource: Story = {
         const people = session.data.sources()[0]?.key ?? "";
         storeOf(context).set({ joinWorkspace: { remove: people } });
         const removal = await body.findByRole("dialog", { name: "Join" });
-        await within(removal).findByRole("region", { name: "Remove people.csv" });
+        await within(removal).findByRole("region", { name: "Remove people" });
         await session.styles.settled();
     },
 };

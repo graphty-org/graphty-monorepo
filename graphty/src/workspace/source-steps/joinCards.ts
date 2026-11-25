@@ -1,86 +1,68 @@
 /**
- * @file The join workspace's cards (issue #9796): one card per join, saying what each row of a
- * source becomes, the fields it matches and that choice's options. A card whose fields are all
- * picked is a step of the one open source draft and is read back from `draft.steps()` after every
- * change, so undo never leaves a card out of step with the draft; a card that still misses a pick is
- * only the reader's picks. Every count, value list and column comes from the open draft, never the
- * committed graph.
+ * @file The join workspace's cards: one card per join, holding the lines of fields the reader matches
+ * in the order picked. What a set of matches can make, its counts and the acts that make it are
+ * graphty-element's (`draft.joinOutcomes`, `draft.joinRows`); a card adds the reader's options to the
+ * acts. A card whose outcome is picked is a step of the one open source draft and is read back from
+ * `draft.steps()` after every change, so undo never leaves a card out of step with the draft; a card
+ * with none is only the reader's lines.
  */
 
 import type {
     GraphSession,
     JoinReduce,
     SourceDraft,
-    SourceExtractOptions,
     SourceJoinAct,
-    SourceJoinInto,
+    SourceJoinField,
+    SourceJoinMatch,
+    SourceJoinOutcome,
+    SourceJoinSide,
     SourceKey,
-    SourceLinkOptions,
     SourceMatchCounts,
-    SourceMatchPair,
+    SourceSideField,
+    SourceSpaceName,
     SourceStepAct,
     SourceStepRow,
 } from "@graphty/graphty-element/session";
 
-import { columnsOf } from "./join";
-
-/**
- * What each row of a card's source becomes: fields on a node the graph holds, an edge between two
- * nodes, a node linked to what it names, or links between the nodes sharing a value.
- */
-export type Becomes = "fields" | "edge" | "node" | "links";
-
-/** What a card's step does, as the element's join acts name it. */
-export type CardAct = SourceJoinAct["act"];
-
-/**
- * The node 1 side of a match: a space's keys, a column its nodes carry, a column of the source that
- * supplied it, a staged source's keys (an empty `space`), or new nodes (`isNew`), one per value.
- */
-export interface CardInto {
-    readonly space: string;
-    readonly source?: SourceKey;
-    readonly field?: string;
-    /** The matched field's values become new nodes; as another end, in `space` and of that type. */
+/** One end of a line: a side and its field, or new nodes. */
+export interface CardEnd {
+    readonly side: SourceJoinSide | null;
+    readonly field: string | null;
+    /** The other end's values become new nodes. */
     readonly isNew?: true;
 }
 
-/** The reader's picks of one card. */
-export interface CardPicks {
-    /** What each row becomes, or null until the reader says. */
-    readonly becomes: Becomes | null;
-    /** The incoming source and the field that names node 1. */
-    readonly from: { readonly source: SourceKey; readonly field?: string } | null;
-    readonly into: CardInto | null;
-    readonly ignoreCase: boolean;
-    readonly ignoreSpaces: boolean;
-    /** The second match: the incoming field naming the other end, and the nodes it names. */
-    readonly to?: { readonly field?: string; readonly into: CardInto | null } | null;
-    /** Links: the columns whose values link nodes. */
-    readonly shared?: readonly string[];
-    /** Links: the values are in rows of `from`, whose field names the node holding them; else the nodes carry them. */
-    readonly inRows?: boolean;
+/** One line of a card, its two ends where the reader picked them. */
+export interface CardLine {
+    readonly a: CardEnd;
+    readonly b: CardEnd;
 }
+
+/** An end with nothing picked. */
+export const NO_END: CardEnd = { side: null, field: null };
+
+/** A line with nothing picked. */
+export const BLANK_LINE: CardLine = { a: NO_END, b: NO_END };
+
+/** What a row matching nothing does. */
+export type NoMatch = "add" | "skip" | "keep" | "remove";
 
 /** A card's options, as the draft's step carries them. */
 export interface CardResult {
     /** Fields: several rows naming one node, as the element's `repeated` takes and returns it. */
     readonly repeated: JoinReduce;
-    /** Fields: what a row matching no node does. */
-    readonly unmatchedFrom: "keep" | "drop";
-    /** Edge and node: which way the edges run. */
-    readonly direction: "into-from" | "from-into";
+    /** What a row matching nothing does; null for the outcome's default. */
+    readonly noMatch: NoMatch | null;
+    /** A node linked to what it names: whether a node is made of a value that names none. */
+    readonly missing: "add" | "skip";
+    /** Which way the edges run; null for the outcome's default. */
+    readonly direction: "into-from" | "from-into" | null;
     readonly edgeType: string;
-    /** Edge: one edge per pair of ends. */
+    /** One edge per pair of ends. */
     readonly perPair: boolean;
-    /**
-     * Edge and node: a row whose field names no node. A node's row that nothing links can also be
-     * kept as it is.
-     */
-    readonly unmatched: "skip" | "add" | "keep";
     /** A row whose value names several nodes: joined to each of them, or to none. */
     readonly fanOut: "each" | "skip";
-    /** Edge: a row whose ends an edge already joins. */
+    /** A row whose ends an edge already joins. */
     readonly existing: "add" | "merge";
     /** New nodes: the separator a cell holds several values by, or "" for none. */
     readonly split: string;
@@ -88,65 +70,494 @@ export interface CardResult {
     readonly type: string;
     /** New nodes: the columns that move onto them. */
     readonly columns: readonly string[];
-    /** Links: edges between the nodes, or a node per value. */
-    readonly as: "edges" | "nodes";
-    /** Links: a value more nodes hold links none of them; absent, the element's own default. */
+    /** Shared values: a value more nodes hold links none of them; absent, the element's own default. */
     readonly maxShared?: number;
-    /** Links: how many values a pair must share; absent, the element's own default. */
+    /** Shared values: how many values a pair must share; absent, the element's own default. */
     readonly minShared?: number;
-}
-
-/** A card with no step yet: only the reader's picks. */
-export interface PendingCard {
-    readonly id: string;
-    readonly picks: CardPicks;
-    /** What the element guessed its rows become, shown as a suggestion and never picked for the reader. */
-    readonly guess: Becomes | null;
-    /** Whether the picks are still the element's guess. */
-    readonly suggested: boolean;
-    /**
-     * The picks of every step the card wrote, its first and each rewrite: while a step with any
-     * of them is in the draft the card is drawn as that step's card, and it is drawn again as this
-     * card once undo takes them all back.
-     */
-    readonly written?: readonly CardPicks[];
-    /** The reader deleted its step's card: it is drawn again only once an undo brings the step back. */
-    readonly deleted?: true;
-    /** The options of the step it was, which the step it next writes starts with. */
-    readonly last?: CardResult;
-}
-
-/** One card as the workspace draws it. */
-export interface JoinCardView {
-    readonly id: string;
-    /** The draft step it is, or null for a pending card. */
-    readonly step: SourceStepRow | null;
-    readonly picks: CardPicks;
-    /** The step's options, or null for a pending card. */
-    readonly result: CardResult | null;
-    /** For a pending card: the options of the step it was. */
-    readonly last?: CardResult;
-    readonly guess: Becomes | null;
-    readonly suggested: boolean;
 }
 
 /** The options a new step starts with. */
 export const DEFAULT_RESULT: CardResult = {
     repeated: "first",
-    unmatchedFrom: "keep",
-    direction: "into-from",
+    noMatch: null,
+    missing: "skip",
+    direction: null,
     edgeType: "",
     perPair: false,
-    unmatched: "keep",
     fanOut: "each",
     existing: "add",
     split: "",
     type: "",
     columns: [],
-    as: "edges",
 };
 
-/** A match's counts as a card shows them, and the Ignore switches its matches would gain by. */
+/** How a card compares values. */
+export interface Ignoring {
+    readonly ignoreCase: boolean;
+    readonly ignoreSpaces: boolean;
+}
+
+/** A card the reader made or changed in this opening of the workspace. */
+export interface ReaderCard extends Ignoring {
+    readonly id: string;
+    readonly lines: readonly CardLine[];
+    /** The options the reader set, which the step it next writes takes. */
+    readonly chosen: Partial<CardResult>;
+    /**
+     * The steps it wrote, by what they match: while one of them is in the draft the card is that step's,
+     * with the lines as the reader had them; once undo takes them back the card is drawn again.
+     */
+    readonly written: readonly { readonly sig: string; readonly lines: readonly CardLine[] }[];
+    /** The place of the step it last wrote. */
+    readonly at: number | null;
+    /** The several steps it became, each drawn as a card of its own. */
+    readonly split: readonly string[];
+    /** The reader removed its step: it is drawn again only once an undo brings the step back. */
+    readonly deleted?: true;
+}
+
+/** One card as the workspace draws it. */
+export interface JoinCardView extends Ignoring {
+    readonly id: string;
+    /** The draft step it is, or null for a card with no outcome picked. */
+    readonly step: SourceStepRow | null;
+    /** Its lines; null for a step not opened in this workspace yet. */
+    readonly lines: readonly CardLine[] | null;
+    readonly chosen: Partial<CardResult>;
+}
+
+/** A card whose lines are known. */
+export type OpenCard = JoinCardView & { readonly lines: readonly CardLine[] };
+
+/** The fields the element finds likeliest to match, of a line's two ends. */
+export interface Suggestion {
+    readonly a: string;
+    readonly b: string;
+}
+
+/**
+ * A new card.
+ * @param id - Its id.
+ * @param lines - Its lines; blank by default.
+ * @returns The card.
+ */
+export function newCard(id: string, lines: readonly CardLine[] = [BLANK_LINE]): ReaderCard {
+    return { id, lines, ignoreCase: false, ignoreSpaces: false, chosen: {}, written: [], at: null, split: [] };
+}
+
+/**
+ * A step's card id: its place.
+ * @param index - The step's place.
+ * @returns The id.
+ */
+export function stepCardId(index: number): string {
+    return `step:${String(index)}`;
+}
+
+/**
+ * Whether a step is a join: one a card is drawn for.
+ * @param row - The step.
+ * @returns True when it is.
+ */
+export function isJoin(row: SourceStepRow): boolean {
+    return row.act !== null || row.link !== null || row.extract !== null;
+}
+
+/**
+ * What a step matches and makes, without its options: the same for one card's step whatever is set on it.
+ * @param row - The step.
+ * @returns It, as text.
+ */
+export function sigOf(row: SourceStepRow): string {
+    if (row.act !== null) {
+        const { act, from, into, to } = row.act;
+        return JSON.stringify([act, from, into, to?.field, to?.into, to?.keepRow === true]);
+    }
+    if (row.link !== null) {
+        const { source, columns, field, into, nodes, as } = row.link;
+        return JSON.stringify(["link", source, columns, field, into, nodes, as]);
+    }
+    return JSON.stringify(["extract", row.source, row.extract?.column]);
+}
+
+/**
+ * The cards of a draft's join steps, in step order, then the cards with no step.
+ * @param draft - The open draft.
+ * @param mine - The reader's cards.
+ * @returns The cards.
+ */
+export function cardsOf(draft: SourceDraft, mine: readonly ReaderCard[]): JoinCardView[] {
+    const rows = draft.steps().filter((row) => isJoin(row));
+    const sigs = new Map(rows.map((row) => [row.index, sigOf(row)]));
+    const taken = new Map<number, ReaderCard>();
+    for (const card of mine) {
+        const own = rows.filter(
+            (row) =>
+                card.deleted !== true &&
+                !taken.has(row.index) &&
+                card.written.some((each) => each.sig === sigs.get(row.index)),
+        );
+        const row = own.find((each) => each.index === card.at) ?? own.at(-1);
+        if (row !== undefined) {
+            taken.set(row.index, card);
+        }
+    }
+    const steps = rows.map((row): JoinCardView => {
+        const card = taken.get(row.index);
+        const on = {
+            ignoreCase: (row.act ?? row.link)?.ignoreCase === true,
+            ignoreSpaces: (row.act ?? row.link)?.ignoreSpaces === true,
+        };
+        if (card === undefined) {
+            return { id: stepCardId(row.index), step: row, lines: null, chosen: {}, ...on };
+        }
+        const was = card.written.findLast((each) => each.sig === sigs.get(row.index))?.lines ?? card.lines;
+        const lines = sameMatches(card.lines, was) ? card.lines : was;
+        return { id: card.id, step: row, lines, chosen: card.chosen, ...on };
+    });
+    const drawn = new Set([...taken.values()].map((card) => card.id));
+    const live = new Set(sigs.values());
+    const rest = mine.filter(
+        (card) =>
+            card.deleted !== true &&
+            !drawn.has(card.id) &&
+            !card.written.some((each) => live.has(each.sig)) &&
+            !card.split.some((sig) => live.has(sig)),
+    );
+    return [
+        ...steps,
+        ...rest.map(({ id, lines, chosen, ignoreCase, ignoreSpaces }) => ({
+            id,
+            step: null,
+            lines,
+            chosen,
+            ignoreCase,
+            ignoreSpaces,
+        })),
+    ];
+}
+
+/**
+ * An end as the element takes it, once it is picked whole.
+ * @param end - The end.
+ * @returns The field, or null.
+ */
+function fieldOf(end: CardEnd): SourceJoinField | null {
+    if (end.side === null || end.field === null) {
+        return null;
+    }
+    return end.side.source === undefined
+        ? { space: end.side.space, field: end.field }
+        : { source: end.side.source, field: end.field };
+}
+
+/**
+ * A line as the match it makes.
+ * @param line - The line.
+ * @returns The match, or null while a pick is missing.
+ */
+export function matchOf(line: CardLine): SourceJoinMatch | null {
+    const a = fieldOf(line.a);
+    const b = line.b.isNew === true ? { new: true as const } : fieldOf(line.b);
+    return a === null || b === null ? null : { a, b };
+}
+
+/**
+ * The lines whose picks are all made.
+ * @param lines - The lines.
+ * @returns Them.
+ */
+export function wholeLines(lines: readonly CardLine[]): readonly CardLine[] {
+    return lines.filter((line) => matchOf(line) !== null);
+}
+
+const byText = (x: string, y: string): number => x.localeCompare(y);
+
+/**
+ * Whether two sets of lines make the same matches, whichever way round each is.
+ * @param x - One set.
+ * @param y - The other.
+ * @returns True when they do.
+ */
+export function sameMatches(x: readonly CardLine[], y: readonly CardLine[]): boolean {
+    const said = (lines: readonly CardLine[]): string =>
+        JSON.stringify(
+            wholeLines(lines)
+                .map(({ a, b }) => JSON.stringify([JSON.stringify(a), JSON.stringify(b)].sort(byText)))
+                .sort(byText),
+        );
+    return said(x) === said(y);
+}
+
+/**
+ * Whether a line has a pick and misses another.
+ * @param line - The line.
+ * @returns True when it does.
+ */
+export function isHalf(line: CardLine): boolean {
+    return matchOf(line) === null && (line.a.side !== null || line.b.side !== null || line.b.isNew === true);
+}
+
+/**
+ * Whether two sides are one.
+ * @param x - One side.
+ * @param y - The other.
+ * @returns True when they are.
+ */
+export function sameSide(x: SourceJoinSide | null, y: SourceJoinSide | null): boolean {
+    return x !== null && y !== null && x.source === y.source && x.space === y.space;
+}
+
+/**
+ * The side that names an id space's nodes: the one source whose rows they are, else the space itself.
+ * @param steps - The steps that build it.
+ * @param space - The space.
+ * @returns The side.
+ */
+export function sideOfSpace(steps: readonly SourceStepRow[], space: SourceSpaceName): SourceJoinSide {
+    const owners = new Set(
+        steps.flatMap((row) => (row.op === "join.add" && row.spaces.includes(space) ? [row.source] : [])),
+    );
+    const [source] = owners;
+    return owners.size === 1 ? { source } : { space };
+}
+
+/**
+ * The lines a step's card is named by, read from the step alone: which side each end is, and its field.
+ * @param steps - The steps it is one of.
+ * @param row - The step.
+ * @returns The lines.
+ */
+export function linesNaming(steps: readonly SourceStepRow[], row: SourceStepRow): readonly CardLine[] {
+    const intoEnd = (into: {
+        readonly space?: string;
+        readonly source?: string;
+        readonly field?: string;
+    }): CardEnd => ({
+        side: into.source === undefined ? sideOfSpace(steps, into.space ?? "") : { source: into.source },
+        field: into.field ?? null,
+    });
+    const own = (source: SourceKey, field: string): CardEnd => ({ side: { source }, field });
+    if (row.act !== null) {
+        const { from, into, to } = row.act;
+        return [
+            { a: own(from.source, from.field), b: intoEnd(into) },
+            ...(to === undefined
+                ? []
+                : [
+                      {
+                          a: own(from.source, to.field),
+                          b: to.unmatched === "add" ? { ...NO_END, isNew: true as const } : intoEnd(to.into),
+                      },
+                  ]),
+        ];
+    }
+    if (row.link !== null) {
+        const { source, columns, field, into, nodes } = row.link;
+        const holder = nodes === undefined ? { source } : sideOfSpace(steps, nodes);
+        return [
+            ...(field === undefined || into === undefined ? [] : [{ a: own(source, field), b: intoEnd(into) }]),
+            ...columns.map((column) => ({ a: { side: holder, field: column }, b: { side: holder, field: column } })),
+        ];
+    }
+    return [{ a: own(row.source, row.extract?.column ?? ""), b: { ...NO_END, isNew: true } }];
+}
+
+/**
+ * The place of a side in the order loaded: an id space is before every source.
+ * @param session - The element's session.
+ * @param side - The side.
+ * @returns Its place.
+ */
+export function loadOrder(session: GraphSession, side: SourceJoinSide): number {
+    return side.source === undefined
+        ? -1
+        : session.data.sources({ staged: true }).findIndex((each) => each.key === side.source);
+}
+
+/**
+ * A step's lines as its card reopens on them: the element's matches, each line's earlier loaded side first.
+ * @param session - The element's session.
+ * @param draft - The open draft.
+ * @param row - The step.
+ * @returns The lines.
+ */
+export function linesOfStep(session: GraphSession, draft: SourceDraft, row: SourceStepRow): readonly CardLine[] {
+    const endOf = (ref: SourceJoinField): CardEnd => {
+        const side: SourceJoinSide = ref.source === undefined ? { space: ref.space } : { source: ref.source };
+        return { side, field: ref.field ?? keyOf(draft, side, row.index) };
+    };
+    return draft.joinOutcomes({ step: row.index }).matches.map(({ a, b }) => {
+        const one = endOf(a);
+        if ("new" in b) {
+            return { a: one, b: { ...NO_END, isNew: true as const } };
+        }
+        const other = endOf(b);
+        return one.side !== null && other.side !== null && loadOrder(session, other.side) < loadOrder(session, one.side)
+            ? { a: other, b: one }
+            : { a: one, b: other };
+    });
+}
+
+/**
+ * The key field of a side.
+ * @param draft - The open draft.
+ * @param side - The side.
+ * @param before - The step's place to read it before.
+ * @returns Its name, or null when it has none.
+ */
+function keyOf(draft: SourceDraft, side: SourceJoinSide, before: number): string | null {
+    try {
+        return draft.sideFields(side, { before }).find((field) => field.key)?.name ?? null;
+    } catch {
+        // A source an undo or a removal took away.
+        return null;
+    }
+}
+
+/**
+ * What a card's matches can make.
+ * @param draft - The open draft.
+ * @param lines - Its lines.
+ * @param on - How it compares values.
+ * @param step - The step it is, if it is one.
+ * @returns The outcomes.
+ */
+export function offeredOutcomes(
+    draft: SourceDraft,
+    lines: readonly CardLine[],
+    on: Ignoring,
+    step: SourceStepRow | null,
+): readonly SourceJoinOutcome[] {
+    const matches = lines.flatMap((line) => matchOf(line) ?? []);
+    if (matches.length === 0) {
+        return [];
+    }
+    try {
+        return draft.joinOutcomes({
+            matches,
+            ...ignoringOf(on),
+            ...(step === null ? {} : { step: step.index }),
+        }).outcomes;
+    } catch {
+        // A field an earlier change took away matches nothing.
+        return [];
+    }
+}
+
+/**
+ * What a card lists: what its matches can make, and a step's own outcome whatever matches now.
+ * @param draft - The open draft.
+ * @param lines - Its lines.
+ * @param on - How it compares values.
+ * @param step - The step it is, if it is one.
+ * @returns The outcomes.
+ */
+export function outcomesOf(
+    draft: SourceDraft,
+    lines: readonly CardLine[],
+    on: Ignoring,
+    step: SourceStepRow | null,
+): readonly SourceJoinOutcome[] {
+    const found = offeredOutcomes(draft, lines, on, step);
+    return step === null || found.some((each) => each.current === true)
+        ? found
+        : [...found, ...draft.joinOutcomes({ step: step.index }).outcomes.filter((each) => each.current === true)];
+}
+
+/**
+ * An outcome's key: what tells it from the others of one card.
+ * @param outcome - The outcome.
+ * @returns The key.
+ */
+export function outcomeKey(outcome: SourceJoinOutcome): string {
+    const { code, rows, onto, uses, fields } = outcome;
+    return JSON.stringify([code, rows, onto, uses, fields]);
+}
+
+/**
+ * Whether two outcomes make the same thing of the same sides.
+ * @param x - One outcome.
+ * @param y - The other.
+ * @returns True when they do.
+ */
+export function sameOutcome(x: SourceJoinOutcome, y: SourceJoinOutcome): boolean {
+    const said = ({ code, rows, onto, acts }: SourceJoinOutcome): string =>
+        JSON.stringify([code, rows, onto, acts.length]);
+    return said(x) === said(y);
+}
+
+/**
+ * The live counts of a line's match, a step card's against the graph before its own step.
+ * @param draft - The open draft.
+ * @param line - The line.
+ * @param on - How it compares values.
+ * @param before - The card's step place, if it has one.
+ * @returns The counts; null while a pick is missing, for new nodes, and for a field matched with itself.
+ */
+export function countsOf(
+    draft: SourceDraft,
+    line: CardLine,
+    on: Ignoring,
+    before: number | undefined,
+): SourceMatchCounts | null {
+    const match = matchOf(line);
+    const { a, b } = line;
+    const self = sameSide(a.side, b.side) && a.field === b.field;
+    if (match === null || a.side === null || b.side === null || self) {
+        return null;
+    }
+    try {
+        return draft.joinRows({
+            a: a.side,
+            b: b.side,
+            match,
+            ...ignoringOf(on),
+            ...(before === undefined ? {} : { before }),
+            limit: 0,
+        }).counts;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Whether a value of a step's matches names several nodes, the way its act reads them.
+ * @param draft - The open draft.
+ * @param row - The step.
+ * @returns True when one does.
+ */
+export function namesSeveral(draft: SourceDraft, row: SourceStepRow): boolean {
+    const { act } = row;
+    if (act === null) {
+        return false;
+    }
+    const { from, into, to } = act;
+    const pairs = [
+        { from, into },
+        ...(to === undefined || to.unmatched === "add"
+            ? []
+            : [{ from: { source: from.source, field: to.field }, into: to.into }]),
+    ];
+    return pairs.some((pair) => {
+        try {
+            return draft.matchCounts(pair, { ...ignoringOf(act), before: row.index }).fanOut > 0;
+        } catch {
+            return false;
+        }
+    });
+}
+
+/**
+ * How a card compares values, as the element takes it.
+ * @param on - The card.
+ * @returns The options.
+ */
+export function ignoringOf(on: Ignoring): Ignoring {
+    return { ignoreCase: on.ignoreCase, ignoreSpaces: on.ignoreSpaces };
+}
+
+/** A card's Ignore switches: what each would add over its matches. */
 export interface MatchSwitches {
     /** How many more rows, or nodes, Ignore case would match, over every match of the card; null while on. */
     readonly moreWithCase: number | null;
@@ -157,8 +568,7 @@ export interface MatchSwitches {
 }
 
 /**
- * What a switch would add to a match: the incoming rows it would bring in, else the nodes in the graph
- * the odd spelling is on.
+ * What a switch would add to a match: the rows it would bring in, else the nodes the odd spelling is on.
  * @param rows - How many more rows.
  * @param nodes - How many more nodes.
  * @returns The count, or null while the switch is on.
@@ -175,8 +585,8 @@ function more(rows: number | null, nodes: number | null): number | null {
 export function switchesOf(all: readonly (SourceMatchCounts | null)[]): MatchSwitches {
     const sum = (read: (counts: SourceMatchCounts) => number | null): number | null =>
         all.reduce<number | null>((total, counts) => {
-            const more = counts === null ? null : read(counts);
-            return more === null ? total : (total ?? 0) + more;
+            const extra = counts === null ? null : read(counts);
+            return extra === null ? total : (total ?? 0) + extra;
         }, null);
     return {
         moreWithCase: sum((counts) => more(counts.moreRowsWithIgnoreCase, counts.moreNodesWithIgnoreCase)),
@@ -185,420 +595,28 @@ export function switchesOf(all: readonly (SourceMatchCounts | null)[]): MatchSwi
     };
 }
 
-/** Picks with nothing picked. */
-const NO_PICKS: CardPicks = { becomes: null, from: null, into: null, ignoreCase: false, ignoreSpaces: false };
-
 /**
- * A step's card id: its place, so a card follows its step through undo.
- * @param index - The step's place.
- * @returns The id.
+ * What a row matching nothing can do under an outcome: what keeps it, its default first or last as the
+ * outcome has it, then what leaves it out.
+ * @param outcome - The outcome.
+ * @returns The two ways and the default, or null where no row can go unmatched.
  */
-export function stepCardId(index: number): string {
-    return `step:${String(index)}`;
-}
-
-/**
- * The cards of a draft's join steps, in step order, then the pending cards.
- * @param draft - The open draft.
- * @param pending - The cards with no step yet.
- * @returns The cards.
- */
-export function cardsOf(draft: SourceDraft, pending: readonly PendingCard[]): JoinCardView[] {
-    const behind = new Set<string>();
-    const steps = draft.steps().flatMap((row): JoinCardView[] => {
-        const read = readBack(row);
-        if (read === null) {
-            return [];
-        }
-        const card: JoinCardView = {
-            id: stepCardId(row.index),
-            step: row,
-            picks: read.picks,
-            result: { ...DEFAULT_RESULT, ...read.result },
-            guess: null,
-            suggested: false,
-        };
-        // The card that wrote the step stays the same card, with the control the reader is in.
-        const own = pending.find((each) => !behind.has(each.id) && each.deleted !== true && writtenFor(each, card));
-        if (own === undefined) {
-            return [card];
-        }
-        behind.add(own.id);
-        return [{ ...card, id: own.id }];
-    });
-    const shown = pending.filter(
-        (card) => card.deleted !== true && !behind.has(card.id) && !steps.some((each) => writtenFor(card, each)),
-    );
-    return [...steps, ...shown.map((card) => ({ ...card, step: null, result: null }))];
-}
-
-/**
- * A join step read back as a card's picks and options.
- * @param row - The step.
- * @returns Them, or null for a step no card makes.
- */
-function readBack(row: SourceStepRow): { readonly picks: CardPicks; readonly result: Partial<CardResult> } | null {
-    if (row.act !== null) {
-        return actBack(row.act);
-    }
-    if (row.link !== null) {
-        return linkBack(row.link, row.holders ?? "");
-    }
-    return row.extract === null ? null : extractBack(row.source, row.extract);
-}
-
-/**
- * A Merge or Connect step read back.
- * @param act - The step's act.
- * @returns The picks and options.
- */
-function actBack(act: SourceStepAct): { readonly picks: CardPicks; readonly result: Partial<CardResult> } {
-    const matching = { ignoreCase: act.ignoreCase, ignoreSpaces: act.ignoreSpaces };
-    const { from, to } = act;
-    const into = intoBack(act.into, act.into.space);
-    if (act.act === "merge") {
-        return {
-            picks: { becomes: "fields", from, into, ...matching },
-            result: {
-                repeated: act.repeated === null || act.repeated === "both" ? "first" : act.repeated,
-                unmatchedFrom: act.unmatchedFrom ?? "keep",
-                fanOut: act.fanOut ?? "skip",
-            },
-        };
-    }
-    const asNode = to === undefined || to.keepRow === true;
-    const toField = to?.into.field === undefined ? {} : { field: to.into.field };
-    const skipped = asNode && act.unlinked !== "drop" ? "keep" : "skip";
-    const isNew = to?.unmatched === "add" ? { isNew: true as const } : {};
-    return {
-        picks: {
-            becomes: asNode ? "node" : "edge",
-            from,
-            into,
-            ...matching,
-            ...(to === undefined
-                ? {}
-                : { to: { field: to.field, into: { space: to.into.space, ...toField, ...isNew } } }),
-        },
-        result: {
-            direction: act.direction ?? "into-from",
-            edgeType: act.edgeType ?? "",
-            perPair: act.perPair === true,
-            unmatched: act.unmatched === "add" ? "add" : skipped,
-            fanOut: act.fanOut ?? "skip",
-            existing: act.existing ?? "add",
-        },
-    };
-}
-
-/**
- * A node 1 side as the element reads it back.
- * @param into - The side.
- * @param space - Its space.
- * @returns The card's side.
- */
-function intoBack(into: SourceJoinInto, space: string): CardInto {
-    return {
-        space,
-        ...(into.source === undefined ? {} : { source: into.source }),
-        ...(into.field === undefined ? {} : { field: into.field }),
-    };
-}
-
-/**
- * A step linking nodes that share a value, read back.
- * @param link - The step's options.
- * @param holders - The space of the nodes it links.
- * @returns The picks and options.
- */
-function linkBack(
-    link: SourceLinkOptions,
-    holders: string,
-): { readonly picks: CardPicks; readonly result: Partial<CardResult> } {
-    const inRows = link.field !== undefined;
-    const into = inRows && link.into !== undefined ? intoBack(link.into, link.into.space ?? "") : { space: holders };
-    return {
-        picks: {
-            becomes: "links",
-            from: { source: link.source, ...(inRows ? { field: link.field } : {}) },
-            into,
-            ignoreCase: link.ignoreCase === true,
-            ignoreSpaces: link.ignoreSpaces === true,
-            shared: link.columns,
-            inRows,
-        },
-        result: {
-            as: link.as ?? "edges",
-            edgeType: link.edgeType ?? "",
-            type: link.type ?? "",
-            ...(link.maxShared === undefined ? {} : { maxShared: link.maxShared }),
-            ...(link.minShared === undefined ? {} : { minShared: link.minShared }),
-        },
-    };
-}
-
-/**
- * A step making nodes of a column's values, read back.
- * @param source - The step's source.
- * @param extract - The step's options.
- * @returns The picks and options.
- */
-function extractBack(
-    source: SourceKey,
-    extract: SourceExtractOptions,
-): { readonly picks: CardPicks; readonly result: Partial<CardResult> } {
-    return {
-        picks: {
-            ...NO_PICKS,
-            becomes: "node",
-            from: { source, field: extract.column },
-            into: { space: "", isNew: true },
-        },
-        result: {
-            split: extract.split ?? "",
-            type: extract.type ?? "",
-            edgeType: extract.edgeType ?? "",
-            columns: extract.columns ?? [],
-        },
-    };
-}
-
-/**
- * Whether two cards make the same join of the same fields.
- * @param a - One card's picks.
- * @param b - The other's.
- * @returns True when they do.
- */
-function samePicks(a: CardPicks, b: CardPicks): boolean {
-    const named = (picks: CardPicks): string =>
-        JSON.stringify([picks.becomes, picks.into, pairOf(picks), toPairOf(picks), picks.from, picks.shared ?? []]);
-    return named(a) === named(b);
-}
-
-/**
- * A card's node 1 side as the element takes it.
- * @param into - The side.
- * @returns The side.
- */
-function intoOf(into: CardInto): SourceJoinInto {
-    if (into.source === undefined) {
-        return into.field === undefined ? { space: into.space } : { space: into.space, field: into.field };
-    }
-    return into.field === undefined && into.space !== ""
-        ? { space: into.space }
-        : { source: into.source, ...(into.field === undefined ? {} : { field: into.field }) };
-}
-
-/**
- * The second match a card's picks make, once both its fields are picked.
- * @param picks - The picks.
- * @returns The pair, or null.
- */
-export function toPairOf(picks: CardPicks): SourceMatchPair | null {
-    const { from, to } = picks;
-    if (from === null || to?.field === undefined || to.into === null) {
-        return null;
-    }
-    const into = to.into.isNew === true ? { space: newKind(picks) } : intoOf(to.into);
-    return { from: { source: from.source, field: to.field }, into };
-}
-
-/**
- * The kind of the new nodes at a card's other end: the name picked for them, else the field's.
- * @param picks - The picks.
- * @returns The kind.
- */
-export function newKind(picks: CardPicks): string {
-    const { to } = picks;
-    return to?.into?.space === undefined || to.into.space === "" ? (to?.field ?? "") : to.into.space;
-}
-
-/**
- * Whether a pending card is the written card behind a step card: it wrote that step's picks.
- * @param pending - A pending card.
- * @param card - A step card.
- * @returns True when it is.
- */
-export function writtenFor(pending: PendingCard, card: JoinCardView): boolean {
-    return card.step !== null && pending.written?.some((picks) => samePicks(picks, card.picks)) === true;
-}
-
-/**
- * The match a card's picks make, once both fields are picked; none for new nodes, which match nothing.
- * @param picks - The picks.
- * @returns The pair, or null.
- */
-export function pairOf(picks: CardPicks): SourceMatchPair | null {
-    const { from, into } = picks;
-    if (from?.field === undefined || into === null || into.isNew === true) {
-        return null;
-    }
-    return { from: { source: from.source, field: from.field }, into: intoOf(into) };
-}
-
-/**
- * The live counts of a card's match, in the open draft: a step card's against the graph as the
- * steps before it build it, so its own result is never counted.
- * @param draft - The open draft.
- * @param picks - The picks.
- * @param step - The card's step place, if it has one.
- * @param pair - The match to count; default the card's first.
- * @returns The counts, or null while a field is unpicked or the draft refuses the pair.
- */
-export function countsOf(
-    draft: SourceDraft,
-    picks: CardPicks,
-    step?: number,
-    pair: SourceMatchPair | null = pairOf(picks),
-): SourceMatchCounts | null {
-    if (pair === null) {
-        return null;
-    }
-    try {
-        return draft.matchCounts(pair, {
-            ignoreCase: picks.ignoreCase,
-            ignoreSpaces: picks.ignoreSpaces,
-            ...(step === undefined ? {} : { before: step }),
-        });
-    } catch {
-        return null;
-    }
-}
-
-/** A field of node 1 as a card offers it: its name, and the side picking it makes. */
-interface IntoField {
-    readonly label: string;
-    readonly into: CardInto;
-}
-
-/**
- * The source whose own space a space is, in the committed graph.
- * @param session - The element's session.
- * @param space - The space.
- * @returns The source, or undefined for a space no one source owns.
- */
-export function ownerOf(session: GraphSession, space: string): SourceKey | undefined {
-    return session.data.spaces().find((row) => row.space === space)?.ownedBy;
-}
-
-/**
- * The column a side's nodes are keyed by: the one every source that made them names.
- * @param draft - The open draft.
- * @param into - The side.
- * @param session - The element's session, for a side whose source the draft no longer adds.
- * @returns The column, or null when they name several, or none.
- */
-export function keyColumn(draft: SourceDraft, into: CardInto, session: GraphSession | null = null): string | null {
-    const sources = into.space === "" && into.source !== undefined ? [into.source] : addedInto(draft, into.space);
-    // With no add left, the space is still that of the source the graph has it from.
-    const owner = session === null ? undefined : ownerOf(session, into.space);
-    try {
-        const keys = new Set(
-            (sources.length === 0 && owner !== undefined ? [owner] : sources).map(
-                (source) => draft.sourceTable(source).summary().mapping.key ?? null,
-            ),
-        );
-        const [key = null] = keys;
-        return keys.size === 1 ? key : null;
-    } catch {
-        // A source an undo took away keys nothing.
-        return null;
-    }
-}
-
-/**
- * The sources added into a space.
- * @param draft - The open draft.
- * @param space - The space.
- * @returns Them.
- */
-function addedInto(draft: SourceDraft, space: string): readonly SourceKey[] {
-    return draft
-        .steps()
-        .flatMap((step) => (step.op === "join.add" && step.spaces.includes(space) ? [step.source] : []));
-}
-
-/**
- * The fields of a card's node 1 besides its key, each a side a match can name: every column the
- * nodes of its space carry as the draft builds them before the card's own step, those earlier merges
- * brought included; a staged source's own columns.
- * @param draft - The open draft.
- * @param into - The side.
- * @param before - The card's step place, if it has one.
- * @returns The fields.
- */
-export function intoFields(draft: SourceDraft, into: CardInto, before?: number): readonly IntoField[] {
-    const { space, source } = into;
-    const key = keyColumn(draft, into);
-    if (space === "" && source !== undefined) {
-        return columnsOf(draft, source, "nodes")
-            .filter((field) => field !== key)
-            .map((field) => ({ label: field, into: { space, source, field } }));
-    }
-    const added = addedInto(draft, space);
-    const only = added.length === 1 ? added[0] : undefined;
-    const own = only === undefined ? [] : columnsOf(draft, only, "nodes").filter((field) => field !== key);
-    let carried: readonly string[] = [];
-    try {
-        carried = draft.columns(space, before === undefined ? {} : { before }).map((column) => column.name);
-    } catch {
-        // A space an undo took away carries nothing.
-    }
-    return [
-        ...own.map((field) => ({ label: field, into: { space, source: only, field } })),
-        ...carried
-            .filter((field) => field !== key && !own.includes(field))
-            .map((field) => ({ label: field, into: { space, field } })),
-    ];
-}
-
-/**
- * A source's columns, as the open draft reads them: node rows first, else edge rows.
- * @param draft - The open draft.
- * @param source - The source.
- * @returns The column names.
- */
-export function draftColumns(draft: SourceDraft, source: SourceKey): readonly string[] {
-    return columnsOf(draft, source);
-}
-
-/**
- * The columns a Links card can match with themselves: the columns of the rows that hold the values,
- * else every column the nodes carry.
- * @param draft - The open draft.
- * @param picks - The card's picks.
- * @param before - The card's step place, if it has one.
- * @returns The column names.
- */
-export function sharedColumns(draft: SourceDraft, picks: CardPicks, before?: number): readonly string[] {
-    const { from, into } = picks;
-    if (picks.inRows === true) {
-        return from === null ? [] : draftColumns(draft, from.source).filter((column) => column !== from.field);
-    }
-    return into === null ? [] : intoFields(draft, into, before).map((field) => field.label);
-}
-
-/**
- * What a card's picks and options make, as the element takes it: null until every field that
- * choice needs is picked.
- * @param picks - The picks.
- * @param result - The options.
- * @param step - The step the card is, whose other choices it keeps.
- * @returns The act, or null.
- */
-export function actOf(picks: CardPicks, result: CardResult, step: SourceStepRow | null = null): SourceJoinAct | null {
-    switch (picks.becomes) {
-        case "fields": {
-            return mergeOf(picks, result, step);
-        }
+export function noMatchWays(
+    outcome: Pick<SourceJoinOutcome, "code" | "ownNodes">,
+): { readonly ways: readonly [NoMatch, NoMatch]; readonly unset: NoMatch } | null {
+    switch (outcome.code) {
+        case "fields":
         case "edge": {
-            return toPairOf(picks) === null ? null : connectOf(picks, result);
+            return { ways: ["add", "skip"], unset: "skip" };
         }
-        case "node": {
-            return picks.into?.isNew === true ? extractOf(picks, result, step) : connectOf(picks, result);
+        case "fold": {
+            return { ways: ["keep", "remove"], unset: "keep" };
         }
-        case "links": {
-            return linkOf(picks, result, step);
+        case "link":
+        case "middle": {
+            return outcome.ownNodes
+                ? { ways: ["keep", "remove"], unset: "keep" }
+                : { ways: ["add", "skip"], unset: "add" };
         }
         default: {
             return null;
@@ -607,185 +625,282 @@ export function actOf(picks: CardPicks, result: CardResult, step: SourceStepRow 
 }
 
 /**
- * The Merge a card's picks make.
- * @param picks - The picks.
- * @param result - The options.
- * @param step - The step the card is, whose rules of its own per column it keeps.
- * @returns The act, or null.
+ * What a row matching nothing does under an outcome, as its card shows it.
+ * @param outcome - The outcome.
+ * @param result - The card's options.
+ * @returns The way: the one set when the outcome takes it, else its default.
  */
-function mergeOf(picks: CardPicks, result: CardResult, step: SourceStepRow | null): SourceJoinAct | null {
-    const pair = pairOf(picks);
-    if (pair === null) {
+export function noMatchOf(outcome: SourceJoinOutcome, result: CardResult): NoMatch | null {
+    const choice = noMatchWays(outcome);
+    if (choice === null) {
         return null;
     }
+    return choice.ways.find((way) => way === result.noMatch) ?? choice.unset;
+}
+
+/**
+ * Whether an outcome links rows of a side to nodes of the same side.
+ * @param outcome - The outcome.
+ * @returns True when it does.
+ */
+export function linksItself(outcome: Pick<SourceJoinOutcome, "code" | "rows" | "onto">): boolean {
+    return outcome.code === "link" && sameSide(outcome.rows.at(0) ?? null, outcome.onto.at(0) ?? null);
+}
+
+/**
+ * Which way an outcome's edges run: as set, else from the first end to the other, or from a row to the
+ * row of its own side it names.
+ * @param outcome - The outcome.
+ * @param result - The card's options.
+ * @returns The direction.
+ */
+export function directionOf(
+    outcome: Pick<SourceJoinOutcome, "code" | "rows" | "onto">,
+    result: CardResult,
+): "into-from" | "from-into" {
+    return result.direction ?? (linksItself(outcome) ? "from-into" : "into-from");
+}
+
+/**
+ * Which way a step's edges run, of its outcome's ends: a step made by its ends the other way round runs
+ * the other way between them.
+ * @param act - The step's act.
+ * @param outcome - Its outcome.
+ * @returns The direction.
+ */
+function wayOf(act: SourceStepAct, outcome: Pick<SourceJoinOutcome, "acts">): "into-from" | "from-into" {
+    const made = outcome.acts.at(0);
+    const turned = made?.act === "connect" && made.options.from.field !== act.from.field;
+    const way = act.direction ?? "into-from";
+    if (!turned) {
+        return way;
+    }
+    return way === "into-from" ? "from-into" : "into-from";
+}
+
+/**
+ * A connect's options read back.
+ * @param act - The step's act.
+ * @param outcome - Its outcome.
+ * @param kept - The way a row matching nothing is kept.
+ * @param left - The way it is left out.
+ * @returns The options.
+ */
+function connectResult(
+    act: SourceStepAct,
+    outcome: Pick<SourceJoinOutcome, "code" | "ownNodes" | "acts">,
+    kept: NoMatch | null,
+    left: NoMatch | null,
+): CardResult {
+    // A row an earlier "left out" kept because the graph already held its node is kept.
+    const out = act.unlinked === "remove" || (act.unlinked === "drop" && !outcome.ownNodes);
+    const isEdge = outcome.code === "edge";
+    const gone = isEdge ? act.unmatched !== "add" : out;
+    return {
+        ...DEFAULT_RESULT,
+        fanOut: act.fanOut ?? "skip",
+        noMatch: gone ? left : kept,
+        missing: !isEdge && act.unmatched === "add" ? "add" : "skip",
+        direction: wayOf(act, outcome),
+        edgeType: act.edgeType ?? "",
+        perPair: act.perPair === true,
+        existing: act.existing ?? "add",
+        type: act.to?.unmatched === "add" ? (act.to.type ?? "") : "",
+    };
+}
+
+/**
+ * A step's options read back.
+ * @param row - The step.
+ * @param outcome - Its outcome.
+ * @returns The options.
+ */
+export function resultOf(
+    row: SourceStepRow,
+    outcome: Pick<SourceJoinOutcome, "code" | "ownNodes" | "acts">,
+): CardResult {
+    const [kept = null, left = null] = noMatchWays(outcome)?.ways ?? [];
+    if (row.link !== null) {
+        const { edgeType = "", type = "", maxShared, minShared } = row.link;
+        return {
+            ...DEFAULT_RESULT,
+            edgeType,
+            type,
+            ...(maxShared === undefined ? {} : { maxShared }),
+            ...(minShared === undefined ? {} : { minShared }),
+        };
+    }
+    if (row.extract !== null) {
+        const { split = "", type = "", edgeType = "", columns = [] } = row.extract;
+        return { ...DEFAULT_RESULT, split, type, edgeType, columns };
+    }
+    if (row.act === null) {
+        return DEFAULT_RESULT;
+    }
+    const { act } = row;
+    const fanOut = act.fanOut ?? "skip";
+    if (act.act === "merge") {
+        return {
+            ...DEFAULT_RESULT,
+            fanOut,
+            repeated: act.repeated === null || act.repeated === "both" ? "first" : act.repeated,
+            noMatch: act.unmatchedFrom === "drop" ? left : kept,
+        };
+    }
+    return connectResult(act, outcome, kept, left);
+}
+
+type Merge = Extract<SourceJoinAct, { act: "merge" }>["options"];
+type Connect = Extract<SourceJoinAct, { act: "connect" }>["options"];
+type Link = Extract<SourceJoinAct, { act: "link" }>["options"];
+type Extracted = Extract<SourceJoinAct, { act: "extract" }>["options"];
+
+/** What an act's options are made of. */
+interface Choices {
+    readonly outcome: SourceJoinOutcome;
+    readonly result: CardResult;
+    readonly on: Ignoring;
+    /** The step the card is, whose choices no option names it keeps. */
+    readonly step: SourceStepRow | null;
+}
+
+/**
+ * A member of an act, left out where it is empty.
+ * @param name - The member.
+ * @param text - Its text.
+ * @returns It.
+ */
+const given = <K extends string>(name: K, text: string): Partial<Record<K, string>> =>
+    (text === "" ? {} : { [name]: text }) as Partial<Record<K, string>>;
+
+/**
+ * A merge with a card's options.
+ * @param options - The merge.
+ * @param c - The options.
+ * @returns The merge's options.
+ */
+function mergeWith(options: Merge, c: Choices): Merge {
+    const noMatch = noMatchOf(c.outcome, c.result);
     // Every other column is `repeated`'s.
-    const { "*": _all, ...aggregate } = step?.act?.aggregate ?? {};
+    const { "*": _all, ...own } = c.step?.act?.aggregate ?? {};
+    const aggregate = { ...own, ...options.aggregate };
     return {
-        act: "merge",
-        options: {
-            ...pair,
-            ignoreCase: picks.ignoreCase,
-            ignoreSpaces: picks.ignoreSpaces,
-            unmatchedFrom: result.unmatchedFrom,
-            fanOut: result.fanOut,
-            ...(result.repeated === "first" ? {} : { repeated: result.repeated }),
-            ...(Object.keys(aggregate).length === 0 ? {} : { aggregate }),
-        },
+        ...options,
+        ...ignoringOf(c.on),
+        unmatchedFrom: noMatch === "skip" || noMatch === "remove" ? "drop" : "keep",
+        fanOut: c.result.fanOut,
+        ...(c.result.repeated === "first" ? {} : { repeated: c.result.repeated }),
+        ...(Object.keys(aggregate).length === 0 ? {} : { aggregate }),
+    };
+}
+
+/** What becomes of a row nothing links, by the way picked. */
+const UNLINKED = { add: "keep", keep: "keep", skip: "drop", remove: "remove" } as const;
+
+/**
+ * A connect with a card's options.
+ * @param options - The connect.
+ * @param c - The options.
+ * @returns The connect's options.
+ */
+function connectWith(options: Connect, c: Choices): Connect {
+    const { outcome, result } = c;
+    const noMatch = noMatchOf(outcome, result) ?? "keep";
+    const { to } = options;
+    const { type } = result;
+    const end = to?.unmatched === "add" && type !== "" ? { to: { ...to, type, into: { space: type } } } : {};
+    const rows =
+        outcome.code === "edge"
+            ? {
+                  unmatched: noMatch === "add" ? ("add" as const) : ("skip" as const),
+                  perPair: result.perPair,
+                  existing: result.existing,
+              }
+            : { unmatched: result.missing, unlinked: UNLINKED[noMatch] };
+    return {
+        ...options,
+        ...ignoringOf(c.on),
+        ...end,
+        direction: directionOf(outcome, result),
+        fanOut: result.fanOut,
+        ...given("edgeType", result.edgeType),
+        ...rows,
     };
 }
 
 /**
- * The Connect a card's picks make: each row an edge between its two ends, or a node linked to the
- * one or two nodes it names.
- * @param picks - The picks.
- * @param result - The options.
- * @returns The act, or null.
+ * A link with a card's options.
+ * @param options - The link.
+ * @param c - The options.
+ * @returns The link's options.
  */
-function connectOf(picks: CardPicks, result: CardResult): SourceJoinAct | null {
-    const pair = pairOf(picks);
-    if (pair === null) {
-        return null;
-    }
-    const other = toPairOf(picks);
-    const isNew = picks.to?.into?.isNew === true;
-    const to =
-        other === null
-            ? {}
-            : {
-                  to: {
-                      field: other.from.field,
-                      into: other.into,
-                      ...(picks.becomes === "node" ? { keepRow: true } : {}),
-                      ...(isNew ? { unmatched: "add" as const, type: newKind(picks) } : {}),
-                  },
-              };
+function linkWith(options: Link, c: Choices): Link {
+    const { outcome, result } = c;
+    const was = c.step?.link ?? null;
+    const asNodes = outcome.code === "shared-nodes";
+    const kept = asNodes && was?.as === "nodes" && (was.type ?? "") === result.type ? was.space : undefined;
+    const least = asNodes ? undefined : result.minShared;
     return {
-        act: "connect",
-        options: {
-            ...pair,
-            ignoreCase: picks.ignoreCase,
-            ignoreSpaces: picks.ignoreSpaces,
-            direction: result.direction,
-            unmatched: result.unmatched === "add" ? ("add" as const) : ("skip" as const),
-            fanOut: result.fanOut,
-            ...(picks.becomes === "edge"
-                ? { perPair: result.perPair, existing: result.existing }
-                : { unlinked: result.unmatched === "skip" ? ("drop" as const) : ("keep" as const) }),
-            ...(result.edgeType === "" ? {} : { edgeType: result.edgeType }),
-            ...to,
-        },
+        ...options,
+        ...ignoringOf(c.on),
+        ...given("edgeType", result.edgeType),
+        ...(asNodes ? given("type", result.type) : {}),
+        ...(result.maxShared === undefined ? {} : { maxShared: result.maxShared }),
+        ...(least === undefined ? {} : { minShared: least }),
+        ...(kept === undefined ? {} : { space: kept }),
     };
 }
 
 /**
- * The new nodes a card's picks make of a column's values.
- * @param picks - The picks.
- * @param result - The options.
- * @param step - The step the card is, whose space it keeps while its type and column stay.
- * @returns The act, or null.
+ * New nodes with a card's options: they stay in the space they are in while their type and column do.
+ * @param options - The new nodes.
+ * @param c - The options.
+ * @returns The new nodes' options.
  */
-function extractOf(picks: CardPicks, result: CardResult, step: SourceStepRow | null): SourceJoinAct | null {
-    const { from } = picks;
-    if (from?.field === undefined) {
-        return null;
-    }
-    const was = step?.extract ?? null;
-    const same = was !== null && (was.type ?? "") === result.type && was.column === from.field;
-    const kept = same ? { space: was.space } : {};
+function extractWith(options: Extracted, c: Choices): Extracted {
+    const { result } = c;
+    const was = c.step?.extract ?? null;
+    const kept = was?.column === options.column && (was.type ?? "") === result.type ? was.space : undefined;
     return {
-        act: "extract",
-        source: from.source,
-        options: {
-            column: from.field,
-            ...kept,
-            ...(was === null ? {} : { from: was.from }),
-            ...(result.split === "" ? {} : { split: result.split }),
-            ...(result.type === "" ? {} : { type: result.type }),
-            ...(result.edgeType === "" ? {} : { edgeType: result.edgeType }),
-            ...(result.columns.length === 0 ? {} : { columns: result.columns }),
-        },
+        ...options,
+        ...(kept === undefined ? {} : { space: kept }),
+        ...(was?.from === undefined ? {} : { from: was.from }),
+        ...given("edgeType", result.edgeType),
+        ...given("type", result.type),
+        ...given("split", result.split),
+        ...(result.columns.length === 0 ? {} : { columns: result.columns }),
     };
 }
 
 /**
- * What holds the values a Links card matches.
- * @param picks - The picks.
- * @param into - The nodes linked.
- * @param step - The step the card is.
- * @returns The link's members, or null while a pick is missing.
- */
-function holderOf(
-    picks: CardPicks,
-    into: CardInto,
-    step: SourceStepRow | null,
-): Pick<SourceLinkOptions, "source" | "field" | "into" | "nodes"> | null {
-    const { from } = picks;
-    if (picks.inRows === true) {
-        return from?.field === undefined ? null : { source: from.source, field: from.field, into: intoOf(into) };
-    }
-    if (into.space === "" && into.source !== undefined) {
-        return { source: into.source };
-    }
-    if (from === null) {
-        return null;
-    }
-    // The rows' own nodes still hold the values: an option changed, not where they are.
-    const was = step?.link ?? null;
-    const own = was?.source === from.source && was.nodes === undefined && was.field === undefined;
-    return own && step?.holders === into.space ? { source: from.source } : { source: from.source, nodes: into.space };
-}
-
-/**
- * The links a card's picks make between nodes sharing a value.
- * @param picks - The picks.
- * @param result - The options.
- * @param step - The step the card is, whose space it keeps while its type stays.
- * @returns The act, or null.
- */
-function linkOf(picks: CardPicks, result: CardResult, step: SourceStepRow | null): SourceJoinAct | null {
-    const { into, shared = [] } = picks;
-    if (into === null || shared.length === 0) {
-        return null;
-    }
-    const holder = holderOf(picks, into, step);
-    if (holder === null) {
-        return null;
-    }
-    const asNodes = result.as === "nodes";
-    const was = step?.link ?? null;
-    const kept = asNodes && was?.as === "nodes" && (was.type ?? "") === result.type ? { space: was.space } : {};
-    return {
-        act: "link",
-        options: {
-            ...holder,
-            columns: shared,
-            as: result.as,
-            ...(result.maxShared === undefined ? {} : { maxShared: result.maxShared }),
-            ...(result.minShared === undefined ? {} : { minShared: result.minShared }),
-            ...(result.edgeType === "" ? {} : { edgeType: result.edgeType }),
-            ...(asNodes && result.type !== "" ? { type: result.type } : {}),
-            ...kept,
-            ignoreCase: picks.ignoreCase,
-            ignoreSpaces: picks.ignoreSpaces,
-        },
-    };
-}
-
-/**
- * Write a card into the draft as ONE undo entry: a pending card's act is made at the end, a step
- * card's act is made again in its step's place.
- * @param draft - The open draft.
- * @param step - The step the card is, or null for a pending card.
+ * An outcome's act with a card's options.
  * @param act - The act.
- * @returns The step's place.
+ * @param c - The options.
+ * @returns The act.
  */
-export function writeCard(draft: SourceDraft, step: SourceStepRow | null, act: SourceJoinAct): number {
-    const before = draft.steps().length;
-    if (step !== null) {
-        draft.replaceStep(step.index, act);
-        // A staged source the act adds, or no longer needs, comes just before its step.
-        return step.index + draft.steps().length - before;
+function actWith(act: SourceJoinAct, c: Choices): SourceJoinAct {
+    switch (act.act) {
+        case "merge": {
+            return { act: "merge", options: mergeWith(act.options, c) };
+        }
+        case "connect": {
+            return { act: "connect", options: connectWith(act.options, c) };
+        }
+        case "link": {
+            return { act: "link", options: linkWith(act.options, c) };
+        }
+        default: {
+            return { act: "extract", source: act.source, options: extractWith(act.options, c) };
+        }
     }
+}
+
+/**
+ * Make an act on a draft.
+ * @param draft - The open draft.
+ * @param act - The act.
+ */
+function make(draft: SourceDraft, act: SourceJoinAct): void {
     switch (act.act) {
         case "merge": {
             draft.merge(act.options);
@@ -803,64 +918,68 @@ export function writeCard(draft: SourceDraft, step: SourceStepRow | null, act: S
             draft.extract(act.source, act.options);
         }
     }
-    // An edge source's moved columns follow its edges as a step of their own.
-    const steps = draft.steps();
-    return steps.findLastIndex((row) => row.act !== null || row.link !== null || row.extract !== null);
 }
 
 /**
- * The node 1 side the element proposes: a space's keys, or a staged source's.
- * @param into - The side.
- * @returns The card's side.
- */
-function suggestedInto(into: SourceJoinInto): CardInto {
-    const field = into.field === undefined ? {} : { field: into.field };
-    return into.source === undefined ? { space: into.space, ...field } : { space: "", source: into.source, ...field };
-}
-
-/**
- * A new card for a source, its picks the element's best guess, if it has one.
+ * Write an outcome into the draft as one undo entry: a new card's acts at the end, a step card's act in
+ * its step's place.
  * @param draft - The open draft.
- * @param id - The card's id.
- * @param source - The incoming source, if one is known.
- * @param into - The node 1 side, when the reader started from a node.
- * @returns The card.
+ * @param step - The step the card is, or null.
+ * @param outcome - The outcome.
+ * @param result - The card's options.
+ * @param on - How it compares values.
+ * @returns The steps it is now, in order.
  */
-export function newCard(
+export function writeOutcome(
     draft: SourceDraft,
-    id: string,
-    source: SourceKey | undefined,
-    into: CardInto | null = null,
-): PendingCard {
-    if (source === undefined) {
-        return { id, picks: { ...NO_PICKS, into }, guess: null, suggested: false };
+    step: SourceStepRow | null,
+    outcome: SourceJoinOutcome,
+    result: CardResult,
+    on: Ignoring,
+): readonly SourceStepRow[] {
+    const acts = outcome.acts.map((act) => actWith(act, { outcome, result, on, step }));
+    const [only] = acts;
+    if (step !== null && acts.length === 1) {
+        const before = draft.steps().length;
+        draft.replaceStep(step.index, only);
+        // A staged source the act adds, or no longer needs, comes just before its step.
+        const steps = draft.steps();
+        return steps.slice(step.index + steps.length - before).slice(0, 1);
     }
-    const blank = { id, picks: { ...NO_PICKS, from: { source }, into }, guess: null, suggested: false };
-    if (into !== null) {
-        return blank;
+    draft.batch(() => {
+        if (step !== null) {
+            draft.removeStep(step.index, { adds: "remove" });
+        }
+        for (const act of acts) {
+            make(draft, act);
+        }
+    });
+    return draft
+        .steps()
+        .filter((row) => isJoin(row))
+        .slice(-acts.length);
+}
+
+/**
+ * The fields of a side, its key first, before a step.
+ * @param draft - the open draft
+ * @param side - the side
+ * @param before - the step's place, if there is one
+ * @returns the fields; none once the side is gone
+ */
+export function fieldsOf(
+    draft: SourceDraft,
+    side: SourceJoinSide | null,
+    before: number | undefined,
+): readonly SourceSideField[] {
+    if (side === null) {
+        return [];
     }
     try {
-        const guesses = draft.suggestMatches(source);
-        const best = guesses.at(0);
-        const match = best?.matches.at(0);
-        if (best === undefined || match === undefined) {
-            return blank;
-        }
-        // The element proposes a space's keys, or a column naming the rows on both sides.
-        const picks = { ...NO_PICKS, from: match.from, into: suggestedInto(match.into) };
-        if (best.result === "merge") {
-            return { id, picks, guess: "fields", suggested: true };
-        }
-        // Rows read as edges name two ends: the next field the element connects is the other one.
-        const edges = draft.sourceTable(source).summary().mapping.rows === "edges";
-        const other = edges
-            ? guesses
-                  .map((each) => each.matches.at(0))
-                  .find((each) => each !== undefined && each.from.field !== match.from.field)
-            : undefined;
-        const to = other === undefined ? {} : { to: { field: other.from.field, into: suggestedInto(other.into) } };
-        return { id, picks: { ...picks, ...to }, guess: edges ? "edge" : "node", suggested: true };
+        const fields = draft.sideFields(side, before === undefined ? {} : { before });
+        return [...fields.filter((field) => field.key), ...fields.filter((field) => !field.key)];
     } catch {
-        return blank;
+        // A source an undo or a removal took away.
+        return [];
     }
 }

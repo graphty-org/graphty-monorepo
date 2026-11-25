@@ -86,15 +86,17 @@ export interface ReportPin {
 }
 
 /**
- * How the join workspace opens (the source-steps experiment): with a first card for a staged
- * source, with node 1 set to a type (from a node's Join in the inspector), or holding the removal
- * of a source (from its Remove), whose effects it shows before Done.
+ * How the join workspace opens (the source-steps experiment): on a new blank card, on one whose first
+ * source the reader pressed, on a join already made, or holding the removal of a source (from its
+ * Remove), whose effects it shows before Done.
  */
 export interface JoinWorkspaceOpen {
-    /** The staged source the first card joins; default the newest staged source. */
+    /** The source the first card starts with. */
     readonly source?: SourceKey;
-    /** The id space node 1 of the first card names. */
+    /** The id space whose nodes the first card starts with (a node's Join in the inspector). */
     readonly into?: string;
+    /** The join it opens on, by its place in `data.steps()`. */
+    readonly step?: number;
     /** The source the opened draft removes. */
     readonly remove?: SourceKey;
 }

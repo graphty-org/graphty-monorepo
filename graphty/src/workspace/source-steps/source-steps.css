@@ -1,10 +1,5 @@
-.ss-profile {
-    flex: 1;
-}
-
-/* Field 1 and Field 2, and each profile: a fieldset for its name, drawn as a plain stack. */
-.ss-field,
-.ss-profile {
+/* A fieldset for its name, drawn as a plain stack. */
+.ss-field {
     display: flex;
     flex-direction: column;
     gap: 4px;
@@ -14,8 +9,7 @@
     border: 0;
 }
 
-.ss-field > legend,
-.ss-profile > legend {
+.ss-field > legend {
     padding: 0;
 }
 
@@ -107,16 +101,6 @@ dialog.jw-modal {
     gap: 4px;
 }
 
-/* The fields' profiles, side by side while they fit, then under each other, scrolled. */
-.jw-modal .jw-table.jw-fields {
-    flex-direction: row;
-    overflow-y: auto;
-}
-
-.jw-fields > .ss-profile {
-    flex: 1 1 180px;
-}
-
 /* Sized by the pane alone, never by the table inside it, so its measured height cannot feed back. */
 .jw-table-grid {
     position: relative;
@@ -152,8 +136,9 @@ dialog.jw-modal {
     border-radius: 0;
 }
 
+/* Counted only: the preview draws no mark for it. */
 .jw-key-mark[data-mark="untouched"] {
-    border-style: dotted;
+    display: none;
 }
 
 .jw-key-mark[data-mark$="-changed"] {
@@ -172,11 +157,6 @@ dialog.jw-modal {
     content: "";
     background: currentcolor;
     transform: translateY(-50%) rotate(-45deg);
-}
-
-/* A join card's body keeps clear of the card's borders, as the selection workspace's cards do. */
-.jw-card {
-    padding: 8px;
 }
 
 .jw-card .mantine-Radio-label,
@@ -211,24 +191,66 @@ dialog.jw-modal {
     min-width: 0;
 }
 
-/* A card's matching rows: the number, the type or source, its field, and the other end's remove. */
-.jw-match {
+/* A line of a card: its two sources with a field of each under them, and "=" between; a further line's
+   remove sits after them. */
+.jw-line {
     display: grid;
-    grid-template-columns: 12px minmax(0, 1fr) minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) 12px minmax(0, 1fr) 20px;
     gap: 4px;
     align-items: center;
-    /* The last column is the other end's remove; empty, its gap runs past the card's other controls. */
-    margin-inline-end: -4px;
 }
 
-.jw-match > .jw-match-count {
-    grid-column: 2 / -1;
-    padding-block: 2px 4px;
+.jw-line:first-child {
+    grid-template-columns: minmax(0, 1fr) 12px minmax(0, 1fr);
 }
 
-.jw-match > .jw-ignore {
+.jw-line > .jw-line-count {
     grid-column: 1 / -1;
-    margin-inline-end: 4px;
+}
+
+/* The list of joins takes at most 40% of the left column; the selected one's editor scrolls under it. */
+.jw-modal .jw-left {
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    overflow: hidden;
+}
+
+.jw-list {
+    flex: 0 1 auto;
+    max-height: 40%;
+    overflow-y: auto;
+}
+
+.jw-editor {
+    flex: 1 1 0;
+    min-height: 0;
+    padding: 12px;
+    overflow-y: auto;
+}
+
+/* The two sources' rows, one window of lines: their scroll areas are as tall as each other whether or
+   not a table scrolls sideways. */
+.jw-tables {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+}
+
+.jw-tables[data-beside] {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.jw-side {
+    min-width: 0;
+}
+
+.jw-side > .mantine-Text-root {
+    height: 18px;
+}
+
+.jw-tables .cm-dt-viewport {
+    overflow-x: scroll;
 }
 
 .jw-remove {
@@ -236,45 +258,6 @@ dialog.jw-modal {
     margin-block-end: 8px;
 }
 
-.jw-match > .jw-add-match {
-    grid-column: 2 / -1;
-    justify-self: start;
-}
-
-.jw-read {
-    gap: 4px;
-}
-
 .jw-counts {
     font-size: var(--mantine-font-size-xs);
-}
-
-/* A folded join card: its name, then its whole join and what it did on the lines under it. */
-.jw-modal .cm-list-card[data-folded] > .cm-card-head {
-    flex-wrap: wrap;
-    row-gap: 0;
-    height: auto;
-    min-height: 30px;
-    padding-block: 3px 4px;
-}
-
-.jw-modal .cm-list-card[data-folded] > .cm-card-head > .cm-card-title {
-    flex: 1 1 0;
-    max-width: none;
-}
-
-.jw-modal .cm-list-card[data-folded] > .cm-card-head > .cm-card-summary {
-    flex: 0 0 100%;
-    order: 1;
-    padding-inline: 28px 4px;
-    overflow-wrap: anywhere;
-    white-space: normal;
-}
-
-.jw-modal .cm-list-card[data-folded] > .cm-card-head > .cm-card-summary > * {
-    white-space: normal;
-}
-
-.jw-modal .cm-list-card[data-folded] > .cm-card-head > .cm-card-summary:empty {
-    display: none;
 }

@@ -3,7 +3,7 @@
  * (design/data/multiple-data-sources-design.md, sections 5.1 and 5.5), driven by drops, clicks and
  * keys: it waits in its own entry in the Data sources list drawing nothing, holding only how its
  * rows are read; the join workspace (Join +) adds it as it is, and a source whose keys meet people
- * already there asks "Same person?" on its Add card there and holds Done until it is answered;
+ * already there asks "Same person?" where it was added there and holds Done until it is answered;
  * Remove takes it away and Undo brings it back; a save and reopen keeps it staged.
  */
 
@@ -17,7 +17,7 @@ import { userEvent } from "vitest/browser";
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import type { WorkspaceStore } from "../../state/store";
-import { choose, drop, emptyProject } from "./sourceSteps";
+import { choose, drop, emptyProject, joinAs, joinLines, pickFields, pickSources } from "./sourceSteps";
 
 withFeatures(["source-steps"]);
 
@@ -77,13 +77,15 @@ async function workspace(): Promise<HTMLElement> {
 }
 
 /**
- * The workspace's card for a staged source's read settings.
+ * Picks a staged source on the open card and unfolds how its rows are read.
  * @param modal - the workspace.
+ * @param name - the source.
  * @returns the card's read settings.
  */
-async function readAs(modal: HTMLElement): Promise<HTMLElement> {
-    const settings = await within(modal).findByRole("group", { name: "Staged source" });
-    await userEvent.click(within(settings).getByRole("button", { name: "Expand Read as" }));
+async function readAs(modal: HTMLElement, name: string): Promise<HTMLElement> {
+    await choose(modal, "Source 1", name);
+    const settings = await within(modal).findByRole("group", { name: `Read ${name} as` });
+    await userEvent.click(within(settings).getByRole("button", { name: `Expand Read ${name} as` }));
     return settings;
 }
 
@@ -100,8 +102,11 @@ describe("a second source arrives staged (source-steps)", () => {
         assert.isNull(within(entry).queryByRole("button", { name: /^(Add|Join)/ }), "no join doors on the entry");
 
         const modal = await workspace();
-        await userEvent.click(within(await readAs(modal)).getByRole("button", { name: "Add as is" }));
-        await within(modal).findByText("buildings.csv -> Added");
+        await choose(modal, "Source 1", "buildings");
+        await userEvent.click(await within(modal).findByRole("button", { name: "Add as is" }));
+        await waitFor(() => {
+            assert.deepStrictEqual(joinLines(modal), ["buildings, added"]);
+        });
         assert.strictEqual(session.data.staged()[0]?.name, "buildings.csv", "nothing is added before Done");
 
         await userEvent.click(within(modal).getByRole("button", { name: "Done" }));
@@ -121,7 +126,7 @@ describe("a second source arrives staged (source-steps)", () => {
         assert.lengthOf(session.data.staged(), 0);
     });
 
-    it("asks Same person? for visitors.csv on its Add card and holds Done until it is answered", async () => {
+    it("asks Same person? for visitors.csv where it is added and holds Done until it is answered", async () => {
         const { session } = await emptyProject();
         await session.data.import(
             { type: "csv", config: { data: PEOPLE }, name: "people.csv" },
@@ -130,7 +135,7 @@ describe("a second source arrives staged (source-steps)", () => {
         drop("visitors.csv", VISITORS);
         await screen.findByRole("listitem", { name: "visitors.csv" });
         const modal = await workspace();
-        const settings = await readAs(modal);
+        const settings = await readAs(modal, "visitors");
         await choose(settings, "Key", "badge");
         const type = within(settings).getByRole("combobox", { name: "Type" });
         await userEvent.click(type);
@@ -147,7 +152,7 @@ describe("a second source arrives staged (source-steps)", () => {
         // Distinct and Repeats read the key's profile.
         assert.strictEqual(within(settings).getByLabelText("Distinct").textContent, "2 keys");
 
-        await userEvent.click(within(settings).getByRole("button", { name: "Add as is" }));
+        await userEvent.click(within(modal).getByRole("button", { name: "Add as is" }));
         await within(modal).findByText("Same person?");
         assert.include(modal.textContent, "1 of 2");
         await userEvent.click(within(modal).getByRole("button", { name: "Done" }));
@@ -182,13 +187,13 @@ describe("a second source arrives staged (source-steps)", () => {
         await screen.findByRole("listitem", { name: "visitors.csv" });
 
         const modal = await workspace();
-        const settings = await readAs(modal);
+        const settings = await readAs(modal, "visitors");
         assert.strictEqual(
             within(settings).getByRole<HTMLInputElement>("combobox", { name: "Space" }).value,
             "",
             "the saved Space is only a proposal",
         );
-        await userEvent.click(within(settings).getByRole("button", { name: "Add as is" }));
+        await userEvent.click(within(modal).getByRole("button", { name: "Add as is" }));
         await within(modal).findByText("Same person?");
         await userEvent.click(within(modal).getByRole("button", { name: "Done" }));
         await within(modal).findByRole("alert");
@@ -196,10 +201,9 @@ describe("a second source arrives staged (source-steps)", () => {
 
         // A New nodes card of the same source leaves the question where it can be answered.
         await userEvent.keyboard("{Shift>}J{/Shift}");
-        await choose(modal, "Incoming source", "visitors.csv");
-        await userEvent.click(within(modal).getByRole("radio", { name: "A node linked to what it names" }));
-        await choose(modal, "In graph type", "New nodes");
-        await choose(modal, "Incoming field", "name");
+        await pickSources(modal, "visitors", "New nodes");
+        await pickFields(modal, "name", null);
+        await joinAs(modal, "Node per name, linked to visitors");
         await waitFor(() => {
             assert.isTrue(
                 session.data
@@ -208,13 +212,14 @@ describe("a second source arrives staged (source-steps)", () => {
                     .some((step) => step.extract !== null),
             );
         });
+        assert.include(joinLines(modal), "visitors, added", "its own line");
+        assert.isNull(within(modal).queryByText("Same person?"), "another card is selected");
         await userEvent.click(within(modal).getByRole("button", { name: "Done" }));
+        await within(modal).findByText("Same person?");
         assert.strictEqual(
-            (await within(modal).findByRole("alert"))
-                .closest("[data-join-card]")
-                ?.textContent?.includes("Same person?"),
-            true,
-            "Done says which card waits",
+            (await within(modal).findByRole("alert")).textContent,
+            "Question unanswered",
+            "Done selects the line that waits, and says so",
         );
         await userEvent.click(within(modal).getByRole("button", { name: "Keep separate" }));
         await waitFor(() => {
@@ -238,8 +243,9 @@ describe("a second source arrives staged (source-steps)", () => {
             { key: "badge", type: "person" },
         );
         const modal = await workspace();
-        await userEvent.click(within(await readAs(modal)).getByRole("button", { name: "Add as is" }));
-        await within(modal).findByText("visitors.csv -> Added");
+        await choose(modal, "Source 1", "visitors");
+        await userEvent.click(await within(modal).findByRole("button", { name: "Add as is" }));
+        await within(modal).findByText("Same person?");
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog", { name: "Join" }));
@@ -345,7 +351,7 @@ describe("a second source arrives staged (source-steps)", () => {
         await withPeopleDropped();
         drop("buildings.csv", BUILDINGS);
         await screen.findByRole("listitem", { name: "buildings.csv" });
-        const settings = await readAs(await workspace());
+        const settings = await readAs(await workspace(), "buildings");
         const space = within(settings).getByRole("combobox", { name: "Space" });
         await userEvent.click(space);
         await userEvent.keyboard("{Control>}{ArrowDown}{/Control}");

@@ -17,7 +17,15 @@ import { page, userEvent } from "vitest/browser";
 import { withFeatures } from "../../../test/features";
 import { forgetAutosave, reload } from "../../../test/reload";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
-import { drop } from "../../source-steps/__tests__/sourceSteps";
+import {
+    advanced,
+    drop,
+    joinAs,
+    joinLines,
+    openJoins,
+    pickFields,
+    pickSources,
+} from "../../source-steps/__tests__/sourceSteps";
 import { Workspace } from "../../Workspace";
 import { createWorkspaceStore } from "../store";
 
@@ -120,10 +128,11 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
                 const { before, session } = await peopleProject();
                 drop("entries.csv", ENTRIES);
                 await screen.findByRole("listitem", { name: "entries.csv" });
-                (document.activeElement as HTMLElement | null)?.blur();
-                await userEvent.keyboard("{Shift>}J{/Shift}");
-                const modal = await screen.findByRole("dialog", { name: "Join" });
-                await userEvent.click(within(modal).getByRole("radio", { name: "A node linked to what it names" }));
+                const modal = await openJoins();
+                await pickSources(modal, "people", "entries");
+                await pickFields(modal, "badge", "badge");
+                await joinAs(modal, "Node per entries row, linked to people");
+                await advanced(modal);
                 await userEvent.click(await within(modal).findByLabelText("Edge type"));
                 await userEvent.keyboard("entered{Enter}");
                 await waitFor(() => {
@@ -137,11 +146,7 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
 
                 const after = await reload(before, { lostSession });
                 const back = await screen.findByRole("dialog", { name: "Join" });
-                assert.lengthOf(
-                    [...back.querySelectorAll("[data-join-card]:not([data-join-card^='add:'])")],
-                    1,
-                    "the join's own card, and no second one",
-                );
+                assert.deepStrictEqual(joinLines(back), ["people + entries"], "the join's own card, and no second one");
                 const reopened = await sessionNow();
                 await waitFor(() => {
                     const draft = reopened.data.currentDraft();
@@ -168,11 +173,11 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
                 await userEvent.click(within(row).getByRole("button", { name: "people.csv menu" }));
                 await userEvent.click(await screen.findByRole("menuitem", { name: "Remove" }));
                 const modal = await screen.findByRole("dialog", { name: "Join" });
-                await within(modal).findByRole("region", { name: "Remove people.csv" });
+                await within(modal).findByRole("region", { name: "Remove people" });
 
                 const after = await reload(before, { lostSession });
                 const back = await screen.findByRole("dialog", { name: "Join" });
-                await within(back).findByRole("region", { name: "Remove people.csv" });
+                await within(back).findByRole("region", { name: "Remove people" });
                 const reopened = await sessionNow();
                 assert.lengthOf(reopened.data.sources(), 1, "nothing removed yet");
                 await userEvent.click(within(back).getByRole("button", { name: "Done" }));
@@ -189,15 +194,15 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
                 await userEvent.click(within(row).getByRole("button", { name: "people.csv menu" }));
                 await userEvent.click(await screen.findByRole("menuitem", { name: "Remove" }));
                 const modal = await screen.findByRole("dialog", { name: "Join" });
-                await within(modal).findByRole("region", { name: "Remove people.csv" });
+                await within(modal).findByRole("region", { name: "Remove people" });
                 await userEvent.click(within(modal).getByRole("button", { name: /^Undo/ }));
                 await waitFor(() => {
-                    assert.isNull(within(modal).queryByRole("region", { name: "Remove people.csv" }));
+                    assert.isNull(within(modal).queryByRole("region", { name: "Remove people" }));
                 });
 
                 const after = await reload(before, { lostSession });
                 const back = await screen.findByRole("dialog", { name: "Join" });
-                assert.isNull(within(back).queryByRole("region", { name: "Remove people.csv" }));
+                assert.isNull(within(back).queryByRole("region", { name: "Remove people" }));
                 const reopened = await sessionNow();
                 assert.strictEqual(reopened.data.currentDraft()?.preview().after.nodes, nodes);
                 await userEvent.click(within(back).getByRole("button", { name: "Done" }));

@@ -5,20 +5,30 @@
  * card's new edges count lists its rows in the workspace table, selecting the test badge's row and
  * Exclude leaves that edge out, and Include brings it back. HR's list merged into people: a click
  * on dept in the card lists its cells, Use incoming on one cell marks it R and lists it under Decided,
- * Ctrl+A on the open cells and Use existing decides them all, and Clear takes the picks back. The Fields
- * view profiles the card's two fields.
+ * Ctrl+A on the open cells and Use existing decides them all, and Clear takes the picks back. Each
+ * field's header says whether its values repeat and how many of its cells are empty.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import type { GraphSession, SourceDraft } from "@graphty/graphty-element/session";
+import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
-import { choose, drop, emptyProject, rowWith, select } from "./sourceSteps";
+import {
+    draftOf,
+    drop,
+    emptyProject,
+    joinAs,
+    openJoins,
+    pickFields,
+    pickSources,
+    rowWith,
+    select,
+} from "./sourceSteps";
 
 withFeatures(["source-steps"]);
 
@@ -31,10 +41,10 @@ const HR = "badge,dept\nB1,Operations\nB2,Research\nB3,Sales";
 
 /**
  * People in the graph as type person, one more file dropped and staged, and the join workspace
- * open with its card matching Key of person to the staged file's badge, with a result picked.
+ * open with its card matching people's badge to the staged file's, with a way to join picked.
  * @param name - the staged file's name.
  * @param text - its contents.
- * @param result - the card's result.
+ * @param result - whether its rows become fields on people, or nodes linked to them.
  * @param staff - a second people file added as person too, when given.
  * @returns the session and the workspace.
  */
@@ -59,14 +69,16 @@ async function joinOn(
     }
     drop(name, text);
     await screen.findByRole("listitem", { name });
-    (document.activeElement as HTMLElement | null)?.blur();
-    await userEvent.keyboard("{Shift>}J{/Shift}");
-    const modal = await screen.findByRole("dialog", { name: "Join" });
-    await choose(modal, "In graph type", "person");
-    await choose(modal, "In graph field", "badge");
-    await choose(modal, "Incoming field", "badge");
-    const becomes = result === "Merge" ? "Fields on a node" : "A node linked to what it names";
-    await userEvent.click(within(modal).getByRole("radio", { name: becomes }));
+    const modal = await openJoins();
+    const source = name.replace(".csv", "");
+    // A space two sources' rows are is picked as its node kind.
+    const nodes = staff === undefined ? "people" : "person";
+    await pickSources(modal, nodes, source);
+    await pickFields(modal, "badge", "badge");
+    await joinAs(
+        modal,
+        result === "Merge" ? `Fields of ${source} on ${nodes}` : `Node per ${source} row, linked to ${nodes}`,
+    );
     await waitFor(() => {
         assert.isAbove(
             draftOf(project.session)
@@ -76,19 +88,6 @@ async function joinOn(
         );
     });
     return { session: project.session, modal };
-}
-
-/**
- * The open draft.
- * @param session - the session.
- * @returns it.
- */
-function draftOf(session: GraphSession): SourceDraft {
-    const draft = session.data.currentDraft();
-    if (draft === null) {
-        throw new Error("no draft");
-    }
-    return draft;
 }
 
 describe("the join workspace's table (source-steps)", () => {
@@ -122,13 +121,10 @@ describe("the join workspace's table (source-steps)", () => {
         );
         drop("people.csv", PEOPLE);
         await screen.findByRole("listitem", { name: "people.csv" });
-        (document.activeElement as HTMLElement | null)?.blur();
-        await userEvent.keyboard("{Shift>}J{/Shift}");
-        const modal = await screen.findByRole("dialog", { name: "Join" });
-        await choose(modal, "Incoming source", "entries.csv");
-        await userEvent.click(within(modal).getByRole("radio", { name: "A node linked to what it names" }));
-        await choose(modal, "In graph type", "people.csv");
-        await choose(modal, "Incoming field", "badge");
+        const modal = await openJoins();
+        await pickSources(modal, "entries", "people");
+        await pickFields(modal, "badge", "badge");
+        await joinAs(modal, "Edge from people to entries");
         const drawn = (): string[] =>
             session.data
                 .edges()
@@ -224,11 +220,14 @@ describe("the join workspace's table (source-steps)", () => {
         );
     });
 
-    it("the Fields view profiles the card's two fields", async () => {
-        const { modal } = await joinOn("hr.csv", HR, "Merge");
-        const view = within(modal).getByRole("radiogroup", { name: "Fields" });
-        await userEvent.click(within(view).getByText("Fields"));
-        await within(modal).findByLabelText("hr.csv.badge distinct");
-        assert.strictEqual(within(modal).getByLabelText("hr.csv.badge distinct").textContent, "3");
+    it("each field's header says its facts: whether its values repeat, and its empty cells", async () => {
+        const { modal } = await joinOn("hr.csv", `${HR}\n,Ops`, "Merge");
+        const headers = (name: string): (string | null)[] =>
+            within(within(modal).getByRole("grid", { name }))
+                .getAllByRole("columnheader")
+                .map((header) => header.textContent);
+        assert.deepStrictEqual(headers("hr"), ["badge (unique, 1 empty)", "dept (unique)"]);
+        assert.include(headers("people"), "badge (unique)");
+        assert.lengthOf(within(modal).getAllByRole("img", { name: "Matched" }), 2, "the matched ones are marked");
     });
 });

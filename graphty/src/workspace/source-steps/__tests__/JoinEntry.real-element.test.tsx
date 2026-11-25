@@ -3,7 +3,7 @@
  * on, driven by clicks and keys, in the owner's founding example: people in the graph and door
  * entries staged. "Join +" below the data sources opens the workspace, as Shift+J does; it is never
  * disabled, even while a draft is open; the sidebar holds no join information; and the inspector's
- * Join on a person opens the workspace with node 1 set to the person type.
+ * Join on a person opens the workspace with people as its first source.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -16,7 +16,7 @@ import { page, userEvent } from "vitest/browser";
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import type { WorkspaceStore } from "../../state/store";
-import { drop, emptyProject } from "./sourceSteps";
+import { drop, emptyProject, joinLines } from "./sourceSteps";
 
 withFeatures(["source-steps"]);
 
@@ -64,7 +64,8 @@ describe("the doors into the join workspace (source-steps)", () => {
         );
         await userEvent.click(plus);
         const modal = await screen.findByRole("dialog", { name: "Join" });
-        assert.isAbove(modal.querySelectorAll("[data-join-card]").length, 0, "a card for the staged entries");
+        assert.deepStrictEqual(joinLines(modal), ["New join"], "a blank card, nothing picked");
+        assert.strictEqual(within(modal).getByRole<HTMLInputElement>("combobox", { name: "Source 1" }).value, "");
     });
 
     it("the sidebar holds no join information: no Join card, steps list or join buttons", async () => {
@@ -101,7 +102,7 @@ describe("the doors into the join workspace (source-steps)", () => {
         await screen.findByRole("dialog", { name: "Join" });
     });
 
-    it("the inspector's Join on a person opens the workspace with node 1 set to person", async () => {
+    it("the inspector's Join on a person opens the workspace with people as its first source", async () => {
         const { session } = await foundingProject();
         await session.selection.apply({ nodes: ["B1"] });
         const inspector = await screen.findByRole("complementary", { name: "Inspector" });
@@ -109,8 +110,8 @@ describe("the doors into the join workspace (source-steps)", () => {
         const modal = await screen.findByRole("dialog", { name: "Join" });
         await waitFor(() => {
             assert.strictEqual(
-                within(modal).getByRole<HTMLInputElement>("combobox", { name: "In graph type" }).value,
-                "person",
+                within(modal).getByRole<HTMLInputElement>("combobox", { name: "Source 1" }).value,
+                "people",
             );
         });
     });

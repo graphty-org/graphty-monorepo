@@ -3,7 +3,7 @@ import { Group, Text } from "@mantine/core";
 import React from "react";
 
 import { formatNumber } from "../inspector/words";
-import { nameOf } from "./tableColumns";
+import { nameOf, type SourceNames } from "./cardWords";
 import { STEP_WORDS, stepChangedWords, stepCountWords, stepRemovedWords } from "./words";
 
 /**
@@ -30,6 +30,7 @@ export function Line({ label, value }: Readonly<{ label: string; value: string }
  * lose their element. The step card and the Join card editing a step both show it.
  * @param props - Component props
  * @param props.session - the element's session
+ * @param props.names - the sources' names
  * @param props.preview - the draft's preview
  * @param props.own - whether a committed step is the card's own (the step it deletes or edits, or
  * a step of the source it removes), which the card names itself rather than as a later step
@@ -37,10 +38,12 @@ export function Line({ label, value }: Readonly<{ label: string; value: string }
  */
 export function DraftEffects({
     session,
+    names,
     preview,
     own,
 }: Readonly<{
     session: GraphSession;
+    names: SourceNames;
     preview: SourceDraftPreview;
     own: (step: { readonly step: number; readonly source: string }) => boolean;
 }>): React.JSX.Element {
@@ -56,7 +59,7 @@ export function DraftEffects({
         }
         const before = stepCountWords(was);
         const after = stepCountWords(step);
-        return before === after ? [] : [stepChangedWords(nameOf(session, was.source), was.op, before, after)];
+        return before === after ? [] : [stepChangedWords(nameOf(names, was.source), was.op, before, after)];
     });
     const unbound = preview.issues.filter((issue) => issue.code === "W_REFERENCE_UNBOUND").length;
     const { edits } = preview;
@@ -70,11 +73,7 @@ export function DraftEffects({
                     </Text>
                     {removed.map((params) => (
                         <Text key={params.step} size="xs">
-                            {stepRemovedWords(
-                                nameOf(session, params.source),
-                                committed[params.step]?.op,
-                                params.reason,
-                            )}
+                            {stepRemovedWords(nameOf(names, params.source), committed[params.step]?.op, params.reason)}
                         </Text>
                     ))}
                     {changed.map((words) => (

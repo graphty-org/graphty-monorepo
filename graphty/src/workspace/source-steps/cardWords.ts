@@ -1,281 +1,413 @@
 /**
- * @file How the join workspace's cards read and name what they hold: the choices of a type list, a
- * card's title, summary and matches in words, and the picks it takes on when its rows become
- * something else. Every fact is the open draft's.
+ * @file How the join workspace's cards read: each source's one short name, a card's line in the list,
+ * what an outcome would make in words, and a field's facts. Every fact is the element's.
  */
 
-import type { GraphSession, SourceDraft } from "@graphty/graphty-element/session";
+import type {
+    GraphSession,
+    SourceDraft,
+    SourceJoinOutcome,
+    SourceJoinSide,
+    SourceMatchCounts,
+    SourceSideField,
+    SourceStepRow,
+} from "@graphty/graphty-element/session";
 
+import { baseName } from "../data-page/words";
 import { sourceName } from "../data-place/words";
 import { formatNumber } from "../inspector/words";
-import { draftSpaceChoices, spaceChoices } from "./join";
 import {
-    actOf,
-    type Becomes,
-    type CardAct,
-    type CardInto,
-    type CardPicks,
+    type CardEnd,
+    type CardLine,
     type CardResult,
-    DEFAULT_RESULT,
-    type JoinCardView,
-    keyColumn,
-    ownerOf,
-    pairOf,
+    directionOf,
+    linesNaming,
+    linksItself,
+    loadOrder,
+    matchOf,
+    type NoMatch,
+    sameSide,
+    wholeLines,
 } from "./joinCards";
-import { nameOf } from "./tableColumns";
-import { CARD_ACT_WORDS, counted, JOIN_WORDS, WORKSPACE_WORDS } from "./words";
+import { counted, KIND_WORDS, WORKSPACE_WORDS } from "./words";
 
-/** A staged source's value in a type list: its keys, before any step builds it. */
-const STAGED = "staged:";
-
-/** New nodes' value in a type list. */
-export const NEW_VALUE = "new:";
+/** The sources' short names, by key: a data file without its extension, or whole where two would read the same. */
+export type SourceNames = ReadonlyMap<string, string>;
 
 /**
- * What a card's rows become as it is drawn: what the reader picked, else the element's guess, else
- * fields once a match was started from a node.
- * @param card - the card
- * @returns the choice, or null while only the question is asked
- */
-export function shownBecomes(card: JoinCardView): Becomes | null {
-    const { picks } = card;
-    return picks.becomes ?? card.guess ?? (picks.into === null && picks.from?.field === undefined ? null : "fields");
-}
-
-/**
- * What a card's step does, or would do: null while a field it needs is unpicked.
- * @param card - the card
- * @returns the act's name
- */
-function cardAct(card: JoinCardView): CardAct | null {
-    return actOf(card.picks, card.result ?? DEFAULT_RESULT, card.step)?.act ?? null;
-}
-
-/**
- * The types a match can name in the graph: each space as the draft builds it, then each staged
- * source the draft has not added yet, by its keys.
+ * Every source's name in the join workspace.
  * @param session - the element's session
- * @param draft - the open draft
- * @returns the choices
+ * @returns the names
  */
-export function intoChoices(
-    session: GraphSession,
-    draft: SourceDraft,
-): readonly { readonly value: string; readonly label: string }[] {
-    const built = new Set(draft.steps().map((step) => step.source));
-    return [
-        ...draftSpaceChoices(session, draft),
-        ...session.data
-            .staged()
-            .filter((source) => !built.has(source.key))
-            .map((source) => ({ value: `${STAGED}${source.key}`, label: sourceName(source) })),
-    ];
+export function sourceNames(session: GraphSession): SourceNames {
+    const known = new Set(
+        session.catalog.formats().flatMap((each) => each.extensions.map((ext) => ext.replace(/^\./, "").toLowerCase())),
+    );
+    const all = session.data.sources({ staged: true }).map((source) => {
+        const full = sourceName(source);
+        const extension = /\.([^.]*)$/.exec(full)?.[1].toLowerCase() ?? "";
+        return { key: source.key, full, short: known.has(extension) ? baseName(full) : full };
+    });
+    const taken = new Map<string, number>();
+    for (const { short } of all) {
+        taken.set(short, (taken.get(short) ?? 0) + 1);
+    }
+    return new Map(all.map(({ key, full, short }) => [key, taken.get(short) === 1 ? short : full]));
+}
+
+/**
+ * A source's name.
+ * @param names - the sources' names
+ * @param key - the source
+ * @returns its name; a source that is gone reads as removed, never by its id
+ */
+export function nameOf(names: SourceNames, key: string): string {
+    return names.get(key) ?? WORKSPACE_WORDS.removedSource;
+}
+
+/**
+ * A side as the reader reads it: its source, or the node kind no one source owns.
+ * @param session - the element's session
+ * @param names - the sources' names
+ * @param side - the side
+ * @returns its name
+ */
+export function sideName(session: GraphSession, names: SourceNames, side: SourceJoinSide): string {
+    if (side.source !== undefined) {
+        return nameOf(names, side.source);
+    }
+    const owned = session.data.spaces().find((row) => row.space === side.space)?.ownedBy;
+    // A step can name nodes of a source that is gone, once the removal is committed: never its id.
+    const typed =
+        session.data.types().some((type) => type.name === side.space) ||
+        session.data.spaces().some((row) => row.space === side.space);
+    return (owned === undefined ? undefined : names.get(owned)) ?? (typed ? side.space : WORKSPACE_WORDS.removedSource);
 }
 
 /**
  * A space as the reader reads it, as the draft builds it.
  * @param session - the element's session
  * @param draft - the open draft
+ * @param names - the sources' names
  * @param space - the space
  * @returns its name
  */
-export function spaceName(session: GraphSession, draft: SourceDraft, space: string): string {
-    // A source the draft removes builds no nodes: its space is still named in the committed graph.
-    const named = [...draftSpaceChoices(session, draft), ...spaceChoices(session)];
-    const found = named.find((choice) => choice.value === space)?.label;
-    // A step can name nodes of a source that is gone, once the removal is committed: never its id.
-    const typed = session.data.types().some((type) => type.name === space);
-    return found ?? (typed ? space : WORKSPACE_WORDS.removedSource);
+export function spaceName(session: GraphSession, draft: SourceDraft, names: SourceNames, space: string): string {
+    const row = draft.spaces().find((each) => each.space === space);
+    const owned = row?.ownedBy === undefined ? undefined : names.get(row.ownedBy);
+    return owned ?? (row === undefined ? sideName(session, names, { space }) : space);
+}
+
+/** The sides a card can pick, by how each is known. */
+export interface SideChoices {
+    readonly waiting: readonly SourceJoinSide[];
+    readonly inGraph: readonly SourceJoinSide[];
+    /** The node kinds no one source owns. */
+    readonly types: readonly SourceJoinSide[];
 }
 
 /**
- * A type list's value as a card's node 1 side.
- * @param value - the picked value
- * @returns the side, on its keys
- */
-export function intoOfChoice(value: string): CardInto {
-    if (value === NEW_VALUE) {
-        return { space: "", isNew: true };
-    }
-    return value.startsWith(STAGED) ? { space: "", source: value.slice(STAGED.length) } : { space: value };
-}
-
-/**
- * A card's node 1 side as its type list's value.
- * @param into - the side
- * @returns the value
- */
-export function choiceOfInto(into: CardInto | null): string | null {
-    if (into === null) {
-        return null;
-    }
-    if (into.isNew === true) {
-        return NEW_VALUE;
-    }
-    return into.space === "" && into.source !== undefined ? `${STAGED}${into.source}` : into.space;
-}
-
-/**
- * A node 1 side's type as its list offers it: one whose source the draft no longer adds is that
- * staged source's.
+ * The sides a card can pick: every source, waiting or in the graph, and every node kind no one source
+ * owns, as the draft builds it.
  * @param session - the element's session
  * @param draft - the open draft
- * @param into - the side
- * @returns the value
+ * @returns the sides
  */
-export function offeredInto(session: GraphSession, draft: SourceDraft, into: CardInto | null): string | null {
-    const value = choiceOfInto(into);
-    const owner = into === null || into.space === "" ? undefined : ownerOf(session, into.space);
-    const offered = intoChoices(session, draft);
-    const staged = owner === undefined ? null : `${STAGED}${owner}`;
-    return offered.some((each) => each.value === value) || !offered.some((each) => each.value === staged)
-        ? value
-        : staged;
+export function sideChoices(session: GraphSession, draft: SourceDraft): SideChoices {
+    return {
+        waiting: session.data.staged().map((each) => ({ source: each.key })),
+        inGraph: session.data.sources().map((each) => ({ source: each.key })),
+        types: draft
+            .spaces()
+            .filter((row) => row.ownedBy === undefined && row.nodes > 0 && row.rowsOf.length !== 1)
+            .map((row) => ({ space: row.space })),
+    };
 }
 
 /**
- * A node 1 side as the reader reads it: the type and its field, such as "people.Key".
+ * The sides some lines name, in the order loaded, each once.
  * @param session - the element's session
- * @param draft - the open draft
- * @param into - the side
+ * @param lines - the lines
+ * @returns them
+ */
+function sidesOf(session: GraphSession, lines: readonly CardLine[]): readonly SourceJoinSide[] {
+    const out: SourceJoinSide[] = [];
+    for (const side of lines.flatMap(({ a, b }) => [a.side, b.side])) {
+        if (side !== null && !out.some((each) => sameSide(each, side))) {
+            out.push(side);
+        }
+    }
+    return out.sort((x, y) => loadOrder(session, x) - loadOrder(session, y));
+}
+
+/**
+ * A card's line in the list: the sources it joins, in the order loaded; one source with itself by its
+ * first field; a column made nodes beside its source.
+ * @param session - the element's session
+ * @param names - the sources' names
+ * @param lines - the card's lines
  * @returns the words
  */
-export function intoWords(session: GraphSession, draft: SourceDraft, into: CardInto): string {
-    if (into.isNew === true) {
-        return into.space === "" ? WORKSPACE_WORDS.newNodes : into.space;
+function rowName(session: GraphSession, names: SourceNames, lines: readonly CardLine[]): string {
+    const sides = sidesOf(session, lines);
+    if (sides.length === 0) {
+        return WORKSPACE_WORDS.newJoin;
     }
-    const type =
-        into.space === "" && into.source !== undefined
-            ? nameOf(session, into.source)
-            : spaceName(session, draft, into.space);
-    return `${type}.${into.field ?? keyColumn(draft, into, session) ?? JOIN_WORDS.key}`;
+    const read = sides.map((side) => sideName(session, names, side));
+    const made = lines.flatMap(({ a, b }) => (b.isNew === true && a.field !== null ? [a.field] : []));
+    const all = [...read, ...made];
+    const field = firstField(session, lines);
+    return all.length === 1 && field !== null && lines[0].b.side !== null ? `${all[0]}, ${field}` : all.join(" + ");
 }
 
 /**
- * The name of the source a card reads.
+ * The first field a card's lines name: of the earlier loaded source, whichever way round it was picked.
  * @param session - the element's session
- * @param card - the card
- * @returns its name, or "Join" while none is picked
+ * @param lines - the lines
+ * @returns it, or null
  */
-export function cardTitle(session: GraphSession, card: JoinCardView): string {
-    const source = card.picks.from?.source;
-    return source === undefined ? WORKSPACE_WORDS.title : nameOf(session, source);
+function firstField(session: GraphSession, lines: readonly CardLine[]): string | null {
+    const place = ({ side }: CardEnd): number => (side === null ? Infinity : loadOrder(session, side));
+    const fields = lines.flatMap(({ a, b }) =>
+        [a, b]
+            .sort((x, y) => place(x) - place(y) || (x.field ?? "").localeCompare(y.field ?? ""))
+            .map(({ field }) => field),
+    );
+    return fields.find((field) => field !== null) ?? null;
 }
 
 /**
- * A card's folded summary: its matches, named by their sources, and what its step does.
+ * The cards' lines in the list; cards that would read the same add their first field.
  * @param session - the element's session
+ * @param names - the sources' names
+ * @param all - each card's lines
+ * @returns the words, in the order of the cards
+ */
+export function rowNames(
+    session: GraphSession,
+    names: SourceNames,
+    all: readonly (readonly CardLine[])[],
+): readonly string[] {
+    const read = all.map((lines) => rowName(session, names, lines));
+    const again = new Set(read.filter((name, at) => read.indexOf(name) !== at));
+    return read.map((name, at) => {
+        const field = firstField(session, all[at]);
+        return again.has(name) && field !== null && !name.endsWith(`, ${field}`) ? `${name}, ${field}` : name;
+    });
+}
+
+/**
+ * The lines a card is named by: its own, else its step's.
  * @param draft - the open draft
  * @param card - the card
- * @returns the line
+ * @param card.lines - its lines
+ * @param card.step - its step
+ * @returns the lines
  */
-export function cardSummary(session: GraphSession, draft: SourceDraft, card: JoinCardView): string {
-    const { from, into, to, shared = [] } = card.picks;
-    const name = from === null ? "" : nameOf(session, from.source);
-    const matches = [
-        from?.field === undefined || into === null
-            ? null
-            : `${intoWords(session, draft, into)} = ${name}.${from.field}`,
-        to?.field === undefined || to.into === null
-            ? null
-            : `${intoWords(session, draft, to.into)} = ${name}.${to.field}`,
-        shared.length === 0 ? null : shared.join(", "),
-    ].filter((each) => each !== null);
-    const act = cardActWords(card);
-    const match = act === undefined ? matches.join(", ") : `${act}: ${matches.join(", ")}`;
-    const b = card.step?.buckets;
-    if (b === null || b === undefined) {
-        return card.suggested ? `${match} ${WORKSPACE_WORDS.suggested}` : match;
-    }
-    const done =
-        card.step?.op === "join.merge"
-            ? `${formatNumber(b.groups.length)} ${WORKSPACE_WORDS.merged}, ${formatNumber(b.keptNew)} ${WORKSPACE_WORDS.new}`
-            : counted(b.newEdges, { one: "edge", many: "edges" });
-    return `${match}; ${done}`;
+export function namingLines(
+    draft: SourceDraft,
+    card: { readonly lines: readonly CardLine[] | null; readonly step: SourceStepRow | null },
+): readonly CardLine[] {
+    return card.lines ?? (card.step === null ? [] : linesNaming(draft.steps(), card.step));
+}
+
+const or = (words: readonly string[]): string => words.join(" or ");
+const both = (words: readonly string[]): string => words.join(" and ");
+
+/** What an outcome is worded by besides itself. */
+interface Wording {
+    /** A side's name. */
+    readonly name: (side: SourceJoinSide) => string;
+    /** The card's lines. */
+    readonly lines: readonly CardLine[];
+    /** Its options, for the way its edges run. */
+    readonly result: CardResult;
 }
 
 /**
- * Which way a card's edges can run.
- * @param picks - the card's picks
- * @param row - the name of the source whose rows are nodes
+ * The ends of an outcome's edges, the way they run: kinds of nodes, or the two fields naming them where
+ * both ends are one kind.
+ * @param outcome - the outcome
+ * @param w - what it is worded by
+ * @returns the ends
+ */
+function runOf(outcome: SourceJoinOutcome, w: Wording): readonly string[] {
+    const way = directionOf(outcome, w.result);
+    const row = outcome.rows.map((side) => w.name(side)).join("");
+    const onto = outcome.onto.map((side) => w.name(side));
+    if (outcome.code === "link" && !linksItself(outcome)) {
+        return way === "from-into" ? [row, ...onto] : [...onto, row];
+    }
+    const { fields } = outcome;
+    const kinds = onto.length > 1 ? onto : [...onto, `new ${or(fields)} nodes`];
+    const ends = fields.length === 2 ? fields : kinds;
+    // One source's own edges run from a row to the row it names.
+    return way === (linksItself(outcome) ? "from-into" : "into-from") ? ends : ends.toReversed();
+}
+
+/**
+ * What an outcome would make, in words that say what appears.
+ * @param outcome - the outcome
+ * @param w - what it is worded by
+ * @returns such as "Edge per door_entries row, people to buildings"
+ */
+function madeWords(outcome: SourceJoinOutcome, w: Wording): string {
+    const rows = outcome.rows.map((side) => w.name(side));
+    const onto = outcome.onto.map((side) => w.name(side));
+    const [row = ""] = rows;
+    const [first = ""] = onto;
+    const { fields } = outcome;
+    switch (outcome.code) {
+        case "fields": {
+            const by = fields.length === 0 ? "" : `, matching ${or(fields)}`;
+            return `Fields of ${both(rows)} on ${first}${by}`;
+        }
+        case "fold": {
+            return `Merge ${row} nodes into ${first}`;
+        }
+        case "link": {
+            const run = runOf(outcome, w);
+            if (linksItself(outcome)) {
+                return `Edge from ${row} to ${first}, ${run.join(" -> ")}`;
+            }
+            return outcome.ownNodes ? `Edge from ${run.join(" to ")}` : `Node per ${row} row, linked to ${first}`;
+        }
+        case "edge": {
+            const run = runOf(outcome, w);
+            return sameEnds(outcome)
+                ? `Edge per ${row} row, ${onto.join(" to ")}, ${run.join(" -> ")}`
+                : `Edge per ${row} row, ${run.join(" to ")}`;
+        }
+        case "middle": {
+            if (onto.length < 2) {
+                return `Node per ${row} row, linked to ${first} and new ${or(fields)} nodes`;
+            }
+            return fields.length > 0
+                ? `Node per ${row} row, linked to ${first} by ${both(fields)}`
+                : `Node per ${row} row, linked to ${both(onto)}`;
+        }
+        case "shared": {
+            return `Edge between ${first} sharing ${or(fields)}`;
+        }
+        case "shared-nodes": {
+            return `Node per ${or(fields)}, linked to ${first}`;
+        }
+        case "new-nodes": {
+            return `Node per ${or(fields)}, linked to ${row}`;
+        }
+        default: {
+            return outcome.code;
+        }
+    }
+}
+
+/**
+ * An outcome as a card's "Join as" lists it: one that uses only some of the card's lines names the field
+ * it matches.
+ * @param outcome - the outcome
+ * @param w - what it is worded by
+ * @returns the words
+ */
+export function outcomeWords(outcome: SourceJoinOutcome, w: Wording): string {
+    const made = madeWords(outcome, w);
+    const whole = wholeLines(w.lines);
+    if (outcome.uses.length >= whole.length) {
+        return made;
+    }
+    const matched = outcome.uses.flatMap((at) => {
+        const line = whole.at(at);
+        if (line === undefined) {
+            return [];
+        }
+        const onto = [line.a, line.b].find((end) => outcome.onto.some((side) => sameSide(side, end.side)));
+        return [onto?.field ?? line.a.field ?? ""];
+    });
+    return `${made}, ${WORKSPACE_WORDS.matching} ${or(matched)}`;
+}
+
+/**
+ * Which way an outcome's edges can run.
+ * @param outcome - the outcome
+ * @param w - what it is worded by
  * @returns the two ways
  */
 export function directions(
-    picks: CardPicks,
-    row: string,
-): readonly { readonly value: CardResult["direction"]; readonly label: string }[] {
-    // Named by the fields the ends are read from, which are never the same one.
-    const ends = [picks.from?.field ?? "", ...(picks.becomes === "node" ? [row] : []), picks.to?.field ?? ""].filter(
-        (each) => each !== "",
-    );
+    outcome: SourceJoinOutcome,
+    w: Wording,
+): readonly { readonly value: "into-from" | "from-into"; readonly label: string }[] {
+    return (["into-from", "from-into"] as const).map((value) => {
+        const [first, ...rest] = runOf(outcome, { ...w, result: { ...w.result, direction: value } });
+        const row = outcome.code === "middle" ? outcome.rows.map((side) => w.name(side)) : [];
+        return { value, label: [first, ...row, ...rest].join(" -> ") };
+    });
+}
+
+/**
+ * Whether both ends of an outcome's edges are one kind of nodes, so which way they run is asked first.
+ * @param outcome - the outcome
+ * @returns true when they are
+ */
+export function sameEnds(outcome: SourceJoinOutcome): boolean {
+    const [first, second] = outcome.onto;
+    return linksItself(outcome) || (outcome.onto.length > 1 && sameSide(first, second));
+}
+
+/** What a row matching nothing does, as a card names each way. */
+export const NO_MATCH_WORDS: Readonly<Record<NoMatch, string>> = {
+    add: "Add",
+    skip: "Skip",
+    keep: "Keep",
+    remove: "Remove",
+};
+
+/**
+ * A field's facts, as a list and a column header say them: whether its values repeat, and how many of
+ * its cells are empty.
+ * @param field - the field
+ * @returns such as "repeats, 69 empty", or "unique"
+ */
+export function factWords(field: SourceSideField): string {
+    const repeats = field.repeated.keys > 0 ? WORKSPACE_WORDS.repeats : WORKSPACE_WORDS.unique;
     return [
-        { value: "into-from", label: ends.join(" -> ") },
-        { value: "from-into", label: ends.toReversed().join(" -> ") },
-    ];
+        ...(field.distinct === 0 ? [] : [repeats]),
+        ...(field.empty === 0 ? [] : [`${formatNumber(field.empty)} ${WORKSPACE_WORDS.empty}`]),
+    ].join(", ");
 }
 
 /**
- * The picks a Links card starts with: values in the rows when a field of theirs already names a node,
- * else on the nodes the card's source or its node 1 holds.
- * @param draft - the open draft
- * @param picks - the card's picks
- * @returns the picks
+ * A field's profile, as its column header's tooltip says it.
+ * @param field - the field
+ * @param from - the source an earlier join brought it from, if one did
+ * @returns such as "57 values, text: B-1001, B-1002"
  */
-function linking(draft: SourceDraft, picks: CardPicks): CardPicks {
-    const { from } = picks;
-    const into = picks.into?.isNew === true ? null : picks.into;
-    const links = { ...picks, becomes: "links" as const, to: null, shared: [] };
-    if (from?.field !== undefined && into !== null) {
-        return { ...links, inRows: true };
-    }
-    if (from === null) {
-        return { ...links, into, inRows: false };
-    }
-    const own = draft.spaces().find((space) => space.rowsOf.includes(from.source));
-    const theirs: CardInto = own === undefined ? { space: "", source: from.source } : { space: own.space };
-    return { ...links, from: { source: from.source }, into: into ?? theirs, inRows: false };
+export function profileWords(field: SourceSideField, from: string | null): string {
+    const samples = field.samples.map(String).join(", ");
+    return [
+        ...(from === null ? [] : [from]),
+        `${counted(field.distinct, { one: "value", many: "values" })}, ${KIND_WORDS[field.kind]}`,
+        ...(samples === "" ? [] : [samples]),
+    ].join(": ");
 }
 
 /**
- * The picks a card takes on when the reader says what its rows become: the matches it has stay, and
- * what the choice cannot use goes.
- * @param draft - the open draft
- * @param picks - the card's picks
- * @param becomes - the choice
- * @returns the picks
+ * A match's live count, of the rows it reads.
+ * @param counts - the element's counts
+ * @returns such as "283 of 308 match", or "205 of 308 match, 69 empty"
  */
-export function becoming(draft: SourceDraft, picks: CardPicks, becomes: Becomes): CardPicks {
-    if (becomes === "links") {
-        return linking(draft, picks);
-    }
-    const { shared: _shared, inRows: _inRows, to = null, ...rest } = picks;
-    // New nodes at 1 are a node's own: no field or edge matches them. With one type of node in the
-    // graph, it is the one a match can name.
-    const types = draft.spaces().filter((space) => !space.rowsOf.includes(rest.from?.source ?? ""));
-    const [one] = types;
-    const only: CardInto | null = types.length === 1 ? { space: one.space } : null;
-    const into: CardInto | null = becomes !== "node" && rest.into?.isNew === true ? null : (rest.into ?? only);
-    const next: CardPicks = { ...rest, becomes, into };
-    if (becomes === "fields" || into?.isNew === true) {
-        return { ...next, to: null };
-    }
-    return { ...next, to: becomes === "edge" ? (to ?? { into: null }) : to };
-}
-/**
- * What a card's step is called beside its title.
- * @param card - the card
- * @returns the word, or undefined while it makes nothing
- */
-export function cardActWords(card: JoinCardView): string | undefined {
-    const act = card.step === null ? null : cardAct(card);
-    return act === null ? undefined : CARD_ACT_WORDS[act];
+export function matchWords(counts: Pick<SourceMatchCounts, "matchedRows" | "rows" | "emptyRows">): string {
+    const empty = counts.emptyRows === 0 ? "" : `, ${formatNumber(counts.emptyRows)} ${WORKSPACE_WORDS.empty}`;
+    return `${formatNumber(counts.matchedRows)} of ${formatNumber(counts.rows)} match${empty}`;
 }
 
 /**
- * Whether a card matches two fields, so the table can list their values.
- * @param card - the card
- * @returns true when it does
+ * A line by its fields, as a choice between a card's lines names it.
+ * @param line - the line
+ * @param at - its place, from 0
+ * @returns the field both ends share, the two fields, or its place while unpicked
  */
-export function hasMatch(card: JoinCardView): boolean {
-    return shownBecomes(card) !== "links" && pairOf(card.picks) !== null;
+export function lineWords(line: CardLine, at: number): string {
+    const fields = [...new Set([line.a.field, line.b.field].filter((field) => field !== null))];
+    return matchOf(line) === null || fields.length === 0
+        ? `${WORKSPACE_WORDS.match} ${formatNumber(at + 1)}`
+        : fields.join(" = ");
 }

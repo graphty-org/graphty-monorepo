@@ -2,7 +2,6 @@ import { DataTable, type DataTableColumn, PANEL_GRID, SegmentedControl } from "@
 import type {
     GraphSession,
     JoinReduce,
-    SourceColumnProfile,
     SourceDraft,
     SourceDraftCell,
     SourceDraftRow,
@@ -14,18 +13,15 @@ import { Button, Group, Stack, Text, UnstyledButton } from "@mantine/core";
 import React from "react";
 
 import { formatNumber } from "../inspector/words";
+import { nameOf, type SourceNames } from "./cardWords";
 import { DraftEffects, Line } from "./DraftEffects";
-import { profileOf } from "./join";
 import { Pick } from "./Pick";
-import { nameOf, valueWords } from "./tableColumns";
+import { valueWords } from "./tableColumns";
 import {
     addStepWords,
     afterWords,
     CELL_FILTERS,
-    cellWords,
     DRILL_WORDS,
-    JOIN_WORDS,
-    KIND_WORDS,
     overlapCountWords,
     overlapQuestionWords,
     RULE_WORDS,
@@ -201,17 +197,19 @@ export function AddStepBody({
  * it with the cards as one undo step; Cancel keeps the source.
  * @param props - Component props
  * @param props.session - the element's session
+ * @param props.names - the sources' names
  * @param props.draft - the open draft
  * @param props.source - the source removed
  * @returns the strip
  */
 export function RemoveStrip({
     session,
+    names,
     draft,
     source,
-}: Readonly<{ session: GraphSession; draft: SourceDraft; source: SourceKey }>): React.JSX.Element {
+}: Readonly<{ session: GraphSession; names: SourceNames; draft: SourceDraft; source: SourceKey }>): React.JSX.Element {
     const preview = draft.preview();
-    const title = `${WORKSPACE_WORDS.remove} ${nameOf(session, source)}`;
+    const title = `${WORKSPACE_WORDS.remove} ${nameOf(names, source)}`;
     return (
         <section className="jw-remove" aria-label={title}>
             <Stack gap={4}>
@@ -220,7 +218,12 @@ export function RemoveStrip({
                 </Text>
                 <Line label={STEP_WORDS.nodes} value={afterWords(preview.before.nodes, preview.after.nodes)} />
                 <Line label={STEP_WORDS.edges} value={afterWords(preview.before.edges, preview.after.edges)} />
-                <DraftEffects session={session} preview={preview} own={(step) => step.source === source} />
+                <DraftEffects
+                    session={session}
+                    names={names}
+                    preview={preview}
+                    own={(step) => step.source === source}
+                />
             </Stack>
         </section>
     );
@@ -229,18 +232,18 @@ export function RemoveStrip({
 /**
  * The cells table's columns: the element, each source's value, the value shown, and what shows it
  * (R for a reader decision, else the rule).
- * @param session - the element's session.
+ * @param names - the sources' names.
  * @param cells - the cells.
  * @returns the columns.
  */
-function cellColumns(session: GraphSession, cells: readonly SourceDraftCell[]): DataTableColumn<SourceDraftCell>[] {
+function cellColumns(names: SourceNames, cells: readonly SourceDraftCell[]): DataTableColumn<SourceDraftCell>[] {
     const sources = [...new Set(cells.flatMap((cell) => cell.values.map((each) => each.source)))];
     return [
         { id: "key", header: DRILL_WORDS.key, sortable: false, rowHeader: true, value: (cell) => cell.ref.key },
         ...sources.map((source): DataTableColumn<SourceDraftCell> => ({
             id: `source:${source}`,
-            header: nameOf(session, source),
-            width: Math.min(240, Math.max(96, nameOf(session, source).length * 7 + 32)),
+            header: nameOf(names, source),
+            width: Math.min(240, Math.max(96, nameOf(names, source).length * 7 + 32)),
             sortable: false,
             // two matches of one source can bring a cell two values
             value: (cell) =>
@@ -383,7 +386,7 @@ export type CellFilter = (typeof CELL_FILTERS)[number]["value"];
  * the value shown and what shows it; All, Open or Decided. The card the column is on settles the
  * selected ones.
  * @param props - Component props
- * @param props.session - the element's session
+ * @param props.names - the sources' names
  * @param props.draft - the open draft
  * @param props.step - the step
  * @param props.column - the column
@@ -395,7 +398,7 @@ export type CellFilter = (typeof CELL_FILTERS)[number]["value"];
  * @returns the pane
  */
 export function CellsPane({
-    session,
+    names,
     draft,
     step,
     column,
@@ -405,7 +408,7 @@ export function CellsPane({
     onOnly,
     onSelect,
 }: Readonly<{
-    session: GraphSession;
+    names: SourceNames;
     draft: SourceDraft;
     step: SourceStepRow;
     column: string;
@@ -444,7 +447,7 @@ export function CellsPane({
                     rowHeight={PANEL_GRID.ROW_PITCH}
                     headerHeight={PANEL_GRID.ROW_PITCH}
                     data={cells}
-                    columns={cellColumns(session, cells)}
+                    columns={cellColumns(names, cells)}
                     getRowId={(_cell, index) => ids[index] ?? String(index)}
                     height={height}
                     selectionMode="multiple"
@@ -458,72 +461,5 @@ export function CellsPane({
                 />
             </div>
         </div>
-    );
-}
-
-/**
- * One field's profile: kind, valid, empty, distinct and samples.
- * @param props - Component props
- * @param props.title - whose field
- * @param props.profile - the profile, from the element
- * @returns the column
- */
-function Profile({
-    title,
-    profile,
-}: Readonly<{ title: string; profile: SourceColumnProfile | null }>): React.JSX.Element {
-    const rows: readonly (readonly [string, string])[] =
-        profile === null
-            ? []
-            : [
-                  [JOIN_WORDS.kind, KIND_WORDS[profile.kind]],
-                  [JOIN_WORDS.valid, formatNumber(profile.valid)],
-                  [JOIN_WORDS.empty, formatNumber(profile.empty)],
-                  [JOIN_WORDS.distinct, formatNumber(profile.distinct)],
-                  [JOIN_WORDS.samples, profile.samples.map((sample) => cellWords(sample)).join(", ")],
-              ];
-    return (
-        <fieldset className="ss-profile">
-            <Text component="legend" size="xs" fw={600} truncate>
-                {title}
-            </Text>
-            {rows.map(([label, value]) => (
-                <Group key={label} gap={6} wrap="nowrap">
-                    <Text size="xs" c="dimmed" w={56}>
-                        {label}
-                    </Text>
-                    <Text size="xs" truncate aria-label={`${title} ${label.toLowerCase()}`}>
-                        {value}
-                    </Text>
-                </Group>
-            ))}
-        </fieldset>
-    );
-}
-
-/**
- * The two fields of a card's match side by side, each profiled by the open draft: kind, valid,
- * empty, distinct and samples.
- * @param props - Component props
- * @param props.draft - the open draft
- * @param props.sides - each field's name and what it reads
- * @returns the pane
- */
-export function FieldsPane({
-    draft,
-    sides,
-}: Readonly<{
-    draft: SourceDraft;
-    sides: readonly {
-        readonly title: string;
-        readonly side: { readonly source?: SourceKey; readonly field?: string; readonly space?: string };
-    }[];
-}>): React.JSX.Element {
-    return (
-        <Group gap="md" align="flex-start" wrap="wrap" className="jw-table jw-fields">
-            {sides.map(({ title, side }) => (
-                <Profile key={title} title={title} profile={profileOf(draft, side)} />
-            ))}
-        </Group>
     );
 }

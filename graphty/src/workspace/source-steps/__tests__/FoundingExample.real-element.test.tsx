@@ -3,7 +3,7 @@
  * experiment on (design/data/multiple-data-sources-design.md, sections 5.1-5.6, 7.13 and 13),
  * driven only by drops, clicks, typing and keys, and joined only through "Join +" below the data
  * sources: buildings.csv is dropped on an empty project and drawn at once; people arrive staged,
- * are given the type person on their workspace card and are added as they are; door entries are
+ * are given the type person in the workspace and are added as they are; door entries are
  * joined to the people who badged in (an edge "entered", ignoring case, the test badge's entry left
  * out) and to the buildings whose doors they opened (an edge "at"); HR's list is merged into people
  * with Use incoming for dept and one pick back to people.csv's value; visitors are added as people too,
@@ -20,7 +20,19 @@ import { page, userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
-import { choose, drop, emptyProject, rowWith, select } from "./sourceSteps";
+import {
+    advanced,
+    choose,
+    done,
+    drop,
+    emptyProject,
+    joinAs,
+    joinLines,
+    pickFields,
+    pickSources,
+    rowWith,
+    select,
+} from "./sourceSteps";
 
 withFeatures(["source-steps"]);
 
@@ -63,17 +75,6 @@ async function joinPlus(): Promise<HTMLElement> {
 async function typeInto(where: HTMLElement, name: string, text: string): Promise<void> {
     await userEvent.click(within(where).getByLabelText(name));
     await userEvent.keyboard(`${text}{Enter}`);
-}
-
-/**
- * Presses Done and waits for the workspace to close.
- * @param modal - the workspace.
- */
-async function done(modal: HTMLElement): Promise<void> {
-    await userEvent.click(within(modal).getByRole("button", { name: "Done" }));
-    await waitFor(() => {
-        assert.isNull(screen.queryByRole("dialog", { name: "Join" }));
-    });
 }
 
 /**
@@ -125,26 +126,29 @@ describe("the founding example through the app (source-steps)", () => {
         await stage("people.csv", PEOPLE);
         assert.strictEqual(session.data.nodes().length, 2, "a staged source draws nothing");
         let modal = await joinPlus();
-        let settings = await within(modal).findByRole("group", { name: "Staged source" });
-        await userEvent.click(within(settings).getByRole("button", { name: "Expand Read as" }));
+        await choose(modal, "Source 1", "people");
+        let settings = await within(modal).findByRole("group", { name: "Read people as" });
+        await userEvent.click(within(settings).getByRole("button", { name: "Expand Read people as" }));
         await typeInto(settings, "Type", "person");
         await waitFor(() => {
             const key = session.data.staged()[0]?.key ?? "";
             assert.strictEqual(session.data.currentDraft()?.sourceTable(key).summary().mapping.type, "person");
         });
-        await userEvent.click(within(settings).getByRole("button", { name: "Add as is" }));
-        await within(modal).findByRole("region", { name: "people.csv -> Added" });
+        await userEvent.click(within(modal).getByRole("button", { name: "Add as is" }));
+        await waitFor(() => {
+            assert.deepStrictEqual(joinLines(modal), ["people, added"]);
+        });
         await done(modal);
         assert.deepStrictEqual(nodeIds(session), ["B1", "B2", "B3", "D1", "D2", "T0"]);
 
         // Entries to people by badge: Connect "entered", ignoring case so b3 meets B3.
         await stage("entries.csv", ENTRIES);
         modal = await joinPlus();
-        await choose(modal, "In graph type", "person");
-        await choose(modal, "In graph field", "badge");
-        await choose(modal, "Incoming field", "badge");
+        await pickSources(modal, "people", "entries");
+        await pickFields(modal, "badge", "badge");
         await userEvent.click(within(modal).getByRole("switch", { name: "Ignore case" }));
-        await userEvent.click(within(modal).getByRole("radio", { name: "A node linked to what it names" }));
+        await joinAs(modal, "Node per entries row, linked to people");
+        await advanced(modal);
         await typeInto(modal, "Edge type", "entered");
         const newEdges = (): number => session.data.currentDraft()?.preview().steps.at(-1)?.buckets?.newEdges ?? -1;
         await waitFor(() => {
@@ -185,15 +189,12 @@ describe("the founding example through the app (source-steps)", () => {
         assert.strictEqual(edgesOf(session, "entered"), 5);
         assert.lengthOf(session.data.staged(), 0, "entries are no longer staged");
 
-        // Entries to buildings by door: nothing is staged, so the workspace opens with no new card
-        // and "+ Join" adds one.
+        // Entries to buildings by door: nothing is staged, and the workspace opens on a new blank card.
         modal = await joinPlus();
-        await userEvent.click(within(modal).getByRole("button", { name: /^\+ Join/ }));
-        await choose(modal, "In graph type", "buildings.csv");
-        await choose(modal, "In graph field", "door");
-        await choose(modal, "Incoming source", "entries.csv");
-        await choose(modal, "Incoming field", "door");
-        await userEvent.click(within(modal).getByRole("radio", { name: "A node linked to what it names" }));
+        await pickSources(modal, "buildings", "entries");
+        await pickFields(modal, "door", "door");
+        await joinAs(modal, "Edge from buildings to entries");
+        await advanced(modal);
         await typeInto(modal, "Edge type", "at");
         await done(modal);
         assert.strictEqual(edgesOf(session, "at"), 6, "every entry but E5's D3");
@@ -201,10 +202,9 @@ describe("the founding example through the app (source-steps)", () => {
         // HR's list merged into people: Use incoming for dept, then one pick keeps people.csv's Lab.
         await stage("hr.csv", HR);
         modal = await joinPlus();
-        await choose(modal, "In graph type", "person");
-        await choose(modal, "In graph field", "badge");
-        await choose(modal, "Incoming field", "badge");
-        await userEvent.click(within(modal).getByRole("radio", { name: "Fields on a node" }));
+        await pickSources(modal, "people", "hr");
+        await pickFields(modal, "badge", "badge");
+        await joinAs(modal, "Fields of hr on people");
         await choose(modal, "Both have dept", "Use incoming");
         await userEvent.click(await within(modal).findByRole("button", { name: "Cells dept" }));
         const cells = await within(modal).findByRole("grid", { name: "Cells" });
@@ -220,17 +220,18 @@ describe("the founding example through the app (source-steps)", () => {
         assert.strictEqual(session.data.node("B1")?.dept, "Operations", "HR's department, by the rule");
         assert.strictEqual(session.data.node("B2")?.dept, "Lab", "people.csv's department, by the pick");
 
-        // Visitors as people too: the Add card asks whether their badges are the same people.
+        // Visitors as people too: where they are added asks whether their badges are the same people.
         await stage("visitors.csv", VISITORS);
         modal = await joinPlus();
-        settings = await within(modal).findByRole("group", { name: "Staged source" });
-        await userEvent.click(within(settings).getByRole("button", { name: "Expand Read as" }));
+        await choose(modal, "Source 1", "visitors");
+        settings = await within(modal).findByRole("group", { name: "Read visitors as" });
+        await userEvent.click(within(settings).getByRole("button", { name: "Expand Read visitors as" }));
         await typeInto(settings, "Type", "person");
         await waitFor(() => {
             const key = session.data.staged()[0]?.key ?? "";
             assert.strictEqual(session.data.currentDraft()?.sourceTable(key).summary().mapping.type, "person");
         });
-        await userEvent.click(within(settings).getByRole("button", { name: "Add as is" }));
+        await userEvent.click(within(modal).getByRole("button", { name: "Add as is" }));
         await within(modal).findByText("Same person?");
         assert.include(modal.textContent, "1 of 2");
         assert.notInclude(modal.textContent, "source:", "no internal id");

@@ -1,290 +1,276 @@
-import { ComboInput, ControlSection, SegmentedControl } from "@graphty/compact-mantine";
 import type {
     GraphSession,
     SourceDraft,
+    SourceJoinOutcome,
+    SourceJoinSide,
     SourceMatchCounts,
     SourceStepPatch,
-    SourceStepRow,
 } from "@graphty/graphty-element/session";
-import { ActionIcon, Button, Group, MultiSelect, Radio, Stack, Switch, Text, UnstyledButton } from "@mantine/core";
+import { ActionIcon, Button, Group, Radio, Stack, Switch, Text } from "@mantine/core";
 import React, { useId } from "react";
 
-import { sourceName } from "../data-place/words";
 import { GLYPHS } from "../glyphs";
+import { ariaKey } from "../keys/keys";
+import { factWords, matchWords, outcomeWords, type SideChoices, sideName, type SourceNames } from "./cardWords";
 import {
-    becoming,
-    choiceOfInto,
-    directions,
-    intoChoices,
-    intoOfChoice,
-    NEW_VALUE,
-    offeredInto,
-    shownBecomes,
-} from "./cardWords";
-import { edgeTypeChoices } from "./join";
-import {
-    type Becomes,
-    type CardInto,
-    type CardPicks,
+    BLANK_LINE,
+    type CardEnd,
+    type CardLine,
     type CardResult,
     countsOf,
-    draftColumns,
-    intoFields,
-    type JoinCardView,
-    keyColumn,
+    DEFAULT_RESULT,
+    fieldsOf,
+    type Ignoring,
+    matchOf,
     type MatchSwitches,
-    newCard,
-    newKind,
-    sharedColumns,
+    namesSeveral,
+    NO_END,
+    type OpenCard,
+    outcomeKey,
+    resultOf,
+    sameSide,
+    type Suggestion,
     switchesOf,
-    toPairOf,
+    wholeLines,
 } from "./joinCards";
-import { Pick } from "./Pick";
-import { nameOf } from "./tableColumns";
-import {
-    BECOMES,
-    BUCKET_WORDS,
-    bucketCount,
-    counted,
-    JOIN_WORDS,
-    matchWords,
-    moreWords,
-    OVER_CAP_WORDS,
-    WORKSPACE_WORDS,
-} from "./words";
-import { DifferRow, ReduceRow } from "./WorkspaceParts";
+import { Options, Row, StepCounts } from "./JoinOptions";
+import { DELETE_KEY } from "./keys";
+import { KeyWords } from "./KeyWords";
+import { Pick, type PickChoice, type PickGroup } from "./Pick";
+import { JOIN_WORDS, moreWords, WORKSPACE_WORDS } from "./words";
 
-/** Field 1's Field value for the space's own key. */
-const KEY_VALUE = "key";
+/** New nodes, as a side list offers it. */
+const NEW_VALUE = "new";
 
-/** New nodes, as a type list offers it. */
-const NEW_NODES = { value: NEW_VALUE, label: WORKSPACE_WORDS.newNodes };
+/**
+ * A side as a list's value.
+ * @param side - the side
+ * @returns the value
+ */
+function sideValue(side: SourceJoinSide): string {
+    return JSON.stringify(side.source === undefined ? { space: side.space } : { source: side.source });
+}
 
-/** Writes a card: its picks, and its options once it has a step. */
-export type CardChange = (card: JoinCardView, picks: CardPicks, result: CardResult | null) => void;
+/**
+ * A line with one end picked anew: both its fields go when its side changes.
+ * @param line - the line
+ * @param at - the end
+ * @param end - its new side
+ * @returns the line
+ */
+function withSide(line: CardLine, at: "a" | "b", end: CardEnd): CardLine {
+    const other = { ...(at === "a" ? line.b : line.a), field: null };
+    return at === "a" ? { a: end, b: other } : { a: other, b: end };
+}
 
-/** What every part of a card takes. */
-interface CardProps {
+/**
+ * Lines that no longer name a source of the ones before them, blank.
+ * @param lines - the lines
+ * @returns the lines
+ */
+function connected(lines: readonly CardLine[]): readonly CardLine[] {
+    const named: SourceJoinSide[] = [];
+    return lines.map((line, at) => {
+        const sides = [line.a.side, line.b.side].filter((side) => side !== null);
+        if (at > 0 && !sides.some((side) => named.some((each) => sameSide(each, side)))) {
+            return BLANK_LINE;
+        }
+        named.push(...sides);
+        return line;
+    });
+}
+
+/** What every line of a card takes. */
+interface LineProps {
     readonly session: GraphSession;
     readonly draft: SourceDraft;
-    readonly card: JoinCardView;
-    /** Writes the card. */
-    readonly onChange: CardChange;
+    readonly names: SourceNames;
+    readonly card: OpenCard;
+    /** The line's place. */
+    readonly at: number;
+    readonly choices: SideChoices;
+    readonly suggestion: Suggestion | null;
+    /** Writes the card's lines; `resided` when a side changed. */
+    readonly onLines: (lines: readonly CardLine[], resided: boolean) => void;
 }
 
 /**
- * One labeled row of a card: the words in one column, the controls in the rest.
- * @param props - Component props
- * @param props.label - the words
- * @param props.children - the controls
- * @returns the row
+ * The sides a picker offers, in their groups.
+ * @param props - the line
+ * @param end - which end
+ * @returns the choices
  */
-function Row({ label, children }: Readonly<{ label: string; children: React.ReactNode }>): React.JSX.Element {
-    return (
-        <div className="jw-row">
-            <Text size="xs" truncate>
-                {label}
-            </Text>
-            <div className="jw-row-controls">{children}</div>
-        </div>
-    );
-}
-
-/**
- * A choice of a few ways as a row.
- * @param props - Component props
- * @param props.label - the choice's name
- * @param props.value - the choice now
- * @param props.data - the ways
- * @param props.onChange - takes a choice
- * @returns the row
- */
-function Choice<T extends string>({
-    label,
-    value,
-    data,
-    onChange,
-}: Readonly<{
-    label: string;
-    value: T;
-    data: readonly { readonly value: T; readonly label: string }[];
-    onChange: (value: T) => void;
-}>): React.JSX.Element {
-    return (
-        <Row label={label}>
-            <SegmentedControl
-                size="xs"
-                aria-label={label}
-                value={value}
-                data={data.map((each) => ({ ...each }))}
-                onChange={(next) => {
-                    const picked = data.find((each) => each.value === next);
-                    if (picked !== undefined) {
-                        onChange(picked.value);
-                    }
-                }}
-            />
-        </Row>
-    );
-}
-
-/**
- * A name typed or picked, as a row: a type, or a separator. Enter, Tab or leaving it takes it.
- * @param props - Component props
- * @param props.label - its name
- * @param props.value - the name now
- * @param props.placeholder - what an empty one reads
- * @param props.options - the names offered
- * @param props.trim - whether the spaces around it are taken off
- * @param props.onChange - takes a name
- * @returns the row
- */
-function NameRow({
-    label,
-    value,
-    placeholder = label,
-    options,
-    trim = true,
-    onChange,
-}: Readonly<{
-    label: string;
-    value: string;
-    placeholder?: string;
-    options: readonly { readonly value: string }[];
-    trim?: boolean;
-    onChange: (value: string) => void;
-}>): React.JSX.Element {
-    return (
-        <Row label={label}>
-            <ComboInput
-                label={label}
-                width="100%"
-                variant="outlined"
-                placeholder={placeholder}
-                options={options.map((each) => ({ ...each }))}
-                value={value}
-                onChange={(next) => {
-                    const text = trim ? String(next).trim() : String(next);
-                    if (text !== value) {
-                        onChange(text);
-                    }
-                }}
-            />
-        </Row>
-    );
-}
-
-/**
- * A whole number as a row.
- * @param props - Component props
- * @param props.label - its name
- * @param props.value - the number now, or undefined for the element's own
- * @param props.min - the smallest one
- * @param props.options - the numbers offered
- * @param props.onChange - takes a number
- * @returns the row
- */
-function NumberRow({
-    label,
-    value,
-    min,
-    options,
-    onChange,
-}: Readonly<{
-    label: string;
-    value: number | undefined;
-    min: number;
-    options: readonly number[];
-    onChange: (value: number) => void;
-}>): React.JSX.Element {
-    return (
-        <Row label={label}>
-            <ComboInput
-                label={label}
-                width={88}
-                variant="outlined"
-                numeric
-                min={min}
-                options={options.map((each) => ({ value: String(each) }))}
-                value={value ?? ""}
-                onChange={(next) => {
-                    const number = Math.round(Number(next));
-                    if (number !== value && number >= min) {
-                        onChange(number);
-                    }
-                }}
-            />
-        </Row>
-    );
-}
-
-/**
- * Several columns, as a row.
- * @param props - Component props
- * @param props.label - its name
- * @param props.value - the columns now
- * @param props.columns - the columns offered
- * @param props.onChange - takes them
- * @returns the row
- */
-function ColumnsRow({
-    label,
-    value,
-    columns,
-    onChange,
-}: Readonly<{
-    label: string;
-    value: readonly string[];
-    columns: readonly string[];
-    onChange: (columns: readonly string[]) => void;
-}>): React.JSX.Element {
-    return (
-        <Row label={label}>
-            <MultiSelect
-                size="xs"
-                searchable
-                variant="outlined"
-                aria-label={label}
-                placeholder={value.length === 0 ? WORKSPACE_WORDS.none : undefined}
-                data={[...new Set([...columns, ...value])]}
-                value={[...value]}
-                onChange={onChange}
-            />
-        </Row>
-    );
-}
-
-/**
- * A match's live count.
- * @param props - Component props
- * @param props.counts - the element's counts, or null while unpicked
- * @param props.suggested - whether the match is still the element's guess
- * @param props.label - the count's name
- * @returns the row
- */
-function MatchCount({
-    counts,
-    suggested = false,
-    label,
-}: Readonly<{
-    counts: SourceMatchCounts | null;
-    suggested?: boolean;
-    label: string;
-}>): React.JSX.Element | null {
-    if (counts === null) {
-        return null;
+function sideData(props: LineProps, end: "a" | "b"): readonly (PickChoice | PickGroup)[] {
+    const { session, names, choices, card, at } = props;
+    const choice = (side: SourceJoinSide): PickChoice => ({
+        value: sideValue(side),
+        label: sideName(session, names, side),
+    });
+    if (at > 0 && end === "a") {
+        // A further line starts from a source the card already names.
+        const named: SourceJoinSide[] = [];
+        for (const side of card.lines.flatMap((line, i) => (i === at ? [] : [line.a.side, line.b.side]))) {
+            if (side !== null && !named.some((each) => sameSide(each, side))) {
+                named.push(side);
+            }
+        }
+        return named.map((side) => choice(side));
     }
+    const groups = [
+        { group: WORKSPACE_WORDS.waiting, items: choices.waiting.map((side) => choice(side)) },
+        { group: WORKSPACE_WORDS.inGraph, items: choices.inGraph.map((side) => choice(side)) },
+        { group: WORKSPACE_WORDS.nodeTypes, items: choices.types.map((side) => choice(side)) },
+    ].filter((each) => each.items.length > 0);
+    return end === "a" ? groups : [...groups, { value: NEW_VALUE, label: WORKSPACE_WORDS.newNodes }];
+}
+
+/**
+ * A line's side picker.
+ * @param props - the line
+ * @param props.end - which end
+ * @returns the picker
+ */
+function SidePick(props: LineProps & Readonly<{ end: "a" | "b" }>): React.JSX.Element {
+    const { session, card, at, end, onLines } = props;
+    const line = card.lines[at];
+    const picked = line[end];
+    const data = sideData(props, end);
+    const value = picked.side === null ? null : sideValue(picked.side);
+    const source = session.data.sources({ staged: true }).find((each) => each.key === picked.side?.source);
     return (
-        <Group gap={12} wrap="wrap" className="jw-match-count">
-            <Text size="xs" aria-label={label}>
-                {matchWords(counts)}
-            </Text>
-            {suggested ? (
-                <Text size="xs" c="dimmed">
-                    {WORKSPACE_WORDS.suggested}
-                </Text>
+        <Pick
+            name={pickerName(WORKSPACE_WORDS.source, at, end)}
+            placeholder={WORKSPACE_WORDS.source}
+            data={data}
+            value={picked.isNew === true ? NEW_VALUE : value}
+            title={source?.name}
+            onPick={(next) => {
+                const to: CardEnd =
+                    next === NEW_VALUE
+                        ? { ...NO_END, isNew: true }
+                        : { side: JSON.parse(next) as SourceJoinSide, field: null };
+                onLines(connected(card.lines.map((each, i) => (i === at ? withSide(each, end, to) : each))), true);
+            }}
+        />
+    );
+}
+
+/**
+ * A picker's name: which end of the first line, or of a further one.
+ * @param word - what it picks
+ * @param at - the line's place
+ * @param end - the end
+ * @returns such as "Field 1", or "Match 2 field 1"
+ */
+function pickerName(word: string, at: number, end: "a" | "b"): string {
+    const name = `${at === 0 ? word : word.toLowerCase()} ${end === "a" ? "1" : "2"}`;
+    return at === 0 ? name : `${WORKSPACE_WORDS.match} ${String(at + 1)} ${name}`;
+}
+
+/**
+ * A line's field picker: each field with its facts, the source an earlier join brought it from, and
+ * "suggested" on the likeliest one.
+ * @param props - the line
+ * @param props.end - which end
+ * @returns the picker
+ */
+function FieldPick(props: LineProps & Readonly<{ end: "a" | "b" }>): React.JSX.Element {
+    const { draft, names, card, at, end, suggestion, onLines } = props;
+    const line = card.lines[at];
+    const other = end === "a" ? line.b : line.a;
+    const before = card.step?.index;
+    // A field an earlier join brought is in no row: at most one end of a match can be one.
+    const joined = fieldsOf(draft, other.side, before).some(
+        (field) => field.name === other.field && field.from !== null,
+    );
+    const alike = sameSide(line.a.side, line.b.side);
+    const data = fieldsOf(draft, line[end].side, before).map((field): PickChoice => {
+        const from = field.from === null ? [] : [names.get(field.from) ?? WORKSPACE_WORDS.removedSource];
+        const likely = suggestion?.[end] === field.name ? [WORKSPACE_WORDS.suggested] : [];
+        return {
+            value: field.name,
+            label: field.name,
+            hint: [...from, factWords(field), ...likely].filter((each) => each !== "").join(", "),
+            disabled: joined && field.from !== null && !(alike && other.field === field.name),
+        };
+    });
+    return (
+        <Pick
+            name={pickerName(JOIN_WORDS.field, at, end)}
+            placeholder={JOIN_WORDS.field}
+            data={data}
+            value={line[end].field}
+            onPick={(field) => {
+                const to = { ...line, [end]: { ...line[end], field } };
+                onLines(
+                    card.lines.map((each, i) => (i === at ? to : each)),
+                    false,
+                );
+            }}
+        />
+    );
+}
+
+/**
+ * One line of a card: its two sources, a field of each under them, and its live count.
+ * @param props - Component props
+ * @param props.onFocus - the reader is on the line
+ * @returns the line
+ */
+function Line(
+    props: LineProps & Readonly<{ counts: SourceMatchCounts | null; onFocus: () => void }>,
+): React.JSX.Element {
+    const { card, at, counts, onLines, onFocus } = props;
+    const line = card.lines[at];
+    const two = line.a.side !== null && (line.b.side !== null || line.b.isNew === true);
+    return (
+        <fieldset
+            className="ss-field jw-line"
+            aria-label={`${WORKSPACE_WORDS.match} ${String(at + 1)}`}
+            onFocusCapture={onFocus}
+        >
+            <SidePick {...props} end="a" />
+            <span />
+            <SidePick {...props} end="b" />
+            {at === 0 ? null : (
+                <ActionIcon
+                    size="xs"
+                    variant="subtle"
+                    aria-label={`${WORKSPACE_WORDS.remove} ${WORKSPACE_WORDS.match.toLowerCase()} ${String(at + 1)}`}
+                    onClick={() => {
+                        onLines(
+                            card.lines.filter((_each, i) => i !== at),
+                            false,
+                        );
+                    }}
+                >
+                    <GLYPHS.close size={12} aria-hidden />
+                </ActionIcon>
+            )}
+            {two ? (
+                <>
+                    <FieldPick {...props} end="a" />
+                    <Text size="xs" ta="center" aria-hidden>
+                        =
+                    </Text>
+                    {line.b.isNew === true ? (
+                        <Text size="xs">{WORKSPACE_WORDS.newNodes}</Text>
+                    ) : (
+                        <FieldPick {...props} end="b" />
+                    )}
+                    {at === 0 ? null : <span />}
+                </>
             ) : null}
-        </Group>
+            {counts === null ? null : (
+                <Text
+                    size="xs"
+                    className="jw-line-count"
+                    aria-label={`${WORKSPACE_WORDS.matchCount} ${String(at + 1)}`}
+                >
+                    {matchWords(counts)}
+                </Text>
+            )}
+        </fieldset>
     );
 }
 
@@ -296,996 +282,184 @@ const IGNORE_WORDS = { ignoreCase: "Case", ignoreSpaces: "Spaces" } as const;
  * or would match more rows, alone or with the other.
  * @param props - Component props
  * @param props.more - what they would add
- * @param props.picks - the card's picks
- * @param props.set - changes the picks
+ * @param props.on - how the card compares now
+ * @param props.always - both are drawn, as nothing counts what they would add
+ * @param props.onIgnore - changes one
  * @returns the row, or nothing when neither would change anything
  */
 function IgnoreSwitches({
     more,
-    picks,
-    set,
+    on,
+    always,
+    onIgnore,
 }: Readonly<{
     more: MatchSwitches;
-    picks: CardPicks;
-    set: (patch: Partial<CardPicks>) => void;
+    on: Ignoring;
+    always: boolean;
+    onIgnore: (patch: Partial<Ignoring>) => void;
 }>): React.JSX.Element | null {
     const shown = (
         [
-            { id: "ignoreCase", label: JOIN_WORDS.ignoreCase, on: picks.ignoreCase, more: more.moreWithCase },
-            { id: "ignoreSpaces", label: JOIN_WORDS.ignoreSpaces, on: picks.ignoreSpaces, more: more.moreWithSpaces },
+            { id: "ignoreCase", label: JOIN_WORDS.ignoreCase, on: on.ignoreCase, more: more.moreWithCase },
+            { id: "ignoreSpaces", label: JOIN_WORDS.ignoreSpaces, on: on.ignoreSpaces, more: more.moreWithSpaces },
         ] as const
-    ).filter((toggle) => toggle.on || (toggle.more ?? 0) > 0 || more.together);
+    ).filter((toggle) => always || toggle.on || (toggle.more ?? 0) > 0 || more.together);
     if (shown.length === 0) {
         return null;
     }
     return (
-        <div className="jw-ignore">
-            <Row label={WORKSPACE_WORDS.ignore}>
-                <Group gap={12} wrap="wrap">
-                    {shown.map((toggle) => {
-                        const words = toggle.more === 0 ? null : moreWords(toggle.more);
-                        const name = IGNORE_WORDS[toggle.id];
-                        return (
-                            <Switch
-                                key={toggle.id}
-                                size="xs"
-                                aria-label={toggle.label}
-                                label={words === null ? name : `${name} ${words}`}
-                                checked={toggle.on}
-                                onChange={(event) => {
-                                    set({ [toggle.id]: event.currentTarget.checked });
-                                }}
-                            />
-                        );
-                    })}
-                </Group>
-            </Row>
-        </div>
-    );
-}
-
-/** What each matching row of a card takes. */
-interface MatchProps extends CardProps {
-    /** Changes the card's picks. */
-    readonly set: (patch: Partial<CardPicks>) => void;
-}
-
-/**
- * Row 1 of a card's match: the type in the graph, or New nodes, and its field.
- * @param props - Component props
- * @param props.session - the element's session
- * @param props.draft - the open draft
- * @param props.card - the card
- * @param props.set - changes its picks
- * @param props.newNodes - whether New nodes is offered
- * @returns the row's cells
- */
-function IntoCells({
-    session,
-    draft,
-    card,
-    set,
-    newNodes,
-}: Omit<MatchProps, "onChange"> & Readonly<{ newNodes: boolean }>): React.JSX.Element {
-    const { into } = card.picks;
-    const types = intoChoices(session, draft);
-    return (
-        <>
-            <Pick
-                name={`${WORKSPACE_WORDS.inGraph} ${JOIN_WORDS.type.toLowerCase()}`}
-                data={newNodes ? [...types, NEW_NODES] : types}
-                value={into?.isNew === true ? choiceOfInto(into) : offeredInto(session, draft, into)}
-                onPick={(value) => {
-                    set({ into: intoOfChoice(value) });
-                }}
-            />
-            <GraphField
-                name={WORKSPACE_WORDS.inGraph}
-                session={session}
-                draft={draft}
-                into={into}
-                before={card.step?.index}
-                onPick={(next) => {
-                    set({ into: next });
-                }}
-            />
-        </>
-    );
-}
-
-/**
- * The field of a side of a match in the graph: its key, or a column its nodes carry; none for new nodes.
- * @param props - Component props
- * @param props.name - the side's name
- * @param props.session - the element's session
- * @param props.draft - the open draft
- * @param props.into - the side
- * @param props.before - the card's step place, if it has one
- * @param props.onPick - takes the side with a field picked
- * @returns the picker
- */
-function GraphField({
-    name,
-    session,
-    draft,
-    into,
-    before,
-    onPick,
-}: Readonly<{
-    name: string;
-    session: GraphSession;
-    draft: SourceDraft;
-    into: CardInto | null;
-    before: number | undefined;
-    onPick: (into: CardInto) => void;
-}>): React.JSX.Element {
-    if (into?.isNew === true) {
-        return <span />;
-    }
-    const fields = into === null ? [] : intoFields(draft, into, before);
-    const picked = into?.field === undefined ? undefined : fields.find((each) => each.label === into.field);
-    return (
-        <Pick
-            name={`${name} ${JOIN_WORDS.field.toLowerCase()}`}
-            data={
-                into === null
-                    ? []
-                    : [
-                          { value: KEY_VALUE, label: keyColumn(draft, into, session) ?? JOIN_WORDS.key },
-                          ...fields.map((each) => ({ value: JSON.stringify(each.into), label: each.label })),
-                      ]
-            }
-            value={fieldValue(into, picked?.into)}
-            onPick={(value) => {
-                if (into !== null) {
-                    const field = fields.find((each) => JSON.stringify(each.into) === value);
-                    onPick(field?.into ?? intoOfChoice(choiceOfInto(into) ?? ""));
-                }
-            }}
-        />
-    );
-}
-
-/**
- * The field list's value for a side.
- * @param into - the side, or null while none is picked
- * @param field - the field picked of it, if any
- * @returns the value
- */
-function fieldValue(into: CardInto | null, field: CardInto | undefined): string | null {
-    if (into === null) {
-        return null;
-    }
-    return field === undefined ? KEY_VALUE : JSON.stringify(field);
-}
-
-/**
- * Rows 3 and 4 of a card's match: the other end's type, or New nodes, and its field; then the incoming
- * field naming it, with its live count; a node's can be taken off.
- * @param props - Component props
- * @param props.session - the element's session
- * @param props.draft - the open draft
- * @param props.card - the card
- * @param props.set - changes its picks
- * @param props.fields - the incoming source's columns
- * @param props.removable - whether it can be taken off
- * @returns the row's cells
- */
-function OtherEndCells({
-    session,
-    draft,
-    card,
-    set,
-    fields,
-    removable,
-}: Omit<MatchProps, "onChange"> &
-    Readonly<{
-        fields: readonly { readonly value: string; readonly label: string }[];
-        removable: boolean;
-    }>): React.JSX.Element {
-    const { picks } = card;
-    const end = picks.to ?? { into: null };
-    const pair = toPairOf(picks);
-    return (
-        <>
-            <Text size="xs" fw={600} aria-hidden>
-                3
-            </Text>
-            <Pick
-                name={`${WORKSPACE_WORDS.otherEnd} ${JOIN_WORDS.type.toLowerCase()}`}
-                data={[...intoChoices(session, draft), NEW_NODES]}
-                value={end.into?.isNew === true ? choiceOfInto(end.into) : offeredInto(session, draft, end.into)}
-                onPick={(value) => {
-                    set({ to: { ...end, into: intoOfChoice(value) } });
-                }}
-            />
-            <GraphField
-                name={`${WORKSPACE_WORDS.otherEnd} ${WORKSPACE_WORDS.inGraph.toLowerCase()}`}
-                session={session}
-                draft={draft}
-                into={end.into}
-                before={card.step?.index}
-                onPick={(into) => {
-                    set({ to: { ...end, into } });
-                }}
-            />
-            {removable ? (
-                <ActionIcon
-                    size="xs"
-                    variant="subtle"
-                    aria-label={`${WORKSPACE_WORDS.remove} ${WORKSPACE_WORDS.otherEnd}`}
-                    onClick={() => {
-                        set({ to: null });
-                    }}
-                >
-                    <GLYPHS.close size={12} aria-hidden />
-                </ActionIcon>
-            ) : (
-                <span />
-            )}
-            <Text size="xs" fw={600} aria-hidden>
-                4
-            </Text>
-            <Text size="xs" truncate>
-                {picks.from === null ? "" : nameOf(session, picks.from.source)}
-            </Text>
-            <Pick
-                name={`${WORKSPACE_WORDS.otherEnd} ${JOIN_WORDS.field.toLowerCase()}`}
-                data={fields}
-                value={end.field ?? null}
-                onPick={(field) => {
-                    set({ to: { ...end, field } });
-                }}
-            />
-            <span />
-            {pair === null || end.into?.isNew === true ? null : (
-                <MatchCount
-                    counts={countsOf(draft, picks, card.step?.index, pair)}
-                    label={`${WORKSPACE_WORDS.otherEnd} ${WORKSPACE_WORDS.matchCount.toLowerCase()}`}
-                />
-            )}
-        </>
-    );
-}
-
-/**
- * The matching rows of a card: 1, the field in the graph (or New nodes); 2, the incoming source's
- * field; and, for an edge or a node naming two things, 3 and 4, the other end's. Each match's live count is
- * the open draft's, a step card's counted against the graph before its own step.
- * @param props - Component props
- * @param props.session - the element's session
- * @param props.draft - the open draft
- * @param props.card - the card
- * @param props.onChange - writes the card
- * @param props.becomes - what its rows become
- * @param props.onFocusValues - puts the match's value list in the table
- * @returns the rows
- */
-function MatchRows({
-    session,
-    draft,
-    card,
-    onChange,
-    becomes,
-    onFocusValues,
-}: CardProps & Readonly<{ becomes: Exclude<Becomes, "links">; onFocusValues: () => void }>): React.JSX.Element {
-    const { picks } = card;
-    const { from } = picks;
-    const isNode = becomes === "node";
-    const sources = [...session.data.staged(), ...session.data.sources()];
-    const fromColumns =
-        from === null ? [] : draftColumns(draft, from.source).map((column) => ({ value: column, label: column }));
-    const set = (patch: Partial<CardPicks>): void => {
-        onChange(card, { ...picks, ...patch }, card.result);
-    };
-    // An edge always names two ends; a node may name a second thing; new nodes at 1 stand alone.
-    const two = becomes === "edge" || (isNode && (picks.to ?? null) !== null);
-    const cells = { session, draft, card, set };
-    const counts = countsOf(draft, picks, card.step?.index);
-    const otherPair = two && picks.to?.into?.isNew !== true ? toPairOf(picks) : null;
-    const otherCounts = otherPair === null ? null : countsOf(draft, picks, card.step?.index, otherPair);
-    return (
-        <div className="jw-match" onFocusCapture={onFocusValues}>
-            <Text size="xs" fw={600} aria-hidden>
-                1
-            </Text>
-            <IntoCells {...cells} newNodes={isNode && !two} />
-            <span />
-            <Text size="xs" fw={600} aria-hidden>
-                2
-            </Text>
-            <Pick
-                name={`${WORKSPACE_WORDS.incoming} ${JOIN_WORDS.source.toLowerCase()}`}
-                data={sources.map((source) => ({ value: source.key, label: sourceName(source) }))}
-                value={from?.source ?? null}
-                onPick={(source) => {
-                    onChange(...withSource(draft, card, source));
-                }}
-            />
-            <Pick
-                name={`${WORKSPACE_WORDS.incoming} ${JOIN_WORDS.field.toLowerCase()}`}
-                data={fromColumns}
-                value={from?.field ?? null}
-                onPick={(field) => {
-                    if (from !== null) {
-                        set({ from: { source: from.source, field } });
-                    }
-                }}
-            />
-            <span />
-            <MatchCount counts={counts} suggested={card.suggested} label={WORKSPACE_WORDS.matchCount} />
-            {two ? <OtherEndCells {...cells} fields={fromColumns} removable={isNode} /> : null}
-            {isNode && !two && picks.into?.isNew !== true ? (
-                <Button
-                    size="compact-xs"
-                    variant="subtle"
-                    className="jw-add-match"
-                    disabled={from === null}
-                    onClick={() => {
-                        set({ to: { into: null } });
-                    }}
-                >
-                    {`+ ${WORKSPACE_WORDS.match}`}
-                </Button>
-            ) : null}
-            <IgnoreSwitches more={switchesOf([counts, otherCounts])} picks={picks} set={set} />
-        </div>
-    );
-}
-
-/**
- * A card with its incoming source changed: what it becomes stays, and the element's guess for the new
- * source is drawn, never applied.
- * @param draft - the open draft
- * @param card - the card
- * @param source - the source picked
- * @returns what `onChange` takes
- */
-function withSource(draft: SourceDraft, card: JoinCardView, source: string): Parameters<CardChange> {
-    const next = newCard(draft, card.id, source);
-    const { becomes, ignoreCase, ignoreSpaces } = card.picks;
-    const other = becomes === "edge" ? { to: next.picks.to ?? { into: null } } : { to: null };
-    // A guess is drawn on a card still asking; a written one waits for the reader's own field.
-    const picks =
-        card.step === null
-            ? { ...next.picks, into: next.picks.into ?? card.picks.into, becomes, ...(becomes === null ? {} : other) }
-            : { ...card.picks, becomes, ignoreCase, ignoreSpaces, from: { source }, ...other };
-    // The options stay for the step it writes next, but the columns of another source's rows.
-    const { result } = card;
-    return [
-        { ...card, picks, guess: next.guess, suggested: card.step === null && next.suggested },
-        picks,
-        result === null ? null : { ...result, columns: [] },
-    ];
-}
-
-/** Where a Links card's values are, when the nodes carry them. */
-const ON_NODES = "nodes";
-
-/**
- * A Links card's rows: the nodes linked, where their values are (on the nodes, or in a source's rows,
- * whose field names the node), and the columns matched with themselves.
- * @param props - Component props
- * @param props.session - the element's session
- * @param props.draft - the open draft
- * @param props.card - the card
- * @param props.onChange - writes the card
- * @returns the rows
- */
-function LinkRows({ session, draft, card, onChange }: CardProps): React.JSX.Element {
-    const { picks } = card;
-    const { from, into, shared = [], inRows = false } = picks;
-    const step = card.step?.index;
-    const set = (patch: Partial<CardPicks>): void => {
-        onChange(card, { ...picks, ...patch }, card.result);
-    };
-    const sources = [...session.data.staged(), ...session.data.sources()];
-    // The links are the rows' source's own, else those of a source of the nodes.
-    const ownerOf = (side: CardInto): CardPicks["from"] => {
-        const key = side.source ?? draft.spaces().find((space) => space.space === side.space)?.rowsOf[0];
-        return key === undefined ? from : { source: key };
-    };
-    return (
-        <>
-            <Row label={WORKSPACE_WORDS.nodes}>
-                <Pick
-                    name={`${WORKSPACE_WORDS.inGraph} ${JOIN_WORDS.type.toLowerCase()}`}
-                    data={intoChoices(session, draft)}
-                    value={choiceOfInto(into)}
-                    onPick={(value) => {
-                        const side = intoOfChoice(value);
-                        set(inRows ? { into: side } : { into: side, from: ownerOf(side), shared: [] });
-                    }}
-                />
-            </Row>
-            <Row label={WORKSPACE_WORDS.valuesIn}>
-                <Pick
-                    name={WORKSPACE_WORDS.valuesIn}
-                    data={[
-                        { value: ON_NODES, label: WORKSPACE_WORDS.onNodes },
-                        ...sources.map((source) => ({ value: source.key, label: sourceName(source) })),
-                    ]}
-                    value={inRows ? (from?.source ?? null) : ON_NODES}
-                    onPick={(value) => {
-                        set(
-                            value === ON_NODES
-                                ? { inRows: false, shared: [], ...(into === null ? {} : { from: ownerOf(into) }) }
-                                : { inRows: true, shared: [], from: { source: value } },
-                        );
-                    }}
-                />
-            </Row>
-            {inRows ? (
-                <Row label={WORKSPACE_WORDS.namedBy}>
-                    <Pick
-                        name={WORKSPACE_WORDS.namedBy}
-                        data={
-                            from === null
-                                ? []
-                                : draftColumns(draft, from.source).map((column) => ({ value: column, label: column }))
-                        }
-                        value={from?.field ?? null}
-                        onPick={(field) => {
-                            if (from !== null) {
-                                set({ from: { source: from.source, field } });
-                            }
-                        }}
-                    />
-                </Row>
-            ) : null}
-            <ColumnsRow
-                label={WORKSPACE_WORDS.sharedField}
-                value={shared}
-                columns={sharedColumns(draft, picks, step)}
-                onChange={(columns) => {
-                    set({ shared: columns });
-                }}
-            />
-        </>
-    );
-}
-
-/** Merge's "many rows" ways, as the element's `repeated` names them. */
-const MANY_ROWS = [
-    { value: "first", label: WORKSPACE_WORDS.first },
-    { value: "last", label: WORKSPACE_WORDS.last },
-    { value: "list", label: WORKSPACE_WORDS.list },
-    { value: "count", label: WORKSPACE_WORDS.count },
-] as const;
-
-/** What a row matching nothing does, for an edge's ends. */
-const NO_MATCH = [
-    { value: "add", label: WORKSPACE_WORDS.add },
-    { value: "skip", label: WORKSPACE_WORDS.skip },
-] as const;
-
-/** What a row matching nothing does when each row is a node: it can also stay one, linked to nothing. */
-const NO_MATCH_NODE = [...NO_MATCH, { value: "keep", label: WORKSPACE_WORDS.keep }] as const;
-
-/** What a row whose value names several nodes does. */
-const SEVERAL_MATCH = [
-    { value: "each", label: WORKSPACE_WORDS.each },
-    { value: "skip", label: WORKSPACE_WORDS.skip },
-] as const;
-
-/** The separators a cell of several values commonly holds. */
-const SEPARATORS = [{ value: ";" }, { value: "," }, { value: "|" }];
-
-/**
- * What a row whose value names several nodes does, asked only where a value names several.
- * @param props - Component props
- * @param props.draft - the open draft
- * @param props.card - the card
- * @param props.result - its options
- * @param props.set - changes the options
- * @returns the row, or nothing
- */
-function SeveralMatch({
-    draft,
-    card,
-    result,
-    set,
-}: Readonly<{
-    draft: SourceDraft;
-    card: JoinCardView;
-    result: CardResult;
-    set: (patch: Partial<CardResult>) => void;
-}>): React.JSX.Element | null {
-    const some = (countsOf(draft, card.picks, card.step?.index)?.fanOut ?? 0) > 0;
-    return some ? (
-        <Choice
-            label={WORKSPACE_WORDS.severalMatch}
-            value={result.fanOut}
-            data={SEVERAL_MATCH}
-            onChange={(fanOut) => {
-                set({ fanOut });
-            }}
-        />
-    ) : null;
-}
-
-/**
- * Whether a merge step's nodes take several rows, so how their columns reduce is asked: a group is the
- * node and what folds into it.
- * @param step - the step
- * @returns true when it is
- */
-function takesSeveral(step: SourceStepRow): boolean {
-    return (step.buckets?.groups[0] ?? 0) > 2;
-}
-
-/**
- * The options of rows that become fields on a node: what a node named by several rows keeps, how each
- * column whose values differ is settled, and what a row naming no node does.
- * @param props - Component props
- * @param props.card - the card, with a step
- * @param props.result - its options
- * @param props.several - the choice of a value naming several nodes, if it is asked
- * @param props.set - changes the options
- * @param props.onPatch - changes a choice its step keeps
- * @param props.onShowCells - lists a Values differ column's cells in the table
- * @returns the rows
- */
-function FieldsOptions({
-    card,
-    result,
-    several,
-    set,
-    onPatch,
-    onShowCells,
-}: Readonly<{
-    card: JoinCardView;
-    result: CardResult;
-    several: React.ReactNode;
-    set: (patch: Partial<CardResult>) => void;
-    onPatch: (step: number, patch: SourceStepPatch) => void;
-    onShowCells: (step: number, column: string) => void;
-}>): React.JSX.Element {
-    const { step } = card;
-    // In one order, whatever changed last.
-    const differing = [...(step?.valuesDiffer ?? [])].sort((a, b) => a.params.column.localeCompare(b.params.column));
-    // Asked once a node takes several rows, of each column whose values differ or that has a way of its own.
-    const own = Object.keys(step?.act?.aggregate ?? {}).filter((column) => column !== "*");
-    const asked = step !== null && takesSeveral(step) ? differing.map(({ params }) => params.column) : [];
-    const reduced = [...new Set([...asked, ...own])].sort((a, b) => a.localeCompare(b));
-    return (
-        <>
-            <Choice
-                label={WORKSPACE_WORDS.manyRows}
-                value={result.repeated}
-                data={MANY_ROWS}
-                onChange={(repeated) => {
-                    set({ repeated });
-                }}
-            />
-            {several}
-            {differing.map(({ params }) =>
-                step === null ? null : (
-                    <DifferRow
-                        key={params.column}
-                        column={params.column}
-                        rule={params.rule}
-                        rules={params.rules}
-                        onRule={(rule) => {
-                            const picked = params.rules.find((each) => each === rule);
-                            if (picked !== undefined) {
-                                onPatch(step.index, { clash: { [params.column]: picked } });
-                            }
-                        }}
-                        onShow={() => {
-                            onShowCells(step.index, params.column);
-                        }}
-                    />
-                ),
-            )}
-            {step === null || reduced.length === 0 ? null : (
-                <ControlSection label={WORKSPACE_WORDS.manyRowsByField} defaultOpened={false}>
-                    {reduced.map((column) => (
-                        <ReduceRow
-                            key={column}
-                            step={step}
-                            many={MANY_ROWS.find((each) => each.value === result.repeated)?.label ?? WORKSPACE_WORDS.first}
-                            column={column}
-                            onReduce={(reduce) => {
-                                const { [column]: _was, ...rest } = step.act?.aggregate ?? {};
-                                const aggregate = reduce === null ? rest : { ...rest, [column]: reduce };
-                                onPatch(step.index, {
-                                    aggregate: Object.keys(aggregate).length === 0 ? null : aggregate,
-                                });
+        <Row label={WORKSPACE_WORDS.ignore}>
+            <Group gap={12} wrap="wrap">
+                {shown.map((toggle) => {
+                    const words = (toggle.more ?? 0) === 0 ? null : moreWords(toggle.more);
+                    const name = IGNORE_WORDS[toggle.id];
+                    return (
+                        <Switch
+                            key={toggle.id}
+                            size="xs"
+                            aria-label={toggle.label}
+                            label={words === null ? name : `${name} ${words}`}
+                            checked={toggle.on}
+                            onChange={(event) => {
+                                onIgnore({ [toggle.id]: event.currentTarget.checked });
                             }}
                         />
-                    ))}
-                </ControlSection>
-            )}
-            <Choice
-                label={WORKSPACE_WORDS.noMatch}
-                value={result.unmatchedFrom}
-                data={[
-                    { value: "keep", label: WORKSPACE_WORDS.add },
-                    { value: "drop", label: WORKSPACE_WORDS.skip },
-                ]}
-                onChange={(unmatchedFrom) => {
-                    set({ unmatchedFrom });
-                }}
-            />
-        </>
+                    );
+                })}
+            </Group>
+        </Row>
     );
 }
 
-/**
- * The options of what a card's rows become, one compact row each, and only those it needs.
- * @param props - Component props
- * @param props.session - the element's session
- * @param props.draft - the open draft
- * @param props.card - the card, with a step
- * @param props.result - its options
- * @param props.onChange - writes the card
- * @param props.onPatch - changes a choice its step keeps, such as a column's clash rule
- * @param props.onShowCells - lists a Values differ column's cells in the table
- * @returns the rows
- */
-function Options({
-    session,
-    draft,
-    card,
-    result,
-    onChange,
-    onPatch,
-    onShowCells,
-}: CardProps &
-    Readonly<{
-        result: CardResult;
-        onPatch: (step: number, patch: SourceStepPatch) => void;
-        onShowCells: (step: number, column: string) => void;
-    }>): React.JSX.Element {
-    const { picks } = card;
-    const set = (patch: Partial<CardResult>): void => {
-        onChange(card, picks, { ...result, ...patch });
-    };
-    const several = <SeveralMatch draft={draft} card={card} result={result} set={set} />;
-    if (picks.becomes === "fields") {
-        return (
-            <FieldsOptions
-                card={card}
-                result={result}
-                several={several}
-                set={set}
-                onPatch={onPatch}
-                onShowCells={onShowCells}
-            />
-        );
-    }
-    const nodeTypes = session.data.types().filter((type) => type.kind === "node");
-    const typeChoices = nodeTypes.map((type) => ({ value: type.name }));
-    const edgeType = (
-        <NameRow
-            label={JOIN_WORDS.edgeType}
-            options={edgeTypeChoices(session)}
-            value={result.edgeType}
-            onChange={(next) => {
-                set({ edgeType: next });
-            }}
-        />
-    );
-    if (picks.becomes === "links") {
-        return (
-            <>
-                <Choice
-                    label={WORKSPACE_WORDS.linkAs}
-                    value={result.as}
-                    data={[
-                        { value: "edges", label: WORKSPACE_WORDS.edges },
-                        { value: "nodes", label: WORKSPACE_WORDS.aNodeEach },
-                    ]}
-                    onChange={(as) => {
-                        set({ as });
-                    }}
-                />
-                <NumberRow
-                    label={WORKSPACE_WORDS.hubCap}
-                    value={result.maxShared}
-                    min={2}
-                    options={[5, 10, 25, 100]}
-                    onChange={(maxShared) => {
-                        set({ maxShared });
-                    }}
-                />
-                {result.as === "edges" ? (
-                    <NumberRow
-                        label={WORKSPACE_WORDS.minShared}
-                        value={result.minShared}
-                        min={1}
-                        options={[1, 2, 3]}
-                        onChange={(minShared) => {
-                            set({ minShared });
-                        }}
-                    />
-                ) : (
-                    <NameRow
-                        label={WORKSPACE_WORDS.newType}
-                        options={typeChoices}
-                        value={result.type}
-                        onChange={(type) => {
-                            set({ type });
-                        }}
-                    />
-                )}
-                {edgeType}
-                <Row label={WORKSPACE_WORDS.ignore}>
-                    <Group gap={12}>
-                        {(["ignoreCase", "ignoreSpaces"] as const).map((each) => (
-                            <Switch
-                                key={each}
-                                size="xs"
-                                aria-label={JOIN_WORDS[each]}
-                                label={IGNORE_WORDS[each]}
-                                checked={picks[each]}
-                                onChange={(event) => {
-                                    onChange(card, { ...picks, [each]: event.currentTarget.checked }, result);
-                                }}
-                            />
-                        ))}
-                    </Group>
-                </Row>
-            </>
-        );
-    }
-    if (picks.into?.isNew === true) {
-        const source = picks.from?.source;
-        return (
-            <>
-                <NameRow
-                    label={WORKSPACE_WORDS.newType}
-                    options={typeChoices}
-                    value={result.type}
-                    onChange={(type) => {
-                        set({ type });
-                    }}
-                />
-                <NameRow
-                    label={WORKSPACE_WORDS.splitOn}
-                    placeholder={WORKSPACE_WORDS.none}
-                    options={SEPARATORS}
-                    value={result.split}
-                    trim={false}
-                    onChange={(split) => {
-                        set({ split });
-                    }}
-                />
-                <ColumnsRow
-                    label={WORKSPACE_WORDS.carry}
-                    value={result.columns}
-                    columns={
-                        source === undefined
-                            ? []
-                            : draftColumns(draft, source).filter((column) => column !== picks.from?.field)
-                    }
-                    onChange={(columns) => {
-                        set({ columns });
-                    }}
-                />
-                {edgeType}
-            </>
-        );
-    }
-    return (
-        <>
-            {picks.to?.into?.isNew === true ? (
-                <NameRow
-                    label={WORKSPACE_WORDS.newType}
-                    options={typeChoices}
-                    value={newKind(picks)}
-                    onChange={(space) => {
-                        onChange(card, { ...picks, to: { ...picks.to, into: { space, isNew: true } } }, result);
-                    }}
-                />
-            ) : null}
-            {picks.becomes === "edge" ? (
-                <>
-                    <Choice
-                        label={WORKSPACE_WORDS.edges}
-                        value={result.perPair ? "pair" : "row"}
-                        data={[
-                            { value: "row", label: WORKSPACE_WORDS.perRow },
-                            { value: "pair", label: WORKSPACE_WORDS.perPair },
-                        ]}
-                        onChange={(value) => {
-                            set({ perPair: value === "pair" });
-                        }}
-                    />
-                    <Choice
-                        label={WORKSPACE_WORDS.existing}
-                        value={result.existing}
-                        data={[
-                            { value: "add", label: WORKSPACE_WORDS.add },
-                            { value: "merge", label: WORKSPACE_WORDS.merge },
-                        ]}
-                        onChange={(existing) => {
-                            set({ existing });
-                        }}
-                    />
-                </>
-            ) : null}
-            {several}
-            {picks.becomes === "edge" ? (
-                <Choice
-                    label={WORKSPACE_WORDS.noMatch}
-                    value={result.unmatched === "add" ? "add" : "skip"}
-                    data={NO_MATCH}
-                    onChange={(unmatched) => {
-                        set({ unmatched });
-                    }}
-                />
-            ) : (
-                <Choice
-                    label={WORKSPACE_WORDS.noMatch}
-                    value={result.unmatched}
-                    data={NO_MATCH_NODE}
-                    onChange={(unmatched) => {
-                        set({ unmatched });
-                    }}
-                />
-            )}
-            <Row label={JOIN_WORDS.direction}>
-                <Pick
-                    name={JOIN_WORDS.direction}
-                    data={directions(picks, picks.from === null ? "" : nameOf(session, picks.from.source))}
-                    value={result.direction}
-                    onPick={(value) => {
-                        set({ direction: value === "from-into" ? "from-into" : "into-from" });
-                    }}
-                />
-            </Row>
-            {edgeType}
-        </>
-    );
+/** The card editor's props. */
+interface JoinCardBodyProps {
+    readonly session: GraphSession;
+    readonly draft: SourceDraft;
+    readonly names: SourceNames;
+    readonly card: OpenCard;
+    readonly choices: SideChoices;
+    /** What its matches can make. */
+    readonly outcomes: readonly SourceJoinOutcome[];
+    /** Each line's likeliest fields. */
+    readonly suggestions: readonly (Suggestion | null)[];
+    /** Whether it can be removed: not the one blank card there is. */
+    readonly removable: boolean;
+    readonly error: string | undefined;
+    /** What can be done with the rows picked in the table, while it lists the card's. */
+    readonly tableActions: React.ReactNode;
+    /** Adding the one waiting source picked as it is. */
+    readonly addAsIs: React.ReactNode;
+    /** How the waiting sources' rows are read. */
+    readonly readSettings: React.ReactNode;
+    readonly onLines: (lines: readonly CardLine[], resided: boolean) => void;
+    readonly onIgnore: (patch: Partial<Ignoring>) => void;
+    readonly onOutcome: (outcome: SourceJoinOutcome) => void;
+    readonly onSet: (outcome: SourceJoinOutcome, patch: Partial<CardResult>) => void;
+    readonly onPatch: (step: number, patch: SourceStepPatch) => void;
+    readonly onLine: (at: number) => void;
+    readonly onShowCells: (step: number, column: string) => void;
+    readonly onShowRows: (step: number, bucket: string) => void;
+    readonly onRemove: () => void;
 }
 
 /**
- * A step's counts, each a button that lists what it counts in the table.
+ * The editor of a selected card: its sources, then a field of each, then how to join them, and, once one
+ * way is picked, that way's options and counts.
  * @param props - Component props
- * @param props.step - the card's step
- * @param props.onShow - lists one count's rows
- * @returns the counts
+ * @returns the editor
  */
-function StepCounts({
-    step,
-    onShow,
-}: Readonly<{ step: SourceStepRow; onShow: (bucket: string) => void }>): React.JSX.Element | null {
-    const { buckets } = step;
-    if (buckets === null) {
-        return null;
-    }
-    const links = step.link?.nodes === undefined ? "links" : "nodeLinks";
-    const made = step.link === null ? "edge" : links;
-    const words = BUCKET_WORDS[step.op === "join.merge" ? "merge" : made];
-    const show = (id: string, text: string): React.JSX.Element => (
-        <UnstyledButton
-            key={id}
-            className="ss-count-show"
-            onClick={() => {
-                onShow(id);
-            }}
-        >
-            {text}
-        </UnstyledButton>
-    );
+export function JoinCardBody(props: JoinCardBodyProps): React.JSX.Element {
+    const { session, draft, names, card, choices, outcomes, suggestions, error, onLines } = props;
+    const group = useId();
+    const { lines, step } = card;
+    const name = (side: SourceJoinSide): string => sideName(session, names, side);
+    const counts = lines.map((line) => countsOf(draft, line, card, step?.index));
+    const current = outcomes.find((each) => each.current === true);
+    const result =
+        step === null || current === undefined ? { ...DEFAULT_RESULT, ...card.chosen } : resultOf(step, current);
+    const whole = wholeLines(lines);
+    const shared = whole.some(({ a, b }) => sameSide(a.side, b.side) && a.field === b.field);
+    const worded = (outcome: SourceJoinOutcome): CardResult =>
+        outcome === current ? result : { ...DEFAULT_RESULT, ...card.chosen };
     return (
-        <Group gap={12} wrap="wrap" className="jw-counts">
-            {words.map((each) => {
-                const count = bucketCount(buckets, each.id);
-                return count === 0 ? null : show(each.id, counted(count, each));
-            })}
-            {step.link === null || buckets.hub.length === 0
-                ? null
-                : show("hub", counted(buckets.hub.length, OVER_CAP_WORDS))}
-        </Group>
-    );
-}
-
-/**
- * An open card: what each row becomes, then that choice's matching rows and, once the card has a
- * step, its options and counts.
- * @param props - Component props
- * @param props.session - the element's session
- * @param props.draft - the open draft
- * @param props.card - the card
- * @param props.onChange - writes the card
- * @param props.error - what the card's last write was refused with, if it was
- * @param props.tableActions - what can be done with the rows picked in the table, while it lists the card's
- * @param props.readSettings - how a staged source's rows are read, drawn while the choice uses it
- * @param props.onPatch - changes a choice its step keeps
- * @param props.onFocusValues - puts the match's value list in the table
- * @param props.onShowCells - lists a Values differ column's cells in the table
- * @param props.onShowRows - lists the rows behind one of the step's counts in the table
- * @returns the card's body
- */
-export function JoinCardBody({
-    session,
-    draft,
-    card,
-    onChange,
-    error,
-    tableActions,
-    readSettings,
-    onPatch,
-    onFocusValues,
-    onShowCells,
-    onShowRows,
-}: CardProps &
-    Readonly<{
-        error: string | undefined;
-        tableActions: React.ReactNode;
-        readSettings: React.ReactNode;
-        onPatch: (step: number, patch: SourceStepPatch) => void;
-        onFocusValues: () => void;
-        onShowCells: (step: number, column: string) => void;
-        onShowRows: (step: number, bucket: string) => void;
-    }>): React.JSX.Element {
-    const name = useId();
-    const { picks, step, result } = card;
-    const becomes = shownBecomes(card);
-    const sources = [...session.data.staged(), ...session.data.sources()];
-    return (
-        <Stack gap={8} className="jw-card">
-            {becomes === null ? (
-                <Row label={WORKSPACE_WORDS.incomingSource}>
-                    <Pick
-                        name={`${WORKSPACE_WORDS.incoming} ${JOIN_WORDS.source.toLowerCase()}`}
-                        data={sources.map((source) => ({ value: source.key, label: sourceName(source) }))}
-                        value={picks.from?.source ?? null}
-                        onPick={(source) => {
-                            onChange(...withSource(draft, card, source));
-                        }}
-                    />
-                </Row>
-            ) : null}
-            <Radio.Group
-                name={name}
-                size="xs"
-                label={WORKSPACE_WORDS.eachRow}
-                value={picks.becomes}
-                onChange={(value) => {
-                    const next = BECOMES.find((each) => each.value === value)?.value;
-                    if (next !== undefined) {
-                        onChange(card, becoming(draft, picks, next), result);
-                    }
-                }}
-            >
-                <Stack gap={4} mt={4}>
-                    {BECOMES.map(({ value, label }) => (
-                        <Group key={value} gap={8} wrap="nowrap">
-                            <Radio size="xs" value={value} label={label} />
-                            {card.guess === value && picks.becomes === null ? (
-                                <Text size="xs" c="dimmed">
-                                    {WORKSPACE_WORDS.suggested}
-                                </Text>
-                            ) : null}
-                        </Group>
-                    ))}
-                </Stack>
-            </Radio.Group>
-            {becomes === null || becomes === "links" ? null : (
-                <MatchRows
+        <Stack gap={8} className="jw-card" data-join-editor={card.id}>
+            {lines.map((_line, at) => (
+                <Line
+                    // eslint-disable-next-line react/no-array-index-key -- a line is its place: two can be alike
+                    key={at}
                     session={session}
                     draft={draft}
+                    names={names}
                     card={card}
-                    onChange={onChange}
-                    becomes={becomes}
-                    onFocusValues={onFocusValues}
+                    at={at}
+                    choices={choices}
+                    suggestion={suggestions.at(at) ?? null}
+                    counts={counts[at]}
+                    onLines={onLines}
+                    onFocus={() => {
+                        props.onLine(at);
+                    }}
                 />
+            ))}
+            {props.addAsIs}
+            {whole.length === 0 ? null : (
+                <>
+                    <IgnoreSwitches more={switchesOf(counts)} on={card} always={shared} onIgnore={props.onIgnore} />
+                    <Group>
+                        <Button
+                            size="compact-xs"
+                            variant="subtle"
+                            disabled={lines.some((line) => matchOf(line) === null)}
+                            onClick={() => {
+                                onLines([...lines, BLANK_LINE], false);
+                            }}
+                        >
+                            {`+ ${WORKSPACE_WORDS.match}`}
+                        </Button>
+                    </Group>
+                </>
             )}
-            {becomes === "links" ? <LinkRows session={session} draft={draft} card={card} onChange={onChange} /> : null}
-            {picks.becomes === "fields" ? null : readSettings}
-            {result === null || step === null ? null : (
+            {props.readSettings}
+            {outcomes.length === 0 ? null : (
+                <Radio.Group
+                    name={group}
+                    size="xs"
+                    label={WORKSPACE_WORDS.joinAs}
+                    value={current === undefined ? null : outcomeKey(current)}
+                    onChange={(value) => {
+                        const next = outcomes.find((each) => outcomeKey(each) === value);
+                        if (next !== undefined) {
+                            props.onOutcome(next);
+                        }
+                    }}
+                >
+                    <Stack gap={4} mt={4}>
+                        {outcomes.map((each) => (
+                            <Radio
+                                key={outcomeKey(each)}
+                                size="xs"
+                                value={outcomeKey(each)}
+                                label={outcomeWords(each, { name, lines, result: worded(each) })}
+                            />
+                        ))}
+                    </Stack>
+                </Radio.Group>
+            )}
+            {step === null || current === undefined ? null : (
                 <Options
                     session={session}
                     draft={draft}
-                    card={card}
+                    step={step}
+                    lines={lines}
+                    outcome={current}
                     result={result}
-                    onChange={onChange}
-                    onPatch={onPatch}
-                    onShowCells={onShowCells}
+                    several={namesSeveral(draft, step)}
+                    name={name}
+                    onSet={(patch) => {
+                        props.onSet(current, patch);
+                    }}
+                    onPatch={props.onPatch}
+                    onShowCells={props.onShowCells}
                 />
             )}
             {error === undefined ? null : (
@@ -1297,11 +471,34 @@ export function JoinCardBody({
                 <StepCounts
                     step={step}
                     onShow={(bucket) => {
-                        onShowRows(step.index, bucket);
+                        props.onShowRows(step.index, bucket);
                     }}
                 />
             )}
-            {tableActions}
+            {props.tableActions}
+            {props.removable ? <RemoveButton onRemove={props.onRemove} /> : null}
         </Stack>
+    );
+}
+
+/**
+ * Removes the selected card.
+ * @param props - Component props
+ * @param props.onRemove - removes it
+ * @returns the button
+ */
+export function RemoveButton({ onRemove }: Readonly<{ onRemove: () => void }>): React.JSX.Element {
+    return (
+        <Group>
+            <Button
+                size="compact-xs"
+                variant="subtle"
+                aria-keyshortcuts={ariaKey(DELETE_KEY)}
+                rightSection={<KeyWords combo={DELETE_KEY} />}
+                onClick={onRemove}
+            >
+                {WORKSPACE_WORDS.remove}
+            </Button>
+        </Group>
     );
 }

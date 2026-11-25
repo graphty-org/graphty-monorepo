@@ -1,34 +1,12 @@
 /**
- * @file The columns of the source-steps tables (the Fields and Preview tabs, and the join
- * workspace's table): a match's value overlap, and the rows behind a step's count.
+ * @file The columns of the join workspace's list of the rows behind a step's count.
  */
 
 import type { DataTableColumn } from "@graphty/compact-mantine";
-import type {
-    GraphSession,
-    SourceDraftRow,
-    SourceKey,
-    SourceMatchValue,
-    SourceTableRows,
-    SourceValue,
-} from "@graphty/graphty-element/session";
+import type { SourceDraftRow, SourceValue } from "@graphty/graphty-element/session";
 
-import { sourceName } from "../data-place/words";
-import { cellWords, DRILL_WORDS, EFFECT_WORDS, JOIN_WORDS } from "./words";
-
-/** The value list's columns: the value, then how many in each side hold it. */
-export const MATCH_VALUE_COLUMNS: readonly DataTableColumn<SourceMatchValue>[] = [
-    {
-        id: "value",
-        header: JOIN_WORDS.value,
-        width: 240,
-        sortable: false,
-        rowHeader: true,
-        value: (row) => cellWords(row.value),
-    },
-    { id: "in1", header: JOIN_WORDS.in1, sortable: false, align: "end", value: (row) => row.count1 },
-    { id: "in2", header: JOIN_WORDS.in2, sortable: false, align: "end", value: (row) => row.count2 },
-];
+import { nameOf, type SourceNames } from "./cardWords";
+import { cellWords, DRILL_WORDS, EFFECT_WORDS } from "./words";
 
 /** A row's tint by what the commit does to its element; the Effect column says it in words. */
 export const EFFECT_COLORS: Readonly<Partial<Record<SourceDraftRow["effect"], string>>> = {
@@ -53,39 +31,6 @@ export function valueWords(value: SourceValue | undefined): string {
         : cellWords(value);
 }
 
-/**
- * A source's name, by its key.
- * @param session - the element's session.
- * @param key - the source.
- * @returns its name.
- */
-export function nameOf(session: GraphSession, key: SourceKey): string {
-    const source = session.data.sources({ staged: true }).find((each) => each.key === key);
-    return source === undefined ? key : sourceName(source);
-}
-
-/** A source's row as read. */
-export type SourceRow = SourceTableRows["rows"][number];
-
-/**
- * The columns of a source's own rows.
- * @param rows - a page of them.
- * @returns the columns, in the order first met.
- */
-export function sourceColumns(rows: readonly SourceRow[]): DataTableColumn<SourceRow>[] {
-    return [...new Set(rows.flatMap((row) => Object.keys(row)))].map((name) => {
-        const words = [name, ...rows.slice(0, 20).map((row) => cellWords(row[name] ?? null))];
-        const longest = Math.max(...words.map((each) => each.length));
-        return {
-            id: name,
-            header: name,
-            width: Math.min(240, Math.max(96, longest * 8 + 32)),
-            sortable: false,
-            value: (row) => cellWords(row[name] ?? null),
-        };
-    });
-}
-
 /** A value the session keeps beside a record's own columns. */
 const FACTS = "_source.";
 
@@ -102,21 +47,21 @@ function numbered(row: SourceDraftRow): boolean {
 /**
  * The rows table's columns: the key, the source, the effect, then each value column's held and
  * incoming values side by side.
- * @param session - the element's session.
+ * @param names - the sources' names.
  * @param rows - the rows.
  * @returns the columns.
  */
-export function rowColumns(session: GraphSession, rows: readonly SourceDraftRow[]): DataTableColumn<SourceDraftRow>[] {
-    const names = new Set<string>();
+export function rowColumns(names: SourceNames, rows: readonly SourceDraftRow[]): DataTableColumn<SourceDraftRow>[] {
+    const columns = new Set<string>();
     for (const row of rows) {
         for (const name of [...Object.keys(row.held ?? {}), ...Object.keys(row.incoming ?? {})]) {
-            names.add(name);
+            columns.add(name);
         }
     }
     // what the draft's other steps brought, or an element read from no row of its own
     const brought = new Set(
         rows.flatMap((row) =>
-            Object.keys(row.shown ?? {}).filter((name) => !names.has(name) && !name.startsWith(FACTS)),
+            Object.keys(row.shown ?? {}).filter((name) => !columns.has(name) && !name.startsWith(FACTS)),
         ),
     );
     // rows numbered for want of a key have none to show
@@ -164,9 +109,9 @@ export function rowColumns(session: GraphSession, rows: readonly SourceDraftRow[
                   value: (row: SourceDraftRow) => row.ends?.[end].key ?? "",
               }))
             : []),
-        { id: "from", header: DRILL_WORDS.from, sortable: false, value: (row) => nameOf(session, row.source) },
+        { id: "from", header: DRILL_WORDS.from, sortable: false, value: (row) => nameOf(names, row.source) },
         { id: "effect", header: DRILL_WORDS.effect, sortable: false, value: (row) => EFFECT_WORDS[row.effect] },
-        ...[...names].flatMap((name) => [
+        ...[...columns].flatMap((name) => [
             ...(rows.some((row) => row.held?.[name] !== undefined)
                 ? [side("held", name, DRILL_WORDS.held, (row) => row.held?.[name])]
                 : []),

@@ -10,7 +10,6 @@ import {
     type SourceCellValue,
     type SourceClashRule,
     type SourceDraftRow,
-    type SourceMatchCounts,
     type SourceOverlapQuestion,
     type SourceProfileKind,
     type SourceStepCounts,
@@ -19,7 +18,6 @@ import {
 } from "@graphty/graphty-element/session";
 
 import { formatNumber } from "../inspector/words";
-import type { Becomes, CardAct } from "./joinCards";
 
 /** The fixed labels. */
 export const STAGED_WORDS = {
@@ -93,59 +91,49 @@ export function overlapCountWords(question: SourceOverlapQuestion): string {
     return `${formatNumber(question.params.count)} of ${formatNumber(question.params.of)}`;
 }
 
-/** The Join card's and the Fields tab's labels. */
+/** The join cards' labels. */
 export const JOIN_WORDS = {
     join: "Join",
-    field1: "Field 1",
-    field2: "Field 2",
-    type: "Type",
-    source: "Source",
     field: "Field",
-    key: "Key",
-    swap: "Swap fields",
-    act: "Act",
-    edge: "Make an edge",
-    merge: "Merge 2 into 1",
     edgeType: "Edge type",
     direction: "Direction",
-    oneToTwo: "1->2",
-    twoToOne: "2->1",
     ignoreCase: "Ignore case",
     ignoreSpaces: "Ignore spaces",
-    fields: "Fields",
-    values: "Values",
-    value: "Value",
-    in1: "In graph",
-    in2: "Incoming",
-    kind: "Kind",
-    valid: "Valid",
-    empty: "Empty",
-    distinct: "Distinct",
-    samples: "Samples",
-    /** E_STEP_NEEDS_NODES: source 2 holds no node rows, so neither act applies. */
-    needsNodes: "No node rows",
 } as const;
 
 /** The join workspace's words (issue #9796). */
 export const WORKSPACE_WORDS = {
     title: "Join",
     open: "Join",
-    addJoin: "Join",
-    match: "Match",
-    matches: "Matches",
-    result: "Result",
-    merge: "Merge",
-    connect: "Connect",
-    suggested: "suggested",
+    joins: "Joins",
+    newJoin: "New join",
+    source: "Source",
+    waiting: "Waiting",
     inGraph: "In graph",
-    incoming: "Incoming",
+    nodeTypes: "Node types",
+    newNodes: "New nodes",
+    match: "Match",
+    matchCount: "Match count",
+    matching: "matching",
+    matched: "Matched",
+    suggested: "suggested",
+    repeats: "repeats",
+    unique: "unique",
+    empty: "empty",
+    joinAs: "Join as",
+    advanced: "Advanced",
+    all: "All",
+    only: (name: string) => `Only ${name}`,
+    show: "Rows shown",
+    tables: "Tables",
+    merge: "Merge",
     manyRows: "Many rows",
     manyRowsByField: "Many rows by field",
     clash: "Both have",
     noMatch: "No match",
+    missing: "Missing end",
     severalMatch: "Several match",
     each: "Each",
-    keep: "Keep",
     add: "Add",
     skip: "Skip",
     first: "First",
@@ -155,8 +143,6 @@ export const WORKSPACE_WORDS = {
     edges: "Edges",
     perRow: "Per row",
     perPair: "Per pair",
-    merged: "merged",
-    new: "new",
     untouched: "nodes untouched",
     nodesMerged: "nodes merged",
     nodesNew: "nodes new",
@@ -165,9 +151,8 @@ export const WORKSPACE_WORDS = {
     nodesRemoved: "nodes removed",
     edgesChanged: "edges changed",
     edgesRemoved: "edges removed",
-    incomingSource: "Incoming source",
+    edgesMerged: "edges merged",
     removedSource: "removed source",
-    otherEnd: "Other end",
     cardColors: "Card colors",
     styled: "Styled",
     preview: "Preview",
@@ -183,75 +168,25 @@ export const WORKSPACE_WORDS = {
     drawing: "Drawing",
     committed: "Joined",
     committedAdd: "Added",
-    matchCount: "Match count",
     pick1: "Use existing",
     pick2: "Use incoming",
     clearPicks: "Clear",
-    row: "Row",
-    fields: "Fields",
-    values: "Values",
     exclude: "Exclude",
     include: "Include",
     excluded: "excluded",
     includeAll: "Include all",
     addAsIs: "Add as is",
-    added: "Added",
-    readSettings: "Read as",
-    stagedSource: "Staged source",
-    eachRow: "Each row becomes",
-    newNodes: "New nodes",
+    added: "added",
+    readAs: (name: string) => `Read ${name} as`,
     newType: "New type",
     splitOn: "Split on",
     carry: "Move fields",
     none: "None",
     existing: "Existing edge",
-    nodes: "Nodes",
-    valuesIn: "Values in",
-    onNodes: "The nodes",
-    namedBy: "Named by",
-    sharedField: "Shared field",
-    linkAs: "Link by",
-    aNodeEach: "Node per value",
     hubCap: "Hub cap",
     minShared: "Minimum shared",
     ignore: "Ignore",
-    overCap: "over the cap",
-    edgesMerged: "edges merged",
 } as const;
-
-/** What each row of a card's source becomes, in the order the card asks. */
-export const BECOMES: readonly { readonly value: Becomes; readonly label: string }[] = [
-    { value: "fields", label: "Fields on a node" },
-    { value: "edge", label: "An edge between two nodes" },
-    { value: "node", label: "A node linked to what it names" },
-    { value: "links", label: "Links between nodes sharing a value" },
-];
-
-/** What a card's step does, beside its title. */
-export const CARD_ACT_WORDS: Readonly<Record<CardAct, string>> = {
-    merge: "Merge",
-    connect: "Connect",
-    link: "Link",
-    extract: "New nodes",
-};
-
-/**
- * A match's live count, of the incoming source's rows.
- * @param counts - the element's counts.
- * @returns such as "283 of 308 match", or "205 of 308 match, 69 empty".
- */
-export function matchWords(counts: Pick<SourceMatchCounts, "matchedRows" | "rows" | "emptyRows">): string {
-    const empty = counts.emptyRows === 0 ? "" : `, ${formatNumber(counts.emptyRows)} empty`;
-    return `${formatNumber(counts.matchedRows)} of ${formatNumber(counts.rows)} match${empty}`;
-}
-
-/** The value-overlap list's filters, as `data.matchValues` takes them. */
-export const OVERLAP_FILTERS = [
-    { value: "all", label: "All" },
-    { value: "matched", label: "Matched" },
-    { value: "only1", label: "Only in graph" },
-    { value: "only2", label: "Only incoming" },
-] as const;
 
 /** A profile's kind, as the reader reads it. */
 export const KIND_WORDS: Readonly<Record<SourceProfileKind, string>> = {

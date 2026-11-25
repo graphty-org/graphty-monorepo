@@ -217,6 +217,7 @@ describe("source:loaded from loadDataset", () => {
         );
         assert.notInclude(JSON.stringify(events[0]), "127.0.0.1");
         agreesWithSources(session, events[0]);
+        assert.strictEqual(session.data.sources()[0]?.name, "Zachary's karate club", "named by its catalog title");
         session.dispose();
     });
 

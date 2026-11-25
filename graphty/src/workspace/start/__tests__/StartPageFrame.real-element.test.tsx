@@ -282,6 +282,9 @@ describe("the start page in the app's frame", () => {
         assert.equal(opened.data.statistics().nodeCount, 62);
         assert.equal(opened.data.statistics().edgeCount, 159);
         assert.equal(store.get().project?.name, "Doubtful Sound dolphins");
+        // Data > Sources names it as its card does, and Undo takes the opening back (issue #796).
+        assert.equal(opened.data.sources()[0]?.name, "Doubtful Sound dolphins");
+        assert.isTrue(opened.canUndo, "the opening is one step Undo takes back");
         assert.isNull(store.get().notice);
     });
 

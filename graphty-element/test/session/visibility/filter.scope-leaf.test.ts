@@ -338,7 +338,7 @@ describe("refusals, each with a typed reason", () => {
         assert.deepStrictEqual(direct.details?.through, ["search"]);
     });
 
-    it("refuses a scope that resolves through a ring at scope.resolve", () => {
+    it("refuses a scope that resolves through a ring at scope.resolve", async () => {
         const harness = harnessOf();
         const sets = setOfSession(harness.session);
         sets.store.loadLogicalRecords({
@@ -361,8 +361,12 @@ describe("refusals, each with a typed reason", () => {
             register: ["set_x", "set_y"],
             tombstones: [],
         });
-        const error = refusal(() => harness.session.scope.resolve({ set: "set_x" }));
+        const error: unknown = await harness.session.scope.resolve({ set: "set_x" }).then(
+            () => undefined,
+            (rejected: unknown) => rejected,
+        );
 
+        assert.ok(isGraphtyError(error), "scope.resolve rejects with a GraphtyError");
         assert.strictEqual(error.details?.reason, "cycle");
         assert.deepStrictEqual(error.details?.through, ["set_y", "set_x"]);
     });

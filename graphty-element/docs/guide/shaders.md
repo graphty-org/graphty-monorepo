@@ -330,6 +330,10 @@ for a row with no name; of two rows with one name, the last) and its field in `p
   `{ id, free }`; `onTaken: "rename"` adds it under `free`, and the result's `descriptor.id` is the
   id it got.
 
+**`apply` that names no layer, or a background shader applied to a layer,** rejects the promise
+`add` returns with a `GraphtyError` (`E_UNKNOWN_LAYER`, `E_SHADER_KIND`); `add` never throws, so
+`.catch()` sees every refusal.
+
 **Saving and starting.** `session.shaders.replace(id, text)` saves an edit over a project shader in
 place, keeping its id and the layers that draw it. `check` compiles the text and draws a test frame
 when a canvas is attached; `compile: false` gives the static checks alone.

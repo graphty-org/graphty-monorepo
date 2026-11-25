@@ -18,6 +18,7 @@
 
 import { type AbstractMesh, DynamicTexture, type Mesh, type StandardMaterial } from "@babylonjs/core";
 
+import { drawnFrames } from "../test/helpers/drawn-frames";
 import type { Drawn } from "./assertions";
 
 /** Alpha at or below which a pixel counts as bare canvas rather than ink. */
@@ -434,6 +435,51 @@ export function drawnMargins(
 }
 
 /**
+ * How wide a text's ink is in a font, drawn on a canvas and counted column by column.
+ *
+ * COUNTED, NOT READ FROM `actualBoundingBoxLeft`/`Right`: WebKit reports those as the advance box
+ * (side bearings included), not the ink, so every candidate came out about 5% too wide and `1500`
+ * beat the `999+` actually drawn (#9993). The count uses the same alpha threshold as the label
+ * measurement, so both sides of the comparison mean the same thing by ink in every browser.
+ * @param text - The text.
+ * @param font - The CSS font.
+ * @returns The ink's width in canvas pixels, 0 when nothing is inked.
+ */
+function inkWidth(text: string, font: string): number {
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+
+    if (context === null) {
+        return 0;
+    }
+
+    context.font = font;
+    const metrics = context.measureText(text);
+    const ascent = metrics.fontBoundingBoxAscent;
+    const pad = Math.ceil(ascent);
+    canvas.width = Math.ceil(metrics.width) + 2 * pad;
+    canvas.height = Math.ceil(ascent + metrics.fontBoundingBoxDescent) + 2 * pad;
+    // Resizing a canvas resets its context, font included.
+    context.font = font;
+    context.fillText(text, pad, pad + ascent);
+
+    const { data, width, height } = context.getImageData(0, 0, canvas.width, canvas.height);
+    let minX = width;
+    let maxX = -1;
+
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            if (data[(y * width + x) * 4 + 3] > INK_ALPHA) {
+                minX = Math.min(minX, x);
+                maxX = Math.max(maxX, x);
+            }
+        }
+    }
+
+    return maxX < minX ? 0 : maxX - minX + 1;
+}
+
+/**
  * Which of several texts a label's ink is, read in the font the browser actually drew.
  *
  * FONT-INDEPENDENT BY CONSTRUCTION, like {@link drawnMargins}: the widths come from this browser's
@@ -463,9 +509,8 @@ export function drawnText(
     context.font = font;
     let best = "";
     for (const text of candidates) {
-        const metrics = context.measureText(text);
-        const scale = label.texture.width / (metrics.width + marginX);
-        const predicted = (metrics.actualBoundingBoxLeft + metrics.actualBoundingBoxRight) * scale;
+        const scale = label.texture.width / (context.measureText(text).width + marginX);
+        const predicted = inkWidth(text, font) * scale;
         errors[text] = Math.abs(label.ink.width - predicted) / predicted;
         if (best === "" || errors[text] < errors[best]) {
             best = text;
@@ -519,17 +564,13 @@ export async function labelMotion(scene: Drawn, frames = 20): Promise<{ scale: n
         });
     };
 
-    await new Promise<void>((resolve) => {
-        let seen = 0;
-        const observer = scene.graph.scene.onAfterRenderObservable.add(() => {
-            read();
-            seen++;
-            if (seen >= frames) {
-                scene.graph.scene.onAfterRenderObservable.remove(observer);
-                resolve();
-            }
-        });
-    });
+    // ONE NEW OBSERVER PER FRAME, through `drawnFrames`. The element draws on demand, and a newly
+    // added frame observer is what asks it for the next frame; a single observer left in place asks
+    // once, so on a still graph (the capture, whose animation is off) the count never reached its end.
+    for (let seen = 0; seen < frames; seen++) {
+        await drawnFrames(scene.graph.scene, 1);
+        read();
+    }
 
     return { scale, position };
 }

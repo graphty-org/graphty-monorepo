@@ -74,9 +74,13 @@ click's selection agree with each other, on `renderPath: "objects"` and `"batche
 every size and place, every kind of edge, shift, ctrl and right-click selection, the Hovered and
 Selected layers' pixels on a plain edge, a hover on every node of a seeded 200-node graph, a hover
 while a force layout moves the node, a click on a settled layout, and hover, click and `elementAt` on
-nodes whose rows were renumbered by a removal (and its undo) while a force layout ran. Each case sets its own render
+nodes whose rows were renumbered by a removal (and its undo) while a force layout ran. The "pointing after the view
+changes" cases change the view after a first pick (a resize bigger, smaller and to an odd size, a
+pixel ratio of 2 and 1.5, a real wheel zoom, a real drag that turns or pans the camera) and then
+point at every node and edge again, so a hover or click that reads a picking buffer left at the old
+size or camera fails. Each case sets its own render
 path, so the forced-batched project skips the file. It runs with the rest of this project on pull
-requests (about two and a half minutes, most of it the 200-node hover):
+requests (about three and a half minutes, most of it the 200-node hover and the view changes):
 
 ```bash
 npx vitest run --project=interactions test/interactions/pick-parity.test.ts
@@ -90,6 +94,9 @@ each `[pick-parity]` line whose path is `objects` (key to value).
 
 The two `selection ctrl-click t0` entries are edited by hand: since #9907 a Ctrl-click adds the node to
 the selection (or takes it out) instead of replacing it, so they record the toggle, not that build's answer.
+The twelve `a pixel ratio of 1.5` and `a pixel ratio of 2` `edge ... middle` entries are edited by hand too:
+that build found no edge at a pixel ratio other than 1 (#9917), so they record the edge found, as every
+`edge ... middle` entry at ratio 1 does.
 
 ## Running Tests
 

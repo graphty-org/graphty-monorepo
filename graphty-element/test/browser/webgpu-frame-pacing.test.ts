@@ -320,7 +320,13 @@ describe.skipIf(ADAPTER === "")(`WebGPU frame pacing (${ADAPTER})`, () => {
 
     it("moves the GPU layout and hovers a node while it runs", async () => {
         const graph = await open("batched", true, HEAVY);
-        await graph.setLayout("forceatlas2", { maxIter: 1_000_000 });
+        // The layout must still be running when hover answers, so neither its budget nor its settle
+        // rule may end it within the test: a batch computes at most 128 iterations and the test
+        // draws fewer than a hundred frames, far short of either count. With the default settle
+        // window (ten quiet iterations) the 4000-node ring settled within the first 30 frames on
+        // an NVIDIA card, which lands a batch every frame, and no third batch ever landed (issue
+        // #10012); SwiftShader lands one only every few frames and was still running.
+        await graph.setLayout("forceatlas2", { maxIter: 1_000_000, settleWindow: 1_000_000 });
         const engine = graph.getLayoutManager().layoutEngine;
         assert.instanceOf(engine, SimulationLayoutEngine);
         const { ticks } = renderManagerOf(graph);

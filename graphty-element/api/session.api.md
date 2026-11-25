@@ -471,12 +471,9 @@ export const browserProjects: BrowserProjects;
 // @public
 export interface BrowserProjectSaveOptions {
     readonly assets?: ProjectSaveOptions["assets"];
-    // @beta
     readonly embed?: ProjectSaveOptions["embed"];
-    // @beta
     readonly format?: ProjectSaveOptions["format"];
     readonly id?: string;
-    // @beta
     readonly sections?: ProjectSaveOptions["sections"];
 }
 
@@ -1051,32 +1048,32 @@ export interface DeriveOptions {
     readonly kind?: "node" | "edge";
 }
 
-// @beta
+// @public
 export const DOCUMENT_SECTIONS: readonly DocumentSection[];
 
-// @beta
+// @public
 export interface DocumentBindFacts {
     readonly file: boolean;
     readonly open: boolean;
 }
 
-// @beta
+// @public
 export type DocumentCode = "E_UNKNOWN_COMMAND" | "W_SCHEMA_MISMATCH" | "W_SECTION_KEPT" | "W_EXTENSION_REQUIRED" | "W_SECTION_UPGRADED" | "W_ELEMENT_NAMING_LEFT_OUT" | "W_SOURCE_NO_PATH" | "W_SOURCE_UNAVAILABLE" | "W_SOURCE_EMBEDDED" | "W_OPTION_NOT_SAVED" | "W_REFERENCE_UNBOUND" | "W_DATA_CHANGED" | "W_DATA_MISMATCH" | "W_JOIN_HISTORY_DIFFERS" | "W_CAMERA_CONTROLLER_UNKNOWN" | "W_RUN_NOT_RUN" | "W_RESULTS_DIFFER" | "W_ENGINE_CHANGED" | "W_EDGE_MATCH_AMBIGUOUS" | "W_SOURCE_UNKEYED" | "W_NODE_NAMED_ONLY" | "W_EDGE_END_MISSING" | "W_KEY_EMPTY" | "W_ROLES_DIFFER" | "W_CLASH_RULE_TYPE" | "W_COLUMN_WIDENED" | "W_MEMBER_LEFT_OUT" | "W_RECIPE_NOT_APPLIED" | "W_LAYOUT_ENGINE_UNAVAILABLE" | "W_LAYOUT_OPTION_NOT_APPLIED" | "W_NAME_UPGRADED";
 
-// @beta
+// @public
 export interface DocumentHeldFacts {
     readonly reads: number | null;
     readonly reason: DocumentHeldReason;
     readonly version: number | null;
 }
 
-// @beta
+// @public
 export type DocumentHeldReason = "version" | "extension" | "data" | "kind" | "unknown" | "malformed" | "graphs" | "add";
 
-// @beta
+// @public
 export type DocumentSection = "data" | "style" | "recipe" | "settings" | "results" | "notes" | "view";
 
-// @beta
+// @public
 export interface DocumentSectionAbout {
     readonly authors?: readonly {
         readonly name: string;
@@ -1089,7 +1086,7 @@ export interface DocumentSectionAbout {
     readonly modified?: string;
 }
 
-// @beta
+// @public
 export interface DocumentSectionFacts {
     readonly counts: Readonly<Record<string, number>>;
     readonly held?: DocumentHeldFacts;
@@ -1097,7 +1094,7 @@ export interface DocumentSectionFacts {
     readonly section: DocumentSection;
 }
 
-// @beta
+// @public
 export interface DocumentSectionNeed {
     readonly found?: boolean;
     readonly kind: "column" | "type" | "source" | "result";
@@ -1366,7 +1363,7 @@ export type ExportFlattenReason = (typeof EXPORT_FLATTEN_REASONS)[number];
 export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 
 // @public
-export type FeatureId = "data-management" | "location-map" | "cosmograph" | "file-styles" | "source-steps" | "source-references" | "save-files-v2";
+export type FeatureId = "data-management" | "location-map" | "cosmograph" | "file-styles" | "source-steps" | "source-references";
 
 // @public
 export interface FieldBand {
@@ -1832,7 +1829,6 @@ export interface GraphSession {
     readonly positions: SessionPositions;
     readonly project: ProjectApi;
     recipe(): RecipeDocument;
-    // @beta
     readonly recipes: RecipesApi;
     recommendLayout(): LayoutRecommendation | undefined;
     redo(): Promise<HistoryOutcome>;
@@ -2450,6 +2446,13 @@ export type GraphtyErrorCode =
 * stays in 3D and the next attempt starts clean. Recoverable: asking again can succeed.
 */
 | "E_XR_SESSION_FAILED"
+/**
+* Something run for one frame of an immersive session threw: Babylon.js's own XR input, or
+* code observing the frame. The session keeps drawing; the step that threw is skipped for that
+* frame. `details.mode` is `"vr"` or `"ar"` and `cause` carries what was thrown. Reported once
+* per session for each distinct message, as `graph-error` (context `"xr"`), never thrown.
+*/
+| "E_XR_FRAME_FAILED"
 /**
 * A feature the caller asked for needs an optional peer package that is not installed.
 * `details.package` names the package to install and `details.feature` the feature that
@@ -4950,11 +4953,9 @@ export const PROJECT_FILE: Readonly<{
 // @public
 export interface ProjectApi {
     assetChoices(): ProjectAssetChoice[];
-    // @beta
     describe(options?: Pick<ProjectSaveOptions, "sections" | "form" | "paths" | "handles" | "location">): Promise<ProjectSaveFacts>;
     readonly dirty: boolean;
     readonly id: string;
-    // @beta
     inspect(source: ProjectSource, options?: Pick<ProjectOpenOptions, "migrate" | "limits" | "sections" | "dataMode" | "columns">): Promise<ProjectFileFacts | undefined>;
     markSaved(saved: SavedProject): void;
     readonly name: string | null;
@@ -5029,7 +5030,7 @@ export interface ProjectConfigPatch {
     readonly viewRotation?: number;
 }
 
-// @beta
+// @public
 export interface ProjectFileFacts {
     readonly form: "full" | "section";
     readonly name: string | null;
@@ -5039,7 +5040,7 @@ export interface ProjectFileFacts {
     readonly sources: readonly ProjectFileSource[];
 }
 
-// @beta
+// @public
 export interface ProjectFileHandle {
     getFile(): Promise<Blob>;
     readonly name: string;
@@ -5056,7 +5057,7 @@ export function projectFileName(name: string | null | undefined, options?: {
     readonly section?: DocumentSection;
 }): string;
 
-// @beta
+// @public
 export interface ProjectFileRun {
     readonly algorithm?: string;
     readonly id: string;
@@ -5065,7 +5066,7 @@ export interface ProjectFileRun {
     readonly restorable: boolean;
 }
 
-// @beta
+// @public
 export interface ProjectFileSection extends DocumentSectionFacts {
     readonly about: DocumentSectionAbout;
     readonly binding?: SectionBinding;
@@ -5074,7 +5075,7 @@ export interface ProjectFileSection extends DocumentSectionFacts {
     readonly version: number | null;
 }
 
-// @beta
+// @public
 export interface ProjectFileSource {
     readonly id: string;
     readonly kind: ProjectSourceKind;
@@ -5086,44 +5087,32 @@ export interface ProjectFileSource {
 
 // @public
 export interface ProjectOpenOptions {
-    // @beta
     readonly applyRecipe?: boolean;
-    // @beta
     readonly bindOtherData?: boolean;
-    // @beta
     readonly columns?: {
         readonly node?: Readonly<Record<string, string>>;
         readonly edge?: Readonly<Record<string, string>>;
     };
-    // @beta
     readonly dataMode?: "replace" | "add";
     readonly discard?: boolean;
     readonly draft?: {
         readonly onto?: "graph";
         readonly guess?: "names" | "values";
     };
-    // @beta
     readonly fetchSources?: boolean;
     readonly fileName?: string;
-    // @beta
     readonly files?: Readonly<Record<string, Blob>>;
     readonly history?: "step" | "start";
     // (undocumented)
     readonly limits?: {
         readonly fileBytes?: number;
     };
-    // @beta
     readonly location?: string;
-    // @beta
     readonly migrate?: boolean;
     readonly ownWork?: boolean;
-    // @beta
     readonly rerun?: boolean;
-    // @beta
     readonly runs?: Readonly<Record<string, boolean>>;
-    // @beta
     readonly sections?: readonly DocumentSection[];
-    // @beta
     readonly signal?: AbortSignal;
 }
 
@@ -5140,7 +5129,7 @@ export interface ProjectOpenReport {
 // @public
 export type ProjectProblem = CodedFact<GraphtyErrorCode | GraphtyWarningCode | DocumentCode | "shader.unknown" | "shader.not-saved">;
 
-// @beta
+// @public
 export interface ProjectSaveFacts {
     readonly project: boolean;
     readonly sections: readonly ProjectSaveSection[];
@@ -5150,26 +5139,17 @@ export interface ProjectSaveFacts {
 // @public
 export interface ProjectSaveOptions {
     readonly assets?: Readonly<Record<string, AssetStorage>>;
-    // @beta
     readonly embed?: Readonly<Record<string, SourceStorage>>;
     readonly extensions?: Readonly<Record<string, unknown>>;
-    // @beta
     readonly form?: "full" | "section";
-    // @beta
     readonly format?: 1 | 2;
-    // @beta
     readonly handles?: Readonly<Record<string, ProjectFileHandle>>;
     readonly leaveOut?: readonly ("graphty-style" | "graphty-notes" | "graphty-view-state")[];
-    // @beta
     readonly location?: string;
     readonly markSaved?: boolean;
-    // @beta
     readonly paths?: Readonly<Record<string, string>>;
-    // @beta
     readonly results?: boolean;
-    // @beta
     readonly rewriteRecipe?: boolean;
-    // @beta
     readonly sections?: readonly DocumentSection[];
 }
 
@@ -5180,7 +5160,7 @@ export interface ProjectSaveReport {
     readonly written: readonly string[];
 }
 
-// @beta
+// @public
 export interface ProjectSaveSection extends DocumentSectionFacts {
     readonly required: boolean;
     readonly saved: boolean;
@@ -5203,7 +5183,7 @@ export type ProjectSlice = "graph" | "config" | "layout" | "pins" | "arrangement
 // @public
 export type ProjectSource = Blob | Uint8Array | string;
 
-// @beta
+// @public
 export interface ProjectSourceChoice {
     readonly edges: number;
     readonly format?: string;
@@ -5218,7 +5198,7 @@ export interface ProjectSourceChoice {
     readonly storage: SourceStorage;
 }
 
-// @beta
+// @public
 export type ProjectSourceKind = "file" | "url" | "network" | "sample" | "derived" | "reader";
 
 // @public
@@ -5413,7 +5393,7 @@ export interface RecipeJoin {
 // @public
 export type RecipeLeftOutCode = "names-elements";
 
-// @beta
+// @public
 export interface RecipesApi {
     apply(recipe: ProjectSource): Promise<ProjectOpenReport>;
     export(): Promise<SavedProject>;
@@ -6443,7 +6423,7 @@ export interface ScreenshotPreset {
 // @public
 export type ScreenshotPresetId = "print" | "web-share" | "thumbnail" | "documentation";
 
-// @beta
+// @public
 export type SectionBinding = "loads" | "held" | "other-data";
 
 // @public
@@ -8051,7 +8031,7 @@ export interface SourceElementsFilter {
     readonly type?: string | null;
 }
 
-// @beta
+// @public
 export type SourceEmbeddedReason = "edited" | "bytes" | "rows" | "mapping" | "kind" | "options";
 
 // @public
@@ -8625,7 +8605,7 @@ export interface SourceStepRow {
     readonly valuesDiffer: readonly SourceValuesDiffer[];
 }
 
-// @beta
+// @public
 export type SourceStorage = "embedded" | "referenced";
 
 // @public
@@ -8695,7 +8675,7 @@ export interface SourceTypeRule {
     readonly values?: readonly SourceCellValue[];
 }
 
-// @beta
+// @public
 export type SourceUnavailableReason = "not-found" | "needs-file" | "read" | "too-large" | "needs-permission" | "copy-changed" | "kind" | "copy-form" | "options" | "ledger";
 
 export { SourceValidators }

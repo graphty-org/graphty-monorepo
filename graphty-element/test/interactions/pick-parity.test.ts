@@ -26,7 +26,7 @@ import { operationQueueOf } from "../../src/Graph";
 import { dataManagerInternals } from "../../src/managers/DataManager";
 import { drawnFrames } from "../helpers/drawn-frames";
 import { inkNear } from "../helpers/drawn-invariants";
-import { click, hover, type Modifiers, type Point, rightClick } from "../helpers/real-input";
+import { click, drag, hover, type Modifiers, type Point, rightClick, wheel } from "../helpers/real-input";
 import REFERENCE from "./pick-parity.reference.json";
 
 type Path = "objects" | "batched";
@@ -103,14 +103,22 @@ async function settle(element: Graphty): Promise<void> {
  * @param nodes - The nodes, at fixed places.
  * @param edges - The edges; `kind` is data a layer can select.
  * @param layers - Style layers added before the data.
+ * @param size - The element's width and height, in CSS pixels.
  * @returns The element.
  */
-async function mount(path: Path, view: View, nodes: NodeIn[], edges: EdgeIn[], layers: Layer[] = []): Promise<Graphty> {
+async function mount(
+    path: Path,
+    view: View,
+    nodes: NodeIn[],
+    edges: EdgeIn[],
+    layers: Layer[] = [],
+    size = SIZE,
+): Promise<Graphty> {
     const element = document.createElement("graphty-element");
     element.renderPath = path;
     element.style.display = "block";
-    element.style.width = `${String(SIZE)}px`;
-    element.style.height = `${String(SIZE)}px`;
+    element.style.width = `${String(size)}px`;
+    element.style.height = `${String(size)}px`;
     document.body.appendChild(element);
     cleanups.push(() => {
         element.remove();
@@ -1066,3 +1074,144 @@ describe.each(PATHS.flatMap((path) => VIEWS.map((view) => ({ path, view }))))(
         );
     },
 );
+
+/** Where the view-change cases start: small enough that a bigger size still fits the test iframe. */
+const START = 320;
+
+/**
+ * Change the element's CSS size and wait until the engine draws at it: the element's
+ * ResizeObserver resizes the engine, and the ID buffers batched picks from must follow.
+ * @param element - The element.
+ * @param width - The new CSS width.
+ * @param height - The new CSS height.
+ */
+async function resizeTo(element: Graphty, width: number, height: number): Promise<void> {
+    element.style.width = `${String(width)}px`;
+    element.style.height = `${String(height)}px`;
+    const { engine } = element.graph;
+    const at = (): boolean => {
+        const canvas = engine.getRenderingCanvas();
+        const scale = engine.getHardwareScalingLevel();
+        return (
+            canvas?.clientWidth === width &&
+            canvas.clientHeight === height &&
+            Math.abs(engine.getRenderWidth() - width / scale) <= 1 &&
+            Math.abs(engine.getRenderHeight() - height / scale) <= 1
+        );
+    };
+    while (!at()) {
+        await drawnFrames(element.graph.getScene(), 1);
+    }
+
+    await settle(element);
+}
+
+/**
+ * Set the element's pixel ratio (the engine's hardware scaling level) and wait until the drawing
+ * buffer is that many pixels per CSS pixel.
+ * @param element - The element.
+ * @param ratio - The ratio.
+ */
+async function pixelRatioTo(element: Graphty, ratio: number): Promise<void> {
+    element.pixelRatio = ratio;
+    const { engine } = element.graph;
+    const canvas = engine.getRenderingCanvas();
+    while (Math.abs(engine.getRenderWidth() - (canvas?.clientWidth ?? 0) * ratio) > 1) {
+        await drawnFrames(element.graph.getScene(), 1);
+    }
+
+    await settle(element);
+}
+
+/** What a reader does to the view between two probes, each with the real mouse or the element's own size. */
+const VIEW_CHANGES: readonly { name: string; change: (element: Graphty) => Promise<void> }[] = [
+    { name: "a resize bigger", change: (element) => resizeTo(element, 400, 460) },
+    { name: "a resize smaller", change: (element) => resizeTo(element, 240, 250) },
+    { name: "a resize to an odd size", change: (element) => resizeTo(element, 333, 271) },
+    { name: "a pixel ratio of 2", change: (element) => pixelRatioTo(element, 2) },
+    { name: "a pixel ratio of 1.5", change: (element) => pixelRatioTo(element, 1.5) },
+    {
+        name: "a real wheel zoom",
+        change: async (element) => {
+            await wheel(element, { x: START / 2, y: START / 2 }, -150);
+            await settle(element);
+        },
+    },
+    {
+        name: "a real camera orbit drag",
+        change: async (element) => {
+            // From empty canvas: in 3D the drag turns the camera, in 2D it pans.
+            await drag(element, EMPTY, { x: EMPTY.x + 70, y: EMPTY.y + 40 }, 10);
+            await settle(element);
+        },
+    },
+];
+
+/** The nodes probed after a view change: every fixture node but the overlapping pair, whose answer is either. */
+const VIEW_PROBES = ["a0", "a1", "b0", "b1", "t0", "t1", "t2", "tiny", "big", "small", "lab", "ul", "grow", "gone"];
+
+/** The edges probed after a view change, at their middles: undirected pairs and a directed triangle side. */
+const VIEW_EDGES: readonly (readonly [string, string, string])[] = [
+    ["ea", "a0", "a1"],
+    ["eb", "b0", "b1"],
+    ["t01", "t0", "t1"],
+];
+
+describe.each(VIEWS)("pointing after the view changes in %s", (view) => {
+    it.each(VIEW_CHANGES)(
+        "after $name, hover and a click name the node or edge under the pointer, on both paths and as before",
+        async ({ name, change }) => {
+            const answers: Record<Path, Map<string, Answer>> = { objects: new Map(), batched: new Map() };
+            const expected = new Map<string, string>();
+            const offscreen: Record<Path, string[]> = { objects: [], batched: [] };
+            for (const path of PATHS) {
+                const nodes = nodeFixture(view);
+                const element = await mount(path, view, nodes, NODE_EDGES, NODE_LAYERS, START);
+                // A pick before the change, so the ID buffers already exist at the old size.
+                await hover(element, spot(element, "ul"));
+                await settle(element);
+                await hover(element, EMPTY);
+                await settle(element);
+                await change(element);
+                assertLazy(element, path, nodes.length);
+                const canvas = element.graph.engine.getRenderingCanvas();
+                const inside = (p: Point): boolean =>
+                    p.x > 2 && p.y > 2 && p.x < (canvas?.clientWidth ?? 0) - 2 && p.y < (canvas?.clientHeight ?? 0) - 2;
+                const put = async (key: string, point: Point, want: string | undefined): Promise<void> => {
+                    const full = `${view} ${name} ${key}`;
+                    if (!inside(point)) {
+                        offscreen[path].push(key);
+                        return;
+                    }
+
+                    if (want !== undefined) {
+                        expected.set(full, want);
+                    }
+
+                    const a = await answer(element, point);
+                    answers[path].set(full, a);
+                    record(full, path, a);
+                };
+
+                for (const id of VIEW_PROBES) {
+                    await put(`node ${id}`, spot(element, id), id === "tiny" ? undefined : `node:${id}`);
+                }
+
+                for (const [edge, s, t] of VIEW_EDGES) {
+                    const a = spot(element, s);
+                    const b = spot(element, t);
+                    await put(`edge ${edge} middle`, { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, `edge:${edge}`);
+                }
+
+                element.remove();
+            }
+
+            if (PATHS.includes("batched")) {
+                assert.deepEqual(offscreen.batched, offscreen.objects, "both paths put the same nodes off the canvas");
+            }
+
+            assert.isAtLeast(answers.objects.size, 10, "most of the fixture is still on the canvas to point at");
+            assert.deepEqual(problems(answers, expected), []);
+        },
+    );
+});

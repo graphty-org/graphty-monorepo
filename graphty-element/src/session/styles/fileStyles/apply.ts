@@ -259,7 +259,8 @@ export async function applyFileStyles(
 /**
  * The layout that keeps the clear gap the file's program leaves between its nodes (graph-io's `lengths.gap`: OGDF's
  * energy layout keeps 20 between the circles round two nodes), for a file that places no node: the element's force
- * layout with that gap, in scene units, as its `nodeGap`, so no two nodes are drawn over each other.
+ * layout, flat as the program's drawing is, with that gap, in scene units, as its `nodeGap`, so no two nodes are drawn
+ * over each other in a 2D or a 3D view.
  * @param read - The file's styles, or null.
  * @param sceneScale - The scene units one unit of the file's lengths was drawn as, or null.
  * @returns The layout, or null when the file states no gap, places its nodes or its lengths were not scaled.
@@ -270,7 +271,7 @@ function spacedLayout(read: FileStylesRead | null, sceneScale: number | null): R
         return null;
     }
 
-    return Object.freeze({ layout: "force", options: Object.freeze({ nodeGap: gap * sceneScale }) });
+    return Object.freeze({ layout: "force", options: Object.freeze({ dim: 2, nodeGap: gap * sceneScale }) });
 }
 
 /**

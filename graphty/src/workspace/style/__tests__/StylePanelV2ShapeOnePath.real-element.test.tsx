@@ -2,8 +2,8 @@
  * Style panel v2's Shape on the REAL graphty-element, by real clicks (owner, 2026-11-24: "There should only be one
  * path to any control"; design "Input rules", "Nesting"): the Shape list's Model... opens the Models gallery beside
  * the list, with no back button, and the gallery is the one way to the Load custom model dialog; picking the section
- * shown keeps its shapes listed; while a model draws only the row's drop-down writes the shape; and the model varies
- * by data from the Shape row's one link.
+ * shown keeps its shapes listed; a model's Fallback shape line sets the shape under it; and the model varies by data
+ * from the Shape's one link, each value mapped to a model, never read as a web address.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -112,8 +112,8 @@ describe("Style panel v2's Shape, one path to each value", () => {
         await userEvent.keyboard("{Escape}");
     });
 
-    it("while a model draws, the row's drop-down is the one control writing the shape", async () => {
-        const { shape } = await withShape({ "node.model": "asset:sample/person" });
+    it("while a model draws, its Fallback shape line sets the shape under it and the model stays", async () => {
+        const { session, layer, shape } = await withShape({ "node.model": "asset:sample/person" });
         const row = await waitFor(() => {
             const found = shape().querySelector<HTMLElement>('[data-thing="shape"]');
             assert.isNotNull(found);
@@ -123,12 +123,6 @@ describe("Style panel v2's Shape, one path to each value", () => {
             );
             return found;
         });
-        // No line under the row, and none in the model's pop-over, writes the shape.
-        assert.lengthOf(
-            row.querySelectorAll('[data-line="node.shape"]'),
-            1,
-            "the row's own drop-down, and no shape line under the row",
-        );
         const more = within(row).getByRole("button", { name: settingsName("Node shape") });
         await userEvent.hover(more);
         await userEvent.click(more);
@@ -138,13 +132,23 @@ describe("Style panel v2's Shape, one path to each value", () => {
             assert.isNotNull(found.querySelector('[data-line="node.modelTint"]'), "the model's own settings");
             return found;
         });
-        assert.isNull(pop.querySelector('[data-line="node.shape"]'), "no Fallback shape line");
+        assert.isNull(pop.querySelector('[data-line="node.model"]'), "no Model line repeats the row's drop-down");
+        const fallback = pop.querySelector<HTMLElement>('[data-line="node.shape"]');
+        assert.isNotNull(fallback, "the Fallback shape line");
+        assert.include(fallback.textContent, "Fallback shape");
+        await userEvent.click(within(fallback).getByRole("button", { name: /^Node shape,/ }));
+        await userEvent.click(await screen.findByRole("option", { name: "Diamond" }));
+        await waitFor(() => {
+            const set = session.styles.get(layer)?.set;
+            assert.strictEqual(set?.["node.shape"], "diamond", "the shape under the model");
+            assert.strictEqual(set?.["node.model"], "asset:sample/person", "the model stays");
+        });
         await closeSettings();
     });
 
-    it("the model varies by data from the Shape row's link, and the row then shows what it varies by", async () => {
-        const { session, layer, shape } = await withShape();
-        const link = within(shape()).getByRole("button", { name: "Node shape by attribute" });
+    it("a fixed model varies by data from the Shape's link, mapped value to model and never read as an address", async () => {
+        const { session, layer, shape } = await withShape({ "node.model": "asset:sample/person" });
+        const link = await waitFor(() => within(shape()).getByRole("button", { name: "Node shape by attribute" }));
         await userEvent.hover(link);
         await userEvent.click(link);
         const which = await screen.findByRole("radiogroup", { name: "Which value" });
@@ -152,16 +156,43 @@ describe("Style panel v2's Shape, one path to each value", () => {
         await userEvent.click(document.querySelector<HTMLElement>(`label[for="${model.id}"]`) ?? model);
         await userEvent.click(await screen.findByText("kind"));
         await waitFor(() => {
-            const binding = session.styles.get(layer)?.encode?.["node.model"] as { by?: string } | undefined;
+            const binding = session.styles.get(layer)?.encode?.["node.model"] as Record<string, unknown> | undefined;
             assert.strictEqual(binding?.by, "data.kind", "the model varies by kind");
+            assert.strictEqual(binding?.unmapped, "skip", "a value draws a model only once it is mapped to one");
         });
-        await waitFor(() => {
-            const row = shape().querySelector<HTMLElement>('[data-thing="shape"]');
-            assert.isNotNull(row, "the row stays");
+        assert.lengthOf(session.network.pending(), 0, "no value of the data is asked about as a web address");
+        const row = await waitFor(() => {
+            const found = shape().querySelector<HTMLElement>('[data-thing="shape"]');
+            assert.isNotNull(found, "the row stays");
             assert.isNotNull(
-                within(row).queryByRole("button", { name: /^Node model: kind/ }),
+                within(found).queryByRole("button", { name: /^Node model: kind/ }),
                 "the row names what the model varies by",
             );
+            return found;
         });
+        // The pop-over holds no Model line repeating the row's binding.
+        const more = within(row).getByRole("button", { name: settingsName("Node shape") });
+        await userEvent.hover(more);
+        await userEvent.click(more);
+        const pop = await waitFor(() => {
+            const found = document.getElementById(more.getAttribute("aria-controls") ?? "");
+            assert.isNotNull(found);
+            assert.isNotNull(found.querySelector('[data-line="node.modelTint"]'));
+            return found;
+        });
+        assert.isNull(pop.querySelector('[data-line="node.model"]'), "no Model line in the pop-over");
+        await closeSettings();
+        // Map one kind to a model from the binding's group list.
+        await userEvent.click(within(row).getByRole("button", { name: /^Node model: kind/ }));
+        await userEvent.click(await screen.findByRole("button", { name: /^kind server model/ }));
+        await userEvent.click(
+            within(await screen.findByRole("dialog", { name: "Models" })).getByRole("button", { name: "Server" }),
+        );
+        await waitFor(() => {
+            const binding = session.styles.get(layer)?.encode?.["node.model"] as
+                { map?: Record<string, unknown> } | undefined;
+            assert.deepEqual(binding?.map, { server: "asset:sample/server" });
+        });
+        assert.lengthOf(session.network.pending(), 0);
     });
 });

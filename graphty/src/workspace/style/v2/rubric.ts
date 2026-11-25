@@ -357,8 +357,9 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
     },
     "shape:node.model": {
         main: [
-            // No Fallback shape line: the row's drop-down is node.shape's one control, and a model keeps the shape
-            // picked before it (owner, 2026-11-24: one path to any control).
+            // The shape drawn while the model loads or if it fails. Not a second path: a shape picked in the row's
+            // drop-down replaces the model, this line sets the shape under it (owner, 2026-11-25).
+            { channel: "node.shape", name: "Fallback shape", rule: "R10" },
             // Four choices: grouped buttons (owner's input rules: fewer than six options).
             { channel: "node.modelTint", name: "Tint", rule: "R8f" },
             { channel: "node.modelFit", name: "Fit", rule: "R8f" },

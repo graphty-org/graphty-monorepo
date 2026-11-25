@@ -3,14 +3,16 @@ import type { ChannelDescriptor } from "@graphty/graphty-element/catalog";
 import type { Channel, ChannelValue } from "@graphty/graphty-element/schema";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { VisuallyHidden } from "@mantine/core";
-import React from "react";
+import React, { useRef, useState } from "react";
 
 import { modelName, useModelPicture } from "../canvas/models";
 import { stylePanelV2On } from "../features";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
+import { ModelsPopover } from "./ModelsPopover";
 import { ValueListbox, type ValueSection } from "./parts/ValueListbox";
 import { ScrubSlots } from "./scrubSlots";
+import { ValueButton } from "./v2/ValueButton";
 import {
     channelWord,
     colorName,
@@ -194,7 +196,9 @@ export function ValueField({
         return <ChoiceValueField {...props} />;
     }
     if (kind === "text" && descriptor.channel === "node.model") {
-        return <ModelNameField label={label} value={value} />;
+        // A group's model in a by-data list, or a missing value's: picked from the Models gallery, so a value of the
+        // data draws the model it is mapped to, never an address read from the data.
+        return <ModelPickField label={label} value={value} onChange={onChange} />;
     }
     if (kind === "text") {
         return <TextValueField {...props} />;
@@ -473,6 +477,58 @@ export function ModelNameField({ label, value }: Readonly<{ label: string; value
     const ref = typeof value === "string" ? value : "";
     const name = session === null || ref === "" ? ref : modelName(session, ref);
     return <PanelField kind="text" width="fill" label={label} value={name} title={ref} readOnly />;
+}
+
+/**
+ * A model picked from the Models gallery (a group's model in a by-data list): a button naming the model, or "None",
+ * opening the gallery beside it.
+ * @param props - Component props
+ * @param props.label - its accessible name
+ * @param props.value - what it names
+ * @param props.onChange - writes the picked model
+ * @returns The field
+ */
+function ModelPickField({
+    label,
+    value,
+    onChange,
+}: Readonly<{ label: string; value: unknown; onChange: (value: string) => void }>): React.JSX.Element {
+    const { session } = useWorkspace();
+    const [open, setOpen] = useState(false);
+    const box = useRef<HTMLButtonElement>(null);
+    const ref = typeof value === "string" ? value : undefined;
+    let name = ref ?? "None";
+    if (ref !== undefined && session !== null) {
+        name = modelName(session, ref);
+    }
+    return (
+        <>
+            <ValueButton
+                ref={box}
+                label={label}
+                words={name}
+                opens="dialog"
+                expanded={open}
+                onClick={() => {
+                    setOpen(true);
+                }}
+            />
+            {open ? (
+                <ModelsPopover
+                    opened
+                    anchor={box}
+                    current={ref}
+                    onPick={(picked) => {
+                        setOpen(false);
+                        onChange(picked);
+                    }}
+                    onClose={() => {
+                        setOpen(false);
+                    }}
+                />
+            ) : null}
+        </>
+    );
 }
 
 /**

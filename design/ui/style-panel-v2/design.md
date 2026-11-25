@@ -370,8 +370,9 @@ Text, Card, Dark, Pill, Callout and Glyph; it is the only way to Glyph, which no
    -> Basic shape gives the star with its corners. Once the selected row id changes, switching back writes the
    member's start (5.1). Undo reverses each switch in one step, so the star is always one undo away.
 3. **Shared**: switching to Model keeps `node.shape` (`x-shape-model`), drawn while the model loads or if it
-   fails. The Shape row's drop-down is its one control (owner, 2026-11-24: one path to any control): a model's
-   pop-over has no Fallback shape line, so the fallback is the shape picked before the model.
+   fails. A model's pop-over has a Fallback shape line, which sets that shape and leaves the model in place, fixed
+   or varying by data (owner, 2026-11-25). It is not a second path: a shape picked in the row's drop-down replaces
+   the model, while the Fallback shape line sets the shape drawn under it.
 
 ### 5.1 Starting writes
 
@@ -627,12 +628,18 @@ thing's groups when it has more than one, and each opens a new pop-over.
   Shape list: its shapes, then a Models section and a Shaders section) is the one control choosing a basic shape,
   a model or a shader, in every state: while a model or a shader draws, the drop-down names it and picks any other.
   There are no Kind buttons under the row and no Basic / Model / Shader tabs in its pop-over, and a model's
-  pop-over has no Model line; each pop-over holds only its own settings (a model's Tint, Fit and Center; a shader's parameters). A line under a row repeats the same control as the pop-over's line for that
+  pop-over has no Model line, fixed or varying by data; each pop-over holds only its own settings (a model's
+  Fallback shape, Tint, Fit and Center; a shader's parameters). The Fallback shape line sets the shape drawn under
+  the model, a different value from the drop-down's shape, which replaces the model (owner, 2026-11-25). A line under a row repeats the same control as the pop-over's line for that
   value (2.5), in the same component and words: that is one control drawn in two places, not a second path. The
   rules test fails a value edited by two different controls. Model... opens the Models gallery beside the list,
   which stays open, and the gallery's Add custom model... is the one way to the Load custom model dialog from the
-  Shape. The model varies by data from the basic Shape row's by-data link, whose list opens with a "Which value"
-  choice (Shape or Model); a model varying by data is drawn as every bound row is. A pie's, chart's or record's
+  Shape. The model varies by data from the Shape's by-data link, whose list opens with a "Which value" choice
+  (Shape or Model): the basic Shape row's link, and while a model draws the Fallback shape line's, so a fixed model
+  becomes one varying by data without being removed first. A model varying by data is drawn as every bound row is;
+  each value of the field draws the model it is mapped to in the binding's group list (a value to a model, picked
+  from the Models gallery), and a value mapped to none keeps the fallback shape. A value of the data is never
+  fetched as a web address unless it is mapped to one. A pie's, chart's or record's
   entry is chosen on its line under the row (its field, Graph value, value or text) and nowhere else: its Entry
   pop-over holds its kind and its other settings, and a new Graph value's Calculate opens from that line.
 - **No button group opens menus (2026-11-24).** Picking a grouped button or a tab writes its value at once: it
@@ -736,7 +743,7 @@ follows.
 | Record                                 | fields R15r                       | -           | Main: Fields R15 (`shapeTexts`: point, text R12). Table: the label table editor R15, cell picture R7, padding R5, font R13                                                                                                                      |
 | Size                                   | size R5                           | -           | Main: Unit R8f, sizeMode R8f, width \| height, keep ratio R7, depth R5, relativeExtents, planar R7. Fit to label: labelFit R8, padding X \| Y, labelFitSquare R7, labelFitQuantum R5, labelFitImage R7, labelFitImagePadding R5                 |
 | Shape: Basic shape                     | shape R10                         | -           | No pop-over. Set lines only: shapeRotation R5, cornerRadius R5, exactCornerRadius R7, cornerFraction R5, shapePoints R15, shapeStretchPoints R7, shapeParts R15, inner lines R15, inner line width R5, inner line backing color R1 and width R5 |
-| Shape: Model                           | shape R10, naming the model       | -           | Main: modelTint R9, modelFit R8f, modelCenter R8. Orient: modelSourceUp R9, modelTurn R5, modelDoubleSided R8f. Animation: modelAnimation R9, speed \| offset                                                                                   |
+| Shape: Model                           | shape R10, naming the model       | -           | Main: Fallback shape R10, modelTint R9, modelFit R8f, modelCenter R8. Orient: modelSourceUp R9, modelTurn R5, modelDoubleSided R8f. Animation: modelAnimation R9, speed \| offset                                                               |
 | Shape: replace shader                  | shape R10, naming the shader      | -           | Main: ShaderParamRows R16; reach, minSize R5                                                                                                                                                                                                    |
 | Border                                 | color R1                          | Width       | Main: Unit R8, opacity R5, style R10, position R8 icons. Wave (wavy styles): amplitude \| period                                                                                                                                                |
 | Visibility                             | shown R8 Shown / Hidden           | -           | -                                                                                                                                                                                                                                               |

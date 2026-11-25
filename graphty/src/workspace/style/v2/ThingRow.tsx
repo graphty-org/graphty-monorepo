@@ -51,7 +51,7 @@ import {
 import { ByDataLink, LineFrame, type RowSlots, RubricLine } from "./RubricLine";
 import { RowSettings } from "./ThingLine";
 import { type ExtraGroup, FirstLines, ThingPopover } from "./ThingPopover";
-import { mainOf, setOn, type ThingSpec } from "./things";
+import { mainOf, setOn, shapeTargets, type ThingSpec } from "./things";
 import { ValueButton } from "./ValueButton";
 
 /**
@@ -224,21 +224,12 @@ function shapeLink(ctx: RowContext, plainShape: boolean): React.ReactNode {
     if (!plainShape) {
         return null;
     }
-    const targets = (
-        [
-            ["node.shape", "Shape"],
-            ["node.model", "Model"],
-        ] as const
-    ).flatMap(([channel, name]) => {
-        const descriptor = shownChannel(ctx.session, ctx.side, channel, false);
-        return descriptor?.renderable === true ? [{ name, descriptor }] : [];
-    });
-    return <ByDataLink ctx={ctx} targets={targets} />;
+    return <ByDataLink ctx={ctx} targets={shapeTargets(ctx)} />;
 }
 
 /**
- * A row's rubric channels, and on a Shape its shape too: the row's drop-down is the shape's one control, never a line
- * under the row or in its pop-over, while a model or a shader draws (owner, 2026-11-24: one path to any control).
+ * A row's rubric channels, and on a Shape its shape too: while a shader draws, the row's drop-down is the shape's one
+ * control; while a model draws, its rubric's Fallback shape line sets the shape under it (owner, 2026-11-25).
  * @param thingId - the thing.
  * @param covered - its rubric's channels.
  * @returns the channels no other line draws.
@@ -248,15 +239,15 @@ function withShape(thingId: string, covered: ReadonlySet<Channel>): ReadonlySet<
 }
 
 /**
- * Whether a pop-over has no line for the row's main value: a list edits it, or it is a Shape's (its row's drop-down
- * chooses the shape, model or shader), but for a model varying by data, whose bound line is drawn as every bound row's.
- * @param ctx - the row.
+ * Whether a pop-over has no line for the row's main value: a list edits it, or it is a Shape's, whose row draws its
+ * one control (the drop-down choosing the shape, model or shader, or a model varying by data's binding): a model's
+ * pop-over has no Model line (owner, 2026-11-24: one path to any control).
  * @param thingId - the thing.
  * @param listed - whether the pop-over draws a list of it.
  * @returns true when it has none.
  */
-function headless(ctx: RowContext, thingId: string, listed: boolean): boolean {
-    return listed || (thingId === "shape" && !modelBound(ctx));
+function headless(thingId: string, listed: boolean): boolean {
+    return listed || thingId === "shape";
 }
 
 /** What a thing row's main line is drawn from: see `MainLine`. */
@@ -575,7 +566,7 @@ export function ThingRow({
                             <FirstLines ctx={ctx} main={main} />
                         </>
                     }
-                    head={popoverHead(rubric, main.channel, headless(ctx, thing.id, popoverList !== undefined))}
+                    head={popoverHead(rubric, main.channel, headless(thing.id, popoverList !== undefined))}
                     extra={params?.main}
                     moreGroups={params?.groups}
                     after={popoverList}

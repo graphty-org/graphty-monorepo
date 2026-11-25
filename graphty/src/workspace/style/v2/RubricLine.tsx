@@ -47,7 +47,7 @@ import {
     segmentOptions,
     VALUE_GLYPHS,
 } from "./rubric";
-import { setOn } from "./things";
+import { setOn, shapeTargets } from "./things";
 import { sectionsOf } from "./valueSections";
 
 /** What a thing row puts in a line drawn as its row: its settings button and its whole-thing minus. */
@@ -998,6 +998,10 @@ function linkTargets(ctx: RowContext, line: LineSpec, channel: Channel): readonl
     // A Unit line picks which unit a number is in: no value of its own to bind.
     if (line.unit !== undefined) {
         return [];
+    }
+    // A model's Fallback shape line is the Shape's link while a model draws, as the basic Shape row's is.
+    if (channel === "node.shape") {
+        return shapeTargets(ctx);
     }
     const [a, b] = line.letters ?? [channelWord(channel), line.pair === undefined ? "" : channelWord(line.pair)];
     return [

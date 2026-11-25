@@ -8,7 +8,7 @@
 import type { Channel, ChannelDescriptor } from "@graphty/graphty-element/catalog";
 
 import { shownChannel } from "../offered";
-import type { RowContext } from "../PropertyRow";
+import type { RowContext, VaryTarget } from "../PropertyRow";
 import { lineIn, partlySet } from "../row";
 import { PATTERN_CHANNELS, SIZE_CHANNELS } from "./rubric";
 
@@ -409,4 +409,23 @@ export function byKind<T extends { readonly thing: ThingSpec }>(
         }
     }
     return runs;
+}
+
+/**
+ * The Shape's by-data link targets: its list opens with a choice of which value varies, the shape or the model, so
+ * the model varies by data from the Shape's one link, whether a basic shape or a model draws (owner, 2026-11-24: one
+ * path to any control; every style stays editable).
+ * @param ctx - the row.
+ * @returns the values the element can vary here.
+ */
+export function shapeTargets(ctx: RowContext): readonly VaryTarget[] {
+    return (
+        [
+            ["node.shape", "Shape"],
+            ["node.model", "Model"],
+        ] as const
+    ).flatMap(([channel, name]) => {
+        const descriptor = shownChannel(ctx.session, ctx.side, channel, false);
+        return descriptor?.renderable === true ? [{ name, descriptor }] : [];
+    });
 }

@@ -29,8 +29,11 @@ interface ModelsPopoverProps {
     readonly current?: string;
     /** Called with what the layer's `node.model` should name: an asset id or a sample's id. */
     readonly onPick: (ref: string) => void;
-    /** Add custom model...: the Load custom model dialog opens in the pop-over's place. */
-    readonly onCustom: () => void;
+    /**
+     * Add custom model...: the Load custom model dialog opens in the pop-over's place. Left out (a group's model in a
+     * by-data list), there is no such button: the Shape's gallery is the one way to add a model to the project.
+     */
+    readonly onCustom?: () => void;
     /** Back to the Shape list, where there is one to go back to (none in Style panel v2: no back buttons). */
     readonly onBack?: () => void;
     /** Closed, by Escape or its close button. */
@@ -268,16 +271,18 @@ export function ModelsPopover({
                                 </div>
                             </>
                         )}
-                        <Button
-                            size="compact-xs"
-                            variant="default"
-                            fullWidth
-                            leftSection={<GLYPHS.upload size={12} aria-hidden />}
-                            aria-haspopup="dialog"
-                            onClick={onCustom}
-                        >
-                            {CUSTOM_MODEL.button}
-                        </Button>
+                        {onCustom === undefined ? null : (
+                            <Button
+                                size="compact-xs"
+                                variant="default"
+                                fullWidth
+                                leftSection={<GLYPHS.upload size={12} aria-hidden />}
+                                aria-haspopup="dialog"
+                                onClick={onCustom}
+                            >
+                                {CUSTOM_MODEL.button}
+                            </Button>
+                        )}
                     </Stack>
                 </Popout.Content>
             </Popout.Panel>

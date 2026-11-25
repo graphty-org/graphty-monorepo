@@ -596,9 +596,6 @@ const EMPTY_MASKS: ViewMasks = Object.freeze({});
 /** Rows a time window's slide moved, as {@link inRowOrder} hands them on. */
 type Rows = readonly number[] | Uint32Array;
 
-/** Below one row in this many of the built nodes, the rows a mask change names are looked up one by one. */
-const FEW_ROWS_SHARE = 64;
-
 /**
  * A slide's rows sorted into row order. A slide lists them in the order they crossed the window,
  * which is time order and scatters them over the rows; nodes, edges and their batch slots are laid
@@ -1376,16 +1373,9 @@ export class UpdateManager implements Manager {
 
         // Fewer `Node`s than rows, as on a graph loaded on `"batched"` where most rows have none: visit the `Node`s,
         // since a state already right is left alone, and leave the rows to the columns (#6025).
-        const live = dataManagerInternals.nodesLive(this.dataManager);
-        if (live < rows.length) {
+        if (dataManagerInternals.nodesLive(this.dataManager) < rows.length) {
             for (const node of dataManagerInternals.builtNodes(this.dataManager)) {
                 apply(node);
-            }
-        } else if (rows.length * FEW_ROWS_SHARE < live) {
-            // A few rows -- a click's or a hover's -- are each looked up: the table of every row's node is rebuilt
-            // after any node is built, about 140 ms at 99,000 nodes, on the first click (issue #10116).
-            for (const row of rows) {
-                apply(dataManagerInternals.builtNodeAtRow(this.dataManager, row));
             }
         } else {
             const { nodesByIndex } = this.dataManager;

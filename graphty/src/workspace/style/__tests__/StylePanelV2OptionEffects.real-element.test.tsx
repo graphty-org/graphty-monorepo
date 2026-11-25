@@ -104,7 +104,7 @@ describe("Style panel v2: options that would change nothing", () => {
         );
 
         // Pivot draws only in 3D (valueViews); the size beneath is 1, so x1 over it is Set.
-        assert.equal(optionDim(pop, "Node size space", "Pivot"), "3D only");
+        assert.equal(optionDim(pop, "Node size space", "Focus"), "3D only");
         assert.isUndefined(optionDim(pop, "Node size space", "Screen"));
         // What a number does with the value underneath is chosen in the link dialog only (owner, 2026-11-23).
         assert.isNull(within(pop).queryByRole("radiogroup", { name: "Combine" }), "no Combine on a plain size");
@@ -125,7 +125,7 @@ describe("Style panel v2: options that would change nothing", () => {
 
         await switchView("3D");
         const again = await openSettings(sectionOf(tab, "node-shape"), "size", "Node size settings");
-        assert.isUndefined(optionDim(again, "Node size space", "Pivot"), "Pivot draws in 3D");
+        assert.isUndefined(optionDim(again, "Node size space", "Focus"), "Focus draws in 3D");
         assert.isUndefined(lineDim(await openGroup(again, "Extents"), "node.depth"), "so does depth");
         await userEvent.keyboard("{Escape}");
         await userEvent.keyboard("{Escape}");

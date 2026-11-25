@@ -67,7 +67,7 @@ function unmetWords(unmet: ChannelCondition | LabelFieldCondition, name: string)
 
 /**
  * Why one value of a channel draws nothing new with what the row holds now in the view shown now (`valueDrawn`: a
- * node size's Pivot draws only in 3D, its Uniform what Scale draws for an icosphere), or undefined when it does.
+ * node size's Focus draws only in 3D, its Uniform what Scale draws for an icosphere), or undefined when it does.
  * @param ctx - the row.
  * @param descriptor - the channel's descriptor.
  * @param value - the value.

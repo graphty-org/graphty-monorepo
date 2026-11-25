@@ -22,7 +22,7 @@ import React, { useEffect, useState } from "react";
 
 import { useWorkspace } from "../../state/WorkspaceContext";
 import type { RowContext } from "../PropertyRow";
-import { dataUndrawnWords } from "../words";
+import { colorPalettes, dataUndrawnWords } from "../words";
 import { CalculateLines } from "./CalculatePopover";
 import {
     draftAfter,
@@ -130,6 +130,7 @@ const NEW_GRAPH: DataEntry = { graph: { over: "edges", measure: "count" } };
  * @param props.start - the thing's start channel, for "Fixed"
  * @param props.title - the thing's name
  * @param props.onCalculate - called with the new Graph value's place, once it is written
+ * @param props.picking - just added: the list opens at once
  * @returns The picker
  */
 function DataPicker({
@@ -139,6 +140,7 @@ function DataPicker({
     start,
     title,
     onCalculate,
+    picking,
 }: Readonly<{
     ctx: RowContext;
     channel: DataChannel;
@@ -146,6 +148,7 @@ function DataPicker({
     start: Channel;
     title: string;
     onCalculate: (at: number) => void;
+    picking: boolean;
 }>): React.JSX.Element {
     const { store } = useWorkspace();
     const spec = specOf(ctx, channel);
@@ -156,6 +159,7 @@ function DataPicker({
     return (
         <DataFieldPicker
             multiple
+            defaultOpened={picking}
             label={`${title} data`}
             fields={fieldsFor(ctx.session, channel, entries)}
             values={entries.map((entry, at) => entryId(entry, at))}
@@ -400,11 +404,16 @@ function SourceLine({ args }: Readonly<{ args: EntryArgs }>): React.JSX.Element 
  * @returns The line, or nothing for an entry that does not spread
  */
 function EachLine({ args }: Readonly<{ args: EntryArgs }>): React.JSX.Element | null {
-    const { entry, fact, put } = args;
-    if (!("field" in entry) || !Array.isArray(fact?.value)) {
+    const { ctx, entry, put } = args;
+    // Whether the field holds lists, and of what, is the column's (graphty-element's `spread`), never one node's.
+    const spread =
+        "field" in entry
+            ? ctx.session.data.readableValues().find((each) => each.path === entry.field && each.on === "node")?.spread
+            : undefined;
+    if (spread === undefined) {
         return null;
     }
-    const words = (fact.value as unknown[]).some((v) => typeof v !== "number" && v !== null);
+    const words = spread === "categories";
     return (
         <PopLine line="entry.each" name="Each value">
             {words ? (
@@ -590,6 +599,7 @@ function EntryLines({
             {colored ? (
                 <PopLine line="entry.color" name={null}>
                     <CompactColorInput
+                        palettes={colorPalettes(ctx.session)}
                         variant="chip"
                         aria-label={`${name} color`}
                         color={entry.color ?? color ?? "#888888"}
@@ -1036,7 +1046,8 @@ function EntryLine({
                 control={
                     <ValueButton
                         label={name}
-                        words={entryWords(fact)}
+                        // The entry's setting (what it reads), never one node's values: the sidebar holds controls.
+                        words={entryName(ctx.session, { ...spec.entries[at], label: undefined })}
                         expanded={open}
                         onClick={() => {
                             setOpen(!open);
@@ -1080,6 +1091,7 @@ function EntryLine({
  * @param props.removeLabel - its minus's name
  * @param props.onRemove - takes the whole thing off
  * @param props.fixedLines - while it holds fixed values: the fixed lines the layer sets, drawn under the row
+ * @param props.picking - just added: its data picker opens at once
  * @returns The row and its entry lines
  */
 export function DataRow({
@@ -1093,8 +1105,10 @@ export function DataRow({
     removeLabel,
     onRemove,
     fixedLines,
+    picking = false,
 }: Readonly<{
     ctx: RowContext;
+    picking?: boolean;
     thing: string;
     start: Channel;
     channel: DataChannel;
@@ -1146,6 +1160,7 @@ export function DataRow({
                         start={start}
                         title={title}
                         onCalculate={setCalculating}
+                        picking={picking}
                     />
                 }
                 modifier={settings}

@@ -253,7 +253,8 @@ function textsKind(args: KindArgs): { lines: React.ReactNode; add: () => void } 
                 itemLine(
                     `${String(at)}-point`,
                     `${descriptor.channel}:${String(at)}:point`,
-                    null,
+                    // Named as every pair is ("Offset", "W / H"): where the field's words sit.
+                    "X / Y",
                     <PointPair
                         descriptor={coordinateDescriptor(descriptor)}
                         label={`${name} point`}

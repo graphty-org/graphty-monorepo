@@ -70,24 +70,28 @@ function walkFields(
     over: GraphMeasure["over"],
     fits: (kind: string, valueKind: string | undefined) => boolean,
 ): DataField[] {
-    return session.data
-        .readableValues()
-        .filter(
-            (value) =>
-                value.from !== "element" &&
-                value.end === undefined &&
-                value.holdsNodeIds !== true &&
-                (value.on === "node" || over === "edges") &&
-                fits(value.kind, value.valueKind),
-        )
-        .map((value) => ({
-            id: `${value.on}:${value.path}`,
-            name: readableName(session, value).name,
-            type: value.spread === undefined ? TYPES[value.kind] : "list",
-            group: value.on === "edge" ? "Edge" : FAR[over],
-            sample: valueFact(value),
-            keywords: [value.technicalName],
-        }));
+    return (
+        session.data
+            .readableValues()
+            .filter(
+                (value) =>
+                    value.from !== "element" &&
+                    value.end === undefined &&
+                    value.holdsNodeIds !== true &&
+                    (value.on === "node" || over === "edges") &&
+                    fits(value.kind, value.valueKind),
+            )
+            // An edge's own values first: on Edges they are the default Of, the far end's after them.
+            .sort((a, b) => Number(b.on === "edge") - Number(a.on === "edge"))
+            .map((value) => ({
+                id: `${value.on}:${value.path}`,
+                name: readableName(session, value).name,
+                type: value.spread === undefined ? TYPES[value.kind] : "list",
+                group: value.on === "edge" ? "Edge" : FAR[over],
+                sample: valueFact(value),
+                keywords: [value.technicalName],
+            }))
+    );
 }
 
 /**

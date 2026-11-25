@@ -175,7 +175,10 @@ export function entryWords(fact: DataEntryFact | undefined): string {
         return parts.map((part) => (part.text === "" ? "-" : part.text)).join(", ");
     }
     if (parts.length > 0) {
-        return parts.map((part) => `${part.name} ${part.text}`).join(", ");
+        // The Other slice unnamed by the spec is called "Other" here (graphty-element leaves its name empty).
+        return parts
+            .map((part) => `${part.role === "other" && part.name === "" ? "Other" : part.name} ${part.text}`)
+            .join(", ");
     }
     return fact.text ?? "-";
 }

@@ -774,6 +774,26 @@ function PieLines({ args }: Readonly<{ args: SpecArgs }>): React.JSX.Element {
 }
 
 /**
+ * The chart extent graphty-element draws the sample node at now, as a Set scale's start.
+ * @param ctx - the row.
+ * @param facts - the sample's facts.
+ * @returns its min and max, 0 to 1 where none is drawn.
+ */
+function drawnExtent(ctx: RowContext, facts: DataFacts | undefined): { min: number; max: number } {
+    let merged: Readonly<Record<string, unknown>> = {};
+    if (facts !== undefined) {
+        try {
+            ({ merged } = ctx.session.styles.explain({ node: facts.node }));
+        } catch {
+            // The sample is gone: the default extent.
+        }
+    }
+    const min = Number(merged["node.chartMin"]);
+    const max = Number(merged["node.chartMax"]);
+    return Number.isFinite(min) && Number.isFinite(max) && max > min ? { min, max } : { min: 0, max: 1 };
+}
+
+/**
  * A chart's data lines: Kind, Series, Order and Scale.
  * @param props - Component props
  * @param props.args - the spec
@@ -834,7 +854,8 @@ function ChartLines({ args }: Readonly<{ args: SpecArgs }>): React.JSX.Element {
                         const by: Readonly<Record<string, Record<string, unknown>>> = {
                             shared: rest,
                             node: { ...rest, share: "node" },
-                            set: { ...rest, min: 0, max: 1 },
+                            // Set starts at the extent drawn now, so no bar is clipped until the reader changes it.
+                            set: { ...rest, ...drawnExtent(ctx, args.facts) },
                         };
                         const written = by[next];
                         put({ scale: Object.keys(written).length === 0 ? undefined : written });

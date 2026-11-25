@@ -20,11 +20,11 @@ import {
 } from "./clusterForce";
 import type { D3RowSource, RowExtent } from "./D3GraphLayoutEngine";
 import {
+    edgeEndsFollowNodes,
     EdgePosition,
     type EdgeRow,
     heldEdgeProblems,
     LayoutEngine,
-    layoutEngineInternals,
     Position,
 } from "./LayoutEngine";
 import { nodeGapFrontOption, nodeGapOption } from "./nodeGapOptions";
@@ -180,10 +180,6 @@ const START_SPREAD_2D = 0.75;
  * NGraph force-directed layout engine using ngraph.forcelayout
  */
 export class NGraphEngine extends LayoutEngine {
-    static {
-        layoutEngineInternals.endsOnly(this);
-    }
-
     static readonly type: string = "ngraph";
     static readonly maxDimensions: number = 3;
     static readonly zodOptionsSchema: OptionsSchema = ngraphLayoutOptionsSchema;
@@ -1403,3 +1399,5 @@ export class NGraphEngine extends LayoutEngine {
         return ngraphNode;
     }
 }
+
+edgeEndsFollowNodes(NGraphEngine);

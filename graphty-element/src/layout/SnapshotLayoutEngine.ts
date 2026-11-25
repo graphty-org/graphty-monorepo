@@ -10,10 +10,10 @@ import type { GraphtyWarningCode } from "../errors/codes";
 import type { Node } from "../Node";
 import type { WorkingSnapshot } from "../session/working/graphs";
 import {
+    edgeEndsFollowNodes,
     type EdgePosition,
     layoutDim,
     LayoutEngine,
-    layoutEngineInternals,
     type Position,
     type RowPositions,
     simpleLayoutInternals,
@@ -222,7 +222,6 @@ export function atPath(data: unknown, path: string): unknown {
  */
 export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
     static {
-        layoutEngineInternals.endsOnly(this);
         snapshotLayoutInternals.connect = (engine, host) => {
             engine.#host = host;
         };
@@ -720,3 +719,5 @@ export function sceneUnits(result: LayoutResult, scale: number): F32 {
 export function startFrom(input: SnapshotLayoutInput, dim: 2 | 3, scale: number): F32 | null {
     return input.added === null || dim !== input.dimensions ? null : Float32Array.from(input.initial, (v) => v / scale);
 }
+
+edgeEndsFollowNodes(SnapshotLayoutEngine);

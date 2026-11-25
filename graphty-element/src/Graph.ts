@@ -242,9 +242,9 @@ import {
 import { bootstrapEdgePaint, bootstrapNodePaint } from "./managers/StylePainter";
 import { columnCenter, type ColumnFraming } from "./managers/UpdateManager";
 import { AnnotationMeshes } from "./meshes/AnnotationMeshes";
-import { arrowCapMeshes } from "./meshes/ArrowCapBatch";
+import { arrowCapMeshes, pulledCapHosts } from "./meshes/ArrowCapBatch";
 import { edgeDrawPlace } from "./meshes/EdgeLineBatch";
-import { EdgeRowLines } from "./meshes/EdgeRowLines";
+import { EdgeRowLines, pulledLineSortsWith } from "./meshes/EdgeRowLines";
 import { payLabelAnimations } from "./meshes/labelAnimationDebt";
 import { closeRectOnScreen, hasCloseLabels, inRect, isCloseLabel } from "./meshes/labelClose";
 import { labelFontsLoading, watchFontLoads } from "./meshes/labelFonts";
@@ -1113,8 +1113,6 @@ export class Graph implements GraphContext {
 
     /** Whether plain edges were last painted as pulled lines, the `"batched"` path's. */
     #edgesPulled = false;
-    /** Whether the layout edges were last painted under lays them itself (`LayoutEngine.laysEdges`). */
-    #layoutLaysEdges = false;
     /** Imports reading now: the passes between their chunks build what arrived but do not paint. */
     #importsReading = 0;
 
@@ -2261,19 +2259,6 @@ export class Graph implements GraphContext {
             if (this.#initialCameraStateOwed) {
                 this.#initialCameraStateOwed = false;
                 this.initialCameraState = this.getCameraState();
-            }
-        });
-
-        // A layout that lays its edges (Graphviz's routes, a third party's `getEdgePosition`) keeps plain edges from
-        // being pulled (`Edge.pullsLine`): repaint them when the layout that came in differs in that from the last.
-        this.eventManager.addListener("layout-changed", () => {
-            const engine = this.layoutManager.layoutEngine;
-            const lays = engine !== undefined && layoutEngineInternals.laysEdges(engine);
-            if (lays !== this.#layoutLaysEdges) {
-                this.#layoutLaysEdges = lays;
-                if (this.#nodeBatches !== null || pulledEdgesDefault.value) {
-                    this.#repaintEdges();
-                }
             }
         });
 
@@ -5634,6 +5619,19 @@ export class Graph implements GraphContext {
 
         if (batched && this.#nodeBatches === null) {
             const places = this.openRowTable();
+            // the scene's cap batches draw arrowheads pulled from the row table too (`ArrowCapBatch.setPulled`)
+            pulledCapHosts.set(this.scene, {
+                rows: places,
+                settled: () => !this.isRunning() || this.layoutManager.layoutEngine?.isSettled !== false,
+                placedCaps: (count) => {
+                    // one count an arrowhead placed and its edge's ends found, as an object edge counts its own
+                    for (const counter of [this.statsManager.arrowCapUpdate, this.statsManager.intersectCalc]) {
+                        for (let at = 0; at < count; at++) {
+                            counter.fetchNewFrame();
+                        }
+                    }
+                },
+            });
             this.#nodeBatches = new NodeBatches(
                 {
                     cache: this.dataManager.meshCache,
@@ -5687,6 +5685,7 @@ export class Graph implements GraphContext {
                 requestFrame: () => {
                     this.renderManager.requestFrame();
                 },
+                settled: () => !this.isRunning() || this.layoutManager.layoutEngine?.isSettled !== false,
             });
             const batches = this.#nodeBatches;
             const target = new NodeIdTarget(this.scene, {
@@ -5714,6 +5713,7 @@ export class Graph implements GraphContext {
             });
             useEdgeIdTarget(this.scene, this.#edgeIds);
         } else if (!batched && this.#nodeBatches !== null) {
+            pulledCapHosts.delete(this.scene);
             useEdgeIdTarget(this.scene, null);
             this.#edgeIds?.dispose();
             this.#edgeIds = null;
@@ -5735,21 +5735,15 @@ export class Graph implements GraphContext {
         const pulls = this.#nodeBatches !== null;
         if (pulls !== this.#edgesPulled) {
             this.#edgesPulled = pulls;
-            this.#repaintEdges();
+            for (const edge of this.builtEdges()) {
+                edge.updateStyle();
+            }
+
+            // A rebuilt placed line is placed by the next edge walk.
+            this.updateManager.forceEdgeWalk();
+            this.updateManager.meshesAdded();
         }
 
-        this.renderManager.requestFrame();
-    }
-
-    /** Restyle every built edge, so each line is pulled or placed afresh, and have the next edge walk place them. */
-    #repaintEdges(): void {
-        for (const edge of this.builtEdges()) {
-            edge.updateStyle();
-        }
-
-        // A rebuilt placed line is placed by the next edge walk.
-        this.updateManager.forceEdgeWalk();
-        this.updateManager.meshesAdded();
         this.renderManager.requestFrame();
     }
 
@@ -6608,7 +6602,17 @@ export class Graph implements GraphContext {
             (then: (a: SubMesh, b: SubMesh) => number) =>
             (a: SubMesh, b: SubMesh): number =>
                 rank(a.getMesh()) - rank(b.getMesh()) || lineOrder(a.getMesh(), b.getMesh()) || then(a, b);
-        const opaque = byRank((a, b) => RenderingGroup.PainterSortCompare(a, b));
+        // a 2D pulled line batch draws where the line batch of its width does (`pulledLineSortsWith`), just after it
+        const painter = (a: SubMesh, b: SubMesh): number => {
+            const [ma, mb] = [a.getMesh(), b.getMesh()];
+            const [pa, pb] = [pulledLineSortsWith.get(ma) ?? ma, pulledLineSortsWith.get(mb) ?? mb];
+            if (pa === pb) {
+                return Number(pa !== ma) - Number(pb !== mb);
+            }
+
+            return pa.material && pb.material ? pa.material.uniqueId - pb.material.uniqueId : pa.uniqueId - pb.uniqueId;
+        };
+        const opaque = byRank(painter);
         this.scene.setRenderingOrder(
             0,
             opaque,

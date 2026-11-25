@@ -382,38 +382,7 @@ export const layoutEngineInternals = {} as {
     rest(engine: LayoutEngine, resting: boolean): void;
     /** How many doubles the engine's publish scratch holds. */
     scratchHeld(engine: LayoutEngine): number;
-    /** See `LayoutEngine.laysEdges`. */
-    laysEdges(engine: LayoutEngine): boolean;
-    /**
-     * Say that a class's `getEdgePosition` reports no more than where the edge's two nodes are, as the element's own
-     * engines' do, so that its edges are pulled on the `"batched"` render path. See `LayoutEngine.laysEdges`.
-     */
-    endsOnly(cls: { readonly prototype: LayoutEngine }): void;
 };
-
-/**
- * The classes whose own `getEdgePosition` reports only where an edge's two nodes are, by prototype: the default, and
- * the element's own engines' ({@link layoutEngineInternals.endsOnly}). An engine answering through any other lays its
- * edges itself.
- */
-const endsOnlyEdgePositions = new WeakSet();
-
-/**
- * The prototype in an engine's chain that defines the `getEdgePosition` it answers through.
- * @param engine - The engine.
- * @returns The prototype, or null for none.
- */
-function edgePositionOwner(engine: LayoutEngine): object | null {
-    for (let proto: object | null = Object.getPrototypeOf(engine) as object | null; proto !== null;) {
-        if (Object.hasOwn(proto, "getEdgePosition")) {
-            return proto;
-        }
-
-        proto = Object.getPrototypeOf(proto) as object | null;
-    }
-
-    return null;
-}
 
 /**
  * Base class for all layout engines
@@ -436,6 +405,82 @@ function edgePositionOwner(engine: LayoutEngine): object | null {
  * is inexpressible and a frame allocates once per node. With the coordinates in one shared array,
  * a view reads them by index and allocates nothing, and a GPU layout can write into the same rows.
  */
+/**
+ * Whether an engine lays each edge's route itself (Graphviz's splines, and `fixed` when it routes edges through
+ * Graphviz): such a route is read from the `Edge` it keys, and a line drawn from the row table would run straight.
+ * Read by shape, so a caller need not import the engines.
+ * @param engine - The engine, or none.
+ * @returns True for an engine that lays edge routes.
+ */
+export function laysEdgeRoutes(engine: LayoutEngine | undefined): boolean {
+    if (engine === undefined) {
+        return false;
+    }
+
+    if ((engine as unknown as { config?: { edgeRoutes?: unknown } }).config?.edgeRoutes === "graphviz") {
+        return true;
+    }
+
+    // Read for every pulled edge in a frame's walk, so answered once per engine class.
+    const { constructor: cls } = engine;
+    let lays = routeLayingClasses.get(cls);
+    if (lays === undefined) {
+        lays = classLaysEdgeRoutes(engine);
+        routeLayingClasses.set(cls, lays);
+    }
+
+    return lays;
+}
+
+/** {@link laysEdgeRoutes}'s answer per engine class. */
+const routeLayingClasses = new WeakMap<object, boolean>();
+
+/**
+ * Whether an engine's class lays edge routes: a Graphviz engine, or one with its own `getEdgePosition` (a third
+ * party's), which may put an edge's ends anywhere, so its edges are asked of it rather than pulled between their
+ * nodes' rows.
+ * @param engine - The engine.
+ * @returns True when it does.
+ */
+function classLaysEdgeRoutes(engine: LayoutEngine): boolean {
+    const { type } = engine.constructor as { type?: unknown };
+    if (typeof type === "string" && type.startsWith("graphviz-")) {
+        return true;
+    }
+
+    const owner = edgePositionOwner(engine);
+    return owner !== null && !edgesFollowingNodes.has(owner);
+}
+
+/** The engine classes whose own `getEdgePosition` reports an edge's ends where its two nodes are drawn. */
+const edgesFollowingNodes = new WeakSet();
+
+/**
+ * The prototype that defines the `getEdgePosition` an engine uses.
+ * @param engine - The engine.
+ * @returns The nearest prototype on its chain with its own `getEdgePosition`.
+ */
+function edgePositionOwner(engine: LayoutEngine): object | null {
+    let proto = Object.getPrototypeOf(engine) as object | null;
+    while (proto !== null && !Object.hasOwn(proto, "getEdgePosition")) {
+        proto = Object.getPrototypeOf(proto) as object | null;
+    }
+
+    return proto;
+}
+
+/**
+ * Marks engine classes whose own `getEdgePosition` reports an edge's ends at its nodes, so an engine using it has
+ * its plain lines pulled from the row table on the batched path (see {@link laysEdgeRoutes}).
+ * @internal
+ * @param classes - The element's own engine classes.
+ */
+export function edgeEndsFollowNodes(...classes: { prototype: object }[]): void {
+    for (const cls of classes) {
+        edgesFollowingNodes.add(cls.prototype);
+    }
+}
+
 /**
  * The edges an engine holds against the edges drawn: each drawn edge held exactly once, and
  * nothing held that is not drawn.
@@ -486,11 +531,6 @@ export abstract class LayoutEngine {
             }
         };
         layoutEngineInternals.scratchHeld = (engine) => engine.scratchRows.length + engine.scratchCoords.length;
-        layoutEngineInternals.laysEdges = (engine) => engine.laysEdges;
-        layoutEngineInternals.endsOnly = (cls) => {
-            endsOnlyEdgePositions.add(cls.prototype);
-        };
-        endsOnlyEdgePositions.add(LayoutEngine.prototype);
         // An edge the working graph hides is drawn and, by design, never held.
         layoutEngineInternals.edgeProblems = (engine, drawn) =>
             engine.edgeProblems(
@@ -683,33 +723,7 @@ export abstract class LayoutEngine {
      * so a caller cannot place a node without a step.
      */
     protected abstract setNodePosition(n: Node, p: Position): void;
-
-    /**
-     * Where an edge runs. By default, between where the engine puts its two nodes
-     * ({@link LayoutEngine.getNodePosition}): override it only when your layout places edges itself -- moves an end
-     * off its node's center, or lays the edge along bends (`bends`) -- since an engine that overrides it has every edge
-     * drawn as an object of its own on the `"batched"` render path, rather than from the shared batch.
-     * @param e - The edge.
-     * @returns Its two ends, and whatever else the layout lays it along.
-     */
-    getEdgePosition(e: Edge): EdgePosition {
-        // copies: an engine may answer every node from one object it reuses
-        return { src: { ...this.getNodePosition(e.srcNode) }, dst: { ...this.getNodePosition(e.dstNode) } };
-    }
-
-    /**
-     * Whether this engine lays its edges itself (Graphviz's routes, a third party's own {@link getEdgePosition}),
-     * rather than running each straight between its two nodes: then a line on the `"batched"` render path is not
-     * pulled from the row table, which draws it straight between its nodes' rows, but placed from
-     * {@link getEdgePosition}, as on `"objects"`. True when the engine's `getEdgePosition` is not one that reports
-     * only where the nodes are ({@link layoutEngineInternals.endsOnly}).
-     * @returns True when it lays its edges.
-     * @internal
-     */
-    protected get laysEdges(): boolean {
-        const owner = edgePositionOwner(this);
-        return owner === null || !endsOnlyEdgePositions.has(owner);
-    }
+    abstract getEdgePosition(e: Edge): EdgePosition;
     /**
      * Where the layout put a node's external label (`xlabel`), when it places one (Graphviz's `xlp`): the label's
      * center, right and down of the node's center, in scene units. Undefined by default: the label then sits against
@@ -2283,7 +2297,6 @@ export const simpleLayoutInternals = {
  */
 export abstract class StaticLayoutEngine extends LayoutEngine {
     static {
-        layoutEngineInternals.endsOnly(this);
         simpleLayoutInternals.kept = (engine) => engine.#keptRows(engine.#loaded ?? engine.#load());
         simpleLayoutInternals.positions = (engine) => (engine.#loaded ?? engine.#load()).positions;
         simpleLayoutInternals.held = (engine) => ({ nodes: engine.#nodes.length, edges: engine.#edges.length });
@@ -3280,6 +3293,8 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
  * which the element's own one-pass layouts are built on, with pins, cancellation and progress.
  */
 export abstract class SimpleLayoutEngine extends StaticLayoutEngine {}
+
+edgeEndsFollowNodes(StaticLayoutEngine);
 
 /**
  * A dimension option as the index-based layouts take it.

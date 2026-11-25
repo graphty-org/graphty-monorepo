@@ -1897,6 +1897,7 @@ export class Node implements ModelUser {
      * @internal
      */
     setMeshPosition(x: number, y: number, z: number): void {
+        this.placed = true;
         this.#anchor.position.set(x, y, z);
         const table = this.batchTable;
         const held = table?.isHeld(this.row);
@@ -1910,6 +1911,13 @@ export class Node implements ModelUser {
         // visits no node, so a dragged node's halo stayed where the drag began until the drop.
         this.syncOverlayPositions();
     }
+
+    /**
+     * Whether a frame has put the node anywhere yet. Until then it is drawn at the hidden mesh
+     * template's position (y = -10000), which a layout transition must not glide it in from.
+     * @internal
+     */
+    placed = false;
 
     /**
      * Where the node is drawn, in graph-root's space: live, so read it and never write it

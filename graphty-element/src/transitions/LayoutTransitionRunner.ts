@@ -35,6 +35,11 @@ const STILL = 1e-6;
 export interface TransitionSubject {
     readonly index: number;
     readonly drawnPosition: Vec3;
+    /**
+     * False while no frame has put it anywhere: it is drawn at its layout place in one frame, not
+     * moved from the hidden template it waits at. Absent counts as placed.
+     */
+    readonly placed?: boolean;
     /** A particle transition shrinks the node while its cloud is in flight. */
     readonly drawnScale: number;
     /** Draw it at `scale`, part of its `whole` size: a particle transition's shrink. */
@@ -424,7 +429,8 @@ export class LayoutTransitionRunner {
         }
 
         const rows = [...(this.host.rows?.() ?? [])];
-        const nodes = [...this.host.nodes(), ...rows];
+        // A node added since the last frame has no drawn place to leave from (issue #9424).
+        const nodes = [...this.host.nodes(), ...rows].filter((node: TransitionSubject) => node.placed !== false);
         const from = nodes.map((node) => ({
             x: node.drawnPosition.x,
             y: node.drawnPosition.y,

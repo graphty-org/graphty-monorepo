@@ -145,7 +145,7 @@ test("the flight swoops in carrying the orbit's motion, rides beside the route l
     assert.equal(end.r, 0);
 });
 
-test("flightRoute: a unique shortest path, every leg long, the one nearest the pacing's length", () => {
+test("flightRoute: a unique shortest path, enough stops, every leg long, the one nearest the pacing's length", () => {
     // a -- b -- end and s -- a -- b -- end: a to b is a short hop; c -- d -- end is long every leg;
     // e, nearer the length, has two shortest paths (by d and by b), so the take's run might light either
     const at = {
@@ -168,12 +168,35 @@ test("flightRoute: a unique shortest path, every leg long, the one nearest the p
         ["e", "d"],
         ["e", "b"],
     ];
-    const route = flightRoute(at, links, "end", 40, 100);
+    // at least three airports: c's is the one nearest 100 long
+    const route = flightRoute(at, links, "end", 40, 100, 3);
     assert.deepEqual(route, ["c", "d", "end"]);
     for (let i = 1; i < route.length; i++) assert.ok(dist(at[route[i - 1]], at[route[i]]) >= 40);
     // longer pacing picks the longer route; no route with long legs throws
-    assert.deepEqual(flightRoute(at, links, "end", 40, 160), ["f", "c", "d", "end"]);
-    assert.throws(() => flightRoute(at, links, "end", 200, 100));
+    assert.deepEqual(flightRoute(at, links, "end", 40, 160, 3), ["f", "c", "d", "end"]);
+    assert.throws(() => flightRoute(at, links, "end", 200, 100, 3));
+    // by default at least four airports: f's, however near c's is to the length; none that long throws
+    const four = flightRoute(at, links, "end", 40, 100);
+    assert.ok(four.length >= 4);
+    assert.deepEqual(four, ["f", "c", "d", "end"]);
+    assert.throws(() => flightRoute(at, links, "end", 40, 100, 5));
+});
+
+test("flightRoute measures the legs the flight flies: its last corner eased as pullIn eases it", () => {
+    // r sits 30 from q as drawn, 44 once eased toward the middle of q and end (and 56 from end)
+    const at = {
+        p: { x: 0, y: 200, z: 0 },
+        q: { x: 0, y: 100, z: 0 },
+        r: { x: 0, y: 70, z: 0 },
+        end: { x: 0, y: 0, z: 0 },
+    };
+    const links = [
+        ["p", "q"],
+        ["q", "r"],
+        ["r", "end"],
+    ];
+    assert.deepEqual(flightRoute(at, links, "end", 40, 200), ["p", "q", "r", "end"]);
+    assert.throws(() => flightRoute(at, links, "end", 40, 200, 4, 1));
 });
 
 test("pullIn eases a corner: the middle airport drawn toward the middle of its two neighbors", () => {

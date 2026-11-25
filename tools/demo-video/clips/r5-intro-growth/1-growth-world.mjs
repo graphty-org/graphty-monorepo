@@ -8,10 +8,10 @@
 // swells, the camera tilting and circling at once, while airports keep coming, faster, scattered
 // through the drawing's open spaces (scatter); Louvain's communities ignite outward from the
 // middle, gathering their airports into lobes of their own, their routes lit with comets, the
-// brightest moment; then the world darkens toward Sydney and the route from there to San
-// Francisco (by Manila; plan's flightRoute, every leg long) lights up red airport by airport, while
-// the camera leaves its orbit, carrying its motion on, and swoops in behind Sydney, its look coming
-// round onto the route; and it flies the route like an airplane -- riding beside it and looking along its line
+// brightest moment; then the world darkens toward Shenzhen and the route from there to San
+// Francisco (by Beijing and Manila; plan's flightRoute, four stops, every leg long) lights up red
+// airport by airport, while the camera leaves its orbit, carrying its motion on, and swoops in
+// behind Shenzhen, its look coming round onto the route; and it flies the route like an airplane -- riding beside it and looking along its line
 // ahead, faster and faster, each airport coming up along the line and sweeping by large beside it,
 // never through one, turning after each, banking gently -- and bends onto San Francisco right
 // after Manila, easing into a close-up on it, at its place on the globe (the route's line faded
@@ -115,10 +115,11 @@ const TREE = { fill: 0.8, least: 14, tau: S(1200), box: BOX };
 const CLOSE = 2;
 /**
  * The speed the flight arrives at, in CLOSEs a second of take: San Francisco grows on screen at the
- * same steady rate from 4 CLOSE out (flightPoses' `near`), about 1.4 s of output, through the
- * close-up's creep.
+ * same steady rate from 4 CLOSE out (flightPoses' `near`), about 0.9 s of output, through the
+ * close-up's creep (0.27, not 0.18: at 0.18 the creep changed each output frame by too little to
+ * tell from a stalled render, cut46's frozen run of 34 frames).
  */
-const CREEP = 0.18;
+const CREEP = 0.27;
 /** The cut's speed through the close-up and the dissolve (cuts/intro-growth.json's ramp there). */
 const END = 3.2;
 /** How long the close-up is held, creeping in, before the dissolve starts (take ms: 0.1 s in the cut). */
@@ -146,10 +147,12 @@ const APPROACH = S(3000);
 const APPROACH_SLOW = (4.8 * HUSH_SLOW) / 3.1;
 /**
  * How long the flight's build takes, from the run-in to Manila, the last airport but one (take ms:
- * the route from Sydney flies as long as Chongqing's did at 2400, at nearly its top speed); the
+ * the route from Shenzhen by Beijing, 153 units to Manila against Sydney's 70, at 4200 instead of
+ * 2200, so its top speed is Chongqing's and each airport passes on its own, about 2.2 s and 1.1 s
+ * of output apart, for about 1 s more of flight in the cut with the faster CREEP); the
  * arrival on San Francisco takes what its speeds make it (flightPoses' `flyMs`).
  */
-const FLY = S(2200);
+const FLY = S(4200);
 /**
  * The stretch of the flight the route's line fades over (take ms before the flight's end: from
  * 2 s of output before the close-up to 1.1 s before, before the line could streak past the lens),
@@ -641,9 +644,9 @@ export default {
         await bloomSky;
         await h.pause(S(900));
         await gathered;
-        // ---- the hush: the world darkens toward Sydney (the far side first), the comets and the
+        // ---- the hush: the world darkens toward Shenzhen (the far side first), the comets and the
         // glow going out with it, while the camera leaves its orbit and closes in on the run-in
-        // behind Sydney (the flight's approach), its look coming round onto the route; before
+        // behind Shenzhen (the flight's approach), its look coming round onto the route; before
         // the dark has landed, the route to San Francisco starts to light up airport by airport
         // from here to the flight the take runs HUSH_SLOW times slower (the cut as much faster): the
         // orbit's turn slowed with it at once (its framing has long settled, so a short tau moves nothing)
@@ -758,7 +761,7 @@ export default {
             selector: { match: "ids", nodes: near },
             set: { "node.size": SIZE_3D },
         });
-        // ---- the flight: the camera leaves its orbit and closes in on Sydney, then flies the
+        // ---- the flight: the camera leaves its orbit and closes in on Shenzhen, then flies the
         // route to San Francisco, gathering speed, looking along it, and comes into the close-up,
         // creeping in; the route's line fades as the camera closes on San Francisco, so it never
         // stabs into the lens

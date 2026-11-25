@@ -1137,6 +1137,7 @@ function EntryLine({
  * @param props.onRemove - takes the whole thing off
  * @param props.fixedLines - while it holds fixed values: the fixed lines the layer sets, drawn under the row
  * @param props.picking - just added: its data picker opens at once
+ * @param props.heading - its data pop-over's title, when not its title
  * @returns The row and its entry lines
  */
 export function DataRow({
@@ -1151,9 +1152,11 @@ export function DataRow({
     onRemove,
     fixedLines,
     picking = false,
+    heading,
 }: Readonly<{
     ctx: RowContext;
     picking?: boolean;
+    heading?: string;
     thing: string;
     start: Channel;
     channel: DataChannel;
@@ -1180,7 +1183,13 @@ export function DataRow({
         spec === undefined ? (
             fixedSettings
         ) : (
-            <RowSettings label={`${title} settings`} title={title} changed opened={open} onOpenChange={setOpen}>
+            <RowSettings
+                label={`${title} settings`}
+                title={heading ?? title}
+                changed
+                opened={open}
+                onOpenChange={setOpen}
+            >
                 <div data-thing-popover="">
                     <SpecLines ctx={ctx} channel={channel} spec={spec} facts={facts} />
                     <SampleLine ctx={ctx} channel={channel} facts={facts} onSample={setPicked} />

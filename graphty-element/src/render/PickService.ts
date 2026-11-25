@@ -12,12 +12,16 @@
 // Installs scene.pick, scene.pickWithRay and scene.createPickingRay; see
 // test/packaging/babylon-side-effects.test.ts.
 import "@babylonjs/core/Culling/ray.js";
+// Installs Mesh.createInstance for the stand-in of a row a Babylon pick lands on.
+import "@babylonjs/core/Meshes/instancedMesh.js";
 
-import type { PickingInfo } from "@babylonjs/core";
+import type { InstancedMesh } from "@babylonjs/core";
 import type { Camera } from "@babylonjs/core/Cameras/camera.js";
+import { PickingInfo } from "@babylonjs/core/Collisions/pickingInfo.js";
 import { Ray } from "@babylonjs/core/Culling/ray.core.js";
 import { Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import type { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
 import type { Scene } from "@babylonjs/core/scene.js";
 import { INVALID_INDEX } from "@graphty/graph-format";
@@ -265,14 +269,14 @@ function pickMeshes(
 ): { info: PickingInfo; onTop: boolean } {
     pickWork.meshPicks++;
     const ray = scene.createPickingRay(x, y, null, null);
-    const onTop = scene.pick(
+    const onTop = babylonPick(scene)(
         x,
         y,
         alongRay(scene, ray, (mesh) => mesh.renderingGroupId >= ON_TOP_RENDERING_GROUP && admit(mesh)),
     );
     return onTop.hit
         ? { info: onTop, onTop: true }
-        : { info: scene.pick(x, y, alongRay(scene, ray, admit)), onTop: false };
+        : { info: babylonPick(scene)(x, y, alongRay(scene, ray, admit)), onTop: false };
 }
 
 /**
@@ -306,7 +310,7 @@ export class RowScan {
     constructor(
         private readonly scene: Scene,
         private readonly table: ScannedTable,
-        private readonly nodeAt: (row: number) => ScannedRow | undefined,
+        readonly nodeAt: (row: number) => ScannedRow | undefined,
         private readonly root: TransformNode | null,
         private readonly shapeAt: (row: number) => RowShape | undefined = nodeAt,
     ) {}
@@ -572,7 +576,7 @@ export class RowScan {
      */
     pickRay(ray: Ray): DrawnHit {
         const admit = (mesh: AbstractMesh): boolean => rayPickable(mesh) && !this.covers(mesh);
-        return this.nearer(this.scene.pickWithRay(ray, alongRay(this.scene, ray, admit)), this.rowRayHit(ray));
+        return this.nearer(babylonPickWithRay(this.scene)(ray, alongRay(this.scene, ray, admit)), this.rowRayHit(ray));
     }
 
     /**
@@ -815,6 +819,149 @@ export function rowScanOf(scene: Scene): RowScan | undefined {
     return rowScans.get(scene);
 }
 
+/**
+ * A scene's `pick` as Babylon defines it, under the wrapper {@link pickRowsInBabylon} puts on the scene: the element's
+ * own picks ask the scan for rows themselves.
+ * @param scene - The scene.
+ * @returns The pick, bound to the scene.
+ */
+function babylonPick(scene: Scene): Scene["pick"] {
+    return (Object.getPrototypeOf(scene) as Scene).pick.bind(scene);
+}
+
+/**
+ * A scene's `pickWithRay` as Babylon defines it; see {@link babylonPick}.
+ * @param scene - The scene.
+ * @returns The pick, bound to the scene.
+ */
+function babylonPickWithRay(scene: Scene): Scene["pickWithRay"] {
+    return (Object.getPrototypeOf(scene) as Scene).pickWithRay.bind(scene);
+}
+
+/** The scenes whose Babylon picks {@link pickRowsInBabylon} wrapped. */
+const pickingRows = new WeakSet<Scene>();
+
+/**
+ * Put an instance of a meshless row's source on the row's anchor, named and labeled as the row's mesh was, so a
+ * Babylon pick that sees only meshes can land on the row: the one it had, when it still draws that source.
+ * @param standIn - The stand-in put there before, if any.
+ * @param source - The row's source mesh.
+ * @param anchor - The row's anchor.
+ * @returns The stand-in, enabled.
+ */
+export function rowStandIn(
+    standIn: InstancedMesh | null | undefined,
+    source: Mesh,
+    anchor: TransformNode,
+): InstancedMesh {
+    if (standIn?.sourceMesh !== source || standIn.isDisposed()) {
+        standIn?.dispose();
+        standIn = source.createInstance(anchor.name);
+        // An instance starts at its source's place; the anchor is the whole placement.
+        standIn.position.setAll(0);
+        standIn.rotationQuaternion = null;
+        standIn.rotation.setAll(0);
+        standIn.scaling.setAll(1);
+        // Babylon's pointer predicates admit a mesh with no actions only with this set; a node's mesh has actions.
+        standIn.enablePointerMoveEvents = true;
+    }
+
+    standIn.name = anchor.name;
+    standIn.metadata = anchor.metadata as unknown;
+    standIn.parent = anchor;
+    standIn.setEnabled(true);
+    return standIn;
+}
+
+/**
+ * Let Babylon's own `scene.pick` and `scene.pickWithRay` find the rows a batch draws, which have no mesh of their own.
+ *
+ * On the `"objects"` path every node is a mesh, so those picks name it: a consumer's own pick, the `pickInfo` Babylon
+ * gives a pointer observer, and the action Babylon runs on the mesh it picked. On `"batched"` they saw through the
+ * nodes to whatever was behind, and a click on a node ran the action of a consumer's mesh behind it. Each is wrapped on
+ * the scene, while its graph draws batched: Babylon picks the meshes, the scan the rows, and when a row is nearer the
+ * answer names a stand-in for it -- an instance of the row's source on the row's anchor, with the name and metadata the
+ * node's own mesh would carry. The stand-in is enabled only while the pick's predicate is asked, so no frame draws it
+ * and no other pick finds it.
+ *
+ * Babylon's own pick on a pointer move (made with `scene.pointerMovePredicate`) is left to the meshes: hover reads the
+ * node ID target with no walk over the rows, and a scan on every move would undo that.
+ *
+ * ponytail: one stand-in per scene, so a `pickInfo` kept past a later pick that lands on another row names that row;
+ * one stand-in per picked row is the upgrade if a consumer needs to hold several. A move's `pickInfo` and Babylon's
+ * pointer-over mesh do not name a batched row; answering a move from the hover's one ID-target read is the upgrade.
+ * @param scene - The scene.
+ */
+function pickRowsInBabylon(scene: Scene): void {
+    if (pickingRows.has(scene)) {
+        return;
+    }
+
+    pickingRows.add(scene);
+    const pick = babylonPick(scene);
+    const pickWithRay = babylonPickWithRay(scene);
+    let standIn: InstancedMesh | null = null;
+    const answer = (
+        info: PickingInfo | null,
+        ray: Ray | null,
+        hit: RowHit | null,
+        scan: RowScan,
+        predicate: ((mesh: AbstractMesh, thinInstanceIndex: number) => boolean) | undefined,
+    ): PickingInfo | null => {
+        // A tie keeps Babylon's mesh: a row with a mesh of its own, or XR's own stand-in (`laserOnRows`).
+        if (hit === null || (info?.hit === true && info.distance <= hit.distance)) {
+            return info;
+        }
+
+        const node = scan.nodeAt(hit.row);
+        const source = node?.drawnSourceMesh;
+        if (node?.drawnPickMesh !== null || !(source instanceof Mesh)) {
+            return info;
+        }
+
+        standIn = rowStandIn(standIn, source, node.drawnAnchor);
+        const admitted = predicate
+            ? predicate(standIn, -1)
+            : standIn.isPickable && standIn.isVisible && standIn.isEnabled();
+        standIn.setEnabled(false);
+        if (!admitted) {
+            return info;
+        }
+
+        const result = new PickingInfo();
+        result.hit = true;
+        result.distance = hit.distance;
+        result.pickedPoint = hit.point;
+        result.pickedMesh = standIn;
+        result.ray = info?.ray ?? ray;
+        return result;
+    };
+    const batched = (): RowScan | undefined => (nodeIdTargets.has(scene) ? rowScans.get(scene) : undefined);
+
+    scene.pick = (...args) => {
+        const info = pick(...args);
+        const [x, y, predicate, , camera] = args;
+        const scan = batched();
+        // The scan's ray is the active camera's, as Babylon's is unless a pick names another camera.
+        const moving = predicate !== undefined && predicate === scene.pointerMovePredicate;
+        if (
+            scan === undefined ||
+            moving ||
+            (camera !== undefined && camera !== null && camera !== scene.activeCamera)
+        ) {
+            return info;
+        }
+
+        return answer(info, null, scan.shapeRayHit(x, y), scan, predicate) ?? info;
+    };
+    scene.pickWithRay = (...args) => {
+        const info = pickWithRay(...args);
+        const [ray, predicate] = args;
+        const scan = batched();
+        return scan === undefined ? info : answer(info, ray, scan.rowRayHit(ray), scan, predicate);
+    };
+}
+
 /** Each scene's node ID target, while its graph draws on the `"batched"` path. */
 const nodeIdTargets = new WeakMap<Scene, NodeIdReader>();
 
@@ -837,6 +984,7 @@ export function useNodeIdTarget(scene: Scene, reader: NodeIdReader | null): void
         nodeIdTargets.delete(scene);
     } else {
         nodeIdTargets.set(scene, reader);
+        pickRowsInBabylon(scene);
     }
 }
 
@@ -900,7 +1048,7 @@ export function pickRayAsDrawn(scene: Scene, ray: Ray): DrawnHit {
         return scan.pickRay(ray);
     }
 
-    const info = scene.pickWithRay(ray, alongRay(scene, ray, rayPickable));
+    const info = babylonPickWithRay(scene)(ray, alongRay(scene, ray, rayPickable));
     return { mesh: info?.pickedMesh ?? null, point: info?.pickedPoint ?? null };
 }
 
@@ -913,7 +1061,7 @@ export function pickRayAsDrawn(scene: Scene, ray: Ray): DrawnHit {
  */
 export function pickCloseLabel(scene: Scene, x: number, y: number): AbstractMesh | null {
     const ray = scene.createPickingRay(x, y, null, null);
-    return scene.pick(x, y, alongRay(scene, ray, isCloseLabel)).pickedMesh;
+    return babylonPick(scene)(x, y, alongRay(scene, ray, isCloseLabel)).pickedMesh;
 }
 
 /**

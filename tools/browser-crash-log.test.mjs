@@ -119,3 +119,29 @@ test("Chromium's stderr lines are kept off the screen and quoted by the report",
         /\| .*pw:browser .*signal=SIGKILL/,
     );
 });
+
+test("a crash report is quoted whole, header to end, however many lines Chromium wrote after it (#9850)", async () => {
+    const { provider } = fakeProvider();
+    logBrowserCrashes(provider);
+    const at = "2026-11-24T08:49:35.304Z pw:browser [pid=4811][err]";
+    const frames = Array.from({ length: 80 }, (_, i) => `${at} #${String(i)} 0x5627cdad0ce0 (chrome+0x89bbcdf)`);
+    const later = Array.from({ length: 300 }, (_, i) => `${at} [4811:4828:ERROR:later.cc:${String(i)}] later`);
+    process.stderr.write(
+        [`${at} [4882:1:ERROR:context.cc:1] before`, `${at} Received signal 11 SI_KERNEL 000000000000`, ...frames]
+            .concat([`${at}  trp: 000000000000000d`, `${at} [end of stack trace]`, ...later, ""])
+            .join("\n"),
+    );
+    const page = await provider.providerFactory().openBrowserPage("s1");
+    const report = printed(() => page.emit("crash"));
+    for (const expected of [
+        "context.cc:1] before",
+        "Received signal 11",
+        "#0 0x",
+        "#79 0x",
+        "trp: 0",
+        "[end of stack",
+    ]) {
+        assert.ok(report.includes(expected), expected);
+    }
+    assert.ok(report.includes("later.cc:299]"), "the tail is still quoted");
+});

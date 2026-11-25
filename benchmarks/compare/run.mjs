@@ -1,5 +1,7 @@
 // BENCH_URL=... BENCH_RESULTS=... node run.mjs <lib> <mode> <accel> <n> <m> <dpr> [skip-layout] [labels] [label-<k>] [arrows] [sampled] [glyphs] [curves] [3d] [no-still] [no-move]
-//     [dim=2d|3d] [style=<name>] [layout=<name>] [edit] [frames=<k>] [allow-objects] [frame-check]
+//     [dim=2d|3d] [style=<name>] [layout=<name>] [edit] [frames=<k>] [allow-objects] [frame-check] [planted] [quality]
+// planted: a planted partition graph with 100 communities instead of G(n, m). quality: after the load, only the layout
+// quality stage runs (B.quality, scored by quality.js), up to BENCH_QUALITY_CAP_S seconds of layout (default 60).
 // lib: cosmos|graphty; mode: default|lean|plain; accel: on|off. Appends one JSON line to BENCH_RESULTS.
 // The flags with "=" and edit and allow-objects are the performance matrix's (perf-matrix.mjs); BENCH_SCENARIO names the
 // matrix scenario in the row.
@@ -51,13 +53,23 @@ const skip = flags.includes("skip-layout"),
     allowObjects = flags.includes("allow-objects"),
     edit = flags.includes("edit"),
     // parity-vs-reference.mjs: after the load, only the per-frame correctness probe (B.frameCheck) runs
-    frameCheck = flags.includes("frame-check");
+    frameCheck = flags.includes("frame-check"),
+    quality = flags.includes("quality"),
+    planted = quality || flags.includes("planted");
+const QUALITY_CAP_MS = 1000 * Number(process.env.BENCH_QUALITY_CAP_S ?? 60);
+const QUALITY_MARKS = (process.env.BENCH_QUALITY_MARKS_S ?? "1,5,15,30").split(",").map((x) => 1000 * Number(x));
+// BENCH_QUALITY_STEPS: cosmos.gl's quality stage steps its simulation by hand, up to this many steps (see B.quality).
+const QUALITY_STEPS = Number(process.env.BENCH_QUALITY_STEPS ?? 0);
+const QUALITY_STEP_MARKS = [100, 500, 1000, 2000, 4000];
+// BENCH_ANGLE=swiftshader: WebGL on SwiftShader, Chromium's software renderer, instead of the card. Its rows are marked
+// `software` and are kept, not voided, for figures that do not depend on speed (layout quality).
+const SOFTWARE = process.env.BENCH_ANGLE === "swiftshader";
 const flagValue = (key) => flags.find((f) => f.startsWith(`${key}=`))?.slice(key.length + 1);
 const style = flagValue("style"),
     layout = flagValue("layout"),
     dim = flagValue("dim"),
     FRAMES = Number(flagValue("frames") ?? 200);
-const FRAME_CHECK_DONE = "frame check done";
+const ONLY_STAGE_DONE = "only stage done";
 const N = Number(n),
     M = Number(m),
     DPR = Number(dpr);
@@ -67,9 +79,9 @@ const MAIN = dirname(gitDir.toString().trim());
 const EGL = process.env.BENCH_EGL ?? join(MAIN, "tmp/egl/root/usr/lib/x86_64-linux-gnu");
 const FLAGS = [
     "--enable-unsafe-webgpu",
-    "--enable-features=Vulkan",
-    "--use-angle=vulkan",
-    "--disable-vulkan-surface",
+    ...(SOFTWARE
+        ? ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"]
+        : ["--enable-features=Vulkan", "--use-angle=vulkan", "--disable-vulkan-surface"]),
     "--enable-precise-memory-info",
     "--disable-gpu-vsync",
     "--disable-frame-rate-limit",
@@ -114,7 +126,10 @@ const out = {
     rendererRequest: lib === "graphty" ? RENDERER : undefined,
     antialias: lib === "graphty" ? ANTIALIAS : undefined,
     limits: lib === "graphty" ? LIMITS : undefined,
+    cosmosConfig:
+        lib === "cosmos" && process.env.BENCH_COSMOS_CONFIG ? JSON.parse(process.env.BENCH_COSMOS_CONFIG) : undefined,
     scenario: process.env.BENCH_SCENARIO || undefined,
+    qualityCapS: quality && !QUALITY_STEPS ? QUALITY_CAP_MS / 1000 : undefined,
     n: N,
     m: M,
     dpr: DPR,
@@ -185,7 +200,8 @@ try {
         dirty: info.build.dirty,
         renderer: info.webgl,
     });
-    if (!/RTX 4070 SUPER/.test(info.webgl) || /swiftshader/i.test(info.webgl)) {
+    if (SOFTWARE) out.software = true;
+    else if (!/RTX 4070 SUPER/.test(info.webgl) || /swiftshader/i.test(info.webgl)) {
         out.void = true;
         throw new Error("void: renderer is " + info.webgl);
     }
@@ -196,7 +212,7 @@ try {
         secure: await page.evaluate(() => [isSecureContext, !!navigator.gpu]),
     });
     log("floor", await page.evaluate(() => B.floor()));
-    log("gen", await page.evaluate(([n, m]) => B.gen(n, m), [N, M]));
+    log("gen", await page.evaluate(([n, m, kind]) => B.gen(n, m, kind), [N, M, planted ? "planted" : undefined]));
     // BENCH_PROFILE_TIMED names a file prefix: the engine setup, the load and the layout frame stages are then
     // CPU-profiled while they are timed, into <prefix>-setup, -load and -layout .cpuprofile, to read their
     // garbage collector and per-function time. The profiler slows them, so write those rows to their own file.
@@ -232,6 +248,11 @@ try {
                 dim,
                 probe: frameCheck,
                 onDemand: !!process.env.LAYOUT_ONLY,
+                // JSON merged into cosmos.gl's Graph config, e.g. {"spaceSize":8192}; recorded in the row
+                cosmosConfig:
+                    lib === "cosmos" && process.env.BENCH_COSMOS_CONFIG
+                        ? JSON.parse(process.env.BENCH_COSMOS_CONFIG)
+                        : undefined,
             },
         ]),
     );
@@ -254,7 +275,28 @@ try {
         log("frameCheck", await page.evaluate(([l, f]) => globalThis.B.frameCheck(l, f), [layout ?? "ngraph", FRAMES]));
         const shot = `frame-check-${process.env.BENCH_SCENARIO ?? "run"}-${RENDER_PATH ?? "default"}.png`;
         await page.screenshot({ path: join(dirname(RESULTS), "shots", shot), timeout: 20000 }).catch(() => {});
-        throw new Error(FRAME_CHECK_DONE);
+        throw new Error(ONLY_STAGE_DONE);
+    }
+    if (quality) {
+        log(
+            "quality",
+            await page.evaluate(
+                ([c, k, st, sm]) => globalThis.B.quality(c, k, st, sm),
+                [QUALITY_CAP_MS, QUALITY_MARKS, QUALITY_STEPS, QUALITY_STEP_MARKS],
+            ),
+        );
+        await page
+            .screenshot({
+                path: join(
+                    dirname(RESULTS),
+                    "shots",
+                    `quality-${lib}-${RENDER_PATH ?? "default"}${SOFTWARE ? "-swiftshader" : ""}-${N}-${out.qualityCapS ?? QUALITY_STEPS + "steps"}.png`,
+                ),
+                // SwiftShader can take far longer than the card to draw the frame a screenshot waits for.
+                timeout: SOFTWARE ? 300000 : 20000,
+            })
+            .catch((e) => console.log("screenshot failed", String(e).slice(0, 120)));
+        throw new Error(ONLY_STAGE_DONE);
     }
     if (style) log("restyle", await page.evaluate((name) => globalThis.B.restyle(name), style));
     // What a labeled run really built: with sampling on, only the cells' winners.
@@ -328,11 +370,32 @@ try {
         log("layoutSteps", await page.evaluate(() => B.layoutSteps()));
     }
 } catch (e) {
-    if (e?.message !== FRAME_CHECK_DONE) log("failure", String(e?.message ?? e).slice(0, 500));
+    if (e?.message !== ONLY_STAGE_DONE) log("failure", String(e?.message ?? e).slice(0, 500));
 } finally {
     save();
     await ctx.close();
     rmSync(UDD, { recursive: true, force: true });
+}
+
+/**
+ * One hover: the pointer leaves, the hover is armed, the pointer moves onto the target.
+ * @param {import("playwright").Page} page - The page.
+ * @param {{ x: number, y: number }} t - The target on screen.
+ * @param {number} wait - How long to wait for the answer, in ms.
+ * @returns {Promise<number | null>} The latency in ms, or null when no answer came.
+ */
+async function hoverOnce(page, t, wait) {
+    await page.mouse.move(1260, 980);
+    await page.waitForTimeout(150);
+    await page.evaluate(() => B.armHover());
+    await page.mouse.move(t.x, t.y);
+    const ok = await page
+        .waitForFunction(() => B.hoverResult()?.hit, null, { timeout: wait, polling: 20 })
+        .then(
+            () => true,
+            () => false,
+        );
+    return ok ? +(await page.evaluate(() => B.hoverResult())).hit.lat.toFixed(1) : null;
 }
 
 /**
@@ -341,27 +404,42 @@ try {
  * @param {string} stage - The row's field.
  */
 async function hoverStage(page, stage) {
-    const K = 10;
-    const targets = await page.evaluate((k) => B.hoverTargets(k), K);
+    const result = stage === "hoverLayout" ? await hoverMoving(page) : await hoverStill(page);
+    await page.mouse.move(1260, 980);
+    log(stage, result);
+}
+
+/**
+ * Ten hovers on a still scene, every target picked at once; the stage ends at the first hover that gets no answer.
+ * @param {import("playwright").Page} page - The page.
+ * @returns {Promise<{ targets: number, latMs: (number | string)[] }>} The latencies.
+ */
+async function hoverStill(page) {
+    const targets = await page.evaluate((k) => B.hoverTargets(k), 10);
     const lats = [];
     for (const t of targets) {
-        await page.mouse.move(1260, 980);
-        await page.waitForTimeout(150);
-        await page.evaluate(() => B.armHover());
-        await page.mouse.move(t.x, t.y);
-        const ok = await page
-            .waitForFunction(() => B.hoverResult()?.hit, null, { timeout: 180000, polling: 20 })
-            .then(
-                () => true,
-                () => false,
-            );
-        if (!ok) {
-            lats.push(">180000");
-            break;
-        }
-        const r = await page.evaluate(() => B.hoverResult());
-        lats.push(+r.hit.lat.toFixed(1));
+        const lat = await hoverOnce(page, t, 180000);
+        lats.push(lat ?? ">180000");
+        if (lat === null) break;
     }
-    await page.mouse.move(1260, 980);
-    log(stage, { targets: targets.length, latMs: lats });
+    return { targets: targets.length, latMs: lats };
+}
+
+/**
+ * Ten hovers while a layout runs. The nodes move, so a target picked before the first hover is somewhere else by the
+ * tenth: each hover gets its own target, picked just before the pointer moves, and a pointer that lands where no
+ * node is any more is a miss, recorded and passed over, not a latency.
+ * @param {import("playwright").Page} page - The page.
+ * @returns {Promise<{ targets: number, latMs: (number | string)[], fitted?: boolean }>} The latencies.
+ */
+async function hoverMoving(page) {
+    const lats = [];
+    let fitted = false;
+    for (let h = 0; h < 10; h++) {
+        const [t] = await page.evaluate((s) => B.hoverTargets(1, s), 100 + h);
+        if (!t) break;
+        fitted ||= !!t.fitted;
+        lats.push((await hoverOnce(page, t, 10000)) ?? "miss");
+    }
+    return { targets: lats.length, latMs: lats, ...(fitted ? { fitted } : {}) };
 }

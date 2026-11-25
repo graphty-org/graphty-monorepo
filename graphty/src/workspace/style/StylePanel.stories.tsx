@@ -75,11 +75,14 @@ async function openScene(canvasElement: HTMLElement): Promise<BareScene> {
         return found as GraphtyElement;
     });
     const { session } = element;
-    // The app loads the sample once the project's element is up, then starts the graph's history
-    // (Workspace.tsx); that clear would cancel the switch to 2D below, so the open has to be over.
+    // The app loads the sample once the project's element is up, as one undo step that its name
+    // joins last (open.ts, issue #796); a switch to 2D before that would land inside the opening,
+    // so the open has to be over.
     await waitFor(() => {
         expect(session.data.statistics().nodeCount).toBe(77);
-        expect(session.history.pending.length + session.history.steps.length).toBe(0);
+        expect(session.history.pending.length).toBe(0);
+        expect(session.history.steps.length).toBe(1);
+        expect(session.config.name).toBe("Les Miserables");
     });
     expect(session.config.startingRows).toBe(true);
     expect(session.config.editableBase).toBe(true);
@@ -1042,12 +1045,14 @@ async function loadFootball(canvasElement: HTMLElement): Promise<GraphtyElement>
         expect(found).not.toBeNull();
         return found as GraphtyElement;
     });
-    // The open is finished when the workspace has started the graph's history (Workspace.tsx clears
-    // it once the sample is read): before that, the clear would cancel the switch to 2D below.
+    // The open is finished when the sample's one undo step holds the project's name too (open.ts
+    // names it last, issue #796): before that, the switch to 2D below would land inside the opening.
     await waitFor(() => {
         const { history } = element.session;
         expect(element.session.data.statistics().nodeCount).toBe(115);
-        expect(history.pending.length + history.steps.length).toBe(0);
+        expect(history.pending.length).toBe(0);
+        expect(history.steps.length).toBe(1);
+        expect(element.session.config.name).toBe("College football");
     });
     await element.session.layout.setDimension("2d");
     await element.session.layout.set("circular");

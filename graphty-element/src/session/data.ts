@@ -27,6 +27,7 @@ import { sha256Hex, type SourceListing, type SourceListQuery, type SourceProbe }
 import {
     DATASET_NAMES,
     DatasetError,
+    DATASETS,
     fetchDataset,
     GENERATOR_CATALOG,
     type SampleGraph,
@@ -1920,7 +1921,10 @@ export class SessionData implements SessionDataApi {
             } catch (error) {
                 throw datasetError(name, baseUrl, signal, status, error);
             }
-            const sample = this.sampleLoad(snapshot, name, load);
+            // Named as the catalog names it ("Doubtful Sound dolphins", not "dolphins"); a dataset the catalog does not
+            // list (a mirror's own) by its name.
+            const title = DATASETS.find((each) => each.name === name)?.title ?? name;
+            const sample = this.sampleLoad(snapshot, title, load);
             await this.importVia(send, sample.source, load, turn, {
                 ...sample,
                 facts: { dataset: name, baseUrl },

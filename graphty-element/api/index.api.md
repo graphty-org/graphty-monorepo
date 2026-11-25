@@ -281,7 +281,6 @@ abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<str
     static readonly loadedWeightByDefault: boolean;
     // @internal
     mixedDirection(): boolean | null;
-    // (undocumented)
     static namespace: string;
     get namespace(): string;
     protected nodeIndex(snapshot: GraphSnapshot, option: string, id: NodeId): number;
@@ -296,12 +295,10 @@ abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<str
     reachedAccelerator: GraphAccelerator | null;
     static register<T extends AlgorithmClass>(cls: T, options?: RegisterOptions): T;
     protected resolveOptions(options?: Partial<TOptions>): TOptions;
-    // (undocumented)
     abstract run(g: AlgorithmHost): Promise<void>;
     protected get schemaOptions(): TOptions;
     protected _schemaOptions: TOptions;
     static scopeInput?: ScopeInputDeclaration;
-    // (undocumented)
     static type: string;
     get type(): string;
     // @internal
@@ -1065,32 +1062,32 @@ export function defineShader(definition: ShaderDefinition, options?: RegisterOpt
 
 export { defineSource }
 
-// @beta
+// @public
 export const DOCUMENT_SECTIONS: readonly DocumentSection[];
 
-// @beta
+// @public
 export interface DocumentBindFacts {
     readonly file: boolean;
     readonly open: boolean;
 }
 
-// @beta
+// @public
 export type DocumentCode = "E_UNKNOWN_COMMAND" | "W_SCHEMA_MISMATCH" | "W_SECTION_KEPT" | "W_EXTENSION_REQUIRED" | "W_SECTION_UPGRADED" | "W_ELEMENT_NAMING_LEFT_OUT" | "W_SOURCE_NO_PATH" | "W_SOURCE_UNAVAILABLE" | "W_SOURCE_EMBEDDED" | "W_OPTION_NOT_SAVED" | "W_REFERENCE_UNBOUND" | "W_DATA_CHANGED" | "W_DATA_MISMATCH" | "W_JOIN_HISTORY_DIFFERS" | "W_CAMERA_CONTROLLER_UNKNOWN" | "W_RUN_NOT_RUN" | "W_RESULTS_DIFFER" | "W_ENGINE_CHANGED" | "W_EDGE_MATCH_AMBIGUOUS" | "W_SOURCE_UNKEYED" | "W_NODE_NAMED_ONLY" | "W_EDGE_END_MISSING" | "W_KEY_EMPTY" | "W_ROLES_DIFFER" | "W_CLASH_RULE_TYPE" | "W_COLUMN_WIDENED" | "W_MEMBER_LEFT_OUT" | "W_RECIPE_NOT_APPLIED" | "W_LAYOUT_ENGINE_UNAVAILABLE" | "W_LAYOUT_OPTION_NOT_APPLIED" | "W_NAME_UPGRADED";
 
-// @beta
+// @public
 export interface DocumentHeldFacts {
     readonly reads: number | null;
     readonly reason: DocumentHeldReason;
     readonly version: number | null;
 }
 
-// @beta
+// @public
 export type DocumentHeldReason = "version" | "extension" | "data" | "kind" | "unknown" | "malformed" | "graphs" | "add";
 
-// @beta
+// @public
 export type DocumentSection = "data" | "style" | "recipe" | "settings" | "results" | "notes" | "view";
 
-// @beta
+// @public
 export interface DocumentSectionAbout {
     readonly authors?: readonly {
         readonly name: string;
@@ -1103,7 +1100,7 @@ export interface DocumentSectionAbout {
     readonly modified?: string;
 }
 
-// @beta
+// @public
 export interface DocumentSectionFacts {
     readonly counts: Readonly<Record<string, number>>;
     readonly held?: DocumentHeldFacts;
@@ -1111,7 +1108,7 @@ export interface DocumentSectionFacts {
     readonly section: DocumentSection;
 }
 
-// @beta
+// @public
 export interface DocumentSectionNeed {
     readonly found?: boolean;
     readonly kind: "column" | "type" | "source" | "result";
@@ -1176,6 +1173,7 @@ export class Edge {
     }[];
     // @internal
     get drawnGradient(): readonly string[];
+    get drawnHeadPosition(): Vector3 | null;
     get drawnLine(): {
         name: string;
         length: number;
@@ -1220,6 +1218,8 @@ export class Edge {
     parentGraph: Graph | GraphContext;
     // (undocumented)
     ray: Ray;
+    // @internal
+    redrawPulledOffEnds(): boolean;
     // @internal
     refreshFonts(families: ReadonlySet<string>): boolean;
     // @internal
@@ -2814,7 +2814,7 @@ export type ExportScope = RuleTree | "all" | "shown" | "selection" | {
 export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 
 // @public
-export type FeatureId = "data-management" | "location-map" | "cosmograph" | "file-styles" | "source-steps" | "source-references" | "save-files-v2";
+export type FeatureId = "data-management" | "location-map" | "cosmograph" | "file-styles" | "source-steps" | "source-references";
 
 // @public
 export interface FigureOptions {
@@ -3513,7 +3513,7 @@ export interface GraphErrorEvent {
 }
 
 // @public
-export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | OverviewChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | LayoutUpdatedEvent | LayoutWarningEvent | LimitsWarningEvent | BasemapStatusEvent | RenderLostEvent | RenderRestoredEvent | OperationCanceledEvent | StatsUpdateEvent | InputEnabledChangedEvent | InputBookkeepingEvent | ReducedMotionChangedEvent | AnimationProgressEvent | TourProgressEvent | TourEndedEvent | ViewsChangedEvent | XRSessionStartedEvent | XRSessionEndedEvent | XRMenuSelectEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
+export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | OverviewChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | LayoutUpdatedEvent | LayoutWarningEvent | LimitsWarningEvent | BasemapStatusEvent | RenderLostEvent | RenderRestoredEvent | RenderWarningEvent | OperationCanceledEvent | StatsUpdateEvent | InputEnabledChangedEvent | InputBookkeepingEvent | ReducedMotionChangedEvent | AnimationProgressEvent | TourProgressEvent | TourEndedEvent | ViewsChangedEvent | XRSessionStartedEvent | XRSessionEndedEvent | XRMenuSelectEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
 
 // @public
 export type GraphEventType = GraphEvent["type"];
@@ -4565,11 +4565,12 @@ export type GraphtyErrorCode =
 */
 | "E_NO_WEBGL"
 /**
-* A shader could not be built for WebGPU, usually because a name or a built-in in it is legal
-* GLSL that WGSL or the compilers in between do not take. A refused shader never draws and can
-* lose every frame it is part of, so `rendererStatus.drawing` turns false. `details.stage` names the step that gave up (`"compiler"`,
-* `"translator"` or `"device"`) and `details.messages` carry what it said, which the translator
-* leaves empty. Reported as `graph-error`.
+* A shader could not be built, under WebGPU usually because a name or a built-in in it is legal
+* GLSL that WGSL or the compilers in between do not take; under WebGL because the driver's
+* compiler refused it. A refused shader never draws and can lose every frame it is part of, so
+* `rendererStatus.drawing` turns false. `details.stage` names the step that gave up
+* (`"compiler"`, `"translator"` or `"device"`) and `details.messages` carry what it said,
+* which the translator leaves empty. Reported as `graph-error`.
 */
 | "E_SHADER_REFUSED"
 /**
@@ -5181,6 +5182,14 @@ export type GraphtyWarningCode =
 * Experimental: may change in a minor release.
 */
 | "W_OBJECT_CAP"
+/**
+* The installed Babylon.js words a line of its shaders differently from the one
+* render-path="batched" edits, so the edit was not made: batched rows still draw, with Babylon's
+* own line (a node's shading may differ a little from the same node drawn as an object).
+* `params.renderer` is `"webgl"` or `"webgpu"`, `params.patterns` the edits that matched
+* nothing. Reported as `render-warning`.
+*/
+| "W_SHADER_EDIT_MISSED"
 /**
 * A style layer binds a whole label style channel (`node.labelStyle`) to a path. No scale
 * produces a whole label style, so the binding paints nothing. `params.channel` is the channel,
@@ -6079,6 +6088,8 @@ class Node_2 implements ModelUser {
     get groupDrawnForAnotherCamera(): boolean;
     // @internal
     get groupSizing(): NodeStyleConfig["group"];
+    // @internal
+    get hiddenByStyle(): boolean;
     hideTooltip(): void;
     readonly id: NodeIdType;
     // @internal
@@ -7977,11 +7988,9 @@ export const PROJECT_FILE: Readonly<{
 // @public
 export interface ProjectApi {
     assetChoices(): ProjectAssetChoice[];
-    // @beta
     describe(options?: Pick<ProjectSaveOptions, "sections" | "form" | "paths" | "handles" | "location">): Promise<ProjectSaveFacts>;
     readonly dirty: boolean;
     readonly id: string;
-    // @beta
     inspect(source: ProjectSource, options?: Pick<ProjectOpenOptions, "migrate" | "limits" | "sections" | "dataMode" | "columns">): Promise<ProjectFileFacts | undefined>;
     markSaved(saved: SavedProject): void;
     readonly name: string | null;
@@ -8001,7 +8010,7 @@ export interface ProjectAssetChoice {
     readonly urlRefused?: CodedFact<"W_MODEL_NOT_KEPT_BY_URL">;
 }
 
-// @beta
+// @public
 export interface ProjectFileFacts {
     readonly form: "full" | "section";
     readonly name: string | null;
@@ -8011,7 +8020,7 @@ export interface ProjectFileFacts {
     readonly sources: readonly ProjectFileSource[];
 }
 
-// @beta
+// @public
 export interface ProjectFileHandle {
     getFile(): Promise<Blob>;
     readonly name: string;
@@ -8028,7 +8037,7 @@ export function projectFileName(name: string | null | undefined, options?: {
     readonly section?: DocumentSection;
 }): string;
 
-// @beta
+// @public
 export interface ProjectFileRun {
     readonly algorithm?: string;
     readonly id: string;
@@ -8037,7 +8046,7 @@ export interface ProjectFileRun {
     readonly restorable: boolean;
 }
 
-// @beta
+// @public
 export interface ProjectFileSection extends DocumentSectionFacts {
     readonly about: DocumentSectionAbout;
     readonly binding?: SectionBinding;
@@ -8046,7 +8055,7 @@ export interface ProjectFileSection extends DocumentSectionFacts {
     readonly version: number | null;
 }
 
-// @beta
+// @public
 export interface ProjectFileSource {
     readonly id: string;
     readonly kind: ProjectSourceKind;
@@ -8058,44 +8067,32 @@ export interface ProjectFileSource {
 
 // @public
 export interface ProjectOpenOptions {
-    // @beta
     readonly applyRecipe?: boolean;
-    // @beta
     readonly bindOtherData?: boolean;
-    // @beta
     readonly columns?: {
         readonly node?: Readonly<Record<string, string>>;
         readonly edge?: Readonly<Record<string, string>>;
     };
-    // @beta
     readonly dataMode?: "replace" | "add";
     readonly discard?: boolean;
     readonly draft?: {
         readonly onto?: "graph";
         readonly guess?: "names" | "values";
     };
-    // @beta
     readonly fetchSources?: boolean;
     readonly fileName?: string;
-    // @beta
     readonly files?: Readonly<Record<string, Blob>>;
     readonly history?: "step" | "start";
     // (undocumented)
     readonly limits?: {
         readonly fileBytes?: number;
     };
-    // @beta
     readonly location?: string;
-    // @beta
     readonly migrate?: boolean;
     readonly ownWork?: boolean;
-    // @beta
     readonly rerun?: boolean;
-    // @beta
     readonly runs?: Readonly<Record<string, boolean>>;
-    // @beta
     readonly sections?: readonly DocumentSection[];
-    // @beta
     readonly signal?: AbortSignal;
 }
 
@@ -8112,7 +8109,7 @@ export interface ProjectOpenReport {
 // @public
 export type ProjectProblem = CodedFact<GraphtyErrorCode | GraphtyWarningCode | DocumentCode | "shader.unknown" | "shader.not-saved">;
 
-// @beta
+// @public
 export interface ProjectSaveFacts {
     readonly project: boolean;
     readonly sections: readonly ProjectSaveSection[];
@@ -8122,26 +8119,17 @@ export interface ProjectSaveFacts {
 // @public
 export interface ProjectSaveOptions {
     readonly assets?: Readonly<Record<string, AssetStorage>>;
-    // @beta
     readonly embed?: Readonly<Record<string, SourceStorage>>;
     readonly extensions?: Readonly<Record<string, unknown>>;
-    // @beta
     readonly form?: "full" | "section";
-    // @beta
     readonly format?: 1 | 2;
-    // @beta
     readonly handles?: Readonly<Record<string, ProjectFileHandle>>;
     readonly leaveOut?: readonly ("graphty-style" | "graphty-notes" | "graphty-view-state")[];
-    // @beta
     readonly location?: string;
     readonly markSaved?: boolean;
-    // @beta
     readonly paths?: Readonly<Record<string, string>>;
-    // @beta
     readonly results?: boolean;
-    // @beta
     readonly rewriteRecipe?: boolean;
-    // @beta
     readonly sections?: readonly DocumentSection[];
 }
 
@@ -8152,7 +8140,7 @@ export interface ProjectSaveReport {
     readonly written: readonly string[];
 }
 
-// @beta
+// @public
 export interface ProjectSaveSection extends DocumentSectionFacts {
     readonly required: boolean;
     readonly saved: boolean;
@@ -8161,7 +8149,7 @@ export interface ProjectSaveSection extends DocumentSectionFacts {
 // @public
 export type ProjectSource = Blob | Uint8Array | string;
 
-// @beta
+// @public
 export interface ProjectSourceChoice {
     readonly edges: number;
     readonly format?: string;
@@ -8176,7 +8164,7 @@ export interface ProjectSourceChoice {
     readonly storage: SourceStorage;
 }
 
-// @beta
+// @public
 export type ProjectSourceKind = "file" | "url" | "network" | "sample" | "derived" | "reader";
 
 // @public
@@ -8212,7 +8200,7 @@ export interface QueueableOptions {
     skipQueue?: boolean;
 }
 
-// @beta
+// @public
 export interface RecipesApi {
     apply(recipe: ProjectSource): Promise<ProjectOpenReport>;
     export(): Promise<SavedProject>;
@@ -8357,6 +8345,13 @@ export type RenderQualityCode = "guard.slow-gpu" | "guard.paused" | "guard.long-
 export interface RenderRestoredEvent {
     renderer: "webgl" | "webgpu";
     type: "render-restored";
+}
+
+// @public
+export interface RenderWarningEvent {
+    code: GraphtyWarningCode;
+    params: Readonly<Record<string, unknown>>;
+    type: "render-warning";
 }
 
 export { ReplayFetch }
@@ -8760,7 +8755,7 @@ export interface ScreenshotResult {
 // @public
 export type ScreenshotWarningCode = "W_LARGE_CAPTURE" | "W_HIGH_MEMORY";
 
-// @beta
+// @public
 export type SectionBinding = "loads" | "held" | "other-data";
 
 // @public
@@ -8954,7 +8949,7 @@ export { SourceDescriptor }
 
 export { SourceEdgeRecord }
 
-// @beta
+// @public
 export type SourceEmbeddedReason = "edited" | "bytes" | "rows" | "mapping" | "kind" | "options";
 
 export { sourceEndpoint }
@@ -9147,10 +9142,10 @@ export type SourceSettings = Pick<SourceLoadRecord, "source" | "endpoint" | "con
     readonly limits?: SourceLimitOptions;
 };
 
-// @beta
+// @public
 export type SourceStorage = "embedded" | "referenced";
 
-// @beta
+// @public
 export type SourceUnavailableReason = "not-found" | "needs-file" | "read" | "too-large" | "needs-permission" | "copy-changed" | "kind" | "copy-form" | "options" | "ledger";
 
 export { SourceValidators }
@@ -9401,6 +9396,8 @@ export class UpdateManager implements Manager {
     nodeRowSelected(row: number): boolean;
     // @internal
     nodeRowsMoved(remap: ArrayLike<number>): void;
+    // @internal
+    noteEndsChanged(row: number): void;
     nothingIsOwed(): boolean;
     onceNothingIsOwed(callback: () => void): () => void;
     operationsPending: (() => boolean) | null;
@@ -9424,6 +9421,8 @@ export class UpdateManager implements Manager {
     // @internal
     repaintNodes(nodes: readonly Node_2[]): void;
     static readonly RETRIM_COUNTER = "edges.retrimmedForNodeScale";
+    // @internal
+    rowHiddenByStyle(row: number): boolean;
     // @internal
     rowsRenumbered(): void;
     saveFraming(): () => void;

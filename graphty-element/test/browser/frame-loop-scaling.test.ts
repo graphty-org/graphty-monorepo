@@ -404,8 +404,18 @@ const CASES: readonly Case[] = [
     },
     {
         methods: ["UpdateManager.forceEdgeWalk"],
-        prepare: (element, size) => {
+        prepare: async (element, size) => {
             const manager = element.graph.getUpdateManager();
+            // a tail keeps every edge an object edge, which the walk places, on either render path: a head or a plain
+            // line is pulled from the row table on "batched", and the walk leaves a pulled line alone
+            await element.session.styles.add({
+                name: "tailed",
+                target: "edge",
+                selector: { match: "everything" },
+                set: { "edge.arrowTail": "normal" },
+            } as never);
+            await settled(element.graph);
+            manager.renderFrames(3);
             return Promise.resolve(
                 counting(
                     () => countCalls(Edge.prototype, "update"),
@@ -870,7 +880,9 @@ describe("a repaint of every node", () => {
                 }
 
                 assert.isAbove(frames, 1, "the repaint was spread over frames");
-                assert.strictEqual(walk.mock.calls.length, 1);
+                // Under "batched" an edge drawn as a row line has no `Edge` to walk: its paint is written to its slot.
+                const edgesToWalk = kind === "nodes" || dataManagerInternals.edgesBuilt(graph.getDataManager()) > 0;
+                assert.strictEqual(walk.mock.calls.length, edgesToWalk ? 1 : 0);
             } finally {
                 vi.restoreAllMocks();
                 setMinimumWorkPerFrame(minimumWork);

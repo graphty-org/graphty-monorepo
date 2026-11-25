@@ -1,6 +1,6 @@
 /**
  * @file The `results` section codec, version 2: the record of each run and of the layout, and their
- * outputs as columns (spec/README.md 4.5, 6.4, 8.2 rule 3). Experimental (`save-files-v2`).
+ * outputs as columns (spec/README.md 4.5, 6.4, 8.2 rule 3).
  *
  * Runs are keyed by run id, in graphty-element's own form: a recipe-made run's id is
  * `<namespace>__<as>` and it writes `namespace` and `as`; a hand-started run writes neither. Each

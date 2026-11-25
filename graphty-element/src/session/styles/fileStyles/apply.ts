@@ -1,8 +1,9 @@
 /**
  * @file A file's styles applied by the load that read the file, inside its `data.import` step: the
  * per-element values the layers read written onto the loaded elements as ordinary data columns
- * (`data.apply`), the layers checked one by one and added above the element's base layers, the
- * hidden elements given to the visibility filter, the background to the configuration and the
+ * (`data.apply`), the layers checked one by one and added above the element's base layers (the
+ * elements the file hides among them, drawn hidden by a layer and never filtered out of the graph), the background
+ * to the configuration and the
  * annotations through `annotations.set`, each through the same command any caller uses. Nothing it
  * writes records that a load wrote it: once loaded, the columns and layers are like any others. One
  * load is one undo step, and redo puts all of it back without reading the file again.
@@ -20,7 +21,7 @@ import {
     statesStyles,
 } from "@graphty/graph-io/styles";
 
-import type { Channel, EdgeId, LayerId, LayerSpec, NodeId, Path, RuleTree } from "../../../catalog/types";
+import type { Channel, EdgeId, LayerId, LayerSpec, NodeId, Path } from "../../../catalog/types";
 import type { LoadReport } from "../../../data/report";
 import type { DataImportCommand } from "../../commands/data";
 import type { UndoableContext } from "../../project/Dispatcher";
@@ -38,7 +39,6 @@ import {
     type FileStyleOptions,
     type StyleScalar,
     translateFileStyles,
-    type Translation,
 } from "./translate";
 
 /** A file's styles, as the data source that read the file gives them. */
@@ -416,14 +416,11 @@ async function applyRead(
     // (issue #9298). Its stored positions' scale, framing, background and annotations still apply.
     const accepted = statesStyles(read.extracted) ? acceptedLayers(translation.layers, ctx.services.styles, notes) : [];
 
-    // The values, written onto the elements the element holds as ordinary data columns: only those a layer or the
-    // visibility filter reads, so a value a layer the file rebuilt no longer reads leaves no column behind.
+    // The values, written onto the elements the element holds as ordinary data columns: only those a layer reads,
+    // so a value a layer the file rebuilt no longer reads leaves no column behind.
     const reads = readsOf(accepted);
     for (const kind of ["node", "edge"] as const) {
-        const hiddenKey = translation.hidden[kind]?.key;
-        const used = new Map(
-            [...translation.columns[kind]].filter(([key]) => key === hiddenKey || reads(columnPath(kind, key))),
-        );
+        const used = new Map([...translation.columns[kind]].filter(([key]) => reads(columnPath(kind, key))));
         const rows = rowsOf(
             used,
             ids[kind],
@@ -445,7 +442,6 @@ async function applyRead(
         layers.push(...(value?.result?.applied ?? []), ...(value?.result?.unbound ?? []).map((entry) => entry.layerId));
     }
 
-    await hide(translation.hidden, columnPath, ctx);
     // graph-io gives the background as a color it read; a refusal is a defect, reported with its own code.
     if (translation.background !== null) {
         await ctx.inline({
@@ -676,53 +672,4 @@ function rowsOf(
     }
 
     return [...rows].map(([id, values]) => ({ id, values }));
-}
-
-/**
- * An expression true where a column holds true, or `1` as a format with no booleans spells it.
- * @param path - The column's path.
- * @returns The expression.
- */
-function isTrue(path: Path): string {
-    const quoted = quotePath(path);
-    return `${quoted} == \`true\` || ${quoted} == \`1\``;
-}
-
-/**
- * Hide the elements the file hides, through the visibility filter, beside any filter already set.
- * @param hidden - The hidden elements per kind.
- * @param columnPath - The `data.` path each kept column landed at.
- * @param ctx - The import's context.
- */
-async function hide(
-    hidden: Translation["hidden"],
-    columnPath: (kind: "node" | "edge", key: string) => Path,
-    ctx: UndoableContext,
-): Promise<void> {
-    const leaves: RuleTree[] = [];
-    if (hidden.node !== null) {
-        leaves.push({
-            kind: "expression",
-            where: isTrue(columnPath("node", hidden.node.key)),
-        });
-    }
-
-    if (hidden.edge !== null) {
-        leaves.push({
-            kind: "edges",
-            where: isTrue(columnPath("edge", hidden.edge.key)),
-        });
-    }
-
-    if (leaves.length === 0) {
-        return;
-    }
-
-    const rule: RuleTree = { kind: "not", of: leaves.length === 1 ? leaves[0] : { kind: "any", of: leaves } };
-    const current = ctx.state.visibility.filter;
-    // The rule is built here from the file's columns; a refusal is a defect, reported with its own code.
-    await ctx.inline({
-        op: "visibility.set",
-        filter: current === null ? rule : { kind: "all", of: [current, rule] },
-    });
 }

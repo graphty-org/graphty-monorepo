@@ -147,10 +147,11 @@ export class RecoveringWebGPUEngine extends WebGPUEngine {
     }
 
     /**
-     * Babylon's WebGL engine rebuilds the geometries here; its WebGPU engine forgets to. And
-     * `Mesh._rebuild` drops a mesh's per-instance buffers but not their per-render-pass copies, the
-     * only ones WebGPU uses: a write to one made on the lost device fails validation after a
-     * `destroy` and aborts the renderer after a crash.
+     * `Mesh._rebuild`, which Babylon's own `_rebuildBuffers` reaches through each scene's geometry
+     * rebuild, drops a mesh's per-instance buffers but not their per-render-pass copies, the only
+     * ones WebGPU uses: a write to one made on the lost device fails validation after a `destroy`
+     * and aborts the renderer after a crash. So they are dropped first; Babylon rebuilds every
+     * geometry itself, once.
      */
     protected override _rebuildBuffers(): void {
         for (const scene of [...this.scenes, ...this._virtualScenes]) {
@@ -159,9 +160,6 @@ export class RecoveringWebGPUEngine extends WebGPUEngine {
                     mesh._userInstancedBuffersStorage.renderPasses = {};
                 }
             }
-
-            scene.resetCachedMaterial();
-            scene._rebuildGeometries();
         }
 
         super._rebuildBuffers();

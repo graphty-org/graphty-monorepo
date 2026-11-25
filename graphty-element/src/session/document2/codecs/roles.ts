@@ -1,6 +1,6 @@
 /**
  * @file Each source's weight, time and location roles (spec 4.1.3) and the graph-wide
- * `data.knownFields` settings that are their view. Experimental (`save-files-v2`).
+ * `data.knownFields` settings that are their view.
  *
  * The session holds one setting per role for the whole graph. An open sets it from the roles of the
  * built sources when they agree, and to null when none names it or they differ, and remembers each

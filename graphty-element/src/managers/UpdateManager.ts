@@ -4485,6 +4485,16 @@ export class UpdateManager implements Manager {
     }
 
     private updateEdges(): void {
+        // Placing edges changes no setting, so the graph's direction setting is read once for the whole walk.
+        dataManagerInternals.withSettingHeld(this.dataManager, () => {
+            this.placeEdges();
+        });
+    }
+
+    /**
+     * {@link UpdateManager.updateEdges}, with the direction setting held.
+     */
+    private placeEdges(): void {
         this.statsManager.edgeUpdate.beginMonitoring();
 
         this.followRenumberedRows();

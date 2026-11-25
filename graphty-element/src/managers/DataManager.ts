@@ -444,6 +444,8 @@ export const dataManagerInternals = {} as {
     builtEdges(manager: DataManager): ReadonlyMap<string, Edge>;
     /** A stored node id's row in the store, read with no `Node`; `INVALID_INDEX` for an id it does not hold. */
     rowOf(manager: DataManager, id: NodeIdType): number;
+    /** Run work that changes no setting with the store's direction setting read once; see `GraphStore.withSettingHeld`. */
+    withSettingHeld(manager: DataManager, work: () => void): void;
     /** The `Node` built for a row, building none; undefined when the row has none. */
     builtNodeAtRow(manager: DataManager, row: number): Node | undefined;
     /** The `Node`s built so far, walked without building one for a row that has none. */
@@ -859,6 +861,9 @@ export class DataManager implements Manager {
         dataManagerInternals.edgesLive = (manager) => manager.edgeMap.builtView().size;
         dataManagerInternals.builtEdges = (manager) => manager.edgeMap.builtView();
         dataManagerInternals.rowOf = (manager, id) => manager.store.reads.indexOf(id);
+        dataManagerInternals.withSettingHeld = (manager, work) => {
+            manager.store.withSettingHeld(work);
+        };
         dataManagerInternals.builtNodes = (manager) => manager.nodeMap.built();
         dataManagerInternals.builtNodeAtRow = (manager, row) => {
             const id = manager.nodeIdAtRow(row);

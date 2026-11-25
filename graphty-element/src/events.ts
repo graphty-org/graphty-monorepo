@@ -83,6 +83,7 @@ export type GraphEvent =
     | BasemapStatusEvent
     | RenderLostEvent
     | RenderRestoredEvent
+    | RenderWarningEvent
     | OperationCanceledEvent
     | StatsUpdateEvent
     | InputEnabledChangedEvent
@@ -654,6 +655,21 @@ export interface RenderRestoredEvent {
     type: "render-restored";
     /** The renderer drawing again, `"webgl"` or `"webgpu"`. */
     renderer: "webgl" | "webgpu";
+}
+
+/**
+ * Emitted when the graph is drawn, but not quite as it should be: the installed Babylon.js words a
+ * line of its shaders differently from the one render-path="batched" edits, so batched rows are
+ * shaded or placed by Babylon's own line instead (`W_SHADER_EDIT_MISSED`, `params.renderer`,
+ * `params.patterns`). `rendererStatus.drawing` is unchanged. A code and facts, never a sentence.
+ */
+export interface RenderWarningEvent {
+    /** The event's name. */
+    type: "render-warning";
+    /** What happened: `W_SHADER_EDIT_MISSED`. */
+    code: GraphtyWarningCode;
+    /** The code's parameters, as the code's documentation lists them. */
+    params: Readonly<Record<string, unknown>>;
 }
 
 /**

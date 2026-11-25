@@ -403,8 +403,6 @@ function shapeLine(args: LineHelpers, state: ShapeState): AssetLine {
                 </Popout.Trigger>
                 <Popout.Panel
                     width={POPOUT_WIDTH}
-                    placement="left"
-                    alignment="start"
                     header={{ variant: "title", title: "Model settings" }}
                     closeLabel={CUSTOM_MODEL.closeSettings}
                 >

@@ -1,5 +1,7 @@
+import type { AbstractEngine } from "@babylonjs/core/Engines/abstractEngine.js";
 import type { EffectLayer } from "@babylonjs/core/Layers/effectLayer.js";
 import type { GlowLayer } from "@babylonjs/core/Layers/glowLayer.js";
+import type { Effect } from "@babylonjs/core/Materials/effect.js";
 import type { Material } from "@babylonjs/core/Materials/material.js";
 import { MaterialPluginBase } from "@babylonjs/core/Materials/materialPluginBase.js";
 import { ShaderLanguage } from "@babylonjs/core/Materials/shaderLanguage.js";
@@ -29,6 +31,11 @@ import type { Scene } from "@babylonjs/core/scene.js";
  * ordinary instance's never is. A batch's color alpha is always 1, but WebKit interpolates that 1
  * a hair below 1, so a 0.5-opacity node blends a level off where the object row lands on a half
  * level (#9506). The fragment rewrite drops the multiply for a batch.
+ *
+ * Babylon skips a rewrite whose pattern matches nothing and says nothing, and a later Babylon may
+ * word a line differently. So every batch shader built is checked for each rewrite, and one it
+ * lacks is handed to the engine's {@link onRewriteMissed} listener (#10025). The shader still
+ * compiles and draws with Babylon's own line, so it is a warning, never a refused shader.
  */
 
 const PLUGIN_NAME = "GraphtyRowPull";
@@ -36,14 +43,19 @@ const PLUGIN_NAME = "GraphtyRowPull";
 /** After `InstanceColorShading`, which rewrites a fragment line this does not touch. */
 const PLUGIN_PRIORITY = 950;
 
+/**
+ * Starts the normal rewrite, whose line Babylon also writes for an ordinary instance: the mark tells
+ * the rewritten line apart, so {@link missedRewrites} can see that it was made.
+ */
+const NORMAL_MARK = "/* row pull: an ordinary instance's normal */";
+
 const GLSL = {
     CUSTOM_VERTEX_DEFINITIONS: `#ifdef ROW_PULL
 attribute float graphtyRow;
 uniform highp sampler2D rowPosition;
 #endif
 `,
-    [String.raw`!vNormalW=normalUpdated/vec3\(dot\(normalWorld\[0\],normalWorld\[0\]\),dot\(normalWorld\[1\],normalWorld\[1\]\),dot\(normalWorld\[2\],normalWorld\[2\]\)\);vNormalW=normalize\(normalWorld\*vNormalW\);`]:
-        "vNormalW=normalize(normalWorld*normalUpdated);",
+    [String.raw`!vNormalW=normalUpdated/vec3\(dot\(normalWorld\[0\],normalWorld\[0\]\),dot\(normalWorld\[1\],normalWorld\[1\]\),dot\(normalWorld\[2\],normalWorld\[2\]\)\);vNormalW=normalize\(normalWorld\*vNormalW\);`]: `${NORMAL_MARK}vNormalW=normalize(normalWorld*normalUpdated);`,
     // A batch whose rows are all unscaled sends no matrices (20 bytes a row): each row's own matrix is the identity.
     [String.raw`!mat4\s+finalWorld=mat4\(world0,world1,world2,world3\);`]: `
 #ifdef ROW_UNSCALED
@@ -86,8 +98,7 @@ attribute graphtyRow: f32;
 var rowPosition: texture_2d<f32>;
 #endif
 `,
-    [String.raw`!vertexOutputs\.vNormalW=normalUpdated/\s*vec3f\(dot\(normalWorld\[0\],normalWorld\[0\]\),dot\(normalWorld\[1\],normalWorld\[1\]\),dot\(normalWorld\[2\],normalWorld\[2\]\)\);vertexOutputs\.vNormalW=normalize\(normalWorld\*vertexOutputs\.vNormalW\);`]:
-        "vertexOutputs.vNormalW=normalize(normalWorld*normalUpdated);",
+    [String.raw`!vertexOutputs\.vNormalW=normalUpdated/\s*vec3f\(dot\(normalWorld\[0\],normalWorld\[0\]\),dot\(normalWorld\[1\],normalWorld\[1\]\),dot\(normalWorld\[2\],normalWorld\[2\]\)\);vertexOutputs\.vNormalW=normalize\(normalWorld\*vertexOutputs\.vNormalW\);`]: `${NORMAL_MARK}vertexOutputs.vNormalW=normalize(normalWorld*normalUpdated);`,
     [String.raw`!var\s+finalWorld\s*=\s*mat4x4<f32>\(vertexInputs\.world0,vertexInputs\.world1,vertexInputs\.world2,vertexInputs\.world3\);`]: `
 #ifdef ROW_UNSCALED
 var finalWorld=mat4x4<f32>(vec4f(1.0,0.0,0.0,0.0),vec4f(0.0,1.0,0.0,0.0),vec4f(0.0,0.0,1.0,0.0),vec4f(0.0,0.0,0.0,1.0));
@@ -151,6 +162,48 @@ export function isRowBatch(mesh: AbstractMesh): boolean {
  */
 export function isUnscaledRowBatch(mesh: AbstractMesh): boolean {
     return (mesh.metadata as Partial<RowBatchMetadata> | null | undefined)?.rowUnscaled === true;
+}
+
+/** The batch shaders already checked. */
+const checked = new WeakSet<Effect>();
+/** Each engine's listener for rewrites a batch shader it built lacks. */
+const missedListeners = new WeakMap<AbstractEngine, (patterns: string[]) => void>();
+
+/**
+ * The rewrites of a table that the shader text they were made on does not hold.
+ * @param code - The text after its includes and the material plugins' edits, before `#if`s are resolved.
+ * @param table - The rewrites.
+ * @returns The patterns that matched nothing.
+ */
+function missedIn(code: string, table: Record<string, string>): string[] {
+    return Object.entries(table)
+        .filter(([key, value]) => key.startsWith("!") && !code.includes(value))
+        .map(([key]) => key.slice(1));
+}
+
+/**
+ * Report a batch shader built without one of the rewrites.
+ * @param effect - A compiled batch shader.
+ */
+function checkRewrites(effect: Effect): void {
+    const wgsl = effect.shaderLanguage === ShaderLanguage.WGSL;
+    const misses = [
+        ...missedIn(effect.vertexSourceCodeBeforeMigration, wgsl ? WGSL : GLSL),
+        ...missedIn(effect.fragmentSourceCodeBeforeMigration, wgsl ? WGSL_FRAGMENT : GLSL_FRAGMENT),
+    ];
+    if (misses.length > 0) {
+        missedListeners.get(effect.getEngine())?.(misses);
+    }
+}
+
+/**
+ * Hear the rewrites a batch shader an engine built lacks, once per shader; replaces the engine's
+ * earlier listener.
+ * @param engine - The engine.
+ * @param listener - Called with the patterns that matched nothing.
+ */
+export function onRewriteMissed(engine: AbstractEngine, listener: (patterns: string[]) => void): void {
+    missedListeners.set(engine, listener);
 }
 
 /** Reads a batch's rows from the row table; see the file comment. */
@@ -255,6 +308,16 @@ export function attachRowPull(material: Material): void {
     }
 
     new RowPullPlugin(material); // eslint-disable-line sonarjs/constructor-for-side-effects -- the base constructor attaches it to the material
+    material.onEffectCreatedObservable.add(({ effect }) => {
+        if (checked.has(effect) || !/^#define ROW_PULL$/m.test(effect.defines)) {
+            return;
+        }
+
+        checked.add(effect);
+        effect.executeWhenCompiled(() => {
+            checkRewrites(effect);
+        });
+    });
     if (frozen) {
         material.freeze();
     }

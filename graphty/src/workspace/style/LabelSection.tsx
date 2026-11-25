@@ -532,13 +532,7 @@ function SourcePicker({
     return (
         <Popout opened={opened} onOpenChange={onOpenChange}>
             <Popout.Trigger>{children}</Popout.Trigger>
-            <Popout.Panel
-                width={LIST_WIDTH}
-                placement="left"
-                alignment="start"
-                header={{ variant: "title", title }}
-                closeLabel={`Close ${title}`}
-            >
+            <Popout.Panel width={LIST_WIDTH} header={{ variant: "title", title }} closeLabel={`Close ${title}`}>
                 <ValuePicker
                     title={title}
                     target={target}

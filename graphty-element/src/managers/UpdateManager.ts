@@ -25,6 +25,7 @@ import { withoutEyeLine } from "../meshes/labelEyeLine";
 import { screenFitFrames } from "../meshes/labelScreenFit";
 import { NodeShaderDrawing } from "../meshes/NodeShaderDrawing";
 import { armPoolReserve, clearPoolReserve } from "../meshes/poolReserve";
+import { pulledEdgesDefault } from "../meshes/PulledLineBatch";
 import { modelsFreeing, modelsLoading } from "../models/ModelCache";
 import { texturesFreeing, texturesLoading } from "../models/TextureCache";
 import { collectResizedNodes, type Node, type NodeRenderState } from "../Node";
@@ -2055,6 +2056,10 @@ export class UpdateManager implements Manager {
      * Paint every row line again when the layout starts laying edges itself (a map layout in the 3D view arrives, or
      * the view turns 3D under one; a layout that reports edge ends arrives), so each is drawn by an `Edge` that lays
      * its route ({@link unbuiltEdgePainted}): a row line runs straight between its nodes, and nothing else paints it when only the layout changed.
+     *
+     * When it stops (the layout that came in runs edges straight, or one that would have laid them failed or was
+     * canceled and the last one is back), every built edge is restyled so a plain one is pulled again: the edges
+     * built or taken out of the batch meanwhile (`Edge.followRoute`) never return to it on their own.
      * @param painter - Where the rows are queued.
      */
     private repaintRowLinesForMap(painter: StylePainter | undefined): void {
@@ -2068,6 +2073,14 @@ export class UpdateManager implements Manager {
             for (const row of this.graphContext.getEdgeRowLines?.()?.rows() ?? []) {
                 painter.queue("edge", row);
             }
+        } else if (pulledEdgesDefault.value || (this.graphContext.getNodeBatches?.() ?? null) !== null) {
+            for (const edge of this.builtEdges()) {
+                edge.updateStyle();
+            }
+
+            // a rebuilt placed line is placed by the next walk, as after a render path change
+            this.forceEdgeWalk();
+            this.meshesAdded();
         }
     }
 
@@ -2783,8 +2796,8 @@ export class UpdateManager implements Manager {
     }
 
     /**
-     * A node's built edges, from the data manager's index of them by end, which every build and teardown keeps: no
-     * edit lists every built edge again to find one node's (issue #9164).
+     * A node's built edges, from the store's incidence lists through the data manager: no edit or hover lists every
+     * built edge to find one node's (issues #9164, #10028).
      * @param id - The node's id.
      * @returns They.
      */
@@ -4472,6 +4485,16 @@ export class UpdateManager implements Manager {
     }
 
     private updateEdges(): void {
+        // Placing edges changes no setting, so the graph's direction setting is read once for the whole walk.
+        dataManagerInternals.withSettingHeld(this.dataManager, () => {
+            this.placeEdges();
+        });
+    }
+
+    /**
+     * {@link UpdateManager.updateEdges}, with the direction setting held.
+     */
+    private placeEdges(): void {
         this.statsManager.edgeUpdate.beginMonitoring();
 
         this.followRenumberedRows();

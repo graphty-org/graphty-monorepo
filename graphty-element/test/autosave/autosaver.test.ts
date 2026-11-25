@@ -295,6 +295,7 @@ describe("the parts a change writes", () => {
             "arrangement",
             "data",
             "drafts",
+            "inputs",
             "rest",
             "run:links",
             "sourceDraft",

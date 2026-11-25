@@ -126,6 +126,8 @@ export interface DataFieldPickerMultiProps {
     disabled?: boolean;
     disabledReason?: string;
     labels?: Partial<DataFieldPickerLabels>;
+    /** Whether the list is open when the field first draws (a row just added, waiting for its data). */
+    defaultOpened?: boolean;
 }
 
 // Row keys are prefixed so a field, an action and the None row never share one.
@@ -181,7 +183,8 @@ function fieldRow(field: DataField, labels: DataFieldPickerLabels): QuickAction 
     return {
         value: FIELD + field.id,
         label: field.name,
-        "aria-label": [field.name, labels.types[field.type], description].filter(Boolean).join(", "),
+        // The words drawn first, in their order (WCAG 2.5.3, label in name), then the type its glyph shows.
+        "aria-label": [field.name, description, labels.types[field.type]].filter(Boolean).join(", "),
         section: field.group,
         icon: <FieldTypeGlyph type={field.type} />,
         description,
@@ -362,6 +365,7 @@ function MultiFieldPicker(props: Readonly<DataFieldPickerMultiProps>): React.JSX
             glyph={action?.icon ?? (first ? <FieldTypeGlyph type={first.type} /> : <FieldGlyph name="attribute" />)}
             disabled={disabled}
             disabledReason={disabledReason}
+            defaultOpened={props.defaultOpened}
             // Only a click outside or the close button dismisses it by itself: both keep what is checked.
             onDismiss={() => {
                 onDone();

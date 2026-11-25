@@ -26,6 +26,8 @@ export interface PickerPopoutProps {
     children: (close: () => void) => React.ReactNode;
     /** Called when the pop-out closes by itself (a click outside it, its close button), never by `close`. */
     onDismiss?: () => void;
+    /** Whether the pop-out is open when the field first draws (a field just added that needs its first pick). */
+    defaultOpened?: boolean;
 }
 
 /**
@@ -45,6 +47,7 @@ export interface PickerPopoutProps {
  * @param props.disabledReason - Why it cannot be used
  * @param props.children - The pop-out's content
  * @param props.onDismiss - Called when it closes by itself
+ * @param props.defaultOpened - Whether it is open when first drawn
  * @returns The field and its pop-out
  */
 export function PickerPopout({
@@ -59,8 +62,9 @@ export function PickerPopout({
     disabledReason,
     children,
     onDismiss,
+    defaultOpened = false,
 }: Readonly<PickerPopoutProps>): React.JSX.Element {
-    const [opened, setOpened] = useState(false);
+    const [opened, setOpened] = useState(defaultOpened);
     const close = (): void => {
         setOpened(false);
     };

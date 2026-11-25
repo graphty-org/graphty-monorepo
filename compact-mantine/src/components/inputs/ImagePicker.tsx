@@ -1,9 +1,9 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 
 import { PANEL_GRID } from "../../constants/panel";
 import { useCompactStyles } from "../../theme/useCompactStyles";
 import type { ChangeHandler } from "../../types/events";
-import { Popout, usePopout } from "../popout";
+import { Popout } from "../popout";
 import { EllipsizedName } from "../rows/EllipsizedName";
 import { useRovingFocus } from "../shell/roving";
 import { FileSource } from "./FileSource";
@@ -82,6 +82,10 @@ export interface ImagePickerProps {
     disabledReason?: string;
     /** Replacement words. */
     labels?: Partial<ImagePickerLabels>;
+    /** Whether the pop-out is open when the field first draws (a picture line just added, waiting for its pick). */
+    defaultOpened?: boolean;
+    /** Called when the pop-out closes without a pick (Escape, a click outside it, its close button). */
+    onDismiss?: () => void;
 }
 
 /**
@@ -130,6 +134,8 @@ function Thumb({ src }: Readonly<{ src: string | undefined }>): React.JSX.Elemen
 interface PickerBodyProps extends ImagePickerProps {
     /** The words, defaults filled in. */
     words: ImagePickerLabels;
+    /** Closes the pop-out as a pick does: focus back on the field, and no dismissal. */
+    close: () => void;
 }
 
 /**
@@ -141,11 +147,20 @@ interface PickerBodyProps extends ImagePickerProps {
 function PickerBody(props: Readonly<PickerBodyProps>): React.JSX.Element {
     const { value, images, onChange, onFiles, onUrl, error, footer, words } = props;
     const { accept = "image/*", clearable = true, busy = false } = props;
-    const { close } = usePopout();
+    const { close } = props;
     const roving = useRovingFocus<HTMLDivElement>("vertical");
+    // The caller picks what a file or an address added (`onFiles`, `onUrl`): a picked value closes the pop-out, as a
+    // tile's click does.
+    const opened = useRef(value);
+    useEffect(() => {
+        if (value !== opened.current) {
+            opened.current = value;
+            close();
+        }
+    }, [value, close]);
     const pick = (id: string | null, event: React.MouseEvent): void => {
         onChange(id, event);
-        close(event);
+        close();
     };
     const tile = (id: string | null, name: string, glyph: React.ReactNode): React.JSX.Element => (
         <button
@@ -225,6 +240,7 @@ function PickerBody(props: Readonly<PickerBodyProps>): React.JSX.Element {
 export function ImagePicker(props: Readonly<ImagePickerProps>): React.JSX.Element {
     useCompactStyles();
     const { label, value, images, valueName, title, disabled = false, disabledReason, labels } = props;
+    const { defaultOpened, onDismiss } = props;
     const words = { ...DEFAULT_IMAGE_PICKER_LABELS, ...labels };
     const picked = value === null ? undefined : images.find((image) => image.id === value);
     let shown = words.none;
@@ -242,10 +258,12 @@ export function ImagePicker(props: Readonly<ImagePickerProps>): React.JSX.Elemen
                 closeLabel={words.close(title ?? label)}
                 disabled={disabled}
                 disabledReason={disabledReason}
+                defaultOpened={defaultOpened}
+                onDismiss={onDismiss}
             >
-                {() => (
+                {(close) => (
                     <Popout.Content>
-                        <PickerBody {...props} words={words} />
+                        <PickerBody {...props} words={words} close={close} />
                     </Popout.Content>
                 )}
             </PickerPopout>

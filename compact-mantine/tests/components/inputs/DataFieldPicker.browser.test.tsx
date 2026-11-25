@@ -109,14 +109,14 @@ describe("DataFieldPicker", () => {
             .map((g) => g.getAttribute("aria-label"))
             .filter((name) => name !== "Size by");
         assert.deepEqual(groups, ["Data", "Results", "Structure"]);
-        assert.isNotNull(within(dialog).getByRole("option", { name: "Age, number, 1 to 36" }));
+        assert.isNotNull(within(dialog).getByRole("option", { name: "Age, 1 to 36, number" }));
         assert.isNotNull(within(dialog).getByRole("option", { name: "City, category" }));
     });
 
     it("never picks a disabled row, by click or by Enter, and shows its reason", async () => {
         const onChange = vi.fn();
         const dialog = await open(await renderPicker({ onChange }));
-        const row = within(dialog).getByRole("option", { name: "Page rank, number, Holds amounts" });
+        const row = within(dialog).getByRole("option", { name: "Page rank, Holds amounts, number" });
         assert.include(row.textContent, "Holds amounts");
         // Forced: Playwright waits for an aria-disabled element to become enabled before it clicks.
         await userEvent.click(row, { force: true });

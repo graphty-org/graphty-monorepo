@@ -8,7 +8,7 @@ import type { Layer } from "@graphty/graphty-element/session";
 
 import type { RowContext } from "../PropertyRow";
 import { layerWord, lineIn, removeLine, writeIn } from "../row";
-import { channelWord, isPercent } from "../words";
+import { channelWord, type EncodeKey, isAddress, isPercent } from "../words";
 import { replaces } from "./families";
 import { lineChannels, type LineSpec, type Rule, type SubGroup } from "./rubric";
 import { setOn } from "./things";
@@ -43,13 +43,16 @@ export function ruleOf(line: LineSpec, descriptor: ChannelDescriptor): Rule {
  */
 export async function unsetIn(
     ctx: RowContext,
-    channels: readonly Channel[],
+    channels: readonly EncodeKey[],
     thing?: { readonly name: string; readonly shape: boolean },
 ): Promise<unknown> {
     const { many, session } = ctx;
     const shape = thing?.shape === true;
     if (many !== undefined && !shape) {
-        const counted = channels.filter((channel) => many.count(channel) > 0);
+        // Several rows edited together share plain channels only (`lineIn`).
+        const counted = channels.filter(
+            (channel): channel is Channel => !isAddress(channel) && many.count(channel) > 0,
+        );
         const [first, more] = [counted.at(0), counted.slice(1)];
         return first === undefined ? undefined : many.clear(first, ...more);
     }
@@ -61,7 +64,7 @@ export async function unsetIn(
     }
     const label =
         thing === undefined
-            ? `removing ${channelWord(held[0] ?? channels[0]).toLowerCase()}`
+            ? `removing ${channelWord(baseOf(held[0] ?? channels[0])).toLowerCase()}`
             : `removing ${thing.name.toLowerCase()} from ${(layers.length === 0 ? undefined : layerWord(session, layers[0].id)) ?? "the default"}`;
     return session.transaction(label, async (tx) => {
         for (const { id } of layers) {
@@ -91,8 +94,18 @@ export async function unsetIn(
  * @param channel - the channel.
  * @returns true when it does.
  */
-function holds(layer: Layer, channel: Channel): boolean {
-    return layer.set?.[channel] !== undefined || layer.encode?.[channel] !== undefined;
+function holds(layer: Layer, channel: EncodeKey): boolean {
+    const encode = layer.encode as Readonly<Record<string, unknown>> | undefined;
+    return (!isAddress(channel) && layer.set?.[channel] !== undefined) || encode?.[channel] !== undefined;
+}
+
+/**
+ * The channel a key writes: a list item's list, else the key.
+ * @param key - the key.
+ * @returns the channel.
+ */
+function baseOf(key: EncodeKey): Channel {
+    return (isAddress(key) ? key.slice(0, key.lastIndexOf(".")) : key) as Channel;
 }
 
 /**

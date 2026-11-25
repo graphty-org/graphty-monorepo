@@ -49,7 +49,11 @@ export function ItemListEditor({ ctx, list, channel, legend }: ItemListEditorPro
     const fail = (error: unknown): void => {
         store.set({ notice: { message: failureWords(list.name, "changed", error), error: true } });
     };
-    let items: { readonly lines: React.ReactNode; readonly add: () => void };
+    let items: {
+        readonly lines: React.ReactNode;
+        readonly add: (() => void) | undefined;
+        readonly tools?: React.ReactNode;
+    };
     let value: unknown = undefined;
     if ("colors" in list) {
         items = colorItems({ ctx, list, fail });
@@ -64,19 +68,35 @@ export function ItemListEditor({ ctx, list, channel, legend }: ItemListEditorPro
         };
         items = ITEM_KINDS[list.kind]({ ctx, list, descriptor, value, write });
     }
-    const plus = (
-        <AddButton
-            kind={ctx.side}
-            title={list.name}
-            name={`Add ${list.item.toLowerCase()}`}
-            inRow={legend === "line"}
-            options={[{ key: "item", label: list.item }]}
-            onAdd={items.add}
-        />
-    );
+    const { add } = items;
+    const plus =
+        add === undefined ? null : (
+            <AddButton
+                kind={ctx.side}
+                title={list.name}
+                name={`Add ${list.item.toLowerCase()}`}
+                inRow={legend === "line"}
+                options={[{ key: "item", label: list.item }]}
+                onAdd={add}
+            />
+        );
     if (legend === "group" || channel === undefined) {
         return (
-            <PlusList level="group" title={list.name} add={plus}>
+            <PlusList
+                level="group"
+                title={list.name}
+                add={
+                    items.tools === undefined ? (
+                        plus
+                    ) : (
+                        // The legend's buttons: Equal shares and Reverse order, then "+" (stripes design 3.1).
+                        <span className="ws-list-tools">
+                            {items.tools}
+                            {plus}
+                        </span>
+                    )
+                }
+            >
                 {items.lines}
             </PlusList>
         );

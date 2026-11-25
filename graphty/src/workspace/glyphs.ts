@@ -138,6 +138,7 @@ import {
     Route,
     Rows2,
     Rows3,
+    Scale,
     Scan,
     Search,
     Send,
@@ -334,6 +335,8 @@ export const GLYPHS = {
     order: ArrowDownUp,
     // Swap two fields, one above the other (the Join card).
     swap: ArrowDownUp,
+    // Make every share of a list equal (a pie's slices, stripes): no share set, each an equal part.
+    equalShares: Scale,
     // Take a value or a row out of a list.
     remove: Minus,
     // Delete a thing for good (a note).

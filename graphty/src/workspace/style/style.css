@@ -901,3 +901,35 @@
 [data-plus-list="section"] [data-testid="control-section-chevron-slot"] {
     cursor: pointer;
 }
+
+/* A parallel list's legend buttons (Equal shares, Reverse order, "+"), side by side in its header (stripes
+   design 3.1). */
+.ws-list-tools {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+}
+
+/* The caption row above a parallel list's scroll region: Color over the chips, the number's name over the
+   numbers. A caption, not a row: it stays put while the list scrolls. */
+.ws-list-caption {
+    display: flex;
+    gap: 4px;
+    padding-inline-start: 20px;
+    font-size: 11px;
+    color: var(--cm-text-secondary);
+}
+
+.ws-list-caption > span:first-child {
+    width: 28px;
+}
+
+/* A grip drags with a finger; a vertical swipe on a share's slider scrolls the list instead of moving it. */
+.ws-list-grip {
+    touch-action: none;
+    cursor: grab;
+}
+
+.ws-share .mantine-Slider-root {
+    touch-action: pan-y;
+}

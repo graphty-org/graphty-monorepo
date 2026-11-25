@@ -644,6 +644,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.glyphColor": "Glyph color",
     "node.pieColors": "Pie colors",
     "node.pieData": "Pie data",
+    "node.stripeData": "Stripe data",
     "node.chartData": "Chart data",
     "node.recordData": "Record data",
     "node.pieSizes": "Pie sizes",

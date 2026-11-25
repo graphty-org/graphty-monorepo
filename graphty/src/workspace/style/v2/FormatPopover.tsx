@@ -20,6 +20,10 @@ const MISSING: Readonly<Record<DataChannel, readonly (readonly [string, string])
         ["skip", "Leave out"],
         ["gray", "Gray"],
     ],
+    "node.stripeData": [
+        ["skip", "Leave out"],
+        ["gray", "Gray"],
+    ],
     "node.chartData": [
         ["gap", "Gap"],
         ["zero", "Zero"],
@@ -34,6 +38,7 @@ const MISSING: Readonly<Record<DataChannel, readonly (readonly [string, string])
 /** Each thing's missing choice when the entry sets none. */
 const MISSING_DEFAULT: Readonly<Record<DataChannel, string>> = {
     "node.pieData": "skip",
+    "node.stripeData": "skip",
     "node.chartData": "gap",
     "node.recordData": "drop",
 };

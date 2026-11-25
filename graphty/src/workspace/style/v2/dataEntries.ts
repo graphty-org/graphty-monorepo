@@ -24,6 +24,7 @@ import { dataFitWords, failureWords, graphValueWords, readableName, valueFact } 
 /** The data channel each thing that draws from data writes. */
 export const DATA_OF: Readonly<Partial<Record<string, DataChannel>>> = {
     pie: "node.pieData",
+    stripes: "node.stripeData",
     chart: "node.chartData",
     record: "node.recordData",
 };

@@ -106,6 +106,8 @@ export interface ThingRubric {
 export interface OptionName {
     readonly name: string;
     readonly glyph?: keyof typeof GLYPHS;
+    /** Draw the word beside the glyph: an icon alone would not say which way it means (stripes' Rows / Columns). */
+    readonly worded?: true;
 }
 
 /**
@@ -126,9 +128,10 @@ export const OPTION_NAMES: Partial<Readonly<Record<Channel, Readonly<Record<stri
         center: { name: "Center", glyph: "borderCenter" },
         outside: { name: "Outside", glyph: "borderOutside" },
     },
+    // Bands one under another are rows, side by side columns: Down / Right read backwards (stripes design 3.1).
     "node.stripeDirection": {
-        down: { name: "Down", glyph: "stripesDown" },
-        right: { name: "Right", glyph: "stripesRight" },
+        down: { name: "Rows", glyph: "stripesDown", worded: true },
+        right: { name: "Columns", glyph: "stripesRight", worded: true },
     },
     "node.imageRepeat": {
         "no-repeat": { name: "None", glyph: "repeatNone" },
@@ -464,16 +467,17 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
         ],
     },
     stripes: {
-        rowOwns: ["node.stripeSizes", "node.stripeOpacities"],
+        // The stripe list (colors, shares, opacities) is the list editor's (stripes design 3.1, `colorItems.tsx`).
+        rowOwns: ["node.stripeColors", "node.stripeSizes", "node.stripeOpacities"],
         main: [{ channel: "node.stripeDirection", name: "Direction", rule: "R8" }],
-        // The band size and frame are rarer than the colors and direction: in Advanced, so the pop-over stays 6
-        // lines tall with its list's first two stripes.
+        // Scale and the band frame are rarer than the list: the Stripe area group (stripes design 5). Scale, never
+        // "Size": "Share" is a band's width.
         groups: [
             {
-                name: "Bands",
+                name: "Stripe area",
                 lines: [
-                    { channel: "node.stripeSize", name: "Size" },
-                    { channel: "node.stripeFrame", name: "Frame", rule: "R17" },
+                    { channel: "node.stripeSize", name: "Scale" },
+                    { channel: "node.stripeFrame", name: "Band frame", rule: "R17" },
                 ],
             },
         ],

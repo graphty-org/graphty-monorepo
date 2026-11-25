@@ -1,7 +1,7 @@
 /**
  * @file Which style layers name elements or a dataset (spec 4.2 rule 5, spec 5 rule 5): owned by the style codec, which
  * leaves them out of a style section, and read by the view codec, which writes them in its
- * `layers`. Experimental (`save-files-v2`).
+ * `layers`.
  */
 
 import type { SetDefinition } from "../../../catalog/types";

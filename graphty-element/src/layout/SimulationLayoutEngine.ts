@@ -1282,8 +1282,10 @@ export class SimulationLayoutEngine extends LayoutEngine {
     replaceSimulation(keepSettled = false): void {
         // NOT `#failed`: a settled simulation's per-frame device work fails on the lost device before
         // the controller sees the loss, and that failure is reported, but it moved nothing. Its
-        // `settled` is still what its last landed batch said.
-        const settled = keepSettled && this.#simulation !== null && this.isSettled;
+        // `settled` is still what its last landed batch said. With NO simulation (a `"required"` policy
+        // with nothing attached: the last rebuild threw), only a rest carried through that gap counts --
+        // an empty bridge reads settled, and a layout stopped mid-run must resume.
+        const settled = keepSettled && (this.#simulation === null ? this.#resting : this.isSettled);
         this.#detachDrawn();
         this.#simulation?.dispose();
         this.#simulation = null;
@@ -1300,6 +1302,8 @@ export class SimulationLayoutEngine extends LayoutEngine {
             this.#build();
         } catch (error) {
             this.#failed = true;
+            // Carried through the gap to the rebuild that brings the accelerator back.
+            this.#resting = settled;
             throw error;
         }
 
@@ -2983,6 +2987,12 @@ export class SimulationLayoutEngine extends LayoutEngine {
         const mask = this.#mask;
         const simulation = this.#simulation;
         const row = this.#simRow(index);
+        if (!fixed) {
+            // A released row reheats the simulation, so a resting one wakes with it -- also one carried
+            // through a stopped bridge, which has no simulation to tell yet.
+            this.#resting = false;
+        }
+
         if (mask === null || simulation === null || !this.#hasRow(row)) {
             return;
         }
@@ -2992,8 +3002,6 @@ export class SimulationLayoutEngine extends LayoutEngine {
             this.#fixedRows.add(row);
         } else {
             this.#fixedRows.delete(row);
-            // A released row reheats the simulation, so a resting one wakes with it.
-            this.#resting = false;
         }
 
         simulation.setFixed(mask);

@@ -15,7 +15,7 @@ import { type PasteInit, ShaderEditorDialog } from "./ShaderEditorDialog";
 import { type OptionTile, ShaderGallery } from "./ShaderGallery";
 import { ShaderRow } from "./ShaderRow";
 import { addShader, moveShader, pickedShader, shaderEntries, writeWireframe } from "./shaderSlots";
-import { focusLineNext, headerBottom } from "./useFocusLine";
+import { focusLineNext, headerBottom, useFocusOnRemoval } from "./useFocusLine";
 import {
     channelWord,
     failureWords,
@@ -341,6 +341,9 @@ function PropertySection({ ctx, spec, actions, itemActions }: Readonly<SectionPr
                 ctx={ctx}
                 item={item}
                 actions={itemActions?.(item.id)}
+                onCancel={() => {
+                    setWaiting((now) => now.filter((channel) => item.channels.every((each) => each !== channel)));
+                }}
                 onFail={fail("removed")}
             />
         );
@@ -438,11 +441,13 @@ function specialLine(ctx: RowContext, spec: SectionSpec, d: ChannelDescriptor): 
 
 /**
  * A list section's heading line for one item the row sets (Drop shadow, Gradient): its name, and a
- * minus that takes every property of the item off the row in one step per layer.
+ * minus that takes every property of the item off the row in one step per layer, its lines still
+ * waiting for a value too, says so, and hands focus to the section's "+".
  * @param props - Component props
  * @param props.ctx - the row
  * @param props.item - the item
  * @param props.actions - more buttons before its minus
+ * @param props.onCancel - takes back the item's lines still waiting for a value
  * @param props.onFail - reports a failed removal
  * @returns The line
  */
@@ -450,13 +455,18 @@ function ItemHead({
     ctx,
     item,
     actions,
+    onCancel,
     onFail,
 }: Readonly<{
     ctx: RowContext;
     item: NonNullable<SectionSpec["items"]>[number];
     actions?: React.ReactNode;
+    onCancel: () => void;
     onFail: (error: unknown) => void;
 }>): React.JSX.Element {
+    const { store } = useWorkspace();
+    const box = useRef<HTMLDivElement>(null);
+    useFocusOnRemoval(box);
     const remove = async (): Promise<void> => {
         const { many } = ctx;
         if (many !== undefined) {
@@ -478,7 +488,7 @@ function ItemHead({
     };
     const label = `Remove ${item.name.toLowerCase()}`;
     return (
-        <div className="ws-row ws-item-head" data-item={item.id}>
+        <div ref={box} className="ws-row ws-item-head" data-item={item.id}>
             <div className="ws-field" data-named="">
                 <span className="ws-field-label">
                     <ControlLabel span size="xs" fw={600} className="ws-field-name">
@@ -494,6 +504,8 @@ function ItemHead({
                             size="sm"
                             aria-label={label}
                             onClick={() => {
+                                store.set({ announcement: `${item.name} removed` });
+                                onCancel();
                                 remove().catch(onFail);
                             }}
                         >
@@ -583,10 +595,10 @@ function ShadersSection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
     const sectionBox = useRef<HTMLDivElement>(null);
     const tab = ctx.side;
     const entries = shaderEntries(ctx);
-    const options: OptionTile[] = OPTION_CHANNELS[tab].map((channel) => ({
-        key: channel,
-        label: channelWord(channel),
-    }));
+    const options: OptionTile[] = OPTION_CHANNELS[tab].map((channel) => {
+        const where = spec.optionWords?.[channel];
+        return { key: channel, label: channelWord(channel), ...(where === undefined ? {} : { where }) };
+    });
     const fail = (verb: string) => (error: unknown) => {
         store.set({ notice: { message: failureWords(spec.title, verb, error), error: true } });
     };

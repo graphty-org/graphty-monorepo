@@ -49,26 +49,19 @@ export interface BrowserProjectSaveOptions {
      */
     readonly assets?: ProjectSaveOptions["assets"];
     /**
-     * The file format, as `project.save` takes it: `2` (with the `save-files-v2` experiment)
-     * stores a version 2 file. Default 1.
+     * The file format, as `project.save` takes it: `2` stores a version 2 file. Default 1.
      * @since 3.40.0
-     * @experimental save-files-v2
-     * @beta
      */
     readonly format?: ProjectSaveOptions["format"];
     /**
      * Version 2 only: the sections to store, as `project.save` takes them. A save without every
      * section `project.describe()` marks `required` is a copy: stored, but `dirty` stays.
      * @since 3.40.0
-     * @experimental save-files-v2
-     * @beta
      */
     readonly sections?: ProjectSaveOptions["sections"];
     /**
      * Version 2 only: embed or reference each source, as `project.save` takes it.
      * @since 3.40.0
-     * @experimental save-files-v2
-     * @beta
      */
     readonly embed?: ProjectSaveOptions["embed"];
 }

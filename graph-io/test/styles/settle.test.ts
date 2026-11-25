@@ -103,6 +103,12 @@ describe("settled arrows", () => {
         expect(values("edge", "targetArrowOutlineWidth")).toEqual([1]);
         expect(values("edge", "targetArrowExtent")).toEqual([10]);
     });
+
+    it("widens Graphviz's triangle with a pen past 4 points, its length unchanged", async () => {
+        const { values } = await load("digraph { a -> b [penwidth=4]; b -> c [penwidth=7]; }", "dot");
+        expect(values("edge", "targetArrowExtent")).toEqual([10, 10]);
+        expect(values("edge", "targetArrowBreadth")).toEqual([7, 12.25]);
+    });
 });
 
 describe("settled shapes, corners and dashes", () => {

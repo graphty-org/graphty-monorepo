@@ -1,11 +1,9 @@
 # graphty documents, version 2
 
-Status: draft. Version 2 is written and read only with graphty-element's `save-files-v2`
-experiment switched on, and may change until it is released; version 1 stays the format
-graphty-element writes until then, browser storage (`browserProjects`) included.
+Status: draft. graphty-element reads version 2 files and writes one when asked for `format: 2`;
+version 1 stays the format it writes by default, browser storage (`browserProjects`) included.
 
-**What graphty-element's implementation does not do yet.** The implementation behind the
-experiment was written against an earlier draft of this specification (edge references by ends
+**What graphty-element's implementation does not do yet.** The implementation was written against an earlier draft of this specification (edge references by ends
 and row hash, a content fingerprint, a re-key log, four reader-edit sets). It does not yet write
 or read the files described here.
 

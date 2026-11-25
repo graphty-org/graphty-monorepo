@@ -191,6 +191,8 @@ const B = {
     edit: () => lib.edit?.() ?? null,
     layoutRun: (name, frames, capMs) => lib.layoutRun?.(name, frames, capMs) ?? null,
     layoutSteps: () => lib.layoutSteps(),
+    // parity-vs-reference.mjs's per-frame correctness probe, graphty-element only
+    frameCheck: (name, frames) => lib.frameCheck?.(name, frames) ?? null,
     mem() {
         return performance.memory
             ? {
@@ -488,6 +490,165 @@ async function until(done, deadline) {
 const landingInterval = (wall, landings) => (landings > 0 ? +(wall / landings).toFixed(1) : null);
 
 // The simulations among the matrix's layouts: timed while they run, the others to their stable frame.
+// ------------------------------------------------------------------ frame check (parity-vs-reference.mjs)
+// The load gave a fixed sample of nodes and edges marker colors (PROBE_NODE, PROBE_EDGE). While a layout runs,
+// each drawn frame is read back inside the frame. For every marker row with both ends on screen, as
+// nodeScreenPosition reports them in that frame, it records whether the marker color is at the node's center, at
+// three points along the edge, and 8 px beside the edge's midpoint (the control). For each marker edge that moved
+// at least 5 px across its own line within the last 30 drawn frames it records whether the marker is at this
+// frame's midpoint or at that earlier frame's: an edge that follows its nodes is found on this one. A marker found
+// at neither, with something drawn over this frame's midpoint (nodes packed together, a pile of faint edges), is
+// hidden there: it is counted apart, not read as an edge left behind. Only the background at the midpoint says the
+// marker is not where its nodes are.
+
+/** Reads a WebGL drawing buffer and answers whether a color is near a CSS point. */
+function frameReader(gl, canvas, clear) {
+    const W = canvas.width,
+        H = canvas.height;
+    const sx = W / canvas.clientWidth,
+        sy = H / canvas.clientHeight;
+    const buf = new Uint8Array(W * H * 4);
+    const hit = (px2, py2, test) => px2 >= 0 && py2 >= 0 && px2 < W && py2 < H && test(buf, 4 * (py2 * W + px2));
+    const bg = [clear.r, clear.g, clear.b].map((c) => Math.round(c * 255));
+    return {
+        read: () => gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, buf),
+        // the background color: nothing drawn here, or only a few faint edges
+        isBare: (b, o) => bg.every((c, k) => Math.abs(b[o + k] - c) <= 32),
+        // the color anywhere in the 3 x 3 device pixels around a CSS point
+        has(x, y, test) {
+            const cx = Math.round(x * sx),
+                cy = H - 1 - Math.round(y * sy);
+            for (let dy = -1; dy <= 1; dy++)
+                for (let dx = -1; dx <= 1; dx++) if (hit(cx + dx, cy + dy, test)) return true;
+            return false;
+        },
+    };
+}
+// By hue, not brightness: a lit 3D face or an antialiased line edge is a darker shade of the same color.
+const isProbeEdge = (b, o) => b[o + 1] > 60 && b[o + 1] > b[o] + 40 && b[o + 1] > b[o + 2] + 40;
+const isProbeNode = (b, o) => b[o] > 60 && b[o + 2] > 60 && b[o] > b[o + 1] + 40 && b[o + 2] > b[o + 1] + 40;
+/** Distance of a point from the line through a and b. */
+function lineOffset(x, y, ax, ay, bx, by) {
+    const l = Math.hypot(bx - ax, by - ay);
+    return l ? Math.abs((bx - ax) * (ay - y) - (ax - x) * (by - ay)) / l : 0;
+}
+
+/** The nearest earlier frame in which an edge's midpoint lay 5 px off this frame's line, and back: is it on either? */
+function checkMovedEdge(f, e, a, b, history, reader) {
+    const mx = (a.x + b.x) / 2,
+        my = (a.y + b.y) / 2;
+    for (let k = history.length - 1; k >= 0; k--) {
+        const pa = history[k].get(G.src[e]),
+            pb = history[k].get(G.dst[e]);
+        if (!pa?.visible || !pb?.visible) return;
+        const pmx = (pa.x + pb.x) / 2,
+            pmy = (pa.y + pb.y) / 2;
+        // a 3 px line and a 3 x 3 window reach 2.5 px
+        if (lineOffset(pmx, pmy, a.x, a.y, b.x, b.y) < 5 || lineOffset(mx, my, pa.x, pa.y, pb.x, pb.y) < 5) continue;
+        const cur = reader.has(mx, my, isProbeEdge),
+            prev = reader.has(pmx, pmy, isProbeEdge);
+        if (!cur && !prev && !reader.has(mx, my, reader.isBare)) {
+            f.hidden++;
+            return;
+        }
+        f.moving++;
+        f.back += history.length - k;
+        if (cur) f.curInked++;
+        if (prev) f.prevInked++;
+        return;
+    }
+}
+
+function checkEdge(f, e, pos, history, reader) {
+    const a = pos(G.src[e]),
+        b = pos(G.dst[e]);
+    if (!a?.visible || !b?.visible) return;
+    const dx = b.x - a.x,
+        dy = b.y - a.y,
+        len = Math.hypot(dx, dy);
+    if (len < 2 * (a.radius + b.radius) + 24) return;
+    for (const t of [0.3, 0.5, 0.7]) {
+        f.points++;
+        if (reader.has(a.x + t * dx, a.y + t * dy, isProbeEdge)) f.pointsInked++;
+    }
+    f.ctrl++;
+    if (reader.has(a.x + dx / 2 - (dy / len) * 8, a.y + dy / 2 + (dx / len) * 8, isProbeEdge)) f.ctrlInked++;
+    checkMovedEdge(f, e, a, b, history, reader);
+}
+
+/** One drawn frame's counts. `history` holds the last 30 frames' positions; `first` is the first frame's counts. */
+function checkDrawnFrame(el, reader, history, first) {
+    reader.read();
+    const f = { nodes: 0, nodesInked: 0, points: 0, pointsInked: 0, ctrl: 0, ctrlInked: 0 };
+    Object.assign(f, { moving: 0, hidden: 0, curInked: 0, prevInked: 0, back: 0, moved: 0, p0: null });
+    const at = new Map();
+    const pos = (id) => {
+        if (!at.has(id)) at.set(id, el.nodeScreenPosition(id));
+        return at.get(id);
+    };
+    const { nodes, edges } = probeSample();
+    for (const id of nodes) {
+        const p = pos(id);
+        if (!p?.visible) continue;
+        f.nodes++;
+        if (reader.has(p.x, p.y, isProbeNode)) f.nodesInked++;
+    }
+    for (const e of edges) checkEdge(f, e, pos, history, reader);
+    const p0 = pos(nodes[0]);
+    f.p0 = p0 ? { x: p0.x, y: p0.y } : null;
+    const start = first?.p0 ?? f.p0;
+    if (f.p0 && start) f.moved = +Math.hypot(f.p0.x - start.x, f.p0.y - start.y).toFixed(1);
+    history.push(at);
+    if (history.length > 30) history.shift();
+    return f;
+}
+
+/** The per-frame rates a frame check returns. */
+function frameRates(frames) {
+    const rate = (k, of) => frames.map((f) => (f[of] ? +(f[k] / f[of]).toFixed(3) : null));
+    const edgeRate = rate("pointsInked", "points");
+    const valid = edgeRate.filter((x) => x !== null);
+    return {
+        edgeInkRate: edgeRate,
+        ctrlInkRate: rate("ctrlInked", "ctrl"),
+        nodeInkRate: rate("nodesInked", "nodes"),
+        minEdgeInkRate: valid.length ? Math.min(...valid) : null,
+        // edges that moved across their line: marker on this frame's midpoint, on the earlier frame's
+        movingEdges: frames.map((f) => f.moving),
+        // moving edges found at neither midpoint with something drawn over this frame's: left out of the rates
+        hiddenEdges: frames.map((f) => f.hidden),
+        curInkRate: rate("curInked", "moving"),
+        prevInkRate: rate("prevInked", "moving"),
+        // how many frames back that earlier frame was, on average
+        framesBack: rate("back", "moving"),
+        edgesChecked: frames.map((f) => f.ctrl),
+        nodesChecked: frames.map((f) => f.nodes),
+        sampleNodeMovedPx: frames.map((f) => f.moved),
+    };
+}
+
+// The frame check's marker colors and rows: a fixed sample, the same on every build.
+const PROBE_NODE = "#ff00ff";
+const PROBE_EDGE = "#00ff00";
+let probeRows = null;
+function markProbeRows(probe, nodes, edges) {
+    if (!probe) return;
+    for (const i of probeSample().nodes) nodes[i].probe = 1;
+    for (const e of edges) e.faint = 1;
+    for (const e of probeSample().edges) {
+        edges[e].probe = 1;
+        delete edges[e].faint;
+    }
+}
+function probeSample() {
+    if (probeRows) return probeRows;
+    const r = mulberry32(5);
+    probeRows = {
+        nodes: Array.from({ length: Math.min(200, G.n) }, () => Math.floor(r() * G.n)),
+        edges: Array.from({ length: Math.min(200, G.m) }, () => Math.floor(r() * G.m)),
+    };
+    return probeRows;
+}
 const SIMULATIONS = new Set(["ngraph", "d3", "forceatlas2"]);
 
 // A picture the browser decodes without a network: 20 x 10, red and blue.
@@ -606,6 +767,7 @@ async function graphtyAdapter({
     antialias,
     limits,
     dim,
+    probe,
 }) {
     await import("@graphty/graphty-element");
     if (accel !== "off") await import("@graphty/graphty-element/webgpu");
@@ -633,6 +795,28 @@ async function graphtyAdapter({
     const gl = graph.engine?._gl ?? null;
     let onFrame = null;
     await addShapeStyles(el, mode, curves);
+    if (probe) {
+        // Every other edge faint but still drawn, moved and updated: a dense picture buries the marker edges.
+        await el.session.styles.add({
+            name: "probe faint edges",
+            target: "edge",
+            selector: { match: "has", path: "data.faint" },
+            set: { "edge.opacity": 0.05 },
+        });
+        await el.session.styles.add({
+            name: "probe nodes",
+            target: "node",
+            selector: { match: "has", path: "data.probe" },
+            set: { "node.color": PROBE_NODE },
+        });
+        await el.session.styles.add({
+            name: "probe edges",
+            target: "edge",
+            selector: { match: "has", path: "data.probe" },
+            // Edge width is in graph units, and a layout spreads a larger graph wider: kept near 3 px on screen.
+            set: { "edge.color": PROBE_EDGE, "edge.width": 3 * Math.sqrt(Math.max(1, G.n / 1000)) },
+        });
+    }
     if (labels && (sampled || glyphs)) el.layoutBehavior = { labels: labelBehavior(sampled, glyphs) };
     if (labels)
         await el.session.styles.add({
@@ -694,6 +878,8 @@ async function graphtyAdapter({
                     nodes[i] = { id: i, position: { x: G.xy[2 * i], y: G.xy[2 * i + 1], z: 0 } };
                 edges = new Array(G.m);
                 for (let e = 0; e < G.m; e++) edges[e] = { src: G.src[e], dst: G.dst[e] };
+                // The frame check's marker rows (frameCheck below), drawn in colors nothing else uses.
+                markProbeRows(probe, nodes, edges);
             }
             let tLoaded = null,
                 tStable = null,
@@ -884,6 +1070,36 @@ async function graphtyAdapter({
                 return { layout: name, applyMs: +(now() - tCall).toFixed(1), rowCounts: el.rowCounts };
             }
             return { layout: name, ...(await simulationTiming(graph, tCall, count, capMs)), rowCounts: el.rowCounts };
+        },
+        // Correctness, not timing (parity-vs-reference.mjs): see checkDrawnFrame. WebGL only.
+        async frameCheck(name, count) {
+            if (!gl) return { error: "no WebGL context: the frame check reads the WebGL drawing buffer" };
+            if (!probe) return { error: "the page was set up without the probe option" };
+            const reader = frameReader(gl, graph.engine.getRenderingCanvas(), graph.scene.clearColor);
+            const frames = [];
+            const history = [];
+            const obs = graph.scene.onAfterRenderObservable.add(
+                () => {
+                    if (frames.length < count) frames.push(checkDrawnFrame(el, reader, history, frames[0]));
+                },
+                undefined,
+                true,
+            );
+            const tCall = now();
+            await el.setLayout(name, { seed: 7 });
+            // A frame count, never a deadline of the page's own: the runner's deadline ends a hang.
+            while (frames.length < count) await raf();
+            graph.scene.onAfterRenderObservable.remove(obs);
+            const engine = graph.getLayoutManager().layoutEngine;
+            return {
+                layout: name,
+                frames: frames.length,
+                ms: +(now() - tCall).toFixed(0),
+                engine: engine?.type,
+                accelerated: engine?.isAccelerated ?? false,
+                ...frameRates(frames),
+                rowCounts: el.rowCounts,
+            };
         },
         async layoutFps(count, capMs) {
             const tCall = now();

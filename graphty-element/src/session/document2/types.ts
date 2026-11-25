@@ -2,9 +2,6 @@
  * @file Version 2 graphty documents (spec/README.md): the wrapper, the section header, element
  * references, the codes, and the contract every section codec implements.
  *
- * Experimental: everything here is reached only with the `save-files-v2` experiment on, and may
- * change until version 2 is released.
- *
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
@@ -15,16 +12,12 @@ import type { GraphSession, ProjectSlice, TransactionScope } from "../types";
 
 /**
  * A section's name: its key in a full file's `sections`, and `graphty-<name>` is its kind.
- * @experimental save-files-v2
- * @beta
  */
 export type DocumentSection = "data" | "style" | "recipe" | "settings" | "results" | "notes" | "view";
 
 /**
  * The sections in the order a full file writes them (spec 1).
  * @since 3.40.0
- * @experimental save-files-v2
- * @beta
  */
 export const DOCUMENT_SECTIONS: readonly DocumentSection[] = Object.freeze([
     "data",
@@ -53,8 +46,6 @@ export const APPLY_ORDER: readonly DocumentSection[] = Object.freeze([
 
 /**
  * How a source's rows are kept by a save (spec 4.1.2).
- * @experimental save-files-v2
- * @beta
  */
 export type SourceStorage = "embedded" | "referenced";
 
@@ -63,8 +54,6 @@ export type SourceStorage = "embedded" | "referenced";
  * `edited`, the reader edited, removed or merged rows; `bytes`, the session kept no digest of the
  * bytes it read; `rows`, another load also supplied one of its rows; `mapping`, its read has no
  * spelling in a mapping; `kind`, no open reads its kind again. OPEN UNION.
- * @experimental save-files-v2
- * @beta
  */
 export type SourceEmbeddedReason = "edited" | "bytes" | "rows" | "mapping" | "kind" | "options";
 
@@ -77,8 +66,6 @@ export type SourceEmbeddedReason = "edited" | "bytes" | "rows" | "mapping" | "ki
  * release does not know it), `copy-form` (an embedded copy in a form this release cannot read; its
  * record and copy are written back as read), `options` (a parse option this release does not
  * read), `ledger` (a network request history this release cannot read). OPEN UNION.
- * @experimental save-files-v2
- * @beta
  */
 export type SourceUnavailableReason =
     | "not-found"
@@ -99,8 +86,6 @@ export type JsonObject = Record<string, unknown>;
  * The codes the version 2 reader and writer report (spec 13) that graphty-element's error and
  * warning codes do not already hold. `E_BAD_DOCUMENT`, `E_UNKNOWN_OPTION`, `W_UNKNOWN_KIND` and
  * `W_UNKNOWN_MEMBER` are already element codes. OPEN UNION while the experiment is on.
- * @experimental save-files-v2
- * @beta
  */
 
 export type DocumentCode =
@@ -282,7 +267,7 @@ export interface BuildStamp {
 
 /** What a codec's `write` is given. */
 export interface WriteContext
-    extends CodecContext, Pick<ProjectSaveOptions, "paths" | "handles" | "location" | "rewriteRecipe"> {
+    extends CodecContext, Pick<ProjectSaveOptions, "paths" | "handles" | "location" | "rewriteRecipe" | "assets"> {
     /** The saver's choice per source id or load key; a source with no entry is embedded. */
     readonly embed: Readonly<Record<string, SourceStorage>>;
     /** Whether a run's id was minted by the element (its namespace is the element's own). */

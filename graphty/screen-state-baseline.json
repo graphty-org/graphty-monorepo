@@ -152,14 +152,7 @@
         ],
         "src/workspace/privacy/usageData.ts": ["?", "?"],
         "src/workspace/project/NetworkPrompt.tsx": ["waiting"],
-        "src/workspace/project/ProjectDialogs.tsx": [
-            "choices",
-            "discarding",
-            "name",
-            "pending",
-            "saving",
-            "settingsOpen"
-        ],
+        "src/workspace/project/ProjectDialogs.tsx": ["choices", "discarding"],
         "src/workspace/project/RecentProjects.tsx": ["mayBeCleared", "missing", "removing"],
         "src/workspace/project/SaveFilesV2Dialogs.tsx": [
             "bind",

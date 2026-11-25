@@ -3712,7 +3712,7 @@ export class Edge {
             // a self-loop's teardrop, whatever else its style asks for, as `bundleRoute` draws it
             const { rank, count } = this.context.getDataManager().drawnBundle(this);
             const around = Edge.outside(this.srcNode, src);
-            const loop = loopShape(rank, count, (dir) => Edge.reachOf(this.srcNode, dir));
+            const loop = loopShape(rank, count, Edge.reachFrom(this.srcNode));
             this.pullSpan(curveSpan(src, src, around, around, { loop }), src, src);
             return;
         }
@@ -4750,7 +4750,7 @@ export class Edge {
     private bundleRoute(src: Vector3, dst: Vector3): number[] | null {
         if (this.isLoop) {
             const { rank, count } = this.context.getDataManager().drawnBundle(this);
-            return loopTeardrop(src, rank, count, (dir) => Edge.reachOf(this.srcNode, dir));
+            return loopTeardrop(src, rank, count, Edge.reachFrom(this.srcNode));
         }
 
         const { route } = this;
@@ -4946,14 +4946,21 @@ export class Edge {
      * @returns The distance.
      */
     private static reachOf(node: RowMeasure, dir: Xyz): number {
-        return (
-            surfaceReach(
-                dir,
-                node.drawnHalfExtents,
-                node.roundRadius,
-                node.shapeType === "ellipse" || (node.reachOutline ?? false),
-            ) + node.borderReach
-        );
+        return Edge.reachFrom(node)(dir);
+    }
+
+    /**
+     * {@link Edge.reachOf} for many directions: the node's measures, which its getters work out on every read, read
+     * once, so a placement that tests many points against the node (a curve's cut) reads them once.
+     * @param node - The node.
+     * @returns The distance in a unit direction.
+     */
+    private static reachFrom(node: RowMeasure): (dir: Xyz) => number {
+        const half = node.drawnHalfExtents;
+        const radius = node.roundRadius;
+        const flat = node.shapeType === "ellipse" || (node.reachOutline ?? false);
+        const border = node.borderReach;
+        return (dir) => surfaceReach(dir, half, radius, flat) + border;
     }
 
     /**
@@ -4982,14 +4989,12 @@ export class Edge {
         onOutline = false,
     ): (x: number, y: number, z: number) => boolean {
         const under = onOutline ? node.borderReach + ON_OUTLINE : 0;
+        const reach = Edge.reachFrom(node);
         return (x, y, z) => {
             const d = Math.hypot(x - centre.x, y - centre.y, z - centre.z);
             return (
                 d > 0 &&
-                d >
-                    gap -
-                        under +
-                        Edge.reachOf(node, { x: (x - centre.x) / d, y: (y - centre.y) / d, z: (z - centre.z) / d })
+                d > gap - under + reach({ x: (x - centre.x) / d, y: (y - centre.y) / d, z: (z - centre.z) / d })
             );
         };
     }

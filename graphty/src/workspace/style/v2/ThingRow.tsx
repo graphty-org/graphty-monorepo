@@ -37,6 +37,7 @@ import { LabelRow } from "./LabelRow";
 import { TEXT_THINGS, type TextThing } from "./labelRubric";
 import { unsetIn } from "./lineWrites";
 import { firstItemWords, ITEM_LISTS, listOf } from "./lists";
+import { listChanged } from "./listState";
 import { EntryLookMenu, KindMenu, MemberMenu } from "./MemberMenu";
 import { takeReopening } from "./reopening";
 import { rowNames } from "./rowNames";
@@ -181,6 +182,28 @@ function setLinesOf(
             return true;
         },
     );
+}
+
+/**
+ * A row's pop-over title: its name with its kind ("Node pie"), Stripes' its name alone (stripes design 3, 4).
+ * @param thing - the thing's id.
+ * @param name - the row's name.
+ * @param title - its name with its kind.
+ * @returns the title.
+ */
+function headingOf(thing: string, name: string, title: string): string {
+    return thing === "stripes" ? name : title;
+}
+
+/**
+ * Whether a data row just added opens its data picker at once, as a Pie's from Fill's "+" (design 5.1). Stripes open
+ * nothing: "+" wrote two fixed stripes, a finished look (stripes design 6).
+ * @param thing - the thing's id.
+ * @param opening - whether it was just added.
+ * @returns whether it opens.
+ */
+function opensAdded(thing: string, opening: boolean | undefined): boolean {
+    return opening === true && thing !== "stripes";
 }
 
 /**
@@ -540,6 +563,7 @@ export function ThingRow({
     const commonChannels = new Set(common.flatMap((line) => [line.channel, ...(line.units ?? [])]));
     const changed =
         others.length > 0 ||
+        listChanged(ctx, list) ||
         [...covered].some((channel) => channel !== main.channel && !commonChannels.has(channel) && setOn(ctx, channel));
     const items = ITEM_LISTS[main.channel];
     const listed = list ?? items;
@@ -547,7 +571,13 @@ export function ThingRow({
         listed === undefined ? undefined : <ItemListEditor ctx={ctx} channel={main.channel} list={listed} />;
     // Every thing's pop-over holds at least its main value's line, which varies by data (design 2.6, 7.1).
     const settings = (
-        <RowSettings label={`${title} settings`} title={title} changed={changed} opened={open} onOpenChange={setOpen}>
+        <RowSettings
+            label={`${title} settings`}
+            title={headingOf(thing.id, name, title)}
+            changed={changed}
+            opened={open}
+            onOpenChange={setOpen}
+        >
             {rubric === undefined ? (
                 <>
                     {member}
@@ -592,8 +622,8 @@ export function ThingRow({
             <div ref={box} data-thing={thing.id}>
                 <DataRow
                     ctx={ctx}
-                    // Just added: its data picker opens at once, as a Pie's from Fill's "+" (design 5.1).
-                    picking={opening}
+                    picking={opensAdded(thing.id, opening)}
+                    heading={headingOf(thing.id, name, title)}
                     thing={thing.id}
                     start={thing.start ?? main.channel}
                     channel={data}

@@ -24,6 +24,7 @@ import {
     writeParam,
 } from "./shaderSlots";
 import { focusSectionNext } from "./useFocusLine";
+import { altArrowMove, useRowDrag } from "./useRowDrag";
 import { effectOffWords, failureWords, placeWords, SHADER_MOVE_WORDS, shaderProblemWords } from "./words";
 
 /** The width of a shader row's pop-outs: the settings, as every field's. */
@@ -175,54 +176,6 @@ function SettingsPopout({
 }
 
 /**
- * Drags a row by its handle: the pointer is captured on press, and on release the row moves to
- * where the pointer is among the section's rows.
- * @param box - the row.
- * @param index - the row's index.
- * @param onMove - moves it.
- * @returns the handle's pointer handlers, and whether a drag is under way.
- */
-function useRowDrag(
-    box: React.RefObject<HTMLDivElement | null>,
-    index: number,
-    onMove: (from: number, to: number) => void,
-): { dragging: boolean; handlers: React.HTMLAttributes<HTMLElement> } {
-    const [dragging, setDragging] = useState(false);
-    const handlers: React.HTMLAttributes<HTMLElement> = {
-        onPointerDown: (event) => {
-            if (event.button !== 0) {
-                return;
-            }
-            event.currentTarget.setPointerCapture(event.pointerId);
-            setDragging(true);
-        },
-        onPointerUp: (event) => {
-            if (!dragging) {
-                return;
-            }
-            setDragging(false);
-            const rows = [
-                ...(box.current?.closest("[data-section]")?.querySelectorAll<HTMLElement>("[data-shader-row]") ?? []),
-            ];
-            // The row goes where the pointer is: before the first row whose middle is below it.
-            const below = rows.findIndex((row) => {
-                const rect = row.getBoundingClientRect();
-                return event.clientY < rect.top + rect.height / 2;
-            });
-            const slot = below < 0 ? rows.length : below;
-            const to = slot > index ? slot - 1 : slot;
-            if (to !== index) {
-                onMove(index, to);
-            }
-        },
-        onPointerCancel: () => {
-            setDragging(false);
-        },
-    };
-    return { dragging, handlers };
-}
-
-/**
  * One row of a tab's Shaders section (decisions-v2, section 2.1): a drag handle, the picture, the
  * name, the place (its words and diagram, never a choice), the
  * settings button and a minus. Rows reorder by dragging the handle, or by Alt+Up and Alt+Down; the
@@ -244,7 +197,9 @@ export function ShaderRow({ ctx, entry, count, onMove, onCode }: Readonly<Shader
     const base = descriptor?.plainName ?? use.shader;
     const name = use.off === true ? effectOffWords(base) : base;
     const why = useNotDrawn(ctx, entry);
-    const { dragging, handlers } = useRowDrag(box, entry.index, onMove);
+    const { dragging, handlers } = useRowDrag(box, entry.index, onMove, (row) => [
+        ...(row.closest("[data-section]")?.querySelectorAll<HTMLElement>("[data-shader-row]") ?? []),
+    ]);
     const fail: Fail = (verb) => (error) => {
         store.set({ notice: { message: failureWords(name, verb, error), error: true } });
     };
@@ -292,17 +247,9 @@ export function ShaderRow({ ctx, entry, count, onMove, onCode }: Readonly<Shader
             data-shader={use.shader}
             data-shader-row=""
             data-dragging={dragging ? "" : undefined}
-            onKeyDown={(event) => {
-                if (!event.altKey || (event.key !== "ArrowUp" && event.key !== "ArrowDown")) {
-                    return;
-                }
-                // A key from the row's pop-outs reaches it through React's portal and is not the row's.
-                if (!box.current?.contains(event.target as Node)) {
-                    return;
-                }
-                event.preventDefault();
-                move(entry.index + (event.key === "ArrowUp" ? -1 : 1));
-            }}
+            onKeyDown={altArrowMove(box, (by) => {
+                move(entry.index + by);
+            })}
         >
             <div className="ws-field" data-shader-use="">
                 <Tooltip label={`Move ${name.toLowerCase()}`} position="top">

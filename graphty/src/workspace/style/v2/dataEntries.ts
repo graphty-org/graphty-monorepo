@@ -15,7 +15,7 @@ import {
     dataFit,
     type ReadableValue,
 } from "@graphty/graphty-element/catalog";
-import type { GraphSession, Layer } from "@graphty/graphty-element/session";
+import type { GraphSession, Layer, NodeId } from "@graphty/graphty-element/session";
 
 import type { useWorkspace } from "../../state/WorkspaceContext";
 import type { RowContext } from "../PropertyRow";
@@ -25,6 +25,7 @@ import { dataFitWords, failureWords, graphValueWords, readableName, valueFact } 
 /** The data channel each thing that draws from data writes. */
 export const DATA_OF: Readonly<Partial<Record<string, DataChannel>>> = {
     pie: "node.pieData",
+    stripes: "node.stripeData",
     chart: "node.chartData",
     record: "node.recordData",
 };
@@ -69,6 +70,36 @@ export function holderOf(ctx: Pick<RowContext, "layers">, channel: DataChannel):
 export function specOf(ctx: Pick<RowContext, "layers">, channel: DataChannel): Spec | undefined {
     const value = holderOf(ctx, channel)?.set?.[channel] as Spec | undefined;
     return value !== undefined && Array.isArray(value.entries) ? value : undefined;
+}
+
+/**
+ * The sample node's facts: the node the reader picked, else the first that draws, else one that draws nothing.
+ * @param ctx - the row.
+ * @param channel - the data channel.
+ * @param picked - the node the reader picked, if any.
+ * @returns the facts, or undefined when the layer or the graph holds no node to show.
+ */
+export function sampleFacts(
+    ctx: Pick<RowContext, "layers" | "session">,
+    channel: DataChannel,
+    picked: NodeId | null,
+): DataFacts | undefined {
+    const layer = holderOf(ctx, channel);
+    if (layer === undefined) {
+        return undefined;
+    }
+    const { styles } = ctx.session;
+    const node =
+        picked ?? styles.dataSample(layer.id, channel, "first") ?? styles.dataSample(layer.id, channel, "undrawn");
+    if (node === null) {
+        return undefined;
+    }
+    try {
+        return styles.dataFacts(layer.id, channel, node);
+    } catch {
+        // The node left the graph since it was picked: no sample until the next is found.
+        return undefined;
+    }
 }
 
 /**

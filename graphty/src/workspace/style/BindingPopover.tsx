@@ -764,6 +764,7 @@ function SourceHeader({
  * @param props.patch - writes the pick
  * @param props.inForceShown - unset, show the palette in force as the field's value (Style panel v2's rule that every
  *     input shows a value), not as its placeholder
+ * @param props.captioned - draws its own "Palette" caption above it (false where its line names it)
  * @returns The select
  */
 export function PaletteSelect({
@@ -773,6 +774,7 @@ export function PaletteSelect({
     shown,
     patch,
     inForceShown = false,
+    captioned = true,
 }: Readonly<{
     session: GraphSession;
     channel: ChannelDescriptor["channel"];
@@ -780,6 +782,7 @@ export function PaletteSelect({
     shown: string | undefined;
     patch: (change: { palette: string | undefined }) => void;
     inForceShown?: boolean;
+    captioned?: boolean;
 }>): React.JSX.Element {
     const palettes = session.catalog.palettes().filter((p) => p.kind === "categorical");
     const inForce = shown ?? palettes.at(0)?.id;
@@ -803,39 +806,44 @@ export function PaletteSelect({
     // Unset, the field holds nothing: the palette in force is its placeholder and its name says
     // it is not set, so the open list checks no palette as if one were chosen.
     const name = value === undefined && inForce !== undefined ? `Palette, not set, ${paletteWord(inForce)}` : "Palette";
-    return (
+    const field = (
+        <FieldRow
+            trailing={
+                value !== undefined && (
+                    <ResetButton
+                        label="Palette"
+                        fullLabel={`Reset the ${channelPhrase(channel)} palette to default`}
+                        onClick={() => {
+                            patch({ palette: undefined });
+                        }}
+                    />
+                )
+            }
+        >
+            <PanelField
+                label={name}
+                kind="select"
+                width="fill"
+                data={palettes.map((p) => ({ value: p.id, label: paletteWord(p.id) }))}
+                value={value ?? (inForceShown ? (inForce ?? null) : null)}
+                placeholder={value === undefined && inForce !== undefined ? paletteWord(inForce) : undefined}
+                glyph={strips[value ?? inForce ?? ""]}
+                optionGlyphs={strips}
+                onChange={(palette) => {
+                    patch({ palette: String(palette) });
+                }}
+            />
+        </FieldRow>
+    );
+    return captioned ? (
         <Stack gap={2}>
             <span className="cm-field-label" aria-hidden="true">
                 Palette
             </span>
-            <FieldRow
-                trailing={
-                    value !== undefined && (
-                        <ResetButton
-                            label="Palette"
-                            fullLabel={`Reset the ${channelPhrase(channel)} palette to default`}
-                            onClick={() => {
-                                patch({ palette: undefined });
-                            }}
-                        />
-                    )
-                }
-            >
-                <PanelField
-                    label={name}
-                    kind="select"
-                    width="fill"
-                    data={palettes.map((p) => ({ value: p.id, label: paletteWord(p.id) }))}
-                    value={value ?? (inForceShown ? (inForce ?? null) : null)}
-                    placeholder={value === undefined && inForce !== undefined ? paletteWord(inForce) : undefined}
-                    glyph={strips[value ?? inForce ?? ""]}
-                    optionGlyphs={strips}
-                    onChange={(palette) => {
-                        patch({ palette: String(palette) });
-                    }}
-                />
-            </FieldRow>
+            {field}
         </Stack>
+    ) : (
+        field
     );
 }
 

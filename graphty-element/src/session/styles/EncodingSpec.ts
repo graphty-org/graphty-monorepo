@@ -47,6 +47,7 @@ import type {
     FieldDescriptor,
     LabelFieldAddress,
     LayerSpec,
+    ListItemAddress,
     MeasurementDeclaration,
     PaletteId,
     ReadableValueKind,
@@ -65,6 +66,7 @@ import {
     labelFieldChannel,
     modelBindingProblem,
     parseLabelFieldAddress,
+    parseListItemAddress,
     parseShaderParamAddress,
 } from "./channels";
 import { DEFAULT_EDGE_WIDTH_RANGE, DEFAULT_SIZE_RANGE } from "./derive";
@@ -205,13 +207,15 @@ export type EncodingRefusalCode = "E_UNSUPPORTED" | "E_CAP_EXCEEDED" | (string &
 
 /**
  * A run or column encoding asked of `styles.proposeEncoding()` for one shader parameter declared
- * `varies`, named by its address (`"node.shaders.uncertainty-aura.intensity"`), or for one field of
- * one label of a label list, named by its address (`"node.labels.top.color"`), in place of a channel.
+ * `varies`, named by its address (`"node.shaders.uncertainty-aura.intensity"`), for one field of
+ * one label of a label list, named by its address (`"node.labels.top.color"`), or (since 3.69.0) for
+ * one item of a list channel (`"node.stripeColors.1"`, a color or a number in the list's item range),
+ * in place of a channel.
  * @since 3.36.0
  */
 export type ParamEncodingSpec = (Omit<EncodingSpec, "channel"> | Omit<ColumnEncodingSpec, "channel">) & {
-    /** The shader parameter or label field to encode, by its address. */
-    readonly channel: ShaderParamAddress | LabelFieldAddress;
+    /** The shader parameter, label field or list item to encode, by its address. */
+    readonly channel: ShaderParamAddress | LabelFieldAddress | ListItemAddress;
 };
 
 /** What `styles.proposeEncoding()` answers: the binding `encode()` would store, or why not. */
@@ -547,6 +551,19 @@ function overflowCompanion(spec: EncodingOptions, colour: RuleBinding, descripto
  * @throws A `GraphtyError`: `E_UNKNOWN_CHANNEL`, `E_UNKNOWN_SHADER` or `E_UNKNOWN_SHADER_PARAM`.
  */
 function requireEncodable(name: string): ChannelDescriptor {
+    // One item of a list (`node.stripeColors.1`): a color, or a number in the list's item range.
+    const item = parseListItemAddress(name);
+    if (item !== null) {
+        const list = requireChannel(item.channel);
+        const range = list.listItems;
+        return {
+            ...list,
+            channel: name as Channel,
+            accepts: list.listOf === "color" ? "color" : "number",
+            ...(range === undefined ? {} : { min: range.min, max: range.max }),
+        };
+    }
+
     const label = parseLabelFieldAddress(name);
     if (label !== null) {
         return labelFieldChannel(label) ?? requireChannel(name);

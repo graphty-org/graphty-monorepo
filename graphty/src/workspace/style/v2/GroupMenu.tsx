@@ -68,12 +68,14 @@ export function GroupMenu<G extends MenuGroup>({
                 },
             };
         }
+        // A menu short enough for one heading needs none (owner, 2026-11-24: headings of at most 6 entries each).
+        const headed = groups.length > 6;
         return {
             label: MORE_NAME,
             set,
             children: groups.map((group, at) => (
                 <React.Fragment key={group.name}>
-                    {group.heading !== undefined && group.heading !== groups[at - 1]?.heading ? (
+                    {headed && group.heading !== undefined && group.heading !== groups[at - 1]?.heading ? (
                         <Menu.Label>{group.heading}</Menu.Label>
                     ) : null}
                     <MenuGroupItem

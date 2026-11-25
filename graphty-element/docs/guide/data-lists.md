@@ -1,12 +1,13 @@
-# Pie, Chart and Record from Data
+# Pie, Stripes, Chart and Record from Data
 
-A node can draw a pie, a bar chart or a small table (a record) worked out from its own data. You
+A node can draw a pie, stripes, a bar chart or a small table (a record) worked out from its own data. You
 write a list of **entries** to one channel, and graphty-element reads, counts, formats, orders and
 colors them for every node:
 
 | Channel           | Draws                               | Fills                                                                    |
 | ----------------- | ----------------------------------- | ------------------------------------------------------------------------ |
 | `node.pieData`    | a pie, one slice per part           | `node.pieColors`, `node.pieSizes`, `node.pieOpacities`                   |
+| `node.stripeData` | stripes, one band per part          | `node.stripeColors`, `node.stripeSizes`, `node.stripeOpacities`          |
 | `node.chartData`  | a chart, one bar (or cell) per part | `node.chartValues`, `node.chartColors`, `node.chartMin`, `node.chartMax` |
 | `node.recordData` | a record, one row per entry         | `node.labelTable` (table layout) or `node.shapeTexts` (points layout)    |
 
@@ -216,6 +217,24 @@ unpinned categories after it in name order; pin a category's color to keep it. A
 - `labels: "value"` or `"percent"` writes each slice's value (in its entry's format) or its share
   at the slice's middle, after any `node.shapeTexts` the layers beneath give. The texts follow
   `node.pieRotation` and `node.pieRadius` set on the layer or beneath it (not a pie's offset).
+
+## Stripes
+
+`node.stripeData` takes a pie's spec without `labels`: each part is a band, its share of the box what
+a slice's share of the turn would be. A list of words gives one band per distinct word, the same
+color on every node, so a column of set memberships (`["setA", "setC"]`) draws one band per set:
+
+```ts
+await session.styles.add({
+    name: "Sets",
+    selector: { match: "everything" },
+    set: { "node.stripeData": { entries: [{ field: "data.sets", each: "equal" }] } },
+});
+```
+
+- `whole: { max, track? }` draws each band over `max`, the rest as one band in `track`.
+- `empty: "band"` draws a node with no value as one full band in `emptyColor`.
+- `node.stripeDirection`, `node.stripeSize` and `node.stripeFrame` stay their own channels.
 
 ## Charts
 

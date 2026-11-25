@@ -735,9 +735,9 @@ margins, the speech-bubble pointer, the outline, the shadow, the badge -- and th
 canvas settings, such as the resolution of the texture a label is drawn on, are deliberately not
 in it. The row above lists the fields a reader reaches for first, not all of them.
 
-A pie, a chart or a record can also be drawn from a node's data, one entry per slice, bar or row:
-`node.pieData`, `node.chartData` and `node.recordData` fill the lists above. See
-[Pie, Chart and Record from Data](./data-lists).
+A pie, stripes, a chart or a record can also be drawn from a node's data, one entry per slice, band,
+bar or row: `node.pieData`, `node.stripeData`, `node.chartData` and `node.recordData` fill the lists
+above. See [Pie, Stripes, Chart and Record from Data](./data-lists).
 
 ## Literal values and bound values
 

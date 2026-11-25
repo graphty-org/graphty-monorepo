@@ -663,6 +663,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "styles.sequence()": "names its target",
     "styles.setDefaultPalettes()": "writes",
     "styles.setFoldBelow()": "writes",
+    "styles.moveListItems()": "writes",
     "styles.setHighlightColor()": "writes",
     "styles.settled()": "not the graph",
     "styles.setValueEntries()": "writes",

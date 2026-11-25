@@ -678,6 +678,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
                 "setValueEntry",
                 "setValueEntries",
                 "setFoldBelow",
+                "moveListItems",
                 "renameRow",
                 "hideRow",
                 "switchFamily",

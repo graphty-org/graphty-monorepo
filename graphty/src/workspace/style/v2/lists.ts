@@ -82,9 +82,9 @@ export function listOf(side: "node" | "edge", thing: string, main: Channel): Lis
 }
 
 /**
- * The color a new item starts with (design 5.1): the next of the document's colors, then of the
- * element's Okabe-Ito palette, that is neither in the list nor the color the row's nodes or edges are drawn in,
- * so every item shows against the mark and its neighbors.
+ * The color a new item starts with (design 5.1, stripes design 3.4): the next of the element's Okabe-Ito palette,
+ * then of the document's colors, that is neither in the list nor the color the row's nodes or edges are drawn in,
+ * so every item shows against the mark and its neighbors (the document's near-identical grays come last).
  * @param ctx - the row.
  * @param colors - the list's colors now.
  * @returns the color.
@@ -95,7 +95,7 @@ export function nextColor(ctx: RowContext, colors: readonly string[]): string {
     const taken = new Set(
         [...colors, drawn].flatMap((color) => (typeof color === "string" ? [color.toUpperCase()] : [])),
     );
-    const offered = [...ctx.documentColors, ...(paletteDescriptor("okabe-ito")?.colors ?? [])];
+    const offered = [...(paletteDescriptor("okabe-ito")?.colors ?? []), ...ctx.documentColors];
     return offered.find((color) => !taken.has(color.toUpperCase())) ?? (typeof drawn === "string" ? drawn : "#808080");
 }
 
@@ -111,25 +111,32 @@ export function firstColors(ctx: RowContext): readonly string[] {
 }
 
 /**
- * The items a list channel draws on the row: its own, else the list the layers beneath draw there with the
- * row's own item overrides (`node.pieColors.1`) over it.
+ * The items a list channel draws on the row: its own, else the list the layers beneath draw there, with the
+ * row's own item overrides (`node.pieColors.1`) over it. Each item keeps its place: an unset item (`auto`) is "".
  * @param ctx - the row.
  * @param channel - the list channel.
  * @returns the items as text, and whether they are the row's own.
  */
 export function drawnItems(ctx: RowContext, channel: Channel): { readonly items: string[]; readonly own: boolean } {
     const own = itemsOf(ctx, channel);
-    if (own.length > 0) {
-        return { items: own, own: true };
-    }
-    const beneath = readChannelList(channel, ctx.beneath(channel).value).map(String);
+    const items = own.length > 0 ? own : placed(channel, ctx.beneath(channel).value);
     return {
-        items: beneath.map((item, at) => {
+        items: items.map((item, at) => {
             const over = lineIn(ctx, listItemAddress(channel, at))?.value;
             return typeof over === "string" || typeof over === "number" ? String(over) : item;
         }),
-        own: false,
+        own: own.length > 0,
     };
+}
+
+/**
+ * A list's items in their places, an unset one as "".
+ * @param channel - the list channel.
+ * @param value - its value.
+ * @returns the items, as text.
+ */
+function placed(channel: Channel, value: unknown): string[] {
+    return readChannelList(channel, value, { keepPlace: true }).map((item) => (item === undefined ? "" : String(item)));
 }
 
 /**
@@ -150,7 +157,12 @@ export function writeList(
     const also = Object.fromEntries(
         list.numbers.flatMap(({ channel }) => {
             const items = numbers[channel];
-            return items === undefined || items.length === 0 ? [] : [[channel, writeChannelList(channel, items)]];
+            // An unset item keeps its place as `auto` (graphty-element's placeholder), so the later ones stay put.
+            const kept = (items ?? []).map((item) => (item === "" ? undefined : item));
+            while (kept.length > 0 && kept.at(-1) === undefined) {
+                kept.pop();
+            }
+            return kept.length === 0 ? [] : [[channel, writeChannelList(channel, kept)]];
         }),
     );
     return writeIn(ctx, list.colors, { value: writeChannelList(list.colors, colors) }, also, true);
@@ -163,7 +175,7 @@ export function writeList(
  * @returns the items, as text.
  */
 function itemsOf(ctx: RowContext, channel: Channel): string[] {
-    return readChannelList(channel, lineIn(ctx, channel)?.value).map(String);
+    return placed(channel, lineIn(ctx, channel)?.value);
 }
 
 /** How v2 edits each structured text channel, and what its first item is when it is added (design 5.1). */

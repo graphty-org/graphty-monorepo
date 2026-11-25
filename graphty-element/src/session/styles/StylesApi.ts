@@ -240,6 +240,7 @@ import {
     type LegendBlock,
     type LegendSources,
 } from "./legend";
+import { moveListItemsPatch } from "./listMoves";
 import { assertDefaultPalettes, createPaletteDefaults } from "./paletteDefaults";
 import { colorsProblem } from "./palettes";
 import { quotePath, type SelectorSource, type SelectorTarget } from "./predicate";
@@ -1417,6 +1418,32 @@ export interface StylesApi {
      * @since 3.27.0
      */
     setFoldBelow(id: LayerId, by: Path, below: number | undefined, options?: RunOptions): Run<Layer>;
+    /**
+     * Reorder or remove items of parallel list channels on one layer, as one undoable step: each list the layer
+     * holds, and every item value and item binding (`node.stripeColors.1`) of those channels, moves with its item.
+     * `order[newIndex]` is the old index of the item that goes there; an old index left out is removed, with its item
+     * values and bindings.
+     *
+     * ```ts
+     * // Move a node's third stripe first, with its size, opacity and any binding on them.
+     * const lists = ["node.stripeColors", "node.stripeSizes", "node.stripeOpacities"] as const;
+     * await session.styles.moveListItems(layer.id, lists, [2, 0, 1]);
+     * ```
+     * @param id - The layer.
+     * @param channels - The parallel list channels (each a channel whose descriptor has `listOf`).
+     * @param order - The old index of each new place.
+     * @param options - A signal to cancel with, and a progress handler.
+     * @returns A run that resolves with the layer, and rejects with `E_BAD_COMMAND` when a channel is not a list
+     *   (`details.reason` `"not-a-list"`) or the order is not distinct whole numbers from 0 (`"bad-order"`),
+     *   `E_UNKNOWN_LAYER`, `E_PROTECTED` and `E_LOCKED`.
+     * @since 3.69.0
+     */
+    moveListItems(
+        id: LayerId,
+        channels: readonly Channel[],
+        order: readonly number[],
+        options?: RunOptions,
+    ): Run<Layer>;
     /**
      * The value one node or edge carries for a path, read the way a layer reads it: which group of
      * `results.louvain.group` the selected node is in, say, so a group list can put it first.
@@ -5545,6 +5572,25 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                     action: "update",
                     id,
                     patch: foldPatch(layerIn(state, id), by, below),
+                }),
+                options,
+            );
+        },
+
+        moveListItems(
+            id: LayerId,
+            channels: readonly Channel[],
+            order: readonly number[],
+            options: RunOptions = {},
+        ): Run<Layer> {
+            return edit<Layer>(
+                "update",
+                `Move items of ${channels.join(", ")} on layer ${id}`,
+                (state) => ({
+                    op: "style.patch",
+                    action: "update",
+                    id,
+                    patch: moveListItemsPatch(layerIn(state, id), channels, order),
                 }),
                 options,
             );

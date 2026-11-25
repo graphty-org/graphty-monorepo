@@ -138,8 +138,14 @@ export const SECTIONS: Readonly<Record<"node" | "edge", readonly SectionThings[]
                 ],
                 // ia-design 2's order: stripes are set in more files than pies.
                 [
-                    { id: "stripes", name: "Stripes", items: ["stripes"], main: ["node.stripeColors"] },
-                    // A pie, chart or record draws from data entries or fixed values: its row's main control picks (DataRow.tsx).
+                    // A stripes, pie, chart or record draws from data entries or fixed values: its row's main control picks (DataRow.tsx).
+                    {
+                        id: "stripes",
+                        name: "Stripes",
+                        items: ["stripes"],
+                        main: ["node.stripeData", "node.stripeColors"],
+                        start: "node.stripeColors",
+                    },
                     {
                         id: "pie",
                         name: "Pie",

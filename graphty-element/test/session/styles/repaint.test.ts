@@ -275,6 +275,28 @@ describe("one list item, overridden from above", () => {
 
         assert.strictEqual(h.engine.styleOf("node", 0)["node.pieColors"], "#111111 #ff0000 #333333");
     });
+
+    it("paints a share or an opacity item over a number list left unset, per node", async () => {
+        const h = makeHarness();
+        await h.paintAll();
+        // Typed apart: a computed key widens an inline range to number[].
+        const range: [number, number] = [0.2, 0.8];
+        await h.styles.add({
+            name: "Stripes",
+            selector: { match: "everything" },
+            set: { "node.stripeColors": "#111111 #222222" },
+            encode: {
+                [listItemAddress("node.stripeSizes", 0)]: { by: "data.weight", scale: "linear", range },
+                [listItemAddress("node.stripeOpacities", 1)]: { value: 0.5 },
+            },
+        });
+
+        // The shares list is unset: its first item comes from each node's weight, the second stays unset.
+        assert.strictEqual(h.engine.styleOf("node", 0)["node.stripeSizes"], "0.2");
+        assert.strictEqual(h.engine.styleOf("node", 3)["node.stripeSizes"], "0.8");
+        // The opacities list is unset: the first item stays unset (the "auto" placeholder) and the second is 0.5.
+        assert.strictEqual(h.engine.styleOf("node", 0)["node.stripeOpacities"], "auto 0.5");
+    });
 });
 
 describe("an edit repaints a dirty set, not the graph", () => {

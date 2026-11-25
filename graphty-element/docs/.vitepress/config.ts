@@ -105,7 +105,7 @@ export default defineConfig({
                         { text: "Screen Readers", link: "/guide/screen-readers" },
                         { text: "Drawing Nodes as Models", link: "/guide/node-models" },
                         { text: "Label Size & Number Format", link: "/guide/label-size-and-numbers" },
-                        { text: "Pie, Chart and Record from Data", link: "/guide/data-lists" },
+                        { text: "Pie, Stripes, Chart and Record from Data", link: "/guide/data-lists" },
                         { text: "Data Sources", link: "/guide/data-sources" },
                         { text: "Joining Data", link: "/guide/joins" },
                         { text: "Network Sources", link: "/guide/network-sources" },

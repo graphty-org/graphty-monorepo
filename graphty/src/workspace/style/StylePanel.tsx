@@ -38,6 +38,7 @@ import { Section } from "./Section";
 import { useFocusLine } from "./useFocusLine";
 import { useLabelColumn } from "./useLabelColumn";
 import { useDataVersion, useStyleVersion } from "./useStyleVersion";
+import { DATA_OF, sampleFacts, specOf } from "./v2/dataEntries";
 import { StylePanelV2 } from "./v2/StylePanelV2";
 import { WhichPicker } from "./WhichPicker";
 
@@ -470,6 +471,13 @@ export function RowStyle({
                   ]),
                   colors,
                   dataVersion,
+                  // A data row's sample facts (its parts' colors): a layer just given data has none until it is
+                  // painted, which comes after the change that wrote it.
+                  Object.values(DATA_OF).map((channel) =>
+                      channel === undefined || specOf(ctx, channel) === undefined
+                          ? null
+                          : sampleFacts(ctx, channel, null),
+                  ),
                   fileStylesOn(session),
                   cosmographOn(session),
                   stylePanelV2On(session),

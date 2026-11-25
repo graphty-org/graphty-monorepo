@@ -1,6 +1,6 @@
 /**
- * @file Pie, chart and record from data: the specification a layer writes to `node.pieData`,
- * `node.chartData` or `node.recordData`, the one value formatter, and the field fit a picker reads.
+ * @file Pie, stripes, chart and record from data: the specification a layer writes to `node.pieData`,
+ * `node.stripeData`, `node.chartData` or `node.recordData`, the one value formatter, and the field fit a picker reads.
  *
  * A spec is an ordered list of entries. graphty-element reads, counts, formats, orders and colors
  * them per node and fills the fixed lists (`node.pieColors`, `node.chartValues`,
@@ -160,6 +160,20 @@ export interface PieData extends DataListCommon {
 }
 
 /**
+ * The value `node.stripeData` takes: a node's stripes from data, each part one band, its share of the box as a pie
+ * slice's of the turn.
+ * @since 3.69.0
+ */
+export interface StripeData extends DataListCommon {
+    /** `"total"`: each part over the node's own total (default). `{ max }`: each part over `max`, the rest in `track`. */
+    readonly whole?: "total" | { readonly max: number; readonly track?: string };
+    /** A node with no value at all: draw nothing (default), or one full band in `emptyColor`. */
+    readonly empty?: "none" | "band";
+    /** Default `#BDBDBD`. */
+    readonly emptyColor?: string;
+}
+
+/**
  * The value `node.chartData` takes.
  * @since 3.68.0
  */
@@ -201,10 +215,10 @@ export interface RecordData {
 }
 
 /**
- * The three channels that take a data spec.
+ * The channels that take a data spec. `node.stripeData` joined in 3.69.0.
  * @since 3.68.0
  */
-export type DataChannel = "node.pieData" | "node.chartData" | "node.recordData";
+export type DataChannel = "node.pieData" | "node.stripeData" | "node.chartData" | "node.recordData";
 
 /**
  * The fixed lists each data channel fills, which a layer holding the data spec may not also hold (styles.add refuses
@@ -214,6 +228,7 @@ export type DataChannel = "node.pieData" | "node.chartData" | "node.recordData";
  */
 export const DATA_FIXED_CHANNELS: Readonly<Record<DataChannel, readonly Channel[]>> = {
     "node.pieData": ["node.pieColors", "node.pieSizes", "node.pieOpacities"],
+    "node.stripeData": ["node.stripeColors", "node.stripeSizes", "node.stripeOpacities"],
     "node.chartData": ["node.chartValues", "node.chartColors", "node.chartMin", "node.chartMax"],
     "node.recordData": ["node.shapeTexts", "node.labelTable"],
 };

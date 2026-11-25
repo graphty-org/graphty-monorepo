@@ -192,6 +192,26 @@ describe("one node acted on in a 10,000-node connected batched graph builds that
         },
     );
 
+    // tearing one node and its edges down after the same restyle takes them out of the index without filing every
+    // other `Edge` first, which cost the same half second as the hover did (issue #10028)
+    it("a node removed after a restyle looks at its own edges only", async () => {
+        const element = await mounted(true);
+        await element.session.styles.add({
+            name: "tails",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.arrowTail": "normal" },
+        });
+        await drawn(element);
+        assert.equal(element.rowCounts.objectEdges, COUNT - 1, "every edge is an Edge");
+        const before = walked(element);
+
+        await element.session.data.removeNodes([middleOf(COUNT)]);
+        await drawn(element);
+        assert.equal(element.rowCounts.objectEdges, COUNT - 3, "its two edges went with it");
+        assert.isAtMost(walked(element) - before, FEW_EDGES, "the built edges looked at");
+    });
+
     // a shape that is not round is trimmed by its box, its outline or a ray, never a radius
     it.each(["box", "cylinder", "star"])("a load and a real hover of %s nodes", async (shape) => {
         const element = await mounted(true, shape);

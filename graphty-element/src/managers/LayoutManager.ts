@@ -2395,20 +2395,25 @@ export class LayoutManager implements Manager {
      * @param nodes - every node in the graph, which is what was just added to that engine
      */
     private replayPins(engine: LayoutEngine, nodes: readonly Node[]): void {
-        const { positions } = this.dataManager;
-        const placed = { x: 0, y: 0, z: 0 };
-
         for (const node of nodes) {
-            if (!positions.isPinned(node.index)) {
-                continue;
+            if (this.dataManager.positions.isPinned(node.index)) {
+                this.handPlace(engine, node);
+                layoutEngineInternals.pin(engine, node);
             }
+        }
+    }
 
-            if (positions.isPlaced(node.index)) {
-                positions.read(node.index, placed);
-                layoutEngineInternals.setNodePosition(engine, node, this.onEnginePlane(placed));
-            }
-
-            layoutEngineInternals.pin(engine, node);
+    /**
+     * Tell an engine where a placed node is, as it can hold it.
+     * @param engine - The engine.
+     * @param node - The node.
+     */
+    private handPlace(engine: LayoutEngine, node: Node): void {
+        const { positions } = this.dataManager;
+        if (positions.isPlaced(node.index)) {
+            const placed = { x: 0, y: 0, z: 0 };
+            positions.read(node.index, placed);
+            layoutEngineInternals.setNodePosition(engine, node, this.onEnginePlane(placed));
         }
     }
 
@@ -3063,12 +3068,9 @@ export class LayoutManager implements Manager {
      * @param nodes - Every node in the graph.
      */
     private applyHold(engine: LayoutEngine, nodes: readonly Node[]): void {
-        const { positions } = this.dataManager;
-        const placed = { x: 0, y: 0, z: 0 };
         for (const node of nodes) {
-            if (this.holdsNode(node.id) && positions.isPlaced(node.index)) {
-                positions.read(node.index, placed);
-                layoutEngineInternals.setNodePosition(engine, node, this.onEnginePlane(placed));
+            if (this.holdsNode(node.id)) {
+                this.handPlace(engine, node);
             }
         }
 

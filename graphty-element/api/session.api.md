@@ -8814,7 +8814,7 @@ export interface SourceStepAct {
         readonly unmatched?: "add";
         readonly type?: SourceTypeName;
     };
-    readonly unlinked?: "keep" | "drop" | "remove";
+    readonly unlinked?: SourceConnectOptions["unlinked"];
     readonly unmatched?: "skip" | "add";
     readonly unmatchedFrom?: "keep" | "drop";
 }

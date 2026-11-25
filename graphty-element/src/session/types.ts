@@ -5240,7 +5240,7 @@ export interface SourceStepAct {
      * Make an edge: `"drop"` when a row no edge reaches makes no node, `"remove"` when the node it
      * already was goes too; absent for `"keep"`.
      */
-    readonly unlinked?: "keep" | "drop" | "remove";
+    readonly unlinked?: SourceConnectOptions["unlinked"];
 }
 
 /**

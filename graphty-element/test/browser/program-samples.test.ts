@@ -39,6 +39,8 @@ interface Expected {
 const EXPECTED: Readonly<Record<string, Expected>> = {
     yed: {
         nodes: {
+            // a group whose fill has no color (hasColor="false"): drawn unfilled
+            n0: { shape: "roundrect", fill: null, label: "External File" },
             "n0::n3": { shape: "hexagon", fill: "#669933", label: "External Layout" },
             "n1::n7::n0": { shape: "diamond", fill: "#6699cc", label: "Custom Function" },
             "n1::n6::n0": { shape: "parallelogram", fill: "#ffffff", label: "Privilege Set" },

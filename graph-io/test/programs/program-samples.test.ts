@@ -40,7 +40,8 @@ interface Expected {
 const EXPECTED: Readonly<Record<string, Expected>> = {
     yed: {
         nodes: {
-            n0: { shape: "round-rectangle", fill: "#ccccff", label: "External File", borderStyle: "dashed" },
+            // the file's <y:Fill hasColor="false">: no fill, whatever color a reader would default to
+            n0: { shape: "round-rectangle", fillOpacity: 0, label: "External File", borderStyle: "dashed" },
             "n0::n1": { shape: "rectangle", fill: "#6699cc", label: "External BaseTable", width: 30, height: 30 },
             "n0::n3": { shape: "hexagon", fill: "#669933", label: "External Layout" },
             "n1::n3::n3::n0": { shape: "octagon", fill: "#669933", label: "Layout Object" },

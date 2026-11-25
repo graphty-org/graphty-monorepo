@@ -506,6 +506,7 @@ export interface BaseDataSourceConfig {
     graphIndex?: number;
     graphName?: string;
     layout?: "recommended" | "placed" | "keep";
+    pins?: "data" | "keep";
     styles?: "file" | "none";
     url?: string;
 }
@@ -1432,6 +1433,7 @@ export const EdgeStyle: z.ZodObject<{
             wrapWidth: z.ZodOptional<z.ZodNumber>;
             wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
             wrapSkipEndSpace: z.ZodOptional<z.ZodBoolean>;
+            wrapUnkerned: z.ZodOptional<z.ZodBoolean>;
             wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
             wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
             wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
@@ -1734,6 +1736,7 @@ export const EdgeStyle: z.ZodObject<{
             wrapWidth: z.ZodOptional<z.ZodNumber>;
             wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
             wrapSkipEndSpace: z.ZodOptional<z.ZodBoolean>;
+            wrapUnkerned: z.ZodOptional<z.ZodBoolean>;
             wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
             wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
             wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
@@ -2200,6 +2203,7 @@ export const EdgeStyle: z.ZodObject<{
         wrapWidth: z.ZodOptional<z.ZodNumber>;
         wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
         wrapSkipEndSpace: z.ZodOptional<z.ZodBoolean>;
+        wrapUnkerned: z.ZodOptional<z.ZodBoolean>;
         wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
         wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
         wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
@@ -2448,6 +2452,7 @@ export const EdgeStyle: z.ZodObject<{
         wrapWidth: z.ZodOptional<z.ZodNumber>;
         wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
         wrapSkipEndSpace: z.ZodOptional<z.ZodBoolean>;
+        wrapUnkerned: z.ZodOptional<z.ZodBoolean>;
         wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
         wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
         wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
@@ -2696,6 +2701,7 @@ export const EdgeStyle: z.ZodObject<{
         wrapWidth: z.ZodOptional<z.ZodNumber>;
         wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
         wrapSkipEndSpace: z.ZodOptional<z.ZodBoolean>;
+        wrapUnkerned: z.ZodOptional<z.ZodBoolean>;
         wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
         wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
         wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
@@ -3108,6 +3114,7 @@ export interface FileLoadOptions {
     graphName?: string;
     layout?: "recommended" | "placed" | "keep";
     nodeIdPath?: string;
+    pins?: "data" | "keep";
     replace?: boolean;
     signal?: AbortSignal;
     styleOptions?: FileStyleOptions;
@@ -5999,6 +6006,8 @@ export abstract class LayoutEngine {
 // @public
 export class LayoutManager implements Manager {
     constructor(eventManager: EventManager, dataManager: DataManager, styles: Styles);
+    // @internal
+    answered(): Promise<void>;
     get building(): boolean;
     checkMotion(): void;
     // @internal
@@ -7142,6 +7151,7 @@ export const NodeStyle: z.ZodObject<{
         wrapWidth: z.ZodOptional<z.ZodNumber>;
         wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
         wrapSkipEndSpace: z.ZodOptional<z.ZodBoolean>;
+        wrapUnkerned: z.ZodOptional<z.ZodBoolean>;
         wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
         wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
         wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
@@ -7390,6 +7400,7 @@ export const NodeStyle: z.ZodObject<{
         wrapWidth: z.ZodOptional<z.ZodNumber>;
         wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
         wrapSkipEndSpace: z.ZodOptional<z.ZodBoolean>;
+        wrapUnkerned: z.ZodOptional<z.ZodBoolean>;
         wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
         wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
         wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
@@ -7638,6 +7649,7 @@ export const NodeStyle: z.ZodObject<{
         wrapWidth: z.ZodOptional<z.ZodNumber>;
         wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
         wrapSkipEndSpace: z.ZodOptional<z.ZodBoolean>;
+        wrapUnkerned: z.ZodOptional<z.ZodBoolean>;
         wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
         wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
         wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
@@ -8667,6 +8679,7 @@ export const RichTextStyle: z.ZodObject<{
     wrapWidth: z.ZodOptional<z.ZodNumber>;
     wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
     wrapSkipEndSpace: z.ZodOptional<z.ZodBoolean>;
+    wrapUnkerned: z.ZodOptional<z.ZodBoolean>;
     wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
     wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
     wrapSpaceCount: z.ZodOptional<z.ZodNumber>;

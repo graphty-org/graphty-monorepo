@@ -295,6 +295,11 @@ export interface NodeStyleValues {
      */
     readonly labelWrapSkipEndSpace: boolean;
     /**
+     * Whether a line is measured against `labelWrapWidth` without kerning between its letters, as Java measures text
+     * (Cytoscape desktop). Unset or false, kerned, as a browser draws text.
+     */
+    readonly labelWrapUnkerned: boolean;
+    /**
      * Whether a line wider than `labelWrapWidth` is cut to fit with an ellipsis after it, in place of wrapping
      * (Cytoscape.js `text-wrap: ellipsis`). Unset or false, it wraps.
      */

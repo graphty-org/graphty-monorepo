@@ -108,6 +108,7 @@ const LABEL_PROPERTIES = [
     "labelWrapWidth",
     "labelWrapTrailingSpace",
     "labelWrapSkipEndSpace",
+    "labelWrapUnkerned",
 ];
 
 // ---------------------------------------------------------------------------------------------
@@ -522,7 +523,7 @@ function names(note: AnyNote, kind: "node" | "edge", channel: string): boolean {
     const property = String(note.params.property);
     // a label's style is one channel merged and several in a layer's contribution
     const properties =
-        /\.label(?:Style|Color|Size|LetterSize|Font|Weight|Italic|WrapWidth|WrapTrailingSpace|WrapSkipEndSpace|Location)$/.test(
+        /\.label(?:Style|Color|Size|LetterSize|Font|Weight|Italic|WrapWidth|WrapTrailingSpace|WrapSkipEndSpace|WrapUnkerned|Location)$/.test(
             channel,
         )
             ? LABEL_PROPERTIES

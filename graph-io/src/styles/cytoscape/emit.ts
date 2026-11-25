@@ -689,6 +689,8 @@ const DRAWN_SO: ReadonlyMap<string, StyleValue> = new Map<string, StyleValue>([
     ["labelWrapTrailingSpace", true],
     // and counts that space after a line's last word too
     ["labelWrapSkipEndSpace", false],
+    // with its letters unkerned
+    ["labelWrapUnkerned", true],
     // it curves an edge through its bends' midpoints
     ["bendCurve", "midpoints"],
 ]);
@@ -1437,7 +1439,9 @@ export function cytoscapeWritableProperties(target: StyleTarget, dialect: Cytosc
         ...WRITERS[dialect][target].keys(),
         ...FONT_PROPS,
         ...FIXED[target].keys(),
-        ...(target === "node" ? ["labelWrapTrailingSpace", "labelWrapSkipEndSpace"] : ["bendCurve"]),
+        ...(target === "node"
+            ? ["labelWrapTrailingSpace", "labelWrapSkipEndSpace", "labelWrapUnkerned"]
+            : ["bendCurve"]),
     ];
 }
 

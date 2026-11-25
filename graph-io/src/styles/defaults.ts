@@ -457,6 +457,10 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                         true,
                         `${MEASURED}cx-ndex-90f78bcd: each word is measured with the space after it), Cytoscape 3.10.5`,
                     ),
+                    labelWrapUnkerned: v(
+                        true,
+                        `${MEASURED}cx2-us-returned-students: Java measures a line unkerned), Cytoscape 3.10.5`,
+                    ),
                     labelPosition: v("center", `${CY} 380`),
                     labelPadding: CYTOSCAPE_LABEL_PADDING,
                     labelLineHeight: CYTOSCAPE_LABEL_LINE_HEIGHT,
@@ -519,6 +523,10 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelWrapTrailingSpace: v(
                         true,
                         `${MEASURED}cx-ndex-90f78bcd: each word is measured with the space after it), Cytoscape 3.10.5`,
+                    ),
+                    labelWrapUnkerned: v(
+                        true,
+                        `${MEASURED}cx2-us-returned-students: Java measures a line unkerned), Cytoscape 3.10.5`,
                     ),
                     labelPosition: v("center", `${CYL} 205`),
                     labelPadding: CYTOSCAPE_LABEL_PADDING,

@@ -23,7 +23,9 @@ export function NoticeSlot({
     const { store, element } = useWorkspace();
     const slot = useRef<HTMLDivElement>(null);
     const notice = useWorkspaceState((state) => state.notice);
+    // on reload: fresh: pointer: the notice under the pointer
     const [hovered, setHovered] = useState(false);
+    // on reload: fresh: pointer: focus inside the notice
     const [focused, setFocused] = useState(false);
 
     // A notice taken down under the pointer or the focus fires no pointerleave or blur: without

@@ -15,6 +15,18 @@ describe("LayoutManager", () => {
     let graph: Graph;
     let layoutManager: LayoutManager;
 
+    /**
+     * Where the layout engine has a node, on either render path: looked up by id, since under
+     * renderPath "batched" the engine is handed rows and its `nodes` list is empty.
+     * @param id - The node.
+     * @returns Its position, or undefined.
+     */
+    const positionOf = (id: string): [number, number, number] | undefined => {
+        const node = graph.getDataManager().getNode(id);
+        assert.isDefined(node, `node ${id} is stored`);
+        return layoutManager.getNodePosition(node);
+    };
+
     beforeEach(async () => {
         graph = await createTestGraph();
         layoutManager = graph.getLayoutManager();
@@ -256,10 +268,7 @@ describe("LayoutManager", () => {
             await layoutManagerInternals.setLayout(layoutManager, "ngraph", {});
 
             // Get positions after pre-steps
-            const nodes = Array.from(layoutManager.nodes);
-            const positions: ([number, number, number] | undefined)[] = nodes.map((node) =>
-                layoutManager.getNodePosition(node),
-            );
+            const positions = ["node1", "node2", "node3", "node4"].map(positionOf);
 
             // Verify that nodes have positions
             positions.forEach((pos, i) => {
@@ -330,7 +339,13 @@ describe("LayoutManager", () => {
         });
     });
 
+    // The engine holding the graph's own `Node`s and `Edge`s is the "objects" path; under "batched" it is
+    // handed rows. So this runs on "objects" in every project.
     describe("node and edge management", () => {
+        beforeEach(() => {
+            graph.setRenderPath("objects");
+        });
+
         it("should get nodes from layout engine", async () => {
             // Add some test data
             const dataManager = graph.getDataManager();
@@ -374,10 +389,7 @@ describe("LayoutManager", () => {
         });
 
         it("should get node position from layout engine", () => {
-            const nodes = Array.from(layoutManager.nodes);
-            const node = nodes[0];
-
-            const position = layoutManager.getNodePosition(node);
+            const position = positionOf("node1");
 
             assert.isDefined(position);
             assert.isArray(position);
@@ -385,20 +397,14 @@ describe("LayoutManager", () => {
         });
 
         it("should handle undefined position", () => {
-            const nodes = Array.from(layoutManager.nodes);
-            const node = nodes[0];
-
-            const position = layoutManager.getNodePosition(node);
+            const position = positionOf("node1");
 
             assert.isDefined(position);
             assert.isArray(position);
         });
 
         it("should handle position without z coordinate", () => {
-            const nodes = Array.from(layoutManager.nodes);
-            const node = nodes[0];
-
-            const position = layoutManager.getNodePosition(node);
+            const position = positionOf("node1");
 
             assert.isDefined(position);
             assert.equal(position.length, 3);
@@ -689,8 +695,7 @@ describe("LayoutManager", () => {
             }
 
             // Get positions for all nodes
-            const nodes = Array.from(layoutManager.nodes);
-            const positions = nodes.map((node) => layoutManager.getNodePosition(node));
+            const positions = ["node1", "node2", "node3"].map(positionOf);
 
             // Verify all nodes have positions with z=0 in 2D mode
             positions.forEach((pos, i) => {
@@ -729,8 +734,7 @@ describe("LayoutManager", () => {
             }
 
             // Get positions for all nodes
-            const nodes = Array.from(layoutManager.nodes);
-            const positions = nodes.map((node) => layoutManager.getNodePosition(node));
+            const positions = ["node1", "node2", "node3"].map(positionOf);
 
             // In 3D mode, at least one node should have a non-zero z coordinate
             const hasNonZeroZ = positions.some((pos) => pos && Math.abs(pos[2]) > 0.001);

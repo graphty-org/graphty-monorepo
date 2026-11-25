@@ -108,7 +108,7 @@ import {
     drawnUses,
     toColorValue,
 } from "./session/styles/channels";
-import { transitionsOf } from "./transitions/LayoutTransitionRunner";
+import { notePlaced, transitionsOf } from "./transitions/LayoutTransitionRunner";
 
 /** A node's id, as the data gave it: a string or a number. */
 export type NodeIdType = string | number;
@@ -1082,6 +1082,7 @@ export class Node implements ModelUser {
         data: AdHocData<string | number>,
         opts: NodeOpts = {},
     ) {
+        notePlaced(this, false);
         this.parentGraph = graph;
         this.id = nodeId;
         this.opts = opts;
@@ -1897,6 +1898,7 @@ export class Node implements ModelUser {
      * @internal
      */
     setMeshPosition(x: number, y: number, z: number): void {
+        notePlaced(this, true);
         this.#anchor.position.set(x, y, z);
         const table = this.batchTable;
         const held = table?.isHeld(this.row);

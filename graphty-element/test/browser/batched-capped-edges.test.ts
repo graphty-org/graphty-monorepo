@@ -178,6 +178,7 @@ describe.each(VIEWS)("an arrowed edge on the batched path in %s", (view) => {
         assert.equal([...dm.edges.values()].length, EDGES.length);
         assert.equal(dataManagerInternals.edgesBuilt(dm), EDGES.length, "reading the edges built them");
         assert.equal(element.graph.rowCounts.objectEdges, 0, "each Edge pulls its line and its head");
+        assert.equal(element.graph.rowCounts.batchedNodes, N, "every node is still a batched row");
         const { engine } = element.graph;
         engine.beginFrame();
         element.graph.scene.render();

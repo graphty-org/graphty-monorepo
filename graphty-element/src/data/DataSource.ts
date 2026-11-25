@@ -83,6 +83,12 @@ export interface BaseDataSourceConfig {
      * `"keep"` (the default) leaves the layout as it is.
      */
     layout?: "recommended" | "placed" | "keep";
+    /**
+     * `"data"` also pins every node the file marks fixed (a Graphviz `pos="x,y!"` or `pin=true`, a
+     * Cytoscape.js `"locked": true`), so a layout keeps them where the file put them and lays out
+     * the rest. `"keep"` (the default) pins nothing.
+     */
+    pins?: "data" | "keep";
 }
 
 /**
@@ -139,6 +145,7 @@ const ELEMENT_OWNED_OPTIONS: ReadonlySet<string> = new Set([
     "styles",
     "styleOptions",
     "layout",
+    "pins",
 ]);
 
 /**

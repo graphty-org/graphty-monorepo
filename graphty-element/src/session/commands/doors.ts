@@ -2529,6 +2529,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             updatePositions: TRANSPORT,
             // The frame's own publish of a stale static layout, reporting a refusal as updatePositions does.
             publishOrReport: TRANSPORT,
+            // Waits for an asynchronous layout's answer and publishes it then, as the next frame would.
+            answered: TRANSPORT,
             onRest: RENDER,
             onMotion: RENDER,
             checkMotion: RENDER,

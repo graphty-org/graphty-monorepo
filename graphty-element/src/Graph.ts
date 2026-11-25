@@ -796,6 +796,12 @@ export interface FileLoadOptions {
      */
     layout?: "recommended" | "placed" | "keep";
     /**
+     * `"data"` also pins every node the file marks fixed (a Graphviz `pos="x,y!"` or `pin=true`, a
+     * Cytoscape.js `"locked": true`), so a layout keeps them where the file put them and lays out
+     * the rest. `"keep"` (the default) pins nothing.
+     */
+    pins?: "data" | "keep";
+    /**
      * Cancels the load, its read or fetch included: it rejects with the signal's reason (an
      * `AbortError` by default) and adds nothing, leaving the graph as it was.
      */
@@ -1852,6 +1858,7 @@ export class Graph implements GraphContext {
                 const engine = this.layoutManager.layoutEngine;
                 return engine instanceof SimulationLayoutEngine ? engine.accelerator : "cpu";
             },
+            answered: () => this.layoutManager.answered(),
         };
         lane.register("layout", async (_rendered, target) => {
             const choice = target.layout ?? DEFAULT_LAYOUT;
@@ -4098,6 +4105,7 @@ export class Graph implements GraphContext {
                     graphIndex,
                     graphName,
                     layout: options?.layout,
+                    pins: options?.pins,
                     styles,
                     styleOptions,
                 }),

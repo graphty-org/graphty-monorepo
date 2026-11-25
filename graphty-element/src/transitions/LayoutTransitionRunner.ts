@@ -70,6 +70,35 @@ export interface TransitionHost {
     layoutRunning(): boolean;
 }
 
+/**
+ * The nodes no frame has put anywhere yet: each is drawn at its layout place in one frame, not moved
+ * from the hidden mesh template (y = -10000) it waits at. A `Node` joins when built and leaves on its
+ * first placement; a row with no `Node` never joins (issue #9424).
+ */
+const unplaced = new WeakSet<TransitionSubject>();
+
+/**
+ * Note whether a frame has put a node anywhere yet.
+ * @param node - The node.
+ * @param placed - False when it is built, true once something places it.
+ */
+export function notePlaced(node: TransitionSubject, placed: boolean): void {
+    if (placed) {
+        unplaced.delete(node);
+    } else {
+        unplaced.add(node);
+    }
+}
+
+/**
+ * Whether a frame has put a node anywhere yet; a row with no `Node` always has.
+ * @param node - The node.
+ * @returns True once it has been placed.
+ */
+export function isPlaced(node: TransitionSubject): boolean {
+    return !unplaced.has(node);
+}
+
 const logger: Logger = GraphtyLogger.getLogger(["graphty", "layout", "transition"]);
 
 /**
@@ -424,7 +453,8 @@ export class LayoutTransitionRunner {
         }
 
         const rows = [...(this.host.rows?.() ?? [])];
-        const nodes = [...this.host.nodes(), ...rows];
+        // A node added since the last frame has no drawn place to leave from (issue #9424).
+        const nodes = [...this.host.nodes(), ...rows].filter((node) => isPlaced(node));
         const from = nodes.map((node) => ({
             x: node.drawnPosition.x,
             y: node.drawnPosition.y,
@@ -452,7 +482,9 @@ export class LayoutTransitionRunner {
                     hopFromSelection: hops?.get(node),
                     distanceFromCenter: distances[i] / farthest,
                 }),
-                scale: node.drawnScale,
+                // A node a running move has shrunk keeps that move's whole size, not its shrunk one:
+                // `begin()` ends the running move only after this snapshot is taken.
+                scale: (this.state?.movers.get(node) ?? this.rowMovers.get(node.index))?.scale ?? node.drawnScale,
                 travel: 0,
             });
         });

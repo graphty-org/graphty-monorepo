@@ -367,11 +367,6 @@ export async function writeLine(
         Object.entries(also ?? {}).filter(([c]) => alsoReplaces || own?.set?.[c as Channel] === undefined),
     );
     const set = literal === undefined && Object.keys(extra).length === 0 ? undefined : { ...extra, ...literal };
-    // An extra value written as undefined takes that channel off the layer in the same step (an older spelling the
-    // line replaces): graphty-element reads a key present as a value, so it is left out rather than sent undefined.
-    const cleared = Object.entries<ChannelValue | undefined>(also ?? {})
-        .filter(([, value]) => value === undefined)
-        .map(([c]) => c as Channel);
     const encode = encodeOf(write, channel, combined);
     // On the Everything row, the other layers that write this channel, so the new line is its only one.
     const others = everything ? othersWriting(layers, own, channel) : [];
@@ -380,20 +375,7 @@ export async function writeLine(
     }
     // Where a new layer goes when it lands above a row: just above it, among that row's siblings.
     const place = own === undefined && fresh?.above !== undefined ? placeAbove(session, fresh.above) : undefined;
-    const plan: LinePlan = {
-        session,
-        layers,
-        target,
-        channel,
-        fresh,
-        home,
-        own,
-        set: set === undefined ? undefined : without(set, ...cleared),
-        encode,
-        others,
-        place,
-        cleared,
-    };
+    const plan: LinePlan = { session, layers, target, channel, fresh, home, own, set, encode, others, place };
     if (place !== undefined) {
         return session.transaction(`adding ${fresh?.name ?? "a layer"}`, async (tx) => applyLine(tx.styles, plan));
     }
@@ -462,8 +444,6 @@ interface LinePlan {
     readonly others: readonly Layer[];
     /** Where a new layer goes when it lands above a row. */
     readonly place: { parent: string | null; index: number } | undefined;
-    /** Channels the write takes off the layer it writes to, in the same step. */
-    readonly cleared: readonly Channel[];
 }
 
 /**
@@ -496,10 +476,7 @@ async function applyLine(styles: GraphSession["styles"], plan: LinePlan): Promis
         throw new Error(`The row has no ${plan.target} layer to write ${channel} to`);
     }
     await styles.update(own.id, {
-        set:
-            set === undefined
-                ? without(own.set, channel, ...plan.cleared)
-                : { ...without(own.set, channel, ...plan.cleared), ...set },
+        set: set === undefined ? without(own.set, channel) : { ...without(own.set, channel), ...set },
         encode: encode === undefined ? without(own.encode, channel) : { ...own.encode, ...encode },
     });
     await stripOthers(styles, plan);

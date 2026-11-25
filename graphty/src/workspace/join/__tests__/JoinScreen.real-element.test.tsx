@@ -219,8 +219,17 @@ describe("the join screen on the real element", () => {
         assert.isUndefined(session.data.node("TP53")?.tissue);
         const [joined] = session.data.joins();
         assert.strictEqual(joined.matched, 58);
-        // The Sources row names its join ratio with its unit (tier 4 R11).
-        await screen.findByText("58 nodes matched, 70 table rows");
+        // The sidebar says nothing of the join; the joined table's details name its match (tier 4 R11).
+        const entry = await screen.findByRole("listitem", { name: "tumor-expression.tsv" });
+        const header = entry.querySelector<HTMLElement>("[data-testid=control-section-toggle]");
+        assert.isNotNull(header);
+        if (header !== null) {
+            await userEvent.click(header);
+        }
+        const details = await screen.findByRole("complementary", { name: "Inspector" });
+        assert.strictEqual((await within(details).findByText("Nodes matched")).nextElementSibling?.textContent, "58");
+        assert.strictEqual(within(details).getByText("Table rows").nextElementSibling?.textContent, "70");
+        assert.notMatch(entry.textContent, /matched|joined/);
 
         // The header's Undo names the step it undoes ("Undo joining ...").
         await userEvent.click(
@@ -522,36 +531,16 @@ describe("the join screen on the real element", () => {
         assert.strictEqual(session.data.nodes().length, 11, "G12 was left out, not added");
     });
 
-    it("keeps a joined source row's ratio whole and its name readable", async () => {
+    it("keeps a joined source's name readable, with no join words in its entry", async () => {
         await projectWith(new File([GAUGES], "gauges.csv"), 11);
         drop(new File([FLOWS], "deliveries.csv"));
         const join = await screen.findByRole("region", { name: "Join deliveries.csv" });
         await userEvent.click(within(join).getByRole("button", { name: "Join" }));
         const row = await screen.findByRole("listitem", { name: "deliveries.csv" });
-        await waitFor(() => {
-            const ratio = row.querySelector<HTMLElement>(".dp-source-label .dp-quiet");
-            const name = row.querySelector<HTMLElement>(".dp-source-name");
-            assert.isNotNull(ratio, "the ratio is drawn");
-            assert.isNotNull(name);
-            if (ratio === null || name === null) {
-                return;
-            }
-            assert.match(ratio.textContent, /^\d+\/15$/);
-            assert.isAtMost(ratio.scrollWidth, ratio.clientWidth, "the ratio is whole");
-            assert.isAbove(ratio.getBoundingClientRect().width, 0);
-            // At least "deliver" of the name shows (about seven characters at 12 px).
-            assert.isAtLeast(name.clientWidth, 45, "the name is readable");
-            // The kind icon and the name share one line; only the count chips may wrap below.
-            const icon = row.querySelector<HTMLElement>(".dp-source-icon");
-            assert.isNotNull(icon);
-            const middle = (each: HTMLElement): number => {
-                const box = each.getBoundingClientRect();
-                return box.top + box.height / 2;
-            };
-            if (icon !== null) {
-                assert.isAtMost(Math.abs(middle(icon) - middle(name)), 4, "the icon is on the name's line");
-            }
-        });
+        const name = row.querySelector<HTMLElement>("[data-testid=control-section-name]");
+        // At least "deliver" of the name shows (about seven characters at 12 px).
+        assert.isAtLeast(name?.clientWidth ?? 0, 45, "the name is readable");
+        assert.notMatch(row.textContent, /matched|joined/);
     });
 });
 

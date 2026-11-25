@@ -192,20 +192,6 @@ function rowsOf(
 }
 
 /**
- * The key column a source with no key of its own was given: its rows numbered from 0 under `id`
- * as they were read (draft.ts ROW_ID). The file never had it, so no column list names it.
- * ponytail: told from the values, since the mapping keeps no mark of a numbered key; a file whose own
- * `id` column holds exactly 0, 1, 2, ... in order is read the same way.
- * @param src - The source.
- * @param rows - Its node rows.
- * @returns The numbered key's column, or undefined when the source names a key of its own.
- */
-function mintedKey(src: StepsSource, rows: readonly Row[]): string | undefined {
-    const key = src.mapping.nodes?.key;
-    return key === "id" && rows.length > 0 && rows.every((row, at) => row[key] === String(at)) ? key : undefined;
-}
-
-/**
  * The columns of some rows, in the order first read, without the element's own `_source.` facts.
  * @param rows - The rows.
  * @returns The column names.
@@ -283,11 +269,7 @@ function sourceSummary(value: SourceSteps, copies: Copies, source: string): Sour
     const map = copyMap(copies);
     const tables = (["nodes", "edges"] as const).flatMap((table): TableSummary[] => {
         const rows = tableRows(src, map, table);
-        if (rows === null) {
-            return [];
-        }
-        const minted = table === "nodes" ? mintedKey(src, rows) : undefined;
-        return [{ table, rows: rows.length, columns: columnsOf(rows).filter((each) => each !== minted) }];
+        return rows === null ? [] : [{ table, rows: rows.length, columns: columnsOf(rows) }];
     });
     return {
         tables,

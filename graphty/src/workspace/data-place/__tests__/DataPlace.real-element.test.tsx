@@ -132,14 +132,12 @@ describe("the Data place's sidebar on the real element", () => {
         await page.viewport(1366, 900);
     });
 
-    it("lists a source with its chips, its special fields, and no list of other fields", async () => {
+    it("lists a source with its counts, its special fields, and no list of other fields", async () => {
         const session = await openDataPlace();
         await loadLog(session);
 
         const row = await place().findByRole("listitem", { name: "auth-log.csv" });
         const [source] = session.data.sources();
-        assert.include(row.textContent, `Node ${String(source.counts.nodes)}`);
-        assert.include(row.textContent, `Edge ${String(source.counts.edges)}`);
         await waitFor(() => {
             assert.equal(shown("Source"), "user");
             assert.equal(shown("Target"), "host");
@@ -154,6 +152,18 @@ describe("the Data place's sidebar on the real element", () => {
         assert.isNull(fields.querySelector('[data-kind="node"]'));
         within(fields).getByRole("button", { name: "Add to edge attributes" });
         assert.isNull(within(fields).queryByRole("button", { name: "Add to node attributes" }));
+        // Closed, the entry names its counts with their units.
+        const header = row.querySelector<HTMLElement>("[aria-expanded=true]");
+        assert.isNotNull(header, "the picked source's entry is open");
+        if (header !== null) {
+            await userEvent.click(header);
+        }
+        await waitFor(() => {
+            assert.strictEqual(
+                row.querySelector("[data-testid=control-section-summary]")?.textContent,
+                `${String(source.counts.nodes)} nodes, ${String(source.counts.edges)} edges`,
+            );
+        });
     });
 
     it("labels a graph file's node and edge pills Nodes and Edges, with Edges there though its edges carry no columns", async () => {
@@ -465,7 +475,10 @@ describe("the Data place's sidebar on the real element", () => {
             assert.isAbove(menu.getBoundingClientRect().width, 0);
             assert.notEqual(getComputedStyle(menu).opacity, "0");
         });
-        // The cut name is one hover away in full.
+        // The cut name is one hover away in full. The press above shut its tooltip until the pointer
+        // comes back to the header, so the pointer leaves it first.
+        assert.isAbove(label?.scrollWidth ?? 0, label?.clientWidth ?? Infinity, "the name is cut");
+        await userEvent.hover(menu);
         await userEvent.hover(label ?? row);
         await screen.findByRole("tooltip", { name });
     });

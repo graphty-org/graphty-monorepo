@@ -176,7 +176,7 @@ async function formClosed(): Promise<void> {
  */
 async function editSource(name: string | RegExp): Promise<HTMLElement> {
     const row = await screen.findByRole("listitem", { name });
-    await userEvent.click(row.querySelector<HTMLElement>("[aria-expanded]") ?? row);
+    await userEvent.click(row.querySelector<HTMLElement>("[data-testid=control-section-toggle]") ?? row);
     const panel = await screen.findByRole("complementary", { name: "Inspector" });
     await userEvent.click(await within(panel).findByRole("button", { name: "Edit source" }));
     return screen.findByRole("form", { name: "Network data" });

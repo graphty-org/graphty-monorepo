@@ -357,7 +357,7 @@ async function openLoaded(source: {
     });
     await session.data.import(source);
     const row = await screen.findByRole("listitem", { name: /server/ });
-    await userEvent.click(row.querySelector<HTMLElement>("[aria-expanded]") ?? row);
+    await userEvent.click(row.querySelector<HTMLElement>("[data-testid=control-section-toggle]") ?? row);
     const panel = await screen.findByRole("complementary", { name: "Inspector" });
     await within(panel).findByRole("button", { name: "Edit source" });
     return { session, panel };
@@ -457,7 +457,7 @@ describe("editing a network source", () => {
         });
         await session.data.import({ type: "csv", config: { data: "source,target\na,b\n" }, name: "ships.csv" });
         const row = await screen.findByRole("listitem", { name: /ships/ });
-        await userEvent.click(row.querySelector<HTMLElement>("[aria-expanded]") ?? row);
+        await userEvent.click(row.querySelector<HTMLElement>("[data-testid=control-section-toggle]") ?? row);
         const panel = await screen.findByRole("complementary", { name: "Inspector" });
         await within(panel).findByText("Type");
         assert.isNull(within(panel).queryByRole("button", { name: "Edit source" }));
@@ -592,7 +592,7 @@ describe("server sources on the real element", () => {
         const { session } = await openDataPlace();
         await session.data.import({ source: COUNTED, config: {}, name: "Counted" });
         const row = await screen.findByRole("listitem", { name: "Counted" });
-        const header = row.querySelector<HTMLElement>("[aria-expanded]");
+        const header = row.querySelector<HTMLElement>("[data-testid=control-section-toggle]");
         assert.isNotNull(header);
         if (header?.getAttribute("aria-expanded") === "true") {
             await userEvent.click(header);

@@ -17,7 +17,7 @@ import { useWorkspace } from "../state/WorkspaceContext";
 import { IssuesList } from "../table/IssuesList";
 import { SourceFields } from "./Fields";
 import { FiltersSection } from "./Filters";
-import { countWords, joinWords, sourceName } from "./words";
+import { countWords, sourceName } from "./words";
 
 const HOVER_ICONS: Readonly<Record<NonNullable<SourceRowCommand["icon"]>, React.ReactNode>> = {
     more: <GLYPHS.loadMore size={14} aria-hidden />,
@@ -122,12 +122,13 @@ function MoreMenu({ name, children }: Readonly<{ name: string; children: React.R
 
 /**
  * The summary a closed entry shows after its name: its node and edge counts ("13 nodes, 18
- * edges"), and a joined table's matched rows when some did not join. Text, as a section summary is.
+ * edges"). How a joined table matched is in the inspector's details, not here: the sidebar holds no
+ * join information.
  * @param source - the load
  * @returns the words, or undefined for none
  */
 function summaryOf(source: LoadedSource): string | undefined {
-    const words = [countWords(source), joinWords(source) ?? ""].filter((each) => each !== "").join(", ");
+    const words = countWords(source);
     return words === "" ? undefined : words;
 }
 

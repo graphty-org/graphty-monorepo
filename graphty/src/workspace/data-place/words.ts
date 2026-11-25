@@ -465,35 +465,6 @@ export function serverCount(loaded: number, total: number | undefined): string {
 }
 
 /**
- * A joined table's match: "52/70", matched rows of all its rows, drawn only when some rows did not
- * join.
- * @param source - the joined load.
- * @returns the words, or null when the load is not a join or every row joined.
- */
-export function joinMatch(source: LoadedSource): string | null {
-    return source.join === undefined || source.join.matched >= source.join.rows
-        ? null
-        : `${formatNumber(source.join.matched)}/${formatNumber(source.join.rows)}`;
-}
-
-/**
- * The join match's name and tooltip, with its unit.
- * @param source - the joined load.
- * @returns such as "17 of 19 rows joined" or "52 nodes matched, 70 table rows", or null when
- * {@link joinMatch} draws nothing.
- */
-export function joinWords(source: LoadedSource): string | null {
-    if (joinMatch(source) === null || source.join === undefined) {
-        return null;
-    }
-    const { matched, rows, shape } = source.join;
-    const unit = matchedUnit(shape);
-    return unit === "row"
-        ? `${formatNumber(matched)} of ${formatNumber(rows)} rows joined`
-        : `${count(matched, unit)} matched, ${formatNumber(rows)} table rows`;
-}
-
-/**
  * A Sources row's count chips in words, their name and tooltip; a count of 0 has no chip, so no words.
  * @param source - the load.
  * @returns such as "13 nodes, 18 edges", or "4 of 12 nodes" for a server load that says its total.

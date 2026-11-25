@@ -104,14 +104,10 @@ describe("source-steps: a source's tables and profiles", () => {
         assert.sameMembers([...columns], ["id", "name"]);
     });
 
-    it("lists no id column for a file that has none: its numbered rows are not a column", async () => {
+    it("keeps a file's own id column, whatever its values", async () => {
         const session = createGraphSession({ features: ["source-steps"] });
-        const key = await session.data.stage(
-            csv("identifiers.csv", "account_id,phone", "AC1,+1555", "AC1,+1556", "AC2,+1557"),
-            { guess: "values" },
-        );
-        const columns = session.data.sourceTable(key).summary().tables[0]?.columns ?? [];
-        assert.sameMembers([...columns], ["account_id", "phone"]);
+        const key = await session.data.stage(csv("real.csv", "id,name", "0,Ann", "1,Bo"), { guess: "values" });
+        assert.sameMembers([...(session.data.sourceTable(key).summary().tables[0]?.columns ?? [])], ["id", "name"]);
         session.dispose();
     });
 

@@ -22,9 +22,9 @@ import { openGroup, openProject, openStyle, sectionOf, settingsName, written } f
 async function withExpression(): Promise<{ session: GraphSession; layer: string }> {
     const { session, id } = await openProject();
     await session.data.updateNodes([
-        { id: "a", values: { expr_ctrl_1: 5.2, expr_ctrl_2: 4.9, expr_trt_1: 8.1, label: "Gene A" } },
-        { id: "b", values: { expr_ctrl_1: 3, expr_trt_1: 2, label: "Gene B" } },
-        { id: "c", values: { expr_ctrl_1: 1, expr_ctrl_2: 2, expr_trt_1: 6, label: "Gene C" } },
+        { id: "a", values: { exprC1: 5.2, exprC2: 4.9, exprT1: 8.1, label: "Gene A" } },
+        { id: "b", values: { exprC1: 3, exprT1: 2, label: "Gene B" } },
+        { id: "c", values: { exprC1: 1, exprC2: 2, exprT1: 6, label: "Gene C" } },
     ]);
     await session.styles.settled();
     return { session, layer: id };
@@ -78,9 +78,9 @@ describe("Style panel v2's chart from data", () => {
         const { session, layer } = await withExpression();
         const tab = await openStyle("Key people");
         await addChart(tab);
-        await pickMatching("expr_");
+        await pickMatching("expr");
         await waitFor(() => {
-            assert.deepEqual(written(session, layer, "node.chartData"), { entries: [{ pattern: "expr_" }] });
+            assert.deepEqual(written(session, layer, "node.chartData"), { entries: [{ pattern: "expr" }] });
         });
         assert.isUndefined(written(session, layer, "node.chartValues"));
         await waitFor(() => {
@@ -92,7 +92,7 @@ describe("Style panel v2's chart from data", () => {
         const { session, layer } = await withExpression();
         const tab = await openStyle("Key people");
         await addChart(tab);
-        await pickMatching("expr_");
+        await pickMatching("expr");
         await waitFor(() => {
             assert.isDefined(written(session, layer, "node.chartData"));
         });
@@ -116,7 +116,7 @@ describe("Style panel v2's chart from data", () => {
         const { session, layer } = await withExpression();
         const tab = await openStyle("Key people");
         await addChart(tab);
-        await pickMatching("expr_");
+        await pickMatching("expr");
         const pop = await openChartSettings(tab);
         await userEvent.click(within(pop).getByText("Name part"));
         await waitFor(() => {

@@ -1839,3 +1839,169 @@ describe("Style panel v2's tab strips, as a reader uses them (owner, 2026-11-24)
         assert.deepEqual(choicesIn(strip), under);
     });
 });
+
+/** A pie, chart and record from data, each with a list field, a Graph value and a plain value (spec 2.5). */
+const DATA_WALKS = [
+    {
+        key: "node.pieData",
+        thing: "pie",
+        title: "Node pie",
+        spec: {
+            entries: [
+                { field: "data.animals" },
+                { graph: { over: "neighbors", measure: "count", groupBy: { by: "value", path: "data.kind" } } },
+            ],
+            keep: 2,
+            whole: { max: 10 },
+            // No values is one line until it draws something: Ring adds its color.
+            empty: "ring",
+        },
+    },
+    {
+        key: "node.chartData",
+        thing: "chart",
+        title: "Node chart",
+        spec: { entries: [{ field: "data.amount" }, { graph: { over: "edges", measure: "count" } }] },
+    },
+    {
+        key: "node.recordData",
+        thing: "record",
+        title: "Node record",
+        spec: { entries: [{ field: "data.amount" }, { graph: { over: "edges", measure: "count" } }] },
+    },
+] as const;
+
+/**
+ * A pop-over's lines checked as every pop-over's are: at most six lines tall, the minus last, a slot after its control,
+ * buttons hidden at rest, every input showing a value, compact-mantine's names, nothing edited twice.
+ * @param what - the pop-over's name in the findings.
+ * @param pop - the pop-over.
+ * @returns what breaks a rule.
+ */
+async function checkedLines(what: string, pop: HTMLElement): Promise<string[]> {
+    await userEvent.hover(screen.getByRole("tab", { name: "Style" }));
+    const lines = linesIn(pop);
+    const tall = linesTall(pop);
+    return [
+        ...(tall > 6 ? [`${String(tall)} lines: ${lines.map(nameOf).join(", ")}`] : []),
+        ...minusNotLast(lines),
+        ...slotNotAfterControl(lines),
+        ...shownAtRest(lines),
+        ...emptyInputs(lines),
+        ...namesNotBuiltIn(lines),
+        ...editedTwice(lines),
+    ].map((each) => `${what}: ${each}`);
+}
+
+/**
+ * The pop-over a beside pop-over's title names, once open.
+ * @param title - its title.
+ * @returns its panel.
+ */
+async function besideNamed(title: string): Promise<HTMLElement> {
+    return waitFor(() => {
+        const found = document.querySelector<HTMLElement>(`[data-beside-pop="${title}"]`);
+        assert.isNotNull(found, `${title} is open`);
+        return found.closest<HTMLElement>("[data-popout-id]") ?? found;
+    });
+}
+
+describe("Style panel v2's input rules on data pop-overs (spec 2.5)", () => {
+    withFeatures(["file-styles", "style-panel-v2"]);
+
+    for (const walk of DATA_WALKS) {
+        it(`${walk.key}: the data pop-over, an entry's, its Format and Calculate, and the groups`, async () => {
+            const { session, nodes } = await openGraph();
+            await session.data.updateNodes([
+                { id: "a", values: { animals: ["dog", "dog", "cat"], amount: 4, kind: "farm" } },
+                { id: "b", values: { animals: ["cat"], amount: 2, kind: "shop" } },
+                { id: "c", values: { amount: 1, kind: "farm" } },
+            ]);
+            await session.styles.update(nodes, {
+                set: { ...session.styles.get(nodes)?.set, [walk.key]: walk.spec },
+            });
+            await session.styles.settled();
+            const tab = await openStyle("Key people");
+            await showKind("node");
+            const row = await waitFor(() => {
+                const found = tab.querySelector<HTMLElement>(`[data-thing="${walk.thing}"]`);
+                assert.isNotNull(found, `the ${walk.thing} row`);
+                return found;
+            });
+            const openData = async (): Promise<HTMLElement> => {
+                const button = [
+                    ...row.querySelectorAll<HTMLElement>(`[data-line="${walk.key}"] button[aria-label]`),
+                ].find((each) => (each.getAttribute("aria-label") ?? "").startsWith(`${walk.title} settings`));
+                assert.isDefined(button, "the data pop-over's button");
+                if (button.getAttribute("aria-expanded") !== "true") {
+                    await userEvent.hover(button.closest<HTMLElement>(".ws-row") ?? row);
+                    await userEvent.click(button);
+                }
+                return openedBy(button);
+            };
+            const found: string[] = [];
+            const pop = await openData();
+            found.push(...(await checkedLines("data", pop)));
+            const groups: Found = {
+                names: [],
+                fourth: [],
+                inPlace: [],
+                notIcon: [],
+                covers: [],
+                minus: [],
+                slot: [],
+                rest: [],
+                empty: [],
+            };
+            await walkGroups(walk.key, pop, openData, groups);
+            for (const [rule, list] of Object.entries(groups)) {
+                if (Array.isArray(list) && list.length > 0 && rule !== "few") {
+                    found.push(`groups ${rule}: ${list.join(", ")}`);
+                }
+            }
+            await closeAll();
+
+            // The Graph value's entry: its pop-over, Format beside it, then Calculate beside it.
+            const entryButton = (): HTMLElement => {
+                const line = row.querySelector<HTMLElement>('[data-entry="1"]');
+                assert.isNotNull(line, "the Graph value's line");
+                const button = [...line.querySelectorAll<HTMLElement>("button[aria-label]")].find((each) =>
+                    / settings( has configured values)?$/.test(each.getAttribute("aria-label") ?? ""),
+                );
+                assert.isDefined(button);
+                return button;
+            };
+            await userEvent.hover(entryButton().closest<HTMLElement>(".ws-row") ?? row);
+            await userEvent.click(entryButton());
+            const entry = await openedBy(entryButton());
+            found.push(...(await checkedLines("entry", entry)));
+            const formatMore = within(entry).getByRole("button", { name: / format settings$/ });
+            // Shown on hover of its line, as a reader meets it.
+            await userEvent.hover(formatMore.closest<HTMLElement>(".ws-row") ?? formatMore);
+            await userEvent.click(formatMore);
+            const format = await besideNamed("Format");
+            found.push(...(await checkedLines("format", format)));
+            await userEvent.click(within(format).getByRole("button", { name: "Close Format" }));
+            await waitFor(() => {
+                assert.isNull(document.querySelector('[data-beside-pop="Format"]'), "Format closed");
+            });
+            await userEvent.click(within(entry).getByRole("button", { name: /^Graph value/ }));
+            const calculate = await besideNamed("Calculate");
+            found.push(...(await checkedLines("calculate", calculate)));
+            // Its drop-downs and pickers are the third level: none opens a fourth.
+            for (const picker of within(calculate).queryAllByRole("combobox")) {
+                // Escape may close Calculate with the picker: a picker no longer drawn is not counted again.
+                if (picker.isConnected && picker.getAttribute("aria-haspopup") === "dialog") {
+                    await userEvent.click(picker);
+                    const opened = await openedBy(picker);
+                    if (opened.querySelector('button[aria-haspopup="dialog"]') !== null) {
+                        found.push(`calculate: ${picker.getAttribute("aria-label") ?? ""} opens a fourth level`);
+                    }
+                    await userEvent.keyboard("{Escape}");
+                }
+            }
+            await closeAll();
+            assert.deepEqual(found, [], `\n${found.join("\n")}`);
+        });
+    }
+});

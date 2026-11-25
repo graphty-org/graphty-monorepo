@@ -3341,8 +3341,8 @@ export class Graph implements GraphContext {
 
             // The drawing takes the canvas's laid-out size before the first frame. Left at the
             // canvas's default 300 x 150 until the element's first resize (two frames after this),
-            // a load already waiting framed the graph for that 2:1 shape, and whether the refit
-            // after the resize landed before a screenshot depended on the machine (issue #10096).
+            // a load already waiting was framed for that 2:1 shape first and framed again only
+            // after the resize.
             this.renderManager.resize();
 
             // Start the graph system (render loop, etc.)

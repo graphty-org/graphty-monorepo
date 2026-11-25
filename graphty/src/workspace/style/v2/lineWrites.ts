@@ -180,11 +180,20 @@ export function groupSet(ctx: RowContext, group: SubGroup): boolean {
 }
 
 /**
+ * Whether a number channel reads as a percent: an opacity, or any other fraction from 0 to 1 (a pie's hole).
+ * @param descriptor - its channel.
+ * @returns whether it does.
+ */
+export function readsAsPercent(descriptor: ChannelDescriptor): boolean {
+    return isPercent(descriptor) || (descriptor.accepts === "number" && descriptor.min === 0 && descriptor.max === 1);
+}
+
+/**
  * Whether a number line is a range drawn as a slider: a percent, which has a fixed least and greatest value.
  * @param descriptor - its channel, or a label style field described as one.
  * @param percent - reads as a percent, when not its channel's say.
  * @returns whether it is.
  */
 export function rangeOf(descriptor: ChannelDescriptor, percent?: boolean): boolean {
-    return (percent ?? isPercent(descriptor)) && descriptor.min !== undefined && descriptor.max !== undefined;
+    return (percent ?? readsAsPercent(descriptor)) && descriptor.min !== undefined && descriptor.max !== undefined;
 }

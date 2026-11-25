@@ -157,6 +157,18 @@ describe("ImagePicker", () => {
         await expect.poll(() => screen.queryByRole("group", { name: "In this project" })).toBeNull();
     });
 
+    it("opens at once with defaultOpened, and tells onDismiss on Escape but not on a pick", async () => {
+        const onDismiss = vi.fn();
+        await renderThemed(<Harness defaultOpened onDismiss={onDismiss} />);
+        await screen.findByRole("group", { name: "In this project" });
+        await userEvent.keyboard("{Escape}");
+        await expect.poll(() => screen.queryByRole("group", { name: "In this project" })).toBeNull();
+        assert.strictEqual(onDismiss.mock.calls.length, 1);
+        await userEvent.click(field());
+        await userEvent.click(await screen.findByRole("button", { name: "beta.png" }));
+        assert.strictEqual(onDismiss.mock.calls.length, 1, "a pick is no dismissal");
+    });
+
     it("hands a dropped or chosen file to onFiles and stays open", async () => {
         const onFiles = vi.fn();
         await renderThemed(<Harness onFiles={onFiles} />);
@@ -168,6 +180,36 @@ describe("ImagePicker", () => {
         const names = onFiles.mock.calls.map(([files]) => (files as File[]).map((f) => f.name));
         assert.deepEqual(names, [["photo.png"], ["photo.png"]]);
         assert.isNotNull(screen.queryByRole("group", { name: "In this project" }));
+    });
+
+    it("closes once the caller picks what a file added", async () => {
+        /**
+         * A caller that adds a dropped file and picks it, as an app keeping its own images does.
+         * @returns the picker
+         */
+        function Adding(): React.JSX.Element {
+            const [images, setImages] = useState<ImagePickerItem[]>(IMAGES);
+            const [value, setValue] = useState<string | null>(null);
+            return (
+                <PopoutManager>
+                    <ImagePicker
+                        label="Picture"
+                        images={images}
+                        value={value}
+                        onChange={setValue}
+                        onFiles={([file]) => {
+                            setImages((all) => [{ id: file.name, name: file.name }, ...all]);
+                            setValue(file.name);
+                        }}
+                    />
+                </PopoutManager>
+            );
+        }
+        await renderThemed(<Adding />);
+        await open();
+        await commands.dropFiles(".cm-image-picker-body .cm-file-drop-target", [PNG]);
+        await expect.poll(() => screen.queryByRole("group", { name: "In this project" })).toBeNull();
+        assert.strictEqual(field().value, "photo.png");
     });
 
     it("hands a typed address to onUrl", async () => {

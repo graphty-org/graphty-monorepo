@@ -8,9 +8,9 @@ import { type Channel, type ChannelDescriptor } from "@graphty/graphty-element/c
 import React, { useEffect, useRef, useState } from "react";
 
 import { useWorkspace } from "../../state/WorkspaceContext";
+import { ImageField } from "../ImageField";
 import { shownChannel } from "../offered";
 import { GradientButton } from "../parts/GradientRow";
-import { PicturePopover } from "../PicturePopover";
 import { Field, type RowContext } from "../PropertyRow";
 import { lineIn, writeIn } from "../row";
 import { ShaderParams } from "../ShaderParams";
@@ -98,8 +98,8 @@ export function UseParams({
 }
 
 /**
- * How many of the shapes'-place shader's parameters the Shape pop-over's main lines hold: under its tab strip, Shape
- * and Rotation lines, so the pop-over stays 6 rows tall (owner's input rules).
+ * How many of the shapes'-place shader's parameters the Shape pop-over's main lines hold: under its tab strip and
+ * Rotation line, so the pop-over stays 6 rows tall (owner's input rules).
  */
 const REPLACE_MAIN_PARAMS = 3;
 
@@ -230,10 +230,11 @@ function setLinesOf(
 
 /**
  * The pop-over's first main line, the row's main value's: none where a list (strands, stripes, a record's fields)
- * edits it, as the list is its one editor (owner, 2026-11-24).
+ * edits it, as the list is its one editor (owner, 2026-11-24), and none where a shader drawn in the shapes' place
+ * covers it (a basic shape under a sticker draws nothing).
  * @param rubric - the thing's rubric.
  * @param main - the row's main channel.
- * @param listed - whether the pop-over draws a list of it.
+ * @param listed - whether the pop-over draws a list of it, or a shader covers it.
  * @returns the line, if any.
  */
 function popoverHead(rubric: ThingRubric, main: Channel, listed: boolean): LineSpec | undefined {
@@ -491,17 +492,19 @@ export function ThingRow({
     const [open, setOpen] = useState(false);
     const [picking, setPicking] = useState(false);
     const box = useRef<HTMLDivElement>(null);
+    // A Pie, Chart or Record opens its data picker instead (DataRow).
+    const fromData = dataChannelOf(ctx, thing.id, entry?.id) !== undefined;
     useEffect(() => {
         if (!opening) {
             return;
         }
         if (thing.id === "image") {
             setPicking(true);
-        } else {
+        } else if (!fromData) {
             setOpen(true);
         }
         onOpened?.();
-    }, [opening, thing.id, onOpened]);
+    }, [opening, thing.id, onOpened, fromData]);
     // A row drawn for the kind its pop-over just switched to opens that pop-over again.
     useEffect(() => {
         if (kind !== undefined && takeReopening(`${ctx.side}:${kind.id}`)) {
@@ -537,9 +540,7 @@ export function ThingRow({
     const items = ITEM_LISTS[main.channel];
     const listed = list ?? items;
     const popoverList =
-        listed === undefined ? undefined : (
-            <ItemListEditor ctx={ctx} channel={main.channel} list={listed} legend="group" />
-        );
+        listed === undefined ? undefined : <ItemListEditor ctx={ctx} channel={main.channel} list={listed} />;
     // Every thing's pop-over holds at least its main value's line, which varies by data (design 2.6, 7.1).
     const settings = (
         <RowSettings label={`${title} settings`} title={title} changed={changed} opened={open} onOpenChange={setOpen}>
@@ -561,7 +562,7 @@ export function ThingRow({
                             <FirstLines ctx={ctx} main={main} />
                         </>
                     }
-                    head={popoverHead(rubric, main.channel, popoverList !== undefined)}
+                    head={popoverHead(rubric, main.channel, popoverList !== undefined || replacing !== undefined)}
                     extra={params?.main}
                     moreGroups={params?.groups}
                     after={popoverList}
@@ -587,6 +588,8 @@ export function ThingRow({
             <div ref={box} data-thing={thing.id}>
                 <DataRow
                     ctx={ctx}
+                    // Just added: its data picker opens at once, as a Pie's from Fill's "+" (design 5.1).
+                    picking={opening}
                     thing={thing.id}
                     start={thing.start ?? main.channel}
                     channel={data}
@@ -624,25 +627,37 @@ export function ThingRow({
     }
     const picker =
         thing.id === "image" && picking ? (
-            <PicturePopover
-                opened
-                anchor={box}
-                onPick={(ref) => {
-                    setPicking(false);
-                    writeIn(ctx, "node.image", { value: ref }).catch((error: unknown) => {
-                        store.set({ notice: { message: failureWords(thing.name, "added", error), error: true } });
-                    });
-                }}
-                onModel={() => {
-                    setPicking(false);
-                }}
-                onClose={() => {
-                    setPicking(false);
-                    // Escape before a pick takes the row "+" added back.
-                    if (!setOn(ctx, "node.image")) {
-                        onCancel();
-                    }
-                }}
+            // The row "+" added, its picture picker open at once: compact-mantine's ImagePicker.
+            <LineFrame
+                line="node.image:pick"
+                name={name}
+                set={false}
+                rule="R16"
+                control={
+                    <ImageField
+                        label={name}
+                        value={undefined}
+                        defaultOpened
+                        onPick={(ref) => {
+                            setPicking(false);
+                            writeIn(ctx, "node.image", { value: ref }).catch((error: unknown) => {
+                                store.set({
+                                    notice: { message: failureWords(thing.name, "added", error), error: true },
+                                });
+                            });
+                        }}
+                        onDismiss={() => {
+                            setPicking(false);
+                            // Escape before a pick takes the row "+" added back.
+                            if (!setOn(ctx, "node.image")) {
+                                onCancel();
+                            }
+                        }}
+                    />
+                }
+                modifier={null}
+                removeName={undefined}
+                onRemove={() => undefined}
             />
         ) : null;
     // A basic shape's row has no settings pop-over (owner, 2026-11-23): its drop-down picks the shape, its Kind
@@ -670,18 +685,19 @@ export function ThingRow({
               };
     return (
         <div ref={box} data-thing={thing.id}>
-            {picker}
-            <MainLine
-                ctx={ctx}
-                thing={{ ...thing, name }}
-                hint={kind?.hint}
-                main={main}
-                row={rubric?.row}
-                replacing={replacing?.shader}
-                pending={pending}
-                onCancel={onCancel}
-                slots={slots}
-            />
+            {picker ?? (
+                <MainLine
+                    ctx={ctx}
+                    thing={{ ...thing, name }}
+                    hint={kind?.hint}
+                    main={main}
+                    row={rubric?.row}
+                    replacing={replacing?.shader}
+                    pending={pending}
+                    onCancel={onCancel}
+                    slots={slots}
+                />
+            )}
             {/* With no pop-over, a basic shape's Kind (Basic shape, Model, a shader) is the line under its row. */}
             {plainShape && switchTo(ctx, thing, kind, true)}
             {/* Every line of the thing the layer sets, in the pop-over's order, named, each with its minus (design 2.5). */}

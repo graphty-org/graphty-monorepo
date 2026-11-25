@@ -40,6 +40,12 @@ async function withAnimals(): Promise<{ session: GraphSession; layer: string }> 
 async function plus(section: HTMLElement, kind: "fill" | "text", thing: string): Promise<void> {
     await userEvent.click(within(section).getByRole("button", { name: new RegExp(`^Add to node ${kind}`) }));
     await userEvent.click(await screen.findByRole("menuitem", { name: thing }));
+    // "+" opens the entries picker at once (design 5.1); Escape keeps the fixed values, for the steps that follow.
+    await screen.findByRole("listbox", { name: `Node ${thing.toLowerCase()} data` });
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => {
+        assert.isNull(screen.queryByRole("listbox", { name: `Node ${thing.toLowerCase()} data` }));
+    });
 }
 
 /**
@@ -88,7 +94,7 @@ async function beside(title: string): Promise<HTMLElement> {
 describe("Style panel v2's data entries", () => {
     withFeatures(["file-styles", "style-panel-v2"]);
 
-    it("starts a pie from a list field on Done, in one undo step, and reads its parts on the entry line", async () => {
+    it("starts a pie from a list field on Done, in one undo step, its entry line showing its setting", async () => {
         const { session, layer } = await withAnimals();
         const tab = await openStyle("Key people");
         await plus(sectionOf(tab, "node-fill"), "fill", "Pie");
@@ -107,9 +113,11 @@ describe("Style panel v2's data entries", () => {
         assert.strictEqual(session.history.position, before + 1, "one undo step");
         const merged = session.styles.explain({ node: "a" }).merged as Record<string, unknown>;
         assert.strictEqual(merged["node.pieSizes"], "0.25 0.5 0.25", "cat 1, dog 2, horse 1");
+        // The entry line shows what it reads, never one node's values (the sidebar holds controls only).
         await waitFor(() => {
-            assert.isNotNull(screen.queryByRole("button", { name: /cat 1, dog 2, horse 1/ }));
+            assert.isNotNull(screen.queryByRole("button", { name: "animals, animals" }));
         });
+        assert.isNull(screen.queryByRole("button", { name: /cat 1, dog 2, horse 1/ }));
 
         await session.undo();
         await waitFor(() => {

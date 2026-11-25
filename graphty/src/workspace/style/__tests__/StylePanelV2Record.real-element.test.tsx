@@ -60,6 +60,16 @@ describe("Style panel v2's Record", () => {
         const text = sectionOf(tab, "node-text");
         await userEvent.click(within(text).getByRole("button", { name: /^Add to node text/ }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Record" }));
+        // "+" opens the record's data picker (design 5.1); Escape keeps its fixed fields, one line of its pop-over that
+        // opens the list beside (design "Lists in pop-overs").
+        await userEvent.keyboard("{Escape}");
+        const record = await waitFor(() => {
+            const found = text.querySelector<HTMLElement>('[data-thing="record"]');
+            assert.isNotNull(found);
+            return found;
+        });
+        await userEvent.click(within(record).getByRole("button", { name: /^Node record settings/ }));
+        await userEvent.click(await screen.findByRole("button", { name: /^Edit fields/ }));
         for (const [at, words] of ["AAAA", "BBBB", "CCCC"].entries()) {
             if (at > 0) {
                 await userEvent.click(await screen.findByRole("button", { name: "Add field" }));

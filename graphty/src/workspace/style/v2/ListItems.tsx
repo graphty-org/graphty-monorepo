@@ -13,6 +13,7 @@ import { GLYPHS } from "../../glyphs";
 import { useWorkspace } from "../../state/WorkspaceContext";
 import { lineIn, sourceName, writeIn } from "../row";
 import { altArrowMove, useRowDrag } from "../useRowDrag";
+import { colorPalettes } from "../words";
 import { unsetIn } from "./lineWrites";
 import { itemDescriptor, type ListState, movedOrder, type Part, reorder, writeAll } from "./listState";
 import { shownPaint, writtenPaint } from "./paint";
@@ -223,6 +224,7 @@ export function ItemLine({ state, at }: Readonly<{ state: ListState; at: number 
                         </ActionIcon>
                         {colors.bound ? null : (
                             <CompactColorInput
+                                palettes={colorPalettes(ctx.session)}
                                 variant="chip"
                                 aria-label={`${name} color`}
                                 color={paint.color}

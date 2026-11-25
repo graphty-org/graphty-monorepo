@@ -2,7 +2,7 @@ import { ComboInput, CompactColorInput, PanelField } from "@graphty/compact-mant
 import type { ChannelDescriptor } from "@graphty/graphty-element/catalog";
 import type { Channel, ChannelValue } from "@graphty/graphty-element/schema";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { TextInput, VisuallyHidden } from "@mantine/core";
+import { VisuallyHidden } from "@mantine/core";
 import React from "react";
 
 import { modelName, useModelPicture } from "../canvas/models";
@@ -14,6 +14,7 @@ import { ScrubSlots } from "./scrubSlots";
 import {
     channelWord,
     colorName,
+    colorPalettes,
     enumWords,
     GLYPH_TABLES,
     hexOf,
@@ -213,8 +214,10 @@ function ColorValueField(props: KindFieldProps): React.JSX.Element {
     const hex = hexOf(value) ?? undefined;
     // A waiting line names no color: nothing it would draw is chosen yet.
     const inForce = hex ?? (waiting ? null : hexOf(shown));
+    const { session } = useWorkspace();
     return (
         <CompactColorInput
+            palettes={colorPalettes(session)}
             variant={compact ? "chip" : "field"}
             aria-label={label}
             // A row's chip is named by the color it paints, in words, never "not set, #009E73";
@@ -425,11 +428,12 @@ function TextValueField(props: KindFieldProps): React.JSX.Element {
         session !== null && stylePanelV2On(session) && !mixed && words === "" ? placeholder || NONE : undefined;
     const start = unsetWords ?? (mixed ? "" : words);
     return (
-        <TextInput
+        <PanelField
             // Keyed by the value, so Undo or another edit shows the new words.
             key={mixed ? "mixed-field" : words}
-            size="xs"
-            aria-label={label}
+            kind="text"
+            width="fill"
+            label={label}
             defaultValue={start}
             placeholder={unsetWords === undefined ? placeholder : undefined}
             onFocus={(event) => {
@@ -464,7 +468,7 @@ export function ModelNameField({ label, value }: Readonly<{ label: string; value
     const { session } = useWorkspace();
     const ref = typeof value === "string" ? value : "";
     const name = session === null || ref === "" ? ref : modelName(session, ref);
-    return <TextInput size="xs" aria-label={label} value={name} title={ref} readOnly />;
+    return <PanelField kind="text" width="fill" label={label} value={name} title={ref} readOnly />;
 }
 
 /**

@@ -208,4 +208,48 @@ vec4 shade(NodeInput n) { return n.color; }
         await switchView("2D");
         assert.isNull(await outlineItem(), "not dimmed in 2D");
     });
+
+    it("a Shape a layer above draws over on every node is dimmed, naming that layer, and still takes a pick", async () => {
+        const { session, nodes } = await openGraph();
+        await session.styles.update(nodes, { set: { "node.color": "#E8590C", "node.shape": "box" } });
+        const { id: above } = await session.styles.add({
+            name: "Squares",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.shape": "rectangle" },
+        });
+        await session.styles.settled();
+        const tab = await openStyle("Key people");
+        const shape = sectionOf(tab, "node-shape");
+        const button = await within(shape).findByRole("button", { name: "Node shape, Box" });
+        await waitFor(() => {
+            assert.equal(dimmed(button), "Squares draws over it");
+        });
+        await userEvent.click(button);
+        await userEvent.click(await screen.findByRole("option", { name: "Cone" }));
+        await waitFor(() => {
+            assert.equal(session.styles.get(nodes)?.set?.["node.shape"], "cone", "a dimmed Shape still writes");
+        });
+        await session.styles.remove(above);
+        await session.styles.settled();
+        await waitFor(() => {
+            assert.isNull(dimmed(within(shape).getByRole("button", { name: "Node shape, Cone" })));
+        });
+    });
+
+    it("a shader drawn in the shapes' place has no basic Shape line in its pop-over: it would draw nothing", async () => {
+        const { session, nodes } = await openGraph();
+        await session.styles.update(nodes, { set: { "node.shaders": [{ shader: "icon-sticker" }] } });
+        await session.styles.settled();
+        const tab = await openStyle("Key people");
+        const shape = sectionOf(tab, "node-shape");
+        await userEvent.click(await within(shape).findByRole("button", { name: "Node shape settings" }));
+        const popover = await waitFor(() => {
+            const found = document.querySelector<HTMLElement>("[data-thing-popover]");
+            assert.isNotNull(found);
+            return found;
+        });
+        await lineOf(popover, "node.shapeRotation");
+        assert.isNull(popover.querySelector('.ws-row[data-line="node.shape"]'));
+    });
 });

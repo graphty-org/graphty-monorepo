@@ -64,6 +64,8 @@ export interface LineSpec {
      * `node.unlit`): each choice's name and what it writes; the choice shown is the one whose values the row holds.
      */
     readonly choices?: readonly LineChoice[];
+    /** An angle's zero on its dial (R18), where it is not at the top: a gradient's direction runs from the left. */
+    readonly zeroAt?: "right";
 }
 
 /** One choice of a line's value list over several channels. */
@@ -108,6 +110,8 @@ export interface OptionName {
     readonly glyph?: keyof typeof GLYPHS;
     /** Draw the word beside the glyph: an icon alone would not say which way it means (stripes' Rows / Columns). */
     readonly worded?: true;
+    /** A word option's hover tooltip, where its short word needs more words. */
+    readonly tip?: string;
 }
 
 /**
@@ -145,7 +149,11 @@ export const OPTION_NAMES: Partial<Readonly<Record<Channel, Readonly<Record<stri
         linear: { name: "Linear", glyph: "gradientLinear" },
         radial: { name: "Radial", glyph: "gradientRadial" },
     },
-    "node.sizeSpace": { scene: { name: "Graph" }, pivot: { name: "Pivot" }, screen: { name: "Screen" } },
+    "node.sizeSpace": {
+        scene: { name: "Graph" },
+        pivot: { name: "Focus", tip: "Sized as at the point the camera turns around" },
+        screen: { name: "Screen" },
+    },
     "node.sizeMode": { scale: { name: "Scale" }, diameter: { name: "Diameter" }, uniform: { name: "Uniform" } },
     "node.modelFit": { contain: { name: "Contain" }, stretch: { name: "Stretch" } },
     // Short words so four fit the line: the model's own colors, tinted, its plain parts painted, or all painted.
@@ -383,20 +391,22 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
     },
     fill: { main: [] },
     // Shading only, no settings (ia-design 2): a value list like the Shape, Pattern and Visible rows'.
-    finish: { row: { channel: "node.flat", name: "Shading", rule: "R9", choices: SHADING }, main: [] },
+    finish: { row: { channel: "node.flat", name: "Shading", rule: "R8", choices: SHADING }, main: [] },
     "fill:node.gradientColors": {
         // The row's gradient bar edits the colors and their stops: one home for both (design 2.6).
         // ...and its Linear or Radial is the Fill's tab strip (MemberMenu.tsx).
         rowOwns: ["node.gradientStops", "node.gradientKind"],
         // Each line appears for the gradient kind that draws it.
         main: [
-            { channel: "node.gradientDirection", name: "Direction" },
+            { channel: "node.gradientDirection", name: "Direction", zeroAt: "right" },
             { channel: "node.gradientCenterX", name: "Center", pair: "node.gradientCenterY", letters: ["X", "Y"] },
             { channel: "node.gradientRadius", name: "Radius" },
             { channel: "node.opacity", name: "Opacity" },
         ],
     },
     image: {
+        // The row picks the picture (compact-mantine's ImagePicker), in whichever place the layer holds it.
+        row: { channel: "node.image", name: "Image", rule: "R16", units: ["node.texture"] },
         // On node places the picture on the node, Wrapped wraps it over the 3D surface: the value moves between the two.
         strip: {
             channel: "node.image",
@@ -652,7 +662,8 @@ function edgeEnd(end: EdgeEnd): ThingRubric {
         // Arrow color varies in more files than arrow size, so both are lines under the row (ia-design 2).
         common: [
             { channel: at("Size"), name: "Size" },
-            { channel: at("Color"), name: "Color" },
+            // Named, not a bare swatch: an open cap's pop-over draws its Fill color too.
+            { channel: at("Color"), name: "Cap color" },
         ],
         // The Outline appears for an open cap, the Image for the image cap.
         main: [

@@ -214,6 +214,12 @@ describe("Style panel v2's node things", () => {
         await waitFor(() => {
             assert.equal(slices(), 2, "Pie starts with two slices");
         });
+        // "+" opens the pie's data picker (design 5.1); Escape keeps its fixed slices. Its pop-over holds the slices as
+        // one line, which opens the list beside (design "Lists in pop-overs").
+        await userEvent.keyboard("{Escape}");
+        const pie = await rowOf(fill, "pie");
+        await userEvent.click(within(pie).getByRole("button", { name: /^Node pie settings/ }));
+        await userEvent.click(await screen.findByRole("button", { name: /^Edit slices/ }));
         const add = await screen.findByRole("button", { name: "Add slice" });
         await userEvent.click(add);
         await waitFor(() => {
@@ -235,6 +241,16 @@ describe("Style panel v2's node things", () => {
         await waitFor(() => {
             assert.isString(written(session, id, "node.shapeTexts"), "Record starts with one field");
         });
+        // "+" opens the record's data picker (design 5.1); Escape keeps its fixed fields, one line of its pop-over that
+        // opens the list beside (design "Lists in pop-overs").
+        await userEvent.keyboard("{Escape}");
+        const record = await waitFor(() => {
+            const found = text.querySelector<HTMLElement>('[data-thing="record"]');
+            assert.isNotNull(found);
+            return found;
+        });
+        await userEvent.click(within(record).getByRole("button", { name: /^Node record settings/ }));
+        await userEvent.click(await screen.findByRole("button", { name: /^Edit fields/ }));
         const words = await screen.findByRole("textbox", { name: "Field 1 text" });
         // A new field starts with words (design "Input rules": no empty input), typed over.
         assert.equal((words as HTMLInputElement).value, "Field 1");

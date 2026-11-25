@@ -27,10 +27,10 @@ import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { failureOf, fileStem, type ModelLive, modelName, useModelPreview } from "../canvas/models";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
+import { ImageField } from "./ImageField";
 import { SettingRows } from "./ModelSettings";
 import { chipLine, isSplatRefusal, middleCut, PART_CODES, roleWord } from "./modelWords";
 import { PartRow, RoleGlyph } from "./PartsPopover";
-import { PictureField, PicturePopover } from "./PicturePopover";
 import { useStillOpen } from "./useStillOpen";
 import { CUSTOM_MODEL, logUnexpected, MODEL_SETTING_ROWS, PICTURE_WORD } from "./words";
 
@@ -559,21 +559,18 @@ function Preview({
  * @param props.value - what the draft's `node.texture` names, or undefined
  * @param props.write - sets it
  * @param props.remove - takes it back
- * @param props.open - whether the Picture pop-over is open
- * @param props.setOpen - opens or closes it
+ * @param props.setOpen - told when the Picture pop-over opens or closes
  * @returns The row
  */
 function PictureRow({
     value,
     write,
     remove,
-    open,
     setOpen,
 }: Readonly<{
     value: string | undefined;
     write: (ref: string) => void;
     remove: () => void;
-    open: boolean;
     setOpen: (open: boolean) => void;
 }>): React.JSX.Element {
     // A row that goes (the model cleared) takes its open pop-over with it, and Escape back.
@@ -583,10 +580,9 @@ function PictureRow({
         },
         [setOpen],
     );
-    const box = useRef<HTMLDivElement>(null);
     const removeName = `Remove model ${PICTURE_WORD.toLowerCase()}`;
     return (
-        <div className="ws-row" data-line="node.texture" ref={box}>
+        <div className="ws-row" data-line="node.texture">
             <div className="ws-field" data-named="">
                 <span className="ws-field-label">
                     <span className="ws-field-name" title={PICTURE_WORD} aria-hidden>
@@ -594,13 +590,11 @@ function PictureRow({
                     </span>
                 </span>
                 <div className="ws-field-control">
-                    <PictureField
+                    <ImageField
                         label={`Model ${PICTURE_WORD.toLowerCase()}`}
-                        pictureRef={value}
-                        expanded={open}
-                        onOpen={() => {
-                            setOpen(true);
-                        }}
+                        value={value}
+                        onPick={write}
+                        onOpenChange={setOpen}
                     />
                 </div>
                 <span className="ws-slot">
@@ -613,22 +607,6 @@ function PictureRow({
                     )}
                 </span>
             </div>
-            <PicturePopover
-                opened={open}
-                anchor={box}
-                current={value}
-                onPick={(ref) => {
-                    setOpen(false);
-                    write(ref);
-                }}
-                // A model chosen here is not this model's picture: the pop-over just closes.
-                onModel={() => {
-                    setOpen(false);
-                }}
-                onClose={() => {
-                    setOpen(false);
-                }}
-            />
         </div>
     );
 }
@@ -957,8 +935,8 @@ export function CustomModelDialog({
     // the loading column, where it was when the gear was pressed, so the model stays in sight while
     // the reader turns it, poses it or takes its pictures away.
     const [settingsOpen, setSettingsOpen] = useState(false);
-    const [settingsOver, setSettingsOver] = useState<DOMRect | null>(null);
     const [pictureOpen, setPictureOpen] = useState(false);
+    const [settingsOver, setSettingsOver] = useState<DOMRect | null>(null);
     // What this dialog added, by what names it: let go on Cancel when no layer uses it.
     const added = useRef(new Set<string>());
     const nameField = useRef<HTMLInputElement | null>(null);
@@ -1928,7 +1906,6 @@ export function CustomModelDialog({
                                     remove={() => {
                                         unset("node.texture");
                                     }}
-                                    open={pictureOpen}
                                     setOpen={setPictureOpen}
                                 />
                             </div>

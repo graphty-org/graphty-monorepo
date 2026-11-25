@@ -5,7 +5,15 @@
  * value bound to data, a list, an asset or a text source keeps today's field.
  */
 
-import { ComboInput, PanelField, SegmentedControl, Slider, ToggleIconButton } from "@graphty/compact-mantine";
+import {
+    AnglePicker,
+    ComboInput,
+    FontPicker,
+    PanelField,
+    SegmentedControl,
+    Slider,
+    ToggleIconButton,
+} from "@graphty/compact-mantine";
 import {
     type Channel,
     type ChannelDescriptor,
@@ -21,17 +29,17 @@ import React from "react";
 
 import { GLYPHS } from "../../glyphs";
 import { useWorkspace } from "../../state/WorkspaceContext";
+import { ImageField } from "../ImageField";
 import { shownChannel } from "../offered";
 import { ValueListbox } from "../parts/ValueListbox";
-import { PictureLine } from "../PicturePopover";
 import { Field, FieldLine, type RowContext, VarySlot, type VaryTarget } from "../PropertyRow";
 import { lineIn, needsFor, writeIn } from "../row";
 import { ValueField } from "../ValueField";
-import { channelWord, failureWords, fieldName, FONTS, isPercent, scrubLetter, takesBinding } from "../words";
+import { channelWord, failureWords, fieldName, scrubLetter, takesBinding } from "../words";
 import { dimOf, drawnValue, valueDimOf } from "./drawn";
 import { PointPair } from "./ItemFields";
 import { ItemListEditor } from "./ItemListEditor";
-import { moveUnit, rangeOf, ruleOf, unsetIn } from "./lineWrites";
+import { moveUnit, rangeOf, readsAsPercent, ruleOf, unsetIn } from "./lineWrites";
 import { coordinateDescriptor, ITEM_LISTS } from "./lists";
 import {
     isPictured,
@@ -71,6 +79,7 @@ const AUTO = "Auto";
  * @param props.value - the value set, if any
  * @param props.letter - its slot's letter (a pair's "X" or "W"), else its name's initial
  * @param props.slider - whether a percent draws its slider (false where several share a line, a list item's)
+ * @param props.zeroAt - an angle's zero on its dial, when not at the top
  * @param props.onWrite - writes a number, or undefined to unset
  * @returns The field
  */
@@ -81,6 +90,7 @@ export function NumberLine({
     value,
     letter,
     slider = true,
+    zeroAt,
     onWrite,
 }: Readonly<{
     descriptor: ChannelDescriptor;
@@ -89,11 +99,17 @@ export function NumberLine({
     value: unknown;
     letter?: string;
     slider?: boolean;
+    /** An angle's zero on its dial, when not at the top. */
+    zeroAt?: "right";
     onWrite: (value: number | undefined) => void;
 }>): React.JSX.Element {
-    const scale = (percent ?? isPercent(descriptor)) ? 100 : 1;
+    const scale = (percent ?? readsAsPercent(descriptor)) ? 100 : 1;
     const { min, max } = descriptor;
     const name = label ?? fieldName(descriptor.channel);
+    // An angle (graphty-element's `angle`) is picked with the angle picker (owner's input rules, 2026-11-24).
+    if (descriptor.angle === true) {
+        return <AngleLine label={name} value={value} zeroAt={zeroAt} onWrite={onWrite} />;
+    }
     // Emptied and Enter unsets the line (design 2.2): the number field commits no empty text itself.
     const onEmptyEnter = (event: React.KeyboardEvent<HTMLDivElement>): void => {
         const input = event.target;
@@ -135,6 +151,45 @@ export function NumberLine({
             <PercentSlider label={name} value={value} min={min ?? 0} max={max ?? 1} onWrite={onWrite} />
             <div style={{ flex: "0 0 64px", minWidth: 0 }}>{field}</div>
         </Group>
+    );
+}
+
+/**
+ * An angle (R18): compact-mantine's AnglePicker, a dial and a degree field. The hand follows a drag before it is
+ * written; it writes once a drag, a key step or a typed value ends, one undo step each.
+ * @param props - Component props
+ * @param props.label - its accessible name
+ * @param props.value - the angle shown (set, or drawn), in degrees
+ * @param props.zeroAt - where 0 points, when not at the top
+ * @param props.onWrite - writes an angle
+ * @returns The picker
+ */
+export function AngleLine({
+    label,
+    value,
+    zeroAt,
+    onWrite,
+}: Readonly<{
+    label: string;
+    value: unknown;
+    zeroAt?: "right";
+    onWrite: (value: number) => void;
+}>): React.JSX.Element {
+    const given = typeof value === "number" ? value : 0;
+    const [moving, setMoving] = React.useState<number | null>(null);
+    return (
+        <AnglePicker
+            label={label}
+            value={moving ?? given}
+            zeroAt={zeroAt ?? "top"}
+            onChange={setMoving}
+            onChangeEnd={(next) => {
+                setMoving(null);
+                if (next !== ((given % 360) + 360) % 360) {
+                    onWrite(next);
+                }
+            }}
+        />
     );
 }
 
@@ -511,6 +566,7 @@ function numberControl(args: ControlArgs): React.ReactNode {
             <NumberLine
                 descriptor={descriptor}
                 value={value ?? drawnValue(ctx, channel)}
+                zeroAt={line.zeroAt}
                 onWrite={(next) => {
                     write(channel, next);
                 }}
@@ -622,52 +678,55 @@ function valueControl(args: ControlArgs): React.ReactNode {
 }
 
 /**
- * A font (R13): today's font list, and the font the layer holds when it is not on the list.
+ * A font (R13): compact-mantine's FontPicker -- the fonts the project holds (graphty-element's `session.fonts`),
+ * the common and generic families and the fonts on this computer. An uploaded font is added to `session.fonts`,
+ * so it is saved in the project and drawn, and picked.
  * @param props - Component props
  * @param props.label - its accessible name
- * @param props.value - the font set, if any
+ * @param props.value - the font set, or drawn
  * @param props.onPick - writes a font
- * @returns The select
+ * @returns The picker
  */
 export function FontSelect({
     label,
     value,
     onPick,
-}: Readonly<{ label: string; value: unknown; onPick: (font: string) => void }>): React.JSX.Element {
-    const held = typeof value === "string" && value !== "" ? value : undefined;
-    const fonts: readonly (readonly [string, string])[] = FONTS;
-    // A font stack ("Verdana, sans-serif") reads as its first family, so it fits the line.
-    const first = held
-        ?.split(",")[0]
-        ?.trim()
-        .replaceAll(/^["']|["']$/g, "");
-    const listed =
-        held === undefined || fonts.some(([font]) => font === held) ? fonts : [...fonts, [held, first ?? held]];
+}: Readonly<{ label: string; value: unknown; onPick: (font: string) => void }>): React.JSX.Element | null {
+    const { session, store } = useWorkspace();
+    if (session === null) {
+        return null;
+    }
     return (
-        <PanelField
+        <FontPicker
             label={label}
-            kind="select"
-            width="fill"
-            data={listed.map(([font, word]) => ({ value: font, label: word }))}
-            value={held ?? null}
-            onChange={(next) => {
-                onPick(String(next));
+            value={typeof value === "string" && value !== "" ? value : null}
+            fonts={session.fonts.list().map((font) => ({ family: font.family }))}
+            onChange={(font) => {
+                onPick(font);
+            }}
+            onUpload={async (upload) => {
+                try {
+                    const font = await session.fonts.add(upload.bytes, { family: upload.family });
+                    onPick(font.family);
+                } catch (error) {
+                    store.set({ announcement: failureWords(upload.family, "added", error) });
+                }
             }}
         />
     );
 }
 
 /**
- * A picture (R16): the Picture field, "None" with no picture.
+ * A picture (R16): compact-mantine's ImagePicker over the project's pictures, "None" with no picture.
  * @param args - the line.
  * @returns The control
  */
 function pictureControl(args: ControlArgs): React.ReactNode {
     const { descriptor, value, label, write } = args;
     return (
-        <PictureLine
+        <ImageField
             label={label}
-            value={value}
+            value={typeof value === "string" ? value : undefined}
             onPick={(ref) => {
                 write(descriptor.channel, ref);
             }}
@@ -869,7 +928,7 @@ const CONTROLS: Readonly<Record<Exclude<Rule, "field" | "R15" | "R17">, (args: C
     R13: fontControl,
     // Free text (R14): today's text field, which commits on Enter or blur.
     R14: valueControl,
-    // A picture (R16): the app's Picture field and pop-over.
+    // A picture (R16): compact-mantine's ImagePicker.
     R16: pictureControl,
     XY: pointControl,
 };
@@ -922,6 +981,7 @@ export function SeparateSidesLine({
  * @param descriptor - its channel.
  * @param rule - its rule.
  * @param set - whether the layer sets it.
+ * @param inline - drawn under its row in the panel, not in a pop-over: a list keeps its items in place.
  * @returns the line, or undefined when the rubric's own control draws it.
  */
 function keptField(
@@ -931,6 +991,7 @@ function keptField(
     descriptor: ChannelDescriptor,
     rule: Rule,
     set: boolean,
+    inline: boolean,
 ): React.JSX.Element | undefined {
     const { channel } = descriptor;
     const own = lineIn(ctx, channel);
@@ -938,7 +999,7 @@ function keptField(
     const bound = own?.binding !== undefined || own?.template !== undefined;
     const list = ITEM_LISTS[channel];
     if (rule === "R15" && list !== undefined && !bound && !spread) {
-        return <ItemListEditor ctx={ctx} channel={channel} list={list} legend="line" />;
+        return <ItemListEditor ctx={ctx} channel={channel} list={list} inline={inline} />;
     }
     if (rule !== "field" && rule !== "R15" && !bound && !spread) {
         return undefined;
@@ -1118,7 +1179,7 @@ function OneLine({ ctx, line, row, named: alwaysNamed = false }: RubricLineProps
     // A line graphty-element draws nothing for now (a 3D-only line in 2D) is dimmed, never hidden.
     const dimmed = dimOf(ctx, channel);
     const rule = ruleOf(line, descriptor);
-    const kept = keptField(ctx, line, row, descriptor, rule, set);
+    const kept = keptField(ctx, line, row, descriptor, rule, set, alwaysNamed);
     if (kept !== undefined || rule === "field" || rule === "R15") {
         return kept === undefined ? null : (
             <div className="ws-dim" data-dimmed={dimmed === undefined ? undefined : ""} title={dimmed}>
@@ -1277,23 +1338,33 @@ function ChoiceLine({ ctx, line, row }: RubricLineProps): React.JSX.Element | nu
     const fail = (error: unknown): void => {
         store.set({ notice: { message: failureWords(name, "changed", error), error: true } });
     };
-    const control = (
+    const pick = (next: string | number): void => {
+        const writes = Object.entries(choices.find((choice) => choice.name === next)?.writes ?? {}) as [
+            Channel,
+            ChannelValue,
+        ][];
+        const [first, rest] = [writes.at(0), writes.slice(1)];
+        if (first !== undefined) {
+            writeIn(ctx, first[0], { value: first[1] }, Object.fromEntries(rest), true).catch(fail);
+        }
+    };
+    // Fewer than six choices are grouped buttons (owner's input rules), across the line under its name.
+    const buttons = choices.length < 6;
+    const control = buttons ? (
+        <SegmentsLine
+            label={name}
+            options={choices.map((choice) => ({ value: choice.name, name: choice.name }))}
+            value={now?.name ?? choices[0].name}
+            onPick={pick}
+        />
+    ) : (
         <PanelField
             label={name}
             kind="select"
             width="fill"
             data={choices.map((choice) => ({ value: choice.name, label: choice.name }))}
             value={now?.name ?? null}
-            onChange={(next) => {
-                const writes = Object.entries(choices.find((choice) => choice.name === next)?.writes ?? {}) as [
-                    Channel,
-                    ChannelValue,
-                ][];
-                const [first, rest] = [writes.at(0), writes.slice(1)];
-                if (first !== undefined) {
-                    writeIn(ctx, first[0], { value: first[1] }, Object.fromEntries(rest), true).catch(fail);
-                }
-            }}
+            onChange={pick}
         />
     );
     return (
@@ -1301,8 +1372,9 @@ function ChoiceLine({ ctx, line, row }: RubricLineProps): React.JSX.Element | nu
             line={line.channel}
             name={name}
             set={set}
-            rule={line.rule ?? "R9"}
+            rule={line.rule ?? (buttons ? "R8" : "R9")}
             control={control}
+            wide={buttons}
             modifier={row?.slot ?? null}
             removeName={row?.removeLabel ?? (set ? `Remove ${name.toLowerCase()}` : undefined)}
             onRemove={

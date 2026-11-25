@@ -2,6 +2,7 @@ import {
     ComboInput,
     CompactColorInput,
     ControlGroup,
+    PanelField,
     Popout,
     PopoutButton,
     SegmentedControl,
@@ -10,7 +11,7 @@ import {
 import { type ChannelDescriptor, channelsFor } from "@graphty/graphty-element/catalog";
 import type { Channel, ChannelValue, LayerId } from "@graphty/graphty-element/schema";
 import type { GraphSession, HistoryStepId, Layer, LayerGroup, LegendBlock } from "@graphty/graphty-element/session";
-import { ActionIcon, Button, TextInput, Tooltip, VisuallyHidden } from "@mantine/core";
+import { ActionIcon, Button, Tooltip, VisuallyHidden } from "@mantine/core";
 import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { factSentence, paintWords, swatchName } from "../canvas/legendWords";
@@ -53,6 +54,7 @@ import {
     bindLabel,
     channelWord,
     colorName,
+    colorPalettes,
     COMBINE_WORDS,
     type EncodeKey,
     enumWords,
@@ -109,6 +111,8 @@ export interface RowContext {
     readonly many?: ManyRows;
     /** Which of the row's fields its own shader hides, by the shader's name, where the row is a tree row. */
     readonly hiddenBy?: (channel: Channel) => string | undefined;
+    /** The layer outside the row drawn instead of a field on every one of the row's elements, by its name. */
+    readonly paintedOverBy?: (channel: Channel) => string | undefined;
     /** `"listbox"`: a choice property picks from a named, searchable list with the graph's values first. */
     readonly pickers?: "listbox";
     /** A long value list's sections, so its picker shows one at a time (Style panel v2 only). */
@@ -952,6 +956,7 @@ function ColorValue({
     const beneath = channel === undefined ? undefined : percent(ctx.beneath(channel).value);
     return (
         <CompactColorInput
+            palettes={colorPalettes(ctx.session)}
             aria-label={name}
             // The box is read with the color's word beside its hex: "Color, set, red".
             valueText={waiting ? undefined : colorName(hex)}
@@ -1048,11 +1053,12 @@ function TextValue({
 }: Readonly<{ name: string; value: unknown; writeValue: (value: ChannelValue) => void }>): React.JSX.Element {
     const text = typeof value === "string" ? value : "";
     return (
-        <TextInput
+        <PanelField
             // Keyed by the value, so Undo, Redo or another edit shows the new text.
             key={text}
-            size="xs"
-            aria-label={name}
+            kind="text"
+            width="fill"
+            label={name}
             defaultValue={text}
             onBlur={(event) => {
                 const next = event.currentTarget.value;

@@ -17,8 +17,8 @@ import {
 import React, { useLayoutEffect, useRef, useState } from "react";
 
 import { useWorkspace } from "../../state/WorkspaceContext";
+import { ImageField } from "../ImageField";
 import { ModelsPopover } from "../ModelsPopover";
-import { PicturePopover } from "../PicturePopover";
 import { FieldLine, type RowContext } from "../PropertyRow";
 import { writeIn } from "../row";
 import { ShaderGallery } from "../ShaderGallery";
@@ -554,14 +554,15 @@ export function MemberMenu({
                 />
             )}
             {picking?.pick === "picture" && (
-                <PicturePopover
-                    opened
-                    anchor={box}
+                // The member waits for its picture: compact-mantine's ImagePicker, open at once under the tabs.
+                <ImageField
+                    label={picking.to.name}
+                    value={undefined}
+                    defaultOpened
                     onPick={(ref) => {
                         go(picking.to.key, ref);
                     }}
-                    onModel={close}
-                    onClose={close}
+                    onDismiss={close}
                 />
             )}
         </SwitchMenu>

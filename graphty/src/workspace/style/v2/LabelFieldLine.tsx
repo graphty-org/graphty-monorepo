@@ -23,9 +23,9 @@ import React from "react";
 
 import { GLYPHS } from "../../glyphs";
 import { useWorkspace } from "../../state/WorkspaceContext";
+import { ImageField } from "../ImageField";
 import { shownChannel } from "../offered";
 import { GradientBar } from "../parts/GradientRow";
-import { PictureLine } from "../PicturePopover";
 import { BoundValue, Field, type RowContext, StopVarying, type VaryTarget } from "../PropertyRow";
 import { lineIn, propose, removeLine, startingValue, writeIn } from "../row";
 import { ValueField } from "../ValueField";
@@ -82,7 +82,7 @@ function describedField(label: LabelLineContext, field: LabelField): ChannelDesc
     if (found === undefined) {
         return undefined;
     }
-    const { plainName, accepts, values, min, max, integer } = found;
+    const { plainName, accepts, values, min, max, integer, angle } = found;
     return {
         channel: label.kind.style,
         target: label.ctx.side,
@@ -96,6 +96,7 @@ function describedField(label: LabelLineContext, field: LabelField): ChannelDesc
         ...(min === undefined ? {} : { min }),
         ...(max === undefined ? {} : { max }),
         ...(integer === undefined ? {} : { integer }),
+        ...(angle === undefined ? {} : { angle }),
     };
 }
 
@@ -148,6 +149,19 @@ function valueOf(style: Readonly<LabelStyle>, field: LabelField): unknown {
  */
 function shownOf(style: Readonly<LabelStyle>, field: LabelField): unknown {
     return valueOf(style, field) ?? labelFieldDescriptor(field)?.default;
+}
+
+/**
+ * A line's whole name: the label's title, then the line's, a word they share said once ("Node label" and "Label
+ * image" make "Node label image").
+ * @param title - the label's title ("Node label").
+ * @param own - the line's name.
+ * @returns the name.
+ */
+function lineName(title: string, own: string): string {
+    const words = own.toLowerCase().split(" ");
+    const shared = words.length > 1 && title.toLowerCase().endsWith(` ${words[0]}`);
+    return `${title} ${(shared ? words.slice(1) : words).join(" ")}`;
 }
 
 /** A drop-down's option for an unset field that draws nothing: never one of the element's values. */
@@ -522,7 +536,17 @@ function controlOf(args: LineControlArgs, rule: string): React.ReactNode {
         case "R13":
             return <FontSelect label={name} value={value} onPick={write} />;
         case "R16":
-            return <PictureLine label={name} value={valueOf(label.style, field)} onPick={write} />;
+            return (
+                <ImageField
+                    label={name}
+                    value={
+                        typeof valueOf(label.style, field) === "string"
+                            ? String(valueOf(label.style, field))
+                            : undefined
+                    }
+                    onPick={write}
+                />
+            );
         case "field":
             // A list of colors (a background gradient's): the shared gradient editor, spread evenly.
             return (
@@ -772,7 +796,7 @@ export function LabelFieldLine({
     const fields = labelLineFields(line);
     const set = line.unit === undefined ? fields.some((each) => valueOf(style, each) !== undefined) : false;
     const shownName = line.name ?? descriptor.plainName;
-    const name = `${title} ${(line.fullName ?? shownName).toLowerCase()}`;
+    const name = lineName(title, line.fullName ?? shownName);
     // The field's own kind: a list of colors (a gradient's) is described to the controls as text, but draws the
     // gradient editor.
     const kind = labelFieldDescriptor(field)?.accepts ?? descriptor.accepts;

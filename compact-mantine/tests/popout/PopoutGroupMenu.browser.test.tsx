@@ -4,7 +4,7 @@
  * keyboard: the tooltip and set look of "...", picking a group from the menu, one group at a time,
  * the side with room (desktop and a 768 x 1024 tablet held upright), and focus going back to "...".
  */
-import { MantineProvider, Tooltip } from "@mantine/core";
+import { MantineProvider, Menu, Tooltip } from "@mantine/core";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, assert, describe, it } from "vitest";
@@ -300,6 +300,58 @@ describe("a pop-out's group menu and the group pop-overs beside it (browser)", (
             assert.equal(document.activeElement, more);
         });
         assert.isTrue(panel.isConnected, "Escape closed only the group");
+    });
+
+    it("a menu too long for above or below opens beside the pop-over, whole and unscrolled (1440 x 900)", async () => {
+        await page.viewport(1440, 900);
+        // 16 entries under 4 headings, from a pop-over sitting mid-height.
+        const headings = ["Text", "Box", "Badge", "Place"];
+        render(
+            <MantineProvider theme={compactTheme}>
+                <PopoutManager>
+                    <div style={{ position: "fixed", top: 410, left: 700 }}>
+                        <Popout defaultOpened>
+                            <Popout.Trigger>
+                                <button type="button">Open</button>
+                            </Popout.Trigger>
+                            <Popout.Panel
+                                width={240}
+                                placement="bottom"
+                                header={{ variant: "title", title: "Label" }}
+                                more={{
+                                    label: "More label settings",
+                                    children: headings.map((heading) => [
+                                        <Menu.Label key={heading}>{heading}</Menu.Label>,
+                                        ...[1, 2, 3, 4].map((at) => (
+                                            <MenuGroupItem key={`${heading} ${String(at)}`}>
+                                                {`${heading} ${String(at)}`}
+                                            </MenuGroupItem>
+                                        )),
+                                    ]),
+                                }}
+                            >
+                                <Popout.Content>
+                                    <input aria-label="Text" style={{ display: "block", height: 24 }} />
+                                </Popout.Content>
+                            </Popout.Panel>
+                        </Popout>
+                    </div>
+                </PopoutManager>
+            </MantineProvider>,
+        );
+        const panel = await placed("Label");
+        await userEvent.click(within(panel).getByRole("button", { name: "More label settings" }));
+        const menu = await screen.findByRole("menu");
+        assert.lengthOf(within(menu).getAllByRole("menuitem"), 16);
+        await waitFor(() => {
+            const rect = menu.getBoundingClientRect();
+            const parentRect = panel.getBoundingClientRect();
+            assert.isFalse(overlaps(parentRect, rect), "beside the pop-over, not over it");
+            assert.closeTo(rect.right, parentRect.left - 4, 1, "on the start (left) side");
+            assert.isAtLeast(rect.top, 0);
+            assert.isAtMost(rect.bottom, window.innerHeight);
+            assert.isAtMost(menu.scrollHeight, menu.clientHeight + 1, "not scrolling");
+        });
     });
 
     it("without entries, '...' opens its one group directly and reports it expanded", async () => {

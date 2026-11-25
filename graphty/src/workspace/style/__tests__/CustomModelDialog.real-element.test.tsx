@@ -942,7 +942,7 @@ describe("the Load custom model dialog, on the real element", () => {
         await previewOf(dialog, "police");
         const before = previewPicture(dialog, "police");
         const rows = await openSettings(dialog);
-        await userEvent.click(within(rows).getByLabelText("Model picture, Choose"));
+        await userEvent.click(within(rows).getByLabelText("Model picture, None"));
         const picture = await screen.findByRole("dialog", { name: "Picture" });
         await choose(picture, "Choose picture", [new File([dotPng()], "dot.png", { type: "image/png" })]);
         assert.isNotNull(await within(rows).findByLabelText("Model picture, dot"));
@@ -962,7 +962,7 @@ describe("the Load custom model dialog, on the real element", () => {
         const dialog = await openCustom(tab);
         await choose(dialog, "Choose file", [quadFile()]);
         await previewOf(dialog, "quad");
-        await userEvent.click(within(await openSettings(dialog)).getByLabelText("Model picture, Choose"));
+        await userEvent.click(within(await openSettings(dialog)).getByLabelText("Model picture, None"));
         await screen.findByRole("dialog", { name: "Picture" });
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {

@@ -49,13 +49,24 @@ export async function openAutosaved(sample: string): Promise<AutosavedWorkspace>
     return { store, view };
 }
 
+/** How a test reloads. */
+export interface ReloadOptions {
+    /**
+     * Empty this tab's session storage before the page comes back, as Safari does when it ends a
+     * background tab and loads it again (issue #9655). The work then comes back through
+     * graphty-element's autosave alone.
+     */
+    readonly lostSession?: boolean;
+}
+
 /**
  * Waits until autosave has kept the work, unmounts the workspace as a reload ends the page, mounts
  * it again and waits for this tab's work to reopen.
  * @param before - the workspace to leave.
+ * @param options - how the reload goes.
  * @returns the workspace after the reload.
  */
-export async function reload(before: AutosavedWorkspace): Promise<AutosavedWorkspace> {
+export async function reload(before: AutosavedWorkspace, options: ReloadOptions = {}): Promise<AutosavedWorkspace> {
     const element = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
         "graphty-element:not([data-start-page])",
     );
@@ -73,6 +84,9 @@ export async function reload(before: AutosavedWorkspace): Promise<AutosavedWorks
         const kept = (await listAutosaves(WORKSPACE_AUTOSAVE_KEY)).find((each) => each.id === entry);
         assert.isTrue(kept !== undefined && !kept.live, "the work is not kept yet");
     });
+    if (options.lostSession === true) {
+        sessionStorage.clear();
+    }
     const store = createWorkspaceStore({ autosave: true });
     const view = render(<Workspace store={store} />);
     await openBy(store, () => Promise.resolve());

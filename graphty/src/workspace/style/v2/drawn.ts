@@ -67,7 +67,7 @@ function unmetWords(unmet: ChannelCondition | LabelFieldCondition, name: string)
 
 /**
  * Why one value of a channel draws nothing new with what the row holds now in the view shown now (`valueDrawn`: a
- * node size's Pivot draws only in 3D, its Uniform what Scale draws for an icosphere), or undefined when it does.
+ * node size's Focus draws only in 3D, its Uniform what Scale draws for an icosphere), or undefined when it does.
  * @param ctx - the row.
  * @param descriptor - the channel's descriptor.
  * @param value - the value.
@@ -123,6 +123,12 @@ export function drawnValue(ctx: RowContext, channel: Channel): unknown {
 export function dimOf(ctx: RowContext, channel: Channel): string | undefined {
     if (channelDescriptor(channel) === undefined) {
         return undefined;
+    }
+    // A value the row writes that a layer above draws over on every one of its elements draws nothing.
+    const own = lineIn(ctx, channel);
+    const over = own?.layer.enabled === true ? ctx.paintedOverBy?.(channel) : undefined;
+    if (over !== undefined) {
+        return `${over} draws over it`;
     }
     const read = rowReader(ctx);
     // The layout itself, so a lift out of a 3D layout's plane and a location map's raised routes are read too.

@@ -12,6 +12,7 @@ import React, { useState } from "react";
 import { useWorkspace } from "../../state/WorkspaceContext";
 import { PaletteSelect } from "../BindingPopover";
 import type { RowContext } from "../PropertyRow";
+import { colorPalettes } from "../words";
 import { failed, pruned, type Spec, word } from "./dataEntries";
 import { CommitText, PopLine, Segments, WordNumber } from "./dataLines";
 import { GroupMenu, type MenuGroup } from "./GroupMenu";
@@ -87,6 +88,7 @@ function ColorLine({
     return (
         <PopLine line={`data.${label}`} name={null}>
             <CompactColorInput
+                palettes={colorPalettes(ctx.session)}
                 variant="chip"
                 aria-label={label}
                 color={onOpacity === undefined ? (color ?? shown) : paint.color}
@@ -343,7 +345,7 @@ interface Scale {
  * @param args - the spec.
  * @param patch - the parts.
  */
-export function putScale(args: GroupArgs, patch: Partial<Scale>): void {
+function putScale(args: GroupArgs, patch: Partial<Scale>): void {
     const next = pruned({ ...(args.spec.scale as Scale | undefined), ...patch });
     args.put({ scale: Object.keys(next).length === 0 ? undefined : next });
 }

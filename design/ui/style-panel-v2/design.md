@@ -529,9 +529,12 @@ thing's groups when it has more than one, and each opens a new pop-over.
 - **Only compact-mantine components.** Every input in `graphty/src/workspace/style/v2/` is imported from
   `@graphty/compact-mantine`; the `graphty/style-panel-inputs` lint rule fails an input control imported from
   anywhere else (`@mantine/core`, an app file). Layout that takes no input (`Box`, `Group`, `Stack`, `Text`,
-  `VisuallyHidden`, `Tooltip`) is not an input and may come from `@mantine/core`. The app's shared pieces that
-  wrap compact-mantine controls (`ValueField`, `ValueListbox`, `BindingPopover`) are app code and are listed
-  in the rule as open gaps until compact-mantine has their component.
+  `VisuallyHidden`, `Tooltip`, `Divider`) is not an input and may come from `@mantine/core`. An app component
+  that wires a compact-mantine input to the session (`ImageField`, `FontSelect`, `ValueField`) is linted in its own
+  file. compact-mantine has no component yet for five inputs the panel uses, which the rule names as gaps waiting
+  on the owner, never rebuilt by the app: an icon button (`ActionIcon`: a line's link, settings and minus), a plain
+  button (`Button`: a value that opens its pop-over), a tile button (`UnstyledButton`: model and shader tiles),
+  a check box on a line (`Checkbox`; compact-mantine has only `ToggleRow`, a whole row) and a menu (`Menu`).
 - **Font style.** Bold, Italic, Underline and Strikethrough are toggle icon buttons on one line (compact-mantine
   `ToggleIconButton` or the existing grouped-button component, lucide glyphs, each with a hover tooltip). Bold
   toggles the weight between the regular and the bold weight; the numeric weight is in the label's advanced
@@ -593,6 +596,21 @@ thing's groups when it has more than one, and each opens a new pop-over.
   value, or "None" where none are drawn; left so, nothing is written. A picture (a label's image, a node image's
   Fallback, an arrow's Image) is compact-mantine's `ImagePicker` (R16), reading "None" with no picture. A
   label's Icon is a character drawn beside its words (graphty-element's `icon`), not a file, so it stays text.
+- **Drop-downs of fewer than six (2026-11-24).** Fewer than six exclusive options are grouped buttons wherever
+  their words fit the line (a Finish's Shading: Smooth, Flat, Unlit, across the sidebar row under its name);
+  where the words do not fit, icons, when every option has a common-knowledge icon. Three stay drop-downs, each
+  for its reason: a text's **Look** (Default, Card, Dark, Pill, Callout: about 260 px of words on a 200 px line,
+  and no common-knowledge icon for a card, a pill or a callout); an arrow's **End** (Target, Source, Middle to
+  target, Middle to source: "Middle to target" alone fills the line, and no common-knowledge icon for a middle
+  end); an edge's **Force curves** (Barnes-Hut, ForceAtlas2: the names of two methods, about 180 px on a 176 px
+  row, with no icon). A font is the font picker, not a drop-down.
+- **Lists in pop-overs (2026-11-24).** A list of copies (a pie's slices, stripes, strands, a chart's values, a
+  record's fields, a polygon's points) never sits in a pop-over's own rows, where each item would be a row and a
+  pie of 7 slices 9 rows. The pop-over holds one line for the list, named with the list ("Slices"), whose control
+  shows it (its swatches, or its first item) and opens the list in a pop-over of its own beside: its "+" on the
+  legend, an item per line with its minus. That pop-over is a dedicated list, as a drop-down's is: it may open
+  from a group pop-over as the third level, and past six items it scrolls. The rules test walks a pie, stripes
+  and strands of seven.
 - **Sidebar rows with a pictured list or a drop-down** (Pattern, Arrow, Route, Force curves) draw their name above
   and the value across the row, so a value is never cut ("Triangle", "Barnes hut").
 - **A basic Shape row** has no settings pop-over: its Kind line is under it, the pop-over's tabs as grouped buttons
@@ -640,7 +658,7 @@ hovered, and shown while focus is within the line, while their pop-out is open, 
 | R12  | A data field or text source                                                                       | The existing attribute picker / `ValuePicker`                                                                                                                                                     |
 | R13  | A font                                                                                            | compact-mantine `FontPicker`: the project's fonts (`session.fonts`), common and generic families, this computer's fonts, and an upload saved in the project                                       |
 | R14  | Free text                                                                                         | `TextInput size="xs"`, commits on Enter or blur                                                                                                                                                   |
-| R15  | An ordered list                                                                                   | Popover only: `ItemListEditor`, "+" on its legend, "-" per line, drag grip on hover; `GradientEditor` for stops                                                                                   |
+| R15  | An ordered list                                                                                   | One line showing the list, opening it beside (Input rules, "Lists in pop-overs"): `ItemListEditor`, "+" on its legend, "-" per line; `GradientEditor` for stops                                   |
 | R15r | A list thing's row control                                                                        | A read-only strip of its swatches (Pie, Stripes) or its first item; opens the popover on the list                                                                                                 |
 | R16  | An image; a model or shader parameters                                                            | An image: compact-mantine `ImagePicker`. A model: `ModelsPopover`; shader parameters: `ShaderParamRows`                                                                                           |
 | R18  | An angle (graphty-element's `angle` on the channel or label field)                                | compact-mantine `AnglePicker`, 0 at the top, clockwise                                                                                                                                            |

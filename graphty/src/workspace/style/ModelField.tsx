@@ -16,11 +16,11 @@ import { modelName, pictureName, useModelStates } from "../canvas/models";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { CustomModelDialog, type ModelDraft } from "./CustomModelDialog";
+import { ImageField } from "./ImageField";
 import { ModelProblems } from "./ModelProblems";
 import { ModelSettings } from "./ModelSettings";
 import { ModelsPopover } from "./ModelsPopover";
 import { modelProblemLines } from "./modelWords";
-import { PictureField, PicturePopover } from "./PicturePopover";
 import type { RowContext } from "./PropertyRow";
 import { layerWord, lineIn, removeLine, without, writeIn, writeLine } from "./row";
 import { ShaderEditorDialog } from "./ShaderEditorDialog";
@@ -572,27 +572,17 @@ function pictureLine(args: LineHelpers, state: PictureState): AssetLine {
         ownsVary: true,
         varySlot: null,
         control: (
-            <PictureField
+            <ImageField
                 label={name}
-                pictureRef={ref}
-                expanded={pictureOpen}
-                onOpen={() => {
-                    setPictureOpen(true);
-                }}
-            />
-        ),
-        extras: (
-            <PicturePopover
-                opened={pictureOpen}
-                anchor={box}
-                current={ref}
+                value={ref}
+                defaultOpened={pictureOpen}
                 onPick={(value) => {
                     write(value, "node.texture");
                 }}
                 onModel={(value) => {
                     write(value, "node.model");
                 }}
-                onClose={() => {
+                onDismiss={() => {
                     setPictureOpen(false);
                     if (pending && ref === undefined) {
                         // Just added with "+" and holding nothing: taken back, focus on the "+".
@@ -607,5 +597,6 @@ function pictureLine(args: LineHelpers, state: PictureState): AssetLine {
                 }}
             />
         ),
+        extras: null,
     };
 }

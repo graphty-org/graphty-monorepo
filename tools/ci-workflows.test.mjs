@@ -5671,6 +5671,7 @@ describe("release.yml", () => {
         assert.match(held, /RELEASE_NOTIFY: \$\{\{ vars.RELEASE_NOTIFY \}\}/);
         assert.doesNotMatch(release, /release-status.mjs (opened|dequeued)/);
         assert.match(held, /tools\/release-status.mjs\n/, "in the held job's sparse checkout");
+        assert.match(held, /tools\/lib\/github.mjs\n/, "release-status.mjs's import, in the same sparse checkout");
         // the last step of the publish job, whatever happened above it, so a re-run (--failed) announces again
         // the site job's comment follows the publish job
         assert.match(

@@ -56,6 +56,18 @@ function shareNear(
     return all === 0 ? 0 : near / all;
 }
 
+/**
+ * A segment's label, the part a reader presses (its radio is hidden).
+ * @param box - where the segments are.
+ * @param name - the segment's name.
+ * @returns the label.
+ */
+function segment(box: HTMLElement, name: string): HTMLElement {
+    const found = box.querySelector<HTMLElement>(`label[for="${within(box).getByRole("radio", { name }).id}"]`);
+    assert.isNotNull(found, name);
+    return found;
+}
+
 describe("Style panel v2's list things", () => {
     withFeatures(["file-styles", "style-panel-v2"]);
 
@@ -161,7 +173,7 @@ describe("Style panel v2's list things", () => {
         // Fixed has one group, Stripe area, which its "..." opens directly.
         const area = await openGroup(pop);
         assert.isNull(within(area).queryByRole("spinbutton", { name: "Band frame top" }), "Whole shows no sides");
-        await userEvent.click(within(area).getByRole("radio", { name: "Rim" }));
+        await userEvent.click(segment(area, "Rim"));
         await waitFor(() => {
             assert.strictEqual(written(session, nodes, "node.stripeFrame"), "0.1 0.1 0.1 0.1", "a rim shows at once");
         });
@@ -171,7 +183,7 @@ describe("Style panel v2's list things", () => {
         await waitFor(() => {
             assert.strictEqual(written(session, nodes, "node.stripeFrame"), "0.2 0.1 0.1 0.1", "the other sides stay");
         });
-        await userEvent.click(within(area).getByRole("radio", { name: "Whole" }));
+        await userEvent.click(segment(area, "Whole"));
         await waitFor(() => {
             assert.isUndefined(written(session, nodes, "node.stripeFrame"), "Whole unsets the frame");
         });

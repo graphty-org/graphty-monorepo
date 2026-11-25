@@ -15,6 +15,7 @@ import { MANTINE_REPLACEMENTS } from "../compact-mantine/eslint/mantine-replacem
 import noElementMutation from "./eslint-rules/no-element-mutation.js";
 import noSpecialLayers from "./eslint-rules/no-special-layers.js";
 import styleSidebarControls from "./eslint-rules/style-sidebar-controls.js";
+import stylePanelInputs from "./eslint-rules/style-panel-inputs.js";
 
 // The graphty app is only HTML around graphty-element (CLAUDE.md, "Architectural Principles"):
 // it reaches graph functionality through graphty-element's published entry points and nothing
@@ -31,6 +32,7 @@ const graphtyPlugin = {
         "no-element-mutation": noElementMutation,
         "no-special-layers": noSpecialLayers,
         "style-sidebar-controls": styleSidebarControls,
+        "style-panel-inputs": stylePanelInputs,
     },
 };
 
@@ -214,6 +216,44 @@ export default tseslint.config(
         ],
         plugins: { graphty: graphtyPlugin },
         rules: { "graphty/style-sidebar-controls": "error" },
+    },
+
+    // ============================================
+    // THE STYLE PANEL'S INPUTS ARE COMPACT-MANTINE'S (owner, 2026-11-24)
+    // ============================================
+    // eslint-rules/style-panel-inputs.js. The files: Style panel v2, its Graph settings, and every shared app file
+    // they draw an input from. No file is exempt; `gaps` names the Mantine inputs compact-mantine has no component
+    // for yet, each waiting on the owner (design/ui/style-panel-v2/design.md, "Only compact-mantine components").
+    {
+        files: [
+            "src/workspace/style/v2/**/*.tsx",
+            "src/workspace/inspector/GraphSettingsV2.tsx",
+            "src/workspace/style/BindingPopover.tsx",
+            "src/workspace/style/ImageField.tsx",
+            "src/workspace/style/ModelsPopover.tsx",
+            "src/workspace/style/PropertyRow.tsx",
+            "src/workspace/style/ShaderGallery.tsx",
+            "src/workspace/style/ShaderParams.tsx",
+            "src/workspace/style/ValueField.tsx",
+            "src/workspace/style/parts/GradientRow.tsx",
+            "src/workspace/style/parts/ValueListbox.tsx",
+        ],
+        ignores: ["**/__tests__/**", "**/*.stories.tsx"],
+        plugins: { graphty: graphtyPlugin },
+        rules: {
+            "graphty/style-panel-inputs": [
+                "error",
+                {
+                    gaps: {
+                        ActionIcon: "an icon button (a line's link, settings and minus); compact-mantine has none",
+                        Button: "a plain button (a value that opens its pop-over, Use as model); compact-mantine has none",
+                        UnstyledButton: "a picture tile (models, shaders); compact-mantine has no tile button",
+                        Checkbox: "a check box on a line; compact-mantine has only ToggleRow, a whole row",
+                        Menu: "a menu (a pop-over's group menu); compact-mantine has its items, not the menu",
+                    },
+                },
+            ],
+        },
     },
 
     // ============================================

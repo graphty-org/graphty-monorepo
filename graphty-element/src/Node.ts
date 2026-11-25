@@ -49,11 +49,12 @@ import { convexRayHit } from "./meshes/convexHit";
 import { surfaceReach, type Xyz } from "./meshes/edgeRoute";
 import { applyFlatHalo, flatHaloLift } from "./meshes/flatHalo";
 import { disposeLater } from "./meshes/handOverTogether";
+import { drawInRowOrder } from "./meshes/instanceRowOrder";
 import { oweLabelAnimations } from "./meshes/labelAnimationDebt";
 import { unfreezeFor } from "./meshes/LabelBatch";
 import { imageAspectExtent, labelFitExtent } from "./meshes/labelFit";
 import { layoutLabelTable, readLabelTable, roundedBoxOutline } from "./meshes/labelTable";
-import { drawLast, moveInstance } from "./meshes/moveInstance";
+import { moveInstance } from "./meshes/moveInstance";
 import type { PieceBox } from "./meshes/nodeDecoration";
 import {
     createNodeDecorations,
@@ -441,9 +442,6 @@ export function releaseNodeMesh(node: Node): void {
 /** Collects the nodes whose size or shape changed while {@link collectResizedNodes} runs. */
 let resizedSink: Set<Node> | null = null;
 
-/** Collects the meshes moved onto another source while {@link collectResizedNodes} runs (`drawLast`). */
-let movedSink: AbstractMesh[] | null = null;
-
 /**
  * Run a repaint and collect the nodes whose size or shape it changed, instead of each of them
  * walking every edge in the graph to find its own. The caller then finds their edges in one walk
@@ -453,15 +451,11 @@ let movedSink: AbstractMesh[] | null = null;
  */
 export function collectResizedNodes(work: () => void): Set<Node> {
     const resized = new Set<Node>();
-    const moved: AbstractMesh[] = [];
     resizedSink = resized;
-    movedSink = moved;
     try {
         work();
     } finally {
         resizedSink = null;
-        movedSink = null;
-        drawLast(moved);
     }
 
     return resized;
@@ -562,7 +556,12 @@ export class Node implements ModelUser {
 
     static {
         writeNodeRow = (node, row) => {
+            const placed = node.row === INVALID_INDEX && row !== INVALID_INDEX;
             node.index = row;
+            // The constructor built the mesh before the node had a row; list it by the row it now has.
+            if (placed && node.#mesh !== null) {
+                drawInRowOrder(node.#mesh, node);
+            }
         };
         writeRecord = (node, record) => {
             node.#record = frozenRecord(record);
@@ -2170,6 +2169,7 @@ export class Node implements ModelUser {
     private build(meshKey: string, style: NodeStyleConfig): AbstractMesh {
         this.#fit = { meshKey, style };
         const mesh = this.buildMesh(meshKey, style);
+        drawInRowOrder(mesh, this);
         this.#anchor = this.#mesh = mesh;
         this.#source = mesh instanceof InstancedMesh ? mesh.sourceMesh : mesh;
         return mesh;
@@ -3350,12 +3350,7 @@ export class Node implements ModelUser {
             scene,
         );
         moveInstance(mesh, source);
-        // A repaint of many nodes reorders the scene's list once, after it (see collectResizedNodes).
-        if (movedSink === null) {
-            drawLast([mesh]);
-        } else {
-            movedSink.push(mesh);
-        }
+        drawInRowOrder(mesh, this);
         this.#fit = { meshKey: fit.meshKey, style: fit.style };
         this.#source = source;
         this.meshKey = meshKey;

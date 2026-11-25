@@ -315,11 +315,10 @@ describe("the join workspace (source-steps)", () => {
         await choose(modal, "In graph type", "person");
         await choose(modal, "In graph field", "Key");
         await choose(modal, "Incoming field", "door");
-        const rows = within(modal).getByRole("radiogroup", { name: "Rows are" });
-        await userEvent.click(within(rows).getByText("Edges"));
-        await choose(modal, "From", "badge");
-        await choose(modal, "To", "door");
-        await userEvent.click(within(modal).getByRole("radio", { name: "Merge" }));
+        // The entries' own nodes would land in the space they connect to.
+        await userEvent.fill(within(modal).getByRole("combobox", { name: "Space" }), "person");
+        await userEvent.keyboard("{Enter}");
+        await userEvent.click(within(modal).getByRole("radio", { name: "Connect" }));
         await within(modal).findByRole("alert");
         assert.isNull(store.get().notice, "no notice behind the modal");
     });

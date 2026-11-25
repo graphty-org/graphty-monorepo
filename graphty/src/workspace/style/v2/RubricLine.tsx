@@ -36,12 +36,14 @@ import { Field, FieldLine, type RowContext, VarySlot, type VaryTarget } from "..
 import { lineIn, needsFor, writeIn } from "../row";
 import { ValueField } from "../ValueField";
 import { channelWord, failureWords, fieldName, scrubLetter, takesBinding } from "../words";
+import { BesidePopover } from "./dataLines";
 import { dimOf, drawnValue, valueDimOf } from "./drawn";
 import { PointPair } from "./ItemFields";
 import { ItemListEditor } from "./ItemListEditor";
 import { moveUnit, rangeOf, readsAsPercent, ruleOf, unsetIn } from "./lineWrites";
 import { coordinateDescriptor, ITEM_LISTS } from "./lists";
 import {
+    groupOfLine,
     isPictured,
     lineChannels,
     type LineSpec,
@@ -51,6 +53,7 @@ import {
     VALUE_GLYPHS,
 } from "./rubric";
 import { setOn } from "./things";
+import { ValueButton } from "./ValueButton";
 import { sectionsOf } from "./valueSections";
 
 /** What a thing row puts in a line drawn as its row: its settings button and its whole-thing minus. */
@@ -829,6 +832,7 @@ function SidesLines({
     under: boolean;
     write: (text: string | undefined) => void;
 }>): React.JSX.Element {
+    const { store } = useWorkspace();
     const { channel } = descriptor;
     const own = lineIn(ctx, channel)?.value;
     const raw = own ?? drawnValue(ctx, channel);
@@ -840,6 +844,15 @@ function SidesLines({
     const rim = sides.some((side) => Number.isFinite(side) && side > 0) || (typeof own === "string" && own !== "");
     const name = line.name ?? channelWord(channel);
     const writeSide = (at: number, value: number | undefined): void => {
+        if (own === undefined && typeof raw === "string" && raw !== "") {
+            // A frame a lower layer draws: this layer changes that side alone, by its item address (E4).
+            const address = listItemAddress(channel, at);
+            const done = value === undefined ? unsetIn(ctx, [address]) : writeIn(ctx, address, { value });
+            done.catch((error: unknown) => {
+                store.set({ notice: { message: failureWords(name, "changed", error), error: true } });
+            });
+            return;
+        }
         const held = sides.map((side) => (Number.isFinite(side) ? side : undefined));
         const next = held.map((side, i) => (i === at ? value : side));
         if (next.every((each) => each === undefined)) {
@@ -852,7 +865,8 @@ function SidesLines({
         write(writeChannelList(channel, next));
     };
     if (under) {
-        // Four values: one read-only field reading them, no link; its "-" unsets the frame (stripes design 2).
+        // Four values: one field reading them, no link, opening the group it sits in (Stripe area); its "-" unsets
+        // the frame (stripes design 2).
         const words = sides.map((side) => String(Math.round((Number.isFinite(side) ? side : 0) * 1000) / 10));
         return (
             <LineFrame
@@ -860,7 +874,7 @@ function SidesLines({
                 name={name}
                 set
                 rule="R17"
-                control={<PanelField label={name} kind="text" width="fill" readOnly value={`${words.join(" / ")}%`} />}
+                control={<GroupOpener ctx={ctx} channel={channel} label={name} words={`${words.join(" / ")}%`} />}
                 modifier={null}
                 removeName={`Remove ${name.toLowerCase()}`}
                 onRemove={() => {
@@ -932,6 +946,48 @@ function SidesLines({
                       );
                   })
                 : null}
+        </>
+    );
+}
+
+/**
+ * A sidebar line's value that opens, beside it, the pop-over of the group of settings its line sits in (a band
+ * frame's sides open Stripe area, stripes design 2).
+ * @param props - Component props
+ * @param props.ctx - the row
+ * @param props.channel - the line's channel
+ * @param props.label - its accessible name
+ * @param props.words - the value it reads
+ * @returns The button and its pop-over
+ */
+function GroupOpener({
+    ctx,
+    channel,
+    label,
+    words,
+}: Readonly<{ ctx: RowContext; channel: Channel; label: string; words: string }>): React.JSX.Element {
+    const [open, setOpen] = React.useState(false);
+    const id = React.useId();
+    const group = groupOfLine(channel);
+    return (
+        <>
+            <ValueButton
+                label={group === undefined ? label : `${label}: edit in ${group.name}`}
+                words={words}
+                opens="dialog"
+                controls={id}
+                expanded={open}
+                onClick={() => {
+                    setOpen(!open);
+                }}
+            />
+            {group === undefined ? null : (
+                <BesidePopover id={id} title={group.name} opened={open} onOpenChange={setOpen}>
+                    {group.lines.map((line) => (
+                        <RubricLine key={line.channel} ctx={ctx} line={line} />
+                    ))}
+                </BesidePopover>
+            )}
         </>
     );
 }

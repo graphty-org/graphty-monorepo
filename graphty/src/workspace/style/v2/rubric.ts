@@ -942,3 +942,15 @@ export function lineFor(side: "node" | "edge", channel: Channel): FoundLine | un
  * "set here" (issue #8739: the panel never says where a value comes from).
  */
 export const V2_LABELS: Partial<CompactMantineLabels> = { fieldSet: "" };
+
+/**
+ * The group of settings a line sits in, in either side's rubric: a sidebar line opens it (a band frame opens Stripe
+ * area, stripes design 2).
+ * @param channel - the line's channel.
+ * @returns the group, or undefined when the line is in none.
+ */
+export function groupOfLine(channel: Channel): SubGroup | undefined {
+    return [...Object.values(NODE_RUBRIC), ...Object.values(EDGE_RUBRIC)]
+        .flatMap((rubric) => rubric.groups ?? [])
+        .find((group) => group.lines.some((line) => line.channel === channel));
+}

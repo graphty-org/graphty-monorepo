@@ -13,9 +13,11 @@ Rules that hold throughout, from the owner:
   there (Input rules, 2026-11-23), never an empty field. It never says where a value comes from or how layers stack.
 - No special layers. Everything, Hovered, Selected and Pinned open this same panel with the same controls.
 - Graph-wide settings are **Graph** ("Graph settings"), never "Scene" or "World", in every name and option.
-- The look is the app's: compact-mantine (locked to Figma, unchanged) and `graphty/src/workspace/style/`.
-  Shape, arrow and pattern glyphs, `ValueListbox` rows, the by-data link and every picker are today's. Nothing
-  the app already draws is redrawn. An icon is reused only for the same meaning.
+- Every input is a compact-mantine component (Input rules: "The style panel may only use components from
+  compact-mantine"). compact-mantine is locked to Figma and changes only with the owner's approval; the app
+  supplies the words, the glyphs (shape, arrow and pattern) and the values, never an input of its own. Where
+  compact-mantine has no component for an input, the gap goes to the owner; the app does not build one. An icon
+  is reused only for the same meaning.
 - Every style offered was asked for by the owner, was already a graphty-element style, or is written by
   graph-io's style imports; nothing else is added. A custom shader is treated exactly like a built-in one.
 - Section names, membership and order follow the style grouping study
@@ -286,7 +288,7 @@ Opened from the tree footer button "Graph settings"; v2 switches in both `case "
 
 | Thing (the style model's Graph things) | Home and change                                                                                                                                                                                                                                                                                             | Writes                                                                   |
 | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| Background                             | One row, family Color / Sky (5); Sky opens `PicturePopover`. No `drawnIn` caption or sentence. Keep on import (R7)                                                                                                                                                                                          | today's keys                                                             |
+| Background                             | One row, family Color / Sky (5); Sky opens compact-mantine's `ImagePicker`. No `drawnIn` caption or sentence. Keep on import (R7)                                                                                                                                                                           | today's keys                                                             |
 | View (Canvas section)                  | `ControlGroup`s: **View** lighting, rotation (R5, degrees; 2D, dims in 3D), highlight color (R1). **Framing** extent (R8 Drawn / Centers, unnamed line), padding (R5). **Marks** same size at any depth (R7), smallest mark node \| edge                                                                    | `styles.setHighlightColor`, `viewRotation`, `framing.*`, `minMarkSize.*` |
 | Labels                                 | Hide overlaps (R7, off by default), Avoid nodes and edges (R7, off by default): the reader's label preferences, so labels draw statically at their set place unless the reader turns these on (E270); sample cell (R5); label text (R9 Canvas / Atlas, never "Glyphs", which reads as the Glyph kind, E275) | app preferences; `behavior.labels.*`                                     |
 | Shader gallery                         | as today                                                                                                                                                                                                                                                                                                    | -                                                                        |
@@ -439,6 +441,9 @@ Rules for all inputs
     - Picking files must use the file picker component
     - Picking from a range of inputs must use a slider component
     - Selecting between fewer than six options should use grouped buttons
+    - Picking angles must use the angle picker component
+    - Picking fonts must use the font picker component
+    - Picking images must use the image picker component
 - Every input must be self describing, either through an attached icon that will have common knowledge for users,
   a tooltip that appears on-hover for a button, through an obvious affordance like a color picker, or through the
   component's small text label above the input
@@ -451,6 +456,7 @@ Rules for style inputs:
 - Every input must have a value, no input can show as empty
 - Linking buttons and settings buttons must be positioned on the same line after to the control they are linking
   the value to. They should be hidden until on-hover
+- The style panel may only use components from compact-mantine (added 2026-11-24)
 
 Added 2026-11-24:
 
@@ -513,7 +519,19 @@ thing's groups when it has more than one, and each opens a new pop-over.
   lists). Fewer than six exclusive options: grouped buttons (`SegmentedControl`). A number with a fixed minimum
   and maximum (opacity, any 0-1 or 0-100% value, a fixed range): compact-mantine `Slider`, with its number
   field beside it so the value is read and typed; the line draws its name above them. An open-ended number
-  stays the scrubbable number input. Files: the app's existing file picker.
+  stays the scrubbable number input. An angle (a number graphty-element marks `angle`: a shape's, a pie's, a
+  label's or a caption's rotation, a gradient's direction, a model's turn): compact-mantine `AnglePicker`. A font:
+  compact-mantine `FontPicker`, listing the fonts the project holds (graphty-element `session.fonts`), the common
+  and generic families and the fonts on this computer, with an upload that adds the file to `session.fonts`, so
+  it is saved in the project and drawn. An image: compact-mantine `ImagePicker`, listing the project's pictures
+  (`session.assets`), with a file and an address. A color's picker shows its Palettes tab. Files: compact-mantine
+  `FileSource`.
+- **Only compact-mantine components.** Every input in `graphty/src/workspace/style/v2/` is imported from
+  `@graphty/compact-mantine`; the `graphty/style-panel-inputs` lint rule fails an input control imported from
+  anywhere else (`@mantine/core`, an app file). Layout that takes no input (`Box`, `Group`, `Stack`, `Text`,
+  `VisuallyHidden`, `Tooltip`) is not an input and may come from `@mantine/core`. The app's shared pieces that
+  wrap compact-mantine controls (`ValueField`, `ValueListbox`, `BindingPopover`) are app code and are listed
+  in the rule as open gaps until compact-mantine has their component.
 - **Font style.** Bold, Italic, Underline and Strikethrough are toggle icon buttons on one line (compact-mantine
   `ToggleIconButton` or the existing grouped-button component, lucide glyphs, each with a hover tooltip). Bold
   toggles the weight between the regular and the bold weight; the numeric weight is in the label's advanced
@@ -573,7 +591,7 @@ thing's groups when it has more than one, and each opens a new pop-over.
   whole. A bound value's dialog is the same dialog.
 - **Free text and pictures.** An unset text field holds the words drawn there ("+" for a badge's suffix) as its
   value, or "None" where none are drawn; left so, nothing is written. A picture (a label's image, a node image's
-  Fallback, an arrow's Image) is the app's Picture field and pop-over (R16), reading "None" with no picture. A
+  Fallback, an arrow's Image) is compact-mantine's `ImagePicker` (R16), reading "None" with no picture. A
   label's Icon is a character drawn beside its words (graphty-element's `icon`), not a file, so it stays text.
 - **Sidebar rows with a pictured list or a drop-down** (Pattern, Arrow, Route, Force curves) draw their name above
   and the value across the row, so a value is never cut ("Triangle", "Barnes hut").
@@ -606,7 +624,7 @@ hovered, and shown while focus is within the line, while their pop-out is open, 
 
 | #    | When                                                                                              | Control                                                                                                                                                                                           |
 | ---- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| R1   | A color (with opacity)                                                                            | `CompactColorInput`, always a full line                                                                                                                                                           |
+| R1   | A color (with opacity)                                                                            | `CompactColorInput` with its Palettes tab, always a full line                                                                                                                                     |
 | R2   | A label, tooltip or caption location                                                              | R8f Outside / Inside / Auto, then `AlignmentMatrix` once written (Auto disables it); values from the location descriptor (10.2)                                                                   |
 | R3   | A family member or a kind                                                                         | Switch to on the row (section 5)                                                                                                                                                                  |
 | R5   | An open-ended number (no fixed minimum and maximum)                                               | Figma's scrubbable number input (2.2): a letter slot, arrow keys step 1 and Shift 10, no stepper buttons; two related numbers as a pair; shows its default when unset                             |
@@ -620,11 +638,12 @@ hovered, and shown while focus is within the line, while their pop-out is open, 
 | R10  | 6 or more options with pictures (catalog glyphs, or lucide glyphs named in the option-name table) | Existing `ValueListbox`: today's rows and glyphs, one section at a time (section 8), search placeholder "Search"; fewer than 6 pictured options are R8 icon segments                              |
 | R11  | 13 or more options without pictures                                                               | `PanelField` with `{ group, items }` data                                                                                                                                                         |
 | R12  | A data field or text source                                                                       | The existing attribute picker / `ValuePicker`                                                                                                                                                     |
-| R13  | A font                                                                                            | The existing font list                                                                                                                                                                            |
+| R13  | A font                                                                                            | compact-mantine `FontPicker`: the project's fonts (`session.fonts`), common and generic families, this computer's fonts, and an upload saved in the project                                       |
 | R14  | Free text                                                                                         | `TextInput size="xs"`, commits on Enter or blur                                                                                                                                                   |
 | R15  | An ordered list                                                                                   | Popover only: `ItemListEditor`, "+" on its legend, "-" per line, drag grip on hover; `GradientEditor` for stops                                                                                   |
 | R15r | A list thing's row control                                                                        | A read-only strip of its swatches (Pie, Stripes) or its first item; opens the popover on the list                                                                                                 |
-| R16  | An asset or shader parameters                                                                     | `PicturePopover` / `ModelsPopover`; `ShaderParamRows`                                                                                                                                             |
+| R16  | An image; a model or shader parameters                                                            | An image: compact-mantine `ImagePicker`. A model: `ModelsPopover`; shader parameters: `ShaderParamRows`                                                                                           |
+| R18  | An angle (graphty-element's `angle` on the channel or label field)                                | compact-mantine `AnglePicker`, 0 at the top, clockwise                                                                                                                                            |
 | R17  | A set of sides                                                                                    | Four `ToggleIconButton`s with `GLYPHS` `arrowUpToLine`, `arrowRightToLine`, `arrowDownToLine`, `arrowLeftToLine` on one line                                                                      |
 
 **Glyphs.** New `GLYPHS` entries come from lucide-react (as `glyphs.ts` imports it), only those the option-name

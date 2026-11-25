@@ -149,7 +149,7 @@ export function FiltersSection({
     source?: SourceKey;
     unscoped?: boolean;
     primary?: boolean;
-    headingLevel?: 2 | 3;
+    headingLevel?: 2 | 3 | 4;
 }> = {}): React.JSX.Element {
     const { session, store } = useWorkspace();
     const version = useSessionEvents(session, VISIBILITY_EVENTS);

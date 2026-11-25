@@ -4,22 +4,25 @@ import type { SourceKey } from "@graphty/graphty-element/session";
 import { Tabs } from "@mantine/core";
 import React from "react";
 
+import { sourceStepsOn } from "../features";
 import { ServerPlace } from "../server/ServerForm";
 import { INSPECTOR_EVENTS, useSessionEvents } from "../sessionEvents";
 import { useNumberFormats } from "../settings/numberFormat";
+import { JoinRow } from "../source-steps/JoinRow";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { Fields } from "./Fields";
+import { UnloadedFields } from "./Fields";
 import { FiltersSection } from "./Filters";
 import { ResultsList } from "./Runs";
 import { Sources } from "./Sources";
 
 /**
  * The Data place, the left sidebar's data (data prototype spec sections 3.2 to 3.4): the graph's
- * name, then Sources, the selected source's Fields, and Filters (tier2-design.md section 1). The
+ * name, then Sources, Join + (the source-steps experiment), and Filters (tier2-design.md section 1). The
  * panel's first row is two tabs, Sources and Calculated (the results), as Figma's panel tabs are (the
  * owner, 2026-11-07); only the chosen tab's body scrolls.
- * Sources holds Data sources, then each load as a section of its own: its node and edge rows, the
- * columns its rows carry, and its own Filters, which judge only that load's elements. The filters
+ * Sources holds Data sources, one collapsible entry per load: closed, its name and counts; open,
+ * its node and edge rows, the columns its rows carry, and its own Filters, which judge only that
+ * load's elements. The filters
  * of no load (made before a second load came, or from the toolbar with several loads) sit under
  * Data sources. The tab is the reader's, kept per project. Every
  * fact is the element's (`data.sources()`, `data.attributes()`, `visibility.steps`); this only
@@ -37,15 +40,15 @@ export function DataPlace(): React.JSX.Element {
     const picked = useWorkspaceState((state) => state.pickedSource);
     const sources = session?.data.sources() ?? [];
     const selected = sources.find((each) => each.key === picked) ?? sources.at(-1);
-    // A press picks the load for Fields and opens it in the inspector: what it added and what it
+    // Opening an entry picks the load and opens it in the inspector: what it added and what it
     // left out, with Edit source and Replace in its "...".
     const select = (key: SourceKey): void => {
         store.set({ pickedSource: key, inspected: { kind: "source", id: `source:${key}` } });
     };
 
     const tab = useWorkspaceState((state) => state.dataTab);
-    // While the Join card is open (the source-steps experiment) the other sections fold away (design 7.1).
-    const joining = useWorkspaceState((state) => state.sourceCard?.kind === "join");
+    // Join + (the source-steps experiment) once there is a source to join.
+    const joinable = session !== null && sourceStepsOn(session) && session.data.staged().length + sources.length >= 1;
     const sourcesSection = <Sources sources={sources} selected={selected?.key} onSelect={select} />;
     return (
         <section className="dp" data-tabs="" aria-label="Data place">
@@ -68,15 +71,12 @@ export function DataPlace(): React.JSX.Element {
                 </Tabs.List>
                 <Tabs.Panel value="loaded" className="dp-tab-body">
                     {sourcesSection}
-                    {/* Each load's filters sit in its own section; with no load, or several, the
+                    {joinable ? <JoinRow /> : null}
+                    {/* Each load's filters sit in its own entry; with no load, or several, the
                         filters of every load sit here, under Data sources. */}
-                    {sources.length === 1 || joining ? null : <FiltersSection unscoped={sources.length > 1} />}
-                    {joining ? null : (
-                        <>
-                            <ServerPlace />
-                            <Fields sources={sources} selected={selected} />
-                        </>
-                    )}
+                    {sources.length === 1 ? null : <FiltersSection unscoped={sources.length > 1} />}
+                    <ServerPlace />
+                    {sources.length === 0 ? <UnloadedFields /> : null}
                 </Tabs.Panel>
                 <Tabs.Panel value="calculated" className="dp-tab-body">
                     <ResultsList />

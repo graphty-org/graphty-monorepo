@@ -20,7 +20,6 @@ import type {
     NoteTargetInput,
     ScopeInput,
     ScoreTerm,
-    SourceDraftBucket,
     SourceKey,
     UnionLeaf,
 } from "@graphty/graphty-element/session";
@@ -87,95 +86,18 @@ export interface ReportPin {
 }
 
 /**
- * Field 1 of the Join card: the nodes in a space, matched on their key (`field` absent) or on a
- * column of a source that supplied them.
+ * How the join workspace opens (the source-steps experiment): with a first card for a staged
+ * source, with node 1 set to a type (from a node's Join in the inspector), or holding the removal
+ * of a source (from its Remove), whose effects it shows before Done.
  */
-export interface JoinField1 {
-    readonly space: string;
+export interface JoinWorkspaceOpen {
+    /** The staged source the first card joins; default the newest staged source. */
     readonly source?: SourceKey;
-    readonly field?: string;
+    /** The id space node 1 of the first card names. */
+    readonly into?: string;
+    /** The source the opened draft removes. */
+    readonly remove?: SourceKey;
 }
-
-/** Field 2 of the Join card: a source and, once picked, its field. */
-export interface JoinField2 {
-    readonly source: SourceKey;
-    readonly field?: string;
-}
-
-/** The Join card's picks (the source-steps experiment); nothing is written until it commits. */
-export interface JoinCardState {
-    readonly kind: "join";
-    readonly field1: JoinField1 | null;
-    readonly field2: JoinField2 | null;
-    /** Make an edge, Merge 2 into 1, or null until the reader picks one. */
-    readonly act: "edge" | "merge" | null;
-    /** Make an edge's edge type; empty for none. */
-    readonly edgeType: string;
-    /** Make an edge from 2 to 1 rather than 1 to 2. */
-    readonly reversed: boolean;
-    readonly ignoreCase: boolean;
-    readonly ignoreSpaces: boolean;
-    /** The table dock as it was when the card opened, given back when it closes. */
-    readonly dockWas: { readonly open: boolean; readonly tab: string };
-    /** How a merge settles a key source 2's rows repeat: a row (the first or the last) or an aggregate. */
-    readonly repeated: JoinRepeats;
-    /** A merge's rows that meet no node 1: kept as their own nodes, or dropped. */
-    readonly unmatchedFrom: "keep" | "drop";
-    /**
-     * Set once Preview made the act in the element's draft: the step it made, and the choices as
-     * they were before each change made since, so Undo puts them back. Null while picking.
-     */
-    readonly preview: {
-        readonly step: number;
-        readonly undo: readonly JoinChoices[];
-        /** The card reopened a committed step as it is: nothing the card made yet to take back. */
-        readonly reopened?: boolean;
-    } | null;
-    /**
-     * The committed step the card edits (Edit on a Steps row), or null for a new join. A field or
-     * act changed while editing removes that step and makes the new act in the same draft.
-     */
-    readonly editing: number | null;
-    /** What the dock's Preview tab shows once the reader clicked a count or a Values differ column. */
-    readonly drill: JoinDrill | null;
-}
-
-/**
- * The card that removes a committed step or a committed source (the source-steps experiment): its
- * draft holds the removal, and the card shows what the commit would change.
- */
-export interface StepCardState {
-    readonly kind: "step";
-    readonly remove: { readonly step: number } | { readonly source: SourceKey };
-}
-
-/**
- * The dock's Preview tab: the rows behind one count of the previewed step, or the cells of one
- * Values differ column, with the ids of those the reader selected.
- */
-export type JoinDrill =
-    | {
-          readonly kind: "rows";
-          readonly bucket: SourceDraftBucket;
-          readonly changedOnly: boolean;
-          readonly selected: readonly string[];
-      }
-    | {
-          readonly kind: "cells";
-          readonly column: string;
-          readonly only: "all" | "open" | "decided";
-          readonly selected: readonly string[];
-      };
-
-/**
- * How a merge settles a key source 2's rows repeat: keep the first row's values or the last's, as
- * the step's `repeated`, or reduce every column's rows to their count or their list, as its
- * `aggregate`.
- */
-export type JoinRepeats = "first" | "last" | "count" | "list";
-
-/** The Join card's choices that a preview changes in the element's draft step. */
-export type JoinChoices = Pick<JoinCardState, "ignoreCase" | "ignoreSpaces" | "repeated" | "unmatchedFrom">;
 
 /** The chrome state. */
 export interface WorkspaceState {
@@ -366,16 +288,8 @@ export interface WorkspaceState {
      * Role): the load is read again as edges once both are picked.
      */
     readonly ends: { readonly load: SourceKey; readonly source: string | null; readonly target: string | null } | null;
-    /**
-     * The card open over the sources (the source-steps experiment): Add, while it asks the
-     * key-overlap question, or Join, with the reader's picks. A draft it opens is the element's
-     * (`data.currentDraft()`).
-     */
-    readonly sourceCard: { readonly kind: "add"; readonly source: SourceKey } | JoinCardState | StepCardState | null;
-    /** The join workspace is open over the canvas (the source-steps experiment, issue #9796). */
-    readonly joinWorkspace: boolean;
-    /** The Data place's Reader edits list is open (the source-steps experiment). */
-    readonly readerEditsOpen: boolean;
+    /** The join workspace is open over the canvas, and how it opened (the source-steps experiment, issue #9796). */
+    readonly joinWorkspace: false | JoinWorkspaceOpen;
     /**
      * Edges picked in a staged source's Rows are before both ends are (the source-steps
      * experiment): held here until both are, then written to the element. While it is set, that
@@ -610,10 +524,8 @@ export const ON_RELOAD = {
     joining: "gap #9846: holds graphty-element's prepared load, which its autosave does not keep",
     editingJoin: "kept",
     ends: "kept",
-    sourceCard: "kept",
     joinWorkspace:
         "fresh: in flight: the workspace closes on a reload; its draft, which autosave keeps, opens with it the next time",
-    readerEditsOpen: "fresh: pointer: a list opened for a look",
     stagedEnds: "kept",
     draftOpen: "fresh: in flight: asks about a write this page made, which a reload ends",
     pickedSource: "kept",
@@ -758,9 +670,7 @@ const INITIAL: WorkspaceState = {
     joining: null,
     editingJoin: null,
     ends: null,
-    sourceCard: null,
     joinWorkspace: false,
-    readerEditsOpen: false,
     stagedEnds: null,
     draftOpen: null,
     pickedSource: null,

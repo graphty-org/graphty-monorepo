@@ -8,7 +8,7 @@ import {
     type SourceRowCommand,
 } from "../commands/registry";
 import { sourceStepsOn } from "../features";
-import { openRemove } from "../source-steps/steps";
+import { openJoinWorkspace } from "../source-steps/join";
 import type { WorkspaceStore } from "../state/store";
 import { panelsInView } from "../time/timeActions";
 import { openFilterDraft, selectRule } from "./filterCards";
@@ -189,13 +189,20 @@ const SOURCE_ROW_COMMANDS: readonly SourceRowCommand[] = [
         id: "source.remove",
         label: "Remove",
         order: 90,
-        run: (ctx, source) =>
-            // Under the source-steps experiment Remove opens the step card on a draft holding it; a
-            // source no step reads (one a file saved without the experiment brought in) is removed
-            // as before.
-            ctx.session !== null && sourceStepsOn(ctx.session)
-                ? openRemove(ctx.workspace, ctx.session, { source: source.key }, () => removeNow(ctx, source))
-                : removeNow(ctx, source),
+        run: async (ctx, source) => {
+            // Under the source-steps experiment Remove opens the join workspace on a draft holding
+            // it, which shows what goes with it before Done; a source no step reads (one a file saved
+            // without the experiment brought in) is removed as before.
+            if (
+                ctx.session !== null &&
+                sourceStepsOn(ctx.session) &&
+                ctx.session.data.steps().some((step) => step.source === source.key)
+            ) {
+                openJoinWorkspace(ctx.workspace, { remove: source.key });
+                return;
+            }
+            await removeNow(ctx, source);
+        },
     },
 ];
 

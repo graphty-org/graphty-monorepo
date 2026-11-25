@@ -94,19 +94,3 @@ export function rowWith(grid: HTMLElement, text: string): HTMLElement {
 export async function select(row: HTMLElement): Promise<void> {
     await userEvent.click(within(row).getByRole("rowheader"));
 }
-
-/**
- * What a count of the preview reads, by its words.
- * @param preview - the preview section.
- * @param label - the count's words.
- * @returns its number as shown.
- */
-export function count(preview: HTMLElement, label: string): string {
-    const term = within(preview)
-        .getAllByRole("term")
-        .find((each) => each.textContent === label);
-    assert.isDefined(term, `a count reads ${label}`);
-    return term?.parentElement === null || term?.parentElement === undefined
-        ? ""
-        : (within(term.parentElement).getByRole("definition").textContent ?? "");
-}

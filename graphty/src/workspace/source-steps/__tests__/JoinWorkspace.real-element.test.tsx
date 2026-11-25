@@ -50,11 +50,11 @@ async function opened(
     store.set({ dockOpen: false, dockMaximized: false });
     if (also !== undefined) {
         drop(also.name, also.text);
-        await screen.findByRole("region", { name: also.name });
+        await screen.findByRole("listitem", { name: also.name });
     }
     // The entries are staged last: the workspace opens on the last staged source's card.
     drop("entries.csv", ENTRIES);
-    await screen.findByRole("region", { name: "entries.csv" });
+    await screen.findByRole("listitem", { name: "entries.csv" });
     const entries = session.data.staged().at(-1)?.key ?? "";
     (document.activeElement as HTMLElement | null)?.blur();
     await userEvent.keyboard("{Shift>}J{/Shift}");

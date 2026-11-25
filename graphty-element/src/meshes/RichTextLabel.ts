@@ -2585,7 +2585,7 @@ export class RichTextLabel {
         const inside = Object.hasOwn(INSIDE, position) ? INSIDE[position as InsidePosition] : null;
         const inFront = (position === "center" || inside !== null) && !(target instanceof Vector3);
         const frontBounds = inFront ? bounds : null;
-        this.onFace = this.onFlatFace(target, bounds, inside);
+        this.onFace = this.onFlatFace(target, bounds, inside, position === "center");
         let newPos = target instanceof Vector3 ? target.clone() : this.parentTo(target, frontBounds);
         // A target drawn stretched (a group over its members' box) leaves its label the size the
         // label's style gives: the label undoes the stretch and its gaps are measured in it.
@@ -2754,25 +2754,29 @@ export class RichTextLabel {
     }
 
     /**
-     * Whether a label inside its target lies on the target's face: in a 3D view, on a target drawn
+     * Whether a label inside or centered on its target lies on the target's face: in a 3D view, on a target drawn
      * flat (a group's box behind its members, a flat shape), whose depth is a small part of its
      * width and height as drawn. Turned toward the camera and hung one bounding radius in front, as
-     * a solid's label is, it floated far off the box in perspective (issue #2320); on the face it is
-     * drawn where the box is, as the 2D view draws it.
+     * a solid's label is, it floated far off the box in perspective (issue #2320); a centered label on a wide box hung
+     * so far in front that framing put the orbit pivot ahead of the drawing, and a view that sizes nodes by their
+     * depth from the pivot drew every box larger, over its neighbors (issue #10071). On the face it is drawn where the
+     * box is, as the 2D view draws it.
      * @param target - What the label is attached to.
      * @param bounds - Its bounds, in its own frame.
      * @param bounds.min - Their lower corner.
      * @param bounds.max - Their upper corner.
      * @param inside - The side and end the label sits inside against, or null when it is not inside.
+     * @param center - Whether the label sits at its target's center.
      * @returns True when it lies on the face.
      */
     private onFlatFace(
         target: RichTextLabelOptions["attachTo"],
         bounds: { min: Vector3; max: Vector3 },
         inside: { x: Side; y: Side } | null,
+        center: boolean,
     ): boolean {
         if (
-            inside === null ||
+            (inside === null && !center) ||
             !(target instanceof AbstractMesh) ||
             (this.scene.metadata as GraphSceneMetadata | null)?.twoD === true
         ) {

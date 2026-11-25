@@ -1251,8 +1251,8 @@ interface StepAct {
     readonly existing?: "merge";
     /** A row naming several nodes joins each of them. */
     readonly fanOut?: "each";
-    /** A row no edge reaches makes no node. */
-    readonly unlinked?: "drop";
+    /** A row no edge reaches makes no node, or its own node goes too. */
+    readonly unlinked?: "drop" | "remove";
 }
 
 /**
@@ -1366,7 +1366,7 @@ function partType(
  * @param step - The step.
  * @returns The choices, or null for any other step.
  */
-function stepLink(value: SourceSteps, step: Step): SourceLinkOptions | null {
+export function stepLink(value: SourceSteps, step: Step): SourceLinkOptions | null {
     if (step.op !== "join.edges" || step.link === undefined) {
         return null;
     }
@@ -1456,7 +1456,7 @@ export function rowSources(value: SourceSteps, merged: boolean): ReadonlyMap<str
  * @param index - The step's place.
  * @returns The choices, or null for any other step.
  */
-function stepExtract(value: SourceSteps, index: number): SourceExtractOptions | null {
+export function stepExtract(value: SourceSteps, index: number): SourceExtractOptions | null {
     const step = extractOf(value.steps[index]);
     const src = step === null ? undefined : (value.sources[step.source] as Source | undefined);
     if (step === null || src === undefined || step.read.target === undefined) {

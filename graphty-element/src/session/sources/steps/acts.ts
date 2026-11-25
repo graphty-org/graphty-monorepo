@@ -96,8 +96,8 @@ interface ConnectAct {
     readonly existing?: "add" | "merge";
     /** A row whose value names several nodes: no edge (default), or an edge to each. */
     readonly fanOut?: "skip" | "each";
-    /** A row kept as a node that no edge reaches: kept (default), or dropped. */
-    readonly unlinked?: "keep" | "drop";
+    /** A row kept as a node that no edge reaches: kept (default), dropped when a join made it, or taken out. */
+    readonly unlinked?: "keep" | "drop" | "remove";
 }
 
 /** Extract (4.3): one column becomes nodes, joined to an edge row's end or to the row's own node by new edges. */
@@ -241,6 +241,35 @@ function rowSource(value: SourceSteps, copies: Copies, id: string): { src: Steps
         throw refused("E_STEP_NEEDS_NODES", `Source ${id} holds no rows.`, { source: id });
     }
     return { src, table: "nodes" };
+}
+
+/**
+ * Refuse a field a source's rows do not hold, such as one an earlier join brought its nodes: no row
+ * of it would match, and what matches nothing is made anew. Such a field is named by its space. Only
+ * the acts ask, so a saved step whose rows changed since still replays.
+ * @param value - The value.
+ * @param copies - The rows as read.
+ * @param id - The source, if one is named.
+ * @param field - The field, if one is.
+ * @throws A `GraphtyError` with `E_BAD_COMMAND`, reason `no-column`.
+ */
+function checkField(value: SourceSteps, copies: Copies, id: string | undefined, field: string | undefined): void {
+    if (id === undefined || field === undefined || field.trim() === "") {
+        return;
+    }
+    const src = sourceOf(value, id);
+    const tables = [
+        ...(src.mapping.nodes === undefined ? [] : ["nodes" as const]),
+        ...(src.mapping.edges === undefined ? [] : ["edges" as const]),
+    ];
+    const read = tables.flatMap((table) => tableRows(src, copyMap(copies), table) ?? []);
+    if (read.length > 0 && !read.some((row) => field in row)) {
+        throw refused("E_BAD_COMMAND", `Source ${id} holds no column ${JSON.stringify(field)}.`, {
+            reason: "no-column",
+            source: id,
+            column: field,
+        });
+    }
 }
 
 /**
@@ -566,6 +595,8 @@ export function refuseBoth(op: Step["op"], repeated: string | null | undefined):
  */
 function merge(prior: SourceSteps, copies: Copies, o: MergeAct): SourceSteps {
     refuseBoth("join.merge", o.repeated);
+    checkField(prior, copies, o.from.source, o.from.field);
+    checkField(prior, copies, o.into.source, o.into.field);
     // One spelling for several rows (#10056): a reduction given as `repeated` is aggregate's "*".
     const rowWins = o.repeated === undefined || o.repeated === "first" || o.repeated === "last";
     const repeated = rowWins ? o.repeated : undefined;
@@ -644,6 +675,8 @@ export function checkClash(
  * @throws A `GraphtyError` with `E_JOIN_SPACE_SAME` when source 2 would land in node 1's space.
  */
 function connect(prior: SourceSteps, copies: Copies, o: ConnectAct): SourceSteps {
+    checkField(prior, copies, o.from.source, o.from.field);
+    checkField(prior, copies, o.into.source, o.into.field);
     if (o.to !== undefined) {
         return connectRows(prior, copies, o, o.to);
     }
@@ -681,7 +714,7 @@ function connect(prior: SourceSteps, copies: Copies, o: ConnectAct): SourceSteps
  * @returns The space.
  * @throws A `GraphtyError` with `E_JOIN_SPACE_SAME` when it is one of `ends`.
  */
-function rowSpaceOf(src: StepsSource, ends: readonly string[]): string {
+export function rowSpaceOf(src: StepsSource, ends: readonly string[]): string {
     const space = src.spacePicked === true ? (src.mapping.nodes?.space ?? ownSpace(src.id)) : ownSpace(src.id);
     if (ends.includes(space)) {
         throw refused("E_JOIN_SPACE_SAME", `Source ${src.id} would land in ${space}, the space it connects to.`, {
@@ -763,7 +796,8 @@ function withEdgesStep(
         ...defined({ ignoreCase: o.ignoreCase, ignoreSpaces: o.ignoreSpaces, rowNode: at.rowNode }),
         ...defined({
             fanOut: o.fanOut === "each" ? o.fanOut : undefined,
-            unlinked: at.rowNode !== undefined || o.to === undefined ? dropped(o.unlinked) : undefined,
+            unlinked:
+                (at.rowNode !== undefined || o.to === undefined) && o.unlinked !== "keep" ? o.unlinked : undefined,
         }),
         ...existingOf(o.to !== undefined && o.to.keepRow !== true, o.existing),
         // Says which end is node 1, so the step reads back the way round it was made.
@@ -780,15 +814,6 @@ function withEdgesStep(
     next = withRule(next, "node", typed, { source: at.source, part: mint.part });
     next = withRule(next, "node", at.end?.type, { source: at.source, part: mint.part, end: at.end?.which });
     return withRule(next, "edge", o.edgeType, { source: at.source, part: mint.part });
-}
-
-/**
- * A row no edge reaches, as its step says it.
- * @param unlinked - The choice.
- * @returns `"drop"`, or undefined to keep it.
- */
-function dropped(unlinked: ConnectAct["unlinked"]): EdgesStep["unlinked"] {
-    return unlinked === "drop" ? unlinked : undefined;
 }
 
 /**
@@ -841,7 +866,7 @@ function throughOf(into: JoinInto, n1: NodeOne): Through {
 /**
  * Make an edge from each row (3.6): the row's `from.field` names node 1, its `to.field` names the
  * other end, and the row itself makes no node, or under `keepRow` a node between the two. A staged
- * source an end names is added first; the rows' own source is not, as the step makes their nodes.
+ * source an end names is added first, the rows' own too: its nodes are the ones named.
  * @param prior - The value.
  * @param copies - The rows as read.
  * @param o - The choices.
@@ -859,9 +884,11 @@ function connectRows(
     if (to.field.trim() === "") {
         throw refused("E_BAD_COMMAND", `The other end names no field.`, { reason: "no-field" });
     }
+    checkField(prior, copies, o.from.source, to.field);
+    checkField(prior, copies, to.into.source, to.into.field);
     let value = prior;
     for (const end of [o.into.source, to.into.source]) {
-        if (end !== undefined && end !== o.from.source && isStaged(value, end)) {
+        if (end !== undefined && isStaged(value, end)) {
             value = joinedSource(value, copies, end);
         }
     }
@@ -1049,7 +1076,7 @@ function extract(prior: SourceSteps, id: string, copies: Copies, o: ExtractAct):
  * @param column - The column.
  * @returns The space.
  */
-function freeSpace(value: SourceSteps, column: string): string {
+export function freeSpace(value: SourceSteps, column: string): string {
     const taken = new Set(
         Object.values(value.sources).flatMap((src) => [
             ...(src.mapping.nodes === undefined ? [] : [nodeSpace(src)]),
@@ -1191,6 +1218,7 @@ export function checkShared(maxShared: number | undefined, minShared: number | u
  */
 function link(prior: SourceSteps, copies: Copies, o: LinkAct): SourceSteps {
     checkLink(o);
+    checkLinkFields(prior, copies, o);
     const { source: id, field, nodes } = o;
     const { table } = rowSource(prior, copies, id);
     const into: JoinInto | undefined = field === undefined ? undefined : (o.into ?? { source: id, field });
@@ -1260,6 +1288,21 @@ function checkLink(o: LinkAct): void {
         );
     }
     checkShared(o.maxShared, o.minShared);
+}
+
+/**
+ * Refuse a link naming a column its rows do not hold.
+ * @param value - The value.
+ * @param copies - The rows as read.
+ * @param o - The choices.
+ * @throws A `GraphtyError` with `E_BAD_COMMAND`, reason `no-column`.
+ */
+function checkLinkFields(value: SourceSteps, copies: Copies, o: LinkAct): void {
+    // a space's nodes hold what the steps before build them with
+    for (const column of o.nodes === undefined ? [...o.columns, o.field] : []) {
+        checkField(value, copies, o.source, column);
+    }
+    checkField(value, copies, o.into?.source, o.into?.field);
 }
 
 /**

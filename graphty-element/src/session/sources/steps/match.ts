@@ -471,6 +471,15 @@ export interface MatchSuggestion {
     readonly confident: boolean;
 }
 
+/** A suggestion, how likely it is. */
+export interface RankedSuggestion {
+    readonly suggestion: MatchSuggestion;
+    /** The share of the rows' values that meet. */
+    readonly share: number;
+    /** What it names nodes by: lower is likelier. */
+    readonly rank: number;
+}
+
 /** The share of a field's values that must meet to call a suggestion confident. */
 const CONFIDENT_SHARE = 0.8;
 
@@ -570,9 +579,11 @@ const identifies = (v: Values): boolean => v.keys.size > 1 && v.keys.size >= IDE
  * @param spaces - The id spaces with nodes, and the source's own space.
  * @param spaces.all - Every space holding nodes.
  * @param spaces.own - The space the source's rows land in, which it never joins onto.
- * @param spaces.staged - The other staged sources, whose keys a join can name too.
+ * @param spaces.staged - The other sources whose rows a join can name by their keys too: the staged ones.
+ * @param spaces.brought - Columns earlier steps brought the nodes of a space, each matched by a column
+ *   that names its rows.
  * @param key - The source's key column, if any.
- * @returns The suggestions; none when no value meets.
+ * @returns The suggestions, best first; none when no value meets.
  */
 export function suggestMatches(
     value: SourceSteps,
@@ -583,12 +594,13 @@ export function suggestMatches(
         readonly all: readonly string[];
         readonly own: string | undefined;
         readonly staged?: readonly string[];
+        readonly brought?: readonly { readonly space: string; readonly field: string }[];
     },
     key: string | undefined,
-): MatchSuggestion[] {
+): RankedSuggestion[] {
     const built = buildOf(value, copies);
     const rows = rowsOf(value, copies, source);
-    const found: { share: number; rank: number; suggestion: MatchSuggestion }[] = [];
+    const found: RankedSuggestion[] = [];
     const meet = (field: string, into: JoinInto, other: Values, merges: boolean): void => {
         const { keys } = ofColumn(rows, field);
         let matched = 0;
@@ -639,6 +651,19 @@ export function suggestMatches(
             }
         }
     }
-    found.sort((a, b) => a.rank - b.rank || b.share - a.share);
-    return found.map((each) => each.suggestion);
+    for (const into of spaces.brought ?? []) {
+        for (const field of columns.filter((each) => identifies(ofColumn(rows, each)))) {
+            meet(field, into, ofSpace(built, into.space, into.field), true);
+        }
+    }
+    return bestFirst(found);
+}
+
+/**
+ * Suggestions in order, the likeliest first.
+ * @param found - The suggestions.
+ * @returns Them.
+ */
+export function bestFirst(found: readonly RankedSuggestion[]): RankedSuggestion[] {
+    return [...found].sort((a, b) => a.rank - b.rank || b.share - a.share);
 }

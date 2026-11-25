@@ -36,6 +36,9 @@ describe("experiments guide: source-steps", () => {
             "draft.link(",
             "draft.extract(",
             "draft.columns(",
+            "draft.sideFields(",
+            "draft.joinRows(",
+            "draft.joinOutcomes(",
         ]) {
             assert.include(text, member, member);
         }

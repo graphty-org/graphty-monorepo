@@ -140,7 +140,7 @@ function kindOf(v: CellValue): ProfileKind {
  * @param cells - The cells, one per row.
  * @returns The profile.
  */
-function profileOf(cells: Iterable<CellValue | undefined>): ColumnProfile {
+export function profileOf(cells: Iterable<CellValue | undefined>): ColumnProfile {
     let rows = 0;
     let empty = 0;
     const kinds: Record<ProfileKind, number> = { text: 0, number: 0, date: 0, boolean: 0 };
@@ -206,7 +206,7 @@ function rowsOf(
  * @param numbered - The column the rows' key was numbered under, left out too.
  * @returns The column names.
  */
-function columnsOf(rows: readonly Row[], numbered: string | undefined): string[] {
+export function columnsOf(rows: readonly Row[], numbered: string | undefined): string[] {
     const out = new Set<string>();
     for (const row of rows) {
         for (const k of Object.keys(row)) {

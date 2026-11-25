@@ -1952,27 +1952,30 @@ class Builder {
         return id === undefined ? undefined : this.nodes.get(id);
     }
 
-    // Whether the step's rows brought a node: a join made it of them, and no other source's row is it.
-    private broughtByJoin(s: EdgesStep, n: BuiltNode): boolean {
-        const joined = !this.input.steps.some(
-            (o) => o.op === "join.add" && o.source === s.source && o.joined !== true && o.off !== true,
-        );
+    // Whether a node is the step's to take out: no other source's row is it, and a join made it or
+    // `unlinked` takes out the ones the graph held before too.
+    private mayTakeOut(s: EdgesStep, n: BuiltNode): boolean {
+        const joined =
+            s.unlinked === "remove" ||
+            !this.input.steps.some(
+                (o) => o.op === "join.add" && o.source === s.source && o.joined !== true && o.off !== true,
+            );
         return joined && n.loads.every((id) => id === s.source);
     }
 
-    // Takes out the node of each row no edge of any step reaches (`unlinked: "drop"`), when only a join
-    // made it: a node the graph held before stays.
+    // Takes out the node of each row no edge of any step reaches: under `unlinked: "drop"` only one a join
+    // made, under `"remove"` one the graph held before too.
     private dropUnlinked(
         s: EdgesStep,
         src: Source,
         rows: readonly [Row, number][],
         asNodes: ReadonlyMap<number, EndHit>,
     ): void {
-        for (const [r, i] of s.unlinked === "drop" ? rows : []) {
+        for (const [r, i] of s.unlinked === undefined ? [] : rows) {
             const hit = asNodes.get(i);
             const n = hit && "n" in hit ? hit.n : this.ownNode(src, r);
             const held = n !== undefined && this.nodes.has(n.id) && (this.edgesAt.get(n.id)?.size ?? 0) === 0;
-            if (!held || !this.broughtByJoin(s, n)) {
+            if (!held || !this.mayTakeOut(s, n)) {
                 continue;
             }
             this.dropNode(n);
@@ -3258,8 +3261,13 @@ export function sameCell(a: Value | undefined, b: Value | undefined): boolean {
     return a === b || (!Array.isArray(a) && typeof a !== typeof b && String(a) === String(b));
 }
 
-// The node rows of a source a node is, not those only naming it.
-function ownTouches(n: BuiltNode, source: string): BuiltNode["touch"] {
+/**
+ * The node rows of a source a node is, not those only naming it.
+ * @param n - The node.
+ * @param source - The source.
+ * @returns What touched it.
+ */
+export function ownTouches(n: BuiltNode, source: string): BuiltNode["touch"] {
     return n.touch.filter((t) => t.source === source && t.table === "nodes" && t.valued !== true);
 }
 

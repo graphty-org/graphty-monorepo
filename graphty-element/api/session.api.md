@@ -7740,7 +7740,7 @@ export interface SourceConnectOptions {
         readonly unmatched?: "add";
         readonly type?: SourceTypeName;
     };
-    readonly unlinked?: "keep" | "drop";
+    readonly unlinked?: "keep" | "drop" | "remove";
     readonly unmatched?: "skip" | "add";
 }
 
@@ -7813,6 +7813,8 @@ export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "match
         readonly overlap?: "separate" | "merge";
     }): Promise<string>;
     include(step: number, keys: readonly (SourceCellValue | SourceRowCell)[]): void;
+    joinOutcomes(options: SourceJoinOutcomesOptions): SourceJoinOutcomes;
+    joinRows(options: SourceJoinRowsOptions): SourceJoinRows;
     link(options: SourceLinkOptions): number;
     merge(options: SourceMergeOptions): void;
     moveColumns(source: SourceKey, options: SourceMoveColumnsOptions): void;
@@ -7834,11 +7836,16 @@ export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "match
     setMapping(source: SourceKey, patch: SourceMappingPatch): void;
     show(side: "before" | "after"): Promise<void>;
     readonly side: "before" | "after";
+    sideFields(side: SourceJoinSide, options?: {
+        readonly before?: number;
+    }): readonly SourceSideField[];
     spaces(): readonly SourceDraftSpaceRow[];
     stage(source: DataSourceInput, options?: StageOptions): Promise<string>;
     steps(): readonly SourceStepRow[];
     // @beta
-    suggestMatches(source: SourceKey): readonly SourceMatchSuggestion[];
+    suggestMatches(source: SourceKey, options?: {
+        readonly with?: SourceJoinSide;
+    }): readonly SourceMatchSuggestion[];
     types(): readonly SourceTypeEntry[];
     undo(): boolean;
     use(ref: SourceElementRef, column: string, source: SourceKey): void;
@@ -8248,6 +8255,17 @@ export type SourceJoinAct = {
 };
 
 // @public
+export type SourceJoinField = {
+    readonly source: SourceKey;
+    readonly space?: undefined;
+    readonly field?: string;
+} | {
+    readonly space: SourceSpaceName;
+    readonly source?: undefined;
+    readonly field?: string;
+};
+
+// @public
 export type SourceJoinInto = {
     readonly source: SourceKey;
     readonly field?: string;
@@ -8256,6 +8274,85 @@ export type SourceJoinInto = {
     readonly space: SourceSpaceName;
     readonly source?: undefined;
     readonly field?: string;
+};
+
+// @public
+export interface SourceJoinMatch {
+    readonly a: SourceJoinField;
+    readonly b: SourceJoinField | {
+        readonly new: true;
+    };
+}
+
+// @public
+export type SourceJoinOption = Exclude<keyof SourceMergeOptions, "from" | "into" | "except" | "ignoreCase" | "ignoreSpaces"> | Exclude<keyof SourceConnectOptions, "from" | "into" | "to" | "ignoreCase" | "ignoreSpaces"> | Extract<keyof SourceLinkOptions, "maxShared" | "minShared" | "type"> | Extract<keyof SourceExtractOptions, "split" | "columns">;
+
+// @public
+export interface SourceJoinOutcome {
+    readonly acts: readonly SourceJoinAct[];
+    readonly code: SourceJoinOutcomeCode;
+    readonly current?: true;
+    readonly edgesBetween: number;
+    readonly fields: readonly string[];
+    readonly onto: readonly SourceJoinSide[];
+    readonly ownNodes: boolean;
+    readonly rows: readonly SourceJoinSide[];
+    readonly takes: readonly SourceJoinOption[];
+    readonly uses: readonly number[];
+}
+
+// @public
+export type SourceJoinOutcomeCode = "fields" | "fold" | "link" | "edge" | "middle" | "shared" | "shared-nodes" | "new-nodes";
+
+// @public
+export interface SourceJoinOutcomes {
+    readonly matches: readonly SourceJoinMatch[];
+    readonly outcomes: readonly SourceJoinOutcome[];
+}
+
+// @public
+export interface SourceJoinOutcomesOptions {
+    readonly ignoreCase?: boolean;
+    readonly ignoreSpaces?: boolean;
+    readonly matches?: readonly SourceJoinMatch[];
+    readonly step?: number;
+}
+
+// @public
+export interface SourceJoinRow {
+    readonly a: Readonly<Record<string, SourceValue>> | null;
+    readonly b: Readonly<Record<string, SourceValue>> | null;
+    readonly repeat?: "a" | "b";
+}
+
+// @public
+export interface SourceJoinRows {
+    readonly counts: SourceMatchCounts | null;
+    readonly rows: readonly SourceJoinRow[];
+    readonly rowsOf: "a" | "b" | null;
+    readonly total: number;
+}
+
+// @public
+export interface SourceJoinRowsOptions {
+    readonly a: SourceJoinSide;
+    readonly b?: SourceJoinSide;
+    readonly before?: number;
+    readonly ignoreCase?: boolean;
+    readonly ignoreSpaces?: boolean;
+    readonly limit?: number;
+    readonly match?: SourceJoinMatch;
+    readonly offset?: number;
+    readonly only?: "matched" | "a" | "b";
+}
+
+// @public
+export type SourceJoinSide = {
+    readonly source: SourceKey;
+    readonly space?: undefined;
+} | {
+    readonly space: SourceSpaceName;
+    readonly source?: undefined;
 };
 
 // @public
@@ -8654,6 +8751,13 @@ export type SourceSettings = Pick<SourceLoadRecord, "source" | "endpoint" | "con
 };
 
 // @public
+export interface SourceSideField extends SourceColumnProfile {
+    readonly from: SourceKey | null;
+    readonly key: boolean;
+    readonly name: string;
+}
+
+// @public
 export type SourceSpaceName = string;
 
 // @public
@@ -8701,7 +8805,7 @@ export interface SourceStepAct {
         readonly unmatched?: "add";
         readonly type?: SourceTypeName;
     };
-    readonly unlinked?: "keep" | "drop";
+    readonly unlinked?: "keep" | "drop" | "remove";
     readonly unmatched?: "skip" | "add";
     readonly unmatchedFrom?: "keep" | "drop";
 }

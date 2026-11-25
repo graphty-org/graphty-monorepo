@@ -239,7 +239,8 @@ A join reads a source's rows whether they are nodes or edges, and a Connect has 
 rows that name both ends: `to.keepRow` keeps each row as a node between the two ends, and
 `existing: "merge"` folds a row's columns into the edge that already joins its ends instead of
 adding another (`editStep` takes it too). An edge made of a row carries the row's columns, but for
-the two naming its ends. Where rows are nodes, `unlinked: "drop"` leaves out a row no edge reaches.
+the two naming its ends. Where rows are nodes, `unlinked: "drop"` leaves out a row no edge reaches
+when this join made its node; `"remove"` takes the node out when the graph already held it too.
 Merge on rows read as edges folds each row's columns into
 the node it names. `draft.suggestMatches(source)` proposes the fields to match.
 
@@ -325,6 +326,31 @@ draft.link({ source: ids, nodes: "account", columns: ["device"] }); // accounts 
 
 A file with no key column stages with its rows keyed by their place: `summary().mapping.key` is
 absent, and no column is added to its rows.
+
+Before a reader says how to join two sources, a draft reads them side by side and says what their
+matches can make. `draft.sideFields` lists the fields of a source or an id space with the facts of
+their values, the columns earlier joins brought included. `draft.joinRows` lines up the rows of two
+sides by a match and counts it, and `draft.joinOutcomes` lists what the matches make, each a code
+with the acts that make it, nothing applied. Its matches take fields of two sources in any order, a
+field with itself (nodes sharing a value) and `{ new: true }` (a node per value); given a `step`, it
+reads that step's matches back. `suggestMatches(source, { with: side })` proposes fields of one side.
+
+```ts
+const people = { source: peopleKey, field: "badge" };
+const badges = { source: entriesKey, field: "badge" };
+draft.sideFields({ source: entriesKey }); // [{ name: "badge", from: null, key: false, repeated: {...}, ... }, ...]
+const page = draft.joinRows({
+    a: { source: peopleKey },
+    b: { source: entriesKey },
+    match: { a: people, b: badges },
+    limit: 200,
+});
+page.counts?.matchedRows; // of page.counts.rows rows of side page.rowsOf
+const { outcomes } = draft.joinOutcomes({ matches: [{ a: people, b: badges }] });
+outcomes.map((each) => each.code); // ["fields", "link"]
+const act = outcomes[0]?.acts[0];
+if (act?.act === "merge") draft.merge({ ...act.options, unmatchedFrom: "drop" });
+```
 
 `preview()` compares the draft's graph with the committed one, counted over every row: totals and
 counts per type `before` and `after`; nodes and edges added, removed and changed; and for each

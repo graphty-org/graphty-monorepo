@@ -107,3 +107,28 @@ export async function sourceMergedColumns(
     draft.merge({ ...onDevice, unmatchedFrom: "drop" });
     draft.link({ source: ids, nodes: "account", columns: ["device"] }); // accounts sharing a device
 }
+
+/**
+ * The guide's two sides of a join: their fields, their rows lined up and what their match makes.
+ * @param draft - the open draft
+ * @param peopleKey - the people
+ * @param entriesKey - the door entries, staged
+ */
+export function sourceSides(draft: SourceDraft, peopleKey: string, entriesKey: string): void {
+    const people = { source: peopleKey, field: "badge" };
+    const badges = { source: entriesKey, field: "badge" };
+    console.log(draft.sideFields({ source: entriesKey }).map((field) => [field.name, field.repeated.keys]));
+    const page = draft.joinRows({
+        a: { source: peopleKey },
+        b: { source: entriesKey },
+        match: { a: people, b: badges },
+        limit: 200,
+    });
+    console.log(page.counts?.matchedRows, page.counts?.rows, page.rowsOf);
+    const { outcomes } = draft.joinOutcomes({ matches: [{ a: people, b: badges }] });
+    console.log(outcomes.map((each) => each.code)); // ["fields", "link"]
+    const act = outcomes[0]?.acts[0];
+    if (act?.act === "merge") {
+        draft.merge({ ...act.options, unmatchedFrom: "drop" });
+    }
+}

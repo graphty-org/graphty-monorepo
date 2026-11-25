@@ -35,7 +35,15 @@ import {
     untouchedNodes,
 } from "./sources/steps/drawnIds";
 import { clearPicksEdit, drillCells, drillElements, drillRows, exceptOf, pickAllEdit } from "./sources/steps/drill";
-import { matchCounts, matchValues, suggestMatches, upTo } from "./sources/steps/match";
+import {
+    bestFirst,
+    matchCounts,
+    matchValues,
+    type RankedSuggestion,
+    suggestMatches,
+    upTo,
+} from "./sources/steps/match";
+import { joinOutcomes } from "./sources/steps/outcomes";
 import { contextIssues, type PreviewContext, previewOf } from "./sources/steps/preview";
 import { spaceColumns, spaceProfile, tableHandle } from "./sources/steps/profile";
 import {
@@ -49,6 +57,7 @@ import {
     type StepsEdit,
     type StepsSource,
 } from "./sources/steps/project";
+import { joinableOf, joinRows, sideFields } from "./sources/steps/sides";
 import type { TableName } from "./sources/steps/types";
 import type {
     DataSourceInput,
@@ -68,6 +77,11 @@ import type {
     SourceElementRef,
     SourceExtractOptions,
     SourceJoinAct,
+    SourceJoinOutcomes,
+    SourceJoinOutcomesOptions,
+    SourceJoinRows,
+    SourceJoinRowsOptions,
+    SourceJoinSide,
     SourceLinkOptions,
     SourceMappingPatch,
     SourceMatchCounts,
@@ -80,6 +94,7 @@ import type {
     SourceMoveColumnsOptions,
     SourcePickAllOptions,
     SourceRowCell,
+    SourceSideField,
     SourceStepPatch,
     SourceStepRow,
     SourceTable,
@@ -669,8 +684,29 @@ export class SourceDraftHandle implements SourceDraft {
     }
 
     /** @inheritdoc */
-    suggestMatches(source: SourceKey): readonly SourceMatchSuggestion[] {
+    suggestMatches(
+        source: SourceKey,
+        options: { readonly with?: SourceJoinSide } = {},
+    ): readonly SourceMatchSuggestion[] {
         this.live("suggestMatches");
+        const { with: side } = options;
+        if (side === undefined) {
+            return Object.freeze(this.suggested(source).map((each) => each.suggestion));
+        }
+        const found = [
+            ...this.suggested(source, side),
+            ...(side.source === undefined ? [] : this.suggested(side.source, { source })),
+        ];
+        return Object.freeze(bestFirst(found).map((each) => each.suggestion));
+    }
+
+    /**
+     * The joins a source's rows most likely make, best first.
+     * @param source - The source.
+     * @param side - What they name nodes of; absent, every space but its own and every other staged source.
+     * @returns The suggestions.
+     */
+    private suggested(source: SourceKey, side?: SourceJoinSide): RankedSuggestion[] {
         const facts = this.sourceTable(source).summary();
         const table = facts.mapping.rows === "edges" ? "edges" : "nodes";
         const read = facts.tables.find((each) => each.table === table);
@@ -678,18 +714,52 @@ export class SourceDraftHandle implements SourceDraft {
             return [];
         }
         const { value, copies } = this.state;
+        const spaces =
+            side === undefined ? this.joinable(source, table, facts.mapping.space) : joinableOf(value, copies, side);
+        return suggestMatches(value, copies, source, read.columns, spaces, facts.mapping.key);
+    }
+
+    /**
+     * What a source's rows can name nodes of, with no side picked.
+     * @param source - The source.
+     * @param table - The table its rows are read from.
+     * @param named - The space named for its nodes, if one was.
+     * @returns The spaces and the other staged sources.
+     */
+    private joinable(
+        source: SourceKey,
+        table: TableName,
+        named: string | undefined,
+    ): Parameters<typeof suggestMatches>[4] {
+        const { value, copies } = this.state;
         const rows = spaceRows(buildOf(value, copies));
         // A space only this source's edges name holds its own keys: nothing to join onto.
         const all = rows
             .filter((row) => row.nodes > 0 && (table === "nodes" || row.sources.some((each) => each !== source)))
             .map((row) => row.space);
-        const own = facts.mapping.space ?? rows.find((row) => row.ownedBy === source)?.space;
+        const own = named ?? rows.find((row) => row.ownedBy === source)?.space;
         const staged = Object.values(value.sources).flatMap((src) =>
             src.id !== source && src.mapping.nodes !== undefined && isStaged(value, src.id) ? [src.id] : [],
         );
-        return Object.freeze(
-            suggestMatches(value, copies, source, read.columns, { all, own, staged }, facts.mapping.key),
-        );
+        return { all, own, staged };
+    }
+
+    /** @inheritdoc */
+    sideFields(side: SourceJoinSide, options: { readonly before?: number } = {}): readonly SourceSideField[] {
+        this.live("sideFields");
+        return sideFields(this.state.value, this.state.copies, side, options.before);
+    }
+
+    /** @inheritdoc */
+    joinRows(options: SourceJoinRowsOptions): SourceJoinRows {
+        this.live("joinRows");
+        return joinRows(this.state.value, this.state.copies, options);
+    }
+
+    /** @inheritdoc */
+    joinOutcomes(options: SourceJoinOutcomesOptions): SourceJoinOutcomes {
+        this.live("joinOutcomes");
+        return joinOutcomes(this.state.value, this.state.copies, options);
     }
 
     /** @inheritdoc */

@@ -5232,8 +5232,11 @@ export interface SourceStepAct {
     readonly existing?: "add" | "merge";
     /** `"each"` when a row naming several nodes joins every one of them; absent for `"skip"`. */
     readonly fanOut?: "skip" | "each";
-    /** Make an edge: `"drop"` when a row no edge reaches makes no node; absent for `"keep"`. */
-    readonly unlinked?: "keep" | "drop";
+    /**
+     * Make an edge: `"drop"` when a row no edge reaches makes no node, `"remove"` when the node it
+     * already was goes too; absent for `"keep"`.
+     */
+    readonly unlinked?: "keep" | "drop" | "remove";
 }
 
 /**
@@ -5573,6 +5576,217 @@ export interface SourceMatchCounts {
 }
 
 /**
+ * One side of a join: a source, or every node of an id space.
+ * @experimental source-steps
+ */
+export type SourceJoinSide =
+    | {
+          /** The source. */
+          readonly source: SourceKey;
+          /** Never set: the source names the side. */
+          readonly space?: undefined;
+      }
+    | {
+          /** The id space. */
+          readonly space: SourceSpaceName;
+          /** Never set: the space names the side. */
+          readonly source?: undefined;
+      };
+
+/**
+ * A field of one side of a join.
+ * @experimental source-steps
+ */
+export type SourceJoinField =
+    | {
+          /** The source. */
+          readonly source: SourceKey;
+          /** Never set: the source names the side. */
+          readonly space?: undefined;
+          /** The field, as `draft.sideFields` lists it; absent, the source's key. */
+          readonly field?: string;
+      }
+    | {
+          /** The id space. */
+          readonly space: SourceSpaceName;
+          /** Never set: the space names the side. */
+          readonly source?: undefined;
+          /** The field, as `draft.sideFields` lists it; absent, the nodes' key. */
+          readonly field?: string;
+      };
+
+/**
+ * One match of a join, its fields in the order picked: two fields of two sides or of one, a field
+ * with itself (nodes sharing a value), or a field whose values become new nodes.
+ * @experimental source-steps
+ */
+export interface SourceJoinMatch {
+    /** One field. */
+    readonly a: SourceJoinField;
+    /** The field it is matched with, or new nodes. */
+    readonly b:
+        | SourceJoinField
+        | {
+              /** Each value of `a` becomes a node. */
+              readonly new: true;
+          };
+}
+
+/**
+ * One field of a side of a join, as `draft.sideFields` lists it, with the facts of its values. A
+ * list's values count apart.
+ * @experimental source-steps
+ */
+export interface SourceSideField extends SourceColumnProfile {
+    /** Its name: what `SourceJoinField.field` takes. */
+    readonly name: string;
+    /**
+     * The source an earlier join brought it from; null for a field of the side's own. Such a field is
+     * on the nodes only, so a join can name nodes by it but never read it as rows.
+     */
+    readonly from: SourceKey | null;
+    /** Whether it is the side's key. */
+    readonly key: boolean;
+}
+
+/**
+ * Which rows `draft.joinRows` lists.
+ * @experimental source-steps
+ */
+export interface SourceJoinRowsOptions {
+    /** One side. */
+    readonly a: SourceJoinSide;
+    /** The other; absent, only side `a` is read. */
+    readonly b?: SourceJoinSide;
+    /** The fields that line the rows up, of `a` and of `b`; absent, row n of one is beside row n of the other. */
+    readonly match?: SourceJoinMatch;
+    /** Compare values ignoring case. */
+    readonly ignoreCase?: boolean;
+    /** Compare values ignoring spaces. */
+    readonly ignoreSpaces?: boolean;
+    /** Read the sides as the steps before this place left them, without what its join added for itself. */
+    readonly before?: number;
+    /** With a match: only the lines of values both sides hold, or of rows only one side holds. */
+    readonly only?: "matched" | "a" | "b";
+    /** How many lines to skip; default 0. */
+    readonly offset?: number;
+    /** How many lines to return at most; absent returns the rest. */
+    readonly limit?: number;
+}
+
+/**
+ * One line of `draft.joinRows`: the row of each side.
+ * @experimental source-steps
+ */
+export interface SourceJoinRow {
+    /** Side `a`'s row, by field name; null where it has none. */
+    readonly a: Readonly<Record<string, SourceValue>> | null;
+    /** Side `b`'s row; null where it has none. */
+    readonly b: Readonly<Record<string, SourceValue>> | null;
+    /** The side whose row is a copy of the line above's: the other side has more rows of the value. */
+    readonly repeat?: "a" | "b";
+}
+
+/**
+ * A page of the rows of two sides lined up.
+ * @experimental source-steps
+ */
+export interface SourceJoinRows {
+    /** How many lines there are in all. */
+    readonly total: number;
+    /** The page: matched values in side a's order, then rows only side a holds, then side b's. */
+    readonly rows: readonly SourceJoinRow[];
+    /** The side a join of the match would read as rows, which `counts` is of; null without a match, or when neither can be. */
+    readonly rowsOf: "a" | "b" | null;
+    /** The match's counts, side 2 being `rowsOf`; null when it is. */
+    readonly counts: SourceMatchCounts | null;
+}
+
+/**
+ * What a join makes of its matches. OPEN UNION: codes may be added. `"fields"`: the rows' columns on
+ * the nodes they name; `"fold"`: the rows' own nodes folded into them; `"link"`: each row's node
+ * linked to the node it names; `"edge"`: each row an edge between the two nodes it names;
+ * `"middle"`: each row a node linked to both; `"shared"`: edges between nodes sharing a value;
+ * `"shared-nodes"`: a node per shared value; `"new-nodes"`: a node per value of a column.
+ * @experimental source-steps
+ */
+export type SourceJoinOutcomeCode =
+    "fields" | "fold" | "link" | "edge" | "middle" | "shared" | "shared-nodes" | "new-nodes";
+
+/**
+ * An option an outcome's act takes, by its name in that act's options. OPEN UNION.
+ * @experimental source-steps
+ */
+export type SourceJoinOption =
+    | Exclude<keyof SourceMergeOptions, "from" | "into" | "except" | "ignoreCase" | "ignoreSpaces">
+    | Exclude<keyof SourceConnectOptions, "from" | "into" | "to" | "ignoreCase" | "ignoreSpaces">
+    | Extract<keyof SourceLinkOptions, "maxShared" | "minShared" | "type">
+    | Extract<keyof SourceExtractOptions, "split" | "columns">;
+
+/**
+ * One thing a join's matches can make.
+ * @experimental source-steps
+ */
+export interface SourceJoinOutcome {
+    /** What it makes. */
+    readonly code: SourceJoinOutcomeCode;
+    /**
+     * The acts that make it, in order: one, or two merges where a step matches one way only. Give each
+     * to its draft verb (or the one act to `draft.replaceStep`), with the options the reader chose.
+     */
+    readonly acts: readonly SourceJoinAct[];
+    /** Whose rows the acts read: one side, or two where the fields of two sources join a third. */
+    readonly rows: readonly SourceJoinSide[];
+    /** Where they land: the nodes that take the fields, or the nodes at each end of the edges. */
+    readonly onto: readonly SourceJoinSide[];
+    /**
+     * The fields that tell it from another of its code: the two ends' columns of an edge between one
+     * kind of nodes, the columns sharing a value, the column making nodes, or the fields matched by
+     * one or the other.
+     */
+    readonly fields: readonly string[];
+    /** The places of the matches it uses: every one, or one of a set no one join reads. */
+    readonly uses: readonly number[];
+    /** Whether the rows are nodes of their own already, before this join. */
+    readonly ownNodes: boolean;
+    /** For `"edge"`: how many edges already join the nodes its rows name, either way round. */
+    readonly edgesBetween: number;
+    /** The options its act takes. */
+    readonly takes: readonly SourceJoinOption[];
+    /** Set on the outcome the step asked about makes now. */
+    readonly current?: true;
+}
+
+/**
+ * The matches `draft.joinOutcomes` reads.
+ * @experimental source-steps
+ */
+export interface SourceJoinOutcomesOptions {
+    /** The matches; absent with `step`, the step's own. */
+    readonly matches?: readonly SourceJoinMatch[];
+    /** Compare values ignoring case; absent with `step`, as the step does. */
+    readonly ignoreCase?: boolean;
+    /** Compare values ignoring spaces; absent with `step`, as the step does. */
+    readonly ignoreSpaces?: boolean;
+    /** The step the matches are of: they are read as it found them, and its outcome is `current`. */
+    readonly step?: number;
+}
+
+/**
+ * What a join's matches can make.
+ * @experimental source-steps
+ */
+export interface SourceJoinOutcomes {
+    /** The matches read: the ones given, or the step's. */
+    readonly matches: readonly SourceJoinMatch[];
+    /**
+     * The outcomes whose rows match at least once. With a step and its own matches, its outcome is
+     * always among them, so a join whose matches an earlier removal took away still reads.
+     */
+    readonly outcomes: readonly SourceJoinOutcome[];
+}
+
+/**
  * Which values `data.matchValues` lists, and which page of them.
  * @experimental source-steps
  */
@@ -5789,9 +6003,11 @@ export interface SourceConnectOptions {
     readonly fanOut?: "skip" | "each";
     /**
      * Rows that are nodes (no `to`, or `to.keepRow`): a row no edge reaches, because nothing it
-     * names is there, is `"keep"` (default) kept as a node, or `"drop"` left out.
+     * names is there, is `"keep"` (default) kept as a node; `"drop"` leaves it out when this join made
+     * its node, so a node the graph already held stays; `"remove"` takes that one out too. Either
+     * way a node that is another source's row as well stays.
      */
-    readonly unlinked?: "keep" | "drop";
+    readonly unlinked?: "keep" | "drop" | "remove";
 }
 
 /**
@@ -6497,10 +6713,59 @@ export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "match
      * (named by its `source`, after the graph's), ranked by how many of its values meet. A column that is the source's key proposes `"merge"`, any other `"connect"`.
      * What an app shows as a guess; nothing is applied.
      * @param source - The source.
+     * @param options - What to match it with.
+     * @param options.with - Only the fields of this source or id space, matched either way round.
      * @returns The suggestions; empty when no value meets.
      * @beta
      */
-    suggestMatches(source: SourceKey): readonly SourceMatchSuggestion[];
+    suggestMatches(source: SourceKey, options?: { readonly with?: SourceJoinSide }): readonly SourceMatchSuggestion[];
+    /**
+     * The fields of one side of a join: a source's own columns, then the columns earlier joins brought
+     * the nodes its rows are; of an id space, its nodes' key and columns. Each with the facts of its values.
+     * @example
+     * ```ts
+     * draft.sideFields({ source: accounts }); // [{ name: "account_id", key: true, from: null, repeated: {...}, ... }, ...]
+     * ```
+     * @param side - The side.
+     * @param options - Which steps built it.
+     * @param options.before - Read it as the steps before this place left it, without what that step's join added.
+     * @returns The fields.
+     * @throws A `GraphtyError` with `E_LOAD_UNKNOWN` for an unknown source.
+     * @experimental source-steps
+     */
+    sideFields(side: SourceJoinSide, options?: { readonly before?: number }): readonly SourceSideField[];
+    /**
+     * The rows of two sides beside each other: as each is read, or lined up by a match, with its counts.
+     * @example
+     * ```ts
+     * const match = { a: { source: entries, field: "badge" }, b: { source: people, field: "badge" } };
+     * const page = draft.joinRows({ a: { source: entries }, b: { source: people }, match, limit: 200 });
+     * page.counts?.matchedRows; // of page.counts.rows rows of side page.rowsOf
+     * ```
+     * @param options - The sides, the match and the page.
+     * @returns The page.
+     * @throws A `GraphtyError` with `E_LOAD_UNKNOWN` for an unknown source, or `E_BAD_COMMAND`
+     *   (`details.reason` `"no-column"` for a field its side does not hold, `"new"` for a match with new nodes).
+     * @experimental source-steps
+     */
+    joinRows(options: SourceJoinRowsOptions): SourceJoinRows;
+    /**
+     * What a set of matches can make: each outcome as a code, the facts that word it and the acts that
+     * make it. Nothing is applied. A set no one join reads lists what each match makes by itself.
+     * @example
+     * ```ts
+     * const matches = [{ a: { source: entries, field: "badge" }, b: { source: people, field: "badge" } }];
+     * const [fields] = draft.joinOutcomes({ matches }).outcomes;
+     * if (fields?.acts[0]?.act === "merge") draft.merge({ ...fields.acts[0].options, unmatchedFrom: "drop" });
+     * draft.joinOutcomes({ step: draft.steps().length - 1 }).outcomes.find((each) => each.current); // "fields"
+     * ```
+     * @param options - The matches, or the step they are read back from.
+     * @returns The matches and outcomes.
+     * @throws A `GraphtyError` with `E_LOAD_UNKNOWN` for an unknown source, or `E_BAD_COMMAND`
+     *   (`details.reason` `"no-column"`) for a field its side does not hold.
+     * @experimental source-steps
+     */
+    joinOutcomes(options: SourceJoinOutcomesOptions): SourceJoinOutcomes;
     /**
      * Every step of the draft, with its counts in the draft's build.
      * @returns The steps.

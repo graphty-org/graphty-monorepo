@@ -293,8 +293,11 @@ export interface EdgesStep extends StepChoices, Translating, OtherEnd {
      * makes the node unless the source's `join.add` did.
      */
     readonly rowNode?: "source" | "target" | "middle";
-    /** With `rowNode`: `"drop"` takes out the node of a row no edge reaches; absent keeps it. */
-    readonly unlinked?: "drop";
+    /**
+     * `"drop"` takes out the node a join made of a row no edge reaches, `"remove"` the row's own node
+     * whenever it was made; absent keeps it.
+     */
+    readonly unlinked?: "drop" | "remove";
     /** `"each"` makes an edge to each node an end's value names; absent leaves such a row out. */
     readonly fanOut?: "each";
     /** `"merge"` folds a row into an edge an earlier step made between its ends; absent adds one. */

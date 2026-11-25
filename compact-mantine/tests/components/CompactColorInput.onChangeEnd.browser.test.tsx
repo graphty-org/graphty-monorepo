@@ -73,3 +73,25 @@ describe("CompactColorInput swatches and onChangeEnd", () => {
         expect(onChangeEnd.mock.calls[1][0]).toBe("#AABBCC");
     });
 });
+
+describe("CompactColorInput allowHexAlpha", () => {
+    it("passes it to the picker: 8-digit hex there reports the color and its opacity", async () => {
+        const onChange = vi.fn();
+        const dialog = await openPicker({ allowHexAlpha: true, onChange });
+
+        await userEvent.click(within(dialog).getByRole("textbox", { name: "Color value" }));
+        await userEvent.keyboard("{Control>}a{/Control}00FF0080{Enter}");
+
+        expect(onChange.mock.calls.at(-1)?.slice(0, 2)).toEqual(["#00FF00", 50]);
+    });
+
+    it("off by default: the picker refuses 8-digit hex", async () => {
+        const onChange = vi.fn();
+        const dialog = await openPicker({ onChange });
+
+        await userEvent.click(within(dialog).getByRole("textbox", { name: "Color value" }));
+        await userEvent.keyboard("{Control>}a{/Control}00FF0080{Enter}");
+
+        expect(onChange).not.toHaveBeenCalled();
+    });
+});

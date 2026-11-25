@@ -331,7 +331,15 @@ describe("Style panel v2's '+' lists", () => {
         // Every group the pop-over opens with, each found again by its title as a "+" may redraw the pop-over.
         const groupTitle = (group: Element): string =>
             group.querySelector('[data-testid="control-group-label"]')?.textContent ?? "";
-        const titles = [...pop.querySelectorAll('[data-plus-list="group"]')].map(groupTitle);
+        // Its values are one line, opening their list beside (design "Lists in pop-overs").
+        await userEvent.click(await within(pop).findByRole("button", { name: /^Edit values/ }));
+        const titles = await waitFor(() => {
+            const found = [...document.querySelectorAll('[data-thing-popover] [data-plus-list="group"]')].map(
+                groupTitle,
+            );
+            assert.isNotEmpty(found);
+            return found;
+        });
         assert.isNotEmpty(titles, "Chart's pop-over has groups");
         for (const title of titles) {
             const group = [

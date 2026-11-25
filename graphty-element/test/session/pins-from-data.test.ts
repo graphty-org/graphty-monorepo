@@ -4,9 +4,9 @@
  * the load pins nothing, as before.
  */
 
-import { assert, describe, it } from "vitest";
+import { assert, describe, it, vi } from "vitest";
 
-import { createGraphSession } from "../../src/session";
+import { createGraphSession, type GraphSession } from "../../src/session";
 
 /** A DOT graph: a pinned with `!`, b pinned with `pin=true`, c placed but free. */
 const DOT = 'digraph { a [pos="0,0!"]; b [pos="10,0", pin=true]; c [pos="0,10"]; a -> b; a -> c; }';
@@ -21,6 +21,21 @@ const CYTOSCAPE = JSON.stringify({
         edges: [{ data: { id: "ab", source: "a", target: "b" } }],
     },
 });
+
+/** A DOT graph placing every node, fixing only a and d: a b d in a row, c above a. */
+const ROW = 'digraph { a [pos="0,0!"]; b [pos="1,0"]; c [pos="0,1"]; d [pos="2,0!"]; a -> b; a -> c; b -> d; }';
+
+/**
+ * Where the session holds a node.
+ * @param session - the session
+ * @param id - the node
+ * @returns its x and y
+ */
+function at(session: GraphSession, id: string): readonly [number, number] {
+    const out = { x: 0, y: 0, z: 0 };
+    session.positions.read(session.snapshot().ids.indexOf(id), out);
+    return [out.x, out.y];
+}
 
 describe("pins from data", () => {
     it("pins the nodes a DOT file marks fixed", async () => {
@@ -39,6 +54,19 @@ describe("pins from data", () => {
         const session = createGraphSession();
         await session.data.import({ type: "dot", config: { data: DOT, pins: "data" } });
         assert.sameMembers([...session.positions.pinned], ["a", "b"]);
+    });
+
+    it("keeps the fixed layout's drawing in one unit with layout: placed", async () => {
+        const session = createGraphSession();
+        await session.data.import({ type: "dot", config: { data: ROW } }, { layout: "placed", pins: "data" });
+        assert.strictEqual(session.layout.id, "fixed");
+        await vi.waitFor(() => assert.sameMembers([...session.positions.pinned], ["a", "d"]));
+        const [ax] = at(session, "a");
+        const [bx] = at(session, "b");
+        const [dx] = at(session, "d");
+        const unit = bx - ax;
+        assert.isAbove(unit, 0, "b right of a");
+        assert.closeTo(dx - ax, 2 * unit, 1e-6, "d twice as far as b: pinned and free nodes share one unit");
     });
 
     it("pins nothing by default", async () => {

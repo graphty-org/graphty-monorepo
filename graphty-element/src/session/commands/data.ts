@@ -42,7 +42,7 @@ import { POINTS_PER_UNIT } from "../../layout/graphviz/toDot";
 import { GraphtyLogger } from "../../logging/GraphtyLogger.js";
 import { isValueType, VALUE_TYPES } from "../columns";
 import { designateDeclaredKinds } from "../kinds";
-import type { UndoableContext, UndoableDefinition } from "../project/Dispatcher";
+import type { DispatchFunction, UndoableContext, UndoableDefinition } from "../project/Dispatcher";
 import { type Draft, frozenRecord } from "../project/draft";
 import { edgeKey, nodeKey } from "../project/graphOps";
 import { isRowsView } from "../project/recordMap";
@@ -1062,15 +1062,13 @@ function pinsChoiceOf(command: DataImportCommand): "data" | "keep" {
 }
 
 /**
- * Pin the nodes the file an import read marks fixed, in the import's step.
- * @param reader - The data source that read the file.
- * @param ctx - The import's context.
+ * Pin nodes, in the import's step; nothing for none.
+ * @param ids - The nodes the file marks fixed.
+ * @param dispatch - Where to dispatch the pin.
+ * @returns Settles once they are pinned.
  */
-async function pinDeclared(reader: object | null | undefined, ctx: UndoableContext): Promise<void> {
-    const ids = reader === null || reader === undefined ? [] : declaredPinsOf(reader);
-    if (ids.length > 0) {
-        await ctx.inline({ op: "positions.pin", ids, pinned: true });
-    }
+function pinAll(ids: readonly NodeId[], dispatch: DispatchFunction): Promise<unknown> {
+    return ids.length === 0 ? Promise.resolve() : dispatch({ op: "positions.pin", ids, pinned: true });
 }
 
 export const dataImport: UndoableDefinition<DataImportCommand> = {
@@ -1099,8 +1097,17 @@ export const dataImport: UndoableDefinition<DataImportCommand> = {
         let sceneScale: number | null = null;
         const choice = layoutChoiceOf(command);
         const pins = pinsChoiceOf(command);
+        // The nodes the file marks fixed, read once it is loaded. With a layout chosen for the
+        // load they are pinned only once that layout has placed them, in its unit: pinned first,
+        // they would keep the file's raw coordinates while the layout scaled the rest.
+        let fixed: readonly NodeId[] = [];
         if (choice !== "keep") {
-            adviseLayout(ctx, () => sceneScale, choice === "placed");
+            adviseLayout(
+                ctx,
+                () => sceneScale,
+                choice === "placed",
+                (dispatch) => pinAll(fixed, dispatch),
+            );
         }
 
         const replacing = command.mode !== "merge" && command.measure === undefined;
@@ -1120,9 +1127,10 @@ export const dataImport: UndoableDefinition<DataImportCommand> = {
         await designateDeclaredTime(outcome?.reader?.declaredTime, ctx);
         // The kind columns the file declares, in this same step.
         await designateDeclaredKinds(outcome?.reader, ctx);
-        // The nodes the file marks fixed, pinned in this same step.
-        if (pins === "data") {
-            await pinDeclared(outcome?.reader, ctx);
+        const reader = outcome?.reader;
+        fixed = pins === "data" && reader !== null && reader !== undefined ? declaredPinsOf(reader) : [];
+        if (choice === "keep") {
+            await pinAll(fixed, ctx.inline);
         }
         // The file's styles, in this same step.
         sceneScale = await applyFileStyles(command, outcome ?? null, ctx);
@@ -1241,12 +1249,19 @@ async function repickEdges(picked: readonly PickedEdges[], ctx: UndoableContext)
  *     import is done: a fixed layout draws the file's stored positions in the same unit.
  * @param placedOnly - Apply only the fixed layout, which keeps where the data placed every node;
  *     any other advice leaves the layout as it is.
+ * @param then - Work that waits for the layout: run once it is applied, or at once when none is.
  */
-function adviseLayout(ctx: UndoableContext, sceneScale: () => number | null, placedOnly: boolean): void {
+function adviseLayout(
+    ctx: UndoableContext,
+    sceneScale: () => number | null,
+    placedOnly: boolean,
+    then: (dispatch: DispatchFunction) => Promise<unknown>,
+): void {
     const advise = ctx.services.layoutAdvice;
     ctx.after("layout:recommended", (dispatch) => {
         const advice = advise?.();
         if (advice === undefined || (placedOnly && advice.id !== "fixed")) {
+            void then(dispatch).catch(logUnapplied("none"));
             return;
         }
 
@@ -1278,7 +1293,7 @@ function adviseLayout(ctx: UndoableContext, sceneScale: () => number | null, pla
         });
         // Once the new layout holds the placed nodes, put them back: the layout running before
         // it may have moved them.
-        const applied =
+        const placedAgain =
             unplaced === undefined
                 ? layout
                 : layout.then(() =>
@@ -1292,18 +1307,27 @@ function adviseLayout(ctx: UndoableContext, sceneScale: () => number | null, pla
                           })),
                       }),
                   );
-        void applied.catch((error: unknown) => {
-            // An undo that took the import away cancels this too; anything else is a
-            // layout the import promised and did not apply.
-            if ((error as { name?: unknown } | null)?.name !== "AbortError") {
-                GraphtyLogger.getLogger(["graphty", "data"]).error(
-                    "The layout recommended for the imported data could not be applied",
-                    error instanceof Error ? error : new Error(String(error)),
-                    { layout: advice.id },
-                );
-            }
-        });
+        void placedAgain.then(() => then(dispatch)).catch(logUnapplied(advice.id));
     });
+}
+
+/**
+ * What logs a layout an import promised and did not apply.
+ * @param layout - The layout's id.
+ * @returns The rejection handler.
+ */
+function logUnapplied(layout: string): (error: unknown) => void {
+    return (error) => {
+        // An undo that took the import away cancels this too; anything else is a
+        // layout the import promised and did not apply.
+        if ((error as { name?: unknown } | null)?.name !== "AbortError") {
+            GraphtyLogger.getLogger(["graphty", "data"]).error(
+                "The layout recommended for the imported data could not be applied",
+                error instanceof Error ? error : new Error(String(error)),
+                { layout },
+            );
+        }
+    };
 }
 
 const dataExpand: UndoableDefinition<DataExpandCommand> = {

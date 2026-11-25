@@ -2239,6 +2239,15 @@ describe("Style panel v2's input rules on data pop-overs (spec 2.5)", () => {
             await userEvent.click(entryButton());
             const entry = await openedBy(entryButton());
             found.push(...(await checkedLines("entry", entry)));
+            // An entry's source is set on its line under the row alone: the Entry pop-over holds no source control.
+            if (
+                entry.querySelector(
+                    '[data-line^="entry.field"], [data-line^="entry.graph"], [data-line="entry.value"], [data-line="entry.text"]',
+                ) !== null ||
+                within(entry).queryByRole("button", { name: /^Graph value/ }) !== null
+            ) {
+                found.push("entry: its source is set on its line and again in the Entry pop-over");
+            }
             const formatMore = within(entry).getByRole("button", { name: / format settings$/ });
             // Shown on hover of its line, as a reader meets it.
             await userEvent.hover(formatMore.closest<HTMLElement>(".ws-row") ?? formatMore);
@@ -2249,7 +2258,11 @@ describe("Style panel v2's input rules on data pop-overs (spec 2.5)", () => {
             await waitFor(() => {
                 assert.isNull(document.querySelector('[data-beside-pop="Format"]'), "Format closed");
             });
-            await userEvent.click(within(entry).getByRole("button", { name: /^Graph value/ }));
+            await closeAll();
+            // Calculate opens from the Graph value on the entry's line, its one source control.
+            const graphLine = row.querySelector<HTMLElement>('[data-entry="1"]');
+            assert.isNotNull(graphLine, "the Graph value's line");
+            await userEvent.click(within(graphLine).getByRole("button", { name: /^Graph value/ }));
             const calculate = await besideNamed("Calculate");
             found.push(...(await checkedLines("calculate", calculate)));
             // Its drop-downs and pickers are the third level: none opens a fourth.

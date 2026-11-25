@@ -35,6 +35,7 @@ import {
     NONE,
     partKey,
     pruned,
+    sampleFacts,
     type Spec,
     specOf,
     word,
@@ -76,32 +77,6 @@ function fixedStart(ctx: RowContext, thing: string, start: Channel): Partial<Rec
 
 /** What the sample line asks graphty-element for. */
 type Find = "next" | "undrawn" | "missing";
-
-/**
- * The sample node's facts: the node the reader picked, else the first that draws, else one that draws nothing.
- * @param ctx - the row.
- * @param channel - the data channel.
- * @param picked - the node the reader picked, if any.
- * @returns the facts, or undefined when the layer or the graph holds no node to show.
- */
-function sampleFacts(ctx: RowContext, channel: DataChannel, picked: NodeId | null): DataFacts | undefined {
-    const layer = holderOf(ctx, channel);
-    if (layer === undefined) {
-        return undefined;
-    }
-    const { styles } = ctx.session;
-    const node =
-        picked ?? styles.dataSample(layer.id, channel, "first") ?? styles.dataSample(layer.id, channel, "undrawn");
-    if (node === null) {
-        return undefined;
-    }
-    try {
-        return styles.dataFacts(layer.id, channel, node);
-    } catch {
-        // The node left the graph since it was picked: no sample until the next is found.
-        return undefined;
-    }
-}
 
 /** A new Graph value's first definition: a count of the node's edges, which Calculate then edits. */
 const NEW_GRAPH: DataEntry = { graph: { over: "edges", measure: "count" } };
@@ -277,7 +252,8 @@ function KindTabs({ args }: Readonly<{ args: EntryArgs }>): React.JSX.Element {
 
 /**
  * An entry's source control: a Field's picker, a Graph value's button (opening Calculate beside), a fixed Value or
- * Text. The Entry pop-over's source line and the entry's line under the row draw it alike (one control, in two places).
+ * Text. It is drawn on the entry's line under the row alone, never again in the Entry pop-over (owner, 2026-11-24:
+ * one path to any control).
  * @param props - Component props
  * @param props.args - the entry
  * @returns The control
@@ -352,29 +328,6 @@ function SourceControl({ args }: Readonly<{ args: EntryArgs }>): React.JSX.Eleme
                 put({ ...optionsOf(entry), text: words });
             }}
         />
-    );
-}
-
-/** The Entry pop-over's source line's name and address, by the entry's kind. */
-const SOURCE_LINES: Readonly<Record<string, readonly [string, string]>> = {
-    field: ["entry.field", "Field"],
-    graph: ["entry.graph", "Value"],
-    value: ["entry.value", "Value"],
-    text: ["entry.text", "Text"],
-};
-
-/**
- * The Entry pop-over's source line: its source control under its name.
- * @param props - Component props
- * @param props.args - the entry
- * @returns The line
- */
-function SourceLine({ args }: Readonly<{ args: EntryArgs }>): React.JSX.Element {
-    const [line, name] = SOURCE_LINES[kindOf(args.entry)];
-    return (
-        <PopLine line={line} name={name}>
-            <SourceControl args={args} />
-        </PopLine>
     );
 }
 
@@ -498,8 +451,8 @@ function FormatLine({ args }: Readonly<{ args: EntryArgs }>): React.JSX.Element 
 }
 
 /**
- * The Entry pop-over's lines (spec 2.1, at most six): its kind, its source, how a list spreads, its name, its format
- * and, for a pie's or chart's plain entry, its color.
+ * The Entry pop-over's lines (spec 2.1, at most six): its kind (its source is its line's under the row), how a list
+ * spreads, its name, its format and, for a pie's or chart's plain entry, its color.
  * @param props - Component props
  * @param props.ctx - the row
  * @param props.channel - the data channel
@@ -507,7 +460,6 @@ function FormatLine({ args }: Readonly<{ args: EntryArgs }>): React.JSX.Element 
  * @param props.at - the entry's place
  * @param props.fact - its facts on the sample
  * @param props.color - the color graphty-element draws it in, when it is one part
- * @param props.calculate - open its Calculate pop-over at once (a Graph value the picker just added)
  * @returns The lines
  */
 function EntryLines({
@@ -517,7 +469,6 @@ function EntryLines({
     at,
     fact,
     color,
-    calculate,
 }: Readonly<{
     ctx: RowContext;
     channel: DataChannel;
@@ -525,10 +476,9 @@ function EntryLines({
     at: number;
     fact: DataEntryFact | undefined;
     color: string | undefined;
-    calculate: boolean;
 }>): React.JSX.Element {
     const { store } = useWorkspace();
-    const [beside, setBeside] = useState<Beside>(calculate ? "calculate" : null);
+    const [beside, setBeside] = useState<Beside>(null);
     const entry = spec.entries[at];
     const name = entryName(ctx.session, entry);
     const put = (next: DataEntry): void => {
@@ -543,7 +493,6 @@ function EntryLines({
     return (
         <>
             <KindTabs args={args} />
-            <SourceLine args={args} />
             <EachLine args={args} />
             <PopLine line="entry.label" name="Name">
                 <CommitText
@@ -996,7 +945,7 @@ function SpecLines({
  * @param props.fact - its facts on the sample
  * @param props.write - writes the entries
  * @param props.color - the color graphty-element draws the entry in, when it is one part
- * @param props.calculate - open the entry and its Calculate pop-over once it is drawn
+ * @param props.calculate - open its Calculate pop-over from its Graph value once it is drawn
  * @param props.onCalculating - called once the Calculate pop-over is asked open
  * @returns The line
  */
@@ -1037,12 +986,10 @@ function EntryLine({
         beside,
         setBeside,
     };
-    // Asked once, when the picker adds this Graph value: the Entry pop-over opens with Calculate beside it.
-    const [calculateFirst, setCalculateFirst] = useState(false);
+    // Asked once, when the picker adds this Graph value: its Calculate pop-over opens from the line's Graph value.
     useEffect(() => {
         if (calculate) {
-            setOpen(true);
-            setCalculateFirst(true);
+            setBeside("calculate");
             onCalculating();
         }
     }, [calculate, onCalculating]);
@@ -1071,15 +1018,7 @@ function EntryLine({
                 modifier={
                     <RowSettings label={`${name} settings`} title={name} opened={open} onOpenChange={setOpen}>
                         <div data-thing-popover="">
-                            <EntryLines
-                                ctx={ctx}
-                                channel={channel}
-                                spec={spec}
-                                at={at}
-                                fact={fact}
-                                color={color}
-                                calculate={calculateFirst}
-                            />
+                            <EntryLines ctx={ctx} channel={channel} spec={spec} at={at} fact={fact} color={color} />
                         </div>
                     </RowSettings>
                 }

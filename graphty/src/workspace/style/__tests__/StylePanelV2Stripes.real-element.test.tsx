@@ -306,6 +306,41 @@ describe("Style panel v2's Stripes", () => {
         assert.lengthOf(bands("a"), 2, "setA and setC");
         assert.deepEqual(bands("b"), [bands("a")[1]], "setC is one color on a and on b");
     });
+    it("shows a plain entry's drawn color on its chip once an existing layer's stripes are changed to data", async () => {
+        const { session, id } = await openProject();
+        await session.data.updateNodes([
+            { id: "a", values: { x1: 3, x2: 5 } },
+            { id: "b", values: { x1: 1, x2: 2 } },
+        ]);
+        await session.styles.update(id, { set: { "node.color": "#E8590C", "node.stripeColors": "#123456" } });
+        await session.styles.settled();
+        await openStyle("Key people");
+        await userEvent.click(await screen.findByRole("combobox", { name: "Node stripes data" }));
+        const list = await screen.findByRole("listbox", { name: "Node stripes data" });
+        await userEvent.click(within(list).getByRole("option", { name: /^x1\b/ }));
+        await userEvent.click(within(list).getByRole("option", { name: /^x2\b/ }));
+        await userEvent.click(screen.getByRole("button", { name: "Done" }));
+        await waitFor(() => {
+            assert.deepEqual(written(session, id, "node.stripeData"), {
+                entries: [{ field: "data.x1" }, { field: "data.x2" }],
+            });
+        });
+        await session.styles.settled();
+        const drawn = String(
+            (session.styles.explain({ node: "a" }).merged as Record<string, unknown>)["node.stripeColors"],
+        ).split(" ")[0];
+        const pop = await openSettings("x1 settings");
+        // The chip names the color graphty-element draws the stripe in, never the stand-in gray.
+        await waitFor(() => {
+            assert.strictEqual(
+                within(pop)
+                    .getByRole("button", { name: /^x1 color/ })
+                    .getAttribute("aria-label"),
+                `x1 color, ${drawn}`,
+            );
+        });
+    });
+
     it("takes the list off only from the row's minus, names its two inputs above it, and takes 8-digit hex", async () => {
         const { session, layer, pop } = await openStripes({ "node.stripeColors": "#E69F00 #56B4E9" });
         const line = document.querySelector<HTMLElement>('[data-thing-popover] [data-line="node.stripeColors"]');

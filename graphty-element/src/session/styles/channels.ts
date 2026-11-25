@@ -389,6 +389,7 @@ export interface ChannelValues {
     "node.labelWrapWidth": number;
     "node.labelWrapTrailingSpace": boolean;
     "node.labelWrapSkipEndSpace": boolean;
+    "node.labelWrapUnkerned": boolean;
     "node.labelWrapEllipsis": boolean;
     "node.labelWrapAnywhere": boolean;
     "node.labelWrapSpaceCount": number;
@@ -739,6 +740,7 @@ export interface ChannelValues {
     "edge.labelWrapWidth": number;
     "edge.labelWrapTrailingSpace": boolean;
     "edge.labelWrapSkipEndSpace": boolean;
+    "edge.labelWrapUnkerned": boolean;
     "edge.labelWrapEllipsis": boolean;
     "edge.labelWrapAnywhere": boolean;
     "edge.labelWrapSpaceCount": number;
@@ -1620,7 +1622,7 @@ function arrowMidChannels<End extends "MiddleHead" | "MiddleTail">(
 
 /** The label channels that write one field of a label style. */
 type LabelFieldChannel<Target extends "node" | "edge"> =
-    `${Target}.label${"Color" | "Size" | "LetterSize" | "Font" | "Weight" | "Italic" | "WrapWidth" | "WrapTrailingSpace" | "WrapSkipEndSpace" | "WrapEllipsis" | "WrapAnywhere" | "WrapSpaceCount" | "MaxLines" | "MaxLinesEllipsis" | "RunAlign" | "MinScreenSize" | "OnTop" | "Rotation" | "Background" | "Outline" | "OutlineWidth" | "Border" | "BorderWidth" | "Opacity" | "BackgroundOpacity" | "OutlineOpacity" | "BorderOpacity" | "Padding" | "CornerRadius" | "LineHeight" | "LineBox" | "BorderAlign" | "BorderStyle" | "BackgroundShape" | "Image" | "ImageWidth" | "ImageHeight" | "ImageOffsetX" | "ImageOffsetY" | "OffsetX" | "OffsetY" | "ShiftX" | "ShiftY" | "ShiftOf" | "GapOf" | "Box"}`;
+    `${Target}.label${"Color" | "Size" | "LetterSize" | "Font" | "Weight" | "Italic" | "WrapWidth" | "WrapTrailingSpace" | "WrapSkipEndSpace" | "WrapUnkerned" | "WrapEllipsis" | "WrapAnywhere" | "WrapSpaceCount" | "MaxLines" | "MaxLinesEllipsis" | "RunAlign" | "MinScreenSize" | "OnTop" | "Rotation" | "Background" | "Outline" | "OutlineWidth" | "Border" | "BorderWidth" | "Opacity" | "BackgroundOpacity" | "OutlineOpacity" | "BorderOpacity" | "Padding" | "CornerRadius" | "LineHeight" | "LineBox" | "BorderAlign" | "BorderStyle" | "BackgroundShape" | "Image" | "ImageWidth" | "ImageHeight" | "ImageOffsetX" | "ImageOffsetY" | "OffsetX" | "OffsetY" | "ShiftX" | "ShiftY" | "ShiftOf" | "GapOf" | "Box"}`;
 
 /** The field of a label style each label field channel writes, by the channel's suffix. */
 const LABEL_FIELD_OF_SUFFIX = {
@@ -1633,6 +1635,7 @@ const LABEL_FIELD_OF_SUFFIX = {
     WrapWidth: "wrapWidth",
     WrapTrailingSpace: "wrapTrailingSpace",
     WrapSkipEndSpace: "wrapSkipEndSpace",
+    WrapUnkerned: "wrapUnkerned",
     WrapEllipsis: "wrapEllipsis",
     WrapAnywhere: "wrapAnywhere",
     WrapSpaceCount: "wrapSpaceCount",
@@ -1824,6 +1827,7 @@ function labelFieldChannels<Target extends "node" | "edge">(
         row("WrapWidth", "Wrap Width", { accepts: "number", min: 0 }),
         row("WrapTrailingSpace", "Wrap Trailing Space", { accepts: "boolean" }),
         row("WrapSkipEndSpace", "Wrap Skip End Space", { accepts: "boolean" }),
+        row("WrapUnkerned", "Wrap Unkerned", { accepts: "boolean" }),
         row("WrapEllipsis", "Wrap Ellipsis", {
             accepts: "boolean",
             caveat: "A line wider than the wrap width is cut to fit, with an ellipsis after it, in place of wrapping.",
@@ -2170,7 +2174,7 @@ export function labelFieldOf(channel: Channel): { readonly into: Channel; readon
     }
 
     const match =
-        /^(node|edge)\.label(Color|Size|LetterSize|Font|Weight|Italic|WrapWidth|WrapTrailingSpace|WrapSkipEndSpace|WrapEllipsis|WrapAnywhere|WrapSpaceCount|MaxLines|MaxLinesEllipsis|RunAlign|MinScreenSize|OnTop|Rotation|Background|Outline|OutlineWidth|Border|BorderWidth|Opacity|BackgroundOpacity|OutlineOpacity|BorderOpacity|Padding|CornerRadius|LineHeight|LineBox|BorderAlign|BorderStyle|BackgroundShape|Image|ImageWidth|ImageHeight|ImageOffsetX|ImageOffsetY|OffsetX|OffsetY|ShiftX|ShiftY|ShiftOf|GapOf|Box)$/.exec(
+        /^(node|edge)\.label(Color|Size|LetterSize|Font|Weight|Italic|WrapWidth|WrapTrailingSpace|WrapSkipEndSpace|WrapUnkerned|WrapEllipsis|WrapAnywhere|WrapSpaceCount|MaxLines|MaxLinesEllipsis|RunAlign|MinScreenSize|OnTop|Rotation|Background|Outline|OutlineWidth|Border|BorderWidth|Opacity|BackgroundOpacity|OutlineOpacity|BorderOpacity|Padding|CornerRadius|LineHeight|LineBox|BorderAlign|BorderStyle|BackgroundShape|Image|ImageWidth|ImageHeight|ImageOffsetX|ImageOffsetY|OffsetX|OffsetY|ShiftX|ShiftY|ShiftOf|GapOf|Box)$/.exec(
             channel,
         );
 

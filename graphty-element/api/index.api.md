@@ -1433,6 +1433,7 @@ export const EdgeStyle: z.ZodObject<{
             wrapWidth: z.ZodOptional<z.ZodNumber>;
             wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
             wrapSkipEndSpace: z.ZodOptional<z.ZodBoolean>;
+            wrapUnkerned: z.ZodOptional<z.ZodBoolean>;
             wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
             wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
             wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
@@ -1735,6 +1736,7 @@ export const EdgeStyle: z.ZodObject<{
             wrapWidth: z.ZodOptional<z.ZodNumber>;
             wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
             wrapSkipEndSpace: z.ZodOptional<z.ZodBoolean>;
+            wrapUnkerned: z.ZodOptional<z.ZodBoolean>;
             wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
             wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
             wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
@@ -2201,6 +2203,7 @@ export const EdgeStyle: z.ZodObject<{
         wrapWidth: z.ZodOptional<z.ZodNumber>;
         wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
         wrapSkipEndSpace: z.ZodOptional<z.ZodBoolean>;
+        wrapUnkerned: z.ZodOptional<z.ZodBoolean>;
         wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
         wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
         wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
@@ -2449,6 +2452,7 @@ export const EdgeStyle: z.ZodObject<{
         wrapWidth: z.ZodOptional<z.ZodNumber>;
         wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
         wrapSkipEndSpace: z.ZodOptional<z.ZodBoolean>;
+        wrapUnkerned: z.ZodOptional<z.ZodBoolean>;
         wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
         wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
         wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
@@ -2697,6 +2701,7 @@ export const EdgeStyle: z.ZodObject<{
         wrapWidth: z.ZodOptional<z.ZodNumber>;
         wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
         wrapSkipEndSpace: z.ZodOptional<z.ZodBoolean>;
+        wrapUnkerned: z.ZodOptional<z.ZodBoolean>;
         wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
         wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
         wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
@@ -7144,6 +7149,7 @@ export const NodeStyle: z.ZodObject<{
         wrapWidth: z.ZodOptional<z.ZodNumber>;
         wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
         wrapSkipEndSpace: z.ZodOptional<z.ZodBoolean>;
+        wrapUnkerned: z.ZodOptional<z.ZodBoolean>;
         wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
         wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
         wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
@@ -7392,6 +7398,7 @@ export const NodeStyle: z.ZodObject<{
         wrapWidth: z.ZodOptional<z.ZodNumber>;
         wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
         wrapSkipEndSpace: z.ZodOptional<z.ZodBoolean>;
+        wrapUnkerned: z.ZodOptional<z.ZodBoolean>;
         wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
         wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
         wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
@@ -7640,6 +7647,7 @@ export const NodeStyle: z.ZodObject<{
         wrapWidth: z.ZodOptional<z.ZodNumber>;
         wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
         wrapSkipEndSpace: z.ZodOptional<z.ZodBoolean>;
+        wrapUnkerned: z.ZodOptional<z.ZodBoolean>;
         wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
         wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
         wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
@@ -8669,6 +8677,7 @@ export const RichTextStyle: z.ZodObject<{
     wrapWidth: z.ZodOptional<z.ZodNumber>;
     wrapTrailingSpace: z.ZodOptional<z.ZodBoolean>;
     wrapSkipEndSpace: z.ZodOptional<z.ZodBoolean>;
+    wrapUnkerned: z.ZodOptional<z.ZodBoolean>;
     wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
     wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
     wrapSpaceCount: z.ZodOptional<z.ZodNumber>;

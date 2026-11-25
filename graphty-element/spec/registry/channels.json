@@ -156,6 +156,12 @@
             "experimental": "file-styles"
         },
         {
+            "channel": "node.labelWrapUnkerned",
+            "target": "node",
+            "accepts": "boolean",
+            "experimental": "file-styles"
+        },
+        {
             "channel": "node.labelWrapEllipsis",
             "target": "node",
             "accepts": "boolean",
@@ -2897,6 +2903,12 @@
         },
         {
             "channel": "edge.labelWrapSkipEndSpace",
+            "target": "edge",
+            "accepts": "boolean",
+            "experimental": "file-styles"
+        },
+        {
+            "channel": "edge.labelWrapUnkerned",
             "target": "edge",
             "accepts": "boolean",
             "experimental": "file-styles"

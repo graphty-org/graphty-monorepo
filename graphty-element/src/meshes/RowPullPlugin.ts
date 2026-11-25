@@ -1,3 +1,4 @@
+import type { AbstractEngine } from "@babylonjs/core/Engines/abstractEngine.js";
 import type { EffectLayer } from "@babylonjs/core/Layers/effectLayer.js";
 import type { GlowLayer } from "@babylonjs/core/Layers/glowLayer.js";
 import type { Effect } from "@babylonjs/core/Materials/effect.js";
@@ -33,8 +34,8 @@ import type { Scene } from "@babylonjs/core/scene.js";
  *
  * Babylon skips a rewrite whose pattern matches nothing and says nothing, and a later Babylon may
  * word a line differently. So every batch shader built is checked for each rewrite, and one it
- * lacks is reported through the engine's `onEffectErrorObservable`, as a shader that failed to
- * compile is (#10025).
+ * lacks is handed to the engine's {@link onRewriteMissed} listener (#10025). The shader still
+ * compiles and draws with Babylon's own line, so it is a warning, never a refused shader.
  */
 
 const PLUGIN_NAME = "GraphtyRowPull";
@@ -163,9 +164,10 @@ export function isUnscaledRowBatch(mesh: AbstractMesh): boolean {
     return (mesh.metadata as Partial<RowBatchMetadata> | null | undefined)?.rowUnscaled === true;
 }
 
-/** The batch shaders already checked, and those a rewrite missed. */
+/** The batch shaders already checked. */
 const checked = new WeakSet<Effect>();
-const missed = new WeakSet<Effect>();
+/** Each engine's listener for rewrites a batch shader it built lacks. */
+const missedListeners = new WeakMap<AbstractEngine, (patterns: string[]) => void>();
 
 /**
  * The rewrites of a table that the shader text they were made on does not hold.
@@ -190,22 +192,18 @@ function checkRewrites(effect: Effect): void {
         ...missedIn(effect.fragmentSourceCodeBeforeMigration, wgsl ? WGSL_FRAGMENT : GLSL_FRAGMENT),
     ];
     if (misses.length > 0) {
-        missed.add(effect);
-        effect.getEngine().onEffectErrorObservable.notifyObservers({
-            effect,
-            errors: `the batch shader's edits of Babylon's text matched nothing: ${misses.join("; ")}`,
-        });
+        missedListeners.get(effect.getEngine())?.(misses);
     }
 }
 
 /**
- * Whether a shader reported through `onEffectErrorObservable` is a batch shader a rewrite missed,
- * rather than one the compiler refused.
- * @param effect - The shader.
- * @returns True when a rewrite missed it.
+ * Hear the rewrites a batch shader an engine built lacks, once per shader; replaces the engine's
+ * earlier listener.
+ * @param engine - The engine.
+ * @param listener - Called with the patterns that matched nothing.
  */
-export function rewriteMissed(effect: Effect): boolean {
-    return missed.has(effect);
+export function onRewriteMissed(engine: AbstractEngine, listener: (patterns: string[]) => void): void {
+    missedListeners.set(engine, listener);
 }
 
 /** Reads a batch's rows from the row table; see the file comment. */

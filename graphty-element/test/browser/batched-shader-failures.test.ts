@@ -5,7 +5,7 @@
  * objects, and `rowCounts` says so. A batch shader the WebGL compiler refuses is reported as
  * `E_SHADER_REFUSED`, as WebGPU's always were. And the edits the batch makes to Babylon's shader
  * text are checked on every batch shader built, so a Babylon release that rewords a line they edit
- * is reported instead of drawing rows shaded differently from objects.
+ * is reported as a `render-warning`, while the rows still draw.
  *
  * WebGL always; WebGPU as well when `GRAPHTY_BROWSER_GPU` names a flag set.
  */
@@ -18,7 +18,7 @@ import type { Effect } from "@babylonjs/core/Materials/effect.js";
 import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import { afterEach, assert, describe, it, vi } from "vitest";
 
-import type { Graphty } from "../../index.js";
+import type { Graphty, RenderWarningEvent } from "../../index.js";
 import { GraphtyError } from "../../src/errors";
 import { operationQueueOf } from "../../src/Graph";
 import { isRowBatch } from "../../src/meshes/RowPullPlugin";
@@ -43,12 +43,14 @@ const NODES = Array.from({ length: 6 }, (_, id) => ({
 /**
  * Mount an element on the `"batched"` path.
  * @param renderer - The renderer.
+ * @param setup - Anything else to set before it is mounted.
  * @returns The element.
  */
-async function mounted(renderer: "webgl" | "webgpu"): Promise<Graphty> {
+async function mounted(renderer: "webgl" | "webgpu", setup?: (element: Graphty) => void): Promise<Graphty> {
     const element = document.createElement("graphty-element");
     element.renderer = renderer;
     element.renderPath = "batched";
+    setup?.(element);
     element.style.display = "block";
     element.style.width = "400px";
     element.style.height = "300px";
@@ -85,6 +87,19 @@ function firstError(element: Graphty): Promise<Error> {
 }
 
 /**
+ * The first render warning the element reports.
+ * @param element - The element.
+ * @returns The warning.
+ */
+function firstRenderWarning(element: Graphty): Promise<RenderWarningEvent> {
+    return new Promise((resolve) => {
+        element.addEventListener("render-warning", (event) => {
+            resolve(event.detail);
+        });
+    });
+}
+
+/**
  * Change a shader in Babylon's store for the rest of the test, as a Babylon release would.
  * @param store - Which store.
  * @param name - The shader's key.
@@ -111,26 +126,60 @@ function batchEffects(element: Graphty): Effect[] {
     return meshes.flatMap((mesh) => mesh.subMeshes.flatMap((subMesh) => subMesh.effect ?? []));
 }
 
+/**
+ * How many pixels of the canvas differ from its corner: the nodes drawn.
+ * @param element - The element.
+ * @returns The count.
+ */
+async function drawnPixels(element: Graphty): Promise<number> {
+    const frame = await readCanvas(element.graph);
+    const [r, g, b] = frame.pixels;
+    let drawn = 0;
+    for (let i = 0; i < frame.pixels.length; i += 4) {
+        drawn += frame.pixels[i] !== r || frame.pixels[i + 1] !== g || frame.pixels[i + 2] !== b ? 1 : 0;
+    }
+
+    return drawn;
+}
+
+/**
+ * Every `limits-warning` code the graph raises, heard on the graph itself so that one raised
+ * before the element is mounted counts too.
+ * @param element - The element.
+ * @returns The codes, filled as events arrive.
+ */
+function limitsWarnings(element: Graphty): string[] {
+    const codes: string[] = [];
+    element.graph.on("limits-warning", (event) => {
+        codes.push(event.code);
+    });
+    return codes;
+}
+
+/** Refuse a WebGL2 context for the rest of the test, as a browser or GPU without one does. */
+function noWebGL2(): void {
+    // Any context id, as Babylon asks for them; the typed overloads name each id apart.
+    const getContext = HTMLCanvasElement.prototype.getContext as (
+        this: HTMLCanvasElement,
+        id: string,
+        options?: unknown,
+    ) => RenderingContext | null;
+    // A browser or GPU with no WebGL2: the context is refused, as such a browser refuses it.
+    const spy = vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(function (
+        this: HTMLCanvasElement,
+        id: string,
+        options?: unknown,
+    ) {
+        return id === "webgl2" || id === "experimental-webgl2" ? null : getContext.call(this, id, options);
+    } as typeof HTMLCanvasElement.prototype.getContext);
+    cleanups.push(() => {
+        spy.mockRestore();
+    });
+}
+
 describe("batched on a WebGL1 context", () => {
     it("draws every row as an object and says so", async () => {
-        // Any context id, as Babylon asks for them; the typed overloads name each id apart.
-        const getContext = HTMLCanvasElement.prototype.getContext as (
-            this: HTMLCanvasElement,
-            id: string,
-            options?: unknown,
-        ) => RenderingContext | null;
-        // A browser or GPU with no WebGL2: the context is refused, as such a browser refuses it.
-        const spy = vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(function (
-            this: HTMLCanvasElement,
-            id: string,
-            options?: unknown,
-        ) {
-            return id === "webgl2" || id === "experimental-webgl2" ? null : getContext.call(this, id, options);
-        } as typeof HTMLCanvasElement.prototype.getContext);
-        cleanups.push(() => {
-            spy.mockRestore();
-        });
-
+        noWebGL2();
         const element = await mounted("webgl");
         const { engine } = element.graph;
         assert.instanceOf(engine, Engine);
@@ -146,14 +195,35 @@ describe("batched on a WebGL1 context", () => {
             objectEdges: 0,
         });
         assert.equal(element.graph.rendererStatus?.drawing, true);
-        const frame = await readCanvas(element.graph);
-        const [r, g, b] = frame.pixels;
-        let drawn = 0;
-        for (let i = 0; i < frame.pixels.length; i += 4) {
-            drawn += frame.pixels[i] !== r || frame.pixels[i + 1] !== g || frame.pixels[i + 2] !== b ? 1 : 0;
-        }
+        assert.isAbove(await drawnPixels(element), 500, "the nodes are drawn");
+    });
 
-        assert.isAbove(drawn, 500, "the nodes are drawn");
+    it("says once that limits set before it was mounted are not in force", async () => {
+        noWebGL2();
+        let codes: string[] = [];
+        const element = await mounted("webgl", (unmounted) => {
+            codes = limitsWarnings(unmounted);
+            unmounted.limits = { renderCeiling: 500 };
+        });
+        await load(element);
+        await element.waitForStableFrame();
+
+        assert.deepEqual(codes, ["W_LIMITS_IGNORED"]);
+    });
+
+    it("says once that limits are not in force on a live switch to batched", async () => {
+        noWebGL2();
+        const element = await mounted("webgl", (unmounted) => {
+            unmounted.renderPath = "objects";
+        });
+        element.limits = { renderCeiling: 500 };
+        await load(element);
+        const codes = limitsWarnings(element);
+        element.renderPath = "batched";
+        await element.updateComplete;
+        await element.waitForStableFrame();
+
+        assert.deepEqual(codes, ["W_LIMITS_IGNORED"]);
     });
 });
 
@@ -203,7 +273,7 @@ describe.each(RENDERERS)("the batch's shader edits on %s", (renderer) => {
         assert.equal(element.graph.rendererStatus?.drawing, true);
     });
 
-    it("are reported when Babylon's text no longer matches one", async () => {
+    it("are reported as a warning when Babylon's text no longer matches one, and the rows still draw", async () => {
         await load(await mounted(renderer));
         // A Babylon release that spaces the thin-instance normal line differently.
         const store = renderer === "webgpu" ? ShaderStore.ShadersStoreWGSL : ShaderStore.ShadersStore;
@@ -212,14 +282,19 @@ describe.each(RENDERERS)("the batch's shader edits on %s", (renderer) => {
         );
 
         const element = await mounted(renderer);
-        const refused = firstError(element);
+        const errors: unknown[] = [];
+        element.graph.on("error", (event) => errors.push(event.error));
+        const warned = firstRenderWarning(element);
         await load(element);
-        const error = await refused;
+        const warning = await warned;
+        await element.waitForStableFrame();
 
-        assert.instanceOf(error, GraphtyError);
-        assert.equal(error.code, "E_SHADER_REFUSED");
-        assert.equal(error.details.stage, "rewrite");
-        assert.match(String(error.details.messages), /vNormalW/);
-        assert.equal(element.graph.rendererStatus?.drawing, false);
+        assert.equal(warning.code, "W_SHADER_EDIT_MISSED");
+        assert.equal(warning.params.renderer, renderer);
+        assert.match(String(warning.params.patterns), /vNormalW/);
+        assert.deepEqual(errors, []);
+        assert.equal(element.graph.rendererStatus?.drawing, true);
+        assert.isNotEmpty(batchEffects(element));
+        assert.isAbove(await drawnPixels(element), 500, "the nodes are drawn");
     });
 });

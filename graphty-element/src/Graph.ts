@@ -193,6 +193,7 @@ import {
     type ReducedMotionChangedEvent,
     type RenderLostEvent,
     type RenderRestoredEvent,
+    type RenderWarningEvent,
     type TourEndedEvent,
     type TourProgressEvent,
     type XRMenuSelectEvent,
@@ -281,7 +282,7 @@ import {
 } from "./meshes/NodeThumbnail";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { type Antialias, type LeanLines, pulledEdgesDefault } from "./meshes/PulledLineBatch";
-import { rewriteMissed } from "./meshes/RowPullPlugin";
+import { onRewriteMissed } from "./meshes/RowPullPlugin";
 import { loadChunk, loadModel, ModelLoadFailure } from "./models/loadModel";
 import { type ModelTemplate, optionsOf } from "./models/ModelCache";
 import { TextureCache } from "./models/TextureCache";
@@ -2915,15 +2916,22 @@ export class Graph implements GraphContext {
      * Reports a shader the GLSL compiler stops on, under WebGL and WebGPU alike: a refused shader
      * never draws, and nothing else says so (#10022). Babylon.js 9 hands a WebGPU effect a rejection
      * of its async compile as it would a synchronous failure, so everything listening to the effect
-     * hears as it does under WebGL. Also a batch shader one of `RowPullPlugin`'s edits missed
-     * (#10025). An effect with its own `onError` is the shader check's, which has its own report.
+     * hears as it does under WebGL. An effect with its own `onError` is the shader check's, which
+     * has its own report. A batch shader one of `RowPullPlugin`'s edits missed still draws, so it is
+     * a `render-warning` with `W_SHADER_EDIT_MISSED` (#10025), and drawing is left alone.
      * @param engine - The engine that compiles the graph's shaders.
      */
     private watchShaderCompiles(engine: AbstractEngine): void {
         engine.onEffectErrorObservable.add(({ effect, errors }) => {
             if (!effect.onError) {
-                this.reportRefusedShader(rewriteMissed(effect) ? "rewrite" : "compiler", [errors]);
+                this.reportRefusedShader("compiler", [errors]);
             }
+        });
+        onRewriteMissed(engine, (patterns) => {
+            this.eventManager.emit("render-warning", {
+                code: "W_SHADER_EDIT_MISSED",
+                params: { renderer: engine.isWebGPU ? "webgpu" : "webgl", patterns },
+            } satisfies Omit<RenderWarningEvent, "type">);
         });
     }
 
@@ -2932,10 +2940,7 @@ export class Graph implements GraphContext {
      * @param stage - Which step gave up on the shader.
      * @param messages - What it said; the translator says nothing the element can read.
      */
-    private reportRefusedShader(
-        stage: "compiler" | "translator" | "device" | "rewrite",
-        messages: readonly string[],
-    ): void {
+    private reportRefusedShader(stage: "compiler" | "translator" | "device", messages: readonly string[]): void {
         if (this.#rendererStatus !== null) {
             this.#rendererStatus = { ...this.#rendererStatus, drawing: false };
         }
@@ -5638,11 +5643,16 @@ export class Graph implements GraphContext {
     /** Open or close the batches to match the path. Proxies stay, so neither way rebuilds a row. */
     #applyRenderPath(): void {
         const batched = this.#batchesDraw() && !(this.engine instanceof NullEngine);
-        // On WebGL1 the ceilings asked for are not in force: every row is an object there.
+        // On WebGL1 the ceilings asked for are not in force: every row is an object there. Said only
+        // when that is news: `setRenderPath` and `setLimits` already said it for a path they set aside.
+        const wasIgnored = this.#limits.ignored;
         this.#limits.honor(this.#batchesDraw());
+        if (!wasIgnored) {
+            this.#warnLimitsIgnored();
+        }
+
         if (this.#renderPath === "batched" && isWebGL1(this.engine) && !this.#warnedWebGL1) {
             this.#warnedWebGL1 = true;
-            this.#warnLimitsIgnored();
             graphLogger.warn('renderPath "batched" needs WebGL2 or WebGPU: every row is drawn as an object', {
                 renderPath: "objects",
             });

@@ -157,6 +157,16 @@ function setPattern(material: ShaderMaterial, options: JoinedLineOptions): void 
     const dash = (i: number): number => dashes?.[i] ?? 0;
     material.setVector4("dashA", new Vector4(dash(0), dash(1), dash(2), dash(3)));
     material.setVector4("dashB", new Vector4(dash(4), dash(5), dash(6), dash(7)));
+    if (options.pulled === true && options.pulledCurve !== true) {
+        // the spacing rule a pulled piece's shader runs for its own length (`patternSpacing`): element length, count
+        // and gap (-1 for none), and 1 for a pattern
+        material.setVector4(
+            "pulledPattern",
+            pattern === undefined
+                ? new Vector4(0, -1, -1, 0)
+                : new Vector4(pattern.elementLength, pattern.count ?? -1, pattern.gap ?? -1, 1),
+        );
+    }
 }
 
 /**
@@ -280,10 +290,11 @@ function joinedLineSamplers(options: JoinedLineOptions): string[] {
     }
 
     const tables = ["rowPosition", "edgeRows", "edgeHidden", "edgeOrder"];
-    // a straight piece stops at a translucent row's outline (`PULLED_TRIM_GLSL`)
+    // a straight piece stops at a translucent row's outline (`PULLED_TRIM_GLSL`); both read whether a hidden row has a
+    // place (`ROW_END_GLSL`)
     return options.pulledCurve === true
-        ? [...tables, "edgeRoutes", "edgeSlots"]
-        : [...tables, "rowExtent", "rowOutline"];
+        ? [...tables, "edgeRoutes", "edgeSlots", "rowExtent"]
+        : [...tables, "rowExtent", "rowOutline", "edgeEnds"];
 }
 
 interface LineGeometry {
@@ -638,6 +649,7 @@ void main(void) {
                     "dashA",
                     "dashB",
                     ...(options.pulled === true ? ["edgeOrdered"] : []),
+                    ...(options.pulled === true && options.pulledCurve !== true ? ["endsPlaced", "pulledPattern"] : []),
                     ...(widened ? ["edgeReach"] : []),
                     ...(fade === undefined ? [] : ["edgeFade"]),
                     ...(program?.uniforms ?? []),

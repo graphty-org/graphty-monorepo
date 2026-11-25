@@ -13,10 +13,11 @@ import {
     LEAN_TEMPLATE_INDICES,
     LEAN_TEMPLATE_OF,
 } from "./edgeJoinShader";
-import { markEdgeLineBatchMesh } from "./EdgeLineBatch";
+import { type EdgeLineMeta, markEdgeLineBatchMesh, patternSpacing } from "./EdgeLineBatch";
 import { batchUploadFrames } from "./FrameRoster";
 import { takePoolReserve } from "./poolReserve";
 import { CURVE_STRIDE, curveShape, type CurveSpan } from "./pulledCurve";
+import { placedEnds, type PulledCapLook, type RestSource, RestWatch, roundRowsEnds } from "./restPlacement";
 
 /**
  * @file Straight edges drawn from the row table: a piece is two row numbers, not twenty floats.
@@ -334,6 +335,30 @@ export class PulledLineBatch {
     private readonly pieceFloats: number;
 
     /**
+     * A straight batch's placed ends (`edgeEnds`): two texels a piece, the source end and 1, then the line's end,
+     * written at rest for a piece under a pulled head ({@link PulledLineBatch.setCapBack}); empty until one is.
+     */
+    private ends = new Float32Array(TABLE_WIDTH * TEXEL_FLOATS);
+
+    private endsTable: RawTexture | null = null;
+
+    private endsWidth = TABLE_WIDTH;
+
+    /** Whether {@link PulledLineBatch.ends} was written since its last upload. */
+    private endsDirty = false;
+
+    /** Each piece's head, for a piece under a pulled head: what its line end is placed by at rest. */
+    private readonly endLooks = new Map<number, PulledCapLook>();
+
+    /** What the pieces' ends are placed from at rest; null until a piece has a head or the batch a pattern. */
+    private rest: RestSource | null = null;
+
+    /** A patterned straight batch's pattern (`EdgeMesh.pulledPattern`), whose every piece is placed at rest. */
+    private readonly pattern: EdgeLineMeta["pattern"];
+
+    private watch = new RestWatch();
+
+    /**
      * A curve batch's slot table ({@link PulledLineBatch.setCurve}): each draw slot's entry times `CURVE_STRIDE` plus
      * its piece, in a float's bits past {@link NAME_BASE}, 0 for none. Null in a straight batch, where a slot draws
      * the entry of its own number.
@@ -380,8 +405,8 @@ export class PulledLineBatch {
      * @param switches - Whether {@link drawLinesLean} may switch it to the lean program: a straight
      *     batch drawing the join template, 2D or 3D.
      * @param rowShapes - The row table's `rowExtent` and `rowOutline` textures, asked each frame, for a straight
-     *     piece's shader to stop at a translucent row's outline (`PULLED_TRIM_GLSL`); null for a shader that reads
-     *     neither (a curve's, whose ends are cut on the CPU).
+     *     piece's shader to stop at a translucent row's outline (`PULLED_TRIM_GLSL`), and for every shader to tell a
+     *     hidden row with a place from one with none (`ROW_END_GLSL`); null for a shader that reads neither.
      */
     constructor(
         mesh: Mesh,
@@ -421,6 +446,11 @@ export class PulledLineBatch {
             this.routes = new Float32Array(routes.texels * TEXEL_FLOATS);
             this.routeTable = this.buildRoutes(this.routes);
         }
+        this.pattern = curve ? undefined : (mesh.metadata as EdgeLineMeta | null)?.pattern;
+        if (!curve) {
+            this.endsTable = this.buildEnds();
+        }
+
         if (switches) {
             let switching = SWITCHING.get(scene);
             if (switching === undefined) {
@@ -623,6 +653,10 @@ export class PulledLineBatch {
         this.setRows(piece, NO_ROW, NO_ROW);
         this.setHidden(piece, false);
         if (this.slots === null) {
+            // a straight piece's spare float is its cap's stand-back (`setCapBack`): the next taker starts with none
+            this.rows[piece * this.pieceFloats + 7] = 0;
+            this.endLooks.delete(piece);
+            this.restUnlessUnused();
             this.freeSlot(piece);
             return;
         }
@@ -661,6 +695,24 @@ export class PulledLineBatch {
         this.rows[piece * this.pieceFloats] = source;
         this.rows[piece * this.pieceFloats + 1] = target;
         this.touch(piece);
+        this.unplace(piece);
+    }
+
+    /**
+     * Hand a piece's ends back to the shader until the next rest places them again.
+     * @param piece - The piece.
+     */
+    private unplace(piece: number): void {
+        if (this.rest === null) {
+            return;
+        }
+
+        if ((this.ends[piece * 2 * TEXEL_FLOATS + 3] ?? 0) !== 0) {
+            this.ends[piece * 2 * TEXEL_FLOATS + 3] = 0;
+            this.endsDirty = true;
+        }
+
+        this.watch.touch();
     }
 
     /**
@@ -710,6 +762,67 @@ export class PulledLineBatch {
     setSpeed(piece: number, speed: number): void {
         this.rows[piece * this.pieceFloats + 7] = speed;
         this.touch(piece);
+    }
+
+    /**
+     * Stop a straight piece short of its target's outline for an arrowhead drawn from the row table
+     * (`ArrowCapBatch.setPulled`), in the slot a plain piece leaves unused: the piece then runs from its source's outline to
+     * the head's back, as `Edge.transformArrowCap` ends an object edge's line (`PULLED_TRIM_GLSL`'s `pulledCapTrim`).
+     * @param piece - The piece.
+     * @param back - How far before the target's outline the line stops, at node scale 1 (`EdgeMesh.lineStopOf`);
+     *     0 for no head, the line running between the rows as a plain piece does.
+     * @param look - The head, which places the line's end at rest (`restPlacement.ts`); none leaves it to the shader.
+     * @param rest - What the ends are placed from at rest.
+     */
+    setCapBack(piece: number, back: number, look?: PulledCapLook, rest?: RestSource): void {
+        this.rows[piece * this.pieceFloats + 7] = back;
+        if (look === undefined) {
+            this.endLooks.delete(piece);
+        } else {
+            this.endLooks.set(piece, look);
+            this.rest = rest ?? this.rest;
+        }
+
+        if (this.rest !== null) {
+            this.watch.start(this.rest.rows);
+        }
+
+        this.touch(piece);
+        this.unplace(piece);
+        this.restUnlessUnused();
+    }
+
+    /**
+     * Stop placing ends at rest once no piece has a head and the batch no pattern, and give the placed-ends table back
+     * at its first size: a restyle that takes every arrowhead off keeps nothing per piece for them.
+     */
+    private restUnlessUnused(): void {
+        if (this.rest === null || this.pattern !== undefined || this.endLooks.size > 0) {
+            return;
+        }
+
+        this.rest = null;
+        this.watch = new RestWatch();
+        this.endsDirty = false;
+        if (this.ends.length > TABLE_WIDTH * TEXEL_FLOATS) {
+            this.ends = new Float32Array(TABLE_WIDTH * TEXEL_FLOATS);
+            this.endsWidth = TABLE_WIDTH;
+            this.endsTable?.dispose();
+            this.endsTable = this.buildEnds();
+        }
+    }
+
+    /**
+     * Say what a patterned batch's pieces are placed from at rest (`restPlacement.ts`), so a still dashed line's ends
+     * and spacing are the object path's; nothing for a solid batch, whose pieces are placed only under a head.
+     * @param rest - The rows, and whether a layout moves them.
+     */
+    restFrom(rest: RestSource): void {
+        if (this.pattern !== undefined && this.rest === null) {
+            this.rest = rest;
+            this.watch.start(rest.rows);
+            this.watch.touch();
+        }
     }
 
     /**
@@ -849,8 +962,12 @@ export class PulledLineBatch {
         if (this.rowShapes !== null) {
             const { extentTexture, outlineTexture } = this.rowShapes();
             material?.setTexture("rowExtent", extentTexture);
-            material?.setTexture("rowOutline", outlineTexture);
+            // a curve's shader reads only whether a hidden end has a place, not the outlines
+            if (!this.curve) {
+                material?.setTexture("rowOutline", outlineTexture);
+            }
         }
+        this.followRest(material);
         this.flushRoutes();
         this.flushHidden();
         this.flushSlots();
@@ -867,6 +984,101 @@ export class PulledLineBatch {
         for (let i = 0; i < runs.length; i += 2) {
             this.sendTexels(runs[i] * texels, runs[i + 1] * texels);
         }
+    }
+
+    /**
+     * Place the ends of the pieces under a pulled head on the CPU once the rows are at rest (`restPlacement.ts`), by
+     * `Edge.placeArrowCaps`'s arithmetic over the row table (`Edge.interceptPointsFromColumns`): the source's outline
+     * and the line's end before its head, so a still graph draws the objects picture.
+     * @param material - The batch's material, given whether the placed ends are current.
+     */
+    private followRest(material: ShaderMaterial | null): void {
+        const { rest } = this;
+        if (rest !== null && this.endsTable !== null && this.watch.due(rest)) {
+            this.placeEnds(rest.rows);
+            this.watch.done(rest.rows);
+        }
+
+        material?.setFloat("endsPlaced", this.watch.placed ? 1 : 0);
+        if (this.endsDirty && this.endsTable !== null) {
+            this.endsTable.update(this.ends);
+            this.uploadedBytes += this.ends.byteLength;
+            this.endsDirty = false;
+        }
+    }
+
+    /**
+     * Place every piece with a head and two rows, as {@link PulledLineBatch.followRest} says.
+     * @param rows - The row table.
+     */
+    private placeEnds(rows: RestSource["rows"]): void {
+        const pieces = this.rows.length / this.pieceFloats;
+        if (this.ends.length < pieces * 2 * TEXEL_FLOATS) {
+            const { width, texels } = this.shape(pieces * 2, pieces);
+            this.endsWidth = width;
+            this.ends = new Float32Array(texels * TEXEL_FLOATS);
+            this.endsTable?.dispose();
+            this.endsTable = this.buildEnds();
+        }
+
+        const { ends } = this;
+        const positions = rows.restingPositions;
+        const at = placedEnds;
+        ends.fill(0);
+        for (let piece = 0; piece < this.highWater; piece++) {
+            const look = this.endLooks.get(piece);
+            const base = piece * this.pieceFloats;
+            const from = this.rows[base] ?? NO_ROW;
+            const head = this.rows[base + 1] ?? NO_ROW;
+            if (
+                (look === undefined && this.pattern === undefined) ||
+                from < 0 ||
+                head < 0 ||
+                this.hidden[piece] !== 0 ||
+                // a hidden row draws no line: the shader trims it, and draws nothing
+                positions[from * 4 + 3] * positions[head * 4 + 3] === 0 ||
+                !(look === undefined ? bareEnds(rows, from, head, at) : roundRowsEnds(rows, from, head, look, at) > 0)
+            ) {
+                continue;
+            }
+
+            // EdgeLineBatch.place: a straight line's spacing for its length (Vector3.Distance)
+            const dx = at[6] - at[0];
+            const dy = at[7] - at[1];
+            const dz = at[8] - at[2];
+            const spacing = patternSpacing(this.pattern, Math.sqrt(dx * dx + dy * dy + dz * dz)); // eslint-disable-line unicorn/prefer-modern-math-apis -- Vector3.Distance's own arithmetic, which the object path's spacing reads
+            const to = piece * 2 * TEXEL_FLOATS;
+            ends[to] = at[0];
+            ends[to + 1] = at[1];
+            ends[to + 2] = at[2];
+            ends[to + 3] = 1;
+            ends[to + 4] = at[6];
+            ends[to + 5] = at[7];
+            ends[to + 6] = at[8];
+            ends[to + 7] = spacing;
+        }
+
+        this.endsDirty = true;
+    }
+
+    /**
+     * Send the placed ends table whole and bind it.
+     * @returns The texture.
+     */
+    private buildEnds(): RawTexture {
+        const texture = RawTexture.CreateRGBATexture(
+            this.ends,
+            this.endsWidth,
+            this.ends.length / (this.endsWidth * TEXEL_FLOATS),
+            this.scene,
+            false,
+            false,
+            Constants.TEXTURE_NEAREST_SAMPLINGMODE,
+            Constants.TEXTURETYPE_FLOAT,
+        );
+        (this.mesh.material as ShaderMaterial | null)?.setTexture("edgeEnds", texture);
+        this.uploadedBytes += this.ends.byteLength;
+        return texture;
     }
 
     /**
@@ -1003,6 +1215,7 @@ export class PulledLineBatch {
         this.orderTable.dispose();
         this.slotTable?.dispose();
         this.routeTable?.dispose();
+        this.endsTable?.dispose();
         // Not its textures: `rowPosition` is the row table's, which outlives this batch.
         this.mesh.material?.dispose(true, false);
         this.mesh.dispose();
@@ -1263,4 +1476,23 @@ export class PulledLineBatch {
         subMesh.verticesCount = this.highWater * corners;
         subMesh.setBoundingInfo(this.mesh.getBoundingInfo());
     }
+}
+
+/**
+ * A headless piece's ends, as `Edge.bareEnd` ends an object edge's line with no cap: its nodes' centers, which an
+ * opaque node hides; a translucent end is left to the shader (`pulledTrim`).
+ * @param rows - The row table.
+ * @param from - The source row.
+ * @param to - The target row.
+ * @param out - Written with the ends, as `roundEnds` writes them.
+ * @returns False for ends the CPU does not place.
+ */
+function bareEnds(rows: RestSource["rows"], from: number, to: number, out: Float64Array): boolean {
+    if (rows.seenThrough(from) || rows.seenThrough(to)) {
+        return false;
+    }
+
+    rows.restingPlaceOf(from, out, 0);
+    rows.restingPlaceOf(to, out, 6);
+    return true;
 }

@@ -2846,7 +2846,7 @@ export interface SessionDataApi {
      * values, and what it added arrives. A source that has not changed dispatches nothing and
      * reports zeros. Expansions of the load are not fetched again. Experimental.
      *
-     * With the `save-files-v2` experiment, it also takes the id of a source a version 2 open held
+     * It also takes the id of a source a version 2 open held
      * (`W_SOURCE_UNAVAILABLE`: its copy changed, it needed permission, or it was not found): the
      * call is the permission, so it fetches the source from where the open would have, reads its
      * new bytes with its saved roles, and builds it into the graph with the reader's edits on it
@@ -6803,7 +6803,7 @@ export interface HoverDrawn {
      * The radius hover picks the node within: the radius it is drawn at, but never under 0.71
      * device pixels (half a pixel's diagonal), so a node drawn smaller than a pixel can still be
      * pointed at. Where nothing else is drawn near it, hover also finds such a node a little
-     * farther out, up to 1.5 device pixels from its center.
+     * farther out, up to 1.5 device pixels from its center, and a hover found there reports 1.5.
      */
     readonly radius: number;
 }
@@ -8956,11 +8956,8 @@ export interface GraphSession {
     /** Saving the whole session to one project file and opening one again. */
     readonly project: ProjectApi;
     /**
-     * A session's analysis and style layers as one recipe file, applied to other data. Needs the
-     * `save-files-v2` experiment.
+     * A session's analysis and style layers as one recipe file, applied to other data.
      * @since 3.40.0
-     * @experimental save-files-v2
-     * @beta
      */
     readonly recipes: RecipesApi;
     /**

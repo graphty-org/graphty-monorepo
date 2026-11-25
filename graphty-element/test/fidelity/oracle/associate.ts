@@ -2350,14 +2350,26 @@ export function arrowheadEdge(
         ? Math.max(...nodes.map((m) => (m.order !== undefined && m.order < p.index ? m.order : -1)))
         : Number.NEGATIVE_INFINITY;
     const laterDrawn = (n: PNode): boolean => n.order !== undefined && n.order < lastBefore;
+    // a program draws a node's pieces next to its body: a shape under half the node's length, drawn before another
+    // node's body that comes before this node's, is no piece of this node (cx2-signor-aml: Cytoscape desktop draws every
+    // line and head before the nodes, and 39 -> 38's head, lying under the flat mir-143 box drawn over it, was read as
+    // that box's and left a stray). A compound's body drawn before its children (json-cyjs-synth-edges), or a border as
+    // long as its node drawn well before it (cx2-wp1449-tlr 137071), still is.
+    const firstAfter = Math.min(...nodes.map((m) => (m.order !== undefined && m.order > p.index ? m.order : Infinity)));
+    const drawnApart = (n: PNode): boolean =>
+        n.order !== undefined &&
+        n.order > firstAfter &&
+        size < 0.5 * Math.max(n.w, n.h) &&
+        !within(boxOfNode(n), p.box);
     if (
         !lineEnd &&
         !armsOnly &&
         nodes.some(
             (n) =>
-                (!laterDrawn(n) && inside([n.cx, n.cy], p.box)) ||
-                // its middle on the outline is its line's end, not the node's inside (yEd's transparent_circle)
-                (inside(c, boxOfNode(n), -ON_OUTLINE_PX) && size >= 0.5 * Math.sqrt(n.w * n.h)),
+                !drawnApart(n) &&
+                ((!laterDrawn(n) && inside([n.cx, n.cy], p.box)) ||
+                    // its middle on the outline is its line's end, not the node's inside (yEd's transparent_circle)
+                    (inside(c, boxOfNode(n), -ON_OUTLINE_PX) && size >= 0.5 * Math.sqrt(n.w * n.h))),
         )
     ) {
         return null;
@@ -3941,10 +3953,12 @@ export function associate(
     // A line between two nodes drawn on one another runs between their outlines, which cross: which of its ends is
     // the source's its ends do not say (cx-radiation-bibliography 30 -> 44, a hexagon and a round rectangle that
     // overlap, drawn from 30's outline back to 44's, was read as 44 -> 30). The way graphty runs the edge does, where
-    // it runs it one way only; the line and its arrowheads keep their own ends.
+    // it runs it one way only; the line and its arrowheads keep their own ends. So for two nodes whose drawn borders
+    // overlap though their boxes do not (cx-radiation-bibliography 125 -> 768: round rectangles 0.5 px apart under
+    // 1.6 px borders, a 1.1 px line between them drawn from 125's border back to 768's, was read as 768 -> 125).
     const orientOverlapping = ([a, b]: [PNode, PNode]): [PNode, PNode] =>
         a !== b &&
-        boxGap(boxOfNode(a), boxOfNode(b)) <= 0 &&
+        boxGap(boxOfNode(a), boxOfNode(b)) <= ((a.stroke?.width ?? 0) + (b.stroke?.width ?? 0)) / 2 &&
         guideWays.has(`${b.id}\u0000${a.id}`) &&
         !guideWays.has(`${a.id}\u0000${b.id}`)
             ? [b, a]
@@ -4155,6 +4169,18 @@ export function associate(
             caps += !end && Math.max(bw(q.box), bh(q.box)) > dot ? 1 : 0;
         }
         const reach = Math.max(OWN_HEAD_REACH, Number.isFinite(swing) ? swing : 0);
+        // a line under a pixel long lies inside its head's box at both ends: the head caps the end it runs on past,
+        // its middle beyond that end along the line (cx-radiation-bibliography 141 -> 142: a 0.015 px line between
+        // overlapping nodes, its 5.4 px head running on from its target end, was read as a middle head)
+        const pastEnd = (h: Prim, end: Pt, other: Pt): boolean => {
+            const len = Math.hypot(end[0] - other[0], end[1] - other[1]);
+            const m = areaCentroid(h.points) ?? [cx(h.box), cy(h.box)];
+            return (
+                len > 1e-9 &&
+                len < 1 &&
+                ((m[0] - other[0]) * (end[0] - other[0]) + (m[1] - other[1]) * (end[1] - other[1])) / len > len
+            );
+        };
         const by = (end: Pt, other: Pt): Prim[] =>
             // by its outline: a half arrow leaning off its line has a box nearer the far end, if the line is short
             // (cx-syn-mappings 408->414: a 33 px line under a 86 px barb); a shape along the whole line, at both its ends,
@@ -4163,7 +4189,9 @@ export function associate(
                 (h) =>
                     toBox(end, h.box) <= reach &&
                     toOutline(end, h.points) < toOutline(other, h.points) &&
-                    (toBox(end, h.box) < toBox(other, h.box) || toOutline(other, h.points) > reach),
+                    (toBox(end, h.box) < toBox(other, h.box) ||
+                        toOutline(other, h.points) > reach ||
+                        pastEnd(h, end, other)),
             );
         return [by(a, b), by(b, a)];
     };

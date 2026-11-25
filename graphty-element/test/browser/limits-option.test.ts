@@ -212,10 +212,10 @@ describe("the limits option", () => {
         await element.session.data.addNodes(nodes(31));
         await element.session.data.addEdges(Array.from({ length: 30 }, (_, i) => ({ src: "n0", dst: `n${i + 1}` })));
         await element.session.styles.add({
-            name: "arrowed",
+            name: "tailed",
             target: "edge",
             selector: { match: "everything" },
-            set: { "edge.arrowHead": "normal" },
+            set: { "edge.arrowTail": "normal" },
         } as never);
         await operationQueueOf(element.graph).waitForCompletion();
         await element.waitForStableFrame();
@@ -255,10 +255,10 @@ describe("the limits option", () => {
         const seen = heard(element);
         element.limits = { objectEdges: 5 };
         await element.session.styles.add({
-            name: "arrowed",
+            name: "tailed",
             target: "edge",
             selector: { match: "everything" },
-            set: { "edge.arrowHead": "normal" },
+            set: { "edge.arrowTail": "normal" },
         } as never);
 
         for (let load = 0; load < 2; load++) {

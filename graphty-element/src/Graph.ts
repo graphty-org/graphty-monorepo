@@ -41,7 +41,24 @@ import type { GraphSceneMetadata } from "./types/sceneMetadata";
 
 const graphLogger: Logger = GraphtyLogger.getLogger(["graphty", "graph"]);
 
+/**
+ * Whether an engine draws on a WebGL1 context, which compiles no GLSL ES 3.00 shader.
+ * @param engine - The engine.
+ * @returns True for WebGL1; false for WebGL2, WebGPU and NullEngine.
+ */
+function isWebGL1(engine: AbstractEngine): boolean {
+    return engine instanceof Engine && !(engine instanceof NullEngine) && engine.webGLVersion < 2;
+}
+
 /** One {@link Graph.waitForStableFrame} call: whether it gave up, and how to stop its current round. */
+/** The parts of a click's pointer event that decide what it does to the selection. */
+interface ClickModifiers {
+    button?: number;
+    shiftKey?: boolean;
+    ctrlKey?: boolean;
+    metaKey?: boolean;
+}
+
 interface StableFrameWait {
     gaveUp: boolean;
     stop: (() => void) | undefined;
@@ -176,6 +193,7 @@ import {
     type ReducedMotionChangedEvent,
     type RenderLostEvent,
     type RenderRestoredEvent,
+    type RenderWarningEvent,
     type TourEndedEvent,
     type TourProgressEvent,
     type XRMenuSelectEvent,
@@ -234,9 +252,9 @@ import {
 import { bootstrapEdgePaint, bootstrapNodePaint } from "./managers/StylePainter";
 import { columnCenter, type ColumnFraming } from "./managers/UpdateManager";
 import { AnnotationMeshes } from "./meshes/AnnotationMeshes";
-import { arrowCapMeshes } from "./meshes/ArrowCapBatch";
+import { arrowCapMeshes, pulledCapHosts } from "./meshes/ArrowCapBatch";
 import { edgeDrawPlace } from "./meshes/EdgeLineBatch";
-import { EdgeRowLines } from "./meshes/EdgeRowLines";
+import { EdgeRowLines, pulledLineSortsWith } from "./meshes/EdgeRowLines";
 import { payLabelAnimations } from "./meshes/labelAnimationDebt";
 import { closeRectOnScreen, hasCloseLabels, inRect, isCloseLabel } from "./meshes/labelClose";
 import { labelFontsLoading, watchFontLoads } from "./meshes/labelFonts";
@@ -264,6 +282,7 @@ import {
 } from "./meshes/NodeThumbnail";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { type Antialias, type LeanLines, pulledEdgesDefault } from "./meshes/PulledLineBatch";
+import { onRewriteMissed } from "./meshes/RowPullPlugin";
 import { loadChunk, loadModel, ModelLoadFailure } from "./models/loadModel";
 import { type ModelTemplate, optionsOf } from "./models/ModelCache";
 import { TextureCache } from "./models/TextureCache";
@@ -328,6 +347,7 @@ import { loadLineOf, type LoadTurn } from "./session/loadLine";
 import type { SessionCommand } from "./session/planning";
 import {
     cancelReasonOf,
+    type Dispatcher,
     type DispatchFunction,
     queueScheduler,
     type TransactionOptions as DispatcherTransactionOptions,
@@ -1092,6 +1112,8 @@ export class Graph implements GraphContext {
     #renderPath: RenderPath = renderPathDefault.value;
     /** The ceilings asked for through `limits`, and those in force on this render path. */
     readonly #limits = new RenderLimits(this.#renderPath === "batched");
+    /** Whether the log was told that WebGL1 draws `"batched"` as objects; see `#batchesDraw`. */
+    #warnedWebGL1 = false;
     /** The node batches, once the renderer is open on the `"batched"` path. */
     #nodeBatches: NodeBatches | null = null;
     /** Edge rows drawn with no `Edge`, on the `"batched"` path (`EdgeRowLines`). */
@@ -1190,7 +1212,14 @@ export class Graph implements GraphContext {
      * Asked each frame, so a live path change takes effect on the next one.
      * @returns True under renderPath "batched".
      */
-    readonly #batchedFrames = (): boolean => this.#renderPath === "batched";
+    readonly #batchedFrames = (): boolean => this.#batchesDraw();
+    /**
+     * Whether rows are drawn in batches: under renderPath "batched", on an engine that compiles
+     * their GLSL ES 3.00 shaders. A WebGL1 context does not, so there every row is drawn as an
+     * object, as `rowCounts` says (#10022). Asked each time, so it follows the engine WebGPU replaces.
+     * @returns True while batches draw.
+     */
+    readonly #batchesDraw = (): boolean => this.#renderPath === "batched" && !isWebGL1(this.engine);
     /**
      * Whether the render loop multisamples only the frame a still scene rests on: `antialias` is
      * `"at-rest"`. Asked each frame, so a change takes effect on the next one.
@@ -1240,6 +1269,11 @@ export class Graph implements GraphContext {
      * it is why every data question this class answers is forwarded rather than computed.
      */
     private readonly session: ElementSession;
+    /**
+     * The session's dispatcher once looked up: {@link Graph.is2D} and the configuration document are read for every
+     * edge placed, every frame a layout moves (issue #9420), and a weak map lookup each time showed in the profile.
+     */
+    #dispatcher: Dispatcher | undefined;
     /** The queue loads, layouts, runs and style passes take their turn in; see {@link operationQueueOf}. */
     private readonly operationQueue: OperationQueueManager;
 
@@ -1383,6 +1417,10 @@ export class Graph implements GraphContext {
             antialiasAtRest: this.#antialiasAtRest,
             preserveDrawingBuffer: this.preserveDrawingBuffer,
         });
+        // A shader WebGL refuses is reported as WebGPU's are; WebGPU's own engine is watched once it opens.
+        if (!(this.renderManager.engine instanceof NullEngine)) {
+            this.watchShaderCompiles(this.renderManager.engine);
+        }
 
         this.basemapManager = new BasemapManager(
             () => this.scene,
@@ -1413,7 +1451,7 @@ export class Graph implements GraphContext {
         this.dataManager = new DataManager(this.eventManager, this.styles);
         this.dataManager.renderLimits = {
             ceilings: () => this.#limits.overrides,
-            batched: () => this.#renderPath === "batched",
+            batched: this.#batchesDraw,
             objectRows: () => this.#limits.effective.objectRows,
             objectEdges: () => this.#limits.effective.objectEdges,
             objectCap: (of, wanted, cap) => {
@@ -1479,7 +1517,7 @@ export class Graph implements GraphContext {
                 // Late-bound on purpose: a change of renderer replaces the render manager.
                 renderedFrame: () => this.renderManager.frameDrawn(),
                 // Under "batched" only, the repaint fills a uniform dirty set's mesh keys at once.
-                batched: () => this.#renderPath === "batched",
+                batched: this.#batchesDraw,
                 nodeSizeSpace: () => this.styles.config.behavior.node.sizeSpace,
                 darkScheme: () => this.#darkScheme,
                 layoutHidden: () => this.#layoutHidden,
@@ -2875,18 +2913,25 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Reports a shader the GLSL compiler stops on. Babylon.js 9 hands the effect a rejection of its
-     * async compile as it would a synchronous failure, so everything listening to the effect hears
-     * as it does under WebGL; this reports it. An effect with its own `onError` is the shader
-     * check's, which has its own report. (Babylon 8 dropped the rejection, and this wrapped the
-     * engine's compile to tell the effect.)
+     * Reports a shader the GLSL compiler stops on, under WebGL and WebGPU alike: a refused shader
+     * never draws, and nothing else says so (#10022). Babylon.js 9 hands a WebGPU effect a rejection
+     * of its async compile as it would a synchronous failure, so everything listening to the effect
+     * hears as it does under WebGL. An effect with its own `onError` is the shader check's, which
+     * has its own report. A batch shader one of `RowPullPlugin`'s edits missed still draws, so it is
+     * a `render-warning` with `W_SHADER_EDIT_MISSED` (#10025), and drawing is left alone.
      * @param engine - The engine that compiles the graph's shaders.
      */
-    private watchShaderCompiles(engine: WebGPUEngine): void {
+    private watchShaderCompiles(engine: AbstractEngine): void {
         engine.onEffectErrorObservable.add(({ effect, errors }) => {
             if (!effect.onError) {
                 this.reportRefusedShader("compiler", [errors]);
             }
+        });
+        onRewriteMissed(engine, (patterns) => {
+            this.eventManager.emit("render-warning", {
+                code: "W_SHADER_EDIT_MISSED",
+                params: { renderer: engine.isWebGPU ? "webgpu" : "webgl", patterns },
+            } satisfies Omit<RenderWarningEvent, "type">);
         });
     }
 
@@ -2902,7 +2947,7 @@ export class Graph implements GraphContext {
 
         const error = new GraphtyError({
             code: "E_SHADER_REFUSED",
-            message: `the WebGPU ${stage} refused a shader, so it is not drawn: ${messages.join("; ")}`,
+            message: `the ${this.engine.isWebGPU ? "WebGPU" : "WebGL"} ${stage} refused a shader, so it is not drawn: ${messages.join("; ")}`,
             source: "view",
             recoverable: false,
             details: { stage, messages },
@@ -3154,6 +3199,14 @@ export class Graph implements GraphContext {
         });
         // No frame is drawn while an element built from the defaults waits for its style.
         this.renderManager.drawHeld = (): boolean => this.dataManager.drawHeld;
+        // A consumer's own light reaches the nodes a batch draws, as it reaches the objects path's.
+        const relight = (): void => {
+            this.renderManager.relightBatches();
+            // A frozen list of what is drawn skips each mesh's material check (#9246).
+            this.updateManager.thawActiveMeshes();
+        };
+        this.scene.onNewLightAddedObservable.add(relight);
+        this.scene.onLightRemovedObservable.add(relight);
     }
 
     /**
@@ -3721,6 +3774,15 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * The session's dispatcher, looked up once (see `#dispatcher`).
+     * @returns The dispatcher.
+     */
+    private dispatcher(): Dispatcher {
+        this.#dispatcher ??= dispatcherOf(this.session);
+        return this.#dispatcher;
+    }
+
+    /**
      * The configuration document `styles.config` reads: frozen, merged from the project settings
      * and the view settings, and rebuilt only when one of them has changed since the last read,
      * so two reads with no change between them return the same object.
@@ -3734,7 +3796,7 @@ export class Graph implements GraphContext {
             return this.mergeConfig(DEFAULT_PROJECT, DEFAULT_LAYOUT);
         }
 
-        const dispatcher = dispatcherOf(session);
+        const dispatcher = this.dispatcher();
         const writes = dispatcher.lane.writes("config");
         const layout = dispatcher.lane.writes("layout");
         let cache = this.configCache;
@@ -5468,8 +5530,8 @@ export class Graph implements GraphContext {
         }
 
         this.#renderPath = path;
-        this.#limits.honor(path === "batched");
-        if (path === "objects") {
+        this.#limits.honor(this.#batchesDraw());
+        if (!this.#batchesDraw()) {
             this.#warnLimitsIgnored();
         }
 
@@ -5580,7 +5642,22 @@ export class Graph implements GraphContext {
 
     /** Open or close the batches to match the path. Proxies stay, so neither way rebuilds a row. */
     #applyRenderPath(): void {
-        const batched = this.#renderPath === "batched" && !(this.engine instanceof NullEngine);
+        const batched = this.#batchesDraw() && !(this.engine instanceof NullEngine);
+        // On WebGL1 the ceilings asked for are not in force: every row is an object there. Said only
+        // when that is news: `setRenderPath` and `setLimits` already said it for a path they set aside.
+        const wasIgnored = this.#limits.ignored;
+        this.#limits.honor(this.#batchesDraw());
+        if (!wasIgnored) {
+            this.#warnLimitsIgnored();
+        }
+
+        if (this.#renderPath === "batched" && isWebGL1(this.engine) && !this.#warnedWebGL1) {
+            this.#warnedWebGL1 = true;
+            graphLogger.warn('renderPath "batched" needs WebGL2 or WebGPU: every row is drawn as an object', {
+                renderPath: "objects",
+            });
+        }
+
         // Pulled edges read node places from the row table (`PulledLineBatch`).
         if (pulledEdgesDefault.value && !(this.engine instanceof NullEngine)) {
             this.openRowTable();
@@ -5588,6 +5665,19 @@ export class Graph implements GraphContext {
 
         if (batched && this.#nodeBatches === null) {
             const places = this.openRowTable();
+            // the scene's cap batches draw arrowheads pulled from the row table too (`ArrowCapBatch.setPulled`)
+            pulledCapHosts.set(this.scene, {
+                rows: places,
+                settled: () => !this.isRunning() || this.layoutManager.layoutEngine?.isSettled !== false,
+                placedCaps: (count) => {
+                    // one count an arrowhead placed and its edge's ends found, as an object edge counts its own
+                    for (const counter of [this.statsManager.arrowCapUpdate, this.statsManager.intersectCalc]) {
+                        for (let at = 0; at < count; at++) {
+                            counter.fetchNewFrame();
+                        }
+                    }
+                },
+            });
             this.#nodeBatches = new NodeBatches(
                 {
                     cache: this.dataManager.meshCache,
@@ -5623,7 +5713,9 @@ export class Graph implements GraphContext {
 
                         this.renderManager.requestFrame();
                     },
-                    resized: () => {
+                    resized: (row) => {
+                        // a `Node` resized has its edges measured again (`remeasureEdgesOf`); a row has no `Node` to say so (#9857)
+                        this.updateManager.placeEdgesOfRow(row);
                         if (this.layoutManager.layoutEngine?.wakeForResize() === true) {
                             this.layoutManager.running = true;
                         }
@@ -5639,6 +5731,7 @@ export class Graph implements GraphContext {
                 requestFrame: () => {
                     this.renderManager.requestFrame();
                 },
+                settled: () => !this.isRunning() || this.layoutManager.layoutEngine?.isSettled !== false,
             });
             const batches = this.#nodeBatches;
             const target = new NodeIdTarget(this.scene, {
@@ -5666,6 +5759,7 @@ export class Graph implements GraphContext {
             });
             useEdgeIdTarget(this.scene, this.#edgeIds);
         } else if (!batched && this.#nodeBatches !== null) {
+            pulledCapHosts.delete(this.scene);
             useEdgeIdTarget(this.scene, null);
             this.#edgeIds?.dispose();
             this.#edgeIds = null;
@@ -5780,7 +5874,7 @@ export class Graph implements GraphContext {
     getDrawnTarget(): DrawnTarget | null {
         const { engine } = this;
         const table = this.#rowTable;
-        if (this.#renderPath !== "batched" || table === null) {
+        if (!this.#batchesDraw() || table === null) {
             return null;
         }
 
@@ -6022,7 +6116,7 @@ export class Graph implements GraphContext {
         // Under "batched" it waits for the first object row's mesh: until a mesh has an action,
         // Babylon runs no pick on a move (design/rendering/row-renderer.md 4.4).
         nodePointerRosterOf(this.scene);
-        if (this.#renderPath !== "batched") {
+        if (!this.#batchesDraw()) {
             nodeActionManagerOf(this.scene);
         }
 
@@ -6095,14 +6189,12 @@ export class Graph implements GraphContext {
     /**
      * A click on the canvas. A click on a node is the node's own handler's. On a label with a
      * close button it deselects only on the x, and anywhere else on that label does nothing. On
-     * an edge it selects the edge (Shift adds it); on empty canvas it clears the selection. A
+     * an edge it selects the edge (Shift adds it; Ctrl or Cmd adds it or takes it out); on empty canvas it clears the selection. A
      * right-click asks for a menu about the selection, so it keeps a selection that holds its
      * edge, and on empty canvas it clears nothing.
-     * @param event - The pointer event: which button, and whether Shift was held.
-     * @param event.button - The mouse button; 2 is the secondary one.
-     * @param event.shiftKey - Whether Shift was held.
+     * @param event - The pointer event: which button, and which modifier keys were held.
      */
-    private handleBackgroundClick(event: { button?: number; shiftKey?: boolean }): void {
+    private handleBackgroundClick(event: ClickModifiers): void {
         const { pointerX: x, pointerY: y } = this.scene;
         if (this.handledOnCloseLabel(x, y)) {
             return;
@@ -6136,15 +6228,8 @@ export class Graph implements GraphContext {
      * @param x - The pointer's x on the canvas.
      * @param y - The pointer's y on the canvas.
      * @param event - The pointer event.
-     * @param event.button - The mouse button; 2 is the secondary one.
-     * @param event.shiftKey - Whether Shift was held.
      */
-    private clickAt(
-        edgeId: EdgeId | undefined,
-        x: number,
-        y: number,
-        event: { button?: number; shiftKey?: boolean },
-    ): void {
+    private clickAt(edgeId: EdgeId | undefined, x: number, y: number, event: ClickModifiers): void {
         const secondary = event.button === 2;
         if (edgeId === undefined) {
             const outline = this.renderManager.pickGroupOutline(x, y);
@@ -6158,8 +6243,13 @@ export class Graph implements GraphContext {
         }
 
         if (!(secondary && this.session.selection.edges.includes(edgeId))) {
-            const add = event.shiftKey === true;
-            this.session.selection.applyNow({ edges: [edgeId] }, add ? "add" : "replace", "user");
+            let op: "toggle" | "add" | "replace" = "replace";
+            if (event.ctrlKey === true || event.metaKey === true) {
+                op = "toggle";
+            } else if (event.shiftKey === true) {
+                op = "add";
+            }
+            this.session.selection.applyNow({ edges: [edgeId] }, op, "user");
         }
         this.session.elementClick({ edge: edgeId });
     }
@@ -6271,7 +6361,7 @@ export class Graph implements GraphContext {
      * @returns "2d" or "3d".
      */
     private dimension(): "2d" | "3d" {
-        return (dispatcherOf(this.session).state.layout ?? DEFAULT_LAYOUT).dimension;
+        return (this.dispatcher().state.layout ?? DEFAULT_LAYOUT).dimension;
     }
 
     /**
@@ -6558,7 +6648,17 @@ export class Graph implements GraphContext {
             (then: (a: SubMesh, b: SubMesh) => number) =>
             (a: SubMesh, b: SubMesh): number =>
                 rank(a.getMesh()) - rank(b.getMesh()) || lineOrder(a.getMesh(), b.getMesh()) || then(a, b);
-        const opaque = byRank((a, b) => RenderingGroup.PainterSortCompare(a, b));
+        // a 2D pulled line batch draws where the line batch of its width does (`pulledLineSortsWith`), just after it
+        const painter = (a: SubMesh, b: SubMesh): number => {
+            const [ma, mb] = [a.getMesh(), b.getMesh()];
+            const [pa, pb] = [pulledLineSortsWith.get(ma) ?? ma, pulledLineSortsWith.get(mb) ?? mb];
+            if (pa === pb) {
+                return Number(pa !== ma) - Number(pb !== mb);
+            }
+
+            return pa.material && pb.material ? pa.material.uniqueId - pb.material.uniqueId : pa.uniqueId - pb.uniqueId;
+        };
+        const opaque = byRank(painter);
         this.scene.setRenderingOrder(
             0,
             opaque,
@@ -7149,12 +7249,20 @@ export class Graph implements GraphContext {
         // The cache took every row's source with it: each row drawn with no `Node` is painted
         // again onto the new dimension's source at the next frame.
         const painter = this.getStylePainter();
-        for (const row of dataManagerInternals.unbuiltRows(this.dataManager)) {
+        const unbuilt = dataManagerInternals.unbuiltRows(this.dataManager);
+        for (const row of unbuilt) {
             painter.queue("node", row);
         }
 
         for (const row of lineRows) {
             painter.queue("edge", row);
+        }
+
+        // No frame draws until every row queued here is drawn on its new source: a frame drawn part
+        // way, when the repaint is split across frames, showed every edge and a few nodes (#9866).
+        // Only the batched path has such rows; every `Node` and `Edge` was drawn again above.
+        if (unbuilt.length > 0 || lineRows.length > 0) {
+            this.dataManager.notePaintQueued();
         }
 
         this.updateManager.meshesAdded();
@@ -11823,6 +11931,9 @@ export class Graph implements GraphContext {
             // for `view.immersive` with `null` (`xrSessionEnded`).
             onSessionEnded: ({ mode, cause }) => {
                 this.xrSessionEnded(mode === "immersive-vr" ? "vr" : "ar", cause);
+            },
+            onFrameError: (error) => {
+                this.eventManager.emitGraphError(this, error, "xr", error.details);
             },
         };
     }

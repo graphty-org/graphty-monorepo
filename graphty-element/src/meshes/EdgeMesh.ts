@@ -17,6 +17,7 @@ import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder.js";
 import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { EdgeStyleConfig } from "../config";
+import { drawnText } from "../config/RichTextStyle";
 import { EDGE_CONSTANTS } from "../constants/meshConstants";
 import { animatesEveryFrame } from "../managers/everyFrameAnimations";
 import type { GraphSceneMetadata } from "../types/sceneMetadata";
@@ -72,7 +73,7 @@ interface EdgeMeshOptions {
     color: string;
 }
 
-interface ArrowHeadOptions {
+export interface ArrowHeadOptions {
     type?: string;
     width: number;
     color: string;
@@ -219,6 +220,71 @@ function openLook(
     return { stroke, fill, key: `${widthKey}${strokeKey}${fillKey}` };
 }
 
+/** The cap types the billboard shader draws in 3D, besides `FilledArrowRenderer.POLYGON_ARROWS`. */
+const BILLBOARD_ARROWS = new Set([
+    "normal",
+    "inverted",
+    "diamond",
+    "box",
+    "dot",
+    "vee",
+    "tee",
+    "half-open",
+    "crow",
+    "open-normal",
+    "open-diamond",
+    "open-dot",
+]);
+
+/** The half of a cap kept on one side of its line, or undefined for the whole cap. */
+type CapSide = "left" | "right" | undefined;
+
+/**
+ * A cap's width across its line and the side it is cut to, and the batch key they make: a batch holds one geometry,
+ * so a cap drawn at another width or on one side is a batch of its own.
+ * @param options - The cap's options.
+ * @param length - Its length in scene units.
+ * @returns Its breadth, side and key.
+ */
+function capWidth(options: ArrowHeadOptions, length: number): { breadth: number; side: CapSide; widthKey: string } {
+    // a stem is as wide as its line: `outline`'s scene units over its length
+    const breadth =
+        options.type === "stem" ? Math.round((options.width / 40 / length) * 1000) / 1000 : (options.breadth ?? 1);
+    const { side } = options;
+    const breadthKey = breadth === 1 ? "" : `|w${String(breadth)}`;
+    const sideKey = side === undefined ? "" : `|${side}`;
+    return { breadth, side, widthKey: `${breadthKey}${sideKey}` };
+}
+
+/**
+ * {@link openLook}, with the maker of an open cap's outline mesh (null for a filled cap).
+ * @param type - The cap's type.
+ * @param options - Its options.
+ * @param length - Its length in scene units.
+ * @param scene - The scene.
+ * @returns Its inside color, its batch key and its outline's maker.
+ */
+function openShape(
+    type: string,
+    options: ArrowHeadOptions,
+    length: number,
+    scene: Scene,
+): { fill: string | undefined; key: string; open: () => Mesh | null } {
+    const { breadth, widthKey } = capWidth(options, length);
+    const { stroke, fill, key } = openLook(type, options, length, widthKey);
+    const open = (): Mesh | null =>
+        stroke === undefined && fill === undefined
+            ? null
+            : FilledArrowRenderer.createOpenOutline(
+                  type,
+                  scene,
+                  stroke ?? FilledArrowRenderer.FILLED_FRAME,
+                  breadth,
+                  fill !== undefined,
+              );
+    return { fill, key, open };
+}
+
 /**
  * How far back from its tip the line under a half barb stops, as a share of the cap: where Cytoscape 3.10.5 stops the
  * line under its HALF_TOP and HALF_BOTTOM (`HalfTopArrow.getTOffset()` 0.5 of the arrow's size from the node, its
@@ -229,7 +295,7 @@ function openLook(
  */
 const CYTOSCAPE_HALF_TOP_STOP = (0.5 - 0.3) / 1.135;
 
-interface ArrowGeometry {
+export interface ArrowGeometry {
     /** Whether arrow uses center positioning (sphere-like) or tip positioning (triangular) */
     positioningMode: "center" | "tip";
     /** Whether arrow mesh needs rotation to align with edge direction */
@@ -521,15 +587,7 @@ export class EdgeMesh {
                             minScreenWidth: style.line?.minScreenWidth,
                             fade,
                             opaque,
-                            pattern:
-                                dashArray === null
-                                    ? this.joinedPattern(lineType as JoinedPatternKind, width, style)
-                                    : {
-                                          kind: "dash",
-                                          elementLength: width * dashArray[0],
-                                          gap: width * (dashArray.reduce((a, b) => a + b, 0) - dashArray[0]),
-                                          dashes: dashArray.map((d) => d * width),
-                                      },
+                            pattern: this.pulledPattern(style, options.width) ?? undefined,
                         },
                         scene,
                     ),
@@ -567,6 +625,35 @@ export class EdgeMesh {
         }
 
         return cache.getBatch(key, staticLine, scene);
+    }
+
+    /**
+     * The pattern a joined line draws in its shader: the object path's (`lineBatch`), and a pulled straight line's on
+     * renderPath "batched": a dash, dot, box, diamond or star line, or a dash array. Undefined for a solid line.
+     * @param style - The resolved style.
+     * @param width - The line's width, as `EdgeMeshOptions` has it.
+     * @returns The pattern, or null for a line type no joined line draws (one drawn as pattern elements).
+     */
+    static pulledPattern(style: EdgeStyleConfig, width: number): JoinedLineOptions["pattern"] | null {
+        const lineType = style.line?.type ?? "solid";
+        const dashArray = this.dashArrayOf(style);
+        const world = width / 40;
+        if (dashArray !== null) {
+            return {
+                kind: "dash",
+                elementLength: world * dashArray[0],
+                gap: world * (dashArray.reduce((a, b) => a + b, 0) - dashArray[0]),
+                dashes: dashArray.map((d) => d * world),
+            };
+        }
+
+        if (lineType === "solid") {
+            return undefined;
+        }
+
+        return Object.hasOwn(JOINED_PATTERN_KINDS, lineType)
+            ? this.joinedPattern(lineType as JoinedPatternKind, world, style)
+            : null;
     }
 
     /**
@@ -668,6 +755,9 @@ export class EdgeMesh {
         edge: { loop?: boolean; route?: NonNullable<EdgeStyleConfig["line"]>["route"]; lean?: LeanLines } = {},
     ): PulledLineBatch {
         const { loop = false, route = style.line?.route, lean = false } = edge;
+        // a patterned line is a straight line (`Edge.pullsLine`, `EdgeRowLines.drawsStyle`), never lean: the lean
+        // program draws no pattern
+        const pattern = this.pulledPattern(style, options.width) ?? undefined;
         // The pass is the mesh's, so every edge in one batch must want the same one: an unblended
         // line (blending false) neither blends in place nor goes in the transparent pass.
         const pass = this.pulledPass(style);
@@ -680,7 +770,7 @@ export class EdgeMesh {
         const flat = this.drawsFlat(scene);
         // An unblended line (blending false) is painted at full alpha, which would throw the smoothed
         // edge away and leave the widened rectangle solid: it takes the plain lean program instead.
-        let leanLine: LeanLines = curve ? false : lean;
+        let leanLine: LeanLines = curve || pattern !== undefined ? false : lean;
         if (leanLine === "smooth" && pass === "unblended") {
             leanLine = true;
         }
@@ -694,11 +784,15 @@ export class EdgeMesh {
             suffix = `|${kind}`;
         }
 
-        const key = `edge-pulled|${String(style.line?.minScreenWidth ?? 0)}|${pass}${suffix}${flat ? "|2d" : ""}`;
+        const patterned = pattern === undefined ? "" : `|pattern|${JSON.stringify(pattern)}`;
+        // a 2D batch a width, as an `Edge`'s line batch is (`EdgeMesh.lineBatch`), so it can draw where that batch
+        // draws (`pulledLineSortsWith`)
+        const width = flat ? `|w${String(options.width)}` : "";
+        const key = `edge-pulled|${String(style.line?.minScreenWidth ?? 0)}${width}|${pass}${suffix}${flat ? "|2d" : ""}${patterned}`;
         return cache.getPulledBatch(key, () => {
             const mesh = flat
-                ? this.createFlatPulledLine(options, style, scene, leanLine)
-                : this.createStaticLine(options, style, scene, false, kind);
+                ? this.createFlatPulledLine(options, style, scene, leanLine, pattern)
+                : this.createStaticLine(options, style, scene, false, kind, pattern);
             // The rows are in graph-root's space, as a line batch's slots are.
             mesh.parent = scene.getTransformNodeByName("graph-root");
             return new PulledLineBatch(
@@ -707,8 +801,8 @@ export class EdgeMesh {
                 () => rows().positionTexture,
                 curve,
                 leanLine === false ? undefined : LEAN_TEMPLATE,
-                kind === true,
-                curve ? null : rows,
+                kind === true && pattern === undefined,
+                rows,
             );
         });
     }
@@ -720,6 +814,7 @@ export class EdgeMesh {
      * @param style - The resolved style.
      * @param scene - The scene.
      * @param lean - Whether it draws the lean program (`EDGE_PULLED_LEAN`), as a straight 3D batch does.
+     * @param pattern - A dashed or dotted line's pattern, as the 2D joined line draws it (`lineBatch`).
      * @returns The mesh.
      */
     private static createFlatPulledLine(
@@ -727,6 +822,7 @@ export class EdgeMesh {
         style: EdgeStyleConfig,
         scene: Scene,
         lean: LeanLines,
+        pattern?: JoinedLineOptions["pattern"],
     ): Mesh {
         return CustomLineRenderer.createJoinedLineMesh(
             {
@@ -738,6 +834,7 @@ export class EdgeMesh {
                 opaque: this.drawsOpaque(style),
                 pulled: true,
                 pulledLean: lean,
+                pattern,
             },
             scene,
         );
@@ -816,14 +913,7 @@ export class EdgeMesh {
 
         const opacity = options.opacity ?? 1;
         const length = this.calculateArrowLength() * size;
-        // a stem is as wide as its line: `outline`'s scene units over its length
-        const breadth =
-            options.type === "stem" ? Math.round((options.width / 40 / length) * 1000) / 1000 : (options.breadth ?? 1);
-        const { side } = options;
-        // A batch holds one geometry, so a cap drawn at another width or on one side is a batch of its own.
-        const breadthKey = breadth === 1 ? "" : `|w${String(breadth)}`;
-        const sideKey = side === undefined ? "" : `|${side}`;
-        const widthKey = `${breadthKey}${sideKey}`;
+        const { breadth, side, widthKey } = capWidth(options, length);
 
         // AN IMAGE CAP IS ITS PICTURE on a flat quad, drawn by a StandardMaterial that holds the
         // texture, so it is a batch per picture and is laid in the XY plane turned along its line in
@@ -847,22 +937,7 @@ export class EdgeMesh {
 
         // Arrow type routing:
         // All arrows use FilledArrowRenderer (unified implementation)
-        const FILLED_ARROWS = [
-            "normal",
-            "inverted",
-            "diamond",
-            "box",
-            "dot",
-            "vee",
-            "tee",
-            "half-open",
-            "crow",
-            "open-normal",
-            "open-diamond",
-            "open-dot",
-            "sphere-dot",
-            ...Object.keys(FilledArrowRenderer.POLYGON_ARROWS),
-        ];
+        const FILLED_ARROWS = [...BILLBOARD_ARROWS, "sphere-dot", ...Object.keys(FilledArrowRenderer.POLYGON_ARROWS)];
 
         // A CAP IS A SLOT, NOT A MESH. The note that used to stand here said thin instances had
         // been measured at a 1,147 ms bottleneck, 35 times slower than moving a mesh, and that
@@ -878,17 +953,7 @@ export class EdgeMesh {
             throw new Error(`Unsupported arrow type: ${options.type}`);
         }
 
-        const { stroke, fill, key: openKey } = openLook(arrowType, options, length, widthKey);
-        const open = (): Mesh | null =>
-            stroke === undefined && fill === undefined
-                ? null
-                : FilledArrowRenderer.createOpenOutline(
-                      arrowType,
-                      scene,
-                      stroke ?? FilledArrowRenderer.FILLED_FRAME,
-                      breadth,
-                      fill !== undefined,
-                  );
+        const { fill, key: openKey, open } = openShape(arrowType, options, length, scene);
 
         if (is2D) {
             // StandardMaterial (no shader, XY rotation). Color and opacity live on the material,
@@ -927,7 +992,7 @@ export class EdgeMesh {
         // 3D mode: shader-based billboard arrows; size and color are per instance.
         return FilledArrowRenderer.createArrowCap(
             `${arrowType}${openKey}`,
-            () => sided(open() ?? widened(this.createArrowShape(arrowType, scene), breadth), side),
+            () => this.billboardMesh(arrowType, breadth, side, open, scene),
             {
                 size: length, // World-space length (e.g., 0.5 units)
                 color: options.color,
@@ -937,6 +1002,79 @@ export class EdgeMesh {
             scene,
             reuse,
         );
+    }
+
+    /**
+     * Whether an end draws no cap and no words: a type of "none" or a size of 0 (as {@link EdgeMesh.createArrowHead}
+     * draws nothing for either), and words switched off or absent (`drawnText`).
+     * @param cap - The end's style.
+     * @returns True for none.
+     */
+    static drawsNoCap(cap: EdgeStyleConfig["arrowHead"]): boolean {
+        return (
+            cap === undefined ||
+            (((cap.type ?? "none") === "none" || (cap.size ?? 1) <= 0) && drawnText(cap.text) === undefined)
+        );
+    }
+
+    /**
+     * The batch key of a 3D billboarded cap's shape, as {@link EdgeMesh.createArrowHead} keys it, for a batch that
+     * places its caps on the card (`ArrowCapBatch.setPulled`). Only a cap the billboard shader draws with one material: a
+     * filled or open cap of a known type, with no inside color (`fillColor`), no picture and not a sphere dot.
+     * @param options - The cap's options, as {@link EdgeMesh.createArrowHead} takes them.
+     * @returns Its shape's key, or null for any other cap.
+     */
+    static billboardShapeKey(options: ArrowHeadOptions): string | null {
+        const size = options.size ?? 1;
+        const type = options.type ?? "none";
+        if (
+            size <= 0 ||
+            options.fill !== undefined ||
+            !(BILLBOARD_ARROWS.has(type) || type in FilledArrowRenderer.POLYGON_ARROWS)
+        ) {
+            return null;
+        }
+
+        const length = this.calculateArrowLength() * size;
+        return `${type}${openLook(type, options, length, capWidth(options, length).widthKey).key}`;
+    }
+
+    /**
+     * A 3D billboarded cap's shape ({@link EdgeMesh.billboardShapeKey}): its batch key and its mesh.
+     * @param options - The cap's options, as {@link EdgeMesh.createArrowHead} takes them.
+     * @param scene - The scene.
+     * @returns Its shape's key and a maker of its mesh, or null for any other cap.
+     */
+    static billboardShape(options: ArrowHeadOptions, scene: Scene): { key: string; create: () => Mesh } | null {
+        const key = this.billboardShapeKey(options);
+        const type = options.type ?? "none";
+        if (key === null) {
+            return null;
+        }
+
+        const length = this.calculateArrowLength() * (options.size ?? 1);
+        const { breadth, side } = capWidth(options, length);
+        const { open } = openShape(type, options, length, scene);
+        return { key, create: () => this.billboardMesh(type, breadth, side, open, scene) };
+    }
+
+    /**
+     * A billboarded cap's mesh: its open outline, or its filled shape at its breadth, cut to its side.
+     * @param type - The cap's type.
+     * @param breadth - Its width multiple.
+     * @param side - The side it is cut to, if any.
+     * @param open - Its open outline's maker, null for a filled cap.
+     * @param scene - The scene.
+     * @returns The mesh.
+     */
+    private static billboardMesh(
+        type: string,
+        breadth: number,
+        side: CapSide,
+        open: () => Mesh | null,
+        scene: Scene,
+    ): Mesh {
+        return sided(open() ?? widened(this.createArrowShape(type, scene), breadth), side);
     }
 
     /**
@@ -1071,12 +1209,16 @@ export class EdgeMesh {
         scene: Scene,
         widened = false,
         pulled: boolean | "curve" | "lean" | "smooth" = false,
+        pattern?: JoinedLineOptions["pattern"],
     ): Mesh {
         // A joined line: a straight edge is one piece with square ends, as it always was; a
         // curve's or a bent edge's pieces meet at their corners (design/edges/sharp-corners.md).
         return CustomLineRenderer.createJoinedLineMesh(
             {
-                width: options.width * 20, // Scale factor to match GreasedLine sizing
+                // a pattern's width is in world units, as `lineBatch` gives the object path's patterned line
+                width: pattern === undefined ? options.width * 20 : options.width / 40, // Scale factor to match GreasedLine sizing
+                worldWidth: pattern !== undefined,
+                pattern,
                 color: options.color,
                 opacity: this.opacityOf(style),
                 widened,

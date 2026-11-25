@@ -936,6 +936,10 @@ export interface GraphtyElementJSXProps {
      */
     "onrender-restored"?: (event: CustomEvent<EventOfType<"render-restored">>) => void;
     /**
+     * Emitted when the graph is drawn, but not quite as it should be: the installed Babylon.js words a line of its shaders differently from the one render-path="batched" edits, so batched rows are shaded or placed by Babylon's own line instead (`W_SHADER_EDIT_MISSED`, `params.renderer`, `params.patterns`). `rendererStatus.drawing` is unchanged. A code and facts, never a sentence.
+     */
+    "onrender-warning"?: (event: CustomEvent<EventOfType<"render-warning">>) => void;
+    /**
      * The graph's lifecycle, operation, animation and screenshot events, which carry no declared fields beyond their name; any facts they carry are extra properties.
      */
     "onscreenshot-enhancing"?: (event: CustomEvent<EventOfType<"screenshot-enhancing">>) => void;

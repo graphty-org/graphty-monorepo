@@ -34,9 +34,14 @@ afterEach(() => {
 /**
  * Mount an element with XR on and the given menu.
  * @param menu - The menu's items; undefined for none.
+ * @param path - A render path set before the nodes load; the default when absent.
  */
-async function mount(menu?: XRMenuItem[]): Promise<void> {
+async function mount(menu?: XRMenuItem[], path?: "objects" | "batched"): Promise<void> {
     element = document.createElement("graphty-element");
+    if (path !== undefined) {
+        element.renderPath = path;
+    }
+
     element.style.cssText = "display:block;width:400px;height:300px";
     element.xr = { enabled: true, ui: { enabled: true }, ...(menu === undefined ? {} : { menu }) };
     document.body.append(element);
@@ -149,3 +154,52 @@ test("items set during a session redraw the menu; none takes it down", async () 
     });
     await element.setViewMode("3d");
 });
+
+test.each(["objects", "batched"] as const)(
+    "a press on an item in front of a node picks the item, not the node behind it, %s path",
+    async (path) => {
+        await mount(ITEMS, path);
+        const selected: string[] = [];
+        element.addEventListener("xr-menu-select", (event) => {
+            selected.push(event.detail.id);
+        });
+        await enterVR();
+        await vi.waitFor(() => {
+            assert.deepEqual(menuMeshes(), ["graphty-xr-menu-0", "graphty-xr-menu-1"], "the menu is not drawn");
+        });
+        await pointRightAt("graphty-xr-menu-0");
+
+        // A node on the same ray, two meters past the card.
+        const card = element.graph.scene.getMeshByName("graphty-xr-menu-0");
+        assert.exists(card);
+        const controller = element
+            .getXRSessionManager()
+            ?.getXRHelper()
+            ?.input.controllers.find((source) => source.inputSource.handedness === "right");
+        assert.exists(controller);
+        const ray = new Ray(Vector3.Zero(), Vector3.Forward());
+        controller.getWorldPointerRayToRef(ray);
+        const past = Vector3.Distance(ray.origin, card.getBoundingInfo().boundingSphere.centerWorld) + 2;
+        const behind = ray.origin.add(ray.direction.scale(past));
+        await element.session.data.addNodes([{ id: "behind", position: { x: behind.x, y: behind.y, z: behind.z } }]);
+        // At the data's place: no spread.
+        await element.graph.setLayout("fixed", { dim: 3, spacing: 0 });
+        await operationQueueOf(element.graph).waitForCompletion();
+        await frames();
+
+        await pullRightTrigger();
+        await vi.waitFor(() => {
+            assert.deepEqual(selected, ["layout"]);
+        });
+        assert.deepEqual(element.session.selection.nodes, [], "the press also selected the node behind the card");
+
+        // With the menu down the same press takes the node: it was on the ray, behind the card.
+        element.xr = { ...element.xr, menu: [] };
+        await vi.waitFor(() => {
+            assert.deepEqual(menuMeshes(), [], "the menu stayed with no items");
+        });
+        await pullRightTrigger();
+        assert.deepEqual(element.session.selection.nodes, ["behind"], "the node was not on the ray");
+        await element.setViewMode("3d");
+    },
+);

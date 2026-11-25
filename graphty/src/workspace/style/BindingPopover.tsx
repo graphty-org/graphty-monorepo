@@ -1112,61 +1112,6 @@ function FitToData({ patch }: Readonly<{ patch: (change: Partial<DataBinding>) =
     );
 }
 
-/** The width of a range box beside the histogram: room for "875,538". */
-const RANGE_BOX = 64;
-
-/**
- * Style panel v2: the ramp's range on the histogram's line -- "Values from" before the histogram and "Values to"
- * after it -- so the link dialog takes no row for it (the ramp editor's own row is hidden by `hideRangeFields`).
- * Each box is named by its tooltip and its accessible name.
- * @param props - Component props
- * @param props.domain - the range's two ends
- * @param props.onDomainChange - called with a typed range
- * @param props.children - the ramp editor
- * @returns The line
- */
-function RangeBeside({
-    domain,
-    onDomainChange,
-    children,
-}: Readonly<{
-    domain: [number, number];
-    onDomainChange: (domain: [number, number]) => void;
-    children: React.ReactNode;
-}>): React.JSX.Element {
-    const [low, high] = domain;
-    const box = (label: string, value: number, commit: (typed: number) => void): React.JSX.Element => (
-        <Tooltip label={label}>
-            <Box className="ws-range-beside-box">
-                <ComboInput
-                    label={label}
-                    numeric
-                    variant="outlined"
-                    options={[]}
-                    width={RANGE_BOX}
-                    value={value}
-                    onChange={(typed) => {
-                        if (typeof typed === "number") {
-                            commit(typed);
-                        }
-                    }}
-                />
-            </Box>
-        </Tooltip>
-    );
-    return (
-        <div className="ws-range-beside">
-            {box("Values from", low, (typed) => {
-                onDomainChange([typed, high]);
-            })}
-            <div className="ws-range-beside-ramp">{children}</div>
-            {box("Values to", high, (typed) => {
-                onDomainChange([low, typed]);
-            })}
-        </div>
-    );
-}
-
 /**
  * A numeric binding: the ramp editor, a clamp, and for a stepped scale its steps with counts.
  * @param props - Component props
@@ -1196,8 +1141,11 @@ function Ramp({
     // v2: Scale and Clamp outliers are on lines of their own (RampScale, ClampLine).
     const v2 = stylePanelV2On(session);
     const palettes = session.catalog.palettes().filter((p) => p.kind !== "categorical");
-    const shownPalette = session.styles.legendOf(layerId).find((block) => block.channel === descriptor.channel)
-        ?.palette?.name;
+    const block = session.styles.legendOf(layerId).find((each) => each.channel === descriptor.channel);
+    const shownPalette = block?.palette?.name;
+    // A size's ramp is drawn as a wedge between the two sizes it paints.
+    const sizes: [number, number] | undefined =
+        isColor || block?.range === undefined ? undefined : [block.range.min, block.range.max];
     const diverging = palettes.find((p) => p.id === (binding.palette ?? shownPalette))?.kind === "diverging";
     const stepped = preview.steps.length > 0;
     // A number with few distinct values (College football's conference codes) can take one color
@@ -1253,8 +1201,9 @@ function Ramp({
             // The handle's name is the editor's own ("Ramp start"); its value is said in the data's terms.
             describe={(_handle: RampEditorHandle, value) => `${source} ${valueWords(value)}`}
             labels={{ from: "Values from", to: "Values to" }}
-            // v2: the range's two boxes are on the histogram's line (RangeBeside), not a row of their own.
-            hideRangeFields={v2}
+            // v2: the range's boxes (and a diverging ramp's midpoint) on one line under the handles, no captions.
+            compactRange={v2}
+            sizes={sizes}
             scale={binding.scale}
             defaultScale={preview.scale}
             // Inside a binding every field shows what it paints now, a default included.
@@ -1290,18 +1239,7 @@ function Ramp({
 
     return (
         <Stack gap={8}>
-            {v2 ? (
-                <RangeBeside
-                    domain={[domain[0], domain[1]]}
-                    onDomainChange={(next) => {
-                        patch({ domain: next, clamp: undefined });
-                    }}
-                >
-                    {editor}
-                </RangeBeside>
-            ) : (
-                editor
-            )}
+            {editor}
             {/* v2: Fit to the data and Steps are on the Clamp outliers and Scale lines (ClampLine, RampScale). */}
             {!v2 && binding.domain !== undefined && binding.domain !== "auto" ? <FitToData patch={patch} /> : null}
             {v2 ? null : <Clamp binding={binding} patch={patch} />}

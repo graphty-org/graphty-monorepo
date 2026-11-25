@@ -1654,7 +1654,7 @@ describe("Style panel v2's input rules (owner, 2026-11-23)", () => {
         });
         measure("One value");
         // An extent typed on the ramp: Fit to the data (a hand-set extent takes the clamp off).
-        const from = within(dialog).getByRole("spinbutton", { name: /^Values from/ });
+        const from = within(dialog).getByRole("textbox", { name: /^Values from/ });
         await userEvent.click(from);
         await userEvent.keyboard("{Control>}a{/Control}2{Enter}");
         await within(dialog).findByRole("button", { name: "Fit to the data" });

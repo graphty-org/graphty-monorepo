@@ -870,21 +870,3 @@
 [data-plus-list="section"] [data-testid="control-section-chevron-slot"] {
     cursor: pointer;
 }
-
-/* Style panel v2's link dialog: the ramp's range on the histogram's line, "Values from" before the histogram and
-   "Values to" after it, level with the bars. */
-.ws-range-beside {
-    display: flex;
-    align-items: flex-start;
-    gap: 4px;
-}
-
-.ws-range-beside-ramp {
-    flex: 1 1 auto;
-    min-width: 0;
-}
-
-.ws-range-beside-box {
-    flex: none;
-    margin-block-start: 12px;
-}

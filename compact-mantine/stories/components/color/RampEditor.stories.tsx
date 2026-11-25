@@ -124,15 +124,18 @@ const WORDS: Record<RampEditorHandle, string> = {
  * The editor with its state held as a caller holds it.
  * @param props - Component props
  * @param props.diverging - start on the diverging palette with a midpoint
- * @param props.hideRangeFields - hide the typed fields' row
+ * @param props.compactRange - the typed fields on one line with no captions
+ * @param props.sizes - a size ramp's two sizes, drawn as a wedge
  * @returns the story
  */
 function Live({
     diverging = false,
-    hideRangeFields = false,
+    compactRange = false,
+    sizes,
 }: {
     diverging?: boolean;
-    hideRangeFields?: boolean;
+    compactRange?: boolean;
+    sizes?: [number, number];
 }): React.JSX.Element {
     const [domain, setDomain] = useState<[number, number]>([1, 9]);
     const [clamp, setClamp] = useState<[number, number]>([1, 10]);
@@ -170,7 +173,8 @@ function Live({
             onReverseChange={setReverse}
             noValue={{ count: 3, paint: paintNoValue ? "#9e9e9e" : null }}
             onNoValueChange={setPaintNoValue}
-            hideRangeFields={hideRangeFields}
+            compactRange={compactRange}
+            sizes={sizes}
         />
     );
 }
@@ -185,9 +189,17 @@ export const Diverging: Story = {
     render: () => <Live diverging />,
 };
 
-/** `hideRangeFields`: no typed fields' row, for a caller that shows the range elsewhere; the handles still move it. */
-export const HiddenRangeFields: Story = {
-    render: () => <Live hideRangeFields />,
+/**
+ * `compactRange` on a diverging ramp: the typed fields on one line with no captions -- from at the start, the
+ * midpoint in the middle, to at the end -- each named by its tooltip.
+ */
+export const CompactRange: Story = {
+    render: () => <Live diverging compactRange />,
+};
+
+/** `sizes` on a ramp onto a size: a wedge under the bars grows from 1 at the ramp's start to 3 at its end. */
+export const SizeWedge: Story = {
+    render: () => <Live compactRange sizes={[1, 3]} />,
 };
 
 /**

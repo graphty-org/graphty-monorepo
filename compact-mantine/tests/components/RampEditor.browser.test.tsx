@@ -469,8 +469,9 @@ describe("RampEditor: clamp, midpoint, no-value and palette controls", () => {
         expect(onReverseChange).toHaveBeenCalledWith(false);
     });
 
-    it("hides the typed fields' row with hideRangeFields, and the handles still move the range", async () => {
+    it("puts the typed fields on one line with compactRange: from at the start, the midpoint in the middle, to at the end", async () => {
         const onDomainChange = vi.fn();
+        const onMidpointChange = vi.fn();
         render(
             <MantineProvider theme={compactTheme}>
                 <div style={{ width: 240 }}>
@@ -479,17 +480,53 @@ describe("RampEditor: clamp, midpoint, no-value and palette controls", () => {
                         bins={BINS}
                         domain={[20, 80]}
                         onDomainChange={onDomainChange}
+                        midpoint={50}
+                        onMidpointChange={onMidpointChange}
                         describe={describeHandle}
-                        hideRangeFields
+                        compactRange
                     />
                 </div>
             </MantineProvider>,
         );
-        expect(screen.queryByRole("textbox", { name: "Starts at" })).toBeNull();
-        expect(screen.queryByTestId("ramp-editor-from")).toBeNull();
-        expect(screen.queryByTestId("ramp-editor-to")).toBeNull();
-        await userEvent.click(screen.getByRole("slider", { name: "Ramp start" }));
-        await userEvent.keyboard("{ArrowRight}");
+        const from = screen.getByRole("textbox", { name: "Starts at" });
+        const middle = screen.getByRole("textbox", { name: "Midpoint" });
+        const to = screen.getByRole("textbox", { name: "Ends at" });
+        const [f, m, t] = [from, middle, to].map((each) => each.getBoundingClientRect());
+        expect(f.top).toBe(m.top);
+        expect(m.top).toBe(t.top);
+        expect(f.right).toBeLessThan(m.left);
+        expect(m.right).toBeLessThan(t.left);
+        expect(document.querySelectorAll(".cm-field-label")).toHaveLength(0);
+        await userEvent.click(middle);
+        await userEvent.keyboard("{Control>}a{/Control}60{Enter}");
+        expect(onMidpointChange).toHaveBeenLastCalledWith(60);
+        await userEvent.click(from);
+        await userEvent.keyboard("{Control>}a{/Control}30{Enter}");
         expect(onDomainChange).toHaveBeenLastCalledWith([30, 80]);
+    });
+
+    it("draws a size ramp as a wedge under the bars, from the first size to the second between the handles", async () => {
+        render(
+            <MantineProvider theme={compactTheme}>
+                <div style={{ width: 240 }}>
+                    <RampEditor
+                        label="Node size by degree"
+                        bins={BINS}
+                        domain={[20, 80]}
+                        describe={describeHandle}
+                        sizes={[1, 3]}
+                    />
+                </div>
+            </MantineProvider>,
+        );
+        const wedge = screen.getByTestId("ramp-editor-wedge");
+        const plot = screen.getByTestId("histogram-plot").getBoundingClientRect();
+        const box = wedge.getBoundingClientRect();
+        expect(box.top).toBeGreaterThanOrEqual(plot.bottom);
+        expect(box.height).toBe(12);
+        expect(box.width).toBe(plot.width);
+        // Level at a third of its height to the ramp's start, full height from its end.
+        const points = wedge.querySelector("polygon")?.getAttribute("points")?.split(" ");
+        expect(points).toEqual(["0,12", "0,8", "20,8", "80,0", "100,0", "100,12"]);
     });
 });

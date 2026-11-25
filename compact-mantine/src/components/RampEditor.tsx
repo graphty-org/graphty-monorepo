@@ -1,4 +1,4 @@
-import { Box, UnstyledButton } from "@mantine/core";
+import { Box, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useRef } from "react";
 
 import { PANEL_GRID, PANEL_INK } from "../constants/panel";
@@ -160,10 +160,16 @@ export interface RampEditorProps {
     /** Replace any of the English words. */
     labels?: Partial<RampEditorLabels>;
     /**
-     * Hide the typed fields' row ("Values from", "Values to" and a diverging ramp's midpoint), for a caller that
-     * shows the range elsewhere, such as beside the histogram. The handles still move the range. @default false
+     * The typed fields ("Values from", "Values to" and a diverging ramp's midpoint) on one line with no captions
+     * above them: from at the line's start, the midpoint in its middle and to at its end, under the handles they
+     * move. Each is named by its tooltip and its accessible name. For a caller short of height. @default false
      */
-    hideRangeFields?: boolean;
+    compactRange?: boolean;
+    /**
+     * For a ramp onto a size: the two sizes the domain's ends paint. Given, a wedge under the bars draws the ramp,
+     * growing from the first size at the domain's start to the second at its end, level beyond them.
+     */
+    sizes?: [number, number];
 }
 
 /** The handle track under the bars, tall enough for a 12px caret and its 24px hit area. */
@@ -171,6 +177,9 @@ const TRACK_HEIGHT = 16;
 
 /** A handle's hit area: wider than its caret, so it is easy to catch. */
 const HANDLE_HIT = 16;
+
+/** A size ramp's wedge: its height at the larger of the two sizes. */
+const WEDGE_HEIGHT = 12;
 
 /** A clamp tail's shade over the bars. */
 const TAIL_SHADE = "color-mix(in srgb, var(--cm-bg) 70%, transparent)";
@@ -194,6 +203,30 @@ function fractionOf(bins: RampEditorBin[], value: number): number {
         }
     }
     return 1;
+}
+
+/**
+ * A size wedge's outline in a 100-wide box: level at the first size up to the domain's start, straight to the
+ * second size at its end, level after; each height its size over the larger one.
+ * @param sizes - the sizes the domain's ends paint
+ * @param start - the domain's start on the axis, 0 to 1
+ * @param end - the domain's end on the axis, 0 to 1
+ * @returns the polygon's points
+ */
+function wedgePoints(sizes: [number, number], start: number, end: number): string {
+    const top = Math.max(Math.abs(sizes[0]), Math.abs(sizes[1]));
+    const y = (size: number): number => (top === 0 ? WEDGE_HEIGHT : WEDGE_HEIGHT * (1 - Math.abs(size) / top));
+    const [a, b] = [y(sizes[0]), y(sizes[1])];
+    return [
+        [0, WEDGE_HEIGHT],
+        [0, a],
+        [start * 100, a],
+        [end * 100, b],
+        [100, b],
+        [100, WEDGE_HEIGHT],
+    ]
+        .map(([x, h]) => `${String(x)},${String(h)}`)
+        .join(" ");
 }
 
 /**
@@ -440,7 +473,8 @@ function Handle({
  * @param props.noValue - elements with no value
  * @param props.onNoValueChange - called to paint or skip them
  * @param props.labels - replacement words
- * @param props.hideRangeFields - hides the typed fields' row, for a caller that shows the range elsewhere
+ * @param props.compactRange - the typed fields on one line with no captions, under the handles
+ * @param props.sizes - for a size: the sizes the domain's ends paint, drawn as a wedge under the bars
  * @returns the ramp editor
  * @example
  * ```tsx
@@ -480,7 +514,8 @@ export function RampEditor({
     noValue,
     onNoValueChange,
     labels: overrides,
-    hideRangeFields = false,
+    compactRange = false,
+    sizes,
 }: Readonly<RampEditorProps>): React.JSX.Element {
     useCompactStyles();
     const labels = { ...DEFAULT_LABELS, ...overrides, handles: { ...DEFAULT_LABELS.handles, ...overrides?.handles } };
@@ -569,6 +604,36 @@ export function RampEditor({
                 onCommit={onCommit}
             />
         </label>
+    );
+
+    /**
+     * A typed field with no caption, named by its tooltip: the compact range's.
+     * @param name - its name, shown in its tooltip and spoken
+     * @param testId - test id
+     * @param value - its value
+     * @param onCommit - called with a typed value
+     * @returns the field
+     */
+    const compactField = (
+        name: string,
+        testId: string,
+        value: number,
+        onCommit: (value: number) => void,
+    ): React.JSX.Element => (
+        <Tooltip label={name}>
+            <Box style={{ flex: "0 1 72px", minWidth: 0 }}>
+                <UnitField
+                    className="cm-field"
+                    ariaLabel={name}
+                    testId={testId}
+                    style={{ width: "100%" }}
+                    value={value}
+                    format={format}
+                    normalize={(typed) => typed}
+                    onCommit={onCommit}
+                />
+            </Box>
+        </Tooltip>
     );
 
     const percent = (value: number): string => `${String(fractionOf(bins, value) * 100)}%`;
@@ -716,6 +781,24 @@ export function RampEditor({
                 </Box>
             </Box>
 
+            {sizes !== undefined && (
+                <svg
+                    data-testid="ramp-editor-wedge"
+                    aria-hidden="true"
+                    viewBox={`0 0 100 ${String(WEDGE_HEIGHT)}`}
+                    preserveAspectRatio="none"
+                    style={{
+                        display: "block",
+                        width: "100%",
+                        height: WEDGE_HEIGHT,
+                        transform: direction === "rtl" ? "scaleX(-1)" : undefined,
+                    }}
+                >
+                    {/* ponytail: straight between the handles on the bins' axis, whatever the scale's curve. */}
+                    <polygon fill={PANEL_INK.CHROME} points={wedgePoints(sizes, fractionOf(bins, low), fractionOf(bins, high))} />
+                </svg>
+            )}
+
             <Box ref={trackRef} data-testid="ramp-editor-track" style={{ position: "relative", height: TRACK_HEIGHT }}>
                 {/* Each domain handle's range stops beside the other, so Home and End reach the
                     ends it can take (and aria-valuemin / max say so) instead of being refused. */}
@@ -847,7 +930,16 @@ export function RampEditor({
                 </Box>
             )}
 
-            {!hideRangeFields && (
+            {compactRange ? (
+                <Box data-testid="ramp-editor-range" style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                    {compactField(labels.from, "ramp-editor-from", low, (value) => onDomainChange?.([value, high]))}
+                    {midpoint !== undefined &&
+                        compactField(labels.midpoint, "ramp-editor-midpoint-field", midpoint, (value) =>
+                            onMidpointChange?.(value),
+                        )}
+                    {compactField(labels.to, "ramp-editor-to", high, (value) => onDomainChange?.([low, value]))}
+                </Box>
+            ) : (
                 <Box style={{ display: "flex", gap: 8 }}>
                     {field(labels.from, "ramp-editor-from", low, (value) => onDomainChange?.([value, high]))}
                     {field(labels.to, "ramp-editor-to", high, (value) => onDomainChange?.([low, value]))}

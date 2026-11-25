@@ -3241,6 +3241,9 @@ export class LayoutManager implements Manager {
             live: () => this.#generation === generation,
             explicitScope: false,
             fromSeed: true,
+            // Every node already drawn gets a new place: it travels there under `layoutTransition`
+            // like any other new layout, not in one frame (issue #9424).
+            transition: true,
         });
         this.#applying = rebuild.catch(() => undefined);
         try {

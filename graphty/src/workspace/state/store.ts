@@ -524,8 +524,7 @@ export const ON_RELOAD = {
     joining: "gap #9846: holds graphty-element's prepared load, which its autosave does not keep",
     editingJoin: "kept",
     ends: "kept",
-    joinWorkspace:
-        "fresh: in flight: the workspace closes on a reload; its draft, which autosave keeps, opens with it the next time",
+    joinWorkspace: "kept",
     stagedEnds: "kept",
     draftOpen: "fresh: in flight: asks about a write this page made, which a reload ends",
     pickedSource: "kept",

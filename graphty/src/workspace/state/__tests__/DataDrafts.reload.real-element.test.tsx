@@ -1,7 +1,7 @@
 /**
  * A reload of this tab puts back the Data page's join work the reader was in the middle of (issue
- * #9660): the join screen editing a joined table's join, and, with sources and steps on, the Join
- * card with its previewed draft, drawn on the side the reader left it. The draft is
+ * #9660): the join screen editing a joined table's join, and, with sources and steps on, the join
+ * workspace with its draft, drawn on the side the reader left it. The draft is
  * graphty-element's, which its autosave keeps. Safari ends a background tab and loads it again,
  * often with its session storage emptied, so each case runs with that storage kept and with it
  * emptied. Real element, real autosave, real input.
@@ -17,7 +17,7 @@ import { page, userEvent } from "vitest/browser";
 import { withFeatures } from "../../../test/features";
 import { forgetAutosave, reload } from "../../../test/reload";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
-import { choose, drop } from "../../source-steps/__tests__/sourceSteps";
+import { drop } from "../../source-steps/__tests__/sourceSteps";
 import { Workspace } from "../../Workspace";
 import { createWorkspaceStore } from "../store";
 
@@ -118,46 +118,69 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
         describe("with sources and steps on", () => {
             withFeatures(["source-steps"]);
 
-            it("reopens the Join card on its previewed draft, on the side it showed, and Enter commits it", async () => {
+            it("reopens the join workspace on its draft, on the side it showed, and Done commits it", async () => {
                 const { before, session } = await peopleProject();
                 drop("entries.csv", ENTRIES);
-                await screen.findByRole("region", { name: "entries.csv" });
+                await screen.findByRole("listitem", { name: "entries.csv" });
                 (document.activeElement as HTMLElement | null)?.blur();
-                await userEvent.keyboard("j");
-                const card = await screen.findByRole("form", { name: "Join" });
-                await choose(card, "Field 1 type", "person");
-                await choose(card, "Field 1 field", "Key");
-                await choose(card, "Field 2 field", "badge");
-                await userEvent.click(within(card).getByRole("radio", { name: "Make an edge" }));
-                await userEvent.click(within(card).getByRole("combobox", { name: "Edge type" }));
-                await userEvent.keyboard("entered{Tab}");
-                (document.activeElement as HTMLElement | null)?.blur();
-                await userEvent.keyboard("{Shift>}P{/Shift}");
-                await within(card).findByRole("region", { name: "Preview" });
+                await userEvent.keyboard("{Shift>}J{/Shift}");
+                const modal = await screen.findByRole("dialog", { name: "Join" });
+                await userEvent.click(within(modal).getByRole("radio", { name: "A node linked to what it names" }));
+                await userEvent.click(await within(modal).findByLabelText("Edge type"));
+                await userEvent.keyboard("entered{Enter}");
+                await waitFor(() => {
+                    assert.strictEqual(session.data.currentDraft()?.steps().at(-1)?.act?.edgeType, "entered");
+                });
+                within(modal).getByRole("button", { name: "Done" }).focus();
                 await userEvent.keyboard("b");
                 await waitFor(() => {
                     assert.strictEqual(session.data.currentDraft()?.side, "before");
                 });
 
                 const after = await reload(before, { lostSession });
-                const back = await screen.findByRole("form", { name: "Join" });
-                await within(back).findByRole("region", { name: "Preview" });
+                const back = await screen.findByRole("dialog", { name: "Join" });
+                assert.lengthOf(
+                    [...back.querySelectorAll("[data-join-card]:not([data-join-card^='add:'])")],
+                    1,
+                    "the join's own card, and no second one",
+                );
                 const reopened = await sessionNow();
                 await waitFor(() => {
                     const draft = reopened.data.currentDraft();
                     assert.isTrue(draft?.displayed, "the draft is drawn again");
                     assert.strictEqual(draft?.side, "before");
                 });
-                const chip = await screen.findByRole("radiogroup", { name: "Before / After" });
+                const chip = within(back).getByRole("radiogroup", { name: "Before / After" });
                 assert.isTrue(within(chip).getByRole<HTMLInputElement>("radio", { name: "Before" }).checked);
 
-                (document.activeElement as HTMLElement | null)?.blur();
-                await userEvent.keyboard("{Enter}");
+                await userEvent.click(within(back).getByRole("button", { name: "Done" }));
                 await waitFor(() => {
-                    assert.isNull(screen.queryByRole("form", { name: "Join" }));
+                    assert.isNull(screen.queryByRole("dialog", { name: "Join" }));
                 });
                 assert.isNull(reopened.data.currentDraft());
                 assert.strictEqual(reopened.data.statistics({ scope: "all" }).edgeCount, 4, "E1, E2, E3 and E6");
+                after.view.unmount();
+            });
+
+            it("reopens the join workspace on a source's removal, which Done still makes", async () => {
+                const { before, session } = await peopleProject();
+                const people = session.data.sources()[0]?.key;
+                assert.isDefined(people);
+                const row = await screen.findByRole("listitem", { name: "people.csv" });
+                await userEvent.click(within(row).getByRole("button", { name: "people.csv menu" }));
+                await userEvent.click(await screen.findByRole("menuitem", { name: "Remove" }));
+                const modal = await screen.findByRole("dialog", { name: "Join" });
+                await within(modal).findByRole("region", { name: "Remove people.csv" });
+
+                const after = await reload(before, { lostSession });
+                const back = await screen.findByRole("dialog", { name: "Join" });
+                await within(back).findByRole("region", { name: "Remove people.csv" });
+                const reopened = await sessionNow();
+                assert.lengthOf(reopened.data.sources(), 1, "nothing removed yet");
+                await userEvent.click(within(back).getByRole("button", { name: "Done" }));
+                await waitFor(() => {
+                    assert.lengthOf(reopened.data.sources(), 0);
+                });
                 after.view.unmount();
             });
         });

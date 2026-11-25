@@ -419,34 +419,44 @@ function JoinWorkspace({
     // on reload: fresh: pointer: what the table lists for a look
     const [shows, setShows] = useState<TableShows | null>(null);
     // Opened after the first render: opening a draft tells every listener, which must not happen while rendering.
+    // Once: StrictMode's development-only rerun must not open it a second time over the first.
+    const openedOnce = useRef(false);
     useEffect(() => {
-        if (opened !== null) {
+        if (openedOnce.current) {
             return;
         }
+        openedOnce.current = true;
         try {
-            // An open draft (from any door) is adopted; a new one asks the key-overlap question
-            // when a staged source is added as it is.
-            const opening = session.data.currentDraft() ?? session.data.draft({ askOverlap: true });
-            if (how.remove !== undefined) {
+            // An open draft (from any door, or brought back by a reload) is adopted; a new one asks
+            // the key-overlap question when a staged source is added as it is.
+            const adopted = session.data.currentDraft();
+            const opening = adopted ?? session.data.draft({ askOverlap: true });
+            // A draft brought back by a reload holds the removal already.
+            if (how.remove !== undefined && opening.steps().some((step) => step.source === how.remove)) {
                 opening.removeSource(how.remove);
             }
+            const made = cardsOf(opening, []);
+            const used = new Set(opening.steps().map((step) => step.source));
+            const staged = session.data.staged().findLast((each) => !used.has(each.key));
             // With nothing staged and no join yet, the newest source's own rows can still be split
             // into nodes or linked.
-            const newest = cardsOf(opening, []).length === 0 ? session.data.sources().at(-1)?.key : undefined;
-            const source = how.source ?? session.data.staged().at(-1)?.key ?? newest;
+            const newest = adopted === null && made.length === 0 ? session.data.sources().at(-1) : undefined;
+            const source = how.source ?? (staged ?? newest)?.key;
             const into = how.into === undefined ? null : { space: how.into };
             const first =
                 how.remove !== undefined || (source === undefined && into === null)
                     ? []
                     : [newCard(opening, "new:0", source, into)];
             setPending(first);
-            setOpen(first[0]?.id ?? null);
+            setOpen(first.at(0)?.id ?? (adopted === null ? undefined : made.at(-1)?.id) ?? null);
             setOpened({ draft: opening });
+            // The draft holds it from here: a reload opens the workspace on the draft as it is.
+            store.set({ joinWorkspace: how.remove === undefined ? {} : { remove: how.remove } });
         } catch (error) {
             setOpened({ draft: null });
             store.set({ notice: { message: refusedWords(error), error: true }, joinWorkspace: false });
         }
-    }, [opened, session, how, store]);
+    }, [session, how, store]);
     // on reload: fresh: pointer: the Add cards that ask a question, folded for a look
     const [foldedAdds, setFoldedAdds] = useState<ReadonlySet<string>>(new Set());
     // on reload: fresh: pointer: the Reader edits list opened for a look

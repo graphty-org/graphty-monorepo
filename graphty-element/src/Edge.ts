@@ -2,6 +2,7 @@ import { Ray } from "@babylonjs/core/Culling/ray.js";
 import { Color3 } from "@babylonjs/core/Maths/math.color.js";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 import { INVALID_INDEX } from "@graphty/graph-format";
 import cloneDeep from "lodash/cloneDeep.js";
 import isEqual from "lodash/isEqual.js";
@@ -72,7 +73,7 @@ import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { movingTexel } from "./meshes/pulledAnimatedLine";
 import { CURVE_STRIDE, curvePath, type CurveSpan, curveSpan, loopShape, routed, viaShare } from "./meshes/pulledCurve";
 import { type PulledHead, pulledHeadBatch, pulledHeadOf, roundRow } from "./meshes/pulledHead";
-import { pulledEdgesDefault, type PulledLineBatch } from "./meshes/PulledLineBatch";
+import { holdStraightPieces, pulledEdgesDefault, type PulledLineBatch } from "./meshes/PulledLineBatch";
 import { readColor } from "./meshes/readColor";
 import type { RestSource } from "./meshes/restPlacement";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
@@ -143,6 +144,9 @@ export const pulledLines = { version: 0 };
 
 /** Each scene's edges whose line is pulled, so a renumbering visits only them (`UpdateManager.followRenumberedRows`). */
 const pulledByScene = new WeakMap<object, Set<Edge>>();
+
+/** The scenes whose pulled edges are named as holders of straight pieces ({@link Edge.holdStraightLines}). */
+const straightHolders = new WeakSet<Scene>();
 
 /**
  * The edges of a scene whose line is pulled ({@link Edge.isPulled}), kept as each line is pulled and let go.
@@ -2589,7 +2593,8 @@ export class Edge {
         // a pulled line that becomes a curve, or stops being one, moves between batches (`EdgeMesh.pullsCurve`)
         const pulls = this.wantsPull(style);
         const samePull =
-            pulls === (this.pulled !== null) && (this.pulled === null || this.pulled.curve === this.pullsCurve(style));
+            pulls === (this.pulled !== null) &&
+            (this.pulled === null || (this.pulled.curve === this.pullsCurve(style) && !this.straightOffCurves()));
         const sameRoute = wantsPattern === this.mesh instanceof PatternedLineMesh && samePull;
         // A surface or a taper keys no source mesh either (`content` channels), but it is drawn
         // from a batch of its own, so asking for another one rebuilds the line.
@@ -3431,7 +3436,12 @@ export class Edge {
         }
 
         const headGone = this.pulled.head !== null && !(this.headEnd("source", rows) && this.headEnd("target", rows));
-        if (!headGone && !this.endHiddenByStyle("source") && !this.endHiddenByStyle("target")) {
+        if (
+            !headGone &&
+            !this.straightOffCurves() &&
+            !this.endHiddenByStyle("source") &&
+            !this.endHiddenByStyle("target")
+        ) {
             return false;
         }
 
@@ -3539,6 +3549,80 @@ export class Edge {
             loop: this.isLoop,
             route: this.routeOf(style),
             lean: this.context.leansLines?.() ?? false,
+            straightInCurve: EdgeMesh.drawsNoCap(style.arrowHead) && this.endsOpaque(rows),
+        });
+    }
+
+    /**
+     * Whether this edge's straight line is drawn from a curve batch, which runs it center to center, while an end is
+     * seen through: it is drawn again from the straight batch, which stops it at the outline
+     * (`EdgeMesh.pulledBatch`'s `straightInCurve`).
+     * @returns True when it must move.
+     */
+    private straightOffCurves(): boolean {
+        const { pulled } = this;
+        const rows = this.context.getRowTable?.() ?? null;
+        return pulled !== null && !pulled.curve && pulled.batch.drawsCurves && rows !== null && !this.endsOpaque(rows);
+    }
+
+    /**
+     * Name a scene's pulled edges as holders of straight pieces, once: a curve batch made for their key takes the
+     * straight lines a curve batch can draw (`PulledLineBatch.moveStraightInto`).
+     * @param scene - The scene.
+     */
+    private static holdStraightLines(scene: Scene): void {
+        if (straightHolders.has(scene)) {
+            return;
+        }
+
+        straightHolders.add(scene);
+        holdStraightPieces(scene, {
+            straightPieces: (batch) => [...pulledEdgesOf(scene)].flatMap((edge) => edge.straightPieceIn(batch)),
+        });
+    }
+
+    /**
+     * This edge's straight line in a straight batch, when a curve batch can draw it: no head, and neither end seen
+     * through ({@link Edge.holdStraightLines}).
+     * @param batch - The straight batch.
+     * @returns The piece, with what moves the line to its new batch and piece; empty for none.
+     */
+    private straightPieceIn(
+        batch: PulledLineBatch,
+    ): { piece: number; moved: (to: PulledLineBatch, piece: number) => void }[] {
+        const { pulled } = this;
+        const rows = this.context.getRowTable?.() ?? null;
+        if (
+            pulled?.batch !== batch ||
+            pulled.curve ||
+            pulled.head !== null ||
+            rows === null ||
+            !this.endsOpaque(rows)
+        ) {
+            return [];
+        }
+
+        return [
+            {
+                piece: pulled.piece,
+                moved: (to, piece) => {
+                    pulled.batch = to;
+                    pulled.piece = piece;
+                    this.mesh = to.mesh;
+                },
+            },
+        ];
+    }
+
+    /**
+     * Whether neither end's row is seen through, so a straight line may run center to center in a curve batch.
+     * @param rows - The row table.
+     * @returns True when neither is.
+     */
+    private endsOpaque(rows: RowTable): boolean {
+        return (["source", "target"] as const).every((end) => {
+            const row = this.endRow(end);
+            return row < 0 || !rows.seenThrough(row);
         });
     }
 
@@ -3619,10 +3703,13 @@ export class Edge {
         if (curve) {
             // nothing drawn until the first placement writes the span
             batch.setCurve(piece, 0, null);
+        } else if (!animationSpeed) {
+            batch.drawStraight(piece);
         }
 
         pulledLines.version++;
         pulledEdgesOf(this.context.getScene()).add(this);
+        Edge.holdStraightLines(this.context.getScene());
         this.pulled = {
             batch,
             piece,

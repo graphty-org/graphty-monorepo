@@ -5,7 +5,7 @@ import type { BoundingBox } from "@babylonjs/core/Culling/boundingBox.js";
 import { BoundingInfo } from "@babylonjs/core/Culling/boundingInfo.js";
 import type { Ray } from "@babylonjs/core/Culling/ray.js";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
-import { Color3, Color4 } from "@babylonjs/core/Maths/math.color.js";
+import { Color4 } from "@babylonjs/core/Maths/math.color.js";
 import { type Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
 import { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh.js";
@@ -71,6 +71,7 @@ import {
     type SurfacePath,
 } from "./meshes/NodeShaderDrawing";
 import { shareLabelBox } from "./meshes/NodeShapeGeometry";
+import { createOverlayMaterial } from "./meshes/overlayMaterial";
 import { pictureSize } from "./meshes/pictureSize";
 import { readColor } from "./meshes/readColor";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
@@ -4561,17 +4562,8 @@ export class Node implements ModelUser {
             source = MeshBuilder.CreateSphere(name, { diameter: 1, segments: 8 }, scene);
         }
 
-        const material = new StandardMaterial(`${name}-material`, scene);
-
-        // Unlit on purpose: an overlay is a marker, and a marker that changes shade as the camera
-        // orbits reads as another node rather than as an annotation on one.
-        material.disableLighting = true;
-        const painted = readColor(color, DEFAULT_SELECTION_STYLE.color);
-
-        material.emissiveColor = painted.rgb;
-        material.diffuseColor = Color3.Black();
-        material.specularColor = Color3.Black();
-        material.alpha = alpha * painted.alpha;
+        // Its shader was compiled with the scene's first node source (`prepareOverlayShader`).
+        const material = createOverlayMaterial(`${name}-material`, color, alpha, scene);
         // A halo around a solid draws only its far side. The near side lies in front of the node
         // it surrounds, and blending it over the node tinted the whole node the halo's color (a
         // selected blue node drew gray-brown) instead of ringing it. The far side lies behind the

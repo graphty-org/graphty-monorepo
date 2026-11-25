@@ -517,8 +517,8 @@ export class NodeDragHandler {
     private readonly node: GraphNode;
     private readonly dragState: DragState;
     private clickState: ClickState | null = null;
-    /** Where a press landed, while it is still a click: the drag starts from here once it moves. */
-    private pressedAt: Vector3 | null = null;
+    /** Whether a press is held that is still a click: the drag starts once it moves. */
+    private pressed = false;
     private gesture: DragGesture | null = null;
     private readonly scene: Scene;
     private readonly roster: NodePointerRoster;
@@ -947,9 +947,9 @@ export class NodeDragHandler {
 
         // A PRESS IS A CLICK UNTIL THE POINTER TRAVELS. Starting the drag here reheated the layout,
         // opened an undo gesture and thawed every frozen mesh on each plain click, which on 99,000
-        // nodes cost a click several hundred milliseconds (issue #10116). The drag starts from this
-        // point once the pointer passes CLICK_MAX_MOVEMENT_PX; the camera stops turning at once.
-        this.pressedAt = this.pointerWorldPosition();
+        // nodes cost a click several hundred milliseconds (issue #10116). The drag starts from the
+        // press once the pointer passes CLICK_MAX_MOVEMENT_PX; the camera stops turning at once.
+        this.pressed = true;
         this.roster.engaged.add(this);
         (this.scene.metadata as { cameraManager?: CameraManager } | null)?.cameraManager?.temporarilyDisableInput();
     }
@@ -957,7 +957,7 @@ export class NodeDragHandler {
     /** A move: carry this node along while it is being dragged. Called for engaged handlers. */
     public onPointerMove(): void {
         if (!this.dragState.dragging) {
-            if (this.pressedAt === null || this.clickState === null) {
+            if (!this.pressed || this.clickState === null) {
                 return;
             }
             const dx = this.scene.pointerX - this.clickState.pointerDownPosition.x;
@@ -966,9 +966,13 @@ export class NodeDragHandler {
                 return;
             }
             this.clickState.hasMoved = true;
-            const from = this.pressedAt;
-            this.pressedAt = null;
-            this.onDragStart(from);
+            this.pressed = false;
+            // The press's point measured now, at the depth the node has now, as every move is: a
+            // layout still running moved the node since the press, and a start point taken at the
+            // press's depth added that move again on every pointer move, throwing the node away
+            // along the line of sight.
+            const { x, y } = this.clickState.pointerDownPosition;
+            this.onDragStart(this.pointerWorldPosition(x, y));
         }
 
         // Track movement for click detection
@@ -1000,9 +1004,9 @@ export class NodeDragHandler {
             if (wasClick) {
                 this.handleClick();
             }
-        } else if (this.pressedAt !== null) {
+        } else if (this.pressed) {
             // A press that never traveled: no drag was started, so there is nothing to drop.
-            this.pressedAt = null;
+            this.pressed = false;
             this.releaseCamera();
             if (this.isClick(pointerEventTime(pointerInfo.event))) {
                 this.handleClick();
@@ -1016,15 +1020,12 @@ export class NodeDragHandler {
 
     /**
      * Where the pointer is in the world, on this node's drag plane.
+     * @param x - The canvas x, the pointer's by default.
+     * @param y - The canvas y, the pointer's by default.
      * @returns The point.
      */
-    private pointerWorldPosition(): Vector3 {
-        const ray = this.scene.createPickingRay(
-            this.scene.pointerX,
-            this.scene.pointerY,
-            Matrix.Identity(),
-            this.scene.activeCamera,
-        );
+    private pointerWorldPosition(x = this.scene.pointerX, y = this.scene.pointerY): Vector3 {
+        const ray = this.scene.createPickingRay(x, y, Matrix.Identity(), this.scene.activeCamera);
         return this.getWorldPositionFromRay(ray);
     }
 
@@ -1257,8 +1258,8 @@ export class NodeDragHandler {
         // A node removed mid-drag: its drag records nothing more, and leaves nothing pending.
         this.gesture?.finish();
         this.gesture = null;
-        if (this.pressedAt !== null) {
-            this.pressedAt = null;
+        if (this.pressed) {
+            this.pressed = false;
             this.releaseCamera();
         }
         // Leaving the roster, not searching the scene's observers: see nodePointerRosterOf.

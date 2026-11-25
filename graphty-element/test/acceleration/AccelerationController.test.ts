@@ -1426,6 +1426,34 @@ describe("AccelerationController: the policy, the threshold and the listeners in
         controller.dispose();
     });
 
+    it("probes nothing for a policy set before start, and probes on start (issue #9986)", async () => {
+        const registry = new AcceleratorRegistry();
+        const factory = vi.fn(() => Promise.resolve(fakeAccelerator()));
+        registry.register({ name: "fake", factory });
+        const device = {};
+        const controller = new AccelerationController({ registry, sharedDevice: () => Promise.resolve(device) });
+
+        controller.setPolicy("required");
+        // The controller runs no timers, only promise chains: one macrotask yield drains them
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        assert.strictEqual(factory.mock.calls.length, 0);
+
+        await controller.start();
+        assert.strictEqual(factory.mock.calls.length, 1);
+        assert.isTrue(controller.sharesRendererDevice);
+        controller.dispose();
+    });
+
+    it("says whether the attached accelerator was built on the renderer's device", async () => {
+        const controller = new AccelerationController({ registry: registryWith(fakeAccelerator()) });
+        assert.isUndefined(controller.sharesRendererDevice);
+
+        await controller.start();
+
+        assert.isFalse(controller.sharesRendererDevice);
+        controller.dispose();
+    });
+
     it("keeps the attached accelerator when the policy tightens from auto to required", async () => {
         const registry = new AcceleratorRegistry();
         const factory = vi.fn(() => Promise.resolve(fakeAccelerator()));

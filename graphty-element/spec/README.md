@@ -1047,13 +1047,13 @@ small languages, defined here once.
    `path` and `reads`, the window's `attribute`, `end` and `spells`, and a collapse's `groupBy`.
 3. **Computed values.** graphty-element computes these for every node or edge:
 
-    | Path                                                       | Reads                                                                                  |
-    | ---------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-    | `graphty.degree`                                           | a node's number of edges                                                               |
-    | `graphty.inDegree`, `graphty.outDegree`                    | a node's edges in and out, on a directed or mixed graph; no value on an undirected one |
-    | `graphty.notes.count`                                      | how many notes the element has                                                         |
-    | `graphty.notes.latest`, `graphty.notes.latestTime`         | the text and time of its newest note                                                   |
-    | `graphty.source.<node path>`, `graphty.target.<node path>` | on an edge, a node path read at its source or target end                               |
+    | Path                                                           | Reads                                                                                  |
+    | -------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+    | `graphty.degree`                                               | a node's number of edges                                                               |
+    | `graphty.inDegree`, `graphty.outDegree`                        | a node's edges in and out, on a directed or mixed graph; no value on an undirected one |
+    | `store.graphty.notes.count`                                    | how many notes the element has                                                         |
+    | `store.graphty.notes.latest`, `store.graphty.notes.latestTime` | the text and time of its newest note                                                   |
+    | `graphty.source.<node path>`, `graphty.target.<node path>`     | on an edge, a node path read at its source or target end                               |
 
     The **readable paths** are values graphty-element will compute for every node or edge, read by
     their bare names, in styles, filters, time windows and runs alike:

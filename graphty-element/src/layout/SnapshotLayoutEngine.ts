@@ -10,6 +10,7 @@ import type { GraphtyWarningCode } from "../errors/codes";
 import type { Node } from "../Node";
 import type { WorkingSnapshot } from "../session/working/graphs";
 import {
+    edgeEndsFollowNodes,
     type EdgePosition,
     layoutDim,
     LayoutEngine,
@@ -718,3 +719,5 @@ export function sceneUnits(result: LayoutResult, scale: number): F32 {
 export function startFrom(input: SnapshotLayoutInput, dim: 2 | 3, scale: number): F32 | null {
     return input.added === null || dim !== input.dimensions ? null : Float32Array.from(input.initial, (v) => v / scale);
 }
+
+edgeEndsFollowNodes(SnapshotLayoutEngine);

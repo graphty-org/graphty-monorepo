@@ -12,7 +12,7 @@
 
 import "../../src/graphty-element";
 
-import type { WebGPUEngine } from "@babylonjs/core";
+import { Geometry, type WebGPUEngine } from "@babylonjs/core";
 import { afterEach, assert, describe, it, onTestFailed, vi } from "vitest";
 import { commands } from "vitest/browser";
 
@@ -262,6 +262,30 @@ describe("a lost WebGPU device", () => {
         assert.isTrue(graph.rendererStatus?.drawing);
     });
 
+    for (const path of ["objects", "batched"] as const) {
+        it(`rebuilds each geometry once after a destroy on the ${path} path`, async () => {
+            const graph = await openRing(true, true, path);
+            const before = await pictureOf(graph);
+            const drawnBefore = ticksOf(graph).drawn;
+            const rebuilds = new Map<Geometry, number>();
+            const rebuild = Geometry.prototype._rebuild;
+            vi.spyOn(Geometry.prototype, "_rebuild").mockImplementation(function (this: Geometry) {
+                rebuilds.set(this, (rebuilds.get(this) ?? 0) + 1);
+                rebuild.call(this);
+            });
+
+            await lose(graph, DRILLS.destroy);
+            await waitForPicture(graph, before, drawnBefore);
+
+            assert.isAbove(rebuilds.size, 0, "no geometry was rebuilt");
+            assert.deepEqual(
+                [...rebuilds.values()].filter((count) => count !== 1),
+                [],
+                "geometries rebuilt more than once",
+            );
+        });
+    }
+
     it("comes back from a second loss on the device it came back on", async () => {
         const graph = await openRing(true);
         const before = await pictureOf(graph);
@@ -301,6 +325,42 @@ describe("a lost WebGPU device", () => {
         assert.strictEqual(uncaptured(), 0);
     });
 
+    it("hears every frame read a capture left in flight when the loss fails it (issue #10033)", async () => {
+        const graph = await openRing(false);
+        const engine = graph.engine as WebGPUEngine;
+        const readPixels = engine.readPixels.bind(engine);
+        // The first read is held until two more frames have started theirs; those two fail as a crash fails them.
+        let release: () => void = () => undefined;
+        const held = new Promise<void>((resolve) => {
+            release = resolve;
+        });
+        let reads = 0;
+        vi.spyOn(engine, "readPixels").mockImplementation((...args) => {
+            reads++;
+            if (reads === 1) {
+                const first = readPixels(...args);
+                return held.then(async () => await first);
+            }
+
+            if (reads === 3) {
+                release();
+            }
+
+            return Promise.reject(
+                new DOMException(
+                    "Failed to execute 'mapAsync' on 'GPUBuffer': A valid external Instance reference no longer exists.",
+                    "AbortError",
+                ),
+            );
+        });
+
+        await captureNextFrame(graph);
+        // A task later, for an unhandled rejection to reach test/setup.ts, which fails the test.
+        await commands.canvasPicture();
+
+        assert.isAtLeast(reads, 3);
+    });
+
     it("takes no offense at a shader the crash left unanswered", async () => {
         const graph = await openRing(true);
         vi.spyOn(GPUShaderModule.prototype, "getCompilationInfo").mockRejectedValue(
@@ -334,6 +394,39 @@ describe("a lost WebGPU device", () => {
         await Promise.all(opened.mock.results.map(async ({ value }) => await (value as Promise<unknown>)));
 
         assert.strictEqual(restored.mock.calls.length, 0);
+    });
+
+    // Chromium destroys every map-readable buffer still alive when the page's frame goes away, and one from a
+    // crashed GPU process's device took the renderer down (issue #9850).
+    it("leaves no map-readable buffer alive after a crash, a picture read and a dispose", async () => {
+        const alive = new Set<GPUBuffer>();
+        const { createBuffer } = GPUDevice.prototype;
+        vi.spyOn(GPUDevice.prototype, "createBuffer").mockImplementation(function (
+            this: GPUDevice,
+            descriptor: GPUBufferDescriptor,
+        ) {
+            const buffer = createBuffer.call(this, descriptor);
+            if ((descriptor.usage & (GPUBufferUsage.MAP_READ | GPUBufferUsage.MAP_WRITE)) !== 0) {
+                alive.add(buffer);
+            }
+
+            return buffer;
+        });
+        const { destroy } = GPUBuffer.prototype;
+        vi.spyOn(GPUBuffer.prototype, "destroy").mockImplementation(function (this: GPUBuffer) {
+            alive.delete(this);
+            destroy.call(this);
+        });
+
+        const graph = await openRing(true);
+        const before = await pictureOf(graph);
+        const drawnBefore = ticksOf(graph).drawn;
+        await lose(graph, DRILLS.crash);
+        await waitForPicture(graph, before, drawnBefore);
+        assert.isAbove(alive.size, 0, "the engine reads through map-readable buffers");
+        unmount();
+
+        assert.strictEqual(alive.size, 0);
     });
 
     it("says the graph stopped drawing when no new device can be had", async () => {

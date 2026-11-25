@@ -50,7 +50,12 @@ afterEach(() => {
  * @param path - The render path, or undefined for the element's default.
  * @returns The element.
  */
-async function mounted(size: number, layout: string, path?: "batched"): Promise<Graphty> {
+async function mounted(
+    size: number,
+    layout: string,
+    path?: "batched",
+    edgeStyle?: Record<string, unknown>,
+): Promise<Graphty> {
     const element = document.createElement("graphty-element");
     if (path !== undefined) {
         element.renderPath = path;
@@ -64,6 +69,15 @@ async function mounted(size: number, layout: string, path?: "batched"): Promise<
     });
     await element.updateComplete;
     await operationQueueOf(element.graph).waitForCompletion();
+    if (edgeStyle !== undefined) {
+        await element.session.styles.add({
+            name: "edges",
+            target: "edge",
+            selector: { match: "everything" },
+            set: edgeStyle,
+        } as never);
+    }
+
     const ring = Array.from({ length: size - 1 }, (_, at) => {
         const angle = (2 * Math.PI * at) / (size - 1);
         return { id: `n${String(at)}`, position: { x: 20 * Math.cos(angle), y: 20 * Math.sin(angle), z: 0 } };
@@ -189,12 +203,19 @@ async function dragCounted(
     layout: string,
     during?: { move: number; run: (element: Graphty) => void },
     path?: "batched",
-): Promise<{ visits: Visit[]; moved: Set<number>; followed: number; hovered: string[] }> {
-    const element = await mounted(size, layout, path);
+    edgeStyle?: Record<string, unknown>,
+): Promise<{ visits: Visit[]; moved: Set<number>; followed: number; hovered: string[]; batched: boolean }> {
+    const element = await mounted(size, layout, path, edgeStyle);
     const position = element.nodeScreenPosition("t");
     assert.isDefined(position, "node t is drawn");
     const { x, y } = position;
 
+    // Watched from before the press, so each pass is compared with where the pass before it left `t`. The pointer
+    // writes `t` in its own event, between passes, and the next pass places its edges: when the first move's event
+    // lands after its reply, `waitForStableFrame` resolves before that pass (a reader's drag is not instability,
+    // `UpdateManager.frameIsStable`), and a watch begun then took the written place as where `t` already stood, so
+    // the pass placing it counted as one that did not move `t` (issue #10055).
+    const moving = passesMoving(element);
     await press(element, { x, y });
     await moveHeld(element, { x: x + 10, y: y + 5 });
     await element.waitForStableFrame();
@@ -223,7 +244,6 @@ async function dragCounted(
     const frame = element.graph.scene.onBeforeRenderObservable.add(() => {
         frames++;
     });
-    const moving = passesMoving(element);
     try {
         for (let move = 1; move <= MOVES; move++) {
             if (during?.move === move) {
@@ -248,7 +268,13 @@ async function dragCounted(
     await element.waitForStableFrame();
     const after = edge.drawnLine?.center;
     assert.isDefined(after, "its line is still drawn");
-    return { visits, moved: moving.moved, followed: after.subtract(before).length(), hovered };
+    return {
+        visits,
+        moved: moving.moved,
+        followed: after.subtract(before).length(),
+        hovered,
+        batched: element.renderPath === "batched",
+    };
 }
 
 describe("a drag", () => {
@@ -256,10 +282,14 @@ describe("a drag", () => {
         "visits only the dragged node's edges, at any graph size, on %s",
         async (layout) => {
             for (const size of SIZES) {
-                const { visits, moved, followed, hovered } = await dragCounted(size, layout);
+                const { visits, moved, followed, hovered, batched } = await dragCounted(size, layout);
                 assert.deepEqual(hovered, [], "no node is hovered while the pointer holds one");
                 const message = `${String(visits.length)} edge visits in ${String(moved.size)} passes moving t at ${String(size)} nodes`;
-                assert.isAbove(visits.length, 0, message);
+                // on the batched path an edge pulled from the row table follows its node on the card, with no visit
+                if (!batched) {
+                    assert.isAbove(visits.length, 0, message);
+                }
+
                 // Per update pass that moved t, not per drawn frame: the loop draws a pass only when the picture is
                 // not final, so a pass that moved t can go undrawn, and its visits are still the drag's (issue #9529).
                 // Each visit is one of t's edges, made once in a pass that moved t: so never more than three a pass,
@@ -290,7 +320,11 @@ describe("a drag", () => {
             engine.step();
             engine.publishPositions();
         };
-        const { visits } = await dragCounted(SIZES[0], "forceatlas2", { move: 4, run: step }, "batched");
+        // An arrowhead set back from its node is drawn only by an `Edge` (a default head is pulled from the row
+        // table and follows its rows on the card with no visit), so the others' edges are placed by a pass too.
+        const { visits } = await dragCounted(SIZES[0], "forceatlas2", { move: 4, run: step }, "batched", {
+            "edge.arrowHeadGap": 1,
+        });
         const atT = (visit: Visit): boolean => visit.edge.startsWith("t-");
         const both = new Set(visits.filter(atT).map(({ pass }) => pass));
         const rows = new Set(visits.filter((visit) => !atT(visit)).map(({ pass }) => pass));

@@ -159,7 +159,15 @@ export interface AiVoiceOptions {
      * Anthropic reader's speech through OpenAI. `model` names the transcription model; for a
      * provider whose chat model transcribes (Google), it names that chat model.
      */
-    transcription?: { provider: AiProviderId; model?: string };
+    transcription?: {
+        /** The provider that transcribes, with its key from `apiKeys`. */
+        provider: AiProviderId;
+        /**
+         * The transcription model, or for a provider whose chat model transcribes (Google), that
+         * chat model. Default: the provider's own.
+         */
+        model?: string;
+    };
     /**
      * Utterances that answer a pending approval instead of sending a message, compared with case
      * and punctuation ignored. Default `{ approve: ["yes"], deny: ["no"] }`, in English whatever
@@ -169,7 +177,17 @@ export interface AiVoiceOptions {
      * and answers `AI_CONFIRMATION_NEEDED` `{ gate, request }`: it is approved on screen. A spoken
      * deny answers every hold.
      */
-    replies?: { approve?: readonly string[]; deny?: readonly string[]; gates?: readonly string[] };
+    replies?: {
+        /** Utterances that approve a pending hold. Default `["yes"]`. */
+        approve?: readonly string[];
+        /** Utterances that deny every pending hold. Default `["no"]`. */
+        deny?: readonly string[];
+        /**
+         * The holds (a request's `gate`) a spoken approve may answer. Default
+         * `AI_VOICE_APPROVABLE_GATES`.
+         */
+        gates?: readonly string[];
+    };
     /**
      * The words to speak for an outcome the model wrote no text for (an error, a held approval).
      * Return undefined to say nothing. Absent, such an outcome is not spoken: the element speaks

@@ -116,6 +116,36 @@ export interface BuilderReads {
 }
 
 /**
+ * The logical edges at the given nodes, read from a snapshot's adjacency: out-arcs, and in-arcs when directed.
+ * @param snapshot - The snapshot.
+ * @param nodeIds - The nodes; one it does not hold is skipped.
+ * @returns The edge rows, each once.
+ */
+function snapshotEdgeRowsAt(snapshot: GraphSnapshot, nodeIds: readonly NodeId[]): Set<number> {
+    const edges = new Set<number>();
+    const { rowPtr, arcToEdge } = snapshot;
+    const reverse = snapshot.directed ? snapshot.reverse() : null;
+    for (const id of nodeIds) {
+        const row = snapshot.ids.indexOf(id);
+        if (row === INVALID_INDEX) {
+            continue;
+        }
+
+        for (let arc = rowPtr[row]; arc < rowPtr[row + 1]; arc++) {
+            edges.add(arcToEdge[arc]);
+        }
+
+        if (reverse !== null) {
+            for (let arc = reverse.rowPtr[row]; arc < reverse.rowPtr[row + 1]; arc++) {
+                edges.add(arcToEdge[reverse.fwdArc[arc]]);
+            }
+        }
+    }
+
+    return edges;
+}
+
+/**
  * The reads a let-go builder would have answered, from the snapshot frozen from it: the same rows,
  * as a builder holds exactly its last freeze's rows until its next write.
  * @param snapshot - The snapshot.
@@ -968,6 +998,8 @@ export class GraphStore {
     /** The counters whose tick every freeze advances; the graph primitives bump its fields. */
     readonly inputs: InputCounters;
     private readonly undirectedCache = new WeakMap<GraphSnapshot, DerivedGraph>();
+    /** The direction setting {@link GraphStore.withSettingHeld} read for the work it is running, else null. */
+    private heldSetting: { readonly directed: boolean | "auto" } | null = null;
     private cache: GraphSnapshot | null = null;
     /**
      * The builder the cache was frozen from and its `mutationCount` just after that freeze: the
@@ -1309,10 +1341,36 @@ export class GraphStore {
     }
 
     /**
+     * Run `work` with the direction setting read once, at its start, instead of at every read of the graph. Every
+     * read of {@link GraphStore.reads} or {@link GraphStore.builder} checks the setting, because a change to it
+     * rebuilds the graph; on a graph the element draws that check reads the whole configuration document, and a
+     * frame that places 120,000 edges reads the graph several times per edge (about 44 ms a frame, issue #9420). For
+     * work that changes no setting, such as placing the edges for a frame. Nested calls share the outer one's reading.
+     * @param work - The work.
+     * @returns What it returns.
+     */
+    withSettingHeld<T>(work: () => T): T {
+        if (this.heldSetting !== null) {
+            return work();
+        }
+
+        this.heldSetting = { directed: this.directedSetting() };
+        try {
+            return work();
+        } finally {
+            this.heldSetting = null;
+        }
+    }
+
+    /**
      * The direction setting now.
      * @returns config.data.directed
      */
     private directedSetting(): boolean | "auto" {
+        if (this.heldSetting !== null) {
+            return this.heldSetting.directed;
+        }
+
         const { directed } = this.options;
         return typeof directed === "function" ? directed() : directed;
     }
@@ -2023,7 +2081,10 @@ export class GraphStore {
      */
     incidentEdgeIds(nodeIds: readonly NodeId[]): number[] {
         this.settle();
-        return Array.from(this.edgeRowsOf([], this.nodeRowsOf(nodeIds)), (row) => this.edgeIdAt(row));
+        const rows = this.held === null && this.cache !== null ? snapshotEdgeRowsAt(this.cache, nodeIds) : null;
+        // A let-go builder is answered from the snapshot it was frozen to, as `reads` is: a style pass checking the
+        // edges at the rows it repainted brought the builder back after every load.
+        return Array.from(rows ?? this.edgeRowsOf([], this.nodeRowsOf(nodeIds)), (row) => this.edgeIdAt(row));
     }
 
     /**

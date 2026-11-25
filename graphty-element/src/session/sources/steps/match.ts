@@ -466,7 +466,7 @@ export function matchValues(
 }
 
 /** One join `suggestMatches` proposes. */
-export interface MatchSuggestion {
+interface MatchSuggestion {
     readonly result: "merge" | "connect";
     readonly matches: readonly MatchPair[];
     readonly confident: boolean;

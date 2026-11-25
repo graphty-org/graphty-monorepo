@@ -54,7 +54,7 @@ type OutcomeOption =
     | "columns";
 
 /** One outcome. */
-export interface JoinOutcome {
+interface JoinOutcome {
     readonly code: OutcomeCode;
     readonly acts: readonly SourceJoinAct[];
     /** Whose rows the acts read, one per source. */

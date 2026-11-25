@@ -6121,10 +6121,32 @@ export interface SourceMoveColumnsOptions {
  * @experimental source-steps
  */
 export type SourceJoinAct =
-    | { readonly act: "merge"; readonly options: SourceMergeOptions }
-    | { readonly act: "connect"; readonly options: SourceConnectOptions }
-    | { readonly act: "link"; readonly options: SourceLinkOptions }
-    | { readonly act: "extract"; readonly source: SourceKey; readonly options: SourceExtractOptions };
+    | {
+          /** A merge, as `draft.merge` makes. */
+          readonly act: "merge";
+          /** What `draft.merge` takes. */
+          readonly options: SourceMergeOptions;
+      }
+    | {
+          /** An edge step, as `draft.connect` makes. */
+          readonly act: "connect";
+          /** What `draft.connect` takes. */
+          readonly options: SourceConnectOptions;
+      }
+    | {
+          /** A link of nodes whose rows share a value, as `draft.link` makes. */
+          readonly act: "link";
+          /** What `draft.link` takes. */
+          readonly options: SourceLinkOptions;
+      }
+    | {
+          /** An extract, as `draft.extract` makes. */
+          readonly act: "extract";
+          /** The source, as `draft.extract` takes it. */
+          readonly source: SourceKey;
+          /** What `draft.extract` takes after the source. */
+          readonly options: SourceExtractOptions;
+      };
 
 /**
  * `draft.editStep`: the choices of one step a draft may change. `null` or `false` takes a choice off.

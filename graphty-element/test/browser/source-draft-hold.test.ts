@@ -182,6 +182,14 @@ describe("a source draft's preview held still", () => {
         assert.strictEqual(farthest(was, places(d.graph, PEOPLE)), 0);
     });
 
+    test("a commit that empties the graph lands while the preview held it", async () => {
+        const d = await drawn();
+        d.draft.removeSource(d.session.data.sources()[0]?.key ?? "");
+        await d.draft.display(true, { hold: true });
+        await d.draft.commit();
+        assert.lengthOf(d.session.data.nodes(), 0);
+    });
+
     test("a scoped layout's own hold outlives the preview, and its release leaves the preview held", async () => {
         const d = await drawn(async (graph) => {
             await graph.setLayout("ngraph", {}, { scope: { nodes: ["P0", "P1"] } });

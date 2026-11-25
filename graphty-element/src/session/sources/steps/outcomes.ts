@@ -808,6 +808,7 @@ interface Back {
     /** The rows' side. */
     readonly rows: SideData;
     readonly into: (each: JoinInto) => ReturnType<typeof intoRef>;
+    readonly space: (name: string) => SideData;
     readonly made: (
         matches: readonly JoinMatch[],
         onto: readonly SideData[],
@@ -832,6 +833,7 @@ function stepJoin(value: SourceSteps, copies: Copies, base: SourceSteps, index: 
         step,
         rows,
         into: (each) => intoRef(base, upTo, copies, each),
+        space: (name) => sideOf(base, copies, { space: name }),
         made: (matches, onto, rest, of = rows) => ({
             matches,
             outcome: outcome([of], onto, { ...rest, uses: matches.map((_, i) => i) }),
@@ -901,13 +903,26 @@ function connectBack(back: Back, act: ReadAct): StepJoin {
 }
 
 /**
+ * The side whose nodes a link reads the values of: the one source whose rows they are when the columns
+ * are ones earlier steps brought it, else the space, as a column of the source's own names its rows alone.
+ * @param back - The step.
+ * @param space - The nodes' space.
+ * @param columns - The columns.
+ * @returns The side.
+ */
+function holdersOf(back: Back, space: string, columns: readonly string[]): SideData {
+    const named = back.into({ space }).data;
+    return columns.every((column) => named.joined.has(column)) ? named : back.space(space);
+}
+
+/**
  * A link read back: its columns as fields matched with themselves.
  * @param back - The step.
  * @param link - Its options.
  * @returns Its matches and outcome.
  */
 function linkBack(back: Back, link: SourceLinkOptions): StepJoin {
-    const own = link.nodes === undefined ? back.rows : back.into({ space: link.nodes }).data;
+    const own = link.nodes === undefined ? back.rows : holdersOf(back, link.nodes, link.columns);
     const self = link.columns.map((field): JoinMatch => {
         const ref: SideRef = { ...own.side, field };
         return { a: ref, b: ref };

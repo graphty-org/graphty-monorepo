@@ -365,6 +365,20 @@ describe("source-steps drafts: what matches can make", () => {
         o.session.dispose();
     });
 
+    it("nodes two sources' rows are, linked by a column of one of them, read back as their space", async () => {
+        const o = await opened(["people"], ["entries"]);
+        const { draft, key } = o;
+        draft.merge({ from: { source: key.entries, field: "person" }, into: { source: key.people } });
+        const { space } = draft.spaces()[0];
+        const tags = { space, field: "tags" };
+        const [shared] = draft.joinOutcomes({ matches: [{ a: tags, b: tags }] }).outcomes;
+        make(draft, shared.acts);
+        const back = draft.joinOutcomes({ step: draft.steps().length - 1 });
+        assert.deepStrictEqual(back.matches, [{ a: tags, b: tags }], "never as people's own rows");
+        assert.deepStrictEqual(back.outcomes.find((each) => each.current)?.acts, shared.acts);
+        o.session.dispose();
+    });
+
     it("a source merged with Skip still gives fields to its second card; kept as nodes, its nodes fold", async () => {
         const o = await opened(["contacts"], ["watch"]);
         const merge = (unmatchedFrom: "keep" | "drop"): void => {

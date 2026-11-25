@@ -356,7 +356,9 @@ export function draftLayers(
     ];
     for (const { step, color } of view.steps ?? []) {
         specs.push(
-            ...idLayers("Untouched", ids({ step, buckets: STEP_MARKS.untouched }), untouchedLook(color)),
+            ...(view.untouched === undefined
+                ? []
+                : idLayers("Untouched", ids({ step, buckets: STEP_MARKS.untouched }), untouchedLook(color))),
             ...idLayers("Merged", ids({ step, buckets: STEP_MARKS.merged }), mergedLook(color), mergedEdgeLook(color)),
             // The layers above draw what the commit adds dashed: what the step made before keeps its line whole.
             ...idLayers(

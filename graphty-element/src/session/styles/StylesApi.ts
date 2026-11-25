@@ -566,9 +566,9 @@ export interface DraftView {
           };
     /**
      * Colors by step instead of by what the commit does: each listed step's merged nodes get a ring,
-     * its new nodes and edges a dashed border, and its untouched nodes a dotted border, all in the
-     * step's color; `merged`, `new` and `untouched` then draw only what no listed step drew. Read
-     * when the view is shown: show it again after the draft changes.
+     * its new nodes and edges a dashed border, and, with an `untouched` color, its untouched nodes a
+     * dotted border, all in the step's color; `merged`, `new` and `untouched` then draw only what no
+     * listed step drew. Read when the view is shown: show it again after the draft changes.
      */
     readonly steps?: readonly {
         /** The step's place in `draft.steps()`. */

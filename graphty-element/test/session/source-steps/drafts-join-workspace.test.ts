@@ -195,6 +195,10 @@ describe("source-steps drafts: the join workspace's reads", () => {
         await session.styles.settled();
         assert.strictEqual(look("B3")["node.opacity"], 1, "the marked node is at full strength");
         assert.strictEqual(look("B1")["node.opacity"], 0.2, "the rest is faint");
+        const { untouched: _none, ...plain } = view;
+        session.styles.showDraft(plain);
+        await session.styles.settled();
+        assert.notStrictEqual(look("B3")["node.borderStyle"], "dotted", "with no color for it, it keeps its look");
         shown.end();
         session.styles.showDraft(view).end();
         assert.isNull(session.styles.shownDraft, "ended, nothing is shown");

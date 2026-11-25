@@ -26,5 +26,6 @@ export {
 export { ImagePicker, type ImagePickerItem, type ImagePickerLabels, type ImagePickerProps } from "./ImagePicker";
 export { pickFiles, type PickFilesOptions } from "./pickFiles";
 export { SearchInput, type SearchInputProps } from "./SearchInput";
+export { TileButton, type TileButtonProps } from "./TileButton";
 export { type FileDropState, useFileDrop, type UseFileDropOptions } from "./useFileDrop";
 export { VariablePill, type VariablePillProps } from "./VariablePill";

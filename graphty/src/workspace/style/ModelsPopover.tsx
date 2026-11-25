@@ -1,5 +1,5 @@
-import { Popout } from "@graphty/compact-mantine";
-import { Button, Stack, Text, UnstyledButton } from "@mantine/core";
+import { Popout, TileButton } from "@graphty/compact-mantine";
+import { Button, Stack, Text } from "@mantine/core";
 import React, { useState } from "react";
 
 import { modelName, useModelPicture } from "../canvas/models";
@@ -88,18 +88,15 @@ function ProjectTile({
 }: Readonly<{ id: string; name: string; tile: TileProps; onPick: () => void }>): React.JSX.Element {
     const picture = useModelPicture(id, TILE_PX);
     return (
-        <UnstyledButton className="ws-gallery-tile" aria-label={name} {...tile} onClick={onPick}>
-            {picture === undefined ? (
-                <span className="ws-gallery-picture ws-gallery-empty">
-                    <GLYPHS.model size={24} aria-hidden />
-                </span>
-            ) : (
-                <img className="ws-gallery-picture" src={picture} alt="" />
-            )}
-            <Text size="xs" truncate>
-                {name}
-            </Text>
-        </UnstyledButton>
+        <TileButton
+            className="ws-gallery-tile"
+            name={name}
+            src={picture}
+            glyph={<GLYPHS.model size={24} aria-hidden />}
+            {...tile}
+            picked={tile["aria-pressed"]}
+            onClick={onPick}
+        />
     );
 }
 
@@ -220,20 +217,17 @@ export function ModelsPopover({
                             }}
                         >
                             {samples.map((sample) => (
-                                <UnstyledButton
+                                <TileButton
                                     key={sample.id}
                                     className="ws-gallery-tile"
-                                    aria-label={sample.plainName}
+                                    name={sample.plainName}
+                                    src={sample.thumbnail}
                                     {...tile(sample.id, sampleStop)}
+                                    picked={sample.id === chosen}
                                     onClick={() => {
                                         onPick(sample.id);
                                     }}
-                                >
-                                    <img className="ws-gallery-picture" src={sample.thumbnail} alt="" />
-                                    <Text size="xs" truncate>
-                                        {sample.plainName}
-                                    </Text>
-                                </UnstyledButton>
+                                />
                             ))}
                         </div>
                         {own.length === 0 ? null : (

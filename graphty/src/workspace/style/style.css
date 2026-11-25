@@ -295,7 +295,7 @@
     opacity: 0.5;
 }
 
-/* The gallery: search, then two columns of tiles, each its still picture and name. */
+/* The gallery: search, then two columns of tiles (compact-mantine TileButton), each its still picture and name. */
 .ws-gallery {
     display: flex;
     flex-direction: column;
@@ -308,35 +308,7 @@
     gap: 4px;
 }
 
-.ws-gallery-tile {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    width: 100%;
-    min-width: 0;
-    padding: 4px;
-    border-radius: var(--mantine-radius-sm);
-}
-
-/* A press always lands on the tile: its picture swaps its stand-in for the image when it is drawn,
-   and a swap under the pointer between press and release loses the click (#8609). */
-.ws-gallery-tile * {
-    pointer-events: none;
-}
-
-.ws-gallery-tile:hover:not([aria-disabled]) {
-    background: var(--mantine-color-default-hover);
-}
-
-.ws-gallery-tile[data-marked] {
-    outline: 1px solid var(--mantine-primary-color-filled);
-}
-
-.ws-gallery-tile[aria-disabled] {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
+/* The shader editor's preview picture, drawn as a gallery tile's picture. */
 .ws-gallery-picture {
     display: block;
     width: 100%;
@@ -344,6 +316,10 @@
     border-radius: 4px;
     background: var(--mantine-color-default-border);
     object-fit: cover;
+}
+
+.ws-gallery-tile[data-marked] {
+    outline: 1px solid var(--mantine-primary-color-filled);
 }
 
 /* A shader parameter's field, then its vary glyph and minus columns. */
@@ -577,14 +553,6 @@
 
 .ws-part-name {
     white-space: nowrap;
-}
-
-/* A project model's tile while graphty-element draws its picture, or when it cannot: the cube. */
-.ws-gallery-empty {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--cm-text-secondary);
 }
 
 /* The Load custom model dialog (node-models design 14.2). */

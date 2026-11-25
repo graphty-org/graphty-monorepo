@@ -59,6 +59,7 @@ export {
     ImagePicker,
     pickFiles,
     SearchInput,
+    TileButton,
     useFileDrop,
     VariablePill,
 } from "./components/inputs";
@@ -321,6 +322,7 @@ export type {
     ImagePickerProps,
     PickFilesOptions,
     SearchInputProps,
+    TileButtonProps,
     UseFileDropOptions,
     VariablePillProps,
 } from "./types";

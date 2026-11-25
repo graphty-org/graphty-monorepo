@@ -96,7 +96,7 @@ export interface ImagePickerProps {
  * @param props.size - Drawn size in pixels
  * @returns The glyph
  */
-function PictureGlyph({ size = PANEL_GRID.GLYPH }: Readonly<{ size?: number }>): React.JSX.Element {
+export function PictureGlyph({ size = PANEL_GRID.GLYPH }: Readonly<{ size?: number }>): React.JSX.Element {
     // The glyph register's grid: a 16-unit box, round 1px strokes in currentColor at any size.
     const grid = { viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: 16 / size };
     return (

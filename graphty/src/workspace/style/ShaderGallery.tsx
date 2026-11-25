@@ -1,4 +1,4 @@
-import { ContextMenu, SearchInput } from "@graphty/compact-mantine";
+import { ContextMenu, SearchInput, TileButton } from "@graphty/compact-mantine";
 import { shaderAnimates, type ShaderDescriptor, type ShaderPlace } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { Menu, Text, Tooltip, UnstyledButton, VisuallyHidden } from "@mantine/core";
@@ -435,10 +435,11 @@ function GalleryTile({
 >): React.JSX.Element {
     const describedBy = useId();
     const button = (
-        <UnstyledButton
+        <TileButton
             {...handlers}
             className="ws-gallery-tile"
-            aria-label={name}
+            name={name}
+            src={picture}
             aria-describedby={description === undefined || description === "" ? undefined : describedBy}
             data-shader={id}
             data-marked={marked ? "" : undefined}
@@ -464,14 +465,6 @@ function GalleryTile({
                 }
             }}
         >
-            {picture === undefined ? (
-                <span className="ws-gallery-picture" aria-hidden />
-            ) : (
-                <img className="ws-gallery-picture" src={picture} alt="" />
-            )}
-            <Text size="xs" truncate>
-                {name}
-            </Text>
             {facts}
             {second !== undefined && !quiet && (
                 <Text size="xs" c="dimmed" truncate>
@@ -481,7 +474,7 @@ function GalleryTile({
             {description !== undefined && description !== "" && (
                 <VisuallyHidden id={describedBy}>{description}</VisuallyHidden>
             )}
-        </UnstyledButton>
+        </TileButton>
     );
     if (dimmed !== undefined) {
         return <Tooltip label={dimmed}>{button}</Tooltip>;

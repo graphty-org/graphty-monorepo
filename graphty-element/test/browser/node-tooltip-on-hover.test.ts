@@ -225,6 +225,33 @@ describe("a tooltip a layer asks for", () => {
         assert.isNull(tooltipMesh(node), "the pointer left and the tooltip went with it");
     });
 
+    it("draws nothing for empty words, even on a white panel", async () => {
+        // A Cytoscape file writes NODE_TOOLTIP="" on every node; the panel's margins around no
+        // words drew an opaque white square over whatever was beside the node (issue #10116).
+        await graph.getSession().styles.add({
+            name: "empty tooltips",
+            selector: { match: "ids", nodes: ["alpha"] },
+            set: { "node.tooltip": "", "node.tooltipStyle": { background: "#FFFFFF" } },
+        });
+        await settle();
+
+        const node = alpha();
+        await pointerTo(screenPosition(node));
+
+        assert.strictEqual(graph.getSession().selection.hovered, "alpha", "the node is hovered");
+        assert.isNull(tooltipMesh(node), "an empty tooltip builds no plane");
+    });
+
+    it("lets the pointer through its plane", async () => {
+        await graph.getSession().styles.add(TOOLTIP_LAYER);
+        await settle();
+
+        const node = alpha();
+        await pointerTo(screenPosition(node));
+
+        assert.isFalse(node.tooltip?.labelMesh?.isPickable, "a tooltip cannot take the pointer off the node");
+    });
+
     it("is not drawn on a node no layer gave one", async () => {
         await graph.getSession().styles.add(TOOLTIP_LAYER);
         await settle();

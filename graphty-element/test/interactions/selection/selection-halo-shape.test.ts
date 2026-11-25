@@ -245,3 +245,95 @@ describe("the selection highlight", () => {
         }
     });
 });
+
+/**
+ * How many halo-colored pixels lie past the node's fill, walking out from its center one way.
+ * @param pixels - The frame, bottom row first.
+ * @param width - The frame's width in pixels.
+ * @param from - The node's center in frame pixels.
+ * @param step - The direction, one pixel at a time.
+ * @param step.x - Columns per step.
+ * @param step.y - Rows per step.
+ * @returns The band's thickness in pixels.
+ */
+function bandAlong(
+    pixels: Uint8Array,
+    width: number,
+    from: { x: number; y: number },
+    step: { x: number; y: number },
+): number {
+    const at = (k: number): { r: number; g: number; b: number } => {
+        const o = ((from.y + step.y * k) * width + from.x + step.x * k) * 4;
+        return { r: pixels[o], g: pixels[o + 1], b: pixels[o + 2] };
+    };
+    const halo = (c: { r: number; g: number; b: number }): boolean => c.r > 180 && c.b > 180 && c.g < 90;
+    let k = 0;
+    while (k < 400 && !halo(at(k))) {
+        k++;
+    }
+    let band = 0;
+    while (k + band < 400 && halo(at(k + band))) {
+        band++;
+    }
+    return band;
+}
+
+describe("the selection highlight around a node wider than tall", () => {
+    it.each(["ellipse", "rectangle"])(
+        "rings a 2-to-1 %s with a band as thick at the top as at the sides",
+        async (shape) => {
+            const element = await mounted("2d", [
+                { id: "wide", kind: shape, position: { x: 0, y: 0, z: 0 } },
+                // far corners, so fitting the view leaves room around the selected node
+                { id: "corner-a", kind: "ball", position: { x: -12, y: -9, z: 0 } },
+                { id: "corner-b", kind: "ball", position: { x: 12, y: 9, z: 0 } },
+            ]);
+            await element.session.styles.add({
+                name: "wide and green",
+                target: "node",
+                selector: { match: "ids", nodes: ["wide"] },
+                set: { "node.width": 4, "node.height": 2, "node.color": "#00AA00" },
+            });
+            await element.session.styles.add({
+                name: "a magenta halo on the selection",
+                target: "node",
+                selector: { match: "state", state: "selected" },
+                set: { "node.haloColor": "#FF00FF", "node.haloScale": DEFAULT_SCALE, "node.haloOpacity": 1 },
+            });
+            await applied(element);
+
+            await click(element, at(element, "wide"));
+            await applied(element);
+            assert.strictEqual(element.getSelectedNode()?.id, "wide", "the click selected the node");
+
+            const { engine } = element.graph;
+            element.graph.getScene().render();
+            const pixels = (await engine.readPixels(
+                0,
+                0,
+                engine.getRenderWidth(),
+                engine.getRenderHeight(),
+            )) as unknown as Uint8Array;
+            const ratio = engine.getRenderWidth() / WIDTH;
+            const css = at(element, "wide");
+            const center = { x: Math.round(css.x * ratio), y: Math.round(engine.getRenderHeight() - css.y * ratio) };
+            const width = engine.getRenderWidth();
+            const side = [
+                bandAlong(pixels, width, center, { x: 1, y: 0 }),
+                bandAlong(pixels, width, center, { x: -1, y: 0 }),
+            ];
+            const top = [
+                bandAlong(pixels, width, center, { x: 0, y: 1 }),
+                bandAlong(pixels, width, center, { x: 0, y: -1 }),
+            ];
+            const detail = `sides ${JSON.stringify(side)}, top and bottom ${JSON.stringify(top)}`;
+
+            assert.isAbove(Math.min(...side, ...top), 0, `the band shows on all four sides: ${detail}`);
+            assert.isAtMost(
+                Math.max(...side, ...top) - Math.min(...side, ...top),
+                2 * ratio,
+                `the band is even: ${detail}`,
+            );
+        },
+    );
+});

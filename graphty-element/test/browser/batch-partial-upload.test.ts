@@ -444,14 +444,28 @@ describe("the element's switch", () => {
             upload.apply(this, args);
         });
 
+        // On renderPath "batched" the edges are row lines (`EdgeRowLines`), with no per-edge vertex buffers: a step
+        // hides and shows them in the row lines' own tables, so what it reaches is which row lines are drawn.
+        const rowLines = element.graph.renderPath === "batched" && element.graph.rowCounts.objectEdges === 0;
+        const shownRows = (): string => {
+            const lines = element.graph.getEdgeRowLines();
+            return (lines?.rows() ?? []).filter((row) => lines?.isHidden(row) !== true).join(",");
+        };
+        const shownBefore = shownRows();
+
         await element.session.time.seek(520, { commit: false });
         await drawn(element);
 
-        assert.isAbove(sent.length, 0, "the step reached the edge buffers");
-        assert.isFalse(
-            sent.some(({ whole }) => whole),
-            "and sent none of them whole",
-        );
+        if (rowLines) {
+            assert.equal(sent.length, 0, "no edge is an object edge's line");
+            assert.notEqual(shownRows(), shownBefore, "the step reached the row lines");
+        } else {
+            assert.isAbove(sent.length, 0, "the step reached the edge buffers");
+            assert.isFalse(
+                sent.some(({ whole }) => whole),
+                "and sent none of them whole",
+            );
+        }
 
         await element.session.time.window(null);
         await drawn(element);

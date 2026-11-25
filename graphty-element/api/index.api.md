@@ -1173,6 +1173,7 @@ export class Edge {
     }[];
     // @internal
     get drawnGradient(): readonly string[];
+    get drawnHeadPosition(): Vector3 | null;
     get drawnLine(): {
         name: string;
         length: number;
@@ -1217,6 +1218,8 @@ export class Edge {
     parentGraph: Graph | GraphContext;
     // (undocumented)
     ray: Ray;
+    // @internal
+    redrawPulledOffEnds(): boolean;
     // @internal
     refreshFonts(families: ReadonlySet<string>): boolean;
     // @internal
@@ -3510,7 +3513,7 @@ export interface GraphErrorEvent {
 }
 
 // @public
-export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | OverviewChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | LayoutUpdatedEvent | LayoutWarningEvent | LimitsWarningEvent | BasemapStatusEvent | RenderLostEvent | RenderRestoredEvent | OperationCanceledEvent | StatsUpdateEvent | InputEnabledChangedEvent | InputBookkeepingEvent | ReducedMotionChangedEvent | AnimationProgressEvent | TourProgressEvent | TourEndedEvent | ViewsChangedEvent | XRSessionStartedEvent | XRSessionEndedEvent | XRMenuSelectEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
+export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | OverviewChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | LayoutUpdatedEvent | LayoutWarningEvent | LimitsWarningEvent | BasemapStatusEvent | RenderLostEvent | RenderRestoredEvent | RenderWarningEvent | OperationCanceledEvent | StatsUpdateEvent | InputEnabledChangedEvent | InputBookkeepingEvent | ReducedMotionChangedEvent | AnimationProgressEvent | TourProgressEvent | TourEndedEvent | ViewsChangedEvent | XRSessionStartedEvent | XRSessionEndedEvent | XRMenuSelectEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
 
 // @public
 export type GraphEventType = GraphEvent["type"];
@@ -4562,11 +4565,12 @@ export type GraphtyErrorCode =
 */
 | "E_NO_WEBGL"
 /**
-* A shader could not be built for WebGPU, usually because a name or a built-in in it is legal
-* GLSL that WGSL or the compilers in between do not take. A refused shader never draws and can
-* lose every frame it is part of, so `rendererStatus.drawing` turns false. `details.stage` names the step that gave up (`"compiler"`,
-* `"translator"` or `"device"`) and `details.messages` carry what it said, which the translator
-* leaves empty. Reported as `graph-error`.
+* A shader could not be built, under WebGPU usually because a name or a built-in in it is legal
+* GLSL that WGSL or the compilers in between do not take; under WebGL because the driver's
+* compiler refused it. A refused shader never draws and can lose every frame it is part of, so
+* `rendererStatus.drawing` turns false. `details.stage` names the step that gave up
+* (`"compiler"`, `"translator"` or `"device"`) and `details.messages` carry what it said,
+* which the translator leaves empty. Reported as `graph-error`.
 */
 | "E_SHADER_REFUSED"
 /**
@@ -5178,6 +5182,14 @@ export type GraphtyWarningCode =
 * Experimental: may change in a minor release.
 */
 | "W_OBJECT_CAP"
+/**
+* The installed Babylon.js words a line of its shaders differently from the one
+* render-path="batched" edits, so the edit was not made: batched rows still draw, with Babylon's
+* own line (a node's shading may differ a little from the same node drawn as an object).
+* `params.renderer` is `"webgl"` or `"webgpu"`, `params.patterns` the edits that matched
+* nothing. Reported as `render-warning`.
+*/
+| "W_SHADER_EDIT_MISSED"
 /**
 * A style layer binds a whole label style channel (`node.labelStyle`) to a path. No scale
 * produces a whole label style, so the binding paints nothing. `params.channel` is the channel,
@@ -6076,6 +6088,8 @@ class Node_2 implements ModelUser {
     get groupDrawnForAnotherCamera(): boolean;
     // @internal
     get groupSizing(): NodeStyleConfig["group"];
+    // @internal
+    get hiddenByStyle(): boolean;
     hideTooltip(): void;
     readonly id: NodeIdType;
     // @internal
@@ -8333,6 +8347,13 @@ export interface RenderRestoredEvent {
     type: "render-restored";
 }
 
+// @public
+export interface RenderWarningEvent {
+    code: GraphtyWarningCode;
+    params: Readonly<Record<string, unknown>>;
+    type: "render-warning";
+}
+
 export { ReplayFetch }
 
 export { replayFetch }
@@ -9375,6 +9396,8 @@ export class UpdateManager implements Manager {
     nodeRowSelected(row: number): boolean;
     // @internal
     nodeRowsMoved(remap: ArrayLike<number>): void;
+    // @internal
+    noteEndsChanged(row: number): void;
     nothingIsOwed(): boolean;
     onceNothingIsOwed(callback: () => void): () => void;
     operationsPending: (() => boolean) | null;
@@ -9398,6 +9421,8 @@ export class UpdateManager implements Manager {
     // @internal
     repaintNodes(nodes: readonly Node_2[]): void;
     static readonly RETRIM_COUNTER = "edges.retrimmedForNodeScale";
+    // @internal
+    rowHiddenByStyle(row: number): boolean;
     // @internal
     rowsRenumbered(): void;
     saveFraming(): () => void;

@@ -37,8 +37,8 @@
  * - A network sample: the source's own public example, read live from its server, so a rerun needs
  *   network access.
  * - A sample file from another program (graph-io/test/corpus/programs/samples.json, named `program-<id>`): the
- *   app's copy of the file, drawn as the app opens it, with its file's styles and the layout graphty-element
- *   recommends for it, and with its own background when it names one.
+ *   app's copy of the file, drawn as the app opens a sample, with its file's styles and layout "placed" (where the
+ *   file put its nodes, else the layout it asks for), and with its own background when it names one.
  *
  * Needs a built graph-format, graph-samples (with dist/data/v1/) and graphty-element
  * (dist/graphty.bundle.js).
@@ -61,6 +61,10 @@ const hostedDir = path.join(root, "graph-samples/public-data/v1");
 const downloadDir = path.join(root, "tmp/graph-samples-hosted");
 const outDir = path.join(root, "graph-samples/thumbnails");
 const bundle = path.join(root, "graphty-element/dist/graphty.bundle.js");
+const assetsDir = path.join(root, "graphty-element/dist/assets");
+/** The optional Graphviz package graphty-element's Graphviz Worker loads, served at GRAPHVIZ_URL. */
+const graphvizPackage = path.join(root, "graphty-element/node_modules/@hpcc-js/wasm-graphviz/dist/index.js");
+const GRAPHVIZ_URL = "/hpcc-js-wasm-graphviz.js";
 /** The graphty app's own samples that have no graph-samples dataset to take a picture from. */
 const appSamplesDir = path.join(root, "graphty/public/samples");
 const APP_SAMPLES = ["campus-contacts", "graph-research", "marvel-films", "paper-citations"];
@@ -389,7 +393,7 @@ async function jobs(wanted) {
                         ? {}
                         : { edgeSource: sample.columns.source, edgeTarget: sample.columns.target },
             },
-            layout: { id: "recommended" },
+            layout: { id: "placed" },
         });
     }
     for (const meta of DATASETS.filter((each) => want(each.name))) {
@@ -438,6 +442,24 @@ const server = createServer((request, response) => {
     if (request.url === "/graphty.bundle.js") {
         response.setHeader("Content-Type", "text/javascript");
         response.end(readFileSync(bundle));
+        return;
+    }
+    // graphty-element's Workers; its Graphviz Worker imports the optional Graphviz package by name, which a page
+    // with no bundler cannot resolve, so it is pointed at the installed copy and a DOT file gets its Graphviz layout
+    if (request.url === GRAPHVIZ_URL) {
+        response.setHeader("Content-Type", "text/javascript");
+        response.end(readFileSync(graphvizPackage));
+        return;
+    }
+    const asset = /^\/assets\/([\w.-]+\.js)$/.exec(request.url ?? "");
+    if (asset !== null && existsSync(path.join(assetsDir, asset[1]))) {
+        response.setHeader("Content-Type", "text/javascript");
+        response.end(
+            readFileSync(path.join(assetsDir, asset[1]), "utf8").replaceAll(
+                "`@hpcc-js/wasm-graphviz`",
+                `\`${GRAPHVIZ_URL}\``,
+            ),
+        );
         return;
     }
     const program = PROGRAM_SAMPLES.find(({ app }) => request.url === `/programs/${app}`);
@@ -537,11 +559,12 @@ async function draw({ name, data, source, example, program, layout, width, heigh
         return btoa(text);
     };
     if (program !== null) {
-        // drawn as the graphty app opens it: with the file's own styles, laid out as the element recommends
+        // drawn as the graphty app opens a sample: with the file's own styles, where the file placed its nodes or
+        // with the layout the file asks for (a DOT file's Graphviz program)
         await session.layout.setDimension("2d");
         await session.data.import(
             { type: program.type, name, config: { ...program.options, url: program.url } },
-            { styles: "file", layout: "recommended", styleOptions: { framing: "file", lengths: "spacing" } },
+            { styles: "file", layout: "placed", styleOptions: { framing: "file", lengths: "spacing" } },
         );
         await element.waitForStableFrame();
         const drawn = await element.captureScreenshot({ format: "webp", quality: 0.85, width, height });

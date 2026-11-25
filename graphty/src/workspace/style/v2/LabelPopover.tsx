@@ -102,8 +102,15 @@ export function LabelPopover({
     );
     const set = (line: LabelLineSpec): boolean => labelLineFields(line).some((field) => fieldSet(label, field));
     // A line another field rules out appears once it applies (design "Input rules", "Tabs").
-    const shown = (line: LabelLineSpec): boolean =>
-        !labelRuledOut(ctx, kind.style, style, line.field, labelLineFields(line)) || set(line);
+    const shown = (line: LabelLineSpec, beside: readonly LabelLineSpec[] = []): boolean =>
+        !labelRuledOut(
+            ctx,
+            kind.style,
+            style,
+            line.field,
+            labelLineFields(line),
+            beside.flatMap((each) => labelLineFields(each)),
+        ) || set(line);
     const onUnset = (group: LabelGroup): void => {
         const drop = group.name === POSITION && kind.distance !== undefined ? [kind.distance] : [];
         write(Object.fromEntries(labelGroupFields(group).map((field) => [field, undefined])), drop);
@@ -137,7 +144,7 @@ export function LabelPopover({
         group.name === BACKGROUND
             ? background(group)
             : [
-                  ...group.lines.filter((line) => shown(line)).map((line) => lineOf(group.name, line)),
+                  ...group.lines.filter((line) => shown(line, group.lines)).map((line) => lineOf(group.name, line)),
                   // A caption's distance from its end: a number, so it sits with Position.
                   ...(group.name === POSITION && kind.distance !== undefined
                       ? [<RubricLine key="distance" ctx={ctx} line={{ channel: kind.distance, name: "From end" }} />]

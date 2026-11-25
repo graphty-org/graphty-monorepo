@@ -195,12 +195,14 @@ export function ruledOut(ctx: RowContext, channel: Channel, own: readonly Channe
 
 /**
  * Whether a label style field is ruled out by another field of the style, not by the view (see `ruledOut`), and not
- * by a partner it writes itself.
+ * by a partner it writes itself unless that partner is a line beside it.
  * @param ctx - the row.
  * @param styleChannel - the text kind's label style channel.
  * @param style - the layer's own label style.
  * @param field - the field.
  * @param same - the other fields of the same line (a pair's second number), which never rule it out.
+ * @param beside - the fields of the lines drawn with it: a switch among them rules it out until it is on (Depth fade,
+ * Pointer), as a line that depends on a one-of in the same pop-over is drawn once it applies (design "Input rules").
  * @returns true when another field rules it out.
  */
 export function labelRuledOut(
@@ -209,6 +211,7 @@ export function labelRuledOut(
     style: Readonly<LabelStyle>,
     field: keyof LabelStyle,
     same: readonly (keyof LabelStyle)[] = [],
+    beside: readonly (keyof LabelStyle)[] = [],
 ): boolean {
     const read = labelReader(ctx, styleChannel, style);
     const found = labelFieldDrawn(field, read, viewOf(ctx.session));
@@ -219,7 +222,9 @@ export function labelRuledOut(
     // not rule it out.
     const { field: partner } = found.unmet;
     return (
-        !same.includes(partner) && labelFieldDescriptor(field)?.needs?.some((need) => need.field === partner) !== true
+        !same.includes(partner) &&
+        (beside.includes(partner) ||
+            labelFieldDescriptor(field)?.needs?.some((need) => need.field === partner) !== true)
     );
 }
 

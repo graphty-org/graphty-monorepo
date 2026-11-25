@@ -138,6 +138,8 @@ export function colorItems({
                                                 descriptor={itemDescriptor(descriptor)}
                                                 label={`${name} ${number.name.toLowerCase()}`}
                                                 percent={percent}
+                                                // A slice's color and two numbers share one line: no room for sliders.
+                                                slider={false}
                                                 // Unset, the value drawn: an even share, or a fraction's top.
                                                 value={at < items.length ? Number(items[at]) : fill}
                                                 onWrite={(next) => {

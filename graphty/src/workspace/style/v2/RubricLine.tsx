@@ -67,6 +67,7 @@ const AUTO = "Auto";
  * @param props.percent - reads and types as a percent, when not its channel's say
  * @param props.value - the value set, if any
  * @param props.letter - its slot's letter (a pair's "X" or "W"), else its name's initial
+ * @param props.slider - whether a percent draws its slider (false where several share a line, a list item's)
  * @param props.onWrite - writes a number, or undefined to unset
  * @returns The field
  */
@@ -76,6 +77,7 @@ export function NumberLine({
     percent,
     value,
     letter,
+    slider = true,
     onWrite,
 }: Readonly<{
     descriptor: ChannelDescriptor;
@@ -83,6 +85,7 @@ export function NumberLine({
     percent?: boolean;
     value: unknown;
     letter?: string;
+    slider?: boolean;
     onWrite: (value: number | undefined) => void;
 }>): React.JSX.Element {
     const scale = (percent ?? isPercent(descriptor)) ? 100 : 1;
@@ -121,7 +124,7 @@ export function NumberLine({
     );
     // A percent has a fixed range: a slider (owner's input rules: a range of inputs is a slider), its number
     // field beside it, so its value is read and typed.
-    if (!rangeOf(descriptor, percent)) {
+    if (!slider || !rangeOf(descriptor, percent)) {
         return field;
     }
     return (

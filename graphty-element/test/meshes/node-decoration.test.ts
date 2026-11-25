@@ -96,6 +96,18 @@ describe("stripes", () => {
         ]);
         assert.deepEqual(framedBand(undefined, box), [box]);
     });
+
+    test("a frame side not given is 0, and four zeros draw the whole band", () => {
+        const box = { x0: -10, x1: 10, y0: -5, y1: 5 };
+        assert.deepEqual(framedBand("0.2", box), [
+            { x0: -10, x1: 10, y0: 3, y1: 5 },
+            { x0: -10, x1: 10, y0: -5, y1: -5 },
+            { x0: -10, x1: -10, y0: -5, y1: 3 },
+            { x0: 10, x1: 10, y0: -5, y1: 3 },
+        ]);
+        assert.deepEqual(framedBand("0 0 0 0", box), [box]);
+        assert.deepEqual(framedBand("auto 0.1 auto auto", box)[3], { x0: 8, x1: 10, y0: -5, y1: 5 });
+    });
 });
 
 describe("an image", () => {

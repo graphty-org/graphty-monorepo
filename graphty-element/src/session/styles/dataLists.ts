@@ -23,6 +23,7 @@ import {
     naturalCompare,
     type PieData,
     type RecordData,
+    type StripeData,
 } from "../../catalog/data-lists";
 import type { Channel, PaletteDescriptor, Path } from "../../catalog/types";
 
@@ -38,7 +39,12 @@ import { createMeasurer, type DataGraph } from "./graphMeasures";
 import { sequentialSamples } from "./palettes";
 
 /** The three data channels. */
-export const DATA_CHANNELS: readonly DataChannel[] = ["node.pieData", "node.chartData", "node.recordData"];
+export const DATA_CHANNELS: readonly DataChannel[] = [
+    "node.pieData",
+    "node.stripeData",
+    "node.chartData",
+    "node.recordData",
+];
 
 /**
  * Whether a channel takes a data spec.
@@ -55,6 +61,7 @@ export const FIXED_OF: Readonly<Record<DataChannel, readonly Channel[]>> = DATA_
 /** The channels a data channel writes. */
 export const FILLS_OF: Readonly<Record<DataChannel, readonly Channel[]>> = {
     "node.pieData": ["node.pieColors", "node.pieSizes", "node.pieOpacities", "node.shapeTexts", "node.pieHole"],
+    "node.stripeData": ["node.stripeColors", "node.stripeSizes", "node.stripeOpacities"],
     "node.chartData": ["node.chartValues", "node.chartColors", "node.chartMin", "node.chartMax"],
     "node.recordData": ["node.labelTable", "node.shapeTexts"],
 };
@@ -62,6 +69,7 @@ export const FILLS_OF: Readonly<Record<DataChannel, readonly Channel[]>> = {
 /** What a missing value does when an entry does not say. */
 const DEFAULT_MISSING: Readonly<Record<DataChannel, "skip" | "gap" | "drop">> = {
     "node.pieData": "skip",
+    "node.stripeData": "skip",
     "node.chartData": "gap",
     "node.recordData": "drop",
 };
@@ -185,7 +193,7 @@ const ENTRY_WORDS: Readonly<Record<string, readonly string[]>> = {
 const SPEC_WORDS: Readonly<Record<string, readonly string[]>> = {
     order: ["listed", "largest", "name"],
     labels: ["none", "value", "percent"],
-    empty: ["none", "ring", "slice"],
+    empty: ["none", "ring", "slice", "band"],
     layout: ["table", "points"],
     rows: ["plain", "lines", "zebra"],
 };
@@ -929,7 +937,8 @@ export function prepareData(
     source: DataSource,
     own: Readonly<Record<string, unknown>> = {},
 ): PreparedData {
-    const isPie = channel === "node.pieData";
+    // Stripes from data are a pie's parts laid side by side: the same shares, colors and opacities.
+    const isPie = channel === "node.pieData" || channel === "node.stripeData";
     const isChart = channel === "node.chartData";
     const isRecord = channel === "node.recordData";
     const list = spec as PieData & ChartData;
@@ -1499,7 +1508,7 @@ export function prepareData(
             (part) => part.role !== "missing" && part.value !== null && !Number.isNaN(part.value),
         );
         if (isPie) {
-            return resolvePie(spec, drawn, normal, entriesOut, {
+            const pie = resolvePie(channel, spec, drawn, normal, entriesOut, {
                 colorOf,
                 emptyColor,
                 undrawn: () => undrawnOf(reads),
@@ -1513,6 +1522,7 @@ export function prepareData(
                         ? ""
                         : formatValue(part.value, entries[part.entry]?.format, newest[part.entry] ?? 0),
             });
+            return channel === "node.stripeData" ? asStripes(pie) : pie;
         }
 
         if (normal.length === 0) {
@@ -1784,6 +1794,7 @@ interface PieHelpers {
 
 /**
  * A pie on one node.
+ * @param channel - The data channel (a pie's, or stripes' drawn as a pie's parts).
  * @param spec - The spec.
  * @param drawn - Its parts, ordered and kept.
  * @param normal - Those with a value.
@@ -1792,6 +1803,7 @@ interface PieHelpers {
  * @returns What it draws.
  */
 function resolvePie(
+    channel: DataChannel,
     spec: PieData,
     drawn: readonly Part[],
     normal: readonly Part[],
@@ -1806,7 +1818,7 @@ function resolvePie(
     const denominator = max === null ? total : Math.max(max, total);
     if (normal.length === 0 || denominator <= 0) {
         const undrawn: CodedFact<DataUndrawnCode> =
-            normal.length > 0 ? { code: "data.zeroTotal", params: { channel: "node.pieData" } } : helpers.undrawn();
+            normal.length > 0 ? { code: "data.zeroTotal", params: { channel } } : helpers.undrawn();
         return { entries, undrawn, fills: emptyFills(spec, helpers) };
     }
 
@@ -1849,6 +1861,27 @@ function resolvePie(
     return { entries, undrawn: null, fills };
 }
 
+/** The stripes list each pie list fills, for stripes from data. */
+const STRIPE_FILL: Readonly<Record<string, Channel>> = {
+    "node.pieColors": "node.stripeColors",
+    "node.pieSizes": "node.stripeSizes",
+    "node.pieOpacities": "node.stripeOpacities",
+};
+
+/**
+ * A pie's result as stripes: its slice lists written to the stripe lists (a hole or slice texts are never a stripe's).
+ * @param pie - The pie's result.
+ * @returns The stripes' result.
+ */
+function asStripes(pie: DataResult): DataResult {
+    const fills = Object.fromEntries(
+        Object.entries(pie.fills).flatMap(([fill, value]) =>
+            STRIPE_FILL[fill] === undefined ? [] : [[STRIPE_FILL[fill], value]],
+        ),
+    );
+    return { ...pie, fills };
+}
+
 /**
  * What a pie with no value draws, by its empty choice: nothing (also when an entry's missing choice is gray: a gray
  * sliver needs a value beside it), a ring (the disc with a hole cut) or the whole disc in the missing gray.
@@ -1856,14 +1889,14 @@ function resolvePie(
  * @param helpers - What the preparation knows.
  * @returns The fills.
  */
-function emptyFills(spec: PieData, helpers: PieHelpers): Record<string, string | number> {
+function emptyFills(spec: PieData | StripeData, helpers: PieHelpers): Record<string, string | number> {
     const empty = spec.empty ?? "none";
     if (empty === "none") {
         return {};
     }
 
     const disc = { "node.pieColors": helpers.emptyColor, "node.pieSizes": "1", "node.pieOpacities": "1" };
-    if (empty === "slice") {
+    if (empty === "slice" || empty === "band") {
         return disc;
     }
 

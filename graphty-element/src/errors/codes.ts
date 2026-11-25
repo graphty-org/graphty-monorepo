@@ -1020,8 +1020,9 @@ export type GraphtyWarningCode =
      */
     | "W_UNKNOWN_ID"
     /**
-     * A style layer changes one item of a list channel by its address (`node.pieColors.5`), but the
-     * list the layers beneath give the element is shorter, so the item changes nothing.
+     * A style layer changes one item of a color list channel by its address (`node.pieColors.5`), but
+     * the list the layers beneath give the element is shorter, so the item changes nothing. A number
+     * list (`node.pieSizes.5`) never notes this: it grows to hold the item, the items before it unset.
      * `params.channel` is the list channel, `params.index` the item's index from 0,
      * `params.length` how many items the list beneath holds (0 over no list) and `params.layerId`
      * the layer. Reported per element, on `session.styles.explain(...).notes`.

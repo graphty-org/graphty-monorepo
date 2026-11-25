@@ -259,6 +259,7 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "node.pieColors": NOT_PLACED,
     // The data specs: the entries picker on the Pie, Chart and Record rows places them.
     "node.pieData": NOT_PLACED,
+    "node.stripeData": NOT_PLACED,
     "node.chartData": NOT_PLACED,
     "node.recordData": NOT_PLACED,
     "node.pieSizes": NOT_PLACED,

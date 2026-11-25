@@ -18,8 +18,11 @@ import {
     type Channel,
     type ChannelDescriptor,
     type ChannelValue,
+    listItemAddress,
     readChannelItems,
+    readChannelList,
     writeChannelItems,
+    writeChannelList,
 } from "@graphty/graphty-element/catalog";
 import { ActionIcon, Checkbox, Group, Tooltip, VisuallyHidden } from "@mantine/core";
 import React from "react";
@@ -33,12 +36,14 @@ import { Field, FieldLine, type RowContext, VarySlot, type VaryTarget } from "..
 import { lineIn, needsFor, writeIn } from "../row";
 import { ValueField } from "../ValueField";
 import { channelWord, failureWords, fieldName, scrubLetter, takesBinding } from "../words";
+import { BesidePopover } from "./dataLines";
 import { dimOf, drawnValue, valueDimOf } from "./drawn";
 import { PointPair } from "./ItemFields";
 import { ItemListEditor } from "./ItemListEditor";
 import { moveUnit, rangeOf, readsAsPercent, ruleOf, unsetIn } from "./lineWrites";
 import { coordinateDescriptor, ITEM_LISTS } from "./lists";
 import {
+    groupOfLine,
     isPictured,
     lineChannels,
     type LineSpec,
@@ -48,6 +53,7 @@ import {
     VALUE_GLYPHS,
 } from "./rubric";
 import { setOn, shapeTargets } from "./things";
+import { ValueButton } from "./ValueButton";
 import { sectionsOf } from "./valueSections";
 
 /** What a thing row puts in a line drawn as its row: its settings button and its whole-thing minus. */
@@ -77,6 +83,8 @@ const AUTO = "Auto";
  * @param props.letter - its slot's letter (a pair's "X" or "W"), else its name's initial
  * @param props.slider - whether a percent draws its slider (false where several share a line, a list item's)
  * @param props.zeroAt - an angle's zero on its dial, when not at the top
+ * @param props.plain - a list item's number beside its slider: no letter, one decimal, narrow
+ * @param props.onMove - hears each value a slider drag passes over, and null when a drag ends writing nothing
  * @param props.onWrite - writes a number, or undefined to unset
  * @returns The field
  */
@@ -88,6 +96,8 @@ export function NumberLine({
     letter,
     slider = true,
     zeroAt,
+    plain = false,
+    onMove,
     onWrite,
 }: Readonly<{
     descriptor: ChannelDescriptor;
@@ -98,6 +108,10 @@ export function NumberLine({
     slider?: boolean;
     /** An angle's zero on its dial, when not at the top. */
     zeroAt?: "right";
+    /** A list item's number beside its slider: no letter, one decimal, a narrow field (stripes design 3.1). */
+    plain?: boolean;
+    /** Called with each value a slider drag passes over, and with null when a drag ends writing nothing. */
+    onMove?: (value: number | null) => void;
     onWrite: (value: number | undefined) => void;
 }>): React.JSX.Element {
     const scale = (percent ?? readsAsPercent(descriptor)) ? 100 : 1;
@@ -122,8 +136,12 @@ export function NumberLine({
                 width="100%"
                 numeric
                 options={[]}
-                glyph={letter ?? scrubLetter(name)}
-                value={typeof value === "number" ? Math.round(value * scale * 100) / 100 : AUTO}
+                glyph={plain ? undefined : (letter ?? scrubLetter(name))}
+                value={
+                    typeof value === "number"
+                        ? Math.round(value * scale * (plain ? 10 : 100)) / (plain ? 10 : 100)
+                        : AUTO
+                }
                 suffix={scale === 100 ? "%" : undefined}
                 min={min === undefined ? undefined : min * scale}
                 max={max === undefined ? undefined : max * scale}
@@ -145,8 +163,8 @@ export function NumberLine({
     }
     return (
         <Group gap={4} wrap="nowrap" className="ws-percent">
-            <PercentSlider label={name} value={value} min={min ?? 0} max={max ?? 1} onWrite={onWrite} />
-            <div style={{ flex: "0 0 64px", minWidth: 0 }}>{field}</div>
+            <PercentSlider label={name} value={value} min={min ?? 0} max={max ?? 1} onMove={onMove} onWrite={onWrite} />
+            <div style={{ flex: `0 0 ${plain ? "44px" : "64px"}`, minWidth: 0 }}>{field}</div>
         </Group>
     );
 }
@@ -210,6 +228,7 @@ function wideLine(line: LineSpec, descriptor: ChannelDescriptor, split: boolean)
  * @param props.value - the value shown (set, or drawn), a fraction
  * @param props.min - its least fraction
  * @param props.max - its greatest fraction
+ * @param props.onMove - hears each value a drag passes over, and null when a drag ends writing nothing
  * @param props.onWrite - writes a fraction
  * @returns The slider
  */
@@ -218,17 +237,21 @@ function PercentSlider({
     value,
     min,
     max,
+    onMove,
     onWrite,
 }: Readonly<{
     label: string;
     value: unknown;
     min: number;
     max: number;
+    onMove?: (value: number | null) => void;
     onWrite: (value: number) => void;
 }>): React.JSX.Element {
     const given = typeof value === "number" ? Math.round(value * 100) : max * 100;
-    // The thumb follows a drag before it is written.
+    // The thumb follows a drag before it is written. The value the drag began at decides whether it wrote anything:
+    // `value` may follow the drag itself (a list's shares preview it).
     const [moving, setMoving] = React.useState<number | null>(null);
+    const began = React.useRef<number | null>(null);
     const shown = moving ?? given;
     return (
         <Slider
@@ -241,11 +264,19 @@ function PercentSlider({
             label={null}
             thumbLabel={label}
             thumbProps={{ "aria-valuetext": `${String(shown)}%` }}
-            onChange={setMoving}
+            onChange={(next) => {
+                began.current ??= given;
+                setMoving(next);
+                onMove?.(next / 100);
+            }}
             onChangeEnd={(next) => {
+                const from = began.current ?? given;
+                began.current = null;
                 setMoving(null);
-                if (next !== given) {
+                if (next !== from) {
                     onWrite(next / 100);
+                } else {
+                    onMove?.(null);
                 }
             }}
         />
@@ -327,6 +358,8 @@ export function SegmentsLine({
         readonly dimmed?: string;
         /** A word option's hover tooltip, when its short word needs its long one ("Extend the palette"). */
         readonly tip?: string;
+        /** Its word drawn beside its glyph. */
+        readonly worded?: true;
     }[];
     value: string;
     onPick: (value: string) => void;
@@ -355,22 +388,38 @@ export function SegmentsLine({
                 return {
                     value: option.value,
                     disabled: option.disabled,
-                    label: dim(
-                        option,
-                        pictured && Glyph !== undefined ? (
-                            <Tooltip label={option.name}>
-                                <span style={{ display: "inline-flex" }}>
-                                    <Glyph size={14} aria-hidden />
-                                    <VisuallyHidden>{option.name}</VisuallyHidden>
-                                </span>
-                            </Tooltip>
-                        ) : (
-                            wordsOf(option)
-                        ),
-                    ),
+                    label: dim(option, pictured && Glyph !== undefined ? segmentGlyph(option, Glyph) : wordsOf(option)),
                 };
             })}
         />
+    );
+}
+
+/**
+ * A pictured option's label: its glyph with its word beside it (a worded option), else its glyph with its word as
+ * its tooltip.
+ * @param option - the option.
+ * @param option.name - its word.
+ * @param option.worded - its word drawn beside its glyph.
+ * @param Glyph - its glyph.
+ * @returns the label.
+ */
+function segmentGlyph(
+    option: Readonly<{ name: string; worded?: true }>,
+    Glyph: (typeof GLYPHS)[keyof typeof GLYPHS],
+): React.ReactNode {
+    return option.worded === true ? (
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+            <Glyph size={14} aria-hidden />
+            {option.name}
+        </span>
+    ) : (
+        <Tooltip label={option.name}>
+            <span style={{ display: "inline-flex" }}>
+                <Glyph size={14} aria-hidden />
+                <VisuallyHidden>{option.name}</VisuallyHidden>
+            </span>
+        </Tooltip>
     );
 }
 
@@ -751,90 +800,196 @@ function pointControl(args: ControlArgs): React.ReactNode {
     );
 }
 
-/** A frame's four sides, in the element's order, with their glyphs (R17). */
+/** A frame's four sides, in the element's order (R17). */
 const SIDES = ["Top", "Right", "Bottom", "Left"] as const;
 
+/** The rim Rim writes at once, every side a tenth deep, so a rim shows the moment it is picked. */
+const FIRST_RIM = "0.1 0.1 0.1 0.1";
+
 /**
- * A set of sides (R17, `node.stripeFrame`: four fractions "top right bottom left"): top | right,
- * then bottom | left, each field with its side's glyph. Emptying all four unsets it.
+ * A band frame (R17, `node.stripeFrame`, stripes design 5): Whole / Rim grouped buttons, then with Rim one line per
+ * side, a slider and its number, each writing its own item (`node.stripeFrame.0` to `.3`) with its own link and "-".
+ * A side is capped at the whole less the opposite side, so the strips never overlap. Unsetting the last set side
+ * unsets the frame.
  * @param props - Component props
  * @param props.ctx - the row
  * @param props.line - the line
  * @param props.descriptor - its channel
- * @param props.set - whether the layer sets it
- * @param props.write - writes the sides' text, or undefined to unset
- * @returns The two lines
+ * @param props.under - drawn under its row in the sidebar: one read-only line reading its sides, with its "-"
+ * @param props.write - writes the frame's text, or undefined to unset it
+ * @returns The lines
  */
 function SidesLines({
     ctx,
     line,
     descriptor,
-    set,
+    under,
     write,
 }: Readonly<{
     ctx: RowContext;
     line: LineSpec;
     descriptor: ChannelDescriptor;
-    set: boolean;
+    under: boolean;
     write: (text: string | undefined) => void;
 }>): React.JSX.Element {
-    const raw = lineIn(ctx, descriptor.channel)?.value ?? drawnValue(ctx, descriptor.channel);
-    const sides = typeof raw === "string" ? raw.trim().split(/\s+/) : [];
-    const number = { ...descriptor, accepts: "number" as const, min: 0, max: 1, step: 0.05 };
-    const field = (at: number): React.JSX.Element => {
-        const side = SIDES[at];
-        const now = Number(sides[at]);
-        return (
-            <NumberLine
-                key={side}
-                descriptor={number}
-                label={`${line.name ?? channelWord(descriptor.channel)} ${side.toLowerCase()}`}
-                percent={false}
-                // A side with no frame draws none: 0.
-                value={sides.at(at) === undefined || !Number.isFinite(now) ? 0 : now}
-                onWrite={(next) => {
-                    const typed = next === undefined ? "" : String(next);
-                    const all = SIDES.map((_, i) => (i === at ? typed : (sides[i] ?? "")));
-                    write(
-                        all.every((each) => each === "")
-                            ? undefined
-                            : all.map((each) => (each === "" ? "0" : each)).join(" "),
-                    );
-                }}
-            />
-        );
+    const { store } = useWorkspace();
+    const { channel } = descriptor;
+    const own = lineIn(ctx, channel)?.value;
+    const raw = own ?? drawnValue(ctx, channel);
+    const items = readChannelList(channel, raw, { keepPlace: true });
+    const sides = SIDES.map((_, at) => {
+        const item = lineIn(ctx, listItemAddress(channel, at))?.value ?? items[at];
+        return typeof item === "number" ? item : Number(item);
+    });
+    const rim = sides.some((side) => Number.isFinite(side) && side > 0) || (typeof own === "string" && own !== "");
+    const name = line.name ?? channelWord(channel);
+    const writeSide = (at: number, value: number | undefined): void => {
+        if (own === undefined && typeof raw === "string" && raw !== "") {
+            // A frame a lower layer draws: this layer changes that side alone, by its item address (E4).
+            const address = listItemAddress(channel, at);
+            const done = value === undefined ? unsetIn(ctx, [address]) : writeIn(ctx, address, { value });
+            done.catch((error: unknown) => {
+                store.set({ notice: { message: failureWords(name, "changed", error), error: true } });
+            });
+            return;
+        }
+        const held = sides.map((side) => (Number.isFinite(side) ? side : undefined));
+        const next = held.map((side, i) => (i === at ? value : side));
+        if (next.every((each) => each === undefined)) {
+            write(undefined);
+            return;
+        }
+        while (next.length > 0 && next.at(-1) === undefined) {
+            next.pop();
+        }
+        write(writeChannelList(channel, next));
     };
-    const pair = (a: number, b: number): React.ReactNode => (
-        <Group grow gap={4} wrap="nowrap">
-            {field(a)}
-            {field(b)}
-        </Group>
-    );
-    const name = line.name ?? channelWord(descriptor.channel);
-    return (
-        <>
+    if (under) {
+        // Four values: one field reading them, no link, opening the group it sits in (Stripe area); its "-" unsets
+        // the frame (stripes design 2).
+        const words = sides.map((side) => String(Math.round((Number.isFinite(side) ? side : 0) * 1000) / 10));
+        return (
             <LineFrame
-                line={descriptor.channel}
+                line={channel}
                 name={name}
-                set={set}
+                set
                 rule="R17"
-                control={pair(0, 1)}
-                modifier={<ByDataLink ctx={ctx} targets={[{ name, descriptor }]} />}
-                removeName={set ? `Remove ${name.toLowerCase()}` : undefined}
+                control={<GroupOpener ctx={ctx} channel={channel} label={name} words={`${words.join(" / ")}%`} />}
+                modifier={null}
+                removeName={`Remove ${name.toLowerCase()}`}
                 onRemove={() => {
                     write(undefined);
                 }}
             />
+        );
+    }
+    return (
+        <>
             <LineFrame
-                line={`${descriptor.channel}:bottom`}
-                name={null}
-                set={set}
-                rule="R17"
-                control={pair(2, 3)}
+                line={channel}
+                name={name}
+                set={rim}
+                rule="R8"
+                control={
+                    <SegmentsLine
+                        label={name}
+                        value={rim ? "rim" : "whole"}
+                        options={[
+                            { value: "whole", name: "Whole" },
+                            { value: "rim", name: "Rim" },
+                        ]}
+                        onPick={(picked) => {
+                            write(picked === "rim" ? FIRST_RIM : undefined);
+                        }}
+                    />
+                }
                 modifier={null}
                 removeName={undefined}
                 onRemove={() => undefined}
             />
+            {rim
+                ? SIDES.map((side, at) => {
+                      const value = Number.isFinite(sides[at]) ? sides[at] : 0;
+                      const opposite = sides[(at + 2) % 4];
+                      const max = 1 - (Number.isFinite(opposite) ? opposite : 0);
+                      const set = Number.isFinite(sides[at]);
+                      const item = { ...descriptor, accepts: "number" as const, min: 0, max, step: 0.01 };
+                      return (
+                          <LineFrame
+                              key={side}
+                              line={`${channel}:${String(at)}`}
+                              name={side}
+                              set={set}
+                              rule="R5"
+                              control={
+                                  <NumberLine
+                                      descriptor={item}
+                                      label={`${name} ${side.toLowerCase()}`}
+                                      percent
+                                      value={value}
+                                      onWrite={(next) => {
+                                          writeSide(at, next === undefined ? undefined : Math.min(max, next));
+                                      }}
+                                  />
+                              }
+                              modifier={
+                                  <ByDataLink
+                                      ctx={ctx}
+                                      // Each side's link names its side: four alike would read as one control.
+                                      label={`${name} ${side.toLowerCase()} by attribute`}
+                                      targets={[{ name: side, descriptor: item, to: listItemAddress(channel, at) }]}
+                                  />
+                              }
+                              removeName={set ? `Remove ${side.toLowerCase()} side` : undefined}
+                              onRemove={() => {
+                                  writeSide(at, undefined);
+                              }}
+                          />
+                      );
+                  })
+                : null}
+        </>
+    );
+}
+
+/**
+ * A sidebar line's value that opens, beside it, the pop-over of the group of settings its line sits in (a band
+ * frame's sides open Stripe area, stripes design 2).
+ * @param props - Component props
+ * @param props.ctx - the row
+ * @param props.channel - the line's channel
+ * @param props.label - its accessible name
+ * @param props.words - the value it reads
+ * @returns The button and its pop-over
+ */
+function GroupOpener({
+    ctx,
+    channel,
+    label,
+    words,
+}: Readonly<{ ctx: RowContext; channel: Channel; label: string; words: string }>): React.JSX.Element {
+    const [open, setOpen] = React.useState(false);
+    const id = React.useId();
+    const group = groupOfLine(channel);
+    return (
+        <>
+            <ValueButton
+                label={group === undefined ? label : `${label}: edit in ${group.name}`}
+                words={words}
+                opens="dialog"
+                controls={id}
+                expanded={open}
+                onClick={() => {
+                    setOpen(!open);
+                }}
+            />
+            {group === undefined ? null : (
+                <BesidePopover id={id} title={group.name} opened={open} onOpenChange={setOpen}>
+                    {group.lines.map((line) => (
+                        <RubricLine key={line.channel} ctx={ctx} line={line} />
+                    ))}
+                </BesidePopover>
+            )}
         </>
     );
 }
@@ -951,12 +1106,14 @@ function keptField(
  * @param props - Component props
  * @param props.ctx - the row
  * @param props.targets - each value of the line
+ * @param props.label - the link's name, when not its first value's channel's
  * @returns The link, or nothing
  */
 export function ByDataLink({
     ctx,
     targets,
-}: Readonly<{ ctx: RowContext; targets: readonly VaryTarget[] }>): React.JSX.Element | null {
+    label,
+}: Readonly<{ ctx: RowContext; targets: readonly VaryTarget[]; label?: string }>): React.JSX.Element | null {
     const bindable = targets.filter(
         ({ descriptor }) => takesBinding(descriptor) || (descriptor.renderable && descriptor.accepts === "boolean"),
     );
@@ -969,6 +1126,7 @@ export function ByDataLink({
             ctx={ctx}
             descriptor={first.descriptor}
             to={first.to}
+            label={label}
             anyKind
             which={bindable.length > 1 ? bindable : undefined}
         />
@@ -1133,7 +1291,7 @@ function OneLine({ ctx, line, row, named: alwaysNamed = false }: RubricLineProps
                 ctx={ctx}
                 line={line}
                 descriptor={descriptor}
-                set={set}
+                under={alwaysNamed}
                 write={(text) => {
                     write(channel, text);
                 }}

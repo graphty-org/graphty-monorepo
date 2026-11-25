@@ -27,7 +27,6 @@ import {
     draftAfter,
     entryId,
     entryName,
-    entryWords,
     failed,
     fieldsFor,
     FIXED,
@@ -36,22 +35,25 @@ import {
     NONE,
     partKey,
     pruned,
+    sampleFacts,
     type Spec,
     specOf,
     word,
     writeSpec,
 } from "./dataEntries";
-import { DataGroups, KeepLine, PaletteLine } from "./DataGroups";
+import { DataGroups, EmptyLine, KeepLine, PaletteLine } from "./DataGroups";
 import { BesidePopover, CommitText, PopLine, Segments, WordNumber } from "./dataLines";
 import { FormatLines } from "./FormatPopover";
 import { firstColors, LISTS, type ListSpec } from "./lists";
+import { shownPaint, writtenPaint } from "./paint";
 import { lineFor } from "./rubric";
 import { LineFrame, RubricLine } from "./RubricLine";
 import { RowSettings } from "./ThingLine";
 import { ValueButton } from "./ValueButton";
 
 /**
- * The first fixed values a thing gets back when the reader picks "Fixed": a list thing's first item.
+ * The first fixed values a thing gets back when the reader picks "Fixed": a list thing's first item (stripes' first
+ * two, as "+" Stripes writes: one band would read as a plain fill).
  * @param ctx - the row.
  * @param thing - the thing's id.
  * @param start - the thing's start channel.
@@ -63,7 +65,7 @@ function fixedStart(ctx: RowContext, thing: string, start: Channel): Partial<Rec
         return start === "node.shapeTexts" ? { "node.shapeTexts": '[["Field 1"]]' } : {};
     }
     const out: Partial<Record<Channel, string>> = {
-        [list.colors]: writeChannelList(list.colors, firstColors(ctx).slice(0, 1)),
+        [list.colors]: writeChannelList(list.colors, firstColors(ctx).slice(0, thing === "stripes" ? 2 : 1)),
     };
     for (const each of list.numbers) {
         if (each.name === "Value") {
@@ -75,32 +77,6 @@ function fixedStart(ctx: RowContext, thing: string, start: Channel): Partial<Rec
 
 /** What the sample line asks graphty-element for. */
 type Find = "next" | "undrawn" | "missing";
-
-/**
- * The sample node's facts: the node the reader picked, else the first that draws, else one that draws nothing.
- * @param ctx - the row.
- * @param channel - the data channel.
- * @param picked - the node the reader picked, if any.
- * @returns the facts, or undefined when the layer or the graph holds no node to show.
- */
-function sampleFacts(ctx: RowContext, channel: DataChannel, picked: NodeId | null): DataFacts | undefined {
-    const layer = holderOf(ctx, channel);
-    if (layer === undefined) {
-        return undefined;
-    }
-    const { styles } = ctx.session;
-    const node =
-        picked ?? styles.dataSample(layer.id, channel, "first") ?? styles.dataSample(layer.id, channel, "undrawn");
-    if (node === null) {
-        return undefined;
-    }
-    try {
-        return styles.dataFacts(layer.id, channel, node);
-    } catch {
-        // The node left the graph since it was picked: no sample until the next is found.
-        return undefined;
-    }
-}
 
 /** A new Graph value's first definition: a count of the node's edges, which Calculate then edits. */
 const NEW_GRAPH: DataEntry = { graph: { over: "edges", measure: "count" } };
@@ -476,15 +452,15 @@ function FormatLine({ args }: Readonly<{ args: EntryArgs }>): React.JSX.Element 
                     setBeside(open ? "format" : null);
                 }}
             >
-                <FormatLines channel={channel} entry={entry} numeric={numeric} sample={entryWords(fact)} put={put} />
+                <FormatLines channel={channel} entry={entry} numeric={numeric} put={put} />
             </BesidePopover>
         </PopLine>
     );
 }
 
 /**
- * The Entry pop-over's lines (spec 2.1, at most six): its kind (its source is its line's under the row), how a list spreads, its name, its format
- * and, for a pie's or chart's plain entry, its color.
+ * The Entry pop-over's lines (spec 2.1, at most six): its kind (its source is its line's under the row), how a list
+ * spreads, its name, its format and, for a pie's or chart's plain entry, its color.
  * @param props - Component props
  * @param props.ctx - the row
  * @param props.channel - the data channel
@@ -520,6 +496,7 @@ function EntryLines({
     };
     const args: EntryArgs = { ctx, channel, entry, fact, name, put, beside, setBeside };
     const spreads = (fact?.parts?.length ?? 0) > 0 || "pattern" in entry;
+    const paint = shownPaint(entry.color ?? color ?? "#888888", entry.opacity ?? 1);
     const colored = channel !== "node.recordData" && !spreads;
     return (
         <>
@@ -542,13 +519,23 @@ function EntryLines({
                         palettes={colorPalettes(ctx.session)}
                         variant="chip"
                         aria-label={`${name} color`}
-                        color={entry.color ?? color ?? "#888888"}
+                        color={paint.color}
                         defaultColor={color ?? "#888888"}
-                        showOpacity={false}
+                        opacity={paint.percent}
                         showReset={entry.color !== undefined}
                         swatches={ctx.documentColors}
-                        onChange={(next) => {
-                            put({ ...entry, color: next });
+                        onChange={(next, percent) => {
+                            if (next === undefined) {
+                                put({ ...entry, color: undefined, opacity: undefined });
+                                return;
+                            }
+                            // The picker's opacity is what draws, the color's own alpha folded in (paint.ts).
+                            const written = writtenPaint(next, percent ?? 100);
+                            put({
+                                ...entry,
+                                color: written.color,
+                                opacity: written.opacity === 1 ? undefined : written.opacity,
+                            });
                         }}
                     />
                 </PopLine>
@@ -668,6 +655,47 @@ function ChannelField({ ctx, channel }: Readonly<{ ctx: RowContext; channel: Cha
 }
 
 /**
+ * The Whole line, a pie's and stripes': Total, or Set max with Max beside.
+ * @param props - Component props
+ * @param props.args - the spec
+ * @returns The line
+ */
+function WholeLine({ args }: Readonly<{ args: SpecArgs }>): React.JSX.Element {
+    const { spec, put } = args;
+    const whole = spec.whole as { max?: number; track?: string } | undefined;
+    return (
+        <PopLine
+            line="data.whole"
+            name={whole?.max === undefined ? "Whole" : "Whole / Max"}
+            wide={whole?.max !== undefined}
+        >
+            <Segments
+                label="Whole"
+                value={whole?.max === undefined ? "total" : "max"}
+                options={[
+                    ["total", "Total"],
+                    ["max", "Set max"],
+                ]}
+                onPick={(next) => {
+                    put({ whole: next === "total" ? undefined : { max: 100 } });
+                }}
+            />
+            {whole?.max === undefined ? null : (
+                <PanelField
+                    label="Max"
+                    kind="number"
+                    width="fill"
+                    value={whole.max}
+                    onChange={(next) => {
+                        put({ whole: Number(next) > 0 ? { ...whole, max: Number(next) } : undefined });
+                    }}
+                />
+            )}
+        </PopLine>
+    );
+}
+
+/**
  * A pie's data lines: Hole, Whole, Order, Keep and On slices.
  * @param props - Component props
  * @param props.args - the spec
@@ -675,34 +703,10 @@ function ChannelField({ ctx, channel }: Readonly<{ ctx: RowContext; channel: Cha
  */
 function PieLines({ args }: Readonly<{ args: SpecArgs }>): React.JSX.Element {
     const { ctx, spec, put } = args;
-    const whole = spec.whole as { max?: number; track?: string } | undefined;
     return (
         <>
             <ChannelField ctx={ctx} channel="node.pieHole" />
-            <PopLine line="data.whole" name="Whole" wide={whole?.max !== undefined}>
-                <Segments
-                    label="Whole"
-                    value={whole?.max === undefined ? "total" : "max"}
-                    options={[
-                        ["total", "Total"],
-                        ["max", "Set max"],
-                    ]}
-                    onPick={(next) => {
-                        put({ whole: next === "total" ? undefined : { max: 100 } });
-                    }}
-                />
-                {whole?.max === undefined ? null : (
-                    <PanelField
-                        label="Max"
-                        kind="number"
-                        width="fill"
-                        value={whole.max}
-                        onChange={(next) => {
-                            put({ whole: Number(next) > 0 ? { ...whole, max: Number(next) } : undefined });
-                        }}
-                    />
-                )}
-            </PopLine>
+            <WholeLine args={args} />
             <OrderLine args={args} />
             <KeepLine args={args} />
             <PopLine line="data.labels" name="On slices">
@@ -741,6 +745,25 @@ function drawnExtent(ctx: RowContext, facts: DataFacts | undefined): { min: numb
     const min = Number(merged["node.chartMin"]);
     const max = Number(merged["node.chartMax"]);
     return Number.isFinite(min) && Number.isFinite(max) && max > min ? { min, max } : { min: 0, max: 1 };
+}
+
+/**
+ * Stripes' data lines: Direction, Whole, Order, Keep and No values (a pie's, without Hole and On slices: stripes draw
+ * no text). No values is a line here, not a group of one line (owner, 2026-11-24), and keeps the pop-over at five rows.
+ * @param props - Component props
+ * @param props.args - the spec
+ * @returns The lines
+ */
+function StripeLines({ args }: Readonly<{ args: SpecArgs }>): React.JSX.Element {
+    return (
+        <>
+            <ChannelField ctx={args.ctx} channel="node.stripeDirection" />
+            <WholeLine args={args} />
+            <OrderLine args={args} />
+            <KeepLine args={args} />
+            <EmptyLine args={args} />
+        </>
+    );
 }
 
 /**
@@ -909,6 +932,8 @@ function SpecLines({
         lines = <PieLines args={args} />;
     } else if (channel === "node.chartData") {
         lines = <ChartLines args={args} />;
+    } else if (channel === "node.stripeData") {
+        lines = <StripeLines args={args} />;
     }
     return (
         <>
@@ -1028,6 +1053,7 @@ function EntryLine({
  * @param props.onRemove - takes the whole thing off
  * @param props.fixedLines - while it holds fixed values: the fixed lines the layer sets, drawn under the row
  * @param props.picking - just added: its data picker opens at once
+ * @param props.heading - its data pop-over's title, when not its title
  * @returns The row and its entry lines
  */
 export function DataRow({
@@ -1042,9 +1068,11 @@ export function DataRow({
     onRemove,
     fixedLines,
     picking = false,
+    heading,
 }: Readonly<{
     ctx: RowContext;
     picking?: boolean;
+    heading?: string;
     thing: string;
     start: Channel;
     channel: DataChannel;
@@ -1071,7 +1099,13 @@ export function DataRow({
         spec === undefined ? (
             fixedSettings
         ) : (
-            <RowSettings label={`${title} settings`} title={title} changed opened={open} onOpenChange={setOpen}>
+            <RowSettings
+                label={`${title} settings`}
+                title={heading ?? title}
+                changed
+                opened={open}
+                onOpenChange={setOpen}
+            >
                 <div data-thing-popover="">
                     <SpecLines ctx={ctx} channel={channel} spec={spec} facts={facts} />
                     <SampleLine ctx={ctx} channel={channel} facts={facts} onSample={setPicked} />

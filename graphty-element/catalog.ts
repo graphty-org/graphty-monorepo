@@ -265,7 +265,14 @@ export { channelDrawn, combineDrawn, drawnDefault, labelFieldDrawn, valueDrawn }
 // Every value of an enum channel with a default name and picture (`catalog.channelValues`), and the
 // one reader and writer of a list channel's items (`ChannelDescriptor.listOf`).
 export type { ChannelValueDescriptor } from "./src/catalog/channelValues";
-export { readChannelList, writeChannelList } from "./src/catalog/channelValues";
+export type { PlacedListItem, ReadChannelListOptions } from "./src/catalog/channelValues";
+export {
+    listShares,
+    readChannelList,
+    setListShare,
+    UNSET_LIST_ITEM,
+    writeChannelList,
+} from "./src/catalog/channelValues";
 // The one reader and writer of a structured text channel's items (a polygon's points, a node's
 // lines and texts, an edge's bends, ports and cap stacks, a label table's rows), by the parsers the
 // renderer draws them with.
@@ -305,6 +312,7 @@ export type {
     GraphMeasure,
     PieData,
     RecordData,
+    StripeData,
     WalkPath,
 } from "./src/catalog/data-lists";
 export { DATA_FIXED_CHANNELS, dataFit, formatValue, naturalCompare } from "./src/catalog/data-lists";

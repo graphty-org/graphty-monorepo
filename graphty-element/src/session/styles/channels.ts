@@ -45,7 +45,7 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import type { ChartData, PieData, RecordData } from "../../catalog/data-lists";
+import type { ChartData, PieData, RecordData, StripeData } from "../../catalog/data-lists";
 import { leavingLook } from "../../catalog/label-looks";
 import {
     LABEL_CAP,
@@ -735,6 +735,7 @@ export interface ChannelValues {
     "node.labels": readonly LabelEntry[];
     "edge.labels": readonly LabelEntry[];
     "node.pieData": PieData;
+    "node.stripeData": StripeData;
     "node.chartData": ChartData;
     "node.recordData": RecordData;
     "edge.taper": number;
@@ -885,8 +886,8 @@ export type ChannelValueKind =
      */
     | "labelEntries"
     /**
-     * A pie's, chart's or record's data spec ({@link PieData}, {@link ChartData}, {@link RecordData}), which fills
-     * the fixed lists at the layer's place: see `node.pieData`. @since 3.68.0
+     * A pie's, stripes', chart's or record's data spec ({@link PieData}, {@link StripeData}, {@link ChartData},
+     * {@link RecordData}), which fills the fixed lists at the layer's place: see `node.pieData`. @since 3.68.0
      */
     | "dataSpec";
 
@@ -1069,7 +1070,9 @@ export interface ChannelDescriptor {
      * The range of each item of a number list (`listOf` `"number"`) whose items are fractions: 0 to 1 for a
      * gradient's stops and a pie's or stripes' opacities. With `share`, each item is that share of the whole (a
      * pie's slice, a stripe's band): capped at what the items before it left, and an item left unset splits what
-     * remains evenly. Absent on every other channel.
+     * remains evenly. An unset item before a set one is written as the word `auto`, which keeps the later items in
+     * their places (`readChannelList` with `keepPlace`, `writeChannelList`, `setListShare`). Absent on every other
+     * channel.
      * @since 3.65.0
      */
     readonly listItems?: { readonly min: number; readonly max: number; readonly share?: true };
@@ -1373,7 +1376,8 @@ const NODE_STRIPES_CAVEAT =
     "Bands of color over the node's face, inside its outline: `node.stripeColors`, `node.stripeSizes` " +
     'and `node.stripeOpacities` as a pie\'s, following one another top to bottom ("down") or left to ' +
     'right ("right", `node.stripeDirection`), over a box `node.stripeSize` times the node\'s; ' +
-    '`node.stripeFrame`, four fractions "top right bottom left", keeps only that rim of the box.';
+    '`node.stripeFrame`, four fractions "top right bottom left" (`node.stripeFrame.0` to `.3` each one; a side not ' +
+    "given is 0, and four zeros draw the whole band), keeps only that rim of each band.";
 
 const NODE_OUTER_BORDER_CAVEAT =
     "A second ring outside the node's border, `node.outerBorderOffset` beyond the border's outer edge " +
@@ -4400,6 +4404,17 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "`node.pieOpacities` (and appends slice texts to `node.shapeTexts`) at this layer's place, so a layer " +
             "above writing one of those wins it; a layer does not hold both. See docs/guide/data-lists.md.",
     ),
+    "node.stripeData": dataChannel(
+        "node.stripeData",
+        "Node Stripe Data",
+        "Stripe data",
+        "shape",
+        "Stripes from data: an ordered list of entries (columns, a pattern of columns, fixed values), each a band, " +
+            "a list value spreading into one band per value (a list of words one band per distinct word, the same " +
+            "color on every node). It fills `node.stripeColors`, `node.stripeSizes` and `node.stripeOpacities` at " +
+            "this layer's place, so a layer above writing one of those wins it; a layer does not hold both. See " +
+            "docs/guide/data-lists.md.",
+    ),
     "node.chartData": dataChannel(
         "node.chartData",
         "Node Chart Data",
@@ -5955,6 +5970,7 @@ const LIST_OF: ReadonlyMap<string, "color" | "number"> = new Map<string, "color"
     ["node.stripeColors", "color"],
     ["node.stripeSizes", "number"],
     ["node.stripeOpacities", "number"],
+    ["node.stripeFrame", "number"],
     ["node.chartColors", "color"],
     ["node.chartValues", "number"],
     ["edge.gradientColors", "color"],
@@ -5971,6 +5987,7 @@ const ITEM_RANGES: ReadonlyMap<string, NonNullable<ChannelDescriptor["listItems"
     ["node.pieOpacities", FRACTION],
     ["node.stripeSizes", SHARE],
     ["node.stripeOpacities", FRACTION],
+    ["node.stripeFrame", FRACTION],
     ["edge.gradientStops", FRACTION],
 ]);
 
@@ -7069,8 +7086,9 @@ export function drawnUses(uses: readonly ShaderUse[] | undefined): {
  * @returns The merged value.
  */
 export function mergeChannelValue(channel: string, held: unknown, over: object): unknown {
-    if (LIST_OF.has(channel)) {
-        return mergeListItems(held, over);
+    const listOf = LIST_OF.get(channel);
+    if (listOf !== undefined) {
+        return mergeListItems(held, over, listOf);
     }
 
     if (isLabelListChannel(channel)) {
@@ -7131,30 +7149,50 @@ export function listItemPatch(index: number, value: unknown): object {
 
 /**
  * Change items of a resolved list (its items separated by spaces): see {@link listItemPatch}.
+ * A color list changes only the items it holds: a color past its end has no band or slice to
+ * change. A number list (shares, opacities) is padded with unset items (`auto`, which the renderer
+ * reads as unset, `UNSET_LIST_ITEM`) up to the item, so an item over a list left unset draws.
  * @param held - The list the layers beneath resolve, or what a patch over nothing holds.
  * @param over - The patch, or a whole list.
+ * @param listOf - What the list holds.
  * @returns The list.
  */
-function mergeListItems(held: unknown, over: object): unknown {
+function mergeListItems(held: unknown, over: object, listOf: "color" | "number"): unknown {
     const items = (over as { readonly [LIST_ITEMS]?: Readonly<Record<string, unknown>> })[LIST_ITEMS];
     if (items === undefined) {
         return over;
     }
 
-    // An item over no list draws nothing: there is no list to change.
-    if (typeof held !== "string") {
+    // A color over no list draws nothing: there is no list to change.
+    if (typeof held !== "string" && listOf === "color") {
         return held;
     }
 
-    const list = held.split(/\s+/).filter((item) => item !== "");
+    const list = typeof held === "string" ? held.split(/\s+/).filter((item) => item !== "") : [];
     for (const [at, value] of Object.entries(items)) {
-        const index = Number(at);
-        if (index < list.length && (typeof value === "string" || typeof value === "number")) {
-            list[index] = String(value);
+        if (typeof value === "string" || typeof value === "number") {
+            putListItem(list, Number(at), String(value), listOf === "number");
         }
     }
 
-    return list.join(" ");
+    return list.length === 0 ? held : list.join(" ");
+}
+
+/**
+ * Put one item in a list's place: past its end, a number list grows with unset items (`auto`) up to it, a color
+ * list is left as it is.
+ * @param list - the items, changed in place.
+ * @param index - the item's place.
+ * @param value - its value.
+ * @param grows - whether the list grows to hold it.
+ */
+function putListItem(list: string[], index: number, value: string, grows: boolean): void {
+    while (grows && list.length <= index) {
+        list.push("auto");
+    }
+    if (index < list.length) {
+        list[index] = value;
+    }
 }
 
 /**

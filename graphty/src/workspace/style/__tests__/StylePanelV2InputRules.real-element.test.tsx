@@ -2400,7 +2400,8 @@ describe("Style panel v2's input rules on data pop-overs (spec 2.5)", () => {
             if (
                 entry.querySelector(
                     '[data-line^="entry.field"], [data-line^="entry.graph"], [data-line="entry.value"], [data-line="entry.text"]',
-                ) !== null
+                ) !== null ||
+                within(entry).queryByRole("button", { name: /^Graph value/ }) !== null
             ) {
                 found.push("entry: its source is set on its line and again in the Entry pop-over");
             }
@@ -2408,7 +2409,8 @@ describe("Style panel v2's input rules on data pop-overs (spec 2.5)", () => {
             if (within(entry).queryByRole("combobox", { name: "Format" }) !== null) {
                 found.push("entry: a format is set from the Format drop-down and from the Format pop-over");
             }
-            const formatOpener = within(entry).getByRole("button", { name: / format(, .*| settings)$/ });
+            // The Format line is one button showing the sample in the entry's format, opening Format beside.
+            const formatOpener = within(entry).getByRole("button", { name: / format(, .*| settings)?$/ });
             // Shown on hover of its line, as a reader meets it.
             await userEvent.hover(formatOpener.closest<HTMLElement>(".ws-row") ?? formatOpener);
             await userEvent.click(formatOpener);

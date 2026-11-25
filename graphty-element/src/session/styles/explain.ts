@@ -877,8 +877,9 @@ export function explainStyle(target: ExplainTarget, sources: ExplainSources): St
                 isLabelListChannel(channel) ||
                 (CHANNEL_DESCRIPTORS[channel].listOf !== undefined && typeof result === "object" && result !== null)
             ) {
-                // A list item's patch changes one item of the list resolved beneath; one past its end changes nothing.
-                if (CHANNEL_DESCRIPTORS[channel].listOf !== undefined) {
+                // A list item's patch changes one item of the list resolved beneath. A color past its end changes
+                // nothing; a number list grows to hold it (`mergeChannelValue`).
+                if (CHANNEL_DESCRIPTORS[channel].listOf === "color") {
                     const { indices, length } = listItemsPastEnd(merged[channel], result as object);
                     for (const index of indices) {
                         notes.push({

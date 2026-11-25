@@ -228,16 +228,6 @@ export function becoming(draft: SourceDraft, picks: CardPicks, becomes: Becomes)
     return { ...next, to: becomes === "edge" ? (to ?? { into: null }) : to };
 }
 /**
- * Whether a card's picks match nothing in the graph, so its staged source can be added as it is.
- * @param card - the card
- * @returns true while it has no step and its rows are, or may be, nodes or edges of their own
- */
-export function canAddAsIs(card: JoinCardView): boolean {
-    const becomes = shownBecomes(card);
-    return card.step === null && (becomes === null || becomes === "node" || becomes === "edge");
-}
-
-/**
  * What a card's step is called beside its title.
  * @param card - the card
  * @returns the word, or undefined while it makes nothing

@@ -424,7 +424,7 @@ export function countsOf(
 }
 
 /** A field of node 1 as a card offers it: its name, and the side picking it makes. */
-export interface IntoField {
+interface IntoField {
     readonly label: string;
     readonly into: CardInto;
 }

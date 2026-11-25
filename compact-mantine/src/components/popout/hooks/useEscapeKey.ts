@@ -15,6 +15,20 @@ function hasOpenTooltip(target: EventTarget | null): boolean {
 }
 
 /**
+ * Whether a key went to a field whose drop-down list is open (a combobox or a list trigger with
+ * `aria-expanded="true"`): its Escape closes that list, never the pop-out around it.
+ * @param target - the element the key went to
+ * @returns true when the target's list is open
+ */
+function hasOpenList(target: EventTarget | null): boolean {
+    return (
+        target instanceof Element &&
+        target.getAttribute("aria-expanded") === "true" &&
+        (target.getAttribute("role") === "combobox" || target.getAttribute("aria-haspopup") === "listbox")
+    );
+}
+
+/**
  * Hook that calls a callback when the Escape key is pressed.
  * Used to close the focused popout panel. An Escape something inside already used up (a menu
  * closing itself marks its Escape handled) is left alone, so it closes only the innermost thing.
@@ -33,14 +47,19 @@ export function useEscapeKey(callback: () => void, enabled = true): void {
             return undefined;
         }
 
+        const listEscapes = new WeakSet<KeyboardEvent>();
         const handleKeyDown = (event: KeyboardEvent): void => {
-            if (event.key === "Escape" && !event.defaultPrevented) {
+            if (event.key === "Escape" && !event.defaultPrevented && !listEscapes.has(event)) {
                 event.preventDefault();
                 callback();
             }
         };
         const pending = new Set<ReturnType<typeof setTimeout>>();
-        const seeTooltipEscape = (event: KeyboardEvent): void => {
+        const seeEscapeOnTheWayIn = (event: KeyboardEvent): void => {
+            if (event.key === "Escape" && hasOpenList(event.target)) {
+                listEscapes.add(event);
+                return;
+            }
             if (event.key !== "Escape" || !hasOpenTooltip(event.target)) {
                 return;
             }
@@ -55,11 +74,11 @@ export function useEscapeKey(callback: () => void, enabled = true): void {
         };
 
         document.addEventListener("keydown", handleKeyDown);
-        document.addEventListener("keydown", seeTooltipEscape, true);
+        document.addEventListener("keydown", seeEscapeOnTheWayIn, true);
 
         return (): void => {
             document.removeEventListener("keydown", handleKeyDown);
-            document.removeEventListener("keydown", seeTooltipEscape, true);
+            document.removeEventListener("keydown", seeEscapeOnTheWayIn, true);
             for (const later of pending) {
                 clearTimeout(later);
             }

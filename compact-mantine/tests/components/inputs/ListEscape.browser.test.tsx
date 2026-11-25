@@ -6,9 +6,10 @@
 import { Autocomplete, Popover, Select, TextInput } from "@mantine/core";
 import { screen, waitFor } from "@testing-library/react";
 import React, { useState } from "react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, assert, describe, expect, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
+import { Popout, PopoutManager } from "../../../src/components/popout";
 import { renderThemed, resetHarness } from "../../harness/measure";
 
 afterEach(resetHarness);
@@ -82,5 +83,41 @@ describe("Escape in a list field inside a popover", () => {
             expect(node).toHaveAttribute("aria-expanded", "false");
         });
         expect(screen.getByTestId("panel")).toBeVisible();
+    });
+});
+
+describe("Escape in a list field inside a compact-mantine pop-over", () => {
+    it("closes only the list, even when the field has a key handler of its own", async () => {
+        await renderThemed(
+            <PopoutManager>
+                <Popout defaultOpened>
+                    <Popout.Trigger>
+                        <button type="button">Open</button>
+                    </Popout.Trigger>
+                    <Popout.Panel width={240} header={{ variant: "title", title: "Shape" }}>
+                        <Popout.Content>
+                            {/* A caller's own onKeyDown replaces the theme's, as a row's field does. */}
+                            <Select label="Kind" data={["box", "sphere"]} onKeyDown={() => undefined} />
+                        </Popout.Content>
+                    </Popout.Panel>
+                </Popout>
+            </PopoutManager>,
+        );
+        const panel = await screen.findByRole("dialog", { name: "Shape" });
+        const kind = screen.getByRole("combobox", { name: "Kind" });
+        await userEvent.click(kind);
+        await waitFor(() => {
+            assert.equal(kind.getAttribute("aria-expanded"), "true");
+        });
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.equal(kind.getAttribute("aria-expanded"), "false");
+        });
+        assert.isTrue(panel.isConnected, "the pop-over stays open");
+
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("dialog", { name: "Shape" }));
+        });
     });
 });

@@ -92,8 +92,10 @@ function actSource(act: StepsAct): string | null {
         case "merge":
         case "connect":
             return act.options.from.source;
+        case "link":
+            return act.options.source;
         case "replace-step":
-            return act.with.options.from.source;
+            return actSource(act.with);
         case "rename":
             return act.rename.source;
         case "remove-step":
@@ -110,6 +112,7 @@ const ACT_LABELS: Readonly<Record<StepsAct["act"], string>> = {
     merge: "Merged a source",
     connect: "Made edges from a source",
     extract: "Extracted nodes from a column",
+    link: "Linked nodes sharing a value",
     "move-columns": "Moved columns onto nodes",
     rename: "Renamed a column",
     pick: "Picked a value",
@@ -528,6 +531,7 @@ const dataStepsSet: UndoableDefinition<DataStepsSetCommand> = {
         "merge",
         "connect",
         "extract",
+        "link",
         "move-columns",
         "rename",
         "pick",

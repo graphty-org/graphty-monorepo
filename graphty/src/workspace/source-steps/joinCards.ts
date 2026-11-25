@@ -266,7 +266,11 @@ export function draftColumns(draft: SourceDraft, source: SourceKey, table?: "nod
  * @param result - The result and its options.
  * @returns The act.
  */
-function actOf(pair: SourceMatchPair, picks: CardPicks, result: CardResult): SourceJoinAct {
+function actOf(
+    pair: SourceMatchPair,
+    picks: CardPicks,
+    result: CardResult,
+): Extract<SourceJoinAct, { act: "merge" | "connect" }> {
     const matching = { ignoreCase: picks.ignoreCase, ignoreSpaces: picks.ignoreSpaces };
     if (result.result === "merge") {
         const { many } = result;

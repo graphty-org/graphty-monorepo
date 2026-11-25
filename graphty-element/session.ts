@@ -264,6 +264,7 @@ export type {
     SourceJoinAct,
     SourceJoinInto,
     SourceLineage,
+    SourceLinkOptions,
     SourceLoaded,
     SourceMappingPatch,
     SourceMatchCounts,

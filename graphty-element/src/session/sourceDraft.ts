@@ -64,6 +64,7 @@ import type {
     SourceElementRef,
     SourceExtractOptions,
     SourceJoinAct,
+    SourceLinkOptions,
     SourceMappingPatch,
     SourceMatchCounts,
     SourceMatchOptions,
@@ -351,6 +352,12 @@ export class SourceDraftHandle implements SourceDraft {
     extract(source: SourceKey, options: SourceExtractOptions): number {
         this.stepsAct("extract", { act: "extract", source, options });
         return this.partOf(source);
+    }
+
+    /** @inheritdoc */
+    link(options: SourceLinkOptions): number {
+        this.stepsAct("link", { act: "link", options });
+        return this.partOf(options.source);
     }
 
     /** @inheritdoc */

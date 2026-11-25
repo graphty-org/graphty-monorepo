@@ -3691,6 +3691,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             merge: DRAFT_ACT,
             connect: DRAFT_ACT,
             extract: DRAFT_ACT,
+            link: DRAFT_ACT,
             moveColumns: DRAFT_ACT,
             renameColumn: DRAFT_ACT,
             declareType: DRAFT_ACT,

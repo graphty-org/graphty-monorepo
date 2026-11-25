@@ -31,6 +31,7 @@ import {
     checkSpace,
     type Copies,
     copyOrigin,
+    defined,
     EMPTY_STEPS,
     mintCopyId,
     mintEditId,
@@ -123,15 +124,6 @@ export function withDigest<C extends DataImportCommand | BatchCommand>(command: 
         }
     }
     return command;
-}
-
-/**
- * An object holding only the members that are defined.
- * @param members - The members.
- * @returns Them, without the undefined ones.
- */
-function defined<T extends Record<string, unknown>>(members: T): Partial<T> {
-    return Object.fromEntries(Object.entries(members).filter(([, v]) => v !== undefined)) as Partial<T>;
 }
 
 /**

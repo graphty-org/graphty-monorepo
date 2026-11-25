@@ -1746,11 +1746,15 @@ export interface SessionDataApi {
      */
     connect(options: SourceConnectOptions): Promise<number>;
     /**
-     * Extract: one column of an edge source becomes nodes, joined to one end by new edges (one per
-     * end pair), as one undoable step.
-     * @param source - The edge source.
+     * Extract: one column of a source becomes nodes, joined by new edges (one per end pair) to the
+     * node each row is, or to one end of edge rows, as one undoable step. A staged source of node
+     * rows is added first.
+     * @param source - The source.
      * @param options - The column, its space and types, and columns to move onto the new nodes.
      * @returns The part the new edges are keyed by.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND`: `details.reason` `"no-field"` for no column,
+     *   `"split"` for an empty separator, `"no-nodes"` or `"no-edges"` for a source without the rows
+     *   `from` reads.
      * @experimental source-steps
      */
     extract(source: SourceKey, options: SourceExtractOptions): Promise<number>;
@@ -4459,11 +4463,16 @@ export interface SourceStepCounts {
     readonly groups: readonly number[];
     /** Edges whose two ends are one node. */
     readonly selfLoops: number;
+    /** For `draft.link`: pairs of nodes sharing fewer values than `minShared`, so not linked. */
+    readonly pairsBelowMin: number;
     /** Rows left out because their key cell is empty (`W_KEY_EMPTY`). */
     readonly emptyKey: number;
     /** Rows kept apart because their key repeats and nothing settles one row for it. */
     readonly repeatedKept: number;
-    /** Key values many rows share (`W_VALUE_HUB`). */
+    /**
+     * Key values many rows share (`W_VALUE_HUB`); for `draft.link`, the values more nodes hold than
+     * `maxShared`, which link nothing.
+     */
     readonly hub: readonly SourceHubValue[];
     /** Repeated keys within the source whose rows hold different values, by column. */
     readonly rowsDifferIn: Readonly<Record<string, number>>;
@@ -5099,6 +5108,16 @@ export interface SourceStepRow {
      * `except`.
      */
     readonly act: SourceStepAct | null;
+    /**
+     * For a step `draft.link` made: its options, read back, so `draft.replaceStep` can make it again
+     * with one changed. Null for any other step.
+     */
+    readonly link: SourceLinkOptions | null;
+    /**
+     * For a step `extract` made: its options, read back, so `draft.replaceStep` can make it again for
+     * its `source` with one changed. Null for any other step.
+     */
+    readonly extract: SourceExtractOptions | null;
 }
 
 /**
@@ -5613,7 +5632,13 @@ export interface SourceConnectOptions {
 }
 
 /**
- * `data.extract`: one column of an edge source becomes nodes, joined to one end by new edges.
+ * `data.extract`: one column of a source becomes nodes, joined by new edges to the node each of its
+ * rows is, or, for edge rows, to one end. Moving columns with it splits one file into several node types:
+ *
+ * ```ts
+ * // person,team_id,team_name: people stay nodes, each team becomes a node carrying team_name
+ * draft.extract(people, { column: "team_id", type: "team", columns: ["team_name"] });
+ * ```
  * @experimental source-steps
  */
 export interface SourceExtractOptions {
@@ -5625,10 +5650,61 @@ export interface SourceExtractOptions {
     readonly type?: SourceTypeName;
     /** The type the new edges are declared with. */
     readonly edgeType?: SourceTypeName;
-    /** Columns moved onto the new nodes. */
+    /** Columns moved onto the new nodes, off the row's own node or edge. */
     readonly columns?: readonly string[];
-    /** The end the new edges start from; default `"source"`. */
-    readonly from?: "source" | "target";
+    /**
+     * Where the new edges start: `"source"` or `"target"`, an end of an edge row, or `"row"`, the node
+     * a node row is. Default `"source"` for a source with edge rows, else `"row"`.
+     */
+    readonly from?: "source" | "target" | "row";
+    /**
+     * The separator a cell holds several values by, such as `";"`: each value, with the spaces around
+     * it taken off, is a node of its own. Absent, a cell is one value, or each value of a list.
+     */
+    readonly split?: string;
+}
+
+/**
+ * `draft.link`: nodes whose rows share a value are linked, such as accounts with one phone.
+ *
+ * ```ts
+ * draft.link({ source: accounts, columns: ["phone", "device"], maxShared: 5 });
+ * ```
+ * @experimental source-steps
+ */
+export interface SourceLinkOptions {
+    /** The source whose rows hold the values. */
+    readonly source: SourceKey;
+    /** The columns whose values link nodes; a value links only within its column. */
+    readonly columns: readonly string[];
+    /**
+     * The column naming the node that holds each row's values, for a source whose rows are not the
+     * nodes to link, such as one row per account and phone; a row naming none is left out. Absent,
+     * each row's own node holds them.
+     */
+    readonly field?: string;
+    /** The nodes `field` names; absent, the source's own nodes by that column. */
+    readonly into?: SourceJoinInto;
+    /**
+     * `"edges"` (default): one edge per pair of nodes, from the one earlier in the graph, its `shared`
+     * attribute the number of values they share. `"nodes"`: one node per shared value, keyed `<column>:<value>` and carrying the value
+     * under the column's name, with an edge to it from each node holding it.
+     */
+    readonly as?: "edges" | "nodes";
+    /** A value more nodes than this hold links none of them. Default 10; at least 2. */
+    readonly maxShared?: number;
+    /** For `"edges"`: how many values a pair must share. Default 1. */
+    readonly minShared?: number;
+    /** The type the new edges are declared with. */
+    readonly edgeType?: SourceTypeName;
+    /** For `"nodes"`: the type the new nodes are declared with. */
+    readonly type?: SourceTypeName;
+    /** For `"nodes"`: the id space the new nodes live in; default `type`, else the source's own space. */
+    readonly space?: SourceSpaceName;
+    /** Values, and the keys `field` names, that differ only in case are one. */
+    readonly ignoreCase?: boolean;
+    /** Values, and the keys `field` names, that differ only in spaces are one. */
+    readonly ignoreSpaces?: boolean;
 }
 
 /**
@@ -5657,7 +5733,9 @@ export interface SourceMoveColumnsOptions {
  */
 export type SourceJoinAct =
     | { readonly act: "merge"; readonly options: SourceMergeOptions }
-    | { readonly act: "connect"; readonly options: SourceConnectOptions };
+    | { readonly act: "connect"; readonly options: SourceConnectOptions }
+    | { readonly act: "link"; readonly options: SourceLinkOptions }
+    | { readonly act: "extract"; readonly source: SourceKey; readonly options: SourceExtractOptions };
 
 /**
  * `draft.editStep`: the choices of one step a draft may change. `null` or `false` takes a choice off.
@@ -5692,6 +5770,15 @@ export interface SourceStepPatch {
     readonly aggregate?: Readonly<Record<string, JoinReduce>> | null;
     /** What a Connect's row does when an edge already joins its ends. Only a Connect's step takes it. */
     readonly existing?: "add" | "merge";
+    /** How many nodes may hold a value that links them. Only a step `draft.link` made takes it. */
+    readonly maxShared?: number;
+    /** How many values a pair must share. Only a step `draft.link` made takes it. */
+    readonly minShared?: number;
+    /**
+     * The separator an Extract's cells hold several values by; `null` takes it off. An Extract from an
+     * end of edge rows with no separator takes one by `draft.replaceStep` instead.
+     */
+    readonly split?: string | null;
 }
 
 /**
@@ -6028,11 +6115,21 @@ export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "match
     connect(options: SourceConnectOptions): number;
     /**
      * Extract (as `data.extract` does).
-     * @param source - The edge source.
+     * @param source - The source.
      * @param options - The column, its space and types, and columns to move.
      * @returns The part the new edges are keyed by.
      */
     extract(source: SourceKey, options: SourceExtractOptions): number;
+    /**
+     * Link nodes whose rows share a value, as edges between them or as one node per value. A staged
+     * source whose rows are the nodes is added first, as is a staged source `into` names.
+     * @param options - The source, the columns whose values link, the hub cap and the rest.
+     * @returns The part the new edges are keyed by.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` (`details.reason` `"no-columns"`, `"no-field"`,
+     *   `"max-shared"` or `"min-shared"`), `E_STEP_NEEDS_NODES` for a source with no rows, or
+     *   `E_AMBIGUOUS_ID` when the field names no one set of nodes.
+     */
+    link(options: SourceLinkOptions): number;
     /**
      * Move columns (as `data.moveColumns` does).
      * @param source - The edge source.
@@ -6137,7 +6234,7 @@ export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "match
      * draft.replaceStep(2, { act: "connect", options: { from: { source: entries, field: "badge" }, into: { space: "person" } } });
      * ```
      * @param index - The step's place, as {@link SourceDraft.steps} lists it.
-     * @param act - The act, as `merge` or `connect` takes its options.
+     * @param act - The act, as `merge`, `connect`, `link` or `extract` takes its options.
      * @throws A `GraphtyError` with `E_BAD_COMMAND` (`details.reason` `"no-step"`) for no such place,
      *   or whatever the act itself refuses.
      */

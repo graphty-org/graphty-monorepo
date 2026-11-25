@@ -13,8 +13,8 @@
 
 import type { EdgeId, NodeId } from "../../../catalog/types";
 import { GraphtyError } from "../../../errors/GraphtyError";
-import type { JoinRecord } from "../../types";
-import { applyAct, type StepsAct } from "./acts";
+import type { JoinRecord, SourceExtractOptions, SourceLinkOptions } from "../../types";
+import { applyAct, extractOf, movedAfter, type StepsAct } from "./acts";
 import { build, copyKey, isStaged, nodeSpace, ownSpace, resolveNode, rowNodeSpace, stepSources } from "./build";
 import { RECORD_PATHS } from "./paths";
 import { conflictReport, readableRecord, type StepsOutcome } from "./provenance";
@@ -27,6 +27,7 @@ import {
     type BuiltNode,
     type CellValue,
     type CopyTables,
+    type EdgesStep,
     READER_SOURCE,
     READER_SPACE,
     type ReaderOp,
@@ -424,7 +425,7 @@ export function overlapQuestion(base: SourceSteps, src: StepsSource, copies: Cop
     let count = 0;
     for (const k of keys) {
         const n = resolveNode(built, proposed, k);
-        const rows = n?.touch.filter((t) => t.table === "nodes").map((t) => t.source) ?? [];
+        const rows = n?.touch.filter((t) => t.table === "nodes" && t.valued !== true).map((t) => t.source) ?? [];
         const reader = n?.loads.includes(READER_SOURCE) === true;
         if (rows.length > 0 || reader) {
             count++;
@@ -1021,6 +1022,10 @@ export interface StepRow {
     readonly except: RowFilter | null;
     /** The join act that made it, as `connect` or `merge` would take it again; null for any other step. */
     readonly act: StepAct | null;
+    /** For a step that links nodes sharing a value: its choices, as `link` would take them again. */
+    readonly link: SourceLinkOptions | null;
+    /** For an Extract's step: its choices, as `extract` would take them again for its source. */
+    readonly extract: SourceExtractOptions | null;
 }
 
 /** A merge or a Make an edge step, read back as the act that makes it (5.2, 7.13). */
@@ -1078,7 +1083,10 @@ export function stepAct(value: SourceSteps, step: Step): StepAct | null {
         };
     }
     const src = value.sources[step.source] as Source | undefined;
-    if (step.op !== "join.edges" || src === undefined || !(step.read.table === "nodes" || rowEdges(step))) {
+    if (step.op !== "join.edges" || step.link !== undefined || extractOf(step) !== null) {
+        return null;
+    }
+    if (src === undefined || !(step.read.table === "nodes" || rowEdges(step))) {
         return null;
     }
     const { read, rowNode } = step;
@@ -1092,9 +1100,7 @@ export function stepAct(value: SourceSteps, step: Step): StepAct | null {
     const intoFrom = ownTarget || (!ownSource && step.viaEnd !== "target");
     const one = { field: intoFrom ? read.source : read.target, space: intoFrom ? read.sourceSpace : read.targetSpace };
     const two = { field: intoFrom ? read.target : read.source, space: intoFrom ? read.targetSpace : read.sourceSpace };
-    const edgeType = value.types.find(
-        (t) => t.kind === "edge" && t.rules.some((r) => r.source === step.source && r.part === step.part),
-    )?.name;
+    const edgeType = partType(value, step, "edge");
     return {
         act: "connect",
         from: { source: step.source, field: one.field ?? "" },
@@ -1109,6 +1115,95 @@ export function stepAct(value: SourceSteps, step: Step): StepAct | null {
         ...(step.existing === undefined ? {} : { existing: step.existing }),
         ...(ownTarget || ownSource ? {} : otherEnd(two, rowNode === "middle")),
     };
+}
+
+/**
+ * The type the rules naming one edge step's part give what it makes.
+ * @param value - The value.
+ * @param step - The step.
+ * @param kind - The nodes at its target end, or its edges.
+ * @returns The type, or undefined.
+ */
+function partType(value: SourceSteps, step: EdgesStep, kind: "node" | "edge"): string | undefined {
+    const end = kind === "node" ? "target" : undefined;
+    return value.types.find(
+        (t) =>
+            t.kind === kind && t.rules.some((r) => r.source === step.source && r.part === step.part && r.end === end),
+    )?.name;
+}
+
+/**
+ * A step that links nodes sharing a value, read back as its choices: the inverse of `link` in acts.ts.
+ * @param value - The value.
+ * @param step - The step.
+ * @returns The choices, or null for any other step.
+ */
+function stepLink(value: SourceSteps, step: Step): SourceLinkOptions | null {
+    if (step.op !== "join.edges" || step.link === undefined) {
+        return null;
+    }
+    const { link, read } = step;
+    const asNodes = link.as === "nodes";
+    const held =
+        step.via !== undefined && step.mapping !== undefined
+            ? { source: step.via, field: step.mapping.columns[0], space: read.sourceSpace }
+            : { space: read.sourceSpace ?? "" };
+    return Object.freeze({
+        source: step.source,
+        columns: link.columns,
+        ...(read.source === undefined ? {} : { field: read.source, into: held }),
+        as: asNodes ? ("nodes" as const) : ("edges" as const),
+        maxShared: link.maxShared,
+        minShared: link.minShared,
+        ...defined({
+            edgeType: partType(value, step, "edge"),
+            type: asNodes ? partType(value, step, "node") : undefined,
+            space: asNodes ? read.targetSpace : undefined,
+        }),
+        ignoreCase: step.ignoreCase === true,
+        ignoreSpaces: step.ignoreSpaces === true,
+    });
+}
+
+/**
+ * An Extract's step read back as its choices: the inverse of `extract` in acts.ts.
+ * @param value - The value.
+ * @param index - The step's place.
+ * @returns The choices, or null for any other step.
+ */
+function stepExtract(value: SourceSteps, index: number): SourceExtractOptions | null {
+    const step = extractOf(value.steps[index]);
+    const src = step === null ? undefined : (value.sources[step.source] as Source | undefined);
+    if (step === null || src === undefined || step.read.target === undefined) {
+        return null;
+    }
+    const m = src.mapping.edges;
+    const end =
+        m !== undefined &&
+        step.read.source === m.target &&
+        step.read.sourceSpace === (m.targetSpace ?? ownSpace(src.id))
+            ? ("target" as const)
+            : ("source" as const);
+    return Object.freeze({
+        column: step.read.target,
+        from: step.rowNode === "source" ? ("row" as const) : end,
+        ...defined({
+            space: step.read.targetSpace,
+            type: partType(value, step, "node"),
+            edgeType: partType(value, step, "edge"),
+            columns: step.extract === undefined ? movedAfter(value.steps, index)?.columns : step.extract.columns,
+            split: step.extract?.split,
+        }),
+    });
+}
+
+/**
+ * The members of an object that are defined.
+ * @param members - The members.
+ * @returns Them.
+ */
+export function defined<T extends Record<string, unknown>>(members: T): Partial<T> {
+    return Object.fromEntries(Object.entries(members).filter(([, v]) => v !== undefined)) as Partial<T>;
 }
 
 /**
@@ -1163,6 +1258,9 @@ function readsOf(step: Step, src: Source | undefined): string[] {
         pick(src?.mapping.edges, roles);
     } else {
         pick(step.read, roles);
+        if (step.op === "join.edges") {
+            (step.link?.columns ?? []).forEach((c) => out.add(c));
+        }
     }
     return [...out];
 }
@@ -1236,6 +1334,8 @@ export function stepRows(value: SourceSteps, result: BuildResult, copies: Copies
             valuesDiffer: Object.freeze(report.filter((each) => each.params.step === index)),
             except: step.op === "join.add" || step.except === undefined ? null : step.except,
             act: stepAct(value, step),
+            link: stepLink(value, step),
+            extract: stepExtract(value, index),
         });
     });
 }

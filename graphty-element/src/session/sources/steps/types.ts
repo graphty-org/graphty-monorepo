@@ -222,6 +222,30 @@ interface EdgesStepRead {
     readonly timeUnit?: "ms" | "s" | "year" | "ordinal";
 }
 
+/**
+ * What a `join.edges` step linking nodes that share a value reads. Each row's node (`rowNode`
+ * `"source"`, or the node `read.source` names) holds the row's values in `columns`; a value two to
+ * `maxShared` nodes hold links them. The edges are keyed `<part>/<from>|<to>`.
+ */
+export interface LinkRead {
+    readonly columns: readonly string[];
+    /** One node per shared value, keyed `<column>:<value>` in `read.targetSpace`; absent, one edge per pair. */
+    readonly as?: "nodes";
+    readonly maxShared: number;
+    readonly minShared: number;
+}
+
+/**
+ * What a `join.edges` step making nodes of a column's values reads besides its ends. An edge source's
+ * column that is neither split nor read from its rows needs none of it (`acts.ts` `extract`).
+ */
+interface ExtractRead {
+    /** The separator a cell holds several values by; absent, a cell is one value (a list is each of its values). */
+    readonly split?: string;
+    /** The row's columns the new nodes carry, off the row's own node or edge. */
+    readonly columns?: readonly string[];
+}
+
 /** `join.edges`: each row one edge, keyed `<part>/<key>`. */
 export interface EdgesStep extends StepChoices, Translating {
     readonly op: "join.edges";
@@ -239,6 +263,10 @@ export interface EdgesStep extends StepChoices, Translating {
     readonly rowNode?: "source" | "target" | "middle";
     /** `"merge"` folds a row into an edge an earlier step made between its ends; absent adds one. */
     readonly existing?: "merge";
+    /** Links nodes whose rows share a value, instead of one edge per row (see {@link LinkRead}). */
+    readonly link?: LinkRead;
+    /** The target column's values become nodes: each names one, or several (see {@link ExtractRead}). */
+    readonly extract?: ExtractRead;
     /** Two rows naming one end pair: absent leaves them to the graph's `repeatedEdges`. */
     readonly repeated?: "first" | "last" | "both";
     /** Makes one edge per end pair, as `repeated` does, with these columns reduced over its rows. */
@@ -366,6 +394,8 @@ interface Touch {
     readonly table: TableName;
     readonly row: number;
     readonly cells: Row;
+    /** The row only names the node, by a value of a column: it is not the node's own row. */
+    readonly valued?: true;
 }
 
 /** A clash column a `both` rule wrote (3.3). */
@@ -472,6 +502,8 @@ export interface StepStats {
     keptNew: number;
     groups: number[];
     selfLoops: number;
+    /** For a `join.edges` that links: pairs sharing fewer values than `minShared`, so not linked. */
+    pairsBelowMin: number;
     emptyKey: number;
     repeatedKept: number;
     hub: { value: string; rows: number }[];

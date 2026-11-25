@@ -28,6 +28,7 @@ const NUMBERS = [
     "untouched",
     "keptNew",
     "selfLoops",
+    "pairsBelowMin",
     "emptyKey",
     "repeatedKept",
     "parallelPairs",

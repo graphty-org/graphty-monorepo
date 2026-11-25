@@ -10,7 +10,17 @@
  */
 
 import { GraphtyError } from "../../../errors/GraphtyError";
-import { checkClash, existingOf, mapped, type MappingPatch, refuseBoth, rowsCopies } from "./acts";
+import {
+    checkClash,
+    checkShared,
+    checkSplit,
+    existingOf,
+    extractOf,
+    mapped,
+    type MappingPatch,
+    refuseBoth,
+    rowsCopies,
+} from "./acts";
 
 export type { MappingPatch } from "./acts";
 import { isStaged, ownSpace } from "./build";
@@ -26,7 +36,7 @@ import {
     stepAct,
     type StepsEdit,
 } from "./project";
-import type { Aggregate, BuildResult, BuiltEdge, BuiltNode, ClashRule, RowFilter, Step } from "./types";
+import type { Aggregate, BuildResult, BuiltEdge, BuiltNode, ClashRule, EdgesStep, RowFilter, Step } from "./types";
 
 /** The steps that may reduce a repeated key's rows by `aggregate` (3.3). */
 const AGGREGATES: ReadonlySet<Step["op"]> = new Set(["join.merge", "join.node-values", "join.edges"]);
@@ -79,6 +89,12 @@ export interface StepPatch {
     readonly aggregate?: Aggregate | null;
     /** What a Connect's row does when an edge already joins its ends. */
     readonly existing?: "add" | "merge";
+    /** A link's hub cap. */
+    readonly maxShared?: number;
+    /** How many values a link's pair must share. */
+    readonly minShared?: number;
+    /** The separator an Extract's cells hold several values by; `null` takes it off. */
+    readonly split?: string | null;
 }
 
 /**
@@ -113,6 +129,8 @@ function touched(edit: StepsEdit): readonly string[] {
                 case "merge":
                 case "connect":
                     return [act.options.from.source];
+                case "link":
+                    return [act.options.source];
                 case "rename":
                     return [act.rename.source];
                 case "extract":
@@ -409,6 +427,47 @@ function existingPatch(
 }
 
 /**
+ * What a patch sets on the step of a link or an Extract.
+ * @param step - The step.
+ * @param patch - The choices.
+ * @returns The step's `link` or `extract`, or nothing to leave them.
+ * @throws A `GraphtyError` with `E_BAD_COMMAND`: reason `link` or `extract` for a step of another kind,
+ *   `max-shared`, `min-shared` or `split` for a value it cannot take.
+ */
+function valuePatch(step: Step, patch: StepPatch): { link?: EdgesStep["link"]; extract?: EdgesStep["extract"] } {
+    const { maxShared, minShared, split } = patch;
+    const out: { link?: EdgesStep["link"]; extract?: EdgesStep["extract"] } = {};
+    if (maxShared !== undefined || minShared !== undefined) {
+        if (step.op !== "join.edges" || step.link === undefined) {
+            throw refused("E_BAD_COMMAND", "Only a link's step takes a hub cap or a minimum.", {
+                reason: "link",
+                op: step.op,
+            });
+        }
+        checkShared(maxShared, minShared);
+        out.link = {
+            ...step.link,
+            maxShared: maxShared ?? step.link.maxShared,
+            minShared: minShared ?? step.link.minShared,
+        };
+    }
+    if (split !== undefined) {
+        // An edge source's Extract with no separator moves its columns in a step of its own: it is made again instead.
+        const extract = extractOf(step)?.extract;
+        if (extract === undefined) {
+            throw refused("E_BAD_COMMAND", "Only an Extract's step takes a separator.", {
+                reason: "extract",
+                op: step.op,
+            });
+        }
+        checkSplit(split);
+        const { split: _was, ...rest } = extract;
+        out.extract = split === null ? rest : { ...rest, split };
+    }
+    return out;
+}
+
+/**
  * Change one step's choices (3.3, 3.10): its clash rules, the rows it leaves out, how it matches
  * text and repeated rows, and whether it is off.
  * @param value - The value.
@@ -459,6 +518,7 @@ export function stepEdit(value: SourceSteps, copies: Copies, index: number, patc
         off: patch.off,
         unmatchedFrom: patch.unmatchedFrom,
         aggregate: patch.aggregate,
+        ...valuePatch(step, patch),
     };
     const given = Object.entries(patched).filter(([, v]) => v !== undefined);
     // A null or false takes the choice off; anything else sets it.

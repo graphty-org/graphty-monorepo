@@ -466,6 +466,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
                 "merge",
                 "connect",
                 "extract",
+                "link",
                 "moveColumns",
                 "renameColumn",
                 "declareType",

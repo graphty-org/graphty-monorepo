@@ -449,6 +449,7 @@ function readColumns(input: BuildInput, source: string, picked = false): Set<str
     for (const st of input.steps) {
         if (st.source === source && "read" in st) {
             strings(st.read as Readonly<Record<string, unknown>>);
+            (("link" in st && st.link?.columns) || []).forEach((c) => out.add(c));
         }
         if ("mapping" in st && st.mapping && (st.via ?? st.lookup) === source) {
             st.mapping.columns.forEach((c) => out.add(c));
@@ -602,6 +603,9 @@ export function renameColumn(
         const out: Record<string, unknown> = { ...st };
         if (st.columns) {
             out.columns = st.columns.map((c) => col(c));
+        }
+        if (st.op === "join.edges" && st.extract?.columns !== undefined) {
+            out.extract = { ...st.extract, columns: st.extract.columns.map((c) => col(c)) };
         }
         if (typeof st.clash === "object") {
             out.clash = renameKeys(st.clash, r.from, r.to);

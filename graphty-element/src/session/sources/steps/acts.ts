@@ -84,7 +84,7 @@ interface ConnectAct {
     readonly existing?: "add" | "merge";
 }
 
-/** Extract (4.3): one column of an edge source becomes nodes, joined to one end by new edges. */
+/** Extract (4.3): one column becomes nodes, joined to an edge row's end or to the row's own node by new edges. */
 interface ExtractAct {
     readonly column: string;
     readonly space?: string;
@@ -92,9 +92,34 @@ interface ExtractAct {
     readonly edgeType?: string;
     /** Columns moved onto the extracted nodes. */
     readonly columns?: readonly string[];
-    /** The end the new edges start from; default `"source"`. */
-    readonly from?: "source" | "target";
+    /** Where the new edges start: an end of an edge row (default `"source"`), or the node a node row is. */
+    readonly from?: "source" | "target" | "row";
+    /** The separator a cell holds several values by: one node each. */
+    readonly split?: string;
 }
+
+/** Link nodes whose rows share a value. */
+interface LinkAct {
+    readonly source: string;
+    readonly columns: readonly string[];
+    /** The column naming the node that holds each row's values; absent, the row's own node. */
+    readonly field?: string;
+    /** The nodes `field` names; absent, the source's own by that column. */
+    readonly into?: JoinInto;
+    /** One edge per pair sharing a value (default), or one node per shared value. */
+    readonly as?: "edges" | "nodes";
+    readonly maxShared?: number;
+    readonly minShared?: number;
+    readonly edgeType?: string;
+    /** The type and space of the nodes `as: "nodes"` makes. */
+    readonly type?: string;
+    readonly space?: string;
+    readonly ignoreCase?: boolean;
+    readonly ignoreSpaces?: boolean;
+}
+
+/** The hub cap of a link that names none, as `JoinLink` has it. */
+const MAX_SHARED = 10;
 
 /** Move columns (4.3): an edge source's columns onto the nodes at one end, or the nodes a column names. */
 interface MoveColumnsAct {
@@ -107,6 +132,7 @@ export type StepsAct =
     | { readonly act: "merge"; readonly options: MergeAct }
     | { readonly act: "connect"; readonly options: ConnectAct }
     | { readonly act: "extract"; readonly source: string; readonly options: ExtractAct }
+    | { readonly act: "link"; readonly options: LinkAct }
     | { readonly act: "move-columns"; readonly source: string; readonly options: MoveColumnsAct }
     | { readonly act: "rename"; readonly rename: Rename }
     | {
@@ -123,7 +149,9 @@ export type StepsAct =
           readonly index: number;
           readonly with:
               | { readonly act: "merge"; readonly options: MergeAct }
-              | { readonly act: "connect"; readonly options: ConnectAct };
+              | { readonly act: "connect"; readonly options: ConnectAct }
+              | { readonly act: "link"; readonly options: LinkAct }
+              | { readonly act: "extract"; readonly source: string; readonly options: ExtractAct };
       }
     /** Move one step to another place in the build order (an edited act keeps its step's place). */
     | { readonly act: "move-step"; readonly index: number; readonly to: number }
@@ -195,6 +223,25 @@ function rowSource(value: SourceSteps, copies: Copies, id: string): { src: Steps
         throw refused("E_STEP_NEEDS_NODES", `Source ${id} holds no rows.`, { source: id });
     }
     return { src, table: "nodes" };
+}
+
+/**
+ * The rows of a Merge or Make an edge, with a staged node 1 added first, so its nodes are there to join.
+ * @param prior - The value.
+ * @param copies - The rows as read.
+ * @param s1 - Node 1's source, if it names one to add.
+ * @param id - The source of the rows.
+ * @returns The value, and the rows' source and table.
+ */
+function rowsOnto(
+    prior: SourceSteps,
+    copies: Copies,
+    s1: string | undefined,
+    id: string,
+): { value: SourceSteps; src: StepsSource; table: TableName } {
+    const value =
+        s1 !== undefined && isStaged(prior, s1) ? addSource(prior, sourceOf(prior, s1), copies, undefined) : prior;
+    return { value, ...rowSource(value, copies, id) };
 }
 
 /**
@@ -430,13 +477,8 @@ export function refuseBoth(op: Step["op"], repeated: string | null | undefined):
  */
 function merge(prior: SourceSteps, copies: Copies, o: MergeAct): SourceSteps {
     refuseBoth("join.merge", o.repeated);
-    // A staged node 1 is added first, as Connect adds it, so its nodes are there to merge into.
-    const s1 = o.into.source;
-    const value =
-        s1 !== undefined && s1 !== o.from.source && isStaged(prior, s1)
-            ? addSource(prior, sourceOf(prior, s1), copies, undefined)
-            : prior;
-    const { src: s2, table } = rowSource(value, copies, o.from.source);
+    const s1 = o.into.source === o.from.source ? undefined : o.into.source;
+    const { value, src: s2, table } = rowsOnto(prior, copies, s1, o.from.source);
     const n1 = nodeOne(value, o.into);
     let next = value;
     if (table === "nodes" && notAdded(value, s2.id)) {
@@ -513,14 +555,11 @@ function connect(prior: SourceSteps, copies: Copies, o: ConnectAct): SourceSteps
     if (o.to !== undefined) {
         return connectRows(prior, copies, o, o.to);
     }
-    const s1 = o.into.source;
     const mirror = mirrored(prior, copies, o);
     if (mirror !== null) {
         return connect(prior, copies, mirror);
     }
-    const value =
-        s1 !== undefined && isStaged(prior, s1) ? addSource(prior, sourceOf(prior, s1), copies, undefined) : prior;
-    const { src: s2, table } = rowSource(value, copies, o.from.source);
+    const { value, src: s2, table } = rowsOnto(prior, copies, o.into.source, o.from.source);
     const n1 = nodeOne(value, o.into);
     let next = value;
     if (table === "nodes" && notAdded(value, s2.id)) {
@@ -619,7 +658,7 @@ function withEdgesStep(
         ...(o.perPair === true ? { repeated: "first" as const } : {}),
         ...defined({ ignoreCase: o.ignoreCase, ignoreSpaces: o.ignoreSpaces, rowNode: at.rowNode }),
         ...existingOf(o.to !== undefined && o.to.keepRow !== true, o.existing),
-        ...viaOf(o, n1, intoFrom),
+        ...viaOf(o.into, n1, intoFrom),
     };
     const { stagedType } = value.sources[at.source];
     // Node rows take their source's type; an edge row kept as a node, the type its source was staged with.
@@ -648,18 +687,18 @@ export function existingOf(
 
 /**
  * The translation an edge step reads node 1 through when its field is not node 1's key.
- * @param o - The choices.
+ * @param into - Node 1 as the act names it.
  * @param n1 - Node 1.
  * @param intoFrom - Whether node 1 is the edges' source end.
  * @returns The step's `via`, `mapping` and `viaEnd`, or nothing for a key.
  */
-function viaOf(o: ConnectAct, n1: NodeOne, intoFrom: boolean): Pick<EdgesStep, "via" | "mapping" | "viaEnd"> {
+function viaOf(into: JoinInto, n1: NodeOne, intoFrom: boolean): Pick<EdgesStep, "via" | "mapping" | "viaEnd"> {
     if (n1.isKey || n1.keyCol === undefined) {
         return {};
     }
     return {
-        via: o.into.source,
-        mapping: { columns: [o.into.field ?? "", n1.keyCol], space: n1.space },
+        via: into.source,
+        mapping: { columns: [into.field ?? "", n1.keyCol], space: n1.space },
         viaEnd: intoFrom ? "source" : "target",
     };
 }
@@ -745,12 +784,14 @@ function replaceStep(
         throw refused("E_BAD_COMMAND", `No step at ${String(index)}.`, { reason: "no-step", index });
     }
     const gone = removeStep(value, index);
-    let next = act.act === "merge" ? merge(gone, copies, act.options) : connect(gone, copies, act.options);
+    let next = joined(gone, copies, act);
     const made = next.steps.length - gone.steps.length;
     for (let i = 0; i < made; i++) {
         next = moveStep(next, gone.steps.length + i, index + i);
     }
-    const at = index + made - 1;
+    // an Extract's moved columns follow its edges
+    const end = index + made - 1;
+    const at = movedAfter(next.steps, end - 1) ? end - 1 : end;
     const last = next.steps[at];
     if (old.source !== last.source || old.op !== last.op) {
         return next;
@@ -761,6 +802,30 @@ function replaceStep(
         ...(last.clash === undefined && old.clash !== undefined ? { clash: old.clash } : {}),
     };
     return { ...next, steps: next.steps.map((s, i) => (i === at ? kept : s)) };
+}
+
+/**
+ * The value a join act makes at the end.
+ * @param value - The value.
+ * @param copies - The rows as read.
+ * @param act - The act.
+ * @returns The next value.
+ */
+function joined(
+    value: SourceSteps,
+    copies: Copies,
+    act: Extract<StepsAct, { act: "replace-step" }>["with"],
+): SourceSteps {
+    switch (act.act) {
+        case "merge":
+            return merge(value, copies, act.options);
+        case "connect":
+            return connect(value, copies, act.options);
+        case "link":
+            return link(value, copies, act.options);
+        default:
+            return extract(value, act.source, copies, act.options);
+    }
 }
 
 /**
@@ -792,16 +857,29 @@ function mirrored(value: SourceSteps, copies: Copies, o: ConnectAct): ConnectAct
 }
 
 /**
- * Extract (4.3): `join.edges` from one end to the column's values, read once per end pair, the new
- * nodes typed by an end rule; the moved columns follow with `join.node-values`.
- * @param value - The value.
- * @param id - The edge source.
+ * Extract (4.3): `join.edges` from one end, or from the row's own node, to the column's values, read
+ * once per end pair, the new nodes typed by an end rule. A node source's, and any whose cells are
+ * split, carries the moved columns itself; an edge source's follow with `join.node-values`. A staged
+ * node source is added first.
+ * @param prior - The value.
+ * @param id - The source.
+ * @param copies - The rows as read.
  * @param o - The choices.
  * @returns The next value.
+ * @throws A `GraphtyError` with `E_BAD_COMMAND`: reason `no-field` for no column, `split` for an empty
+ *   separator, `no-nodes` or `no-edges` for a source without the rows `from` reads.
  */
-function extract(value: SourceSteps, id: string, o: ExtractAct): SourceSteps {
+function extract(prior: SourceSteps, id: string, copies: Copies, o: ExtractAct): SourceSteps {
+    if (o.column.trim() === "") {
+        throw refused("E_BAD_COMMAND", "Extract names no column.", { reason: "no-field" });
+    }
+    checkSplit(o.split);
+    const from = o.from ?? (sourceOf(prior, id).mapping.edges === undefined ? "row" : "source");
+    if (from === "row" || o.split !== undefined) {
+        return extractRows(prior, id, copies, o, from);
+    }
+    const value = prior;
     const m = edgeMapping(value, id);
-    const from = o.from ?? "source";
     const space = o.space ?? o.type ?? ownSpace(id);
     const mint = minted(value, id);
     const step: EdgesStep = {
@@ -835,6 +913,215 @@ function extract(value: SourceSteps, id: string, o: ExtractAct): SourceSteps {
 }
 
 /**
+ * Refuse an empty separator, which would split a cell into letters.
+ * @param split - The separator, if any.
+ * @throws A `GraphtyError` with `E_BAD_COMMAND`, reason `split`.
+ */
+export function checkSplit(split: string | null | undefined): void {
+    if (split === "") {
+        throw refused("E_BAD_COMMAND", "A separator cannot be empty.", { reason: "split" });
+    }
+}
+
+/**
+ * An Extract whose one `join.edges` step carries the moved columns: each row, or the node a row is,
+ * to the values of its cell.
+ * @param prior - The value.
+ * @param id - The source.
+ * @param copies - The rows as read.
+ * @param o - The choices.
+ * @param from - Where the new edges start.
+ * @returns The next value.
+ */
+function extractRows(
+    prior: SourceSteps,
+    id: string,
+    copies: Copies,
+    o: ExtractAct,
+    from: NonNullable<ExtractAct["from"]>,
+): SourceSteps {
+    let value = prior;
+    const asRow = from === "row";
+    if (asRow) {
+        const src = sourceOf(value, id);
+        if (src.mapping.nodes === undefined) {
+            throw refused("E_BAD_COMMAND", `Source ${id} holds no node rows.`, { reason: "no-nodes", source: id });
+        }
+        value = isStaged(value, id) ? addSource(value, src, copies, undefined) : value;
+    }
+    const space = o.space ?? o.type ?? ownSpace(id);
+    const m = from === "row" ? null : edgeMapping(value, id);
+    const mint = minted(value, id);
+    const step: EdgesStep = {
+        op: "join.edges",
+        source: id,
+        part: mint.part,
+        read: {
+            table: asRow ? "nodes" : "edges",
+            ...(m === null || from === "row"
+                ? {}
+                : { source: m[from], sourceSpace: m[`${from}Space`] ?? ownSpace(id) }),
+            target: o.column,
+            targetSpace: space,
+            weight: null,
+        },
+        columns: [],
+        repeated: "first",
+        ...(asRow ? { rowNode: "source" as const, unmatchedRows: "add" as const } : {}),
+        extract: defined({ split: o.split, columns: o.columns }),
+    };
+    const next: SourceSteps = { ...mint.value, steps: [...mint.value.steps, step] };
+    return withRule(
+        withRule(next, "node", o.type, { source: id, part: mint.part, end: "target" }),
+        "edge",
+        o.edgeType,
+        { source: id, part: mint.part },
+    );
+}
+
+/**
+ * The place of the `join.node-values` step moving an Extract's columns: the one right after it that
+ * reads the same column into the same space.
+ * @param steps - The steps.
+ * @param index - The Extract's place.
+ * @returns The step, or undefined when none follows or the step at `index` is no Extract.
+ */
+export function movedAfter(steps: readonly Step[], index: number): NodeValuesStep | undefined {
+    const step = steps[index] as Step | undefined;
+    const next = steps[index + 1] as Step | undefined;
+    const made = step === undefined ? null : extractOf(step);
+    if (made === null || made.extract !== undefined || next?.op !== "join.node-values") {
+        return undefined;
+    }
+    const same =
+        next.source === made.source && next.read.key === made.read.target && next.read.space === made.read.targetSpace;
+    return same ? next : undefined;
+}
+
+/**
+ * The step, when an Extract made it: one of the kind only `extractRows` makes, or an edge source's,
+ * which makes one unweighted edge per pair, carries no column and says nothing of a row naming no node.
+ * @param step - The step.
+ * @returns It, or null when no Extract did.
+ */
+export function extractOf(step: Step): EdgesStep | null {
+    if (step.op !== "join.edges" || step.link !== undefined) {
+        return null;
+    }
+    const bare = step.columns?.length === 0 && step.read.weight === null && step.unmatchedRows === undefined;
+    const plain = bare && step.read.table === "edges" && step.rowNode === undefined;
+    return step.extract !== undefined || plain ? step : null;
+}
+
+/**
+ * Refuse a hub cap or a minimum that links nothing or is no count.
+ * @param maxShared - The hub cap, if given.
+ * @param minShared - The minimum shared values, if given.
+ * @throws A `GraphtyError` with `E_BAD_COMMAND`, reason `max-shared` or `min-shared`.
+ */
+export function checkShared(maxShared: number | undefined, minShared: number | undefined): void {
+    if (maxShared !== undefined && !(Number.isInteger(maxShared) && maxShared >= 2)) {
+        throw refused("E_BAD_COMMAND", "A hub cap is at least 2.", { reason: "max-shared", maxShared });
+    }
+    if (minShared !== undefined && !(Number.isInteger(minShared) && minShared >= 1)) {
+        throw refused("E_BAD_COMMAND", "A pair shares at least 1 value.", { reason: "min-shared", minShared });
+    }
+}
+
+/**
+ * Link nodes that share a value: `join.edges` reading the rows' values, held by each row's own node
+ * or by the node `field` names. A staged source whose rows are nodes is added first, as is a staged
+ * source `into` names; edge rows with no `field` become nodes the step makes.
+ * @param prior - The value.
+ * @param copies - The rows as read.
+ * @param o - The choices.
+ * @returns The next value.
+ * @throws A `GraphtyError` with `E_BAD_COMMAND`: reason `no-columns`, `no-field` for an `into` with no
+ *   field, `max-shared` or `min-shared`; `E_STEP_NEEDS_NODES` for a source with no rows; or
+ *   `E_AMBIGUOUS_ID` when the field names no one set of nodes.
+ */
+function link(prior: SourceSteps, copies: Copies, o: LinkAct): SourceSteps {
+    checkLink(o);
+    const { source: id, field } = o;
+    const { table } = rowSource(prior, copies, id);
+    const into: JoinInto | undefined = field === undefined ? undefined : (o.into ?? { source: id, field });
+    const value = withHolders(prior, copies, id, table, into);
+    const n1 = into === undefined ? null : nodeOne(value, into);
+    const mint = minted(value, id);
+    const asNodes = o.as === "nodes";
+    const step: EdgesStep = {
+        op: "join.edges",
+        source: id,
+        part: mint.part,
+        read: {
+            table,
+            ...(n1 === null ? {} : { source: field, sourceSpace: n1.space }),
+            ...(asNodes ? { targetSpace: o.space ?? o.type ?? ownSpace(id) } : {}),
+            weight: null,
+            time: null,
+        },
+        columns: [],
+        unmatchedRows: "leave-out",
+        link: {
+            columns: [...o.columns],
+            ...(asNodes ? { as: "nodes" as const } : {}),
+            maxShared: o.maxShared ?? MAX_SHARED,
+            minShared: o.minShared ?? 1,
+        },
+        ...defined({ ignoreCase: o.ignoreCase, ignoreSpaces: o.ignoreSpaces }),
+        ...(n1 === null || into === undefined ? { rowNode: "source" as const } : viaOf(into, n1, true)),
+    };
+    const rule = { source: id, part: mint.part };
+    let next: SourceSteps = { ...mint.value, steps: [...mint.value.steps, step] };
+    const rowType = table === "edges" && n1 === null ? next.sources[id].stagedType : undefined;
+    next = withRule(next, "node", rowType, rule);
+    next = withRule(next, "node", asNodes ? o.type : undefined, { ...rule, end: "target" });
+    return withRule(next, "edge", o.edgeType, rule);
+}
+
+/**
+ * Refuse a link that names no column, no field for the nodes it names, or a count it cannot take.
+ * @param o - The choices.
+ * @throws A `GraphtyError` with `E_BAD_COMMAND`, as {@link link} says.
+ */
+function checkLink(o: LinkAct): void {
+    if (o.columns.length === 0 || o.columns.some((c) => c.trim() === "")) {
+        throw refused("E_BAD_COMMAND", "A link names no column.", { reason: "no-columns" });
+    }
+    if (o.field === undefined ? o.into !== undefined : o.field.trim() === "") {
+        throw refused("E_BAD_COMMAND", "The nodes a link's values are held by are named by no field.", {
+            reason: "no-field",
+        });
+    }
+    checkShared(o.maxShared, o.minShared);
+}
+
+/**
+ * The value with the staged source whose nodes hold a link's values added: the rows' own when each is
+ * a node, or the one the link's field names.
+ * @param value - The value.
+ * @param copies - The rows as read.
+ * @param id - The link's source.
+ * @param table - The table its rows are read from.
+ * @param into - The nodes its field names, if it has one.
+ * @returns The value.
+ */
+function withHolders(
+    value: SourceSteps,
+    copies: Copies,
+    id: string,
+    table: TableName,
+    into: JoinInto | undefined,
+): SourceSteps {
+    const held = into === undefined ? id : into.source;
+    const own = held === id;
+    if (held === undefined || (own && (into !== undefined || table === "edges")) || !isStaged(value, held)) {
+        return value;
+    }
+    return addSource(value, sourceOf(value, held), copies, undefined);
+}
+
+/**
  * Move columns (4.3): `join.node-values` reading the edge rows by one end, or by a column naming
  * nodes in a space.
  * @param value - The value.
@@ -854,7 +1141,7 @@ function moveColumns(value: SourceSteps, id: string, o: MoveColumnsAct): SourceS
 
 /**
  * Delete one step (3.6): a source left with no step is staged again, and the space an act wrote
- * for it goes back to the one it proposed.
+ * for it goes back to the one it proposed. An Extract takes the step moving its columns with it.
  * @param value - The value.
  * @param index - The step's place.
  * @returns The next value.
@@ -864,7 +1151,8 @@ function removeStep(value: SourceSteps, index: number): SourceSteps {
     if (gone === undefined) {
         throw refused("E_BAD_COMMAND", `No step at ${String(index)}.`, { reason: "no-step", index });
     }
-    const next: SourceSteps = { ...value, steps: value.steps.filter((_, i) => i !== index) };
+    const moved = movedAfter(value.steps, index);
+    const next: SourceSteps = { ...value, steps: value.steps.filter((s, i) => i !== index && s !== moved) };
     const src = next.sources[gone.source] as StepsSource | undefined;
     if (src === undefined || !isStaged(next, src.id)) {
         return next;
@@ -979,7 +1267,9 @@ export function applyAct(value: SourceSteps, act: StepsAct, copies: Copies): Sou
         case "connect":
             return connect(value, copies, act.options);
         case "extract":
-            return extract(value, act.source, act.options);
+            return extract(value, act.source, copies, act.options);
+        case "link":
+            return link(value, copies, act.options);
         case "move-columns":
             return moveColumns(value, act.source, act.options);
         case "rename": {

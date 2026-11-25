@@ -39,6 +39,7 @@ const DRILL_COUNTS = [
     "untouched",
     "keptNew",
     "selfLoops",
+    "pairsBelowMin",
     "emptyKey",
     "repeatedKept",
     "parallelPairs",
@@ -165,7 +166,8 @@ function exceptColumn(step: Step): string | null {
         case "join.edge-values":
             return step.read.edgeId;
         default:
-            return step.read.edgeId ?? step.read.source ?? step.read.target ?? null;
+            // A step that links by shared values matches its rows by the values.
+            return step.link?.columns[0] ?? step.read.edgeId ?? step.read.source ?? step.read.target ?? null;
     }
 }
 

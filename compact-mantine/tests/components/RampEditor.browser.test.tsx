@@ -468,4 +468,28 @@ describe("RampEditor: clamp, midpoint, no-value and palette controls", () => {
         await userEvent.click(screen.getByRole("button", { name: "Reverse palette" }));
         expect(onReverseChange).toHaveBeenCalledWith(false);
     });
+
+    it("hides the typed fields' row with hideRangeFields, and the handles still move the range", async () => {
+        const onDomainChange = vi.fn();
+        render(
+            <MantineProvider theme={compactTheme}>
+                <div style={{ width: 240 }}>
+                    <RampEditor
+                        label="Node color by degree"
+                        bins={BINS}
+                        domain={[20, 80]}
+                        onDomainChange={onDomainChange}
+                        describe={describeHandle}
+                        hideRangeFields
+                    />
+                </div>
+            </MantineProvider>,
+        );
+        expect(screen.queryByRole("textbox", { name: "Starts at" })).toBeNull();
+        expect(screen.queryByTestId("ramp-editor-from")).toBeNull();
+        expect(screen.queryByTestId("ramp-editor-to")).toBeNull();
+        await userEvent.click(screen.getByRole("slider", { name: "Ramp start" }));
+        await userEvent.keyboard("{ArrowRight}");
+        expect(onDomainChange).toHaveBeenLastCalledWith([30, 80]);
+    });
 });

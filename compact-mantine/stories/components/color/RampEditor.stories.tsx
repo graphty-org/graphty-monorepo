@@ -124,9 +124,16 @@ const WORDS: Record<RampEditorHandle, string> = {
  * The editor with its state held as a caller holds it.
  * @param props - Component props
  * @param props.diverging - start on the diverging palette with a midpoint
+ * @param props.hideRangeFields - hide the typed fields' row
  * @returns the story
  */
-function Live({ diverging = false }: { diverging?: boolean }): React.JSX.Element {
+function Live({
+    diverging = false,
+    hideRangeFields = false,
+}: {
+    diverging?: boolean;
+    hideRangeFields?: boolean;
+}): React.JSX.Element {
     const [domain, setDomain] = useState<[number, number]>([1, 9]);
     const [clamp, setClamp] = useState<[number, number]>([1, 10]);
     const [midpoint, setMidpoint] = useState(4);
@@ -163,6 +170,7 @@ function Live({ diverging = false }: { diverging?: boolean }): React.JSX.Element
             onReverseChange={setReverse}
             noValue={{ count: 3, paint: paintNoValue ? "#9e9e9e" : null }}
             onNoValueChange={setPaintNoValue}
+            hideRangeFields={hideRangeFields}
         />
     );
 }
@@ -175,6 +183,11 @@ export const Default: Story = {
 /** A diverging palette adds a midpoint handle and its typed field. */
 export const Diverging: Story = {
     render: () => <Live diverging />,
+};
+
+/** `hideRangeFields`: no typed fields' row, for a caller that shows the range elsewhere; the handles still move it. */
+export const HiddenRangeFields: Story = {
+    render: () => <Live hideRangeFields />,
 };
 
 /**

@@ -159,6 +159,11 @@ export interface RampEditorProps {
     onNoValueChange?: (paint: boolean) => void;
     /** Replace any of the English words. */
     labels?: Partial<RampEditorLabels>;
+    /**
+     * Hide the typed fields' row ("Values from", "Values to" and a diverging ramp's midpoint), for a caller that
+     * shows the range elsewhere, such as beside the histogram. The handles still move the range. @default false
+     */
+    hideRangeFields?: boolean;
 }
 
 /** The handle track under the bars, tall enough for a 12px caret and its 24px hit area. */
@@ -435,6 +440,7 @@ function Handle({
  * @param props.noValue - elements with no value
  * @param props.onNoValueChange - called to paint or skip them
  * @param props.labels - replacement words
+ * @param props.hideRangeFields - hides the typed fields' row, for a caller that shows the range elsewhere
  * @returns the ramp editor
  * @example
  * ```tsx
@@ -474,6 +480,7 @@ export function RampEditor({
     noValue,
     onNoValueChange,
     labels: overrides,
+    hideRangeFields = false,
 }: Readonly<RampEditorProps>): React.JSX.Element {
     useCompactStyles();
     const labels = { ...DEFAULT_LABELS, ...overrides, handles: { ...DEFAULT_LABELS.handles, ...overrides?.handles } };
@@ -840,14 +847,16 @@ export function RampEditor({
                 </Box>
             )}
 
-            <Box style={{ display: "flex", gap: 8 }}>
-                {field(labels.from, "ramp-editor-from", low, (value) => onDomainChange?.([value, high]))}
-                {field(labels.to, "ramp-editor-to", high, (value) => onDomainChange?.([low, value]))}
-                {midpoint !== undefined &&
-                    field(labels.midpoint, "ramp-editor-midpoint-field", midpoint, (value) =>
-                        onMidpointChange?.(value),
-                    )}
-            </Box>
+            {!hideRangeFields && (
+                <Box style={{ display: "flex", gap: 8 }}>
+                    {field(labels.from, "ramp-editor-from", low, (value) => onDomainChange?.([value, high]))}
+                    {field(labels.to, "ramp-editor-to", high, (value) => onDomainChange?.([low, value]))}
+                    {midpoint !== undefined &&
+                        field(labels.midpoint, "ramp-editor-midpoint-field", midpoint, (value) =>
+                            onMidpointChange?.(value),
+                        )}
+                </Box>
+            )}
 
             <ChartValueTable
                 caption={label}

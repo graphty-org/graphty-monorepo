@@ -1112,6 +1112,61 @@ function FitToData({ patch }: Readonly<{ patch: (change: Partial<DataBinding>) =
     );
 }
 
+/** The width of a range box beside the histogram: room for "875,538". */
+const RANGE_BOX = 64;
+
+/**
+ * Style panel v2: the ramp's range on the histogram's line -- "Values from" before the histogram and "Values to"
+ * after it -- so the link dialog takes no row for it (the ramp editor's own row is hidden by `hideRangeFields`).
+ * Each box is named by its tooltip and its accessible name.
+ * @param props - Component props
+ * @param props.domain - the range's two ends
+ * @param props.onDomainChange - called with a typed range
+ * @param props.children - the ramp editor
+ * @returns The line
+ */
+function RangeBeside({
+    domain,
+    onDomainChange,
+    children,
+}: Readonly<{
+    domain: [number, number];
+    onDomainChange: (domain: [number, number]) => void;
+    children: React.ReactNode;
+}>): React.JSX.Element {
+    const [low, high] = domain;
+    const box = (label: string, value: number, commit: (typed: number) => void): React.JSX.Element => (
+        <Tooltip label={label}>
+            <Box className="ws-range-beside-box">
+                <ComboInput
+                    label={label}
+                    numeric
+                    variant="outlined"
+                    options={[]}
+                    width={RANGE_BOX}
+                    value={value}
+                    onChange={(typed) => {
+                        if (typeof typed === "number") {
+                            commit(typed);
+                        }
+                    }}
+                />
+            </Box>
+        </Tooltip>
+    );
+    return (
+        <div className="ws-range-beside">
+            {box("Values from", low, (typed) => {
+                onDomainChange([typed, high]);
+            })}
+            <div className="ws-range-beside-ramp">{children}</div>
+            {box("Values to", high, (typed) => {
+                onDomainChange([low, typed]);
+            })}
+        </div>
+    );
+}
+
 /**
  * A numeric binding: the ramp editor, a clamp, and for a stepped scale its steps with counts.
  * @param props - Component props
@@ -1169,67 +1224,84 @@ function Ramp({
         return to === undefined ? `${valueWords(from)} and above` : `${valueWords(from)} to ${valueWords(to)}`;
     };
 
+    const editor = (
+        <RampEditor
+            label={`${channelWord(descriptor.channel)} by ${source}`}
+            bins={preview.bins.map((bin) => ({
+                from: bin.from ?? 0,
+                to: bin.to ?? 0,
+                count: bin.count,
+                paint: isColor ? cssOf(bin.paints) : undefined,
+                label: `${valueWords(bin.from)} to ${valueWords(bin.to)}: ${String(bin.count)}`,
+            }))}
+            domain={[domain[0], domain[1]]}
+            onDomainChange={(next) => {
+                // A domain and a clamp both set the extent; the element takes one.
+                patch({ domain: next, clamp: undefined });
+            }}
+            midpoint={diverging ? (binding.midpoint ?? (domain[0] + domain[1]) / 2) : undefined}
+            onMidpointChange={(midpoint) => {
+                patch({ midpoint });
+            }}
+            clamp={
+                binding.clamp === undefined
+                    ? undefined
+                    : { low: domain[0], high: domain[1], below: preview.below, above: preview.above }
+            }
+            steps={[...preview.steps]}
+            step={wholeNumbers(session, binding.by) ? 1 : undefined}
+            // The handle's name is the editor's own ("Ramp start"); its value is said in the data's terms.
+            describe={(_handle: RampEditorHandle, value) => `${source} ${valueWords(value)}`}
+            labels={{ from: "Values from", to: "Values to" }}
+            // v2: the range's two boxes are on the histogram's line (RangeBeside), not a row of their own.
+            hideRangeFields={v2}
+            scale={binding.scale}
+            defaultScale={preview.scale}
+            // Inside a binding every field shows what it paints now, a default included.
+            scales={v2 ? undefined : scales}
+            onScaleChange={(next) => {
+                patch({ scale: next, palette: binding.palette });
+            }}
+            {...(isColor
+                ? {
+                      palette: binding.palette,
+                      defaultPalette: preview.palette ?? shownPalette ?? palettes[0]?.id,
+                      palettes: palettes.map((p) => ({
+                          value: p.id,
+                          label: paletteWord(p.id),
+                          stops: [...p.colors],
+                      })),
+                      onPaletteChange: (palette: string | undefined) => {
+                          patch({ palette });
+                      },
+                      reverse: binding.reverse === true,
+                      onReverseChange: (reverse: boolean) => {
+                          patch({ reverse: reverse || undefined });
+                      },
+                      noValue: { count: preview.noValue, paint: cssOf(preview.noValuePaints) ?? null },
+                      onNoValueChange: (paint: boolean) => {
+                          const start = cssOf(startingValue(descriptor, session)) ?? "#999999";
+                          patch({ missing: paint ? { value: start } : "skip" });
+                      },
+                  }
+                : {})}
+        />
+    );
+
     return (
         <Stack gap={8}>
-            <RampEditor
-                label={`${channelWord(descriptor.channel)} by ${source}`}
-                bins={preview.bins.map((bin) => ({
-                    from: bin.from ?? 0,
-                    to: bin.to ?? 0,
-                    count: bin.count,
-                    paint: isColor ? cssOf(bin.paints) : undefined,
-                    label: `${valueWords(bin.from)} to ${valueWords(bin.to)}: ${String(bin.count)}`,
-                }))}
-                domain={[domain[0], domain[1]]}
-                onDomainChange={(next) => {
-                    // A domain and a clamp both set the extent; the element takes one.
-                    patch({ domain: next, clamp: undefined });
-                }}
-                midpoint={diverging ? (binding.midpoint ?? (domain[0] + domain[1]) / 2) : undefined}
-                onMidpointChange={(midpoint) => {
-                    patch({ midpoint });
-                }}
-                clamp={
-                    binding.clamp === undefined
-                        ? undefined
-                        : { low: domain[0], high: domain[1], below: preview.below, above: preview.above }
-                }
-                steps={[...preview.steps]}
-                step={wholeNumbers(session, binding.by) ? 1 : undefined}
-                // The handle's name is the editor's own ("Ramp start"); its value is said in the data's terms.
-                describe={(_handle: RampEditorHandle, value) => `${source} ${valueWords(value)}`}
-                labels={{ from: "Values from", to: "Values to" }}
-                scale={binding.scale}
-                defaultScale={preview.scale}
-                // Inside a binding every field shows what it paints now, a default included.
-                scales={v2 ? undefined : scales}
-                onScaleChange={(next) => {
-                    patch({ scale: next, palette: binding.palette });
-                }}
-                {...(isColor
-                    ? {
-                          palette: binding.palette,
-                          defaultPalette: preview.palette ?? shownPalette ?? palettes[0]?.id,
-                          palettes: palettes.map((p) => ({
-                              value: p.id,
-                              label: paletteWord(p.id),
-                              stops: [...p.colors],
-                          })),
-                          onPaletteChange: (palette: string | undefined) => {
-                              patch({ palette });
-                          },
-                          reverse: binding.reverse === true,
-                          onReverseChange: (reverse: boolean) => {
-                              patch({ reverse: reverse || undefined });
-                          },
-                          noValue: { count: preview.noValue, paint: cssOf(preview.noValuePaints) ?? null },
-                          onNoValueChange: (paint: boolean) => {
-                              const start = cssOf(startingValue(descriptor, session)) ?? "#999999";
-                              patch({ missing: paint ? { value: start } : "skip" });
-                          },
-                      }
-                    : {})}
-            />
+            {v2 ? (
+                <RangeBeside
+                    domain={[domain[0], domain[1]]}
+                    onDomainChange={(next) => {
+                        patch({ domain: next, clamp: undefined });
+                    }}
+                >
+                    {editor}
+                </RangeBeside>
+            ) : (
+                editor
+            )}
             {/* v2: Fit to the data and Steps are on the Clamp outliers and Scale lines (ClampLine, RampScale). */}
             {!v2 && binding.domain !== undefined && binding.domain !== "auto" ? <FitToData patch={patch} /> : null}
             {v2 ? null : <Clamp binding={binding} patch={patch} />}

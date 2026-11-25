@@ -846,6 +846,19 @@ route table, only once that change is made. With that, every curve kind without 
 fanned curves, `fanSpacing`, `arcRadius`, gaps, raised and great-circle routes, the layout's routes, self-loop
 teardrops, support points and bends. The stage's 40 ms target stays missed by about 6 ms (ninth pull request).
 
+As built (issue #9201): a straight pulled line and a curve of one width and pass draw from one batch, in the order
+their pieces were taken, as the object path's one line batch draws them. Before, the straight batch and the curve
+batch drew one after the other, so where a curve crossed a straight line in one plane the curve's batch was on top
+whatever the rows' order. Once a curve batch exists, `EdgeMesh.pulledBatch` hands a straight line of its width and pass
+that batch (`straightInCurve`), and the line is drawn there with a one-piece straight span (`pulledCurve.STRAIGHT_SPAN`,
+`PulledLineBatch.drawStraight`): a flat raised arc between the two centers, which no move rewrites. A straight batch made
+before the curve batch holds only lines taken before every curve, and draws first. Left in their own batches: a line
+with a head, a patterned, animated or lean one, and one with an end it is seen through at paint time (the straight
+program trims it at the outline; a node turned translucent later leaves its line drawn to the center).
+`test/browser/curve-crossing-draw-order.test.ts` holds both orders and a partly curved bundle at 0 pixels against
+`"objects"`. Not fixed here: in the 2D view a curve is not pulled, and `"objects"` draws it over a crossing straight
+line in either order, where `"batched"` draws the straight line over it.
+
 Correction from stage 22 (code read at origin/master 8593e8751a): the row's "fragment scroll" cannot ride the join shader.
 A straight animated line (`line.animationSpeed`, 3D only: in 2D `EdgeMesh` draws it flat and unanimated before it asks)
 is a Babylon greased line with a two-texel moving texture (`#D3D3D3` and the edge's color, nearest, `uScale` 5), one batch

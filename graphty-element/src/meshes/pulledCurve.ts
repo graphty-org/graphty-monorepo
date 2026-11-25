@@ -697,6 +697,28 @@ export function curveSpan(
 }
 
 /**
+ * A straight line from its source center to its target center, drawn in a curve batch: a flat raised arc of one
+ * piece, uncut. A straight line of a width that also draws curves is drawn from their curve batch with this span, so
+ * the two draw in one sequence, in the order their pieces were taken, as the object path draws them (#9201).
+ */
+export const STRAIGHT_SPAN: CurveSpan = {
+    samples: 1,
+    first: 1,
+    pieces: 1,
+    startAt: 0,
+    endAt: 0,
+    bow: null,
+    radius: null,
+    turn: null,
+    height: 0,
+    angle: null,
+    ends: null,
+    loop: null,
+    via: null,
+    bends: null,
+};
+
+/**
  * The span of the straight line drawn between a line's bare ends in place of a raised route that clears neither
  * node, as `Edge.transformEdgeMesh` draws it: a flat raised arc of one piece, cut at the two ends.
  * @param src - The source center.

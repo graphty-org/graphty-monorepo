@@ -459,6 +459,7 @@ export class EdgeRowLines {
         const batch = EdgeMesh.pulledBatch(cache, { styleId: meshKey, width, color }, style, scene, () => rows, {
             route: "straight",
             lean: this.host.lean(),
+            straightInCurve: this.joinsCurves(head, source, target),
         });
         // as `Edge.pullLine` gives its piece the look: in 2D, or with a pattern, a world width
         const drawnWidth = EdgeMesh.drawsFlat(scene) || look.patterned ? width / 40 : width * 20;
@@ -481,6 +482,7 @@ export class EdgeRowLines {
 
         batch.setLook(piece, look.rgb, look.opacity, drawnWidth);
         batch.setRows(piece, source, target);
+        batch.drawStraight(piece);
         batch.restFrom(this.host);
         let at = this.batches.indexOf(batch);
         if (at === -1) {
@@ -715,6 +717,21 @@ export class EdgeRowLines {
         }
 
         return off;
+    }
+
+    /**
+     * Whether a row line may be drawn from a curve batch, which runs it center to center with no head
+     * (`EdgeMesh.pulledBatch`'s `straightInCurve`): it has no head and neither end is seen through.
+     * ponytail: judged once, when the row is painted; a node turned translucent later leaves a line already in a curve
+     * batch drawn to its center (the straight program trims it at the outline)
+     * @param head - Its head, or null.
+     * @param source - The source node's row.
+     * @param target - The target node's row.
+     * @returns True when it may.
+     */
+    private joinsCurves(head: PulledHead | null, source: number, target: number): boolean {
+        const { rows } = this.host;
+        return head === null && !rows.seenThrough(source) && !rows.seenThrough(target);
     }
 
     /**

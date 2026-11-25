@@ -3541,10 +3541,15 @@ export class Edge {
         style: EdgeStyleConfig,
         rows: RowTable,
     ): PulledLineBatch {
+        const seen = (end: "source" | "target"): boolean => {
+            const row = this.endRow(end);
+            return row >= 0 && rows.seenThrough(row);
+        };
         return EdgeMesh.pulledBatch(this.context.getMeshCache(), options, style, this.context.getScene(), () => rows, {
             loop: this.isLoop,
             route: this.routeOf(style),
             lean: this.context.leansLines?.() ?? false,
+            straightInCurve: EdgeMesh.drawsNoCap(style.arrowHead) && !seen("source") && !seen("target"),
         });
     }
 
@@ -3625,6 +3630,8 @@ export class Edge {
         if (curve) {
             // nothing drawn until the first placement writes the span
             batch.setCurve(piece, 0, null);
+        } else if (!animationSpeed) {
+            batch.drawStraight(piece);
         }
 
         pulledLines.version++;

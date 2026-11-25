@@ -16,7 +16,7 @@ import {
 import { type EdgeLineMeta, markEdgeLineBatchMesh, patternSpacing } from "./EdgeLineBatch";
 import { batchUploadFrames } from "./FrameRoster";
 import { takePoolReserve } from "./poolReserve";
-import { CURVE_STRIDE, curveShape, type CurveSpan } from "./pulledCurve";
+import { CURVE_STRIDE, curveShape, type CurveSpan, STRAIGHT_SPAN } from "./pulledCurve";
 import { placedEnds, type PulledCapLook, type RestSource, RestWatch, roundRowsEnds } from "./restPlacement";
 
 /**
@@ -845,6 +845,17 @@ export class PulledLineBatch {
         [this.rows[at + 13], this.rows[at + 14], this.rows[at + 15]] = curveShape(span, route);
         this.touch(piece);
         this.slotsFor(piece, Math.min(CURVE_STRIDE, (span?.pieces ?? 0) - part * CURVE_STRIDE));
+    }
+
+    /**
+     * Draw a straight piece between its rows' centers: in a curve batch, an entry with the one-piece straight span
+     * ({@link STRAIGHT_SPAN}); nothing to do in a straight batch, which draws every piece so.
+     * @param piece - The piece.
+     */
+    drawStraight(piece: number): void {
+        if (this.curve) {
+            this.setCurve(piece, 0, STRAIGHT_SPAN);
+        }
     }
 
     /**

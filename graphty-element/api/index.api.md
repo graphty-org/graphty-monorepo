@@ -2144,6 +2144,7 @@ export const EdgeStyle: z.ZodObject<{
             bezier: "bezier";
             corners: "corners";
             midpoints: "midpoints";
+            "midpoints-headroom": "midpoints-headroom";
             arc: "arc";
         }>>;
         arcRadius: z.ZodOptional<z.ZodNumber>;

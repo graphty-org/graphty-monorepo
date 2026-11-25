@@ -250,7 +250,11 @@ describe("curved edges: Cytoscape desktop", () => {
         // older one (1 + 3) / 2 x 13 = 26
         expect(await edgeValues(loops, "cx2", "bends")).toEqual(["-4.3333,0 0,4.3333", "-3.25,0 0,3.25", null]);
         expect(await curved(loops, "cx2")).toEqual([true, true, false]);
-        expect(await edgeValues(loops, "cx2", "bendCurve")).toEqual(["midpoints", "midpoints", "midpoints"]);
+        expect(await edgeValues(loops, "cx2", "bendCurve")).toEqual([
+            "midpoints-headroom",
+            "midpoints-headroom",
+            "midpoints-headroom",
+        ]);
     });
 
     it("curves a self-loop round its handles even where EDGE_CURVED says false, as desktop draws it", async () => {

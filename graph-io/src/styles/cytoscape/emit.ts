@@ -691,8 +691,8 @@ const DRAWN_SO: ReadonlyMap<string, StyleValue> = new Map<string, StyleValue>([
     ["labelWrapSkipEndSpace", false],
     // with its letters unkerned
     ["labelWrapUnkerned", true],
-    // it curves an edge through its bends' midpoints
-    ["bendCurve", "midpoints"],
+    // it curves an edge through its bends' midpoints, leaving room behind its arrowheads
+    ["bendCurve", "midpoints-headroom"],
 ]);
 
 /**

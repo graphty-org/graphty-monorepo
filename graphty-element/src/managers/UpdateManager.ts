@@ -2796,8 +2796,8 @@ export class UpdateManager implements Manager {
     }
 
     /**
-     * A node's built edges, from the data manager's index of them by end, which every build and teardown keeps: no
-     * edit lists every built edge again to find one node's (issue #9164).
+     * A node's built edges, from the store's incidence lists through the data manager: no edit or hover lists every
+     * built edge to find one node's (issues #9164, #10028).
      * @param id - The node's id.
      * @returns They.
      */

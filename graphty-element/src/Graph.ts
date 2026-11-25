@@ -5748,6 +5748,9 @@ export class Graph implements GraphContext {
                             this.layoutManager.running = true;
                         }
                     },
+                    edgeEndsChanged: (row) => {
+                        this.updateManager.placeEdgesOfRow(row);
+                    },
                 },
                 this.scene,
             );

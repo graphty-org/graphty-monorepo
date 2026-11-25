@@ -478,6 +478,40 @@ export function indexOf(value: SourceSteps, copies: Copies, found: FoundField, o
 }
 
 /**
+ * Whether a value two fields match by is on two rows, or reaches two nodes, of one of them: a value
+ * the other side lacks says nothing of the match.
+ * @param value - The value.
+ * @param copies - The rows as read.
+ * @param found - The field.
+ * @param other - The field it is matched with.
+ * @param o - How values compare.
+ * @returns For its rows, and for the nodes they are.
+ */
+export function repeatsIn(
+    value: SourceSteps,
+    copies: Copies,
+    found: FoundField,
+    other: FoundField,
+    o: MatchOptions,
+): { readonly rows: boolean; readonly nodes: boolean } {
+    const mine = indexOf(value, copies, found, o);
+    if (!mine.rowsRepeat) {
+        return { rows: false, nodes: false };
+    }
+    const theirs = indexOf(value, copies, other, o).rows;
+    let rows = false;
+    for (const [k, held] of mine.rows) {
+        if (held.length > 1 && theirs.has(k)) {
+            rows = true;
+            if (new Set(held.map((row) => found.data.nodeOf(row))).size > 1) {
+                return { rows, nodes: true };
+            }
+        }
+    }
+    return { rows, nodes: false };
+}
+
+/**
  * A field as the node 1 side of a join act.
  * @param found - The field.
  * @returns The side, as `merge`, `connect` and `link` take it.
@@ -517,8 +551,8 @@ export function canBeRows(found: FoundField): boolean {
 }
 
 /**
- * Which side of a match a join reads as rows: the one that can be, then the one whose values repeat,
- * then the one with no nodes of its own, then the one loaded later.
+ * Which side of a match a join reads as rows: the one that can be, then the one whose matched values
+ * repeat, then the one with no nodes of its own, then the one loaded later.
  * @param value - The value.
  * @param copies - The rows as read.
  * @param match - The two fields.
@@ -542,9 +576,9 @@ export function rowsSide(
         }
         return bRows ? "b" : null;
     }
-    const repeats = [a, b].map((each) => indexOf(value, copies, each, o).rowsRepeat);
-    if (repeats[0] !== repeats[1]) {
-        return repeats[0] ? "a" : "b";
+    const repeats = repeatsIn(value, copies, a, b, o).rows;
+    if (repeats !== repeatsIn(value, copies, b, a, o).rows) {
+        return repeats ? "a" : "b";
     }
     if (a.data.ownNodes !== b.data.ownNodes) {
         return a.data.ownNodes ? "b" : "a";
@@ -820,12 +854,14 @@ export function pairKey(a: string, b: string): string {
  * @param value - The value.
  * @param copies - The rows as read.
  * @param side - The side.
+ * @param by - The source whose rows name them: a column it brought itself says nothing.
  * @returns It, as `suggestMatches` takes it.
  */
 export function joinableOf(
     value: SourceSteps,
     copies: Copies,
     side: Side,
+    by: string,
 ): {
     readonly all: readonly string[];
     readonly own: undefined;
@@ -838,6 +874,6 @@ export function joinableOf(
         all: data.source === undefined ? [data.space] : [],
         own: undefined,
         staged: data.source !== undefined && ofNodes ? [data.source] : [],
-        brought: [...data.joined.keys()].map((field) => ({ space: data.space, field })),
+        brought: [...data.joined].flatMap(([field, from]) => (from === by ? [] : [{ space: data.space, field }])),
     };
 }

@@ -33,6 +33,7 @@ import {
     nodesNamed,
     pairKey,
     refOfField,
+    repeatsIn,
     rowsSide,
     type Side,
     type SideData,
@@ -329,15 +330,15 @@ function mergeAct(ctx: Ctx, way: Way, more: Partial<SourceMergeOptions> = {}): S
 }
 
 /**
- * Whether a way's columns have one place to go: no value is on two rows, or none names two nodes.
+ * Whether a way's columns have one place to go: no matched value is on two rows, or none names two nodes.
  * @param ctx - The draft.
  * @param way - The way.
  * @returns True when they do.
  */
 function fits(ctx: Ctx, way: Way): boolean {
+    const { value, copies, o } = ctx;
     return (
-        !indexOf(ctx.value, ctx.copies, way.rows, ctx.o).rowsRepeat ||
-        !indexOf(ctx.value, ctx.copies, way.into, ctx.o).nodesRepeat
+        !repeatsIn(value, copies, way.rows, way.into, o).rows || !repeatsIn(value, copies, way.into, way.rows, o).nodes
     );
 }
 
@@ -358,6 +359,7 @@ function fieldsOf(ctx: Ctx, line: Cross): JoinOutcome[] {
         if (!rows.data.ownNodes) {
             return fits(ctx, way) ? [outcome([rows.data], [into.data], { code: "fields", acts, uses })] : [];
         }
+        // whole columns here, never only what matches: a fold takes the graph's own nodes in
         const one = !indexOf(value, copies, into, o).nodesRepeat;
         const held = into.data.ownNodes || indexOf(value, copies, rows, o).rowsRepeat;
         return one && held ? [outcome([rows.data], [into.data], { code: "fold", acts, uses })] : [];

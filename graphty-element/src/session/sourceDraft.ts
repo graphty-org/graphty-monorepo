@@ -726,7 +726,9 @@ export class SourceDraftHandle implements SourceDraft {
         }
         const { value, copies } = this.state;
         const spaces =
-            side === undefined ? this.joinable(source, table, facts.mapping.space) : joinableOf(value, copies, side);
+            side === undefined
+                ? this.joinable(source, table, facts.mapping.space)
+                : joinableOf(value, copies, side, source);
         return suggestMatches(value, copies, source, read.columns, spaces, facts.mapping.key);
     }
 

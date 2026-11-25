@@ -13,6 +13,7 @@
 import type { SourceMatchCounts as MatchCounts } from "../../types";
 import { type JoinInto, type NodeOne, nodeOne, sourceOf } from "./acts";
 import { cellValues, isEmpty, isStaged, type MatchOptions, normalize, resolveNode, tableRows } from "./build";
+import { numberedKey } from "./profile";
 import { buildOf, type Copies, copyMap, type SourceSteps } from "./project";
 import type { BuildResult, CellValue, Row, Value } from "./types";
 
@@ -567,6 +568,15 @@ function ofSpace(built: BuildResult, space: string, field?: string): Values {
 const identifies = (v: Values): boolean => v.keys.size > 1 && v.keys.size >= IDENTIFYING_SHARE * v.cells;
 
 /**
+ * The column a reader's file keys its rows by: rows numbered for want of one are named by nothing in it.
+ * @param src - The source.
+ * @returns The column, or undefined.
+ */
+function ownKey(src: SourceSteps["sources"][string]): string | undefined {
+    return numberedKey(src) === undefined ? src.mapping.nodes?.key : undefined;
+}
+
+/**
  * The joins a source most likely makes onto the graph, best first: each node column of the source
  * against the keys of each id space other than its own and of each other staged source, and against a
  * column of the same name there when both name their rows; ranked by the share of its values that
@@ -641,7 +651,7 @@ export function suggestMatches(
     }
     for (const id of spaces.staged ?? []) {
         const theirs = rowsOf(value, copies, id);
-        const theirKey = sourceOf(value, id).mapping.nodes?.key;
+        const theirKey = ownKey(sourceOf(value, id));
         const columnsThere = new Set(theirs.length === 0 ? [] : Object.keys(theirs[0]));
         for (const field of columns) {
             const keys = ofColumn(theirs, theirKey ?? "");

@@ -510,6 +510,43 @@ describe("source-steps drafts: what matches can make", () => {
         session.dispose();
     });
 
+    it("judges a match by the values that match: a value the other side lacks may repeat", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        await session.data.import(csv("a.csv", "id,phone", "A1,p1", "A2,p1", "A3,p2"), { key: "id" });
+        const names = ["p1,high", "Zoe,low", "Zoe,mid"];
+        const watch = await session.data.stage(csv("w.csv", "value,risk", ...names), {});
+        const draft = session.data.draft();
+        const a = { source: session.data.sources()[0].key, field: "phone" };
+        const match = { a, b: { source: watch, field: "value" } };
+        assert.deepStrictEqual(
+            draft.joinOutcomes({ matches: [match] }).outcomes.map((each) => each.code),
+            ["fields", "link"],
+        );
+        assert.strictEqual(draft.joinRows({ a: { source: a.source }, b: { source: watch }, match }).rowsOf, "a");
+        session.dispose();
+    });
+
+    it("never suggests the numbers rows were given for want of a key, nor a column a source brought itself", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        await session.data.import(csv("a.csv", "id,rating,duns", "S1,0,x", "S2,1,y"), { key: "id" });
+        const own = session.data.sources()[0].key;
+        const b = await session.data.stage(csv("b.csv", "duns,city", "x,Rome", "y,Oslo"), {});
+        await session.data.setMapping(b, { nodes: {} });
+        const draft = session.data.draft();
+        const pairs = (): unknown[] =>
+            draft
+                .suggestMatches(b, { with: { source: own } })
+                .map(({ matches }) => [matches[0]?.from.field, matches[0]?.into.field]);
+        assert.notDeepInclude(pairs(), ["rating", undefined]);
+        draft.merge({
+            from: { source: b, field: "duns" },
+            into: { source: own, field: "duns" },
+            unmatchedFrom: "drop",
+        });
+        assert.notDeepInclude(pairs(), ["city", "city"]);
+        session.dispose();
+    });
+
     it("suggests a column an earlier merge brought", async () => {
         const { session, draft, key } = await opened(["accounts"], ["ids", "watch"]);
         draft.merge({

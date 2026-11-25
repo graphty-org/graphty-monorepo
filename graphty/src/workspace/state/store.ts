@@ -16,6 +16,7 @@ import type {
     DataSourceInput,
     GraphSession,
     GraphtyErrorCode,
+    JoinReduce,
     LoadDraft,
     NoteTargetInput,
     ScopeInput,
@@ -168,11 +169,10 @@ export type JoinDrill =
       };
 
 /**
- * How a merge settles a key source 2's rows repeat: keep the first row's values or the last's, as
- * the step's `repeated`, or reduce every column's rows to their count or their list, as its
- * `aggregate`.
+ * The ways the Join card offers for a key source 2's rows repeat, as a merge's `repeated` takes
+ * them: the first or last row's values, or every column's rows as their count or their list.
  */
-export type JoinRepeats = "first" | "last" | "count" | "list";
+export type JoinRepeats = Extract<JoinReduce, "first" | "last" | "count" | "list">;
 
 /** The Join card's choices that a preview changes in the element's draft step. */
 export type JoinChoices = Pick<JoinCardState, "ignoreCase" | "ignoreSpaces" | "repeated" | "unmatchedFrom">;

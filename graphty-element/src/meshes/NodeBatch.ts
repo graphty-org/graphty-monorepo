@@ -1,6 +1,7 @@
 import "@babylonjs/core/Meshes/thinInstanceMesh.js";
 
 import { VertexBuffer } from "@babylonjs/core/Buffers/buffer.js";
+import type { Camera } from "@babylonjs/core/Cameras/camera.js";
 import type { RawTexture } from "@babylonjs/core/Materials/Textures/rawTexture.js";
 import { Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
@@ -16,6 +17,7 @@ import type { Node } from "../Node";
 import type { RowMeasure } from "../render/RowTable";
 import { batchUploadFrames } from "./FrameRoster";
 import { handOverTogether } from "./handOverTogether";
+import { blendsRows, viewDepth } from "./instanceRowOrder";
 import type { MeshCache } from "./MeshCache";
 import { NodeMesh, styleOpacity } from "./NodeMesh";
 import { attachRowPull, glowRowsInPlace } from "./RowPullPlugin";
@@ -57,6 +59,8 @@ const HOLE = -1;
 const OWNED = -2;
 const NO_SLOT = -1;
 const MATRIX_FLOATS = 16;
+/** Floats a row takes in the row table's `rowPosition`: x, y, z and w. */
+const ROW_POSITION_FLOATS = 4;
 const COLOR_FLOATS = 4;
 /** Rows a slot's draw key orders under one source rank: `graphtyRow` is exact to 2^24. */
 const ROWS_PER_RANK = 2 ** 24;
@@ -326,6 +330,60 @@ export class NodeBatch {
         return changed;
     }
 
+    /**
+     * Draw the slots back to front, as the objects path draws a translucent source's instances
+     * (`drawInRowOrder`): each source rank's rows farthest first, ties in draw-key order. Nothing is
+     * sent while the slots are already in that order.
+     * @param depthOf - A row's depth key: larger is farther.
+     * @returns Whether the batch started or stopped drawing, as {@link NodeBatch.flush} says.
+     */
+    sortByDepth(depthOf: (row: number) => number): boolean {
+        if (this.holes > 0) {
+            this.compact();
+        }
+
+        const order: { slot: number; rank: number; depth: number; key: number }[] = [];
+        let ordered = true;
+        for (let slot = 0; slot < this.slots; slot++) {
+            const key = this.keys[slot] ?? 0;
+            const entry = {
+                slot,
+                rank: Math.floor(key / ROWS_PER_RANK),
+                depth: depthOf(rowOf(this.rows[slot] ?? 0)),
+                key,
+            };
+            const previous = order.at(-1);
+            ordered &&= previous === undefined || backToFront(previous, entry) <= 0;
+            order.push(entry);
+        }
+
+        if (ordered) {
+            return false;
+        }
+
+        order.sort(backToFront);
+        const { rows, keys, colors, matrices } = this;
+        this.rows = new Float32Array(rows.length);
+        this.keys = new Float64Array(keys.length);
+        this.colors = new Float32Array(colors.length);
+        this.matrices = matrices === undefined ? undefined : identities(rows.length);
+        order.forEach(({ slot: from }, slot) => {
+            this.rows[slot] = rows[from] ?? HOLE;
+            this.keys[slot] = keys[from] ?? 0;
+            this.copyLook(colors, matrices, from, slot);
+            this.setSlot(rowOf(this.rows[slot] ?? 0), slot);
+        });
+        this.unsorted = false;
+        this.setBuffers();
+        this.rowsDirty = this.colorsDirty = true;
+        this.matricesDirty = matrices !== undefined;
+        const changed = this.flush();
+        // depth order is not key order: the next repaint puts the slots back in key order, and the
+        // frame sorts them again
+        this.unsorted = true;
+        return changed;
+    }
+
     /** Dispose the mesh and its geometry, and leave the material to its source. */
     dispose(): void {
         this.mesh.dispose(false, false);
@@ -343,6 +401,21 @@ export class NodeBatch {
         }
 
         this.slotOf[row] = slot;
+    }
+
+    /**
+     * Copy one slot's color and matrix from the arrays the slots had before a reorder.
+     * @param colors - The old colors.
+     * @param matrices - The old matrices, when the batch has them.
+     * @param from - The slot in the old arrays.
+     * @param slot - The slot in the current arrays.
+     */
+    private copyLook(colors: Float32Array, matrices: Float32Array | undefined, from: number, slot: number): void {
+        this.colors.set(colors.subarray(from * COLOR_FLOATS, (from + 1) * COLOR_FLOATS), slot * COLOR_FLOATS);
+        this.matrices?.set(
+            matrices?.subarray(from * MATRIX_FLOATS, (from + 1) * MATRIX_FLOATS) ?? [],
+            slot * MATRIX_FLOATS,
+        );
     }
 
     /** Take the holes out and put the rows in draw order, which keeps depth ties as they were. */
@@ -363,11 +436,7 @@ export class NodeBatch {
         live.forEach(({ row, key, from }, slot) => {
             this.rows[slot] = row;
             this.keys[slot] = key;
-            this.colors.set(colors.subarray(from * COLOR_FLOATS, (from + 1) * COLOR_FLOATS), slot * COLOR_FLOATS);
-            this.matrices?.set(
-                matrices?.subarray(from * MATRIX_FLOATS, (from + 1) * MATRIX_FLOATS) ?? [],
-                slot * MATRIX_FLOATS,
-            );
+            this.copyLook(colors, matrices, from, slot);
             this.setSlot(rowOf(row), slot);
         });
         this.slots = live.length;
@@ -446,6 +515,25 @@ export class NodeBatch {
         this.matricesDirty = true;
         return matrices;
     }
+}
+
+/**
+ * {@link NodeBatch.sortByDepth}'s order: source rank, then farthest first, then draw key.
+ * @param a - One slot.
+ * @param a.rank - Its source rank.
+ * @param a.depth - Its depth key.
+ * @param a.key - Its draw key.
+ * @param b - The other.
+ * @param b.rank - Its source rank.
+ * @param b.depth - Its depth key.
+ * @param b.key - Its draw key.
+ * @returns Negative when `a` draws first.
+ */
+function backToFront(
+    a: { rank: number; depth: number; key: number },
+    b: { rank: number; depth: number; key: number },
+): number {
+    return a.rank - b.rank || b.depth - a.depth || a.key - b.key;
 }
 
 /**
@@ -887,7 +975,12 @@ function sameSize(a: RowMeasure, b: RowMeasure): boolean {
 /** What {@link NodeBatches} needs of the graph. */
 export interface NodeBatchHost {
     readonly cache: MeshCache;
-    readonly places: RowPlaces & { readonly rows: number; measure(row: RowMeasure): void };
+    readonly places: RowPlaces & {
+        readonly rows: number;
+        /** Each row's x, y, z and w, in the root's space. */
+        readonly rowPosition: Float32Array;
+        measure(row: RowMeasure): void;
+    };
     /** The transform node every row is drawn inside. */
     root(): TransformNode | null;
     /** The scene state paint does not hold. */
@@ -964,8 +1057,9 @@ export class NodeBatches {
             this.flush();
         });
         // per camera, after every before-render observer has moved the meshes
-        const mirror = scene.onBeforeCameraRenderObservable.add(() => {
+        const mirror = scene.onBeforeCameraRenderObservable.add((camera) => {
             this.mirror();
+            this.sortTranslucent(camera);
         });
         this.stopMirror = (): void => {
             mirror?.remove();
@@ -1491,6 +1585,41 @@ export class NodeBatches {
         let changed = false;
         for (const batch of owned) {
             changed = batch.flushOwned() || changed;
+        }
+
+        if (changed) {
+            this.host.meshesChanged();
+        }
+    }
+
+    /**
+     * Draw each translucent batch's rows back to front from the camera, as the objects path draws a
+     * translucent source's instances (issue #10045).
+     * ponytail: reads every translucent row's place each frame, which brings the CPU copy of a GPU
+     * layout's rows up to date; sort on the card if large translucent graphs under a GPU layout get slow.
+     * @param camera - The camera about to draw.
+     */
+    private sortTranslucent(camera: Camera): void {
+        let changed = false;
+        let depthOf: ((x: number, y: number, z: number) => number) | null = null;
+        let places: Float32Array | null = null;
+        for (const { batch } of this.families.values()) {
+            if (batch === null || !batch.mesh.isEnabled(false) || !blendsRows(batch.mesh)) {
+                continue;
+            }
+
+            if (depthOf === null || places === null) {
+                const root = this.host.root();
+                depthOf = viewDepth(camera, root === null ? null : root.computeWorldMatrix());
+                places = this.host.places.rowPosition;
+            }
+
+            const [depth, at] = [depthOf, places];
+            changed =
+                batch.sortByDepth((row) => {
+                    const base = row * ROW_POSITION_FLOATS;
+                    return depth(at[base] ?? 0, at[base + 1] ?? 0, at[base + 2] ?? 0);
+                }) || changed;
         }
 
         if (changed) {

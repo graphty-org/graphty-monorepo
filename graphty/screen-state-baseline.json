@@ -71,12 +71,8 @@
             "source",
             "tableId"
         ],
-        "src/workspace/data-place/Fields.tsx": ["asked", "opened", "openedFor"],
-        "src/workspace/data-place/Runs.tsx": ["asking"],
-        "src/workspace/data-place/ScoreDialog.tsx": ["name", "terms"],
-        "src/workspace/data-place/SourceRow.tsx": ["busy", "opened", "renaming"],
+        "src/workspace/data-place/ScoreDialog.tsx": ["name"],
         "src/workspace/export/CameraImageOutput.tsx": ["backgroundCheck"],
-        "src/workspace/export/DataOutput.tsx": ["busy", "failure", "open", "preview", "styleLosses"],
         "src/workspace/export/DocumentOutput.tsx": ["contents"],
         "src/workspace/export/ExportDialog.tsx": [
             "cameraImage",
@@ -90,7 +86,6 @@
         ],
         "src/workspace/export/ReportOutput.tsx": ["configs", "counts", "savedName"],
         "src/workspace/export/TourVideoOutput.tsx": ["estimate", "failure", "progress", "recording"],
-        "src/workspace/export/outputHooks.ts": ["preview", "previewError", "refused", "status"],
         "src/workspace/frame/ElementHost.tsx": ["hosted"],
         "src/workspace/frame/Frame.tsx": [
             "ResizeHandle.defaultValue",
@@ -117,7 +112,6 @@
         "src/workspace/inspector/Inspector.tsx": ["draft", "picked", "seen"],
         "src/workspace/inspector/LayerValues.tsx": ["all"],
         "src/workspace/inspector/NodeValues.tsx": ["all"],
-        "src/workspace/inspector/hooks.ts": ["value"],
         "src/workspace/join/JoinScreen.tsx": ["busy", "choices", "chosenShow", "how", "rows", "sort", "target"],
         "src/workspace/layout/LayoutForm.tsx": ["error", "start", "values"],
         "src/workspace/layout/LayoutPopover.tsx": ["focusKey", "picked"],

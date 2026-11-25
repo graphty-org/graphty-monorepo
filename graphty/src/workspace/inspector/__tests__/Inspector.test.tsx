@@ -694,6 +694,116 @@ describe("the inspector", () => {
         assert.deepEqual(store.get().inspected, source, "a Replace lists the load again under the same row");
     });
 
+    it("speaks the graph's size in its heading, and its From link opens the Data place", async () => {
+        const { session: on, store } = await renderInspector();
+        const heading = screen.getByRole("heading", { level: 2 });
+        assert.equal(heading.textContent, "Graph");
+        assert.equal(heading.getAttribute("aria-label"), "Graph, Two rings: 12 nodes, 13 edges");
+        // Written by hand, the graph has no source: no From line.
+        assert.isNull(screen.queryByRole("button", { name: /^From / }));
+
+        await act(async () => {
+            await on.data.import({ config: { file: new File(["from,to\nx,y\n"], "extra.csv") } });
+        });
+        await userEvent.click(await screen.findByRole("button", { name: "From extra.csv" }));
+        assert.deepInclude(store.get(), { page: "panels", place: "data" });
+    });
+
+    it("heads a Sources row with its file and its kind, and its Values with the load", async () => {
+        const { session: on, store } = await renderInspector();
+        await act(async () => {
+            await on.data.import({ config: { file: new File(["from,to\nx,y\n"], "extra.csv") } });
+        });
+        const load = on.data.sources().find((each) => each.name === "extra.csv");
+        assert.isDefined(load);
+        act(() => {
+            store.set({ inspected: { kind: "source", id: `source:${load?.key ?? ""}` } });
+        });
+        await waitFor(() => {
+            assert.equal(document.querySelector("[data-inspected]")?.getAttribute("data-inspected"), "source");
+        });
+        assert.equal(screen.getByRole("heading", { level: 2 }).textContent, "extra.csv");
+        assert.isNull(screen.queryByRole("tab", { name: "Values" }), "one body, no tabs");
+        // Its verbs are its Sources row's.
+        await userEvent.click(screen.getByRole("button", { name: "Source actions" }));
+        assert.isNotEmpty(await screen.findAllByRole("menuitem"));
+    });
+
+    it("counts a node's notes in its header, and the count opens the Notes place", async () => {
+        const { session: on, store } = await renderInspector();
+        on.notes.add({ text: "Where it starts", targets: [{ node: "n3" }] });
+        on.notes.add({ text: "Still the start", targets: [{ node: "n3" }] });
+        await act(async () => {
+            await on.selection.apply({ nodes: ["n3"] });
+        });
+        await userEvent.click(await screen.findByRole("button", { name: "2 notes" }));
+        assert.deepInclude(store.get(), { page: "panels", place: "notes" });
+    });
+
+    it("speaks the graph's size alone when no project is named", async () => {
+        const { store } = await renderInspector();
+        act(() => {
+            store.set({ project: null });
+        });
+        await waitFor(() => {
+            assert.equal(
+                screen.getByRole("heading", { level: 2 }).getAttribute("aria-label"),
+                "Graph, 12 nodes, 13 edges",
+            );
+        });
+    });
+
+    it("says in a node's header that a filter hides it", async () => {
+        const { session: on } = await renderInspector();
+        await act(async () => {
+            await on.selection.apply({ nodes: ["n1"] });
+        });
+        await screen.findByRole("heading", { level: 2, name: "n1" });
+        assert.isNull(screen.queryByText("Node, hidden by a filter"));
+        await act(async () => {
+            await on.visibility.setSteps([
+                { id: "s1", on: true, rule: { kind: "range", attribute: "data.shared", min: 5, nodes: "ends" } },
+            ]);
+        });
+        assert.isFalse(on.visibility.isVisible("n1"));
+        assert.deepEqual([...on.selection.nodes], ["n1"]);
+        await screen.findByText("Node, hidden by a filter");
+    });
+
+    it("moves a layer into a folder from its header's actions, and selects what it paints", async () => {
+        const { session: on, store } = await renderInspector();
+        const layer = await on.styles.add({
+            name: "First node",
+            target: "node",
+            selector: { match: "expression", where: "data.label == 'Node 0'" },
+            set: { "node.color": "#cc79a7" },
+        });
+        const folder = await on.styles.addFolder("Annotations");
+        await on.styles.settled();
+        const id = on.styles.get(layer.id)?.row ?? layer.id;
+        act(() => {
+            store.set({ inspected: { kind: "layer-row", id } });
+        });
+        // Spoken as its tree row says it: name, kind and how many it paints.
+        await screen.findByRole("heading", { level: 2, name: "First node, node layer, 1 node" });
+
+        await userEvent.click(screen.getByRole("button", { name: "Layer actions" }));
+        await userEvent.hover(await screen.findByRole("menuitem", { name: "Move to folder" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Annotations" }));
+        await waitFor(() => {
+            const inFolder = on.styles.tree().find((row) => row.id === folder.id);
+            assert.deepEqual(
+                inFolder?.children.map((child) => child.id),
+                [id],
+            );
+        });
+
+        await userEvent.click(screen.getByRole("button", { name: "Select what it paints" }));
+        await waitFor(() => {
+            assert.deepEqual([...on.selection.nodes], ["n0"]);
+        });
+    });
+
     it("draws a filter step as a gone row: its card is edited in the Filters section", async () => {
         const { store } = await renderInspector();
         act(() => {

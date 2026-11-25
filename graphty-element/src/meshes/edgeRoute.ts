@@ -270,14 +270,20 @@ const MIDPOINT_STEPS = 12;
 
 /**
  * A polyline drawn as one smooth curve that uses its interior points as control points rather than passing
- * through them (`line.bendCurve` "midpoints"): one cubic piece from each end, or from the middle of a segment
+ * through them (`line.bendCurve` "midpoints", and "midpoints-headroom" with `heads`): one cubic piece from each end, or from the middle of a segment
  * between two bends, to the next, each of its two controls pulled from its own end toward the bend between them by
  * {@link MIDPOINT_PULL}. It leaves each end along its first and last segments. Cytoscape desktop draws a curved
  * edge through its handles this way (`GraphGraphics.computeCubicPolyEdgePath`).
+ *
+ * An end with an arrowhead keeps its control at least a head's length behind it, as desktop's does: along each axis
+ * the control is the pulled one or the one a head's length from the line's end back along the head's axis, whichever
+ * lies further from the head's tip. A handle just behind the head then draws the line doubling back on itself under
+ * the head (cx2-wp1449-tlr 137094->136942).
  * @param flat - The polyline, flat x, y, z, ends included.
+ * @param heads - The arrowhead at either end of the line: its tip and its length; none for an end without one.
  * @returns The curve, the same ends.
  */
-export function curveThroughMidpoints(flat: readonly number[]): number[] {
+export function curveThroughMidpoints(flat: readonly number[], heads: MidpointHeads = {}): number[] {
     const n = flat.length / 3;
     if (n < 3) {
         return [...flat];
@@ -292,6 +298,15 @@ export function curveThroughMidpoints(flat: readonly number[]): number[] {
 
         return (at(j, k) + at(j + 1, k)) / 2;
     };
+    const startControl = headControl(heads.start, flat, 0, 1);
+    const endControl = headControl(heads.end, flat, n - 1, n - 2);
+    // each piece's two controls, pulled from its ends toward the bend between them, or kept behind a head
+    const first = (j: number, k: number): number =>
+        j === 0 && startControl !== null ? startControl[k] : knot(j, k) + (at(j + 1, k) - knot(j, k)) * MIDPOINT_PULL;
+    const second = (j: number, k: number): number =>
+        j === n - 3 && endControl !== null
+            ? endControl[k]
+            : knot(j + 1, k) + (at(j + 1, k) - knot(j + 1, k)) * MIDPOINT_PULL;
     const out = [flat[0], flat[1], flat[2]];
     for (let j = 0; j < n - 2; j++) {
         for (let s = 1; s <= MIDPOINT_STEPS; s++) {
@@ -300,12 +315,58 @@ export function curveThroughMidpoints(flat: readonly number[]): number[] {
             for (let k = 0; k < 3; k++) {
                 const from = knot(j, k);
                 const to = knot(j + 1, k);
-                const bend = at(j + 1, k);
-                const c1 = from + (bend - from) * MIDPOINT_PULL;
-                const c2 = to + (bend - to) * MIDPOINT_PULL;
+                const c1 = first(j, k);
+                const c2 = second(j, k);
                 out.push(u * u * u * from + 3 * u * u * t * c1 + 3 * u * t * t * c2 + t * t * t * to);
             }
         }
+    }
+
+    return out;
+}
+
+/** The arrowheads at the ends of a curve through midpoints ({@link curveThroughMidpoints}). */
+export interface MidpointHeads {
+    /** The head at the line's start: its tip and its length. */
+    readonly start?: { readonly tip: Xyz; readonly length: number };
+    /** The head at the line's end. */
+    readonly end?: { readonly tip: Xyz; readonly length: number };
+}
+
+/**
+ * The control next to one end of a curve through midpoints that has an arrowhead there, as Cytoscape desktop places
+ * it (`computeCubicPolyEdgePath`): along each axis, the control pulled toward the next point or the one the head's
+ * length from the line's end along the head's axis (from its tip toward the next point), whichever is further from
+ * the tip.
+ * @param head - The head at this end, or undefined.
+ * @param flat - The polyline, flat x, y, z.
+ * @param end - The end's point index.
+ * @param next - The index of the point next to it.
+ * @returns The control, or null for an end without a head.
+ */
+function headControl(
+    head: MidpointHeads["start"],
+    flat: readonly number[],
+    end: number,
+    next: number,
+): [number, number, number] | null {
+    if (head === undefined || head.length <= 0 || Number.isNaN(head.length)) {
+        return null;
+    }
+
+    const tip = [head.tip.x, head.tip.y, head.tip.z];
+    const at = (i: number, k: number): number => flat[3 * i + k];
+    const axis = [0, 1, 2].map((k) => at(next, k) - tip[k]);
+    const reach = Math.hypot(axis[0], axis[1], axis[2]);
+    if (reach === 0) {
+        return null;
+    }
+
+    const out: [number, number, number] = [0, 0, 0];
+    for (let k = 0; k < 3; k++) {
+        const pulled = at(end, k) + (at(next, k) - at(end, k)) * MIDPOINT_PULL;
+        const behind = at(end, k) + (axis[k] / reach) * head.length;
+        out[k] = Math.abs(behind - tip[k]) > Math.abs(pulled - tip[k]) ? behind : pulled;
     }
 
     return out;

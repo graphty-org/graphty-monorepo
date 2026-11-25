@@ -8,6 +8,7 @@
 
 import type { GraphtyErrorCode } from "../../../errors/codes";
 import { GraphtyError } from "../../../errors/GraphtyError";
+import type { JoinReduce } from "../../types";
 import { copyKey, isStaged, mintPart, nodeSpace, ownSpace, stepSources, tableRows } from "./build";
 import {
     addSource,
@@ -54,7 +55,8 @@ interface MergeAct {
     readonly into: JoinInto;
     readonly unmatchedFrom?: "keep" | "drop";
     readonly clash?: ClashRule | Readonly<Record<string, ClashRule>>;
-    readonly repeated?: "first" | "last";
+    /** `"first"` or `"last"` row wins; any other reduction is `aggregate: { "*": rule }`. */
+    readonly repeated?: JoinReduce;
     readonly except?: RowFilter;
     readonly ignoreCase?: boolean;
     readonly ignoreSpaces?: boolean;
@@ -386,6 +388,10 @@ export function refuseBoth(op: Step["op"], repeated: string | null | undefined):
  */
 function merge(value: SourceSteps, copies: Copies, o: MergeAct): SourceSteps {
     refuseBoth("join.merge", o.repeated);
+    // One spelling for several rows (#10056): a reduction given as `repeated` is aggregate's "*".
+    const rowWins = o.repeated === undefined || o.repeated === "first" || o.repeated === "last";
+    const repeated = rowWins ? o.repeated : undefined;
+    const aggregate = rowWins || o.repeated === undefined ? o.aggregate : { "*": o.repeated, ...o.aggregate };
     const s2 = nodeSource(value, copies, o.from.source);
     const n1 = nodeOne(value, o.into);
     let next = value;
@@ -400,8 +406,8 @@ function merge(value: SourceSteps, copies: Copies, o: MergeAct): SourceSteps {
         unmatchedFrom: o.unmatchedFrom ?? "keep",
         ...defined({
             clash: o.clash,
-            repeated: o.repeated,
-            aggregate: o.aggregate,
+            repeated,
+            aggregate,
             except: o.except,
             ignoreCase: o.ignoreCase,
             ignoreSpaces: o.ignoreSpaces,

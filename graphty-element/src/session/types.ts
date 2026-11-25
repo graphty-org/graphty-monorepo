@@ -3663,7 +3663,8 @@ export interface LoadedSource extends DataSourceDescriptor {
     /**
      * True when this session holds what the load was read from, so
      * {@link SessionDataApi.reloadSource} can read it again; absent otherwise (a project opened
-     * from a file, a network source, a generated graph).
+     * from a file, a network source, a generated graph). The reader's own work restored by
+     * autosave keeps it: autosave keeps what each such load was read from beside the work.
      * @since 3.30.0
      */
     readonly reloadable?: true;
@@ -5120,8 +5121,13 @@ export interface SourceStepAct {
     readonly ignoreCase: boolean;
     /** Values that differ only in spaces match. */
     readonly ignoreSpaces: boolean;
-    /** Which row a key the source repeats keeps; null when `aggregate` settles it or nothing was set. */
-    readonly repeated: "first" | "last" | "both" | null;
+    /**
+     * Several rows naming one key, as `merge` and `connect` take it: which row wins (`"first"`,
+     * `"last"`, `"both"` for an edge step) or, for a merge whose `aggregate` is one rule for every
+     * column (`{ "*": rule }`, other than `"first"` or `"last"`), that rule; null when nothing was set
+     * or `aggregate` names columns.
+     */
+    readonly repeated: JoinReduce | "both" | null;
     /** The columns reduced over a repeated key's rows; null for none. */
     readonly aggregate: Readonly<Record<string, JoinReduce>> | null;
     /** Merge: what becomes of source 2's rows that meet no node 1. */
@@ -5508,11 +5514,17 @@ export interface SourceMergeOptions {
     readonly unmatchedFrom?: "keep" | "drop";
     /** How a cell both sides fill is settled, for every column or per column (`"*"` for the rest). */
     readonly clash?: SourceClashRule | Readonly<Record<string, SourceClashRule>>;
-    /** Two rows naming one node: `"first"` (default) or `"last"` wins. */
-    readonly repeated?: "first" | "last";
+    /**
+     * Several rows naming one node: `"first"` (default) or `"last"` row wins; any other reduction
+     * (`"list"`, `"count"`, `"sum"`, ...) reduces every column but the one matched on over those
+     * rows, the same as `aggregate: { "*": rule }`. `steps()` reads it back in this one spelling
+     * ({@link SourceStepAct.repeated}), so an application passes back what it read.
+     */
+    readonly repeated?: JoinReduce;
     /**
      * Per column, how the rows naming one node reduce into one value, as `draft.editStep` takes it;
-     * `"*"` sets every column but the one matched on, such as `{ "*": "list" }`.
+     * `"*"` sets every column but the one matched on, such as `{ "*": "list" }`. A column it names
+     * wins over a reduction given as `repeated`.
      */
     readonly aggregate?: Readonly<Record<string, JoinReduce>>;
     /** Rows that stay their own nodes. */
@@ -5633,8 +5645,13 @@ export interface SourceStepPatch {
     readonly ignoreCase?: boolean;
     /** Match keys ignoring spaces. */
     readonly ignoreSpaces?: boolean;
-    /** Two rows naming one key: `"first"`, `"last"`, or `"both"` (an edge step only); `null` for the default. */
-    readonly repeated?: "first" | "last" | "both" | null;
+    /**
+     * Two rows naming one key: `"first"`, `"last"`, or `"both"` (an edge step only); `null` for the
+     * default. A merge step also takes any other reduction (`"list"`, `"count"`, ...) for every
+     * column, as `merge` does, and on a merge `repeated` replaces the step's `aggregate` unless the
+     * patch gives one, so a value read back from `steps()` is passed back as it is.
+     */
+    readonly repeated?: JoinReduce | "both" | null;
     /** Keep the step but build nothing from it. */
     readonly off?: boolean;
     /**

@@ -5,7 +5,7 @@
  * the way back in, so the picked row showed as Everything and the workspace closed without a word.
  * Real element, real autosave, real clicks and typing; with this tab's session storage kept and
  * emptied (as Safari empties it), and with the workspace remounted without a reload (a Vite hot
- * swap in development), where the picked layer comes back and the workspace does not yet (#9982).
+ * swap in development, issue #9982), each reloaded while the workspace is still opening (#10017).
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -51,30 +51,17 @@ describe.each<ReloadOptions>([{ lostSession: false }, { lostSession: true }, { r
             await userEvent.type(name, "test{Enter}");
             await picked("test");
             await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
-            // Open, not still opening: the header says "Drawing" until the opening is done, and only
-            // then does the workspace name itself as open, which is what a reload keeps. A reload in
-            // that first frame or two reopens without it.
+            // Reloaded at once, in the opening's first frames (its header drawn, its first frame
+            // not yet painted): the workspace is recorded as open when the reader opens it (#10017).
             await waitFor(() => {
-                const head = document.querySelector(".sel-ws .sel-ws-head");
-                assert.include(head?.textContent ?? "", "test");
-                assert.isNull(head?.querySelector("[data-drawing]") ?? null, "the workspace is still opening");
+                assert.include(document.querySelector(".sel-ws .sel-ws-head")?.textContent ?? "", "test");
             });
 
-            // Gap #9982: a remount reopens the work and the picked layer, but not the open workspace.
-            const remountLoses = [
-                "dialog: test / Which nodes",
-                "region: test / Which nodes",
-                "region: A, # of # nodes",
-                "expanded: Collapse A",
-                "checked: Card colors",
-            ];
-            const after = await reload(before, how.remount === true ? { ...how, lost: remountLoses } : how);
+            const after = await reload(before, how);
             await picked("test");
-            if (how.remount !== true) {
-                await waitFor(() => {
-                    assert.include(document.querySelector(".sel-ws .sel-ws-head")?.textContent ?? "", "test");
-                });
-            }
+            await waitFor(() => {
+                assert.include(document.querySelector(".sel-ws .sel-ws-head")?.textContent ?? "", "test");
+            });
             after.view.unmount();
         });
     },

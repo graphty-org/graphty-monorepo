@@ -140,6 +140,20 @@ const ACCELERATED_BATCH_NODE_ITERATIONS = 4_000_000;
 const ACCELERATED_BATCHED_NODE_ITERATIONS = 160_000;
 
 /**
+ * The fewest iterations a batch under renderPath "batched" is capped at, while the general budget
+ * ({@link ACCELERATED_BATCH_NODE_ITERATIONS}) allows them.
+ *
+ * An iteration's device time is not proportional to the node count: the grid tier's fixed passes dominate it, so on
+ * an NVIDIA card one iteration took about 0.5 ms at 10,000 nodes and 0.63 ms at 100,000. Divided by the node count
+ * alone, the budget above left a 100,000-node batch ONE iteration, while drawing that graph's 990,000 edges took the
+ * device 60 to 700 ms a frame, so the layout ran at the draw's pace: 5 to 15 iterations a second, and a minute to
+ * separate the communities of a planted partition graph (issue #10057, test/browser/force-100k-frame.bench.test.ts).
+ * Sixteen iterations are about 10 ms on the device there, a small part of such a frame. A smaller graph keeps the
+ * larger cap its budget gives.
+ */
+const ACCELERATED_BATCHED_LEAST_ITERATIONS = 16;
+
+/**
  * How many iterations the next accelerated batch computes when the host set no `iterationsPerStep`.
  *
  * It RAMPS: each batch computes as many iterations as the simulation has already submitted since it was built
@@ -150,6 +164,8 @@ const ACCELERATED_BATCHED_NODE_ITERATIONS = 160_000;
  * @param nodeCount - The graph this load is over.
  * @param submitted - Iterations submitted since the simulation was built.
  * @param budget - Nodes times iterations one batch may compute; renderPath "batched" passes a smaller one.
+ * @param least - The cap is at least this many iterations while the general budget allows them; renderPath
+ * "batched" passes {@link ACCELERATED_BATCHED_LEAST_ITERATIONS}.
  * @returns The iteration count of the next batch.
  */
 export function acceleratedIterationsFor(
@@ -157,8 +173,13 @@ export function acceleratedIterationsFor(
     nodeCount: number,
     submitted: number,
     budget = ACCELERATED_BATCH_NODE_ITERATIONS,
+    least = 0,
 ): number {
-    const byNodes = Math.floor(budget / Math.max(nodeCount, 1));
+    const nodes = Math.max(nodeCount, 1);
+    const byNodes = Math.max(
+        Math.floor(budget / nodes),
+        Math.min(least, Math.floor(ACCELERATED_BATCH_NODE_ITERATIONS / nodes)),
+    );
     const cap = Math.max(base, Math.min(ACCELERATED_MAX_ITERATIONS, byNodes));
     return Math.min(cap, Math.max(base, submitted));
 }
@@ -1389,11 +1410,17 @@ export class SimulationLayoutEngine extends LayoutEngine {
             return this.#iterations;
         }
 
-        const budget =
-            (this.#dataManager.renderLimits?.batched() ?? false)
-                ? ACCELERATED_BATCHED_NODE_ITERATIONS
-                : ACCELERATED_BATCH_NODE_ITERATIONS;
-        return acceleratedIterationsFor(this.#iterations, this.#snapshot.nodeCount, this.#iterationsDone, budget);
+        if (this.#dataManager.renderLimits?.batched() ?? false) {
+            return acceleratedIterationsFor(
+                this.#iterations,
+                this.#snapshot.nodeCount,
+                this.#iterationsDone,
+                ACCELERATED_BATCHED_NODE_ITERATIONS,
+                ACCELERATED_BATCHED_LEAST_ITERATIONS,
+            );
+        }
+
+        return acceleratedIterationsFor(this.#iterations, this.#snapshot.nodeCount, this.#iterationsDone);
     }
 
     /**

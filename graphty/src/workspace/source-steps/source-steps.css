@@ -181,6 +181,16 @@ dialog.jw-modal {
     padding-block: 2px 4px;
 }
 
+.jw-match > .jw-ignore {
+    grid-column: 1 / -1;
+    margin-inline-end: 4px;
+}
+
+.jw-remove {
+    padding: 8px;
+    border-bottom: 1px solid var(--cm-border);
+}
+
 .jw-match > .jw-add-match {
     grid-column: 2 / -1;
     justify-self: start;

@@ -50,7 +50,7 @@ describe("source-steps: a source's filter", () => {
 
     it("judges B's own value for its clash column (clash-column-in-source-section)", async () => {
         const { session, b } = await clashing();
-        const clash = `amt (${b})`;
+        const clash = "amt (erp.csv)";
         assert.include(
             session.data.attributes({ source: b }).map((a) => a.name),
             clash,

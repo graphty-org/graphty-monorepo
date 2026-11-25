@@ -135,6 +135,8 @@ export class SourceDraftHandle implements SourceDraft {
     private state: DraftState;
     private readonly base: DraftState;
     private readonly history: DraftState[] = [];
+    // The states undo stepped back from, the last one first to come back; a new act drops them.
+    private readonly undone: DraftState[] = [];
     private closed = false;
     // The state a batch started from while one runs, so it records one undo entry.
     private batchFrom: DraftState | null = null;
@@ -259,6 +261,7 @@ export class SourceDraftHandle implements SourceDraft {
         const after = built(next(this.state));
         if (this.batchFrom === null) {
             this.history.push(this.state);
+            this.undone.length = 0;
         }
         this.state = after;
         this.host.emit({ draft: this.id, reason: "changed" });
@@ -506,6 +509,7 @@ export class SourceDraftHandle implements SourceDraft {
             const out = acts();
             if (this.state !== from) {
                 this.history.push(from);
+                this.undone.length = 0;
             }
             return out;
         } catch (error) {
@@ -553,11 +557,38 @@ export class SourceDraftHandle implements SourceDraft {
     /** @inheritdoc */
     undo(): boolean {
         this.live("undo");
-        const prior = this.history.pop();
-        if (prior === undefined) {
+        return this.step(this.history, this.undone);
+    }
+
+    /** @inheritdoc */
+    redo(): boolean {
+        this.live("redo");
+        return this.step(this.undone, this.history);
+    }
+
+    /** @inheritdoc */
+    get canUndo(): boolean {
+        return !this.closed && this.history.length > 0;
+    }
+
+    /** @inheritdoc */
+    get canRedo(): boolean {
+        return !this.closed && this.undone.length > 0;
+    }
+
+    /**
+     * Step to the last state of one stack, keeping the current one on the other.
+     * @param from - The stack stepped to.
+     * @param to - The stack the current state goes on.
+     * @returns False when there is nothing to step to.
+     */
+    private step(from: DraftState[], to: DraftState[]): boolean {
+        const next = from.pop();
+        if (next === undefined) {
             return false;
         }
-        this.state = prior;
+        to.push(this.state);
+        this.state = next;
         this.host.emit({ draft: this.id, reason: "changed" });
         return true;
     }
@@ -642,7 +673,12 @@ export class SourceDraftHandle implements SourceDraft {
             .filter((row) => row.nodes > 0 && (table === "nodes" || row.sources.some((each) => each !== source)))
             .map((row) => row.space);
         const own = facts.mapping.space ?? rows.find((row) => row.ownedBy === source)?.space;
-        return Object.freeze(suggestMatches(value, copies, source, read.columns, { all, own }, facts.mapping.key));
+        const staged = Object.values(value.sources).flatMap((src) =>
+            src.id !== source && src.mapping.nodes !== undefined && isStaged(value, src.id) ? [src.id] : [],
+        );
+        return Object.freeze(
+            suggestMatches(value, copies, source, read.columns, { all, own, staged }, facts.mapping.key),
+        );
     }
 
     /** @inheritdoc */

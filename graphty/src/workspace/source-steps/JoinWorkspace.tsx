@@ -40,6 +40,7 @@ import { type CardChange, JoinCardBody } from "./JoinCard";
 import {
     actOf,
     type CardPicks,
+    type CardResult,
     cardsOf,
     DEFAULT_RESULT,
     type JoinCardView,
@@ -51,7 +52,7 @@ import {
     writeCard,
     writtenFor,
 } from "./joinCards";
-import { JOIN_WORKSPACE_KEY, READER_EDITS_KEY, SIDE_KEY, WORKSPACE_UNDO_KEY } from "./keys";
+import { JOIN_WORKSPACE_KEY, READER_EDITS_KEY, SIDE_KEY, WORKSPACE_REDO_KEY, WORKSPACE_UNDO_KEY } from "./keys";
 import { KeyWords } from "./KeyWords";
 import { ReaderEdits } from "./ReaderEdits";
 import { StagedRows } from "./StagedFields";
@@ -97,14 +98,8 @@ function idAt(card: JoinCardView, step: number): string {
     return card.step !== null && card.id === stepCardId(card.step.index) ? stepCardId(step) : card.id;
 }
 
-/**
- * Whether a step has a join card of its own.
- * @param step - the step
- * @returns true when it does
- */
-function isCard(step: SourceStepRow): boolean {
-    return step.act !== null || step.link !== null || step.extract !== null;
-}
+/** The id of a card the workspace opened with for a source that waits. */
+const WAITING = "wait:";
 
 /** How many rows a table page reads. */
 const PAGE = 200;
@@ -122,6 +117,15 @@ type TableShows =
     | { readonly kind: "rows"; readonly step: number; readonly bucket: string }
     | { readonly kind: "cells"; readonly step: number; readonly column: string; readonly only: CellFilter };
 
+/**
+ * A card's options, kept while it has no step.
+ * @param last - the options, if it had a step
+ * @returns the member that keeps them
+ */
+function lastOf(last: CardResult | null | undefined): { readonly last?: CardResult } {
+    return last === null || last === undefined ? {} : { last };
+}
+
 /** The rows picked in the table, for a look and for what the card does with them. */
 interface Picked {
     /** What the table listed when they were picked. */
@@ -138,6 +142,15 @@ interface Picked {
  */
 function addCardId(index: number): string {
     return `add:${String(index)}`;
+}
+
+/**
+ * Whether a key press lands in a field text is typed into: a list's own box, which only picks, is not one.
+ * @param target - what the key was pressed in
+ * @returns true when it does
+ */
+function typesText(target: HTMLElement): boolean {
+    return isTypingTarget(target) && !(target instanceof HTMLInputElement && target.readOnly);
 }
 
 /**
@@ -316,7 +329,11 @@ function ValuesPane({
     if (shows.kind === "fields") {
         return (
             <div className="jw-table">
-                {card !== undefined && hasMatch(card) ? view : null}
+                {card !== undefined && hasMatch(card) ? (
+                    <Group gap={6} wrap="nowrap">
+                        {view}
+                    </Group>
+                ) : null}
                 {card === undefined ? null : <FieldsPane draft={draft} sides={fieldSides(session, draft, card)} />}
             </div>
         );
@@ -542,18 +559,26 @@ function JoinWorkspace({
             }
             const made = cardsOf(opening, []);
             const used = new Set(opening.steps().map((step) => step.source));
-            const staged = session.data.staged().findLast((each) => !used.has(each.key));
+            // A card for every source that waits, so each one's guess shows.
+            const staged = session.data
+                .staged()
+                .filter((each) => !used.has(each.key))
+                .map((each) => each.key);
             // With nothing staged and no join yet, the newest source's own rows can still be split
             // into nodes or linked.
-            const newest = adopted === null && made.length === 0 ? session.data.sources().at(-1) : undefined;
-            const source = how.source ?? (staged ?? newest)?.key;
+            const newest = adopted === null && made.length === 0 ? session.data.sources().at(-1)?.key : undefined;
             const into = how.into === undefined ? null : { space: how.into };
+            const waiting = staged.length === 0 && newest !== undefined ? [newest] : staged;
+            const one: (string | undefined)[] =
+                how.source !== undefined || into !== null ? [how.source ?? waiting.at(-1)] : waiting;
             const first =
-                how.remove !== undefined || (source === undefined && into === null)
-                    ? []
-                    : [newCard(opening, "new:0", source, into)];
+                how.remove === undefined
+                    ? one.map((source, at) =>
+                          newCard(opening, at === one.length - 1 ? "new:0" : `${WAITING}${String(at)}`, source, into),
+                      )
+                    : [];
             setPending(first);
-            setOpen(first.at(0)?.id ?? (adopted === null ? undefined : made.at(-1)?.id) ?? null);
+            setOpen((first.at(-1) ?? made.at(-1))?.id ?? null);
             setOpened({ draft: opening });
             // The draft holds it from here: a reload opens the workspace on the draft as it is.
             store.set({ joinWorkspace: {} });
@@ -621,9 +646,12 @@ function JoinWorkspace({
             }
         };
         opener.current ??= document.activeElement;
-        keep();
+        // A press on another control blurs this one first, which can write its card: the focus still on its
+        // way to the pressed control is never taken.
+        const settled = setTimeout(keep, 0);
         document.addEventListener("focusin", keep);
         return () => {
+            clearTimeout(settled);
             document.removeEventListener("focusin", keep);
         };
     });
@@ -643,16 +671,23 @@ function JoinWorkspace({
         }
     }, [draft, live, version, store]);
 
-    const cards = live ? cardsOf(draft, pending) : [];
+    // A waiting source's own card goes once another card has joined it, unless it was begun.
+    const used = new Set(live ? draft.steps().map((step) => step.source) : []);
+    const waits = (card: PendingCard): boolean =>
+        !(
+            card.id.startsWith(WAITING) &&
+            card.id !== open &&
+            card.picks.becomes === null &&
+            card.written === undefined &&
+            card.picks.from !== null &&
+            used.has(card.picks.from.source)
+        );
+    const cards = live ? cardsOf(draft, pending.filter(waits)) : [];
     // The steps that add a staged source as it is: a card each, read-only but for its questions.
     // A join step that adds its own staged source shows on its own card, not as an Add card too.
+    const asked = new Set(live ? draft.preview().questions.map((question) => question.params.source) : []);
     const addSteps = live
-        ? draft
-              .steps()
-              .filter(
-                  (step, _at, all) =>
-                      step.op === "join.add" && !all.some((other) => isCard(other) && other.source === step.source),
-              )
+        ? draft.steps().filter((step) => step.op === "join.add" && (step.joined !== true || asked.has(step.source)))
         : [];
     // Cards never take the key's colors, so a color names either a card or what the commit does.
     const palette = (session.scope.options.branchPalette ?? cardPalette(session.catalog.palettes())).filter(
@@ -719,7 +754,7 @@ function JoinWorkspace({
         }
         const write = waiting ? { ...picks, to: null } : picks;
         const at = card.step?.index ?? null;
-        const act = actOf(write, result ?? DEFAULT_RESULT, card.step);
+        const act = actOf(write, result ?? card.last ?? DEFAULT_RESULT, card.step);
         const keep = (id: string): void => {
             // A step card going back to picks is no longer the card that wrote the step.
             const was = at === null ? pending.find((each) => each.id === card.id) : undefined;
@@ -729,6 +764,8 @@ function JoinWorkspace({
                 guess: card.guess,
                 suggested: card.suggested && picks === card.picks,
                 ...(was?.written === undefined ? {} : { written: was.written }),
+                // What the step was set to, for the one the card writes next.
+                ...lastOf(result ?? card.last),
             };
             // A step card going back to picks takes the written card behind it along.
             setPending((now) => [
@@ -809,8 +846,10 @@ function JoinWorkspace({
                 .map((each) => (card !== undefined && writtenFor(each, card) ? { ...each, deleted: true } : each)),
         );
     };
-    const undo = (): void => {
-        draft.undo();
+    const step = (move: () => boolean): void => {
+        if (!move()) {
+            return;
+        }
         const back = cardsOf(draft, []);
         setPending((now) =>
             now.map(({ deleted, ...each }) =>
@@ -818,6 +857,12 @@ function JoinWorkspace({
             ),
         );
         setPickedRows(null);
+    };
+    const undo = (): void => {
+        step(() => draft.undo());
+    };
+    const redo = (): void => {
+        step(() => draft.redo());
     };
     const { side } = draft;
     const toggleSide = (): void => {
@@ -828,6 +873,15 @@ function JoinWorkspace({
         close();
     };
     const done = (): void => {
+        // A join begun and not finished is never dropped unseen.
+        const half = cards.find(
+            (card) => (card.step === null && card.picks.becomes !== null) || pendingTo[card.id] !== undefined,
+        );
+        if (half !== undefined) {
+            setOpen(half.id);
+            setErrors((now) => ({ ...now, [half.id]: WORKSPACE_WORDS.unfinished }));
+            return;
+        }
         void commitWorkspace(store, session, draft, noticeOn("")).then((ok) => {
             if (ok) {
                 close();
@@ -859,14 +913,23 @@ function JoinWorkspace({
             }
             event.preventDefault();
             event.stopPropagation();
+            if (typesText(target)) {
+                // The field gives up what was typed, then its focus: the workspace takes the next Escape.
+                queueMicrotask(() => {
+                    box.current?.focus();
+                });
+                return;
+            }
             cancel();
             return;
         }
-        if (isTypingTarget(target)) {
+        // An open list takes its own keys.
+        if (typesText(target) || target.matches("[aria-expanded=true][role=combobox], [data-expanded]")) {
             return;
         }
         const bound: readonly (readonly [string, () => void])[] = [
             [WORKSPACE_UNDO_KEY, undo],
+            [WORKSPACE_REDO_KEY, redo],
             [JOIN_WORKSPACE_KEY, addCard],
             [SIDE_KEY, toggleSide],
             [
@@ -886,23 +949,42 @@ function JoinWorkspace({
 
     const { marks, sources: draftSources } = draft.preview();
     const removed = draftSources.filter((each) => each.state === "removed");
+    const changes =
+        marks.nodes.merged +
+        marks.nodes.new +
+        marks.nodes.removed +
+        marks.edges.merged +
+        marks.edges.new +
+        marks.edges.removed;
     // The key names each effect by the mark the preview draws for it (a ring, a dashed border, a
     // dotted border), in the color it takes outside a card's own color.
+    // While each card has a color, an element is drawn in its card's: the key names the marks alone.
+    const markColor = (color: string): string => (colors ? "inherit" : color);
     const keyItems = [
-        { id: "merged", color: MERGED_COLOR, label: WORKSPACE_WORDS.nodesMerged, count: marks.nodes.merged },
-        { id: "new", color: NEW_COLOR, label: WORKSPACE_WORDS.nodesNew, count: marks.nodes.new },
-        { id: "edges", color: NEW_COLOR, label: WORKSPACE_WORDS.edgesNew, count: marks.edges.new },
+        { id: "merged", color: markColor(MERGED_COLOR), label: WORKSPACE_WORDS.nodesMerged, count: marks.nodes.merged },
+        { id: "new", color: markColor(NEW_COLOR), label: WORKSPACE_WORDS.nodesNew, count: marks.nodes.new },
+        { id: "edges", color: markColor(NEW_COLOR), label: WORKSPACE_WORDS.edgesNew, count: marks.edges.new },
         ...(marks.edges.merged === 0
             ? []
             : [
                   {
                       id: "edges-merged",
-                      color: MERGED_COLOR,
+                      color: markColor(MERGED_COLOR),
                       label: WORKSPACE_WORDS.edgesMerged,
                       count: marks.edges.merged,
                   },
               ]),
-        { id: "untouched", color: UNTOUCHED_COLOR, label: WORKSPACE_WORDS.untouched, count: marks.nodes.untouched },
+        // With nothing the commit does, nothing is untouched by it.
+        ...(changes === 0
+            ? []
+            : [
+                  {
+                      id: "untouched",
+                      color: UNTOUCHED_COLOR,
+                      label: WORKSPACE_WORDS.untouched,
+                      count: marks.nodes.untouched,
+                  },
+              ]),
         ...(
             [
                 ["nodes-removed", WORKSPACE_WORDS.nodesRemoved, marks.nodes.removed],
@@ -963,7 +1045,7 @@ function JoinWorkspace({
                     readSettings={
                         staged === undefined || card.step !== null ? null : (
                             <fieldset className="ss-field jw-read" aria-label={WORKSPACE_WORDS.readSettings}>
-                                <ControlSection label={STAGED_WORDS.rowsAre} defaultOpened={false}>
+                                <ControlSection label={WORKSPACE_WORDS.readSettings} defaultOpened={false}>
                                     <StagedRows
                                         session={session}
                                         reader={draft}
@@ -1016,7 +1098,6 @@ function JoinWorkspace({
         };
     });
     // Each Add step is a card too, so every step the draft holds is visible: its questions and counts.
-    const asked = new Set(draft.preview().questions.map((question) => question.params.source));
     const addItems: CardListItem[] = addSteps.map((step) => {
         const id = addCardId(step.index);
         const name = nameOf(session, step.source);
@@ -1127,9 +1208,20 @@ function JoinWorkspace({
                         variant="subtle"
                         aria-keyshortcuts={ariaKey(WORKSPACE_UNDO_KEY)}
                         rightSection={<KeyWords combo={WORKSPACE_UNDO_KEY} />}
+                        disabled={!draft.canUndo}
                         onClick={undo}
                     >
                         {WORKSPACE_WORDS.undo}
+                    </Button>
+                    <Button
+                        size="compact-xs"
+                        variant="subtle"
+                        aria-keyshortcuts={ariaKey(WORKSPACE_REDO_KEY)}
+                        rightSection={<KeyWords combo={WORKSPACE_REDO_KEY} />}
+                        disabled={!draft.canRedo}
+                        onClick={redo}
+                    >
+                        {WORKSPACE_WORDS.redo}
                     </Button>
                     <span className="sel-ws-gap" />
                     <Button

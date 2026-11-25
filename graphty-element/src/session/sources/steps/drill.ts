@@ -20,8 +20,10 @@ import type {
     CellValue,
     DrillUnit,
     ElementRef,
+    NodeRef,
     ReaderOp,
     Row,
+    Source,
     Step,
     TableName,
     Value,
@@ -55,6 +57,7 @@ const DRILL_COUNTS = [
     "endsMissing",
     "newNodeTypes",
     "newEdgeTypes",
+    "hub",
 ] as const;
 
 /** One count of a step. */
@@ -106,6 +109,8 @@ export interface DrillRow {
     readonly key: CellValue | null;
     readonly name: string | null;
     readonly element: ElementRef | null;
+    /** For an edge, or a pair of nodes: its two ends. */
+    readonly ends: { readonly source: NodeRef; readonly target: NodeRef } | null;
     readonly held: Readonly<Record<string, Value>> | null;
     readonly incoming: Row | null;
     readonly shown: Readonly<Record<string, Value>> | null;
@@ -153,9 +158,10 @@ function refKey(ref: ElementRef): string {
  * The column a step's excluded keys are read from: the column its `except` already reads, else the
  * column it matches its rows by (a merge's or values step's key, an edge step's edge id or source end).
  * @param step - The step.
+ * @param src - The source whose rows it reads.
  * @returns The column, or null for a `join.add`, which leaves no row out.
  */
-function exceptColumn(step: Step): string | null {
+function exceptColumn(step: Step, src: Source | undefined): string | null {
     if (step.except !== undefined) {
         return step.except.column;
     }
@@ -169,11 +175,15 @@ function exceptColumn(step: Step): string | null {
             return step.read.edgeId;
         default:
             // A step that links nodes by the values they carry leaves a node or an edge out by its key; one that
-            // links by rows matches its rows by the values.
+            // links by rows, a row by the node it is or names: the values are what its rows share.
             if (step.link?.of === "nodes") {
                 return "key";
             }
-            return step.link?.columns[0] ?? step.read.edgeId ?? step.read.source ?? step.read.target ?? null;
+            if (step.link !== undefined) {
+                const own = step.read.table === "nodes" ? src?.mapping.nodes?.key : undefined;
+                return step.read.source ?? own ?? step.link.columns[0] ?? null;
+            }
+            return step.read.edgeId ?? step.read.source ?? step.read.target ?? null;
     }
 }
 
@@ -256,6 +266,22 @@ function ownColumns<T>(record: Readonly<Record<string, T>>, numbered?: string): 
 }
 
 /**
+ * The two ends of an edge, or of a pair of nodes.
+ * @param result - The build.
+ * @param el - The element listed.
+ * @param pair - The nodes' internal ids, for a pair.
+ * @returns The ends, or null for neither.
+ */
+function endsOf(result: BuildResult, el: Built | null, pair: DrillUnit["pair"]): DrillRow["ends"] {
+    const [from, to] = pair ?? (el !== null && "from" in el ? [el.from, el.to] : []);
+    const a = from === undefined ? null : resolved(result, from);
+    const b = to === undefined ? null : resolved(result, to);
+    return a !== null && b !== null && "space" in a && "space" in b
+        ? { source: { space: a.space, key: a.key }, target: { space: b.space, key: b.key } }
+        : null;
+}
+
+/**
  * The rows behind one count of one step of a draft: each with its key, the element it reached in
  * the draft, that element's values in the committed build and in the draft, the row as read, its
  * effect and the outcome it is reported under (5.4).
@@ -273,12 +299,13 @@ export function drillRows(
     const b1 = buildOf(state.value, state.copies);
     const units = unitsOf(state.value, b1, query);
     const step = state.value.steps[query.step];
-    const column = exceptColumn(step);
+    const column = exceptColumn(step, state.value.sources[step.source]);
     const copies = copyMap(state.copies);
     const codes = CODES[query.bucket] === undefined ? [] : [CODES[query.bucket] as DrillCode];
     const rows = page(units, query.offset, query.limit).map((u): DrillRow => {
-        const source = u.source ?? step.source;
         const now = u.element === undefined ? null : resolved(b1, u.element);
+        // a count of elements, not rows, lists each by the source that brought it
+        const source = u.source ?? (u.row === undefined ? now?.loads[0] : undefined) ?? step.source;
         // A merged row is marked with node 2's id, an alias only in the draft build: look the
         // committed element up by the id the draft resolved it to first.
         const was =
@@ -299,10 +326,12 @@ export function drillRows(
             key,
             name: u.name ?? null,
             element: now === null ? null : refOf(now),
+            ends: endsOf(b1, now, u.pair),
             held: was === null ? null : ownColumns(was.values),
             incoming: incoming === null ? null : ownColumns(incoming, src && numberedKey(src)),
-            shown: now === null ? null : { ...now.values },
-            effect: effectOf(now, was),
+            shown: now === null ? null : ownColumns(now.values),
+            // what the step did not reach is as it was, whatever the other steps did to it
+            effect: query.bucket === "untouched" ? "unchanged" : effectOf(now, was),
             codes,
         };
     });
@@ -368,7 +397,7 @@ export function exceptOf(
     if (step === undefined) {
         throw badCommand(`No step at ${String(index)}.`, { reason: "no-step", index });
     }
-    const own = exceptColumn(step);
+    const own = exceptColumn(step, value.sources[step.source]);
     if (own === null) {
         throw badCommand("A join.add step leaves no row out.", { reason: "no-except", index });
     }

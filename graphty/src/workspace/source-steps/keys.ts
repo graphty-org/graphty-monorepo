@@ -8,3 +8,5 @@ export const READER_EDITS_KEY = "R";
 export const JOIN_WORKSPACE_KEY = "Shift+J";
 /** Undo inside the join workspace: takes back the draft's newest change. */
 export const WORKSPACE_UNDO_KEY = "Mod+Z";
+/** Redo inside the join workspace: makes again the change Undo last took back. */
+export const WORKSPACE_REDO_KEY = "Mod+Shift+Z";

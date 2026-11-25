@@ -19,6 +19,7 @@ import {
     DEFAULT_RESULT,
     type JoinCardView,
     keyColumn,
+    ownerOf,
     pairOf,
 } from "./joinCards";
 import { nameOf } from "./tableColumns";
@@ -115,6 +116,24 @@ export function choiceOfInto(into: CardInto | null): string | null {
 }
 
 /**
+ * A node 1 side's type as its list offers it: one whose source the draft no longer adds is that
+ * staged source's.
+ * @param session - the element's session
+ * @param draft - the open draft
+ * @param into - the side
+ * @returns the value
+ */
+export function offeredInto(session: GraphSession, draft: SourceDraft, into: CardInto | null): string | null {
+    const value = choiceOfInto(into);
+    const owner = into === null || into.space === "" ? undefined : ownerOf(session, into.space);
+    const offered = intoChoices(session, draft);
+    const staged = owner === undefined ? null : `${STAGED}${owner}`;
+    return offered.some((each) => each.value === value) || !offered.some((each) => each.value === staged)
+        ? value
+        : staged;
+}
+
+/**
  * A node 1 side as the reader reads it: the type and its field, such as "people.Key".
  * @param session - the element's session
  * @param draft - the open draft
@@ -129,7 +148,7 @@ export function intoWords(session: GraphSession, draft: SourceDraft, into: CardI
         into.space === "" && into.source !== undefined
             ? nameOf(session, into.source)
             : spaceName(session, draft, into.space);
-    return `${type}.${into.field ?? keyColumn(draft, into) ?? JOIN_WORDS.key}`;
+    return `${type}.${into.field ?? keyColumn(draft, into, session) ?? JOIN_WORDS.key}`;
 }
 
 /**
@@ -166,28 +185,32 @@ export function cardSummary(session: GraphSession, draft: SourceDraft, card: Joi
     const match = act === undefined ? matches.join(", ") : `${act}: ${matches.join(", ")}`;
     const b = card.step?.buckets;
     if (b === null || b === undefined) {
-        return match;
+        return card.suggested ? `${match} ${WORKSPACE_WORDS.suggested}` : match;
     }
     const done =
         card.step?.op === "join.merge"
-            ? `${formatNumber(b.merged)} ${WORKSPACE_WORDS.merged}, ${formatNumber(b.keptNew)} ${WORKSPACE_WORDS.new}`
+            ? `${formatNumber(b.groups.length)} ${WORKSPACE_WORDS.merged}, ${formatNumber(b.keptNew)} ${WORKSPACE_WORDS.new}`
             : `${formatNumber(b.newEdges)} ${WORKSPACE_WORDS.edges.toLowerCase()}`;
     return `${match}; ${done}`;
 }
 
 /**
- * Which way a card's edges can run, by its numbered rows.
+ * Which way a card's edges can run.
  * @param picks - the card's picks
+ * @param row - the name of the source whose rows are nodes
  * @returns the two ways
  */
 export function directions(
     picks: CardPicks,
+    row: string,
 ): readonly { readonly value: CardResult["direction"]; readonly label: string }[] {
-    const other = picks.to !== undefined && picks.to !== null;
-    const path = picks.becomes === "node" ? ["1", "2", ...(other ? ["3"] : [])] : ["1", "3"];
+    // Named by the fields the ends are read from, which are never the same one.
+    const ends = [picks.from?.field ?? "", ...(picks.becomes === "node" ? [row] : []), picks.to?.field ?? ""].filter(
+        (each) => each !== "",
+    );
     return [
-        { value: "into-from", label: path.join("->") },
-        { value: "from-into", label: path.toReversed().join("->") },
+        { value: "into-from", label: ends.join(" -> ") },
+        { value: "from-into", label: ends.toReversed().join(" -> ") },
     ];
 }
 

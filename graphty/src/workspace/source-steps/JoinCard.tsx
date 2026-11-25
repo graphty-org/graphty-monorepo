@@ -12,7 +12,16 @@ import React, { useId } from "react";
 import { sourceName } from "../data-place/words";
 import { GLYPHS } from "../glyphs";
 import { formatNumber } from "../inspector/words";
-import { becoming, choiceOfInto, directions, intoChoices, intoOfChoice, NEW_VALUE, shownBecomes } from "./cardWords";
+import {
+    becoming,
+    choiceOfInto,
+    directions,
+    intoChoices,
+    intoOfChoice,
+    NEW_VALUE,
+    offeredInto,
+    shownBecomes,
+} from "./cardWords";
 import { edgeTypeChoices } from "./join";
 import {
     type Becomes,
@@ -32,7 +41,18 @@ import {
     toPairOf,
 } from "./joinCards";
 import { Pick } from "./Pick";
-import { BECOMES, BUCKET_WORDS, JOIN_WORDS, matchWords, moreWords, WORKSPACE_WORDS } from "./words";
+import { nameOf } from "./tableColumns";
+import {
+    BECOMES,
+    BUCKET_WORDS,
+    bucketCount,
+    counted,
+    JOIN_WORDS,
+    matchWords,
+    moreWords,
+    OVER_CAP_WORDS,
+    WORKSPACE_WORDS,
+} from "./words";
 import { DifferRow } from "./WorkspaceParts";
 
 /** Field 1's Field value for the space's own key. */
@@ -297,23 +317,27 @@ function IgnoreSwitches({
         return null;
     }
     return (
-        <Group gap={12} wrap="wrap" className="jw-match-count">
-            {shown.map((toggle) => {
-                const words = toggle.more === 0 ? null : moreWords(toggle.more);
-                return (
-                    <Switch
-                        key={toggle.id}
-                        size="xs"
-                        aria-label={toggle.label}
-                        label={words === null ? toggle.label : `${toggle.label} ${words}`}
-                        checked={toggle.on}
-                        onChange={(event) => {
-                            set({ [toggle.id]: event.currentTarget.checked });
-                        }}
-                    />
-                );
-            })}
-        </Group>
+        <div className="jw-ignore">
+            <Row label={WORKSPACE_WORDS.ignore}>
+                <Group gap={12} wrap="wrap">
+                    {shown.map((toggle) => {
+                        const words = toggle.more === 0 ? null : moreWords(toggle.more);
+                        return (
+                            <Switch
+                                key={toggle.id}
+                                size="xs"
+                                aria-label={toggle.label}
+                                label={words === null ? toggle.label : `${toggle.label} ${words}`}
+                                checked={toggle.on}
+                                onChange={(event) => {
+                                    set({ [toggle.id]: event.currentTarget.checked });
+                                }}
+                            />
+                        );
+                    })}
+                </Group>
+            </Row>
+        </div>
     );
 }
 
@@ -342,42 +366,80 @@ function IntoCells({
 }: Omit<MatchProps, "onChange"> & Readonly<{ newNodes: boolean }>): React.JSX.Element {
     const { into } = card.picks;
     const types = intoChoices(session, draft);
-    const fields = into === null || into.isNew === true ? [] : intoFields(draft, into, card.step?.index);
-    const picked = into?.field === undefined ? undefined : fields.find((each) => each.label === into.field);
     return (
         <>
             <Pick
                 name={`${WORKSPACE_WORDS.inGraph} ${JOIN_WORDS.type.toLowerCase()}`}
                 data={newNodes ? [...types, NEW_NODES] : types}
-                value={choiceOfInto(into)}
+                value={into?.isNew === true ? choiceOfInto(into) : offeredInto(session, draft, into)}
                 onPick={(value) => {
                     set({ into: intoOfChoice(value) });
                 }}
             />
-            {into?.isNew === true ? (
-                <span />
-            ) : (
-                <Pick
-                    name={`${WORKSPACE_WORDS.inGraph} ${JOIN_WORDS.field.toLowerCase()}`}
-                    data={
-                        into === null
-                            ? []
-                            : [
-                                  { value: KEY_VALUE, label: keyColumn(draft, into) ?? JOIN_WORDS.key },
-                                  ...fields.map((each) => ({ value: JSON.stringify(each.into), label: each.label })),
-                              ]
-                    }
-                    value={fieldValue(into, picked?.into)}
-                    onPick={(value) => {
-                        if (into === null) {
-                            return;
-                        }
-                        const field = fields.find((each) => JSON.stringify(each.into) === value);
-                        set({ into: field?.into ?? intoOfChoice(choiceOfInto(into) ?? "") });
-                    }}
-                />
-            )}
+            <GraphField
+                name={WORKSPACE_WORDS.inGraph}
+                session={session}
+                draft={draft}
+                into={into}
+                before={card.step?.index}
+                onPick={(next) => {
+                    set({ into: next });
+                }}
+            />
         </>
+    );
+}
+
+/**
+ * The field of a side of a match in the graph: its key, or a column its nodes carry; none for new nodes.
+ * @param props - Component props
+ * @param props.name - the side's name
+ * @param props.session - the element's session
+ * @param props.draft - the open draft
+ * @param props.into - the side
+ * @param props.before - the card's step place, if it has one
+ * @param props.onPick - takes the side with a field picked
+ * @returns the picker
+ */
+function GraphField({
+    name,
+    session,
+    draft,
+    into,
+    before,
+    onPick,
+}: Readonly<{
+    name: string;
+    session: GraphSession;
+    draft: SourceDraft;
+    into: CardInto | null;
+    before: number | undefined;
+    onPick: (into: CardInto) => void;
+}>): React.JSX.Element {
+    if (into?.isNew === true) {
+        return <span />;
+    }
+    const fields = into === null ? [] : intoFields(draft, into, before);
+    const picked = into?.field === undefined ? undefined : fields.find((each) => each.label === into.field);
+    return (
+        <Pick
+            name={`${name} ${JOIN_WORDS.field.toLowerCase()}`}
+            data={
+                into === null
+                    ? []
+                    : [
+                          { value: KEY_VALUE, label: keyColumn(draft, into, session) ?? JOIN_WORDS.key },
+                          ...fields.map((each) => ({ value: JSON.stringify(each.into), label: each.label })),
+                      ]
+            }
+            value={fieldValue(into, picked?.into)}
+            onPick={(value) => {
+                if (into !== null) {
+                    const field = fields.find((each) => JSON.stringify(each.into) === value);
+                    onPick(field?.into ?? intoOfChoice(choiceOfInto(into) ?? ""));
+                }
+            }}
+        />
     );
 }
 
@@ -395,8 +457,8 @@ function fieldValue(into: CardInto | null, field: CardInto | undefined): string 
 }
 
 /**
- * Row 3 of a card's match: the other end's type, or New nodes, and the incoming field naming it, with
- * its live count; a node's can be taken off.
+ * Rows 3 and 4 of a card's match: the other end's type, or New nodes, and its field; then the incoming
+ * field naming it, with its live count; a node's can be taken off.
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.draft - the open draft
@@ -429,17 +491,19 @@ function OtherEndCells({
             <Pick
                 name={`${WORKSPACE_WORDS.otherEnd} ${JOIN_WORDS.type.toLowerCase()}`}
                 data={[...intoChoices(session, draft), NEW_NODES]}
-                value={choiceOfInto(end.into)}
+                value={end.into?.isNew === true ? choiceOfInto(end.into) : offeredInto(session, draft, end.into)}
                 onPick={(value) => {
                     set({ to: { ...end, into: intoOfChoice(value) } });
                 }}
             />
-            <Pick
-                name={`${WORKSPACE_WORDS.otherEnd} ${JOIN_WORDS.field.toLowerCase()}`}
-                data={fields}
-                value={end.field ?? null}
-                onPick={(field) => {
-                    set({ to: { ...end, field } });
+            <GraphField
+                name={`${WORKSPACE_WORDS.otherEnd} ${WORKSPACE_WORDS.inGraph.toLowerCase()}`}
+                session={session}
+                draft={draft}
+                into={end.into}
+                before={card.step?.index}
+                onPick={(into) => {
+                    set({ to: { ...end, into } });
                 }}
             />
             {removable ? (
@@ -456,6 +520,21 @@ function OtherEndCells({
             ) : (
                 <span />
             )}
+            <Text size="xs" fw={600} aria-hidden>
+                4
+            </Text>
+            <Text size="xs" truncate>
+                {picks.from === null ? "" : nameOf(session, picks.from.source)}
+            </Text>
+            <Pick
+                name={`${WORKSPACE_WORDS.otherEnd} ${JOIN_WORDS.field.toLowerCase()}`}
+                data={fields}
+                value={end.field ?? null}
+                onPick={(field) => {
+                    set({ to: { ...end, field } });
+                }}
+            />
+            <span />
             {pair === null || end.into?.isNew === true ? null : (
                 <MatchCount
                     counts={countsOf(draft, picks, card.step?.index, pair)}
@@ -468,7 +547,7 @@ function OtherEndCells({
 
 /**
  * The matching rows of a card: 1, the field in the graph (or New nodes); 2, the incoming source's
- * field; and, for an edge or a node naming two things, 3, the other end. Each match's live count is
+ * field; and, for an edge or a node naming two things, 3 and 4, the other end's. Each match's live count is
  * the open draft's, a step card's counted against the graph before its own step.
  * @param props - Component props
  * @param props.session - the element's session
@@ -533,7 +612,6 @@ function MatchRows({
             <span />
             <MatchCount counts={counts} suggested={card.suggested} label={WORKSPACE_WORDS.matchCount} />
             {two ? <OtherEndCells {...cells} fields={fromColumns} removable={isNode} /> : null}
-            <IgnoreSwitches more={switchesOf([counts, otherCounts])} picks={picks} set={set} />
             {isNode && !two && picks.into?.isNew !== true ? (
                 <Button
                     size="compact-xs"
@@ -547,6 +625,7 @@ function MatchRows({
                     {`+ ${WORKSPACE_WORDS.match}`}
                 </Button>
             ) : null}
+            <IgnoreSwitches more={switchesOf([counts, otherCounts])} picks={picks} set={set} />
         </div>
     );
 }
@@ -568,7 +647,13 @@ function withSource(draft: SourceDraft, card: JoinCardView, source: string): Par
         card.step === null
             ? { ...next.picks, into: next.picks.into ?? card.picks.into, becomes, ...(becomes === null ? {} : other) }
             : { ...card.picks, becomes, ignoreCase, ignoreSpaces, from: { source }, ...other };
-    return [{ ...card, picks, guess: next.guess, suggested: card.step === null && next.suggested }, picks, card.result];
+    // The options stay for the step it writes next, but the columns of another source's rows.
+    const { result } = card;
+    return [
+        { ...card, picks, guess: next.guess, suggested: card.step === null && next.suggested },
+        picks,
+        result === null ? null : { ...result, columns: [] },
+    ];
 }
 
 /** Where a Links card's values are, when the nodes carry them. */
@@ -1013,22 +1098,23 @@ function Options({
                     }}
                 />
             )}
-            <Choice
-                label={JOIN_WORDS.direction}
-                value={result.direction}
-                data={directions(picks)}
-                onChange={(direction) => {
-                    set({ direction });
-                }}
-            />
+            <Row label={JOIN_WORDS.direction}>
+                <Pick
+                    name={JOIN_WORDS.direction}
+                    data={directions(picks, picks.from === null ? "" : nameOf(session, picks.from.source))}
+                    value={result.direction}
+                    onPick={(value) => {
+                        set({ direction: value === "from-into" ? "from-into" : "into-from" });
+                    }}
+                />
+            </Row>
             {edgeType}
         </>
     );
 }
 
 /**
- * A step's counts, each a button that lists its rows in the table; a count with no rows to list is
- * plain text.
+ * A step's counts, each a button that lists what it counts in the table.
  * @param props - Component props
  * @param props.step - the card's step
  * @param props.onShow - lists one count's rows
@@ -1042,28 +1128,28 @@ function StepCounts({
     if (buckets === null) {
         return null;
     }
-    const words = BUCKET_WORDS[step.op === "join.merge" ? "merge" : "edge"];
+    const links = step.link === null ? "edge" : "links";
+    const words = BUCKET_WORDS[step.op === "join.merge" ? "merge" : links];
+    const show = (id: string, text: string): React.JSX.Element => (
+        <UnstyledButton
+            key={id}
+            className="ss-count-show"
+            onClick={() => {
+                onShow(id);
+            }}
+        >
+            {text}
+        </UnstyledButton>
+    );
     return (
         <Group gap={12} wrap="wrap" className="jw-counts">
-            {words.map(({ id, label }) => {
-                const count = buckets[id];
-                return count === 0 ? null : (
-                    <UnstyledButton
-                        key={id}
-                        className="ss-count-show"
-                        onClick={() => {
-                            onShow(id);
-                        }}
-                    >
-                        {`${formatNumber(count)} ${label}`}
-                    </UnstyledButton>
-                );
+            {words.map((each) => {
+                const count = bucketCount(buckets, each.id);
+                return count === 0 ? null : show(each.id, counted(count, each));
             })}
-            {step.link === null || buckets.hub.length === 0 ? null : (
-                <Text size="xs" span>
-                    {`${formatNumber(buckets.hub.length)} ${WORKSPACE_WORDS.overCap}`}
-                </Text>
-            )}
+            {step.link === null || buckets.hub.length === 0
+                ? null
+                : show("hub", counted(buckets.hub.length, OVER_CAP_WORDS))}
         </Group>
     );
 }

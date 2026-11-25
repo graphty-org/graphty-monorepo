@@ -63,6 +63,19 @@ export function nameOf(session: GraphSession, key: SourceKey): string {
     return source === undefined ? key : sourceName(source);
 }
 
+/** A value the session keeps beside a record's own columns. */
+const FACTS = /^_source\./;
+
+/**
+ * Whether a row's key is a number it was given for want of a column of its own.
+ * @param row - the row.
+ * @returns true when it is.
+ */
+function numbered(row: SourceDraftRow): boolean {
+    const own = Object.values(row.incoming ?? {}).some((value) => String(value) === String(row.key));
+    return row.row !== null && row.table === "nodes" && row.incoming !== null && !own;
+}
+
 /**
  * The rows table's columns: the key, the source, the effect, then each value column's held and
  * incoming values side by side.
@@ -77,6 +90,15 @@ export function rowColumns(session: GraphSession, rows: readonly SourceDraftRow[
             names.add(name);
         }
     }
+    // what the draft's other steps brought, or an element read from no row of its own
+    const brought = new Set(
+        rows.flatMap((row) => Object.keys(row.shown ?? {}).filter((name) => !names.has(name) && !FACTS.test(name))),
+    );
+    // rows numbered for want of a key have none to show
+    // and an edge's or a pair's is its two ends
+    const keyed = rows.some(
+        (row) => row.key !== null && !numbered(row) && !(row.ends !== null && row.incoming === null),
+    );
     const held = rows.some((row) => Object.keys(row.held ?? {}).length > 0);
     const incoming = rows.some((row) => Object.keys(row.incoming ?? {}).length > 0);
     // The side first, so a narrow header still tells the two apart; with one side, only the column.
@@ -94,15 +116,29 @@ export function rowColumns(session: GraphSession, rows: readonly SourceDraftRow[
         sortable: false,
         value: (row) => valueWords(value(row)),
     });
+    const ends = rows.some((row) => row.ends !== null);
     return [
-        {
-            id: "key",
-            header: DRILL_WORDS.key,
-            width: 160,
-            sortable: false,
-            rowHeader: true,
-            value: (row) => cellWords(row.key),
-        },
+        ...(keyed
+            ? [
+                  {
+                      id: "key",
+                      header: DRILL_WORDS.key,
+                      width: 160,
+                      sortable: false,
+                      rowHeader: true,
+                      value: (row: SourceDraftRow) => cellWords(row.key),
+                  },
+              ]
+            : []),
+        ...(ends
+            ? (["source", "target"] as const).map((end) => ({
+                  id: `end:${end}`,
+                  header: DRILL_WORDS[end],
+                  width: 120,
+                  sortable: false,
+                  value: (row: SourceDraftRow) => row.ends?.[end].key ?? "",
+              }))
+            : []),
         { id: "from", header: DRILL_WORDS.from, sortable: false, value: (row) => nameOf(session, row.source) },
         { id: "effect", header: DRILL_WORDS.effect, sortable: false, value: (row) => EFFECT_WORDS[row.effect] },
         ...[...names].flatMap((name) => [
@@ -113,5 +149,12 @@ export function rowColumns(session: GraphSession, rows: readonly SourceDraftRow[
                 ? [side("incoming", name, DRILL_WORDS.incoming, (row) => row.incoming?.[name] ?? undefined)]
                 : []),
         ]),
+        ...[...brought].map((name): DataTableColumn<SourceDraftRow> => ({
+            id: `shown:${name}`,
+            header: name,
+            width: width(name),
+            sortable: false,
+            value: (row) => valueWords(row.shown?.[name]),
+        })),
     ];
 }

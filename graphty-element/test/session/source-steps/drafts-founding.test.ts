@@ -119,6 +119,10 @@ describe("source-steps drafts: the founding example", () => {
             moreRowsWithIgnoreCase: 1,
             moreRowsWithIgnoreSpaces: 0,
             moreRowsWithBoth: 1,
+            matchedNodes: 2,
+            moreNodesWithIgnoreCase: 1,
+            moreNodesWithIgnoreSpaces: 0,
+            moreNodesWithBoth: 1,
         });
         assert.deepStrictEqual(
             session.data.matchValues(badge, { only: "only2" }).values.map((v) => v.value),

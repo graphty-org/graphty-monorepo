@@ -53,6 +53,15 @@ describe("csv unnamed option", () => {
         );
     });
 
+    it.each([
+        "citing,cited\n1,2\n3,4\n",
+        "node1,node2\n1,2\n2,3\n3,1\n",
+        "follower,followee,weight\n1,2,0.5\n2,3,1.5\n3,1,2.5\n",
+        "left,right,kind\n1,2,x\n2,3,x\n3,1,y\n",
+    ])("still stops on an edge list of numbers: %j", async (input) => {
+        expect(await failure(input, { header: true, unnamed: "nodes" })).toBe(NO_ENDPOINT_COLUMNS_CODE);
+    });
+
     it("changes nothing of a table whose header names its ends or its id", async () => {
         expect((await load("source,target\na,b\n", { unnamed: "nodes" })).snapshot.edgeCount).toBe(1);
         expect((await load("id,name\na,b\n", { unnamed: "nodes" })).snapshot.nodeCount).toBe(1);

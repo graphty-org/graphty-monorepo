@@ -719,6 +719,7 @@ function readEnds(a: EndRead | null, b: EndRead | null): Omit<EdgesStep["read"],
  * @param at.end.which - Which edge end it is.
  * @param at.end.add - Whether its values naming no node make one.
  * @param at.end.type - The type its nodes are declared with.
+ * @param at.end.column - The column its nodes are named by, when not by their key.
  * @returns The next value.
  */
 function withEdgesStep(
@@ -730,7 +731,12 @@ function withEdgesStep(
         readonly read: EdgesStep["read"];
         readonly key: string | undefined;
         readonly rowNode?: EdgesStep["rowNode"];
-        readonly end?: { readonly which: "source" | "target"; readonly add: boolean; readonly type?: string };
+        readonly end?: {
+            readonly which: "source" | "target";
+            readonly add: boolean;
+            readonly type?: string;
+            readonly column?: string;
+        };
     },
 ): SourceSteps {
     const mint = minted(value, at.source);
@@ -756,6 +762,9 @@ function withEdgesStep(
         ...existingOf(o.to !== undefined && o.to.keepRow !== true, o.existing),
         // Says which end is node 1, so the step reads back the way round it was made.
         ...(at.end?.which === "source" ? { viaEnd: "target" as const } : {}),
+        ...(at.end?.column === undefined
+            ? {}
+            : { otherColumn: at.end.column, viaEnd: intoFrom ? ("source" as const) : ("target" as const) }),
         ...viaOf(o.into, n1, intoFrom),
     };
     const { stagedType } = value.sources[at.source];
@@ -832,9 +841,8 @@ function throughOf(into: JoinInto, n1: NodeOne): Through {
  * @param o - The choices.
  * @param to - The other end.
  * @returns The next value.
- * @throws A `GraphtyError` with `E_BAD_COMMAND` (reason `to-field`) when the other end is named by
- *   a field that is not its nodes' key, and (reason `no-field`) when it names no field at all; with
- *   `E_JOIN_SPACE_SAME` when rows kept as nodes would land in a space they connect to.
+ * @throws A `GraphtyError` with `E_BAD_COMMAND` (reason `no-field`) when the other end names no
+ *   field; with `E_JOIN_SPACE_SAME` when rows kept as nodes would land in a space they connect to.
  */
 function connectRows(
     prior: SourceSteps,
@@ -854,13 +862,8 @@ function connectRows(
     const { src: rows, table } = rowSource(value, copies, o.from.source);
     const n1 = nodeOne(value, o.into);
     const n2 = nodeOne(value, to.into);
-    if (!n2.isKey) {
-        throw refused("E_BAD_COMMAND", `The other end must be named by its nodes' key.`, {
-            reason: "to-field",
-            source: to.into.source,
-            field: to.into.field,
-        });
-    }
+    // a source's nodes carry its columns by then
+    const column = n2.isKey ? undefined : (n2.nodeColumn ?? to.into.field);
     const one = { col: o.from.field, space: n1.space };
     const two = { col: to.field, space: n2.space };
     const intoFrom = (o.direction ?? "into-from") === "into-from";
@@ -879,7 +882,7 @@ function connectRows(
         // An edge row source keys each edge by its edge id column, if it names one, else by the row.
         key: table === "nodes" ? rows.mapping.nodes?.key : rows.mapping.edges?.edgeId,
         ...(keepRow ? { rowNode: "middle" as const } : {}),
-        end: { which: intoFrom ? "target" : "source", add: to.unmatched === "add", type: to.type },
+        end: { which: intoFrom ? "target" : "source", add: to.unmatched === "add", type: to.type, column },
     });
 }
 
@@ -1001,8 +1004,7 @@ function extract(prior: SourceSteps, id: string, copies: Copies, o: ExtractAct):
     }
     const value = prior;
     const m = edgeMapping(value, id);
-    // never the rows' own space, where a value equal to a row's key would be that row
-    const space = o.space ?? o.type ?? o.column;
+    const space = o.space ?? o.type ?? freeSpace(value, o.column);
     const mint = minted(value, id);
     const step: EdgesStep = {
         op: "join.edges",
@@ -1032,6 +1034,28 @@ function extract(prior: SourceSteps, id: string, copies: Copies, o: ExtractAct):
         next = { ...next, steps: [...next.steps, values] };
     }
     return next;
+}
+
+/**
+ * The space a column's values become nodes in when none is named: the column's name, unless rows of a
+ * source are nodes there (the rows' own among them), where a value equal to a row's key would be that row.
+ * @param value - The value.
+ * @param column - The column.
+ * @returns The space.
+ */
+function freeSpace(value: SourceSteps, column: string): string {
+    const taken = new Set(
+        Object.values(value.sources).flatMap((src) => [
+            ...(src.mapping.nodes === undefined ? [] : [nodeSpace(src)]),
+            src.mapping.edges?.sourceSpace,
+            src.mapping.edges?.targetSpace,
+        ]),
+    );
+    let space = column;
+    for (let n = 2; taken.has(space); n++) {
+        space = `${column} ${String(n)}`;
+    }
+    return space;
 }
 
 /**
@@ -1071,8 +1095,7 @@ function extractRows(
         }
         value = isStaged(value, id) ? joinedSource(value, copies, id) : value;
     }
-    // never the rows' own space, where a value equal to a row's key would be that row
-    const space = o.space ?? o.type ?? o.column;
+    const space = o.space ?? o.type ?? freeSpace(value, o.column);
     const m = from === "row" ? null : edgeMapping(value, id);
     const mint = minted(value, id);
     const step: EdgesStep = {
@@ -1320,6 +1343,16 @@ function withoutStep(value: SourceSteps, index: number): SourceSteps {
 }
 
 /**
+ * The value without one step and the adds it was made with.
+ * @param value - The value.
+ * @param index - The step's place.
+ * @returns The value.
+ */
+export function withoutStepAndAdds(value: SourceSteps, index: number): SourceSteps {
+    return withoutAddsOf(value, value.steps[index], withoutStep(value, index));
+}
+
+/**
  * Move one step to another place in the build order: the steps between shift by one. Refused when
  * a step would read a source before the step that adds it.
  * @param value - The value.
@@ -1458,9 +1491,7 @@ export function applyAct(value: SourceSteps, act: StepsAct, copies: Copies): Sou
             }
             return mapped(value, act.source, act.patch, copies);
         default:
-            return act.adds === "remove"
-                ? withoutAddsOf(value, value.steps[act.index], withoutStep(value, act.index))
-                : withoutStep(value, act.index);
+            return act.adds === "remove" ? withoutStepAndAdds(value, act.index) : withoutStep(value, act.index);
     }
 }
 

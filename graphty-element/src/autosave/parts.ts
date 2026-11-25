@@ -19,6 +19,7 @@
 
 import type { RunId } from "../catalog/types";
 import { assetsMember } from "../session/assets/projectMember";
+import type { SessionData } from "../session/data";
 import { dispatcherOf, sessionRunsOf } from "../session/dispatchers";
 import {
     arrangementMember,
@@ -230,6 +231,29 @@ export function buildParts(
     written: ReadonlyMap<RunId, unknown>,
     stash: ReadonlyMap<string, unknown>,
     writtenAssets: ReadonlySet<string> = new Set(),
+): BuiltParts {
+    const build = (): BuiltParts => partsNow(session, tags, written, stash, writtenAssets);
+    const data = session.data as Partial<Pick<SessionData, "withoutDrawnDraft">>;
+    // A source draft's After drawn on the graph is no part of the project; the drafts are kept apart.
+    const ofTheGraph = [...tags].some((tag) => tag !== "drafts" && tag !== "stash");
+    return ofTheGraph && data.withoutDrawnDraft !== undefined ? data.withoutDrawnDraft(build) : build();
+}
+
+/**
+ * Build the parts from the session as it is drawn.
+ * @param session - The session.
+ * @param tags - What is unwritten.
+ * @param written - The run entries already in the store, by id.
+ * @param stash - The consumer's stash.
+ * @param writtenAssets - The digests whose `asset:` parts are already in the store.
+ * @returns The parts, and the run entries they hold.
+ */
+function partsNow(
+    session: GraphSession,
+    tags: ReadonlySet<PartTag>,
+    written: ReadonlyMap<RunId, unknown>,
+    stash: ReadonlyMap<string, unknown>,
+    writtenAssets: ReadonlySet<string>,
 ): BuiltParts {
     const sources = sourcesOf(session);
     const finished = sources.dispatcher.state.runs;

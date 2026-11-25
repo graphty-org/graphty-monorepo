@@ -106,6 +106,8 @@ export interface SourceSettings {
 export interface Source {
     /** `src_` plus a ULID; the reader's edits are the source `reader`. */
     readonly id: string;
+    /** The name it was loaded by; null or absent for rows with none. */
+    readonly label?: string | null;
     /**
      * How it was obtained: `copy` is its copy id (version 2, 4.1.2 rule 1), `sha256:` and the hex
      * digest of the bytes as read for a file, URL or downloaded sample, else a ULID; `rows`, when
@@ -183,6 +185,12 @@ interface Translating {
      * this one build them, each value of a list apart; absent, by their key.
      */
     readonly nodeColumn?: string;
+}
+
+/** The end of a `join.edges` step that is not `viaEnd`, when its nodes are named by a column of theirs. */
+interface OtherEnd {
+    /** The column, as the steps before build it. */
+    readonly otherColumn?: string;
 }
 
 /**
@@ -263,14 +271,14 @@ interface ExtractRead {
 }
 
 /** `join.edges`: each row one edge, keyed `<part>/<key>`. */
-export interface EdgesStep extends StepChoices, Translating {
+export interface EdgesStep extends StepChoices, Translating, OtherEnd {
     readonly op: "join.edges";
     /** Minted by the element, unique among the source's steps and never reused (3.3). */
     readonly part: number;
     readonly read: EdgesStepRead;
     /**
-     * Which end `via` or `nodeColumn` translates; default `"target"`. With neither, which end of two
-     * named by columns is node 1; default `"source"`.
+     * Which end `via` or `nodeColumn` translates; default `"target"`, and `otherColumn` the other
+     * one. With none of them, which end of two named by columns is node 1; default `"source"`.
      */
     readonly viaEnd?: "source" | "target";
     /**
@@ -483,6 +491,8 @@ export interface BuiltEdge extends BuiltElement {
     timeEnd?: number;
     /** The columns the step that made it read its ends from. */
     ends?: { readonly source: string; readonly target: string };
+    /** It links two nodes sharing a value, so it runs neither way. */
+    undirected?: true;
 }
 
 /** What became of one row a source holds. */
@@ -576,6 +586,8 @@ export interface DrillUnit {
     readonly key?: string;
     /** The column, space or type of a count kept by name. */
     readonly name?: string;
+    /** For a count of node pairs: the two nodes' internal ids. */
+    readonly pair?: readonly [string, string];
 }
 
 /** Whether one reader operation found its element. */
@@ -590,6 +602,8 @@ export interface BuildResult {
     readonly edges: Map<string, BuiltEdge>;
     /** A node 2's or moved node's former internal id to the node it is now. */
     readonly aliases: Map<string, string>;
+    /** The name a source's own space is spelled by in a NodeId: the source's, when no other space has it. */
+    readonly spaceNames: ReadonlyMap<string, string>;
     /** A reduced edge's row key to the edge it folded into. */
     readonly edgeAliases: Map<string, string>;
     readonly stats: StepStats[];

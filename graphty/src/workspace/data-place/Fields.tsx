@@ -761,7 +761,11 @@ function sidesShown(
     // A load always has Edges, whether or not it made any or carries columns for them (the owner,
     // 2026-11-07: "Edges should always be present"): a joined file makes edges its own rows are not.
     const own = sidesOf(source);
-    return sides.filter((side) => side === "edges" || own === undefined || own.includes(side));
+    // rows read as edges still bring nodes where a join keeps them
+    const supplies = (source?.counts.nodes ?? 0) > 0;
+    return sides.filter(
+        (side) => side === "edges" || own === undefined || own.includes(side) || (side === "nodes" && supplies),
+    );
 }
 
 /**

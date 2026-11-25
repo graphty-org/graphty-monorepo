@@ -149,3 +149,62 @@ it("a kept draft whose rows are gone is not opened", async () => {
     assert.isNull(session.data.currentDraft());
     session.dispose();
 });
+
+for (const act of ["link", "extract", "connect"] as const) {
+    it(`a first write made while a ${act} is drawn After holds the committed graph, not the draft's`, async () => {
+        const store = memoryAutosaveStore();
+        const first = createGraphSession({ features: ["source-steps"] });
+        const writer = new Autosaver({
+            key: KEY,
+            session: first,
+            store,
+            clock: new FakeClock(),
+            locks: new FakeLocks(),
+        });
+        const people = { type: "csv", config: { data: "person,dept\np1,x\np2,x\np3,y" }, name: "people.csv" };
+        await first.data.import(people, { key: "person" });
+        const source = first.data.sources()[0]?.key ?? "";
+        const draft = first.data.draft();
+        if (act === "link") {
+            draft.link({ source, columns: ["dept"] });
+        } else if (act === "extract") {
+            draft.extract(source, { column: "dept" });
+        } else {
+            const entries = { type: "csv", config: { data: "entry,person\ne1,p1\ne2,p2" }, name: "entries.csv" };
+            const e = await draft.stage(entries, { key: "entry", type: "entry" });
+            draft.connect({
+                from: { source: e, field: "person" },
+                into: { space: draft.spaces()[0]?.space ?? "" },
+            });
+        }
+        await draft.display(true);
+        const { after } = draft.preview();
+        const drawn = (session: typeof first): number[] => [session.data.nodes().length, session.data.edges().length];
+        assert.deepStrictEqual(drawn(first), [after.nodes, after.edges]);
+        await writer.flush();
+        await draft.display(true);
+        assert.deepStrictEqual(drawn(first), [after.nodes, after.edges], "the write leaves the draft drawn");
+        const id = writer.status.entry ?? "";
+        writer.stop();
+        first.dispose();
+
+        const second = createGraphSession({ features: ["source-steps"] });
+        const reader = new Autosaver({
+            key: KEY,
+            session: second,
+            store,
+            clock: new FakeClock(),
+            locks: new FakeLocks(),
+        });
+        await reader.restore(id, true);
+        const back = second.data.currentDraft();
+        await back?.display(true);
+        assert.deepStrictEqual(drawn(second), [after.nodes, after.edges]);
+        await back?.commit();
+        assert.deepStrictEqual(drawn(second), [after.nodes, after.edges]);
+        await second.undo();
+        assert.deepStrictEqual(drawn(second), [3, 0]);
+        reader.stop();
+        second.dispose();
+    });
+}

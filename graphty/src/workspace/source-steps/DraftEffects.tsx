@@ -3,6 +3,7 @@ import { Group, Text } from "@mantine/core";
 import React from "react";
 
 import { formatNumber } from "../inspector/words";
+import { nameOf } from "./tableColumns";
 import { STEP_WORDS, stepChangedWords, stepCountWords, stepRemovedWords } from "./words";
 
 /**
@@ -55,7 +56,7 @@ export function DraftEffects({
         }
         const before = stepCountWords(was);
         const after = stepCountWords(step);
-        return before === after ? [] : [stepChangedWords(was.index, was.op, before, after)];
+        return before === after ? [] : [stepChangedWords(nameOf(session, was.source), was.op, before, after)];
     });
     const unbound = preview.issues.filter((issue) => issue.code === "W_REFERENCE_UNBOUND").length;
     const { edits } = preview;
@@ -69,7 +70,11 @@ export function DraftEffects({
                     </Text>
                     {removed.map((params) => (
                         <Text key={params.step} size="xs">
-                            {stepRemovedWords(params)}
+                            {stepRemovedWords(
+                                nameOf(session, params.source),
+                                committed[params.step]?.op,
+                                params.reason,
+                            )}
                         </Text>
                     ))}
                     {changed.map((words) => (

@@ -343,33 +343,43 @@ export function StagedRows({
                                   )}
                               </LabeledRow>
                               {full && wanted === null && mapping.edges !== undefined ? (
-                                  <StagedRow full>
-                                      <NamePicker
-                                          name={`${label} ${STAGED_WORDS.type.toLowerCase()}`}
-                                          choices={types}
-                                          value={mapping.endTypes?.[end]}
-                                          placeholder={STAGED_WORDS.type}
-                                          onPick={(next) => {
-                                              write({ endTypes: { [end]: next } });
-                                          }}
-                                      />
-                                      <NamePicker
-                                          name={`${label} ${STAGED_WORDS.space.toLowerCase()}`}
-                                          choices={spaces}
-                                          value={space}
-                                          placeholder={STAGED_WORDS.unset}
-                                          onPick={(next) => {
-                                              if (next !== null) {
-                                                  write({
-                                                      edges:
-                                                          end === "source"
-                                                              ? { sourceSpace: next }
-                                                              : { targetSpace: next },
-                                                  });
-                                              }
-                                          }}
-                                      />
-                                  </StagedRow>
+                                  <>
+                                      <StagedRow full>
+                                          <Text size="xs" truncate>
+                                              {`${label} ${STAGED_WORDS.type.toLowerCase()}`}
+                                          </Text>
+                                          <NamePicker
+                                              name={`${label} ${STAGED_WORDS.type.toLowerCase()}`}
+                                              choices={types}
+                                              value={mapping.endTypes?.[end]}
+                                              placeholder={STAGED_WORDS.type}
+                                              onPick={(next) => {
+                                                  write({ endTypes: { [end]: next } });
+                                              }}
+                                          />
+                                      </StagedRow>
+                                      <StagedRow full>
+                                          <Text size="xs" truncate>
+                                              {`${label} ${STAGED_WORDS.space.toLowerCase()}`}
+                                          </Text>
+                                          <NamePicker
+                                              name={`${label} ${STAGED_WORDS.space.toLowerCase()}`}
+                                              choices={spaces}
+                                              value={space}
+                                              placeholder={STAGED_WORDS.unset}
+                                              onPick={(next) => {
+                                                  if (next !== null) {
+                                                      write({
+                                                          edges:
+                                                              end === "source"
+                                                                  ? { sourceSpace: next }
+                                                                  : { targetSpace: next },
+                                                      });
+                                                  }
+                                              }}
+                                          />
+                                      </StagedRow>
+                                  </>
                               ) : null}
                               {meets === null ? null : (
                                   <FactRow label={`${label} ${STAGED_WORDS.meets}`} value={formatNumber(meets)} />

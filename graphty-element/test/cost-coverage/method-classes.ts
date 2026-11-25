@@ -1310,6 +1310,7 @@ export const READ_ONLY: readonly string[] = [
     "SourceDraft.steps",
     "SourceDraft.types",
     "SourceDraft.undo",
+    "SourceDraft.redo",
     "SourceDraft.batch",
     "SourceDraft.suggestMatches",
     "SourceDraft.spaces",

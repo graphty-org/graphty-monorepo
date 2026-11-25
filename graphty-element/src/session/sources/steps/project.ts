@@ -14,7 +14,7 @@
 import type { EdgeId, NodeId } from "../../../catalog/types";
 import { GraphtyError } from "../../../errors/GraphtyError";
 import type { JoinRecord, SourceExtractOptions, SourceLinkOptions, SourceStepAct } from "../../types";
-import { applyAct, extractOf, movedAfter, type StepsAct } from "./acts";
+import { applyAct, extractOf, movedAfter, type StepsAct, withoutStepAndAdds } from "./acts";
 import { build, copyKey, isStaged, nodeSpace, ownSpace, resolveNode, rowNodeSpace, stepSources } from "./build";
 import { RECORD_PATHS } from "./paths";
 import { conflictReport, readableRecord, type StepsOutcome } from "./provenance";
@@ -551,20 +551,73 @@ export function applyEdit(prior: SourceSteps, edit: StepsEdit, copies: Copies): 
 }
 
 /**
+ * The id spaces a step makes nodes in, rather than only names them in.
+ * @param step - The step.
+ * @param src - Its source.
+ * @returns The spaces.
+ */
+function madeSpaces(step: Step, src: StepsSource | undefined): readonly (string | undefined)[] {
+    switch (step.op) {
+        case "join.add":
+            return [...stepSpaces(step, src)];
+        case "join.merge":
+            return step.unmatchedFrom === "drop" ? [] : [step.read.space];
+        case "join.node-values":
+            return step.unmatchedRows === "add" ? [step.read.space] : [];
+        case "join.edges": {
+            const { sourceSpace, targetSpace } = step.read;
+            const added = { source: sourceSpace, target: targetSpace };
+            return [
+                ...(step.rowNode === undefined || src === undefined
+                    ? []
+                    : [rowNodeSpace(src, step.read.table ?? "edges")]),
+                ...(step.addEnd === undefined ? [] : [added[step.addEnd]]),
+                ...(step.extract === undefined && step.link?.as !== "nodes" ? [] : [targetSpace]),
+                ...(step.unmatchedRows === "leave-out" ? [] : [sourceSpace, targetSpace]),
+            ];
+        }
+        default:
+            return [];
+    }
+}
+
+/**
  * The value without one source: its entry, every step that reads it and every type rule naming it.
- * Reader operations stay; one on a node the source alone built binds to nothing.
+ * A step making edges to nodes only the source's steps made has none left to make: it goes too, with
+ * the adds it was made with, so its source is as it was before the join. Reader operations stay; one on a
+ * node the source alone built binds to nothing.
  * @param prior - The value.
  * @param id - The source's id.
  * @returns The value without it.
  */
 function withoutSource(prior: SourceSteps, id: string): SourceSteps {
     const sources = Object.fromEntries(Object.entries(prior.sources).filter(([each]) => each !== id));
-    return {
+    const reading = (step: Step): boolean => stepSources(step, prior).includes(id);
+    const bare: SourceSteps = {
         ...prior,
         sources,
-        steps: prior.steps.filter((step) => !stepSources(step, prior).includes(id)),
+        steps: prior.steps.filter((step) => !reading(step)),
         types: prior.types.map((entry) => ({ ...entry, rules: entry.rules.filter((rule) => rule.source !== id) })),
     };
+    const gone = new Set(prior.steps.filter(reading).flatMap((step) => madeSpaces(step, prior.sources[step.source])));
+    const dead = (step: Step, value: SourceSteps): boolean => {
+        if (step.op !== "join.edges" || step.link !== undefined || extractOf(step) !== null) {
+            return false;
+        }
+        const made = new Set(
+            value.steps.flatMap((each) => (each === step ? [] : madeSpaces(each, value.sources[each.source]))),
+        );
+        const own = new Set(madeSpaces(step, value.sources[step.source]));
+        return [step.read.sourceSpace, step.read.targetSpace].some(
+            (space) => space !== undefined && gone.has(space) && !made.has(space) && !own.has(space),
+        );
+    };
+    let value = bare;
+    for (let at = value.steps.findIndex((s) => dead(s, value)); at !== -1;) {
+        value = withoutStepAndAdds(value, at);
+        at = value.steps.findIndex((s) => dead(s, value));
+    }
+    return value;
 }
 
 /**
@@ -606,26 +659,36 @@ function typedKey(el: BuiltNode): string | number {
 }
 
 /**
- * Each node's NodeId: its key when one space holds that key, else `<space>:<key>` (9.1). A key
- * that reads the same as another node's `<space>:<key>` (a key such as `person:x`) is spelled
- * `<space>:<key>` too, so no two nodes share a NodeId.
+ * A node's NodeId when its key alone does not name it: `<space>:<key>`, a source's own space by the
+ * source's name.
+ * @param result - The build.
+ * @param n - The node.
+ * @returns The NodeId.
+ */
+function spelledId(result: BuildResult, n: BuiltNode): string {
+    return `${result.spaceNames.get(n.space) ?? n.space}:${n.key}`;
+}
+
+/**
+ * Each node's NodeId: its key, or `<space>:<key>` (9.1) when a node built before it, in another
+ * space, has that key, so a node keeps its NodeId whatever is loaded after it. A key that reads the
+ * same as another node's `<space>:<key>` (a key such as `person:x`) is spelled so too, and no two
+ * nodes share a NodeId.
  * @param result - The build.
  * @returns The NodeId by internal id.
  */
 export function nodeIdsOf(result: BuildResult): ReadonlyMap<string, NodeId> {
-    const spaces = new Map<string, number>();
-    for (const n of result.nodes.values()) {
-        spaces.set(n.key, (spaces.get(n.key) ?? 0) + 1);
-    }
+    const keys = new Set<string>();
     const spelled = new Set<BuiltNode>();
     for (const n of result.nodes.values()) {
-        if (spaces.get(n.key) !== 1) {
+        if (keys.has(n.key)) {
             spelled.add(n);
         }
+        keys.add(n.key);
     }
     // Spelling one key can make another bare key collide, so repeat until nothing changes.
     for (let grew = spelled.size > 0; grew;) {
-        const taken = new Set([...spelled].map((n) => `${n.space}:${n.key}`));
+        const taken = new Set([...spelled].map((n) => spelledId(result, n)));
         grew = false;
         for (const n of result.nodes.values()) {
             if (!spelled.has(n) && taken.has(n.key)) {
@@ -636,26 +699,30 @@ export function nodeIdsOf(result: BuildResult): ReadonlyMap<string, NodeId> {
     }
     const out = new Map<string, NodeId>();
     for (const n of result.nodes.values()) {
-        out.set(n.id, spelled.has(n) ? `${n.space}:${n.key}` : typedKey(n));
+        out.set(n.id, spelled.has(n) ? spelledId(result, n) : typedKey(n));
     }
     return out;
 }
 
 /**
- * The node a NodeId names: the one node holding the key, or the `<space>:<key>` one.
+ * The node a NodeId names; `<space>:<key>` names a node its key alone does too.
  * @param result - The build.
  * @param id - The NodeId.
  * @returns The node, or null.
  */
 export function nodeOfId(result: BuildResult, id: NodeId): BuiltNode | null {
     const ids = nodeIdsOf(result);
+    const asked = String(id);
+    let inFull: BuiltNode | null = null;
     for (const n of result.nodes.values()) {
-        const mine = ids.get(n.id);
-        if (mine === id || String(mine) === String(id)) {
+        if (String(ids.get(n.id)) === asked) {
             return n;
         }
+        if (inFull === null && `${n.space}:${n.key}` === asked) {
+            inFull = n;
+        }
     }
-    return null;
+    return inFull;
 }
 
 // ---------------------------------------------------------------- the session graph
@@ -663,6 +730,8 @@ export function nodeOfId(result: BuildResult, id: NodeId): BuiltNode | null {
 /** A node as the session holds it. */
 interface ProjectedNode {
     readonly id: NodeId;
+    /** The NodeId an older build gave it, `<space>:<key>`, when other nodes share its key. */
+    readonly former?: string;
     readonly record: Readonly<Record<string, unknown>>;
 }
 
@@ -693,16 +762,39 @@ export interface ProjectedGraph {
  */
 export function projectBuild(result: BuildResult, value: SourceSteps, idPath: string): ProjectedGraph {
     const ids = nodeIdsOf(result);
+    const keys = new Map<string, number>();
+    for (const n of result.nodes.values()) {
+        keys.set(n.key, (keys.get(n.key) ?? 0) + 1);
+    }
     const nodes = new Map<NodeId, ProjectedNode>();
     for (const n of result.nodes.values()) {
         const id = ids.get(n.id) as NodeId;
-        nodes.set(id, { id, record: { ...n.values, ...readableRecord(n), [idPath]: id } });
+        const former = keys.get(n.key) === 1 ? {} : { former: `${n.space}:${n.key}` };
+        nodes.set(id, { id, ...former, record: { ...n.values, ...readableRecord(n), [idPath]: id } });
     }
+    // The session reads every edge's ends from one pair of columns: edges reading theirs from
+    // different ones hold them all at `source` and `target`, so no step's columns are another's.
+    const pairs = new Set([...result.edges.values()].map((e) => JSON.stringify(endsOf(e, value))));
     const edges = new Map<string, ProjectedEdge>();
     for (const e of result.edges.values()) {
-        edges.set(e.id, projectEdge(e, value, ids));
+        edges.set(e.id, projectEdge(e, value, ids, pairs.size > 1));
     }
     return { nodes, edges };
+}
+
+/** Where an edge record holds its ends when the graph's edges read theirs from different columns. */
+const PLAIN_ENDS = { source: "source", target: "target" } as const;
+
+/**
+ * The columns an edge's ends are read from: those the step that made it reads, not its source's (an
+ * extracted edge runs between other ends).
+ * @param e - The built edge.
+ * @param value - The value it was built from.
+ * @returns The columns.
+ */
+function endsOf(e: BuiltEdge, value: SourceSteps): ProjectedEdge["ends"] {
+    const mapping = value.sources[e.load]?.mapping.edges;
+    return e.ends ?? { source: mapping?.source ?? "source", target: mapping?.target ?? "target" };
 }
 
 /**
@@ -710,17 +802,25 @@ export function projectBuild(result: BuildResult, value: SourceSteps, idPath: st
  * @param e - The built edge.
  * @param value - The value it was built from.
  * @param ids - The NodeIds by internal id.
+ * @param mixed - Whether the graph's edges read their ends from different columns.
  * @returns The edge.
  */
-function projectEdge(e: BuiltEdge, value: SourceSteps, ids: ReadonlyMap<string, NodeId>): ProjectedEdge {
+function projectEdge(
+    e: BuiltEdge,
+    value: SourceSteps,
+    ids: ReadonlyMap<string, NodeId>,
+    mixed: boolean,
+): ProjectedEdge {
     const mapping = value.sources[e.load]?.mapping.edges;
-    // The columns the step that made it reads, not its source's: an extracted edge runs between other ends.
-    const ends = e.ends ?? { source: mapping?.source ?? "source", target: mapping?.target ?? "target" };
+    const read = endsOf(e, value);
+    const ends = mixed ? PLAIN_ENDS : read;
     const from = ids.get(e.from) as NodeId;
     const to = ids.get(e.to) as NodeId;
+    const { [read.source]: _from, [read.target]: _to, ...values } = { ...e.values, ...readableRecord(e) };
     const record: Record<string, unknown> = {
-        ...e.values,
-        ...readableRecord(e),
+        ...values,
+        // a link has no direction of its own
+        ...(e.undirected === true ? { directed: false } : {}),
         [ends.source]: from,
         [ends.target]: to,
     };
@@ -783,8 +883,11 @@ export function openedAsBuilt(
         edgeIds[key] = id;
         beforeEdges.set(key, { ...built, record });
     }
+    // A file saved before nodes kept their NodeIds names them by the ids they had: those go, and
+    // the build's come in their place.
+    const former = new Set<NodeId>([...after.nodes.values()].flatMap((n) => n.former ?? []));
     const beforeNodes = new Map<NodeId, ProjectedNode>(
-        [...nodes].filter(([id]) => after.nodes.has(id)).map(([id, record]) => [id, { id, record }]),
+        [...nodes].filter(([id]) => after.nodes.has(id) || former.has(id)).map(([id, record]) => [id, { id, record }]),
     );
     return { before: { nodes: beforeNodes, edges: beforeEdges }, edgeIds };
 }
@@ -1002,6 +1105,8 @@ export interface StepRow {
     readonly op: Step["op"];
     /** The source it reads. */
     readonly source: string;
+    /** A join added its source because it needed the source's nodes; absent for an add of its own. */
+    readonly joined?: true;
     /** The columns it reads its keys, ends and roles from. */
     readonly reads: readonly string[];
     /** The id spaces it writes nodes in. */
@@ -1306,7 +1411,7 @@ function otherEnd(
     return {
         to: {
             field: end.field,
-            into: { space: end.space },
+            into: { space: end.space, ...defined({ field: step.otherColumn }) },
             ...(step.rowNode === "middle" ? { keepRow: true } : {}),
             ...(step.addEnd === which ? { unmatched: "add" as const } : {}),
             ...defined({ type: partType(value, step, "node", which) }),
@@ -1415,6 +1520,7 @@ export function stepRows(value: SourceSteps, result: BuildResult, copies: Copies
             index,
             op: step.op,
             source: step.source,
+            ...(step.op === "join.add" ? defined({ joined: step.joined }) : {}),
             reads: Object.freeze(readsOf(step, src)),
             spaces: Object.freeze([...spaces]),
             types: Object.freeze(types),

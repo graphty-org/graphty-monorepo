@@ -8,6 +8,7 @@
  */
 
 import type {
+    GraphSession,
     JoinReduce,
     SourceDraft,
     SourceExtractOptions,
@@ -111,6 +112,8 @@ export interface PendingCard {
     readonly written?: readonly CardPicks[];
     /** The reader deleted its step's card: it is drawn again only once an undo brings the step back. */
     readonly deleted?: true;
+    /** The options of the step it was, which the step it next writes starts with. */
+    readonly last?: CardResult;
 }
 
 /** One card as the workspace draws it. */
@@ -121,6 +124,8 @@ export interface JoinCardView {
     readonly picks: CardPicks;
     /** The step's options, or null for a pending card. */
     readonly result: CardResult | null;
+    /** For a pending card: the options of the step it was. */
+    readonly last?: CardResult;
     readonly guess: Becomes | null;
     readonly suggested: boolean;
 }
@@ -143,12 +148,23 @@ export const DEFAULT_RESULT: CardResult = {
 
 /** A match's counts as a card shows them, and the Ignore switches its matches would gain by. */
 export interface MatchSwitches {
-    /** How many more rows Ignore case would match, over every match of the card; null while on. */
+    /** How many more rows, or nodes, Ignore case would match, over every match of the card; null while on. */
     readonly moreWithCase: number | null;
-    /** How many more rows Ignore spaces would match; null while on. */
+    /** How many more rows, or nodes, Ignore spaces would match; null while on. */
     readonly moreWithSpaces: number | null;
     /** Whether the two together would match rows neither does alone. */
     readonly together: boolean;
+}
+
+/**
+ * What a switch would add to a match: the incoming rows it would bring in, else the nodes in the graph
+ * the odd spelling is on.
+ * @param rows - How many more rows.
+ * @param nodes - How many more nodes.
+ * @returns The count, or null while the switch is on.
+ */
+function more(rows: number | null, nodes: number | null): number | null {
+    return rows === null || nodes === null ? null : Math.max(rows, nodes);
 }
 
 /**
@@ -163,9 +179,9 @@ export function switchesOf(all: readonly (SourceMatchCounts | null)[]): MatchSwi
             return more === null ? total : (total ?? 0) + more;
         }, null);
     return {
-        moreWithCase: sum((counts) => counts.moreRowsWithIgnoreCase),
-        moreWithSpaces: sum((counts) => counts.moreRowsWithIgnoreSpaces),
-        together: (sum((counts) => counts.moreRowsWithBoth) ?? 0) > 0,
+        moreWithCase: sum((counts) => more(counts.moreRowsWithIgnoreCase, counts.moreNodesWithIgnoreCase)),
+        moreWithSpaces: sum((counts) => more(counts.moreRowsWithIgnoreSpaces, counts.moreNodesWithIgnoreSpaces)),
+        together: (sum((counts) => more(counts.moreRowsWithBoth, counts.moreNodesWithBoth)) ?? 0) > 0,
     };
 }
 
@@ -251,6 +267,7 @@ function actBack(act: SourceStepAct): { readonly picks: CardPicks; readonly resu
         };
     }
     const asNode = to === undefined || to.keepRow === true;
+    const toField = to?.into.field === undefined ? {} : { field: to.into.field };
     const skipped = asNode && act.unlinked !== "drop" ? "keep" : "skip";
     const isNew = to?.unmatched === "add" ? { isNew: true as const } : {};
     return {
@@ -259,7 +276,9 @@ function actBack(act: SourceStepAct): { readonly picks: CardPicks; readonly resu
             from,
             into,
             ...matching,
-            ...(to === undefined ? {} : { to: { field: to.field, into: { space: to.into.space, ...isNew } } }),
+            ...(to === undefined
+                ? {}
+                : { to: { field: to.field, into: { space: to.into.space, ...toField, ...isNew } } }),
         },
         result: {
             direction: act.direction ?? "into-from",
@@ -470,15 +489,32 @@ interface IntoField {
 }
 
 /**
+ * The source whose own space a space is, in the committed graph.
+ * @param session - The element's session.
+ * @param space - The space.
+ * @returns The source, or undefined for a space no one source owns.
+ */
+export function ownerOf(session: GraphSession, space: string): SourceKey | undefined {
+    return session.data.spaces().find((row) => row.space === space)?.ownedBy;
+}
+
+/**
  * The column a side's nodes are keyed by: the one every source that made them names.
  * @param draft - The open draft.
  * @param into - The side.
+ * @param session - The element's session, for a side whose source the draft no longer adds.
  * @returns The column, or null when they name several, or none.
  */
-export function keyColumn(draft: SourceDraft, into: CardInto): string | null {
+export function keyColumn(draft: SourceDraft, into: CardInto, session: GraphSession | null = null): string | null {
     const sources = into.space === "" && into.source !== undefined ? [into.source] : addedInto(draft, into.space);
+    // With no add left, the space is still that of the source the graph has it from.
+    const owner = session === null ? undefined : ownerOf(session, into.space);
     try {
-        const keys = new Set(sources.map((source) => draft.sourceTable(source).summary().mapping.key ?? null));
+        const keys = new Set(
+            (sources.length === 0 && owner !== undefined ? [owner] : sources).map(
+                (source) => draft.sourceTable(source).summary().mapping.key ?? null,
+            ),
+        );
         const [key = null] = keys;
         return keys.size === 1 ? key : null;
     } catch {
@@ -663,7 +699,7 @@ function connectOf(picks: CardPicks, result: CardResult): SourceJoinAct | null {
  * The new nodes a card's picks make of a column's values.
  * @param picks - The picks.
  * @param result - The options.
- * @param step - The step the card is, whose space it keeps while its type stays.
+ * @param step - The step the card is, whose space it keeps while its type and column stay.
  * @returns The act, or null.
  */
 function extractOf(picks: CardPicks, result: CardResult, step: SourceStepRow | null): SourceJoinAct | null {
@@ -672,7 +708,8 @@ function extractOf(picks: CardPicks, result: CardResult, step: SourceStepRow | n
         return null;
     }
     const was = step?.extract ?? null;
-    const kept = was !== null && (was.type ?? "") === result.type ? { space: was.space } : {};
+    const same = was !== null && (was.type ?? "") === result.type && was.column === from.field;
+    const kept = same ? { space: was.space } : {};
     return {
         act: "extract",
         source: from.source,
@@ -790,6 +827,15 @@ export function writeCard(draft: SourceDraft, step: SourceStepRow | null, act: S
 }
 
 /**
+ * The node 1 side the element proposes: a space's keys, or a staged source's.
+ * @param into - The side.
+ * @returns The card's side.
+ */
+function suggestedInto(into: SourceJoinInto): CardInto {
+    return into.source === undefined ? { space: into.space } : { space: "", source: into.source };
+}
+
+/**
  * A new card for a source, its picks the element's best guess, if it has one.
  * @param draft - The open draft.
  * @param id - The card's id.
@@ -818,7 +864,7 @@ export function newCard(
             return blank;
         }
         // The element proposes a space's keys; a match on another column is the reader's pick.
-        const picks = { ...NO_PICKS, from: match.from, into: { space: match.into.space ?? "" } };
+        const picks = { ...NO_PICKS, from: match.from, into: suggestedInto(match.into) };
         if (best.result === "merge") {
             return { id, picks, guess: "fields", suggested: true };
         }
@@ -829,8 +875,7 @@ export function newCard(
                   .map((each) => each.matches.at(0))
                   .find((each) => each !== undefined && each.from.field !== match.from.field)
             : undefined;
-        const to =
-            other === undefined ? {} : { to: { field: other.from.field, into: { space: other.into.space ?? "" } } };
+        const to = other === undefined ? {} : { to: { field: other.from.field, into: suggestedInto(other.into) } };
         return { id, picks: { ...picks, ...to }, guess: edges ? "edge" : "node", suggested: true };
     } catch {
         return blank;

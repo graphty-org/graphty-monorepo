@@ -83,33 +83,53 @@ export function DifferRow({
     onShow: () => void;
 }>): React.JSX.Element {
     const reduce = step.act?.aggregate?.[column] ?? NO_REDUCE;
+    // Asked once a node takes several rows: a group is the node and what folds into it.
+    const several = reduce !== NO_REDUCE || (step.buckets?.groups[0] ?? 0) > 2;
     return (
-        <div className="jw-row">
-            <UnstyledButton className="ss-count-show" onClick={onShow} aria-label={`${DRILL_WORDS.cells} ${column}`}>
-                <Text size="xs" truncate>
-                    {column}
-                </Text>
-            </UnstyledButton>
-            <div className="jw-row-controls">
-                <Pick
-                    name={`${WORKSPACE_WORDS.clash} ${column}`}
-                    data={rules.map((each) => ({ value: each, label: RULE_WORDS[each as keyof typeof RULE_WORDS] }))}
-                    value={rule}
-                    onPick={onRule}
-                />
-                <Pick
-                    name={`${WORKSPACE_WORDS.manyRows} ${column}`}
-                    data={[
-                        { value: NO_REDUCE, label: many },
-                        ...REDUCE_CHOICES.filter((each) => each.label !== many || each.value === reduce),
-                    ]}
-                    value={reduce}
-                    onPick={(value) => {
-                        onReduce(REDUCE_CHOICES.find((each) => each.value === value)?.value ?? null);
-                    }}
-                />
+        <>
+            <div className="jw-row">
+                <UnstyledButton
+                    className="ss-count-show"
+                    onClick={onShow}
+                    aria-label={`${DRILL_WORDS.cells} ${column}`}
+                >
+                    <Text size="xs" truncate>
+                        {`${WORKSPACE_WORDS.clash} ${column}`}
+                    </Text>
+                </UnstyledButton>
+                <div className="jw-row-controls">
+                    <Pick
+                        name={`${WORKSPACE_WORDS.clash} ${column}`}
+                        data={rules.map((each) => ({
+                            value: each,
+                            label: RULE_WORDS[each as keyof typeof RULE_WORDS],
+                        }))}
+                        value={rule}
+                        onPick={onRule}
+                    />
+                </div>
             </div>
-        </div>
+            {several ? (
+                <div className="jw-row">
+                    <Text size="xs" truncate>
+                        {`${WORKSPACE_WORDS.manyRows} ${column}`}
+                    </Text>
+                    <div className="jw-row-controls">
+                        <Pick
+                            name={`${WORKSPACE_WORDS.manyRows} ${column}`}
+                            data={[
+                                { value: NO_REDUCE, label: many },
+                                ...REDUCE_CHOICES.filter((each) => each.label !== many || each.value === reduce),
+                            ]}
+                            value={reduce}
+                            onPick={(value) => {
+                                onReduce(REDUCE_CHOICES.find((each) => each.value === value)?.value ?? null);
+                            }}
+                        />
+                    </div>
+                </div>
+            ) : null}
+        </>
     );
 }
 
@@ -220,7 +240,16 @@ function cellColumns(session: GraphSession, cells: readonly SourceDraftCell[]): 
             sortable: false,
             value: (cell) => valueWords(cell.values.find((each) => each.source === source)?.value),
         })),
-        { id: "shown", header: DRILL_WORDS.shown, sortable: false, value: (cell) => valueWords(cell.shown ?? "") },
+        {
+            id: "shown",
+            header: DRILL_WORDS.shown,
+            sortable: false,
+            // Both keeps every value: the one shown, and each other in a column of its own.
+            value: (cell) =>
+                cell.rule === "both" && !cell.decided
+                    ? cell.values.map((each) => valueWords(each.value)).join(" | ")
+                    : valueWords(cell.shown ?? ""),
+        },
         {
             id: "by",
             header: DRILL_WORDS.by,
@@ -301,9 +330,11 @@ export function TableActions({
     }
     return (
         <Group gap={6} wrap="wrap" data-table-actions="">
-            {button(WORKSPACE_WORDS.exclude, WORKSPACE_WORDS.exclude, keys.length === 0, () => {
-                draft.exclude(step.index, keys);
-            })}
+            {keys.length === 0
+                ? null
+                : button(WORKSPACE_WORDS.exclude, WORKSPACE_WORDS.exclude, false, () => {
+                      draft.exclude(step.index, keys);
+                  })}
             {step.except?.values.map((key) => {
                 const name = `${WORKSPACE_WORDS.include} ${String(key)}`;
                 return button(name, name, false, () => {

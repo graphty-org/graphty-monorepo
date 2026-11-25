@@ -297,6 +297,20 @@ function rowsMeeting(a: Hashed, two: readonly Entry[], o: MatchOptions): number 
 }
 
 /**
+ * The nodes of side 1 some value of side 2 names.
+ * @param a - Side 1, hashed one way.
+ * @param b - Side 2, hashed that way.
+ * @returns How many.
+ */
+function nodesMeeting(a: Hashed, b: Hashed): number {
+    const nodes = new Set<string>();
+    for (const k of b.keys()) {
+        a.get(k)?.nodes.forEach((id) => nodes.add(id));
+    }
+    return nodes.size;
+}
+
+/**
  * Keys held more than once: by more than one row, or for side 1 reaching more than one node.
  * @param t - The table.
  * @param byNodes - Count the nodes a key reaches, not the rows holding it.
@@ -366,8 +380,11 @@ export function matchCounts(value: SourceSteps, copies: Copies, pair: MatchPair,
     const ways = waysOf(o);
     const { one, two } = sides(upTo(value, o.before), copies, pair);
     const [a, aCase, aSpaces, aBoth] = hash(one, ways);
-    const [b, bCase, bSpaces] = hash(two, ways);
+    const [b, bCase, bSpaces, bBoth] = hash(two, ways);
     const matched = both(a, b);
+    const matchedNodes = nodesMeeting(a, b);
+    const moreNodes = (one: Hashed | null, other: Hashed | null): number | null =>
+        one === null || other === null ? null : nodesMeeting(one, other) - matchedNodes;
     const matchedRows = rowsMeeting(a, two, ways.asked);
     const more = (table: Hashed | null, o: MatchOptions | null): number | null =>
         table === null || o === null ? null : rowsMeeting(table, two, o) - matchedRows;
@@ -393,6 +410,10 @@ export function matchCounts(value: SourceSteps, copies: Copies, pair: MatchPair,
         moreRowsWithIgnoreCase: more(aCase, ways.caseOff),
         moreRowsWithIgnoreSpaces: more(aSpaces, ways.spacesOff),
         moreRowsWithBoth: more(aBoth, ways.bothOff),
+        matchedNodes,
+        moreNodesWithIgnoreCase: moreNodes(aCase, bCase),
+        moreNodesWithIgnoreSpaces: moreNodes(aSpaces, bSpaces),
+        moreNodesWithBoth: moreNodes(aBoth, bBoth),
     };
 }
 
@@ -455,7 +476,7 @@ const CONFIDENT_SHARE = 0.8;
 
 /**
  * The joins a source most likely makes onto the graph, best first: each node column of the source
- * against the keys of each id space other than its own, ranked by the share of its values that
+ * against the keys of each id space other than its own and of each other staged source, ranked by the share of its values that
  * meet. A column whose values are the space's keys merges; any other connects.
  * @param value - The sources and steps.
  * @param copies - The rows as read.
@@ -464,6 +485,7 @@ const CONFIDENT_SHARE = 0.8;
  * @param spaces - The id spaces with nodes, and the source's own space.
  * @param spaces.all - Every space holding nodes.
  * @param spaces.own - The space the source's rows land in, which it never joins onto.
+ * @param spaces.staged - The other staged sources, whose keys a join can name too.
  * @param key - The source's key column, if any.
  * @returns The suggestions; none when no value meets.
  */
@@ -472,16 +494,21 @@ export function suggestMatches(
     copies: Copies,
     source: string,
     columns: readonly string[],
-    spaces: { readonly all: readonly string[]; readonly own: string | undefined },
+    spaces: {
+        readonly all: readonly string[];
+        readonly own: string | undefined;
+        readonly staged?: readonly string[];
+    },
     key: string | undefined,
 ): MatchSuggestion[] {
     const out: { share: number; suggestion: MatchSuggestion }[] = [];
-    for (const space of spaces.all) {
-        if (space === spaces.own) {
-            continue;
-        }
+    const sides: readonly JoinInto[] = [
+        ...spaces.all.filter((space) => space !== spaces.own).map((space) => ({ space })),
+        ...(spaces.staged ?? []).map((each) => ({ source: each })),
+    ];
+    for (const into of sides) {
         for (const field of columns) {
-            const pair: MatchPair = { from: { source, field }, into: { space } };
+            const pair: MatchPair = { from: { source, field }, into };
             let counts: MatchCounts;
             try {
                 counts = matchCounts(value, copies, pair);

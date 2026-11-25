@@ -198,8 +198,9 @@ export interface CsvImportOptions extends CommonImportOptions {
      * What a table whose header names neither endpoints nor an id is: `"fail"` stops the import with
      * E_CSV_NO_ENDPOINT_COLUMNS; `"nodes"` reads it as a node table by its values: keyed by the first
      * text column that is nearly all distinct (95 of 100 rows), else numbered by row
-     * (W_CSV_NO_UNIQUE_ID). Two text columns that mostly hold the same values still stop the import:
-     * they are an edge list's ends. It applies to an unpaired table read as `"auto"`.
+     * (W_CSV_NO_UNIQUE_ID). Two columns that mostly hold the same values still stop the import: they
+     * are an edge list's ends (columns of whole numbers too, where no text column keys the rows), and
+     * so does a table of nothing but numbers. It applies to an unpaired table read as `"auto"`.
      * @defaultValue "fail"
      */
     unnamed?: "fail" | "nodes" | undefined;
@@ -842,12 +843,14 @@ const NEARLY_UNIQUE = 0.95;
 const SHARED_ENDS = 0.5;
 
 /**
- * The distinct set values of a column of text; none for a column of numbers.
+ * The distinct set values of a column that can name something: text, or, when asked, whole numbers;
+ * none for any other column of numbers, which measures.
  * @param rows - the data rows
  * @param column - the column index
+ * @param whole - whether whole numbers count
  * @returns the values
  */
-function textValues(rows: readonly PendingRow[], column: number): ReadonlySet<string> {
+function nameValues(rows: readonly PendingRow[], column: number, whole: boolean): ReadonlySet<string> {
     const out = new Set<string>();
     for (const { row } of rows) {
         const text = row[column] ?? "";
@@ -855,8 +858,9 @@ function textValues(rows: readonly PendingRow[], column: number): ReadonlySet<st
             out.add(text);
         }
     }
-    const numeric = [...out].every((text) => Number.isFinite(Number(text)));
-    return numeric ? new Set() : out;
+    const texts = [...out];
+    const numeric = texts.every((text) => Number.isFinite(Number(text)));
+    return numeric && !(whole && texts.every((text) => /^-?\d+$/.test(text.trim()))) ? new Set() : out;
 }
 
 /**
@@ -1565,8 +1569,9 @@ class TableReader {
 
     /**
      * Whether a table whose header names nothing is read as a node table by its values (`unnamed`):
-     * its rows were read ahead, and no two of its text columns mostly hold the same values, as an
-     * edge list's ends do.
+     * its rows were read ahead, and no two of its columns mostly hold the same values, as an edge
+     * list's ends do. Whole numbers can be ends only where no column of text keys the rows, and rows of
+     * nothing but numbers name nothing a node can be read by.
      * @returns true when it is
      */
     private byValues(): boolean {
@@ -1574,8 +1579,11 @@ class TableReader {
         if (this.state.csv.unnamed !== "nodes" || rows === null) {
             return false;
         }
-        const values = rows[0]?.row.map((_cell, i) => textValues(rows, i)) ?? [];
-        return !values.some((a, i) => values.slice(i + 1).some((b) => sharesMost(a, b)));
+        const cells = rows[0]?.row ?? [];
+        const whole = this.valueKey(cells) < 0;
+        const values = cells.map((_cell, i) => nameValues(rows, i, whole));
+        const named = cells.some((_cell, i) => nameValues(rows, i, false).size > 0);
+        return named && !values.some((a, i) => values.slice(i + 1).some((b) => sharesMost(a, b)));
     }
 
     /**
@@ -1588,7 +1596,7 @@ class TableReader {
         const rows = this.drained ?? [];
         return names.findIndex((_name, i) => {
             const full = rows.every(({ row, quoted }) => i < row.length && !isUnset(row[i], quoted[i]));
-            return full && rows.length > 0 && textValues(rows, i).size >= NEARLY_UNIQUE * rows.length;
+            return full && rows.length > 0 && nameValues(rows, i, false).size >= NEARLY_UNIQUE * rows.length;
         });
     }
 

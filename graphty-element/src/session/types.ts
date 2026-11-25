@@ -4924,7 +4924,7 @@ export interface SourceDraftIds {
  * or kept by name.
  * @experimental source-steps
  */
-export type SourceDraftBucket = keyof SourceStepCountsChange;
+export type SourceDraftBucket = keyof SourceStepCountsChange | "hub";
 
 /**
  * Which things `preview.elements` lists.
@@ -4970,6 +4970,13 @@ export interface SourceDraftRow {
     readonly name: string | null;
     /** The element it reached in the draft; null when the draft holds none. */
     readonly element: SourceElementRef | null;
+    /** For an edge, or a pair of nodes: its two ends; null for anything else. */
+    readonly ends: {
+        /** The node it starts at. */
+        readonly source: { readonly space: SourceSpaceName; readonly key: string };
+        /** The node it ends at. */
+        readonly target: { readonly space: SourceSpaceName; readonly key: string };
+    } | null;
     /** That element's values in the committed graph; null when the committed graph holds none. */
     readonly held: Readonly<Record<string, SourceValue>> | null;
     /** The row as read; null for a count of elements or keys. */
@@ -5085,6 +5092,11 @@ export interface SourceStepRow {
     readonly op: SourceStepOp;
     /** The source it reads. */
     readonly source: SourceKey;
+    /**
+     * For a `join.add`: a join made it because it needed the source's nodes, so it goes with the last
+     * join that does; absent for a source added on its own.
+     */
+    readonly joined?: true;
     /** The columns it reads its keys, ends and roles from. */
     readonly reads: readonly Path[];
     /** The id spaces it writes nodes in. */
@@ -5174,8 +5186,13 @@ export interface SourceStepAct {
     readonly to?: {
         /** The column naming it. */
         readonly field: string;
-        /** The space its nodes live in. */
-        readonly into: { readonly space: SourceSpaceName };
+        /** The space its nodes live in, with the column of theirs the rows name them by when not their key. */
+        readonly into: {
+            /** The space. */
+            readonly space: SourceSpaceName;
+            /** The column; absent for their key. */
+            readonly field?: string;
+        };
         /** True when each row stays a node between the two ends; absent when it makes none. */
         readonly keepRow?: boolean;
         /** `"add"` when a value naming no node at this end makes one; absent when `unmatched` decides. */
@@ -5517,6 +5534,14 @@ export interface SourceMatchCounts {
     readonly moreRowsWithIgnoreSpaces: number | null;
     /** How many more rows would match with both on; null while either is. */
     readonly moreRowsWithBoth: number | null;
+    /** Nodes of side 1 a row of side 2 names. */
+    readonly matchedNodes: number;
+    /** How many more of those nodes would match with `ignoreCase` on; null while it is on. */
+    readonly moreNodesWithIgnoreCase: number | null;
+    /** How many more of those nodes would match with `ignoreSpaces` on; null while it is on. */
+    readonly moreNodesWithIgnoreSpaces: number | null;
+    /** How many more of those nodes would match with both on; null while either is. */
+    readonly moreNodesWithBoth: number | null;
 }
 
 /**
@@ -5669,7 +5694,8 @@ export interface SourceConnectOptions {
      * });
      * ```
      *
-     * `to.into` names its nodes by their key; a staged source it names is added first.
+     * `to.into` names its nodes by their key or by a column of theirs; a staged source it names is
+     * added first.
      */
     readonly to?: {
         /** The column of each row naming the other end's node. */
@@ -6355,6 +6381,15 @@ export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "match
      */
     undo(): boolean;
     /**
+     * Make again the act `undo()` last took back; a new act leaves nothing to make again.
+     * @returns False when there was none.
+     */
+    redo(): boolean;
+    /** Whether `undo()` has an act to take back. */
+    readonly canUndo: boolean;
+    /** Whether `redo()` has an act to make again. */
+    readonly canRedo: boolean;
+    /**
      * Make several acts as one: `undo()` takes them all back at once. A refusal inside takes back
      * the acts made before it and is thrown again, so the draft is as it was.
      * @param acts - Makes the acts on this draft.
@@ -6364,8 +6399,8 @@ export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "match
     batch<T>(acts: () => T): T;
     /**
      * The joins a source most likely makes onto the draft's graph, best first: each of its node
-     * columns against the keys of each id space other than its own, ranked by how many of its
-     * values meet. A column that is the source's key proposes `"merge"`, any other `"connect"`.
+     * columns against the keys of each id space other than its own, and of each other staged source
+     * (named by its `source`), ranked by how many of its values meet. A column that is the source's key proposes `"merge"`, any other `"connect"`.
      * What an app shows as a guess; nothing is applied.
      * @param source - The source.
      * @returns The suggestions; empty when no value meets.

@@ -487,7 +487,8 @@ export function serverCount(loaded: number, total: number | undefined): string {
 export function countWords(source: LoadedSource): string {
     const { nodes, edges } = source.counts;
     const words = (loaded: number, total: number | undefined, noun: string): string =>
-        total === undefined || total === loaded
+        // a join can make more than its source holds
+        total === undefined || total <= loaded
             ? count(loaded, noun)
             : `${serverCount(loaded, total)} ${noun}${total === 1 ? "" : "s"}`;
     return `${words(nodes, source.total, "node")}, ${words(edges, source.totalEdges, "edge")}`;

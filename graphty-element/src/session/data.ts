@@ -3935,7 +3935,9 @@ export class SessionData implements SessionDataApi {
                     ...entry,
                     key,
                     kind,
-                    ...((input !== undefined && this.kept.has(input)) || this.openedInputs.has(key)
+                    ...((input !== undefined && this.kept.has(input)) ||
+                    this.openedInputs.has(key) ||
+                    (this.stepsOn() && addressInput({ ...each, kind }) !== undefined)
                         ? { reloadable: true as const }
                         : {}),
                     ...(this.referenced(key) ? { copy: "reference" as const } : {}),
@@ -5343,10 +5345,12 @@ export class SessionData implements SessionDataApi {
      */
     private async reloadStepsSource(key: SourceKey, choices: LoadChoices): Promise<ReplaceReport> {
         const src = this.stepsValue().sources[key] as StepsSource | undefined;
-        const input = src?.input === undefined ? undefined : this.kept.get(src.input);
         if (src === undefined) {
             throw this.unknownSource(key);
         }
+        // an opened project still names the address a source was read from
+        const held = src.input === undefined ? undefined : this.kept.get(src.input);
+        const input = held ?? addressInput({ ...src, name: src.label ?? undefined });
         if (input === undefined || Object.keys(choices).length > 0) {
             throw new GraphtyError({
                 code: "E_UNSUPPORTED",
@@ -5412,7 +5416,7 @@ export class SessionData implements SessionDataApi {
         if (src === undefined) {
             throw this.unknownSource(key);
         }
-        if (source.source !== undefined) {
+        if (source.source !== undefined && source.source !== ADDRESS_SOURCE) {
             throw new GraphtyError({
                 code: "E_UNSUPPORTED",
                 message:
@@ -5482,7 +5486,8 @@ export class SessionData implements SessionDataApi {
         source: DataSourceInput,
         options: ImportOptions & Pick<LoadChoices, "mapping">,
     ): Promise<DataImportCommand | undefined> {
-        const read = this.reads.get(source);
+        // what an address holds may have changed since it was read
+        const read = hasAddress(source) ? undefined : this.reads.get(source);
         const draft = read === undefined ? await this.prepare(source) : await this.draftOf(source, read);
         let captured: DataImportCommand | undefined;
         try {
@@ -10671,6 +10676,44 @@ function addressOf(
     }
 
     return record?.endpoint === undefined || record.endpoint === null ? {} : { url: record.endpoint };
+}
+
+/** The network source that reads one file at an address. */
+const ADDRESS_SOURCE = "url";
+
+/**
+ * Whether a source is read from an address.
+ * @param source - The source.
+ * @returns True when it is.
+ */
+function hasAddress(source: DataSourceInput): boolean {
+    const url = source.config?.url;
+    return typeof url === "string" && !url.startsWith("data:");
+}
+
+/**
+ * What a source read from an address is read again from, as it is listed or saved.
+ * @param source - The source.
+ * @param source.kind - How it was loaded.
+ * @param source.type - Its format, when the load named one.
+ * @param source.config - Its options, the address among them.
+ * @param source.name - Its name.
+ * @returns What `import` takes, or undefined for a source read from no address.
+ */
+function addressInput(source: {
+    readonly kind: string;
+    readonly type?: string;
+    readonly config?: Readonly<Record<string, unknown>>;
+    readonly name?: string;
+}): DataSourceInput | undefined {
+    const url = source.config?.url;
+    if (source.kind !== "url" || typeof url !== "string") {
+        return undefined;
+    }
+    const named = source.name === undefined ? {} : { name: source.name };
+    return source.type === undefined || source.type === ADDRESS_SOURCE
+        ? { source: ADDRESS_SOURCE, config: { url }, ...named }
+        : { type: source.type, config: { url }, ...named };
 }
 
 /**

@@ -303,8 +303,23 @@ export function inferUnit(values: Iterable<unknown>): TimeUnit | undefined {
  */
 const TIME_NAME = /(?:^|[^a-z])(?:date|datetime|time|timestamp|year|start|end|created|sent|when|period)s?(?:$|[^a-z])/; // one flat list of words between two word edges
 
-/** A loose reading counts toward a candidate only with a four-digit year in it. */
+/** A loose reading counts as a date only with a four-digit year in it. */
 const HAS_YEAR = /\d{4}/;
+
+/** Text spelling a date's parts: a month's name, or numbers set apart as a date's are (`1/15/2026`, `2026/01`). */
+const DATE_PARTS =
+    /(?<![a-z])(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*(?![a-z])[\s.,]*\d|\d[\s.,-]*(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)|(?<!\d)\d{1,4}([/.-])\d{1,2}\1\d{1,4}(?!\d)|(?<!\d)\d{4}\/\d{1,2}(?!\d)/i;
+
+/**
+ * Whether text reads as a date on its face: strict ISO 8601, or loose text spelling a date's parts
+ * with a year. `Date.parse` alone finds a year in codes such as `B-1027`, and not in every browser.
+ * @param text - The text.
+ * @returns True when it does.
+ */
+export function readsAsDate(text: string): boolean {
+    const { how } = readInstant(text, "ms");
+    return how === "strict" || (how === "loose" && HAS_YEAR.test(text) && DATE_PARTS.test(text));
+}
 
 /**
  * Whether a column's name speaks of time.
@@ -436,9 +451,8 @@ export function tallyCandidate(tally: CandidateTally, value: unknown): void {
 
     tallyUnit(tally, value);
     if (typeof value !== "number") {
-        const { how } = readInstant(value, "ms");
-        tally.parsed +=
-            how === "strict" || (how === "loose" && typeof value === "string" && HAS_YEAR.test(value)) ? 1 : 0;
+        const dated = typeof value === "string" ? readsAsDate(value) : readInstant(value, "ms").how === "strict";
+        tally.parsed += dated ? 1 : 0;
     }
 }
 

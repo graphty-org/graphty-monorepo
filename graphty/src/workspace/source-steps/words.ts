@@ -115,8 +115,8 @@ export const JOIN_WORDS = {
     fields: "Fields",
     values: "Values",
     value: "Value",
-    in1: "In 1",
-    in2: "In 2",
+    in1: "In graph",
+    in2: "Incoming",
     kind: "Kind",
     valid: "Valid",
     empty: "Empty",
@@ -171,6 +171,8 @@ export const WORKSPACE_WORDS = {
     cancel: "Cancel",
     done: "Done",
     undo: "Undo",
+    redo: "Redo",
+    unfinished: "Unfinished",
     frame: "Frame",
     remove: "Remove",
     rows: "Rows",
@@ -178,8 +180,8 @@ export const WORKSPACE_WORDS = {
     committed: "Joined",
     committedAdd: "Added",
     matchCount: "Match count",
-    pick1: "Pick 1",
-    pick2: "Pick 2",
+    pick1: "Use existing",
+    pick2: "Use incoming",
     clearPicks: "Clear",
     row: "Row",
     fields: "Fields",
@@ -240,8 +242,8 @@ export function matchWords(counts: Pick<SourceMatchCounts, "matchedRows" | "rows
 export const OVERLAP_FILTERS = [
     { value: "all", label: "All" },
     { value: "matched", label: "Matched" },
-    { value: "only1", label: "Only 1" },
-    { value: "only2", label: "Only 2" },
+    { value: "only1", label: "Only in graph" },
+    { value: "only2", label: "Only incoming" },
 ] as const;
 
 /** A profile's kind, as the reader reads it. */
@@ -302,8 +304,8 @@ export const PREVIEW_WORDS = {
 
 /** The Values differ rules, as the rule menu names them. */
 export const RULE_WORDS: Readonly<Record<SourceClashRule, string>> = {
-    keep: "Keep 1",
-    overwrite: "Use 2",
+    keep: "Keep existing",
+    overwrite: "Use incoming",
     both: "Both",
     vote: "Vote",
     min: "Min",
@@ -311,34 +313,74 @@ export const RULE_WORDS: Readonly<Record<SourceClashRule, string>> = {
     mean: "Mean",
 };
 
-/** A step's counts the Preview lists, in order, by the step's op. */
-export const BUCKET_WORDS: Readonly<
-    Record<"merge" | "edge", readonly { readonly id: SourceStepNumberBucket; readonly label: string }[]>
-> = {
+/** A step's count as a card lists it: its words for one and for several. */
+interface BucketWords {
+    readonly id: SourceStepNumberBucket;
+    readonly one: string;
+    readonly many: string;
+}
+
+/** A step's counts a card lists, in order, by what the step makes. */
+export const BUCKET_WORDS: Readonly<Record<"merge" | "edge" | "links", readonly BucketWords[]>> = {
     merge: [
-        { id: "merged", label: "merged" },
-        { id: "keptNew", label: "new" },
-        { id: "untouched", label: "untouched" },
-        { id: "emptyKey", label: "empty" },
-        { id: "repeated2", label: "repeated keys" },
-        { id: "fanOut", label: "match several" },
-        { id: "typeDiffers", label: "type differs" },
-        { id: "namedOnly", label: "named only in 2" },
+        { id: "merged", one: "node merged", many: "nodes merged" },
+        { id: "keptNew", one: "new node", many: "new nodes" },
+        { id: "untouched", one: "node untouched", many: "nodes untouched" },
+        { id: "emptyKey", one: "empty row", many: "empty rows" },
+        { id: "repeated2", one: "repeated key", many: "repeated keys" },
+        { id: "fanOut", one: "matches several", many: "match several" },
+        { id: "typeDiffers", one: "type differs", many: "types differ" },
+        { id: "namedOnly", one: "named only", many: "named only" },
     ],
     edge: [
-        { id: "matched", label: "matched" },
-        { id: "unmatched", label: "unmatched" },
-        { id: "emptyKey", label: "empty" },
-        { id: "newNodes", label: "new nodes" },
-        { id: "newEdges", label: "new edges" },
-        { id: "mergedEdges", label: "edges merged" },
-        { id: "pairsBelowMin", label: "below the minimum" },
-        { id: "repeated2", label: "repeated keys" },
-        { id: "fanOut", label: "match several" },
-        { id: "parallelPairs", label: "parallel" },
-        { id: "selfLoops", label: "self-loops" },
+        { id: "matched", one: "row matched", many: "rows matched" },
+        { id: "unmatched", one: "row unmatched", many: "rows unmatched" },
+        { id: "emptyKey", one: "empty row", many: "empty rows" },
+        { id: "newNodes", one: "new node", many: "new nodes" },
+        { id: "newEdges", one: "new edge", many: "new edges" },
+        { id: "mergedEdges", one: "edge merged", many: "edges merged" },
+        { id: "repeated2", one: "repeated key", many: "repeated keys" },
+        { id: "fanOut", one: "matches several", many: "match several" },
+        { id: "parallelPairs", one: "parallel edge", many: "parallel edges" },
+        { id: "selfLoops", one: "self-loop", many: "self-loops" },
+    ],
+    links: [
+        { id: "matched", one: "linked", many: "linked" },
+        { id: "unmatched", one: "not linked", many: "not linked" },
+        { id: "emptyKey", one: "empty row", many: "empty rows" },
+        { id: "newNodes", one: "new node", many: "new nodes" },
+        { id: "newEdges", one: "new edge", many: "new edges" },
+        { id: "pairsBelowMin", one: "pair below the minimum", many: "pairs below the minimum" },
+        { id: "parallelPairs", one: "parallel edge", many: "parallel edges" },
+        { id: "selfLoops", one: "self-loop", many: "self-loops" },
     ],
 };
+
+/**
+ * How many of a step's count a card says: a merge's are the nodes it merged into, as the header
+ * counts them, and the rows that reached them are listed.
+ * @param buckets - the step's counts.
+ * @param id - which.
+ * @returns the number.
+ */
+export function bucketCount(buckets: SourceStepCounts, id: SourceStepNumberBucket): number {
+    return id === "merged" ? buckets.groups.length : buckets[id];
+}
+
+/**
+ * A count with its words.
+ * @param count - how many.
+ * @param words - its words for one and for several.
+ * @param words.one - for one.
+ * @param words.many - for several.
+ * @returns such as "1 repeated key".
+ */
+export function counted(count: number, words: { readonly one: string; readonly many: string }): string {
+    return `${formatNumber(count)} ${count === 1 ? words.one : words.many}`;
+}
+
+/** The values of a link too many nodes hold, as a card lists them. */
+export const OVER_CAP_WORDS = { one: "value over the cap", many: "values over the cap" } as const;
 
 /** The step counts the Preview lists as one number each: names of the element's counts. */
 export type SourceStepNumberBucket = Extract<
@@ -401,6 +443,8 @@ export const DRILL_WORDS = {
     cells: "Cells",
     cellsLabel: "Cells",
     key: "Key",
+    source: "Source",
+    target: "Target",
     from: "From",
     effect: "Effect",
     held: "held",
@@ -457,15 +501,25 @@ const OP_WORDS: Readonly<Record<SourceStepRow["op"], string>> = {
 };
 
 /**
- * A later step whose counts the change moves, as the step card lists it.
- * @param index - its place in the committed list.
+ * A later step, as the removal names it.
+ * @param source - its source's name.
+ * @param op - its kind.
+ * @returns such as "door_entries.csv Edges".
+ */
+function laterStep(source: string, op: SourceStepRow["op"]): string {
+    return `${source} ${OP_WORDS[op]}`;
+}
+
+/**
+ * A later step whose counts the change moves, as the removal lists it.
+ * @param source - its source's name.
  * @param op - its kind.
  * @param before - its counts now, from `stepCountWords`.
  * @param after - its counts once committed.
- * @returns such as "Step 2 Edges: 5 edges -> 0 edges".
+ * @returns such as "door_entries.csv Edges: 5 edges -> 0 edges".
  */
-export function stepChangedWords(index: number, op: SourceStepRow["op"], before: string, after: string): string {
-    return `${stepWords(index)} ${OP_WORDS[op]}: ${before || STEP_WORDS.off} -> ${after || STEP_WORDS.off}`;
+export function stepChangedWords(source: string, op: SourceStepRow["op"], before: string, after: string): string {
+    return `${laterStep(source, op)}: ${before || STEP_WORDS.off} -> ${after || STEP_WORDS.off}`;
 }
 
 /**
@@ -489,7 +543,7 @@ export function stepCountWords(row: SourceStepRow): string {
             return parts.join(", ");
         }
         case "join.merge": {
-            return `${formatNumber(buckets.merged)} merged`;
+            return `${formatNumber(buckets.groups.length)} merged`;
         }
         case "join.edges": {
             return plural(buckets.newEdges, "edge", "edges");
@@ -512,15 +566,6 @@ export function addStepWords(step: SourceStepRow): string {
         : `${formatNumber(b.newNodes)} ${STEP_WORDS.nodes.toLowerCase()}, ${formatNumber(b.newEdges)} ${STEP_WORDS.edges.toLowerCase()}`;
 }
 
-/**
- * A Steps row's name.
- * @param index - the step's place, from 0.
- * @returns such as "Step 2".
- */
-function stepWords(index: number): string {
-    return `Step ${formatNumber(index + 1)}`;
-}
-
 /** Why a later step goes with the removal, by `W_STEP_REMOVED`'s reason. */
 const REMOVED_REASON_WORDS: Readonly<Record<"source-removed" | "step-removed" | "source-held", string>> = {
     "source-removed": "source removed",
@@ -530,16 +575,17 @@ const REMOVED_REASON_WORDS: Readonly<Record<"source-removed" | "step-removed" | 
 
 /**
  * A later step the removal takes away, from the preview's `W_STEP_REMOVED`.
- * @param params - the issue's params.
- * @param params.step - the step's place.
- * @param params.reason - why it goes.
- * @returns such as "Step 3: source removed".
+ * @param source - its source's name.
+ * @param op - its kind, or undefined for a step no longer listed.
+ * @param reason - why it goes.
+ * @returns such as "door_entries.csv Edges: source removed".
  */
-export function stepRemovedWords(params: {
-    readonly step: number;
-    readonly reason: "source-removed" | "step-removed" | "source-held";
-}): string {
-    return `${stepWords(params.step)}: ${REMOVED_REASON_WORDS[params.reason]}`;
+export function stepRemovedWords(
+    source: string,
+    op: SourceStepRow["op"] | undefined,
+    reason: "source-removed" | "step-removed" | "source-held",
+): string {
+    return `${op === undefined ? source : laterStep(source, op)}: ${REMOVED_REASON_WORDS[reason]}`;
 }
 
 /**

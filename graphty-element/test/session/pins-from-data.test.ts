@@ -69,6 +69,15 @@ describe("pins from data", () => {
         assert.closeTo(dx - ax, 2 * unit, 1e-6, "d twice as far as b: pinned and free nodes share one unit");
     });
 
+    it("loads a format read through an importer with the choice in its source config", async () => {
+        const session = createGraphSession();
+        const xgmml =
+            '<?xml version="1.0"?><graph xmlns="http://www.cs.rpi.edu/XGMML" directed="1">' +
+            '<node id="1" label="a"/><node id="2" label="b"/><edge source="1" target="2"/></graph>';
+        await session.data.import({ type: "xgmml", config: { data: xgmml, pins: "data" } });
+        assert.strictEqual(session.snapshot().nodeCount, 2);
+    });
+
     it("pins nothing by default", async () => {
         const session = createGraphSession();
         await session.data.import({ type: "dot", config: { data: DOT } });

@@ -144,6 +144,7 @@ const ELEMENT_OWNED_OPTIONS: ReadonlySet<string> = new Set([
     "styles",
     "styleOptions",
     "layout",
+    "pins",
 ]);
 
 /**

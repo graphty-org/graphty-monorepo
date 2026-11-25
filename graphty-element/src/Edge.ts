@@ -3816,6 +3816,9 @@ export class Edge {
             pulled.route = null;
         } else if (kept?.points.length !== points.length || kept.points.some((v, i) => v !== points[i])) {
             pulled.route = { at: batch.writeRoute(kept?.at ?? -1, points), points };
+        } else {
+            // unchanged: keep the written entry but hold the span's array, so the route and pulled.path share one copy
+            pulled.route = { at: kept.at, points };
         }
         const at = pulled.route?.at ?? 0;
         // an entry a CURVE_STRIDE pieces, taken as the cut grows and kept while the edge is pulled; each entry is

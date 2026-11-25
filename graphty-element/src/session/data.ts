@@ -1389,6 +1389,13 @@ export class SessionData implements SessionDataApi {
     /** What the last open read each reference from again, by load key: those loads are reloadable. */
     private openedInputs: ReadonlyMap<string, DataSourceInput> = new Map();
     /**
+     * The bytes of each kept file, by its `kept` token, once read: what autosave keeps so the
+     * reader's own work, restored, can still read each load again (issue #9848).
+     */
+    private readonly keptBytes = new Map<string, Uint8Array>();
+    /** Each kept input as autosave writes it, by `kept` token, built once. */
+    private readonly keptSaved = new Map<string, SavedInput>();
+    /**
      * The rows a draft read from each source, so `remap` and `reloadSource` read a load again
      * without opening its file or fetching its URL. ponytail: held as long as the source is,
      * which `kept` never lets go of; drop rows of loads no longer listed if memory shows up.
@@ -1800,6 +1807,19 @@ export class SessionData implements SessionDataApi {
     private keep(source: DataSourceInput): string {
         const token = `i${String(++this.keptSerial)}`;
         this.kept.set(token, source);
+        const blob = fileOf(source.config.file);
+        if (blob !== null) {
+            blob.slice(0, blob.size)
+                .arrayBuffer()
+                .then((buffer) => {
+                    this.keptBytes.set(token, new Uint8Array(buffer));
+                    // The autosave writes the data part again, now with this file in it.
+                    for (const listener of this.ledger.changed) {
+                        listener();
+                    }
+                })
+                .catch(() => undefined);
+        }
         return token;
     }
 
@@ -6463,6 +6483,48 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * What each load this session can read again was read from, as plain JSON, by load key: what
+     * autosave keeps beside the work (never a project file), so a restore can read the loads
+     * again. Internal. A file whose bytes are not read yet is left out until they are.
+     * @returns The inputs.
+     */
+    savedInputs(): Record<SourceKey, SavedInput> {
+        const saved: Record<SourceKey, SavedInput> = {};
+        for (const { key, input: token } of this.storedSources() as readonly (LoadedSource & {
+            readonly input?: string;
+        })[]) {
+            const input = token === undefined ? undefined : this.kept.get(token);
+            let written: SavedInput | undefined;
+            if (token !== undefined && input !== undefined) {
+                written = this.keptSaved.get(token) ?? savedInput(input, this.keptBytes.get(token));
+                if (written !== undefined) {
+                    this.keptSaved.set(token, written);
+                }
+            } else {
+                const opened = this.openedInputs.get(key);
+                written = opened === undefined ? undefined : savedInput(opened, undefined);
+            }
+            if (written !== undefined) {
+                saved[key] = written;
+            }
+        }
+        return saved;
+    }
+
+    /**
+     * Read again from what autosave kept (`savedInputs`) the loads of the reader's own work it
+     * restored, so they stay reloadable. Internal: autosave calls it once its restore is done.
+     * @param saved - What `savedInputs` returned, by load key.
+     */
+    keepSavedInputs(saved: Readonly<Record<SourceKey, SavedInput>>): void {
+        const inputs = new Map(this.openedInputs);
+        for (const [key, each] of Object.entries(saved)) {
+            inputs.set(key, inputOfSaved(each));
+        }
+        this.keepOpenedInputs(inputs);
+    }
+
+    /**
      * reloadSource, publishing `source:loaded` once it is in.
      * @param key - as reloadSource takes it
      * @param choices - as reloadSource takes it
@@ -10275,6 +10337,82 @@ function consumerSnapshot(store: LaneStore): GraphSnapshot {
     const copy = fromBytes(resident.toBytes(), { validate: "none" });
     copy.seal();
     return copy;
+}
+
+/**
+ * A load's input as autosave keeps it: the options as JSON, with a file's or inline data's bytes
+ * as `text` (valid UTF-8) or `base64`.
+ */
+export interface SavedInput {
+    readonly type?: string;
+    readonly name?: string;
+    readonly config: Readonly<Record<string, unknown>>;
+    /** Inline text, read again as text. */
+    readonly text?: string;
+    /** Bytes that are valid UTF-8, read again as those bytes. */
+    readonly utf8?: string;
+    /** Any other bytes. */
+    readonly base64?: string;
+}
+
+/**
+ * Bytes as autosave keeps them.
+ * @param bytes - The bytes.
+ * @returns Them as UTF-8 text when they are valid UTF-8, else as base64.
+ */
+function savedBytes(bytes: Uint8Array): { readonly utf8: string } | { readonly base64: string } {
+    try {
+        return { utf8: new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes) };
+    } catch {
+        let binary = "";
+        for (let at = 0; at < bytes.length; at += 0x8000) {
+            binary += String.fromCodePoint(...bytes.subarray(at, at + 0x8000));
+        }
+        return { base64: btoa(binary) };
+    }
+}
+
+/**
+ * An input as autosave keeps it.
+ * @param input - What the load was read from.
+ * @param bytes - The file's bytes, when it names a file.
+ * @returns It, or undefined when it cannot be kept (a network source, a file not read yet, or
+ *     nothing to read again).
+ */
+function savedInput(input: DataSourceInput, bytes: Uint8Array | undefined): SavedInput | undefined {
+    const { file, data, ...config } = input.config;
+    const blob = fileOf(file);
+    let held: string | Uint8Array | undefined = bytes;
+    if (blob === null) {
+        held = isSourceData(data) ? toSourceInput(data) : undefined;
+    }
+    if (input.source !== undefined || (held === undefined && (blob !== null || typeof config.url !== "string"))) {
+        return undefined;
+    }
+    let body = {};
+    if (typeof held === "string") {
+        body = { text: held };
+    } else if (held !== undefined) {
+        body = savedBytes(held);
+    }
+    // Written as JSON, so only what JSON keeps of the options is kept.
+    return { type: input.type, name: input.name ?? blob?.name, config, ...body };
+}
+
+/**
+ * An input autosave kept, as `import` takes it again.
+ * @param saved - What {@link savedInput} wrote.
+ * @returns The input, its text or bytes inline.
+ */
+function inputOfSaved(saved: SavedInput): DataSourceInput {
+    const { text, utf8, base64, config, ...rest } = saved;
+    let data: string | Uint8Array | undefined = text;
+    if (utf8 !== undefined) {
+        data = new TextEncoder().encode(utf8);
+    } else if (base64 !== undefined) {
+        data = Uint8Array.from(atob(base64), (char) => char.codePointAt(0) ?? 0);
+    }
+    return { ...rest, config: data === undefined ? config : { ...config, data } };
 }
 
 /**

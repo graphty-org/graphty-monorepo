@@ -24,6 +24,7 @@
 import type { RunId } from "../catalog/types";
 import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
 import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
+import type { SessionData } from "../session/data";
 import { dispatcherOf } from "../session/dispatchers";
 import { loadLineOf, type LoadTurn, supersededError } from "../session/loadLine";
 import { onProjectBoundary } from "../session/project/boundary";
@@ -39,6 +40,7 @@ import {
     buildParts,
     draftsOf,
     EVERY_PART,
+    inputsOf,
     type PartTag,
     PartTooLarge,
     reassemble,
@@ -1599,6 +1601,7 @@ export class Autosaver {
         let stash: Map<string, unknown>;
         let drafts: SavedFilterDraft[];
         let sourceDraft: SavedSourceDraft | null;
+        let inputs: ReturnType<typeof inputsOf>;
         let sizes: Map<string, number>;
         try {
             // A whole entry, so the write watchdog's allowance rather than the listing's.
@@ -1613,6 +1616,7 @@ export class Autosaver {
                 stash = stashOf(entry.parts);
                 drafts = draftsOf(entry.parts);
                 sourceDraft = sourceDraftOf(entry.parts);
+                inputs = inputsOf(entry.parts);
                 sizes = sizesAfter(new Map(), entry.parts);
             } catch {
                 return giveUp({ code: "E_BAD_DOCUMENT", params: { id: meta.id } });
@@ -1671,6 +1675,8 @@ export class Autosaver {
             this.#restoreTurn = null;
         }
 
+        // Each load this session read itself can be read again, as before the reload (issue #9848).
+        (this.#session.data as Partial<Pick<SessionData, "keepSavedInputs">>).keepSavedInputs?.(inputs);
         // The work comes back as it was: unsaved to a file if it was, and at its revision.
         if (current.dirty === true) {
             markProjectUnsaved(this.#session);

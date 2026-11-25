@@ -14,7 +14,7 @@ import type { AutosaveEntryMeta, AutosaveStore, AutosaveWrite } from "../../src/
 import { setDefaultFeatures } from "../../src/features/resolve";
 import { dispatcherOf, laneOf } from "../../src/session/GraphSession";
 import { type FaultAutosaveStore, faultAutosaveStore } from "../../src/testing/faultAutosaveStore";
-import { baseSession } from "../helpers/project-session";
+import { baseSession, sessionWithRuns } from "../helpers/project-session";
 import { FakeClock, FakeLocks } from "./fakes";
 
 const KEY = "test.autosave";
@@ -380,6 +380,48 @@ describe("project boundaries", () => {
         await session.data.renameSource("Renamed");
         await saver.flush();
         assert.strictEqual((await store.list(KEY)).length, 1);
+    });
+
+    it("the automatic restore at the start leaves no entry the page's setup started (issue #10003)", async () => {
+        const store = recorded();
+        const earlier = await written({ store });
+        const kept = earlier.saver.status.entry;
+        earlier.saver.stop();
+        // The entry is read slowly: the page's setup changes a setting meanwhile, and it is written.
+        let reached = (): void => undefined;
+        const reading = new Promise<void>((resolve) => {
+            reached = resolve;
+        });
+        let finish = (): void => undefined;
+        const finished = new Promise<void>((resolve) => {
+            finish = resolve;
+        });
+        const slow: AutosaveStore = Object.assign(Object.create(store) as AutosaveStore, {
+            read: async (id: string) => {
+                reached();
+                await finished;
+                return store.read(id);
+            },
+        });
+        const { session, saver } = await setup({ session: sessionWithRuns(), store: slow });
+        made.push(() => session.dispose());
+        const recovering = saver.recover();
+        await reading;
+        await session.config.set({ name: "Set by the page" });
+        await saver.flush();
+        const setupEntry = saver.status.entry;
+        assert.isNotNull(setupEntry, "the page's setup started an entry");
+        assert.notStrictEqual(setupEntry, kept);
+        finish();
+
+        assert.strictEqual((await recovering)?.entry.id, kept, "the kept work is restored");
+        await saver.settled();
+        await saver.settled();
+        assert.deepStrictEqual(
+            (await store.list(KEY)).map((meta) => meta.id),
+            [kept],
+            "only the kept work is listed",
+        );
     });
 
     it("clearing the history and disposing the session do not end the entry", async () => {

@@ -1689,6 +1689,13 @@ export class Autosaver {
         this.#stash.clear();
         stash.forEach((value, name) => this.#stash.set(name, value));
         this.#source = { ...sourcesOf(current.source) };
+        // An entry the page's setup started while the start read the kept work holds settings
+        // alone (a graph opened meanwhile would have won above): it is dropped, not left listed
+        // (issue #10003).
+        if (startup && this.#entry.started && !this.#entry.graph) {
+            this.#dropSetup(this.#entry);
+        }
+
         this.adopt(current);
         const entry = this.#entry;
         entry.release = release;

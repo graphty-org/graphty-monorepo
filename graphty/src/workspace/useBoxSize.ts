@@ -9,7 +9,9 @@ import { useEffect, useState } from "react";
  * @returns the callback ref for the element, and its width and height (0 until measured).
  */
 export function useBoxSize(): { ref: (element: HTMLElement | null) => void; width: number; height: number } {
+    // on reload: fresh: read: the measured element, set again when it draws
     const [element, ref] = useState<HTMLElement | null>(null);
+    // on reload: fresh: read: measured again from the browser
     const [size, setSize] = useState({ width: 0, height: 0 });
     useEffect(() => {
         if (element === null) {

@@ -41,8 +41,10 @@ export function CanvasMenu({ children }: Readonly<{ children: React.ReactNode }>
     // another door may change, and the platform's reduced-motion preference.
     useShaderSettings();
     // The node the menu opened over, or null for empty canvas.
+    // on reload: fresh: pointer: the node a menu opened over
     const [overNode, setOverNode] = useState<NodeId | null>(null);
     // The edge the menu opened over, when it opened over an edge.
+    // on reload: fresh: pointer: the edge a menu opened over
     const [overEdge, setOverEdge] = useState<string | null>(null);
     const keyAt = useRef(-Infinity);
 

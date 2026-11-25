@@ -21,6 +21,7 @@ import { afterEach, assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
+import { renderPathDefault } from "../../src/meshes/NodeBatch";
 import { isPlaced } from "../../src/transitions/LayoutTransitionRunner";
 import { drawnFrames } from "../helpers/drawn-frames";
 
@@ -115,6 +116,14 @@ async function mounted(transition = "glide", seconds = 0.5): Promise<Graphty> {
     await element.session.data.addNodes([{ id: idOf(0) }]);
     await operationQueueOf(element.graph).waitForCompletion();
     await element.waitForStableFrame();
+    if (renderPathDefault.value === "batched") {
+        assert.equal(
+            element.rowCounts.batchedNodes,
+            1,
+            `the first node is a batched row: ${JSON.stringify(element.rowCounts)}`,
+        );
+    }
+
     return element;
 }
 

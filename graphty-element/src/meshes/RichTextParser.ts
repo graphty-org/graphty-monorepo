@@ -376,6 +376,8 @@ export interface WrapOptions {
     anywhere?: boolean;
     /** How many blanks a blank counts as against the width (`wrapSpaceCount`); unset, one. */
     spaceCount?: number;
+    /** Measure without kerning between letters (`wrapUnkerned`); unset, kerned as the canvas draws. */
+    unkerned?: boolean;
     /** The most lines kept; the last one kept ends in an ellipsis when more were cut (`maxLines`). Unset, all. */
     maxLines?: number;
     /**
@@ -403,6 +405,12 @@ export function wrapLines(
     width: number,
     options: WrapOptions = {},
 ): TextSegment[][] {
+    // Java measures text unkerned (Cytoscape desktop): cx2-us-returned-students "National Committee of Y.M.C.A. of
+    // China" is 199.99 wide kerned in DejaVu Sans at 10, 202.19 unkerned, and Cytoscape wraps it at 200.
+    const kerning = ctx.fontKerning;
+    if (options.unkerned === true) {
+        ctx.fontKerning = "none";
+    }
     const measure: Measure = (text, style) => {
         ctx.font = `${style.style} ${style.weight} ${style.size}px ${style.font}`;
         return ctx.measureText(text).width;
@@ -428,6 +436,7 @@ export function wrapLines(
     if (marked && out.length === cap) {
         out[cap - 1] = ellipsize(out[cap - 1], width, measure, cut);
     }
+    ctx.fontKerning = kerning;
     return out;
 }
 
@@ -557,7 +566,10 @@ function wrapLine(
     // Cytoscape desktop (ding's LabelInfo) and Cytoscape.js both measure the whole line first and wrap only one
     // that does not fit ("Decanoic Acid", 98.95 wide at a width of 100, stays on one line).
     // ponytail: ding keeps it whole only for a one-line label; a label of several lines breaks each by its words
-    if (options.trailingSpace === true && line.reduce((sum, seg) => sum + measure(seg.text, seg.style), 0) < width) {
+    // The spaces a line ends with are not measured (cx-lianhe-affiliation "Hanghzou-Zhejiang Highway Promotion ",
+    // 198.5 wide without its last space and 201.7 with it, stays on one line at 200).
+    const kept = withoutTrailingSpaces(wordsAndSpaces(line, false));
+    if (options.trailingSpace === true && kept.reduce((sum, seg) => sum + measure(seg.text, seg.style), 0) < width) {
         return [line];
     }
     const blanks = options.spaceCount ?? 1;

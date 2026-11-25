@@ -30,7 +30,7 @@ const MAX_COMPONENT_GAPS = 5;
  * The most files, and the most names, screen-state-baseline.json may excuse: it may only shrink.
  * Adding a name to it is how new undeclared state would get past the rule (issue #9973). Only lower them.
  */
-const MAX_BASELINE = { files: 133, names: 465 };
+const MAX_BASELINE = { files: 114, names: 428 };
 
 const tester = new RuleTester({
     languageOptions: { parser: tseslint.parser, parserOptions: { ecmaFeatures: { jsx: true } } },

@@ -265,6 +265,29 @@ const XR_BROWSER_TESTS = [
     "test/browser/xr-drag-amplification.test.ts",
 ];
 
+/**
+ * The files the "browser" project runs, which "forced-batched" runs again under "batched". A literal
+ * `include: [...]`, so tools/check-test-integrity.mjs sees an entry dropped from it, and
+ * test/contracts/forced-batched-honesty.test.ts reads it from this file's text.
+ */
+const BROWSER_FILES = {
+    include: [
+        "test/browser/**/*.test.ts",
+        "test/managers/DataManager.test.ts",
+        "test/managers/LayoutManager.test.ts",
+        "test/managers/LifecycleManager.test.ts",
+        "test/managers/UpdateManager.test.ts",
+        "test/managers/SelectionManager.test.ts",
+        "test/mesh-testing/real-mesh-simple.test.ts",
+        "test/performance/**/*.test.ts",
+        "test/examples/**/*.test.ts",
+        // Edge tests require browser (hammerjs dependency)
+        "test/Edge.bezier.test.ts",
+        "test/edge-cases/**/*.test.ts",
+        "test/integration/Edge.integration.test.ts",
+    ],
+};
+
 /** The files "forced-batched" leaves out, each with its reason. */
 const forcedBatchedSkips = JSON.parse(
     readFileSync(new URL("test/forced-batched/skipped.json", import.meta.url), "utf8"),
@@ -1129,22 +1152,8 @@ const config = defineConfig({
                 test: {
                     name: "browser",
                     setupFiles: [BROWSER_COVERAGE_SETUP, MAP_TILES_SETUP, "./test/setup.ts"],
-                    include: [
-                        "test/browser/**/*.test.ts",
-                        "test/managers/DataManager.test.ts",
-                        "test/managers/LayoutManager.test.ts",
-                        "test/managers/LifecycleManager.test.ts",
-                        "test/managers/UpdateManager.test.ts",
-                        "test/managers/SelectionManager.test.ts",
-                        "test/mesh-testing/real-mesh-simple.test.ts",
-                        "test/performance/**/*.test.ts",
-                        "test/examples/**/*.test.ts",
-                        // Edge tests require browser (hammerjs dependency)
-                        "test/Edge.bezier.test.ts",
-                        "test/edge-cases/**/*.test.ts",
-                        "test/integration/Edge.integration.test.ts",
-                        // Interaction tests moved to dedicated 'interactions' project
-                    ],
+                    // "forced-batched" runs the same files. Interaction tests have their own project.
+                    include: BROWSER_FILES.include,
                     exclude: [
                         // Interaction tests have their own project
                         "test/interactions/**/*.test.ts",
@@ -1287,7 +1296,9 @@ const config = defineConfig({
                 test: {
                     name: "forced-batched",
                     setupFiles: [MAP_TILES_SETUP, "./test/setup.ts", "./test/forced-batched/setup.ts"],
-                    include: ["test/browser/**/*.test.ts", "test/interactions/**/*.test.ts"],
+                    // Every file "browser" runs, and the interaction suite: test/contracts/forced-batched-honesty.test.ts
+                    // reads the same lists to check each file really draws batched rows.
+                    include: [...BROWSER_FILES.include, "test/interactions/**/*.test.ts"],
                     exclude: [
                         "test/browser/**/*.bench.test.ts",
                         ...forcedBatchedSkips.map(({ file }) => file),
@@ -1335,6 +1346,37 @@ const config = defineConfig({
                         "./test/setup-minimum-work.ts",
                     ],
                     include: MINIMUM_WORK_TESTS,
+                    fileParallelism: false,
+                    browser: {
+                        enabled: true,
+                        commands: { ...mapTileCommands, ...heldRequestCommands, ...samplePictureCommands },
+                        headless: true,
+                        screenshotDirectory: FAILURE_SCREENSHOT_DIR,
+                        provider: playwright(),
+                        instances: [browserInstance()],
+                    },
+                },
+            },
+            {
+                // "minimum-work" again with "batched" as the default render path: work split across
+                // frames is where the row table, the batches and the landings differ from objects.
+                // Runs in the forced-batched shards (tools/ci-test-matrix.mjs).
+                define: { ...define },
+                plugins: [rawModelWorkers()],
+                envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU"],
+                cacheDir: SHARD_CACHE_DIR,
+                optimizeDeps: { include: ["iwer", ...PREBUNDLED], force: true },
+                resolve: { alias: OWN_ENTRY_POINTS },
+                test: {
+                    name: "minimum-work-batched",
+                    setupFiles: [
+                        MAP_TILES_SETUP,
+                        "./test/setup.ts",
+                        "./test/setup-minimum-work.ts",
+                        "./test/forced-batched/setup.ts",
+                    ],
+                    include: MINIMUM_WORK_TESTS,
+                    exclude: forcedBatchedSkips.map(({ file }) => file),
                     fileParallelism: false,
                     browser: {
                         enabled: true,

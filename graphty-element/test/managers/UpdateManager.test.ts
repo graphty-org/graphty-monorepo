@@ -107,7 +107,13 @@ describe("UpdateManager", () => {
         });
     });
 
+    // `Node.update` and `Edge.update` are the "objects" path's per-frame work; under "batched" the rows are
+    // drawn from the row table with no `Node` or `Edge`. So these run on "objects" in every project.
     describe("edge rendering regression test", () => {
+        beforeEach(() => {
+            graph.setRenderPath("objects");
+        });
+
         it("should update edges even when layout is not running", () => {
             // This is a regression test for the bug where edges weren't rendered
             // when layout wasn't running (e.g., fixed layout, settled layout)

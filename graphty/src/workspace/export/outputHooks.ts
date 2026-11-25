@@ -88,7 +88,9 @@ export function useImagePreview<C extends { size: ImageSize }>(
     build: BuildOptions<C>,
     legend: ScreenshotOptions["legend"],
 ): { preview: string | null; previewError: string | null } {
+    // on reload: fresh: derived: rebuilt from the element and the choices
     const [preview, setPreview] = useState<string | null>(null);
+    // on reload: fresh: notice: why the preview could not be drawn
     const [previewError, setPreviewError] = useState<string | null>(null);
     useEffect(() => {
         if (element === null) {
@@ -135,6 +137,7 @@ export function useRefusedSizes<C extends { size: ImageSize }>(
     choices: C,
     build: BuildOptions<C>,
 ): Partial<Record<ImageSize, string>> {
+    // on reload: fresh: read: asked of graphty-element again for the choices
     const [refused, setRefused] = useState<Partial<Record<ImageSize, string>>>({});
     useEffect(() => {
         if (element === null) {
@@ -180,6 +183,7 @@ export function useImageCapture<C>(ask: CaptureAsk<C>): {
     setStatus: (status: CaptureStatus) => void;
     capture: (destination: "download" | "clipboard", waitForSettle?: boolean) => Promise<void>;
 } {
+    // on reload: fresh: in flight: a capture under way and what it ended in
     const [status, setStatus] = useState<CaptureStatus>({ kind: "idle" });
     const { element, choices, build, legend, name, onDone } = ask;
     const capture = async (destination: "download" | "clipboard", waitForSettle = true): Promise<void> => {

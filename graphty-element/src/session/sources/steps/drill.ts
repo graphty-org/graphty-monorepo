@@ -9,7 +9,8 @@ import type { GraphtyErrorCode } from "../../../errors/codes";
 import { GraphtyError } from "../../../errors/GraphtyError";
 import { isEmpty, normalize, tableRows } from "./build";
 import type { DraftState } from "./draft";
-import { buildOf, copyMap, mintEditId, type SourceSteps, type StepsEdit } from "./project";
+import { numberedKey } from "./profile";
+import { buildOf, copyMap, mintEditId, type SourceSteps, type StepsEdit, type StepsSource } from "./project";
 import { type Conflict, conflicts, pickEdit } from "./provenance";
 import type {
     BuildResult,
@@ -239,6 +240,21 @@ function effectOf(now: Built | null, was: Built | null): DrillRow["effect"] {
 }
 
 /**
+ * A row's cells without the key its source's rows were numbered by, which is no column of theirs.
+ * @param cells - The cells.
+ * @param src - The source.
+ * @returns The cells.
+ */
+function ownCells(cells: Row | null, src: StepsSource | undefined): Row | null {
+    const numbered = src === undefined ? undefined : numberedKey(src);
+    if (cells === null || numbered === undefined) {
+        return cells;
+    }
+    const { [numbered]: _number, ...own } = cells;
+    return own;
+}
+
+/**
  * The rows behind one count of one step of a draft: each with its key, the element it reached in
  * the draft, that element's values in the committed build and in the draft, the row as read, its
  * effect and the outcome it is reported under (5.4).
@@ -283,7 +299,7 @@ export function drillRows(
             name: u.name ?? null,
             element: now === null ? null : refOf(now),
             held: was === null ? null : { ...was.values },
-            incoming,
+            incoming: ownCells(incoming, src),
             shown: now === null ? null : { ...now.values },
             effect: effectOf(now, was),
             codes,

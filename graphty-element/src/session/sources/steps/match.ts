@@ -3,17 +3,18 @@
  * design/data/multiple-data-sources-design.md, section 5.2), behind the `source-steps` experiment.
  *
  * Both hash the two columns a Merge or Make an edge would compare and never build: side 1 is the
- * nodes the step joins onto (the keys of a space as the last build holds them, or a column of
- * the source it translates through), side 2 the incoming source's field. Each row is read once,
+ * nodes the step joins onto (the keys of a space, or a column its nodes carry, as the last build
+ * holds them, or a column of the source it translates through), side 2 the incoming source's field.
+ * A list's values are compared apart. Each row is read once,
  * and that one pass hashes it three ways: as the step compares it, and with each toggle that is
  * off turned on. Pure, and free of Babylon.js, Lit and the DOM.
  */
 
 import type { SourceMatchCounts as MatchCounts } from "../../types";
 import { type JoinInto, type NodeOne, nodeOne, sourceOf } from "./acts";
-import { isEmpty, isStaged, type MatchOptions, normalize, resolveNode, tableRows } from "./build";
+import { cellValues, isEmpty, isStaged, type MatchOptions, normalize, resolveNode, tableRows } from "./build";
 import { buildOf, type Copies, copyMap, type SourceSteps } from "./project";
-import type { CellValue, Row } from "./types";
+import type { CellValue, Row, Value } from "./types";
 
 /** Side 2: the incoming source and the field it names node 1 by. */
 interface MatchFrom {
@@ -52,7 +53,7 @@ const truncated = new WeakMap<SourceSteps, Map<number, SourceSteps>>();
  * @param before - The place; absent keeps every step.
  * @returns The value.
  */
-function upTo(value: SourceSteps, before: number | undefined): SourceSteps {
+export function upTo(value: SourceSteps, before: number | undefined): SourceSteps {
     if (before === undefined || before >= value.steps.length) {
         return value;
     }
@@ -79,8 +80,8 @@ export interface MatchValuesOptions extends CountOptions {
 /** One side hashed: per key, how many rows hold it, the value first read and the nodes it reaches. */
 type Hashed = Map<string, { n: number; first: CellValue; nodes: Set<string> }>;
 
-/** A value as read, with the node 1 its row reaches (side 1 only). */
-type Entry = readonly [CellValue | undefined, string?];
+/** A value as read, or a list's, with the node 1 its row reaches (side 1 only). */
+type Entry = readonly [Value | undefined, string?];
 
 /** The values of both sides, as read once. */
 interface Sides {
@@ -131,13 +132,13 @@ function sides(value: SourceSteps, copies: Copies, pair: MatchPair): Sides {
         return { one: translated(value, copies, source, pair.into.field ?? n1.keyCol, n1), two };
     }
     if (n1.isKey || source === undefined) {
-        const { space } = n1;
+        const { space, nodeColumn } = n1;
         // ponytail: a merged node's former keys (aliases) are not counted; add them if a Merge
         // into an already merged space reads short.
         const keys = function* (): Generator<Entry> {
             for (const n of buildOf(value, copies).nodes.values()) {
                 if (n.space === space) {
-                    yield [n.key, n.id];
+                    yield [nodeColumn === undefined ? n.key : n.values[nodeColumn], n.id];
                 }
             }
         };
@@ -216,7 +217,28 @@ function add(table: Hashed, k: string, v: CellValue, node: string | undefined): 
 }
 
 /**
- * Hash one side's values every way in one pass.
+ * Hash one value every way.
+ * @param tables - One table per way, null for a way not hashed.
+ * @param opts - The ways.
+ * @param v - The value.
+ * @param node - The node 1 its row reaches, for side 1.
+ */
+function hashOne(
+    tables: readonly (Hashed | null)[],
+    opts: readonly (MatchOptions | null)[],
+    v: CellValue,
+    node: string | undefined,
+): void {
+    tables.forEach((table, i) => {
+        const o = opts[i];
+        if (table !== null && o !== null) {
+            add(table, normalize(v, o), v, node);
+        }
+    });
+}
+
+/**
+ * Hash one side's values every way in one pass, each value of a list apart.
  * @param values - The values.
  * @param ways - The ways.
  * @returns One table per way, in `asked`, `caseOff`, `spacesOff` order (null for a way not hashed).
@@ -228,17 +250,9 @@ function hash(values: Iterable<Entry>, ways: Ways): [Hashed, Hashed | null, Hash
         ways.spacesOff ? (new Map() as Hashed) : null,
     ];
     const opts = [ways.asked, ways.caseOff, ways.spacesOff];
-    for (const [v, node] of values) {
-        if (isEmpty(v)) {
-            continue;
-        }
-        for (let i = 0; i < 3; i++) {
-            const table = out[i];
-            const o = opts[i];
-            if (table === null || o === null) {
-                continue;
-            }
-            add(table, normalize(v, o), v, node);
+    for (const [cell, node] of values) {
+        for (const v of new Set(cellValues(cell).filter((each) => !isEmpty(each)))) {
+            hashOne(out, opts, v ?? null, node);
         }
     }
     return out;

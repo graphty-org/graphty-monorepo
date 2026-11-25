@@ -35,6 +35,7 @@ describe("experiments guide: source-steps", () => {
             "sameName",
             "draft.link(",
             "draft.extract(",
+            "draft.columns(",
         ]) {
             assert.include(text, member, member);
         }

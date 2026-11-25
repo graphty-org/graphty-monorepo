@@ -3720,6 +3720,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             batch: DRAFT_ACT,
             suggestMatches: READ,
             spaces: READ,
+            columns: READ,
             commit: SOURCE_STEPS_WRITE,
             dispose: exempt("closes the draft, writing nothing"),
             displayed: READ,

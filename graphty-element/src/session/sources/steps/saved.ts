@@ -17,7 +17,8 @@
  * session-only. The file keeps no part counter: parts are minted from the parts present (3.3).
  *
  * An edge step's `rowNode`, `existing`, `link` and `extract`, and a `join.merge` reading edge rows, are
- * written as the session keeps them: version 2 spells none of them yet (4.1.8 rule 10).
+ * written as the session keeps them: version 2 spells none of them yet (4.1.8 rule 10). So is a
+ * source's `numbered`, the column its keyless rows were numbered under.
  *
  * Every source is saved as a copy; a reference (3.11) is not written yet. Pure and free of
  * Babylon.js, Lit and the DOM.
@@ -186,6 +187,7 @@ function sourceOut(src: StepsSource, copy: CopyTables): Record<string, unknown> 
         origin: { copy: src.origin.copy },
         mapping: mappingOut(src),
         ...defined({
+            numbered: src.numbered,
             settings: src.settings,
             metadata: src.declared === undefined ? undefined : { ...src.declared },
         }),
@@ -483,7 +485,7 @@ function sourceIn(
     types: readonly TypeEntry[],
     staged: boolean,
 ): { source: StepsSource; copy: CopyTables } | null {
-    const { id, label, kind, format, options, origin, mapping, settings, metadata, copy, columns } = raw;
+    const { id, label, kind, format, options, origin, mapping, settings, metadata, copy, columns, numbered } = raw;
     if (
         typeof id !== "string" ||
         typeof kind !== "string" ||
@@ -520,6 +522,7 @@ function sourceIn(
         ...defined({
             type: format,
             config: options,
+            numbered: typeof numbered === "string" ? numbered : undefined,
             settings: isObject(settings) ? settings : undefined,
             tableRows: facts?.tableRows,
             join: facts?.join,

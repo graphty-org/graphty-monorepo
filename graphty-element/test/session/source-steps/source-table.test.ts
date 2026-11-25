@@ -111,6 +111,84 @@ describe("source-steps: a source's tables and profiles", () => {
         session.dispose();
     });
 
+    it("gives a file that names no key no id column, whatever key is picked for it", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        const accounts = await session.data.stage(csv("accounts.csv", "account_id,name", "AC1,Ann", "AC2,Bo"));
+        const ids = await session.data.stage(
+            csv("account_identifiers.csv", "account_id,phone", "AC1,+1555", "AC1,+1556", "AC2,+1557"),
+        );
+        const facts = session.data.sourceTable(ids).summary();
+        assert.sameMembers([...(facts.tables[0]?.columns ?? [])], ["account_id", "phone"]);
+        assert.isUndefined(facts.mapping.key, "its rows are keyed by their place");
+        await session.data.setMapping(accounts, { nodes: { key: "account_id" } });
+
+        const draft = session.data.draft();
+        draft.merge({
+            from: { source: ids, field: "account_id" },
+            into: { source: accounts },
+            aggregate: { "*": "list" },
+        });
+        const { steps } = draft.preview();
+        assert.deepStrictEqual(
+            steps.flatMap((step) => step.valuesDiffer.map((each) => each.params.column)),
+            [],
+            "no clash of the two files' row numbers",
+        );
+        assert.notInclude(
+            steps.flatMap((step) => step.reads),
+            "id",
+        );
+        assert.deepStrictEqual(
+            draft.columns(`source:${accounts}`).map((each) => each.name),
+            ["account_id", "name", "phone"],
+        );
+        const at = steps.findIndex((step) => step.op === "join.merge");
+        const [row] = draft.preview().rows({ step: at, bucket: "merged" }).rows;
+        assert.deepStrictEqual(row?.incoming, { account_id: "AC1", phone: "+1555" });
+        await draft.commit();
+        assert.deepInclude(session.data.node("AC1"), { id: "AC1", phone: ["+1555", "+1556"] });
+
+        // The mark is saved, so the column does not come back with the file.
+        const { text } = await session.project.save();
+        const reopened = createGraphSession({ features: ["source-steps"] });
+        await reopened.project.open(text);
+        const back = reopened.data.sourceTable(ids).summary();
+        assert.sameMembers([...(back.tables[0]?.columns ?? [])], ["account_id", "phone"]);
+        assert.isUndefined(back.mapping.key);
+        assert.deepStrictEqual(reopened.data.nodes(), session.data.nodes());
+        session.dispose();
+        reopened.dispose();
+    });
+
+    it("reads a newer copy of a file that names no key by its rows' places again", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        const ids = await session.data.stage(csv("ids.csv", "account_id,phone", "AC1,+1555", "AC1,+1556"));
+        await session.data.add(ids);
+        assert.strictEqual(session.data.statistics().nodeCount, 2);
+        const held = (): boolean[] => session.data.steps().map((step) => step.held);
+        assert.deepStrictEqual(held(), [false]);
+        await session.data.replaceSource(ids, csv("ids.csv", "account_id,phone", "AC1,+1555", "AC1,+1556", "AC2,+1"));
+        assert.deepStrictEqual(held(), [false]);
+        assert.strictEqual(session.data.statistics().nodeCount, 3);
+        const columns = session.data.sourceTable(ids).summary().tables[0]?.columns ?? [];
+        assert.sameMembers([...columns], ["account_id", "phone"]);
+        session.dispose();
+    });
+
+    it("reads a cell with a leading plus sign as text", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        const ids = await session.data.stage(
+            csv("ids.csv", "account,phone,score", "A1,+15551007,4", "A2,+15551014,5"),
+            {
+                key: "account",
+            },
+        );
+        const table = session.data.sourceTable(ids);
+        assert.deepInclude(table.profile("phone"), { kind: "text", samples: ["+15551007", "+15551014"] });
+        assert.deepInclude(table.profile("score"), { kind: "number" });
+        session.dispose();
+    });
+
     it("profiles the keys of a space: Field 1's Key, in the session and in a draft", async () => {
         const { session } = await withPeople();
         assert.deepStrictEqual(session.data.profile({ space: "person" }), {
@@ -200,7 +278,7 @@ describe("source-steps: what a staged source's rows are for, as its summary read
         const { session } = await withPeople();
         const buildings = csv("buildings.csv", "door,building", "D1,North", "D2,South");
         const byNames = await session.data.stage(buildings);
-        assert.strictEqual(session.data.sourceTable(byNames).summary().mapping.key, "id", "the names guess by default");
+        assert.isUndefined(session.data.sourceTable(byNames).summary().mapping.key, "the names guess finds none");
         const byValues = await session.data.stage(buildings, { guess: "values" });
         assert.deepStrictEqual(session.data.sourceTable(byValues).summary().mapping, { rows: "nodes", key: "door" });
         session.dispose();

@@ -6,7 +6,7 @@
  * parameters, never English. Pure and free of Babylon.js, Lit and the DOM.
  */
 
-import { build, copyKey, isEmpty, resolveEdge, resolveNode, ruleFits } from "./build";
+import { build, copyKey, isEmpty, nodeSpace, resolveEdge, resolveNode, ruleFits } from "./build";
 import { RECORD_PATHS } from "./paths";
 import {
     type BuildInput,
@@ -421,6 +421,32 @@ const PICKABLE = new Set<string>([
 ]);
 
 /**
+ * The columns of a space's nodes a step matches on, when a source supplies that space's nodes.
+ * @param input - The build input.
+ * @param source - The source.
+ * @param st - The step.
+ * @returns The columns.
+ */
+function suppliesColumns(input: BuildInput, source: string, st: Step): readonly string[] {
+    let columns: readonly string[] = [];
+    let space: string | undefined;
+    if ("nodeColumn" in st && st.nodeColumn !== undefined) {
+        columns = [st.nodeColumn];
+    }
+    if (st.op === "join.edges") {
+        space = st.viaEnd === "source" || st.link !== undefined ? st.read.sourceSpace : st.read.targetSpace;
+        columns = st.link?.of === "nodes" ? [...columns, ...st.link.columns] : columns;
+    } else if (st.op === "join.merge" || st.op === "join.node-values") {
+        ({ space } = st.read);
+    }
+    const src = input.sources[source] as BuildInput["sources"][string] | undefined;
+    const into = (o: Step): boolean =>
+        o.source === source && (o.op === "join.merge" || o.op === "join.node-values") && o.read.space === space;
+    const own = src?.mapping.nodes !== undefined && nodeSpace(src) === space;
+    return space !== undefined && (own || input.steps.some((o) => into(o))) ? columns : [];
+}
+
+/**
  * The columns of one source that a type rule, a role or a step reads.
  * @param input - The build input.
  * @param source - The source's id.
@@ -449,7 +475,10 @@ function readColumns(input: BuildInput, source: string, picked = false): Set<str
     for (const st of input.steps) {
         if (st.source === source && "read" in st) {
             strings(st.read as Readonly<Record<string, unknown>>);
-            (("link" in st && st.link?.columns) || []).forEach((c) => out.add(c));
+            (("link" in st && st.link?.of === undefined && st.link?.columns) || []).forEach((c) => out.add(c));
+        }
+        for (const c of suppliesColumns(input, source, st)) {
+            out.add(c);
         }
         if ("mapping" in st && st.mapping && (st.via ?? st.lookup) === source) {
             st.mapping.columns.forEach((c) => out.add(c));

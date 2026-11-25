@@ -5440,6 +5440,7 @@ export class SessionData implements SessionDataApi {
                 label: source.name ?? src.label,
                 input: this.keep(source),
                 digest: await digest(),
+                numbered: null,
             });
             return Object.freeze({
                 nodes: counts.nodes,
@@ -5459,6 +5460,7 @@ export class SessionData implements SessionDataApi {
             input: this.keep(source),
             tables: compiled.edit.source.tables,
             digest: await digest(),
+            numbered: compiled.edit.source.numbered ?? null,
         });
         return Object.freeze({
             nodes: counts.nodes,
@@ -5474,7 +5476,10 @@ export class SessionData implements SessionDataApi {
      * @param options - How to read its rows.
      * @returns The import, or undefined when the draft dispatches none.
      */
-    private async captureLoad(source: DataSourceInput, options: ImportOptions): Promise<DataImportCommand | undefined> {
+    private async captureLoad(
+        source: DataSourceInput,
+        options: ImportOptions & Pick<LoadChoices, "mapping">,
+    ): Promise<DataImportCommand | undefined> {
         const read = this.reads.get(source);
         const draft = read === undefined ? await this.prepare(source) : await this.draftOf(source, read);
         let captured: DataImportCommand | undefined;
@@ -5503,6 +5508,7 @@ export class SessionData implements SessionDataApi {
      * @param about.input - Its input token.
      * @param about.tables - Its tables.
      * @param about.digest - The SHA-256 of the bytes the rows were read from, which names the copy.
+     * @param about.numbered - The column the rows were numbered under, null for none; absent leaves it.
      * @returns What changed and the issues.
      */
     private async swapStepsCopy(
@@ -5513,6 +5519,7 @@ export class SessionData implements SessionDataApi {
             readonly input?: string;
             readonly tables?: readonly string[];
             readonly digest?: string;
+            readonly numbered?: string | null;
         },
     ): Promise<
         ChangeCounts & {
@@ -9764,7 +9771,7 @@ function withStepsMapping<O extends LoadChoices>(options: O): O {
  * @param src - The source.
  * @returns The choices; none for a source holding both nodes and edges, which the file says.
  */
-function readChoicesOf(src: StepsSource): ImportOptions {
+function readChoicesOf(src: StepsSource): ImportOptions & Pick<LoadChoices, "mapping"> {
     const { nodes, edges } = src.mapping;
     const asRead = (column: string, renamed: Readonly<Record<string, string>> | undefined): string =>
         Object.entries(renamed ?? {}).find(([, working]) => working === column)?.[0] ?? column;
@@ -9775,6 +9782,9 @@ function readChoicesOf(src: StepsSource): ImportOptions {
                 to: { column: asRead(edges.target, edges.renamed) },
             },
         };
+    }
+    if (nodes?.key !== undefined && nodes.key === src.numbered && edges === undefined) {
+        return { mapping: { rowsAre: "nodes", key: null } };
     }
     if (nodes?.key !== undefined && edges === undefined) {
         return { key: asRead(nodes.key, nodes.renamed) };

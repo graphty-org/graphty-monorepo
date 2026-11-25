@@ -5136,8 +5136,9 @@ export interface SourceStepAct {
     /** Field 2: the source the step reads and the column it matches on. */
     readonly from: SourceField;
     /**
-     * Node 1: the space it lives in, with the source and column a value translates through when
-     * the step matches on a column that is not node 1's key. `connect` and `merge` take it as it is.
+     * Node 1: the space it lives in, with the source and column a value translates through, or the
+     * column its nodes carry, when the step matches on a column that is not node 1's key. `connect`
+     * and `merge` take it as it is.
      */
     readonly into: SourceJoinInto & {
         /** The id space node 1 lives in. */
@@ -5227,6 +5228,19 @@ export interface SourceSpaceRow {
 export interface SourceDraftSpaceRow extends SourceSpaceRow {
     /** The source, staged before the draft opened, that a step of the draft adds into this space; null for none. */
     readonly staged: SourceKey | null;
+}
+
+/**
+ * A column the nodes of one id space carry, as `SourceDraft.columns()` lists it.
+ * @experimental source-steps
+ */
+export interface SourceDraftColumn {
+    /** The column's name: what `into.field` takes with the space. */
+    readonly name: string;
+    /** What most of its filled cells read as; `"list"` when any node holds a list of values. */
+    readonly kind: SourceProfileKind | "list";
+    /** How many nodes of the space fill it. */
+    readonly filled: number;
 }
 
 /**
@@ -5374,7 +5388,8 @@ export interface SourceField {
 
 /**
  * The nodes a merge or Make an edge joins onto ("node 1"): a source's nodes by its key, or by
- * another field of it (translated through its rows); or every node of an id space. For a source
+ * another field of it (translated through its rows); or every node of an id space, by its key or by
+ * a column the nodes carry. A list cell matches by each of its values. For a source
  * that holds only edges, `space` names which end's nodes `field` belongs to.
  * @experimental source-steps
  */
@@ -5392,8 +5407,12 @@ export type SourceJoinInto =
           readonly space: SourceSpaceName;
           /** Never set: the space names the nodes. */
           readonly source?: undefined;
-          /** Never set: the space names the nodes. */
-          readonly field?: undefined;
+          /**
+           * A column the space's nodes carry as the steps before this one build them, such as one an
+           * earlier merge brought (`draft.columns` lists them); each value of a list matches. Absent,
+           * the nodes' key.
+           */
+          readonly field?: string;
       };
 
 /**
@@ -5685,6 +5704,12 @@ export interface SourceLinkOptions {
     readonly field?: string;
     /** The nodes `field` names; absent, the source's own nodes by that column. */
     readonly into?: SourceJoinInto;
+    /**
+     * Link the nodes of this space by the columns they carry as the steps before this one build
+     * them, such as a list an earlier merge brought, instead of by the source's rows. The new edges
+     * are the source's. `field` and `into` are left out.
+     */
+    readonly nodes?: SourceSpaceName;
     /**
      * `"edges"` (default): one edge per pair of nodes, from the one earlier in the graph, its `shared`
      * attribute the number of values they share. `"nodes"`: one node per shared value, keyed `<column>:<value>` and carrying the value
@@ -6301,6 +6326,23 @@ export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "match
      * @returns The spaces.
      */
     spaces(): readonly SourceDraftSpaceRow[];
+    /**
+     * The columns the nodes of one id space carry as the draft builds them, the ones its merges
+     * brought included, in the order first met: what `into.field` can match on.
+     * @example
+     * ```ts
+     * draft.merge({ from: { source: ids, field: "account" }, into: { space: "account" }, aggregate: { "*": "list" } });
+     * draft.columns("account"); // [..., { name: "device", kind: "list", filled: 63 }]
+     * draft.merge({ from: { source: watchlist, field: "value" }, into: { space: "account", field: "device" } });
+     * ```
+     * @param space - The id space, from `spaces()`.
+     * @param options - Which steps build the nodes.
+     * @param options.before - Only the steps before this place; absent, every step.
+     * @returns The columns; none for a space no node lives in. A column a `"both"` clash rule made for
+     *   one source is left out.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` once the draft is closed.
+     */
+    columns(space: SourceSpaceName, options?: { readonly before?: number }): readonly SourceDraftColumn[];
     /**
      * The draft's type registry.
      * @returns The declared types.

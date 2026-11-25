@@ -10,7 +10,7 @@ import { isSourceFactKey } from "../ids";
 import { sourceOf } from "./acts";
 import { isDate, isEmpty, isNumber, normalize, ownSpace, tableRows } from "./build";
 import { buildOf, type Copies, copyMap, type SourceSteps, type StepsSource } from "./project";
-import type { CellValue, Row, TableName } from "./types";
+import type { CellValue, Row, TableName, Value } from "./types";
 
 /** How many distinct values a profile lists as samples. */
 const SAMPLES = 5;
@@ -73,6 +73,15 @@ interface MappingSummary {
 }
 
 /**
+ * The column a source's rows are keyed by because they were numbered under it: the file never had it.
+ * @param src - The source.
+ * @returns The column, or undefined for a source keyed by a column of its own or by none.
+ */
+export function numberedKey(src: StepsSource): string | undefined {
+    return src.numbered !== undefined && src.numbered === src.mapping.nodes?.key ? src.numbered : undefined;
+}
+
+/**
  * What a source's rows are for. A node space reads only once it was named, since unset Add proposes
  * the type; an end's space reads unless it is the source's own.
  * @param src - The source.
@@ -91,7 +100,7 @@ function mappingSummary(src: StepsSource): MappingSummary {
     return {
         rows,
         ...defined({
-            key: nodes?.key,
+            key: numberedKey(src) === undefined ? nodes?.key : undefined,
             space: src.spacePicked === true ? nodes?.space : undefined,
             type: src.stagedType ?? undefined,
             edges:
@@ -194,13 +203,14 @@ function rowsOf(
 /**
  * The columns of some rows, in the order first read, without the element's own `_source.` facts.
  * @param rows - The rows.
+ * @param numbered - The column the rows' key was numbered under, left out too.
  * @returns The column names.
  */
-function columnsOf(rows: readonly Row[]): string[] {
+function columnsOf(rows: readonly Row[], numbered: string | undefined): string[] {
     const out = new Set<string>();
     for (const row of rows) {
         for (const k of Object.keys(row)) {
-            if (!isSourceFactKey(k)) {
+            if (!isSourceFactKey(k) && k !== numbered) {
                 out.add(k);
             }
         }
@@ -256,6 +266,43 @@ export function spaceProfile(value: SourceSteps, copies: Copies, space: string):
     return profileOf(keys());
 }
 
+/** One column the nodes of a space carry. */
+interface SpaceColumn {
+    readonly name: string;
+    readonly kind: ProfileKind | "list";
+    readonly filled: number;
+}
+
+/**
+ * The columns the nodes of one id space carry in a build, the ones merges brought included.
+ * @param value - The value.
+ * @param copies - The rows as read.
+ * @param space - The space.
+ * @returns The columns, in the order first met.
+ */
+export function spaceColumns(value: SourceSteps, copies: Copies, space: string): readonly SpaceColumn[] {
+    const cells = new Map<string, Value[]>();
+    for (const n of buildOf(value, copies).nodes.values()) {
+        for (const [name, v] of n.space === space ? Object.entries(n.values) : []) {
+            // a source's own value of a clash is no column of the space
+            if (!isEmpty(v) && !isSourceFactKey(name) && n.clashColumns?.[name] === undefined) {
+                const held = cells.get(name) ?? [];
+                held.push(v);
+                cells.set(name, held);
+            }
+        }
+    }
+    return Object.freeze(
+        [...cells].map(([name, held]) =>
+            Object.freeze({
+                name,
+                kind: held.some((v) => Array.isArray(v)) ? ("list" as const) : profileOf(held as CellValue[]).kind,
+                filled: held.length,
+            }),
+        ),
+    );
+}
+
 /**
  * What a source's rows are: rows and columns per table, and what reading it recorded.
  * @param value - The value.
@@ -269,7 +316,7 @@ function sourceSummary(value: SourceSteps, copies: Copies, source: string): Sour
     const map = copyMap(copies);
     const tables = (["nodes", "edges"] as const).flatMap((table): TableSummary[] => {
         const rows = tableRows(src, map, table);
-        return rows === null ? [] : [{ table, rows: rows.length, columns: columnsOf(rows) }];
+        return rows === null ? [] : [{ table, rows: rows.length, columns: columnsOf(rows, numberedKey(src)) }];
     });
     return {
         tables,

@@ -42,11 +42,12 @@ interface FieldRef {
 
 /**
  * The node 1 side of Merge or Make an edge: a source's key (or another field of it, translated
- * through the source's rows), or every node of an id space.
+ * through the source's rows), or every node of an id space (by its key, or by a column the nodes
+ * carry as the steps before build them).
  */
 export type JoinInto =
     | { readonly source: string; readonly field?: string; readonly space?: string }
-    | { readonly space: string; readonly source?: undefined; readonly field?: undefined };
+    | { readonly space: string; readonly source?: undefined; readonly field?: string };
 
 /** Merge 2 into 1 (3.6). */
 interface MergeAct {
@@ -106,6 +107,8 @@ interface LinkAct {
     readonly field?: string;
     /** The nodes `field` names; absent, the source's own by that column. */
     readonly into?: JoinInto;
+    /** The space whose nodes hold the values, as the steps before build them, instead of the source's rows. */
+    readonly nodes?: string;
     /** One edge per pair sharing a value (default), or one node per shared value. */
     readonly as?: "edges" | "nodes";
     readonly maxShared?: number;
@@ -276,6 +279,8 @@ export interface NodeOne {
     readonly isKey: boolean;
     /** Node 1's key column in its source, for a translation. */
     readonly keyCol?: string;
+    /** The column node 1's nodes are looked up by, when a space's column names them. */
+    readonly nodeColumn?: string;
 }
 
 /**
@@ -308,11 +313,16 @@ function endNamed(
  * @param value - The value.
  * @param into - Node 1.
  * @returns What the act needs.
- * @throws A `GraphtyError` with `E_AMBIGUOUS_ID` when the field names no one end's nodes.
+ * @throws A `GraphtyError` with `E_AMBIGUOUS_ID` when the field names no one end's nodes, or
+ *   `E_BAD_COMMAND` (reason `no-field`) for a space's column with no name.
  */
 export function nodeOne(value: SourceSteps, into: JoinInto): NodeOne {
     if (into.source === undefined) {
-        return { space: into.space, isKey: true };
+        const { space, field } = into;
+        if (field?.trim() === "") {
+            throw refused("E_BAD_COMMAND", `A column of ${space} is named by no name.`, { reason: "no-field" });
+        }
+        return field === undefined ? { space, isKey: true } : { space, isKey: false, nodeColumn: field };
     }
     const s1 = sourceOf(value, into.source);
     const { edges } = s1.mapping;
@@ -499,9 +509,7 @@ function merge(prior: SourceSteps, copies: Copies, o: MergeAct): SourceSteps {
             ignoreSpaces: o.ignoreSpaces,
             columns: table === "edges" ? o.columns : undefined,
         }),
-        ...(n1.isKey || n1.keyCol === undefined
-            ? {}
-            : { via: o.into.source, mapping: { columns: [o.into.field ?? "", n1.keyCol], space: n1.space } }),
+        ...throughOf(o.into, n1),
     };
     const out = { ...next, steps: [...next.steps, step] };
     if (o.clash !== undefined) {
@@ -690,17 +698,29 @@ export function existingOf(
  * @param into - Node 1 as the act names it.
  * @param n1 - Node 1.
  * @param intoFrom - Whether node 1 is the edges' source end.
- * @returns The step's `via`, `mapping` and `viaEnd`, or nothing for a key.
+ * @returns The translation and its `viaEnd`, or nothing for a key.
  */
-function viaOf(into: JoinInto, n1: NodeOne, intoFrom: boolean): Pick<EdgesStep, "via" | "mapping" | "viaEnd"> {
-    if (n1.isKey || n1.keyCol === undefined) {
-        return {};
+function viaOf(into: JoinInto, n1: NodeOne, intoFrom: boolean): Through & Pick<EdgesStep, "viaEnd"> {
+    const through = throughOf(into, n1);
+    return Object.keys(through).length === 0 ? {} : { ...through, viaEnd: intoFrom ? "source" : "target" };
+}
+
+/** What a step looks node 1 up by when the field named is not its key. */
+type Through = Pick<MergeStep, "via" | "mapping" | "nodeColumn">;
+
+/**
+ * What a step looks node 1 up by when the field is not its key: a source's rows, or a column its nodes carry.
+ * @param into - Node 1 as the act names it.
+ * @param n1 - Node 1.
+ * @returns The step's `via` and `mapping`, or its `nodeColumn`, or nothing for a key.
+ */
+function throughOf(into: JoinInto, n1: NodeOne): Through {
+    if (n1.nodeColumn !== undefined) {
+        return { nodeColumn: n1.nodeColumn };
     }
-    return {
-        via: into.source,
-        mapping: { columns: [into.field ?? "", n1.keyCol], space: n1.space },
-        viaEnd: intoFrom ? "source" : "target",
-    };
+    return n1.isKey || n1.keyCol === undefined
+        ? {}
+        : { via: into.source, mapping: { columns: [into.field ?? "", n1.keyCol], space: n1.space } };
 }
 
 /**
@@ -1037,18 +1057,25 @@ export function checkShared(maxShared: number | undefined, minShared: number | u
  * @param o - The choices.
  * @returns The next value.
  * @throws A `GraphtyError` with `E_BAD_COMMAND`: reason `no-columns`, `no-field` for an `into` with no
- *   field, `max-shared` or `min-shared`; `E_STEP_NEEDS_NODES` for a source with no rows; or
+ *   field, `nodes` for both a space's nodes and a field, `max-shared` or `min-shared`;
+ *   `E_STEP_NEEDS_NODES` for a source with no rows; or
  *   `E_AMBIGUOUS_ID` when the field names no one set of nodes.
  */
 function link(prior: SourceSteps, copies: Copies, o: LinkAct): SourceSteps {
     checkLink(o);
-    const { source: id, field } = o;
+    const { source: id, field, nodes } = o;
     const { table } = rowSource(prior, copies, id);
     const into: JoinInto | undefined = field === undefined ? undefined : (o.into ?? { source: id, field });
-    const value = withHolders(prior, copies, id, table, into);
+    const value = nodes === undefined ? withHolders(prior, copies, id, table, into) : prior;
     const n1 = into === undefined ? null : nodeOne(value, into);
     const mint = minted(value, id);
     const asNodes = o.as === "nodes";
+    let holder: Partial<EdgesStep> = { rowNode: "source" };
+    if (n1 !== null && into !== undefined) {
+        holder = viaOf(into, n1, true);
+    } else if (nodes !== undefined) {
+        holder = {};
+    }
     const step: EdgesStep = {
         op: "join.edges",
         source: id,
@@ -1056,6 +1083,7 @@ function link(prior: SourceSteps, copies: Copies, o: LinkAct): SourceSteps {
         read: {
             table,
             ...(n1 === null ? {} : { source: field, sourceSpace: n1.space }),
+            ...(nodes === undefined ? {} : { sourceSpace: nodes }),
             ...(asNodes ? { targetSpace: o.space ?? o.type ?? ownSpace(id) } : {}),
             weight: null,
             time: null,
@@ -1064,16 +1092,17 @@ function link(prior: SourceSteps, copies: Copies, o: LinkAct): SourceSteps {
         unmatchedRows: "leave-out",
         link: {
             columns: [...o.columns],
+            ...(nodes === undefined ? {} : { of: "nodes" as const }),
             ...(asNodes ? { as: "nodes" as const } : {}),
             maxShared: o.maxShared ?? MAX_SHARED,
             minShared: o.minShared ?? 1,
         },
         ...defined({ ignoreCase: o.ignoreCase, ignoreSpaces: o.ignoreSpaces }),
-        ...(n1 === null || into === undefined ? { rowNode: "source" as const } : viaOf(into, n1, true)),
+        ...holder,
     };
     const rule = { source: id, part: mint.part };
     let next: SourceSteps = { ...mint.value, steps: [...mint.value.steps, step] };
-    const rowType = table === "edges" && n1 === null ? next.sources[id].stagedType : undefined;
+    const rowType = table === "edges" && n1 === null && nodes === undefined ? next.sources[id].stagedType : undefined;
     next = withRule(next, "node", rowType, rule);
     next = withRule(next, "node", asNodes ? o.type : undefined, { ...rule, end: "target" });
     return withRule(next, "edge", o.edgeType, rule);
@@ -1092,6 +1121,15 @@ function checkLink(o: LinkAct): void {
         throw refused("E_BAD_COMMAND", "The nodes a link's values are held by are named by no field.", {
             reason: "no-field",
         });
+    }
+    if (o.nodes !== undefined && o.field !== undefined) {
+        throw refused(
+            "E_BAD_COMMAND",
+            "A link's values are held by the nodes of a space or by the ones its field names.",
+            {
+                reason: "nodes",
+            },
+        );
     }
     checkShared(o.maxShared, o.minShared);
 }

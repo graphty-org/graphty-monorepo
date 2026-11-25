@@ -373,6 +373,8 @@ export interface HeldRows {
     readonly errorLimit: number;
     /** The expression a node record's id is read with; the configured one when absent. */
     readonly idPath?: string;
+    /** The node records named no id and were numbered under `idPath`, a column they did not hold. */
+    readonly numbered?: true;
     /** The expression an edge's source is read with; probed when absent. */
     readonly source?: string;
     /** The expression an edge's target is read with; probed when absent. */

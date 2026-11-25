@@ -1036,7 +1036,7 @@ interface StepAct {
     /** Node 1: its space, and the source and field translating to its key when it is not the key. */
     readonly into:
         | { readonly space: string; readonly source: string; readonly field: string }
-        | { readonly space: string; readonly source?: undefined; readonly field?: undefined };
+        | { readonly space: string; readonly source?: undefined; readonly field?: string };
     readonly direction?: "into-from" | "from-into";
     readonly edgeType?: string;
     readonly ignoreCase: boolean;
@@ -1062,11 +1062,19 @@ interface StepAct {
 export function stepAct(value: SourceSteps, step: Step): StepAct | null {
     const into = (
         space: string,
-        s: { readonly via?: string; readonly mapping?: { readonly columns: readonly [string, string] } },
-    ): StepAct["into"] =>
-        s.via !== undefined && s.mapping !== undefined
+        s: {
+            readonly via?: string;
+            readonly mapping?: { readonly columns: readonly [string, string] };
+            readonly nodeColumn?: string;
+        },
+    ): StepAct["into"] => {
+        if (s.nodeColumn !== undefined) {
+            return { space, field: s.nodeColumn };
+        }
+        return s.via !== undefined && s.mapping !== undefined
             ? { space, source: s.via, field: s.mapping.columns[0] }
             : { space };
+    };
     const shared = {
         ignoreCase: step.ignoreCase === true,
         ignoreSpaces: step.ignoreSpaces === true,
@@ -1147,10 +1155,11 @@ function stepLink(value: SourceSteps, step: Step): SourceLinkOptions | null {
     const held =
         step.via !== undefined && step.mapping !== undefined
             ? { source: step.via, field: step.mapping.columns[0], space: read.sourceSpace }
-            : { space: read.sourceSpace ?? "" };
+            : { space: read.sourceSpace ?? "", ...defined({ field: step.nodeColumn }) };
     return Object.freeze({
         source: step.source,
         columns: link.columns,
+        ...(link.of === "nodes" ? { nodes: read.sourceSpace } : {}),
         ...(read.source === undefined ? {} : { field: read.source, into: held }),
         as: asNodes ? ("nodes" as const) : ("edges" as const),
         maxShared: link.maxShared,
@@ -1256,6 +1265,8 @@ function readsOf(step: Step, src: Source | undefined): string[] {
     if (step.op === "join.add") {
         pick(src?.mapping.nodes, roles);
         pick(src?.mapping.edges, roles);
+        // a key the rows were numbered by is no column of theirs
+        out.delete(src?.numbered ?? "");
     } else {
         pick(step.read, roles);
         if (step.op === "join.edges") {

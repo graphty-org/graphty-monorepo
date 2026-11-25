@@ -278,6 +278,7 @@ export function compileImport(
                 : {}),
         },
         ...sourceFacts(command, options),
+        ...(held.numbered === true && nodes.length > 0 ? { numbered: held.idPath } : {}),
     };
     return {
         op: "data.steps-set",

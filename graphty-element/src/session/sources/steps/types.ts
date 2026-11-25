@@ -117,6 +117,11 @@ export interface Source {
     readonly settings?: SourceSettings;
     /** A held source is kept but not built, with every step that depends on it (7.15). */
     readonly held?: boolean;
+    /**
+     * The column its node rows, which named no key, were numbered under when they were read. The file
+     * held no such column: it may key the rows, but no element carries it and no list names it.
+     */
+    readonly numbered?: string;
 }
 
 /** Rows a step reads by one column's values, compared as strings after Unicode normalization. */
@@ -171,6 +176,11 @@ interface Translating {
     /** Translate through this id-mapping source; a value it lacks passes through as it is. */
     readonly lookup?: string;
     readonly mapping?: StepMappingTable;
+    /**
+     * Look the value up among the nodes of the space by this column of theirs, as the steps before
+     * this one build them, each value of a list apart; absent, by their key.
+     */
+    readonly nodeColumn?: string;
 }
 
 /**
@@ -229,6 +239,8 @@ interface EdgesStepRead {
  */
 export interface LinkRead {
     readonly columns: readonly string[];
+    /** The nodes of `read.sourceSpace` hold the values, as the steps before build them; no row is read. */
+    readonly of?: "nodes";
     /** One node per shared value, keyed `<column>:<value>` in `read.targetSpace`; absent, one edge per pair. */
     readonly as?: "nodes";
     readonly maxShared: number;
@@ -252,7 +264,7 @@ export interface EdgesStep extends StepChoices, Translating {
     /** Minted by the element, unique among the source's steps and never reused (3.3). */
     readonly part: number;
     readonly read: EdgesStepRead;
-    /** Which end `via` translates; default `"target"`. */
+    /** Which end `via` or `nodeColumn` translates; default `"target"`. */
     readonly viaEnd?: "source" | "target";
     /**
      * Each row is a node: the edge's source or target end, or the node between the two ends, with an

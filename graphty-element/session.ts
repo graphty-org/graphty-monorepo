@@ -239,6 +239,7 @@ export type {
     SourceDraftCells,
     SourceDraftCellsQuery,
     SourceDraftChange,
+    SourceDraftColumn,
     SourceDraftElementsQuery,
     SourceDraftIds,
     SourceDraftMarkCounts,

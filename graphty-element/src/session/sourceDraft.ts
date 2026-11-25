@@ -35,9 +35,9 @@ import {
     untouchedNodes,
 } from "./sources/steps/drawnIds";
 import { clearPicksEdit, drillCells, drillElements, drillRows, exceptOf, pickAllEdit } from "./sources/steps/drill";
-import { matchCounts, matchValues, suggestMatches } from "./sources/steps/match";
+import { matchCounts, matchValues, suggestMatches, upTo } from "./sources/steps/match";
 import { contextIssues, type PreviewContext, previewOf } from "./sources/steps/preview";
-import { spaceProfile, tableHandle } from "./sources/steps/profile";
+import { spaceColumns, spaceProfile, tableHandle } from "./sources/steps/profile";
 import {
     buildOf,
     type Copies,
@@ -59,6 +59,7 @@ import type {
     SourceConnectOptions,
     SourceDraft,
     SourceDraftChange,
+    SourceDraftColumn,
     SourceDraftOptions,
     SourceDraftPreview,
     SourceDraftSpaceRow,
@@ -580,6 +581,12 @@ export class SourceDraftHandle implements SourceDraft {
     }
 
     /** @inheritdoc */
+    columns(space: string, options: { readonly before?: number } = {}): readonly SourceDraftColumn[] {
+        this.live("columns");
+        return spaceColumns(upTo(this.state.value, options.before), this.state.copies, space);
+    }
+
+    /** @inheritdoc */
     types(): readonly SourceTypeEntry[] {
         return this.state.value.types;
     }
@@ -735,6 +742,7 @@ export class SourceDraftHandle implements SourceDraft {
             return {
                 value: state.value,
                 copies: Object.keys(state.copies),
+                ...(Object.keys(rows).length === 0 ? {} : { rows }),
                 owned: [...state.owned],
                 ...(state.origins === undefined ? {} : { origins: state.origins }),
                 ...(state.questions === undefined ? {} : { questions: state.questions }),

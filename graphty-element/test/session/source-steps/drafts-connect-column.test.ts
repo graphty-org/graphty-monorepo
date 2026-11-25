@@ -134,4 +134,33 @@ describe("source-steps drafts: an edge from a column of a source in the graph", 
             assert.notStrictEqual(String(e.source), String(e.target), "an edge between two nodes");
         }
     });
+    it("connects door entries staged as edges to people and buildings, one edge per entry, read back", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        await session.data.import(csv("people.csv", "person,name", "P1,Ann", "P2,Bo"), {
+            key: "person",
+            type: "person",
+        });
+        const draft = session.data.draft();
+        const buildings = await draft.stage(csv("buildings.csv", "bldg,floors", "H1,4", "H2,9"), {
+            key: "bldg",
+            type: "building",
+        });
+        const doors = await draft.stage(
+            csv("doors.csv", "entry,person,bldg", "E1,P1,H1", "E2,P1,H2", "E3,P2,H1", "E4,P9,H1"),
+            { edges: { from: { column: "person" }, to: { column: "bldg" } } },
+        );
+        assert.strictEqual(draft.sourceTable(doors).summary().mapping.rows, "edges");
+        draft.connect({
+            from: { source: doors, field: "person" },
+            into: { space: "person" },
+            to: { field: "bldg", into: { source: buildings } },
+            edgeType: "entered",
+        });
+        const act = draft.steps().find((row) => row.source === doors)?.act;
+        assert.strictEqual(act?.act, "connect", "read back as the Connect that made it");
+        assert.strictEqual(act?.to?.field, "bldg");
+        await draft.commit();
+        assert.deepStrictEqual(drawn(session), ["P1->H1", "P1->H2", "P2->H1"], "P9 names no person");
+        session.dispose();
+    });
 });

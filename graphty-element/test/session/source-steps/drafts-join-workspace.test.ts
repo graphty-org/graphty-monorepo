@@ -63,6 +63,20 @@ describe("source-steps drafts: the join workspace's reads", () => {
         session.dispose();
     });
 
+    it("merge into a staged node 1 adds it first, so its rows' matches merge", async () => {
+        const { session, d, hr } = await opened();
+        const titles = await d.stage(csv("titles.csv", "badge,title\nb1,Lead\nB2,Tech\nB7,Temp"), { key: "badge" });
+        d.merge({ from: { source: titles, field: "badge" }, into: { source: hr }, ignoreCase: true });
+        assert.isTrue(
+            d.steps().some((row) => row.op === "join.add" && row.source === hr),
+            "the staged node 1 is added before the merge",
+        );
+        const merge = d.preview().steps.find((row) => row.op === "join.merge");
+        assert.strictEqual(merge?.buckets?.merged, 2, "b1 (ignoring case) and B2 meet HR's rows");
+        d.dispose();
+        session.dispose();
+    });
+
     it("suggestMatches proposes the column whose values meet a space's keys, best first", async () => {
         const { session, d, hr } = await opened();
         const [best] = d.suggestMatches(hr);

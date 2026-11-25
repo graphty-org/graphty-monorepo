@@ -188,6 +188,23 @@ function nodeSource(value: SourceSteps, copies: Copies, id: string): StepsSource
 }
 
 /**
+ * The source of a Connect whose rows each name both ends: its node rows, or, staged as edges, its
+ * edge rows, which name the ends by any of their fields as node rows do.
+ * @param value - The value.
+ * @param copies - The rows as read.
+ * @param id - The source's id.
+ * @returns The source and the table its rows are read from.
+ * @throws A `GraphtyError` with `E_STEP_NEEDS_NODES` when it holds no rows of either kind.
+ */
+function rowSource(value: SourceSteps, copies: Copies, id: string): { src: StepsSource; table: TableName } {
+    const src = sourceOf(value, id);
+    if (src.mapping.nodes === undefined && (copies[copyKey(src)]?.edges?.length ?? 0) > 0) {
+        return { src, table: "edges" };
+    }
+    return { src: nodeSource(value, copies, id), table: "nodes" };
+}
+
+/**
  * The source of Extract or Move columns, which must hold edge rows.
  * @param value - The value.
  * @param id - The source's id.
@@ -384,8 +401,14 @@ export function refuseBoth(op: Step["op"], repeated: string | null | undefined):
  * @param o - The choices.
  * @returns The next value.
  */
-function merge(value: SourceSteps, copies: Copies, o: MergeAct): SourceSteps {
+function merge(prior: SourceSteps, copies: Copies, o: MergeAct): SourceSteps {
     refuseBoth("join.merge", o.repeated);
+    // A staged node 1 is added first, as Connect adds it, so its nodes are there to merge into.
+    const s1 = o.into.source;
+    const value =
+        s1 !== undefined && s1 !== o.from.source && isStaged(prior, s1)
+            ? addSource(prior, sourceOf(prior, s1), copies, undefined)
+            : prior;
     const s2 = nodeSource(value, copies, o.from.source);
     const n1 = nodeOne(value, o.into);
     let next = value;
@@ -558,7 +581,7 @@ function connectRows(
             value = addSource(value, sourceOf(value, end), copies, undefined);
         }
     }
-    const rows = nodeSource(value, copies, o.from.source);
+    const { src: rows, table } = rowSource(value, copies, o.from.source);
     const n1 = nodeOne(value, o.into);
     const n2 = nodeOne(value, to.into);
     if (!n2.isKey) {
@@ -573,13 +596,14 @@ function connectRows(
     const two = { col: to.field, space: n2.space };
     const intoFrom = (o.direction ?? "into-from") === "into-from";
     const [a, b] = intoFrom ? [one, two] : [two, one];
-    const key = rows.mapping.nodes?.key;
+    // An edge row source keys each edge by its edge id column, if it names one, else by the row.
+    const key = table === "nodes" ? rows.mapping.nodes?.key : rows.mapping.edges?.edgeId;
     const step: EdgesStep = {
         op: "join.edges",
         source: rows.id,
         part: mint.part,
         read: {
-            table: "nodes",
+            table,
             source: a.col,
             sourceSpace: a.space,
             target: b.col,

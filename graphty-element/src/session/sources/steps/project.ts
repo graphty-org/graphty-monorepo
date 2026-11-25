@@ -1076,7 +1076,7 @@ function stepAct(value: SourceSteps, step: Step): StepAct | null {
         };
     }
     const src = value.sources[step.source] as Source | undefined;
-    if (step.op !== "join.edges" || step.read.table !== "nodes" || src === undefined) {
+    if (step.op !== "join.edges" || src === undefined || !(step.read.table === "nodes" || rowEdges(step, src))) {
         return null;
     }
     const { read } = step;
@@ -1109,6 +1109,26 @@ function stepAct(value: SourceSteps, step: Step): StepAct | null {
               }
             : {}),
     };
+}
+
+/**
+ * Whether a `join.edges` step reading edge rows is a Connect made from a source staged as edges
+ * (each row an edge between the two nodes it names), not an Extract: neither end is read as the
+ * source's own edge end, the column in the space its mapping gives it.
+ * @param step - The step.
+ * @param src - Its source.
+ * @returns True for a Connect.
+ */
+function rowEdges(step: Extract<Step, { op: "join.edges" }>, src: Source): boolean {
+    const m = src.mapping.edges;
+    if (step.read.table !== "edges" || src.mapping.nodes !== undefined || m === undefined) {
+        return false;
+    }
+    const own = ownSpace(src.id);
+    const mapped = (col: string, space: string): boolean =>
+        (col === m.source && space === (m.sourceSpace ?? own)) ||
+        (col === m.target && space === (m.targetSpace ?? own));
+    return !mapped(step.read.source, step.read.sourceSpace) && !mapped(step.read.target, step.read.targetSpace);
 }
 
 /**

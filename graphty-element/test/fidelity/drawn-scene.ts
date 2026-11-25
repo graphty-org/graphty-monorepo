@@ -32,7 +32,7 @@ import type { Graph } from "../../src/Graph";
 import type { AnnotationMeshMetadata } from "../../src/meshes/AnnotationMeshes";
 import type { ArrowCap, ArrowCapBatch } from "../../src/meshes/ArrowCapBatch";
 import { JOIN_FLOATS_PER_PIECE } from "../../src/meshes/edgeJoinShader";
-import type { EdgeLineBatch } from "../../src/meshes/EdgeLineBatch";
+import { type EdgeLineBatch, type EdgeLineMeta, patternSpacing } from "../../src/meshes/EdgeLineBatch";
 import { readLabelTable } from "../../src/meshes/labelTable";
 import { pointLists } from "../../src/meshes/nodeDecoration";
 import type { NodeDecorationPiece } from "../../src/meshes/NodeDecorationMesh";
@@ -1968,6 +1968,31 @@ function joinedDashes(
 }
 
 /**
+ * A pulled line's dashes or dots on screen ({@link joinedDashes} for a line drawn from the row table): each element is
+ * `elementLength` long and the elements sit `patternSpacing` apart along the line, as its shader spaces them.
+ * @param pattern - the batch's pattern, or undefined for a solid line
+ * @param world - the line's ends in the world
+ * @param p - the projector
+ * @returns element and gap lengths in pixels, or null for a solid line
+ */
+function pulledDashes(pattern: EdgeLineMeta["pattern"], world: readonly Vector3[], p: Projector): number[] | null {
+    if (pattern === undefined || world.length < 2) {
+        return null;
+    }
+    const [from, to] = [world[0], world[world.length - 1]];
+    const spacing = patternSpacing(pattern, Vector3.Distance(from, to));
+    if (!(spacing > 0)) {
+        return null;
+    }
+    const k = p.pxPerWorld(Vector3.Center(from, to));
+    const { dashes } = pattern as { dashes?: readonly number[] };
+    if (dashes !== undefined) {
+        return dashes.map((d) => d * k);
+    }
+    return [pattern.elementLength * k, Math.max(0, spacing - pattern.elementLength) * k];
+}
+
+/**
  * A patterned line's elements on screen, from their own drawn outlines: each element's extent along the line and the
  * gap to the next one, alternating, the last element's followed by the median gap. A billboarded element has no
  * outline to read, and then nothing is read.
@@ -2143,12 +2168,19 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         // a straight line pulled from the row table (`PulledLineBatch`) runs between its two node centers, stopped at
         // a translucent end's outline as its shader stops it (`PULLED_TRIM_GLSL`, the object line's bare ends), in the
         // color, opacity and width its piece carries (`PulledLineBatch.setLook`): the batched path's plain lines
+        // A line under a head pulled with it stops at the head's back (`lineInWorld`), and its dashes or dots are its
+        // pattern's, spaced along it as the shader spaces them (`patternSpacing`)
         const [src, dst] = [edge.srcNode.drawnPosition, edge.dstNode.drawnPosition];
-        world = [edgeInternals.bareEnd(edge, "source", src, dst), edgeInternals.bareEnd(edge, "target", dst, src)];
+        world = edgeInternals.lineInWorld(edge) ?? [
+            edgeInternals.bareEnd(edge, "source", src, dst),
+            edgeInternals.bareEnd(edge, "target", dst, src),
+        ];
         const { batch, piece } = internal.pulled;
         const look = batch as unknown as { rows: Float32Array; pieceFloats: number };
         const at = piece * look.pieceFloats;
-        const meta = batch.mesh.metadata as { joinedLine?: boolean } | null;
+        const meta = batch.mesh.metadata as { joinedLine?: boolean; pattern?: EdgeLineMeta["pattern"] } | null;
+        pattern = meta?.pattern?.kind ?? null;
+        dashPx = pulledDashes(meta?.pattern, world, p);
         thicknessPx = lineThickness(batch.mesh, Vector3.Center(world[0], world[1]), p, look.rows[at + 2]);
         screenFloored = thicknessPx > 0 && thicknessPx <= screenFloorOf(batch.mesh);
         color = hex({ r: look.rows[at + 4], g: look.rows[at + 5], b: look.rows[at + 6] });
@@ -2165,7 +2197,12 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
             ? cap.position.clone()
             : null;
     const tail = tip(edge.arrowTailCap, internal.drawnStyle?.arrowTail?.position);
-    const head = tip(edge.arrowCap, internal.drawnStyle?.arrowHead?.position);
+    // a head pulled from the row table with its line has no cap of its own: its tip is on the target's outline
+    const pulledTip =
+        edge.arrowCap === null && internal.pulled !== null && edge.drawnCaps.some((c) => c.end === "arrowHead")
+            ? (edge.getInterceptPoints().dstPoint?.clone() ?? null)
+            : null;
+    const head = tip(edge.arrowCap, internal.drawnStyle?.arrowHead?.position) ?? pulledTip;
     const [lineFrom, lineTo] = [world.at(0), world.at(-1)];
     if (world.length >= 2 && tail !== null) {
         world = [tail, ...world.slice(1)];

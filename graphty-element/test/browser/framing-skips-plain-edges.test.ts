@@ -140,6 +140,9 @@ for (const path of ["objects", "batched"] as const) {
         it("walks no edge of a graph of plain straight lines", async () => {
             const { edges } = chain(false);
             const element = await mounted(path, edges);
+            // Under "batched" an arrowed straight edge is a row line with no `Edge` until something reads it: read
+            // them all, so the walk has an `Edge` for every line to leave out, as on "objects".
+            assert.lengthOf([...element.graph.getDataManager().edges.values()], edges.length);
             const { walked, everyEdge, skipped, unskipped } = await measureWhileMoving(element, 3);
 
             assert.deepEqual(walked, [0, 0, 0], "no plain edge grows the box");

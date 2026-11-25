@@ -470,6 +470,11 @@ export const dataManagerInternals = {} as {
     incidentEdgeIds(manager: DataManager, id: NodeIdType): EdgeId[];
     /** The built `Edge`s at a node, building none. */
     builtEdgesAt(manager: DataManager, id: NodeIdType): Iterable<Edge>;
+    /**
+     * The edges at a node row, building nothing: its built `Edge`s and the rows of every live edge attached to it,
+     * read from the store's incidence lists, so O(degree).
+     */
+    edgesAtRow(manager: DataManager, row: number): { built: Iterable<Edge>; rows: number[] };
     /** The id of a row stored with no `Node` yet, or undefined when a `Node` draws it or none is stored there. */
     unbuiltAt(manager: DataManager, index: number): NodeIdType | undefined;
     /** The record of a row stored with no `Node` yet, or undefined when a `Node` draws it or none is stored there. */
@@ -875,6 +880,22 @@ export class DataManager implements Manager {
         dataManagerInternals.builtNode = (manager, id) => manager.nodeMap.builtOf(id);
         dataManagerInternals.incidentEdgeIds = (manager, id) => manager.incidentEdgeIdsOf(id);
         dataManagerInternals.builtEdgesAt = (manager, id) => manager.builtEdgesOf(id);
+        dataManagerInternals.edgesAtRow = (manager, row) => {
+            const id = manager.nodeIdAtRow(row);
+            if (id === undefined) {
+                return { built: [], rows: [] };
+            }
+
+            const rows: number[] = [];
+            for (const counter of manager.store.incidentEdgeIds([id])) {
+                const edgeRow = manager.store.edgeIndexOf(counter);
+                if (edgeRow !== INVALID_INDEX) {
+                    rows.push(edgeRow);
+                }
+            }
+
+            return { built: manager.builtEdgesOf(id), rows };
+        };
         dataManagerInternals.unbuiltAt = (manager, index) => manager.unbuilt.get(index)?.id;
         dataManagerInternals.unbuiltRecord = (manager, index) => {
             const row = manager.unbuilt.get(index);
@@ -3681,14 +3702,17 @@ export class DataManager implements Manager {
             stored.record === IN_SLICE
                 ? (this.graph.slice.edges.get(edgeIdOf(stored.edgeId)) ?? IN_SLICE)
                 : stored.record;
-        const paint = this.graphContext?.getStylePainter?.()?.edgePaint(row) ?? null;
+        const painter = this.graphContext?.getStylePainter?.();
+        const paint = painter?.edgePaint(row) ?? null;
+        // A row a pass is still to paint takes that paint then, once: painted now as well, it was painted twice.
+        const owed = painter?.isEdgePending(row) === true;
         // Painted in this pass (`queue` false): built from that paint, not from the placeholder the paint would
         // replace at once. Built from the placeholder, each such edge took a cap and a line slot and gave them
         // straight back, and a batch whose last slot leaves is disposed: on "batched", where edges are built one
         // at a time as they are painted, every edge built and disposed whole batches (issue #9181).
         const edge = this.makeEdge({ ...stored, record }, false, queue, queue ? null : paint);
         // A row a style hides draws no line to pull, but its `Edge` must not read as drawn until the next frame.
-        if (queue && paint !== null && (lined || paint.style.visible === false)) {
+        if (queue && !owed && paint !== null && (lined || paint.style.visible === false)) {
             edge.applySessionPaint(paint);
         }
 

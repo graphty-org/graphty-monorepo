@@ -113,18 +113,18 @@ describe("source-steps: a source's tables and profiles", () => {
 
     it("gives a file that names no key no id column, whatever key is picked for it", async () => {
         const session = createGraphSession({ features: ["source-steps"] });
-        const accounts = await session.data.stage(csv("accounts.csv", "account_id,name", "AC1,Ann", "AC2,Bo"));
+        const accounts = await session.data.stage(csv("accounts.csv", "account,name", "AC1,Ann", "AC2,Bo"));
         const ids = await session.data.stage(
-            csv("account_identifiers.csv", "account_id,phone", "AC1,+1555", "AC1,+1556", "AC2,+1557"),
+            csv("accountentifiers.csv", "account,phone", "AC1,+1555", "AC1,+1556", "AC2,+1557"),
         );
         const facts = session.data.sourceTable(ids).summary();
-        assert.sameMembers([...(facts.tables[0]?.columns ?? [])], ["account_id", "phone"]);
+        assert.sameMembers([...(facts.tables[0]?.columns ?? [])], ["account", "phone"]);
         assert.isUndefined(facts.mapping.key, "its rows are keyed by their place");
-        await session.data.setMapping(accounts, { nodes: { key: "account_id" } });
+        await session.data.setMapping(accounts, { nodes: { key: "account" } });
 
         const draft = session.data.draft();
         draft.merge({
-            from: { source: ids, field: "account_id" },
+            from: { source: ids, field: "account" },
             into: { source: accounts },
             aggregate: { "*": "list" },
         });
@@ -140,11 +140,11 @@ describe("source-steps: a source's tables and profiles", () => {
         );
         assert.deepStrictEqual(
             draft.columns(`source:${accounts}`).map((each) => each.name),
-            ["account_id", "name", "phone"],
+            ["account", "name", "phone"],
         );
         const at = steps.findIndex((step) => step.op === "join.merge");
         const [row] = draft.preview().rows({ step: at, bucket: "merged" }).rows;
-        assert.deepStrictEqual(row?.incoming, { account_id: "AC1", phone: "+1555" });
+        assert.deepStrictEqual(row?.incoming, { account: "AC1", phone: "+1555" });
         await draft.commit();
         assert.deepInclude(session.data.node("AC1"), { id: "AC1", phone: ["+1555", "+1556"] });
 
@@ -153,7 +153,7 @@ describe("source-steps: a source's tables and profiles", () => {
         const reopened = createGraphSession({ features: ["source-steps"] });
         await reopened.project.open(text);
         const back = reopened.data.sourceTable(ids).summary();
-        assert.sameMembers([...(back.tables[0]?.columns ?? [])], ["account_id", "phone"]);
+        assert.sameMembers([...(back.tables[0]?.columns ?? [])], ["account", "phone"]);
         assert.isUndefined(back.mapping.key);
         assert.deepStrictEqual(reopened.data.nodes(), session.data.nodes());
         session.dispose();
@@ -162,16 +162,16 @@ describe("source-steps: a source's tables and profiles", () => {
 
     it("reads a newer copy of a file that names no key by its rows' places again", async () => {
         const session = createGraphSession({ features: ["source-steps"] });
-        const ids = await session.data.stage(csv("ids.csv", "account_id,phone", "AC1,+1555", "AC1,+1556"));
+        const ids = await session.data.stage(csv("ids.csv", "account,phone", "AC1,+1555", "AC1,+1556"));
         await session.data.add(ids);
         assert.strictEqual(session.data.statistics().nodeCount, 2);
         const held = (): boolean[] => session.data.steps().map((step) => step.held);
         assert.deepStrictEqual(held(), [false]);
-        await session.data.replaceSource(ids, csv("ids.csv", "account_id,phone", "AC1,+1555", "AC1,+1556", "AC2,+1"));
+        await session.data.replaceSource(ids, csv("ids.csv", "account,phone", "AC1,+1555", "AC1,+1556", "AC2,+1"));
         assert.deepStrictEqual(held(), [false]);
         assert.strictEqual(session.data.statistics().nodeCount, 3);
         const columns = session.data.sourceTable(ids).summary().tables[0]?.columns ?? [];
-        assert.sameMembers([...columns], ["account_id", "phone"]);
+        assert.sameMembers([...columns], ["account", "phone"]);
         session.dispose();
     });
 

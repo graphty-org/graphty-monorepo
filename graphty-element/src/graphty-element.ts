@@ -5672,10 +5672,15 @@ export class Graphty extends LitElement {
      * @since 2.0.0
      */
     get pinnedNodes(): ReadonlySet<string | number> {
+        // From the pin column `Node.isPinned` reads, by row: walking the nodes built a `Node` for
+        // every row stored with none on renderPath "batched" (issue #10023).
+        const manager = this.#graph.getDataManager();
+        const { positions } = manager;
         const pinned = new Set<string | number>();
-        for (const node of this.#graph.getDataManager().nodes.values()) {
-            if (node.isPinned()) {
-                pinned.add(node.id);
+        for (let row = 0; row < positions.count; row++) {
+            const id = positions.isPinned(row) ? manager.nodeIdAtRow(row) : undefined;
+            if (id !== undefined) {
+                pinned.add(id);
             }
         }
 
@@ -5736,6 +5741,10 @@ export class Graphty extends LitElement {
 
     /**
      * Get all edges in the graph. `session.data.edges()` lists the same edges as plain records.
+     *
+     * On the `"batched"` render path an edge's `Edge` is built when its element of the array is
+     * first read: the call and `length` stay cheap, but walking the whole array builds every `Edge`.
+     * Walk {@link getEdgeIds} instead to enumerate a large graph.
      * @returns Array of all edges
      * @since 3.40.0
      * @example
@@ -5746,6 +5755,21 @@ export class Graphty extends LitElement {
      */
     getEdges(): import("./Edge").Edge[] {
         return this.#graph.getEdges();
+    }
+
+    /**
+     * Get the id of every edge, building no `Edge` object: the way to enumerate the edges of a
+     * large graph on the `"batched"` render path, where walking all of {@link getEdges} builds an
+     * `Edge` for every row.
+     * @returns The ids, in the order `getEdges()` returns the edges.
+     * @since 3.40.0
+     * @example
+     * ```typescript
+     * console.log('Edges:', element.getEdgeIds().length);
+     * ```
+     */
+    getEdgeIds(): string[] {
+        return this.#graph.getEdgeIds();
     }
 
     /**

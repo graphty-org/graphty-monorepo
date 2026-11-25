@@ -514,6 +514,8 @@ export const dataManagerInternals = {} as {
      * the order `nodes` walks them.
      */
     nodeList(manager: DataManager): Node[];
+    /** Every edge as an array, building none until its element is read, as {@link nodeList} does for nodes. */
+    edgeList(manager: DataManager): Edge[];
     /**
      * How the current layout engine is handed a row stored with no `Node`: a function given the
      * ids of each arrival's such rows (a no-op for an engine that reads every row of the
@@ -937,6 +939,7 @@ export class DataManager implements Manager {
         dataManagerInternals.buildRow = (manager, id) => manager.buildRow(id);
         dataManagerInternals.buildRowsTogether = (manager, work) => manager.buildRowsTogether(work);
         dataManagerInternals.nodeList = (manager) => manager.nodeMap.lazyValues();
+        dataManagerInternals.edgeList = (manager) => manager.edgeMap.lazyValues();
         dataManagerInternals.buildAll = (manager) => {
             manager.buildRowsTogether(() => {
                 for (const id of manager.unbuiltRows.ids()) {

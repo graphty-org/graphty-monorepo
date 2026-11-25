@@ -2798,6 +2798,16 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
     }
 
     /**
+     * Take what the element wrote into its array for rows stored with no `Node` (renderPath "batched"), as
+     * {@link StaticLayoutEngine.setNodePosition} takes a node's place: into the answer only, so a stale layout
+     * still recomputes; see {@link StaticLayoutEngine.loadArrangement}.
+     * @internal
+     */
+    takeRows(): void {
+        this.#adoptRows();
+    }
+
+    /**
      * Keep the arrangement in the array, as {@link StaticLayoutEngine.loadArrangement} does, when this
      * engine already holds the array as it is.
      * @internal

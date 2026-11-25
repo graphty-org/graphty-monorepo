@@ -3382,6 +3382,7 @@ export class Graph implements GraphContext {
     // @internal
     getDrawnTarget(): DrawnTarget | null;
     getEdgeCount(): number;
+    getEdgeIds(): string[];
     // @internal
     getEdgeIdTarget(): EdgeIdTarget | null;
     // @internal
@@ -3980,6 +3981,7 @@ export class Graphty extends LitElement {
     };
     getDataManager(): DataManager;
     getEdgeCount(): number;
+    getEdgeIds(): string[];
     getEdges(): Edge[];
     getEventManager(): EventManager;
     getLayoutManager(): LayoutManager;

@@ -1,5 +1,5 @@
 import { ModalFooter } from "@graphty/compact-mantine";
-import { Button, Modal } from "@mantine/core";
+import { Button, getDefaultZIndex, Modal } from "@mantine/core";
 import React from "react";
 
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -29,7 +29,13 @@ export function DraftOpenDialog(): React.JSX.Element | null {
         }
     };
     return (
-        <Modal opened={asked !== null} onClose={close} title={PREVIEW_WORDS.draftOpen}>
+        // Above the join workspace and the drawing it lays over itself, where the question is met.
+        <Modal
+            opened={asked !== null}
+            onClose={close}
+            title={PREVIEW_WORDS.draftOpen}
+            zIndex={getDefaultZIndex("popover")}
+        >
             <ModalFooter>
                 <Button variant="default" onClick={close} data-autofocus>
                     {STAGED_WORDS.cancel}

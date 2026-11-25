@@ -226,13 +226,33 @@ session.data.nodeRef("B1"); // once added: { space: "person", key: "B1" }
 session.data.spaces().filter((row) => row.ownedBy !== undefined); // spaces no load named
 ```
 
+A join reads a source's rows whether they are nodes or edges, and a Connect has two options for
+rows that name both ends: `to.keepRow` keeps each row as a node between the two ends, and
+`existing: "merge"` folds a row's columns into the edge that already joins its ends instead of
+adding another (`editStep` takes it too). Merge on rows read as edges folds each row's columns into
+the node it names. `draft.suggestMatches(source)` proposes the fields to match.
+
+```ts
+const doors = await draft.stage(doorsCsv, { edges: { from: { column: "person" }, to: { column: "bldg" } } });
+const ends = {
+    from: { source: doors, field: "person" },
+    into: { space: "person" },
+    to: { field: "bldg", into: { space: "building" } },
+};
+draft.connect({ ...ends, existing: "merge" }); // one edge per entry, or the edge already there
+const at = draft.steps().length - 1;
+draft.replaceStep(at, { act: "connect", options: { ...ends, to: { ...ends.to, keepRow: true } } });
+draft.steps()[at]?.act?.to?.keepRow; // true: each entry is a node between a person and a building
+```
+
 `preview()` compares the draft's graph with the committed one, counted over every row: totals and
 counts per type `before` and `after`; nodes and edges added, removed and changed; and for each
 step its counts (`buckets`) and their change from the committed ones:
 
 | Count                                                  | What it counts                                                           |
 | ------------------------------------------------------ | ------------------------------------------------------------------------ |
-| `merged`                                               | nodes a merge folds into the node they matched                           |
+| `merged`                                               | nodes, or edge rows, a merge folds into the node they matched            |
+| `mergedEdges`                                          | edges a Connect's rows folded into (`existing: "merge"`)                 |
 | `matched`, `unmatched`                                 | rows whose key found the element they write to, or none                  |
 | `fanOut`                                               | rows whose key names several elements, so they are left out              |
 | `untouched`                                            | nodes of the merged space no row reached                                 |
@@ -253,11 +273,11 @@ shown and whether a pick decided it; `editStep(step, { clash })` changes a colum
 `graphty.draft` (`"merged"`, `"new"`, `"changed"`, `"removed"` or `"unchanged"`) for a style layer
 to show, and `draft.show("before" | "after")` switches between the graph as it is and as the
 commit would leave it. `session.styles.showDraft({ merged, new })` draws the join preview in the
-two colors you pass: a ring on each node the commit would merge, a dashed border on each node it
-would add, and each edge it would add dashed. It suspends the style layers while it is drawn (they
+two colors you pass: a ring on each node the commit would merge, each edge it would fold a row into
+in that color, a dashed border on each node it would add, and each edge it would add dashed. It suspends the style layers while it is drawn (they
 stay listed, and it is no undo step), is never saved, and its `end()` takes it off.
 `preview.marks` counts what it marks, in all and as `nodes: { merged, new, untouched }` and
-`edges: { new }`. `draft.spaces()` lists the id spaces as the draft builds them, each with the
+`edges: { merged, new }`. `draft.spaces()` lists the id spaces as the draft builds them, each with the
 staged source a step of the draft adds into it (`staged`), so a space the draft made can be named
 by its source. Each change fires `data:draft-changed` with a `reason` (`"opened"`,
 `"changed"`, `"committed"`, `"discarded"`).

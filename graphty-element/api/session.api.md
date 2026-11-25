@@ -7732,6 +7732,7 @@ export interface SourceConflictQuery {
 export interface SourceConnectOptions {
     readonly direction?: "into-from" | "from-into";
     readonly edgeType?: SourceTypeName;
+    readonly existing?: "add" | "merge";
     readonly from: SourceField;
     readonly ignoreCase?: boolean;
     readonly ignoreSpaces?: boolean;
@@ -7740,6 +7741,7 @@ export interface SourceConnectOptions {
     readonly to?: {
         readonly field: string;
         readonly into: SourceJoinInto;
+        readonly keepRow?: boolean;
     };
     readonly unmatched?: "skip" | "add";
 }
@@ -7880,6 +7882,7 @@ export interface SourceDraftIds {
 // @public
 export interface SourceDraftMarkCounts {
     readonly edges: {
+        readonly merged: number;
         readonly new: number;
     };
     readonly merged: number;
@@ -8600,6 +8603,7 @@ export interface SourceStepAct {
     readonly aggregate: Readonly<Record<string, JoinReduce>> | null;
     readonly direction?: "into-from" | "from-into";
     readonly edgeType?: SourceTypeName;
+    readonly existing?: "add" | "merge";
     readonly from: SourceField;
     readonly ignoreCase: boolean;
     readonly ignoreSpaces: boolean;
@@ -8613,6 +8617,7 @@ export interface SourceStepAct {
         readonly into: {
             readonly space: SourceSpaceName;
         };
+        readonly keepRow?: boolean;
     };
     readonly unmatched?: "skip" | "add";
     readonly unmatchedFrom?: "keep" | "drop";
@@ -8632,6 +8637,7 @@ export interface SourceStepCounts {
     readonly keptNew: number;
     readonly matched: number;
     readonly merged: number;
+    readonly mergedEdges: number;
     readonly namedOnly: number;
     readonly newEdges: number;
     readonly newEdgeTypes: Readonly<Record<SourceTypeName, number>>;
@@ -8675,6 +8681,7 @@ export interface SourceStepPatch {
     readonly aggregate?: Readonly<Record<string, JoinReduce>> | null;
     readonly clash?: SourceClashRule | Readonly<Record<string, SourceClashRule>>;
     readonly except?: SourceRowFilter | null;
+    readonly existing?: "add" | "merge";
     readonly ignoreCase?: boolean;
     readonly ignoreSpaces?: boolean;
     readonly off?: boolean;

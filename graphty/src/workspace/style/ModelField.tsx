@@ -266,7 +266,14 @@ function shapeList(args: LineHelpers, base: AssetLine | undefined, state: ShapeL
             return true;
         }
         if (typeof value === "string" && value.startsWith(REPLACE_PICK) && family !== undefined) {
-            pickReplace(ctx, family, value.slice(REPLACE_PICK.length)).catch(fail);
+            const id = value.slice(REPLACE_PICK.length);
+            // From a basic shape or a model, a family switch, which holds what the row left for a switch back; from
+            // another shader, only the shader changes.
+            const done =
+                shader === undefined && now !== undefined
+                    ? switchMember(ctx, family, members, now, `${SHADER_MEMBER}${id}`, id)
+                    : pickReplace(ctx, family, id);
+            done.catch(fail);
             return true;
         }
         if (base?.pick(value) === true) {

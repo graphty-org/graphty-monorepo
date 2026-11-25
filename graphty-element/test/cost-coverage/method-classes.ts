@@ -1280,6 +1280,7 @@ export const READ_ONLY: readonly string[] = [
     // The drill-down lists what one count counted in the build the preview already made.
     "SourceDraftPreview.cells",
     "SourceDraftPreview.elements",
+    "SourceDraftPreview.ids",
     "SourceDraftPreview.rows",
     // A source draft's acts change only the draft, which nothing saves; its commit is MUTATING.
     "SourceDraft.add",
@@ -1302,12 +1303,15 @@ export const READ_ONLY: readonly string[] = [
     "SourceDraft.removeEdit",
     "SourceDraft.removeSource",
     "SourceDraft.removeStep",
+    "SourceDraft.replaceStep",
     "SourceDraft.renameColumn",
     "SourceDraft.setMapping",
     "SourceDraft.stage",
     "SourceDraft.steps",
     "SourceDraft.types",
     "SourceDraft.undo",
+    "SourceDraft.batch",
+    "SourceDraft.suggestMatches",
     "SourceDraft.use",
     "SessionDataApi.types",
     "SessionDataApi.valueCounts",

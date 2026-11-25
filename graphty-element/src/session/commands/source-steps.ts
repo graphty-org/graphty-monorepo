@@ -92,6 +92,8 @@ function actSource(act: StepsAct): string | null {
         case "merge":
         case "connect":
             return act.options.from.source;
+        case "replace-step":
+            return act.with.options.from.source;
         case "rename":
             return act.rename.source;
         case "remove-step":
@@ -113,6 +115,7 @@ const ACT_LABELS: Readonly<Record<StepsAct["act"], string>> = {
     pick: "Picked a value",
     "remove-step": "Deleted a step",
     "move-step": "Moved a step",
+    "replace-step": "Changed a join",
     "set-step-off": "Turned a step off or on",
     "add-staged": "Added a staged source",
     "set-mapping": "Changed a staged source's mapping",

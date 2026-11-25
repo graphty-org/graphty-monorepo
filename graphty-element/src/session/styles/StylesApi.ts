@@ -143,7 +143,7 @@ import { resolutionBehind } from "../scope/ScopeApi";
 import { sealedSet } from "../sealed";
 import type { Resolution } from "../sets/resolve";
 import type { CodedFact, ColumnRef } from "../shared";
-import type { HistoryCause } from "../types";
+import type { HistoryCause, SourceElementRef } from "../types";
 import { valueLabelsAt } from "../valueLabels";
 import { type HiddenNotDrawn, hiddenNotDrawn } from "../visibility/VisibilityApi";
 import { beneathAuthored, placementLayers } from "./autoApply";
@@ -538,7 +538,50 @@ export interface DraftView {
     readonly merged: string;
     /** The dashed border's color on each node the commit would add, and each edge it would add. */
     readonly new: string;
+    /**
+     * A dotted border's color on each node of a space a step joins into that no row of the step
+     * reached. Absent, those nodes keep the base look.
+     */
+    readonly untouched?: string;
+    /** `"faint"` draws every element the view does not mark faint; absent or `"plain"`, at the base look. */
+    readonly rest?: "faint" | "plain";
+    /**
+     * Elements drawn at full strength, the rest faint: one step's (by its place in `draft.steps()`)
+     * or a list of element references. Read when the view is shown: show it again after the draft
+     * changes.
+     */
+    readonly mark?:
+        | {
+              /** The step's place in `draft.steps()`. */
+              readonly step: number;
+          }
+        | {
+              /** The elements to mark. */
+              readonly refs: readonly SourceElementRef[];
+          };
+    /**
+     * Colors by step instead of by what the commit does: each listed step's merged nodes get a ring,
+     * its new nodes and edges a dashed border, and its untouched nodes a dotted border, all in the
+     * step's color; `merged`, `new` and `untouched` then draw only what no listed step drew. Read
+     * when the view is shown: show it again after the draft changes.
+     */
+    readonly steps?: readonly {
+        /** The step's place in `draft.steps()`. */
+        readonly step: number;
+        /** The step's color, any CSS color. */
+        readonly color: string;
+    }[];
 }
+
+/**
+ * Some counts of a draft's step, element references, or the draft's untouched nodes, whose session
+ * ids a draft view reads.
+ * @internal
+ */
+export type DraftIdsQuery =
+    | { readonly refs: readonly SourceElementRef[] }
+    | { readonly step: number; readonly buckets: readonly string[] }
+    | { readonly untouched: true };
 
 /**
  * The style stack, the verbs that change it, and the three questions a reader asks of it.
@@ -576,7 +619,16 @@ export interface StylesApi {
      * @returns Ends the view, the stack's picture back in the same repaint.
      * @beta
      */
-    showDraft(view: DraftView): { end(): void };
+    showDraft(view: DraftView): {
+        /** Ends the view, the stack's picture back in the same repaint. */
+        end(): void;
+    };
+    /**
+     * The draft view drawn now, as it was given, or null: what a key beside the canvas describes.
+     * Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    readonly shownDraft: DraftView | null;
     /**
      * Whether a branches view is drawn now; `style:branches-shown-changed` tells each change.
      * Experimental: may change or be removed in a minor release.
@@ -1789,6 +1841,13 @@ export interface StylesSources {
      */
     readonly holdCondition?: (id: string | null, all?: boolean) => void;
     /**
+     * The session ids of some elements of the drawn source draft, which `showDraft` marks and
+     * colors by step; null while no draft is drawn.
+     */
+    readonly draftIds?: (
+        query: DraftIdsQuery,
+    ) => { readonly nodes: readonly NodeId[]; readonly edges: readonly EdgeId[] } | null;
+    /**
      * A number that moves whenever the data or the run results change, which is half of what
      * {@link StyleCounts.revision} is made of. Absent, only style changes move it.
      */
@@ -2298,7 +2357,11 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
     /** The branches view drawn now, and the layers it draws. */
     // A draft view (`showDraft`) is held here too, with no branches view to tell.
-    let branchesShown: { readonly layers: readonly CompiledLayer[]; readonly view: BranchesView | null } | null = null;
+    let branchesShown: {
+        readonly layers: readonly CompiledLayer[];
+        readonly view: BranchesView | null;
+        readonly draft?: DraftView;
+    } | null = null;
     /** One suspended stand-in per layer, so a repaint sees the same object each time. */
     const suspended = new WeakMap<CompiledLayer, CompiledLayer>();
 
@@ -4727,11 +4790,14 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             };
         },
 
-        showDraft(view: DraftView): { end(): void } {
-            const layers = draftLayers(view, current(), check);
+        showDraft(view: DraftView): {
+            /** Ends the view, the stack's picture back in the same repaint. */
+            end(): void;
+        } {
+            const layers = draftLayers(view, current(), check, sources.draftIds);
             const replaced = branchesShown?.view ?? null;
             const before = painting(current());
-            const shown = { layers, view: null };
+            const shown = { layers, view: null, draft: Object.freeze({ ...view }) };
             branchesShown = shown;
             shownKeys = [];
             if (replaced !== null) {
@@ -4761,6 +4827,10 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
         get shownBranches(): BranchesView | null {
             return branchesShown?.view ?? null;
+        },
+
+        get shownDraft(): DraftView | null {
+            return branchesShown?.draft ?? null;
         },
 
         compiled(): readonly CompiledLayer[] {

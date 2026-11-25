@@ -270,6 +270,7 @@ export {
     listShares,
     readChannelList,
     setListShare,
+    supersedingValue,
     UNSET_LIST_ITEM,
     writeChannelList,
 } from "./src/catalog/channelValues";

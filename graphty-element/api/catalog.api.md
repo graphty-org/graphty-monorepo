@@ -3799,6 +3799,9 @@ export interface SuggestedName {
 }
 
 // @public
+export function supersedingValue(channel: Channel, read: (other: Channel) => unknown): string | undefined;
+
+// @public
 export type TableAlign = "left" | "right" | "center";
 
 // @public

@@ -10,7 +10,7 @@
  */
 
 import { cssWords, shareSizes } from "../meshes/nodeDecoration";
-import { type ChannelDescriptor, channelDescriptor } from "../session/styles/channels";
+import { asColorValue, type ChannelDescriptor, channelDescriptor, toColorValue } from "../session/styles/channels";
 import { EDGE_ARROW_DESCRIPTORS, EDGE_LINE_DESCRIPTORS, type GlyphDescriptor, NODE_SHAPE_DESCRIPTORS } from "./shapes";
 import type { Channel } from "./types";
 
@@ -188,6 +188,38 @@ export function readChannelList(
             ? numbers.map((number) => (Number.isFinite(number) ? number : undefined))
             : numbers.filter((number) => Number.isFinite(number)),
     );
+}
+
+/** Where a node's gradient starts while no layer paints the node a color: the neutral fill the renderer draws. */
+export const UNPAINTED_NODE_HEX = "#FFFFFF";
+
+/**
+ * The value of the channel that replaced an older spelling (`ChannelDescriptor.supersededBy`), as the renderer draws
+ * what a row writes in that spelling: `node.gradientColor` "#0000ff" over `node.color` "#ff0000" draws the gradient
+ * list (`node.gradientColors`) "#FF0000 #0000FF". An editor of the replacing channel starts from it, and writing the
+ * replacing channel leaves the older spelling nothing to draw.
+ *
+ * ```ts
+ * const read = (channel: Channel) => layer.set?.[channel];
+ * supersedingValue("node.gradientColor", read); // "#FF0000 #0000FF"
+ * ```
+ * @param channel - The older spelling, such as `"node.gradientColor"`.
+ * @param read - What the row holds for a channel; undefined where it sets none (or binds it to data).
+ * @returns The replacing channel's value, or undefined when the row writes no value of the older spelling, or the
+ *     channel replaces nothing.
+ * @since 3.70.0
+ */
+export function supersedingValue(channel: Channel, read: (other: Channel) => unknown): string | undefined {
+    if (channel !== "node.gradientColor") {
+        return undefined;
+    }
+    // A row holds a color as written (a hex, a CSS name); a resolved style holds the parsed color.
+    const hex = (value: unknown): string | undefined =>
+        (asColorValue(value) ?? (typeof value === "string" ? toColorValue(value) : null))?.hex
+            .slice(0, 7)
+            .toUpperCase();
+    const to = hex(read(channel));
+    return to === undefined ? undefined : `${hex(read("node.color")) ?? UNPAINTED_NODE_HEX} ${to}`;
 }
 
 /**

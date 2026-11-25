@@ -11,6 +11,7 @@ import {
     listShares,
     readChannelList,
     setListShare,
+    supersedingValue,
     writeChannelList,
 } from "../../catalog";
 
@@ -80,5 +81,31 @@ describe("positional list items", () => {
         const base = "0.5 0.3 0.2";
         setListShare("node.stripeSizes", base, 3, 0, 1);
         assert.equal(setListShare("node.stripeSizes", base, 3, 0, 0.5), "0.5 0.3 0.2");
+    });
+});
+
+describe("supersedingValue", () => {
+    const row =
+        (values: Readonly<Record<string, unknown>>) =>
+        (channel: string): unknown =>
+            values[channel];
+
+    it("draws node.gradientColor as the gradient list from the node's color", () => {
+        assert.strictEqual(
+            supersedingValue("node.gradientColor", row({ "node.color": "#ff0000", "node.gradientColor": "#0000ff" })),
+            "#FF0000 #0000FF",
+        );
+    });
+
+    it("starts from the unpainted fill where the row paints no color", () => {
+        assert.strictEqual(
+            supersedingValue("node.gradientColor", row({ "node.gradientColor": "blue" })),
+            "#FFFFFF #0000FF",
+        );
+    });
+
+    it("answers nothing without a value of the older spelling, or for a channel that replaces nothing", () => {
+        assert.isUndefined(supersedingValue("node.gradientColor", row({ "node.color": "#ff0000" })));
+        assert.isUndefined(supersedingValue("node.color", row({ "node.color": "#ff0000" })));
     });
 });

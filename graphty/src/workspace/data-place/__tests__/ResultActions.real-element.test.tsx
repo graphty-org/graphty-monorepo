@@ -18,7 +18,7 @@ import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { withFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { REGISTRATIONS } from "../../registrations";
-import { createWorkspaceStore } from "../../state/store";
+import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
 // Every experiment stays off here.
@@ -32,12 +32,12 @@ afterEach(() => {
  * The workspace on Les Miserables, with one finished result.
  * @param algorithm - the result's algorithm.
  * @param params - its settings.
- * @returns the session and the result's id.
+ * @returns the session, the chrome store and the result's id.
  */
 async function withResult(
     algorithm: string,
     params: Record<string, unknown> = {},
-): Promise<{ session: GraphSession; id: string }> {
+): Promise<{ session: GraphSession; store: WorkspaceStore; id: string }> {
     await page.viewport(1440, 900);
     const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 }, place: "data" });
     render(<Workspace store={store} registrations={REGISTRATIONS} />);
@@ -53,7 +53,7 @@ async function withResult(
     const run = session.runs.start(algorithm, params);
     await run;
     await userEvent.click(await screen.findByRole("tab", { name: "Calculated" }));
-    return { session, id: run.id };
+    return { session, store, id: run.id };
 }
 
 /**
@@ -183,7 +183,7 @@ describe("a result row's Run again with changes...", () => {
 
 describe("a result row's Combine into a score...", () => {
     it("opens Custom score on the result's metric, adds a second weighted metric, and creates the column", async () => {
-        const { session, id } = await withResult("pagerank");
+        const { session, store, id } = await withResult("pagerank");
         const degree = session.runs.start("degree", {});
         await degree;
 
@@ -196,6 +196,11 @@ describe("a result row's Combine into a score...", () => {
         const weight = await within(dialog).findByRole("spinbutton", { name: /^Weight 2/ });
         await userEvent.tripleClick(weight);
         await userEvent.keyboard("2{Tab}");
+        // The rows being built live in the kept store, so a reload reopens the dialog on them.
+        assert.deepEqual(
+            store.get().scoreOn?.terms.map((term) => term.weight),
+            [1, 2],
+        );
         await userEvent.click(within(dialog).getByRole("button", { name: "Create" }));
 
         await waitFor(() => {

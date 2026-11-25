@@ -49,6 +49,7 @@ const ITEM_KEYS: Readonly<Record<string, string>> = { "source.export": "Mod+E", 
  */
 function IssuesChip({ source, name }: Readonly<{ source: LoadedSource; name: string }>): React.JSX.Element | null {
     const { session } = useWorkspace();
+    // on reload: fresh: pointer: the issue list opened for a look
     const [opened, setOpened] = useState(false);
     const count = session?.data.issues().filter((issue) => issue.source === source.key).length ?? 0;
     if (count === 0 && !opened) {
@@ -145,8 +146,10 @@ export function SourceRow({
 }: Readonly<{ source: LoadedSource; selected: boolean; onSelect: () => void }>): React.JSX.Element {
     const workspace = useWorkspace();
     const { session, registry, store } = workspace;
+    // on reload: fresh: in flight: a rename under way; the load keeps its name until one is saved
     const [renaming, setRenaming] = useState(false);
     // The hover action still running (Load more, Refresh), drawn busy until it settles.
+    // on reload: fresh: in flight: a hover action under way
     const [busy, setBusy] = useState<string | null>(null);
     const name = sourceName(source);
     const commands = registry.sourceRow.filter((command) => command.shown?.(workspace, source) ?? true);

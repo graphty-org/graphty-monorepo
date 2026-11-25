@@ -4,6 +4,9 @@
  * node there before the row table has turned 2D; the table then held none of them and its turn flattened them, so
  * the arrowheads and lines ran full length where the objects path draws them foreshortened. The picture is the
  * objects path's.
+ *
+ * The nodes are built before the layout, so the first walk puts built nodes. A row with no `Node` is drawn flat in
+ * 2D by the row table, where the objects path draws it at its Z: that gap is issue #10039.
  */
 
 import "../../src/graphty-element";
@@ -45,6 +48,8 @@ async function loaded(path: RenderPath): Promise<Graphty> {
     await element.updateComplete;
     await operationQueueOf(element.graph).waitForCompletion();
     await element.session.data.addNodes(NODES);
+    // Walking the array builds every `Node` (see the file comment).
+    assert.lengthOf([...element.graph.getNodes()], N);
     await element.graph.setLayout("fixed", { dim: 2 });
     await element.session.data.addEdges(EDGES);
     await operationQueueOf(element.graph).waitForCompletion();

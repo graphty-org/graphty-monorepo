@@ -11064,10 +11064,25 @@ export class Graph implements GraphContext {
 
     /**
      * Get all edges, in the order the edge pick walks them.
+     *
+     * On the `"batched"` render path most edges are drawn from row tables with no `Edge` object.
+     * As with {@link Graph.getNodes}, the array builds an edge's `Edge` only when that element is
+     * first read: the call and `length` stay cheap, and walking the whole array builds every `Edge`.
+     * To enumerate the edges of a large graph, walk {@link Graph.getEdgeIds}.
      * @returns Array of all edge instances
      */
     getEdges(): Edge[] {
-        return Array.from(this.dataManager.edges.values());
+        return dataManagerInternals.edgeList(this.dataManager);
+    }
+
+    /**
+     * Get the id of every edge, building no `Edge` object, in the order {@link Graph.getEdges}
+     * returns the edges.
+     * @returns The ids.
+     * @since 3.40.0
+     */
+    getEdgeIds(): string[] {
+        return [...this.dataManager.edges.keys()];
     }
 
     /**

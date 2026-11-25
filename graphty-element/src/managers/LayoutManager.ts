@@ -2675,20 +2675,34 @@ export class LayoutManager implements Manager {
             return;
         }
 
-        // Walked by row, so a row stored with no `Node` (renderPath "batched") gets one only when it has a Z to drop.
-        const { positions } = this.dataManager;
+        // Walked by row. A row stored with no `Node` (renderPath "batched") is flattened in the array and
+        // handed to the engine by row: getting its `Node` built one for every row with a Z (issue #10031).
+        const lane = this.dataManager[WRITABLE_LANE];
         const { ids, nodeCount } = wholeGraph(this.dataManager);
         const placed = { x: 0, y: 0, z: 0 };
-        for (let row = 0; row < Math.min(positions.count, nodeCount); row++) {
-            if (!positions.isPlaced(row)) {
+        let rowsWritten = false;
+        for (let row = 0; row < Math.min(lane.count, nodeCount); row++) {
+            if (!lane.isPlaced(row)) {
                 continue;
             }
 
-            positions.read(row, placed);
-            const node = placed.z === 0 ? undefined : this.dataManager.nodes.get(ids.idOf(row));
+            lane.read(row, placed);
+            if (placed.z === 0) {
+                continue;
+            }
+
+            const id = ids.idOf(row);
+            const node = dataManagerInternals.builtNode(this.dataManager, id);
             if (node !== undefined) {
                 layoutEngineInternals.setNodePosition(engine, node, this.onEnginePlane(placed));
+            } else if (this.dataManager.nodes.has(id)) {
+                lane.write(row, placed.x, placed.y, 0);
+                rowsWritten = true;
             }
+        }
+
+        if (rowsWritten) {
+            layoutEngineInternals.takeRows(engine);
         }
     }
 

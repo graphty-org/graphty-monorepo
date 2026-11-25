@@ -97,6 +97,7 @@ import type {
     Path,
     RunId,
     Scope,
+    Selector,
     StaticStyle,
     StyleDocument,
     UnionLeaf,
@@ -1860,6 +1861,14 @@ export interface StylesSources {
      */
     readonly stateRevision?: () => number;
     /**
+     * Like {@link stateRevision}, but it does not move when only the selection, the hover or the
+     * pins change. Lets `counts` keep a layer's answer across a click or a hover when no layer that
+     * reads those states can change it. Absent, every state change drops every kept count.
+     */
+    readonly stateRevisionBesidesPointer?: () => number;
+    /** {@link inputRevision} less its moves for the selection, the hover and the pins; see `stateRevisionBesidesPointer`. */
+    readonly inputRevisionBesidesPointer?: () => number;
+    /**
      * Aborted when the session holding the stack is disposed. Every edit still pending is
      * canceled with it, so a caller awaiting one gets an `AbortError` rather than waiting for
      * ever, and an edit issued afterwards is canceled before it starts.
@@ -1879,6 +1888,32 @@ const DRAWN: Scope = "visible";
 
 /** A style edit publishes no per-element field: the stack is not a result bag. */
 const NO_FIELDS: readonly FieldDescriptor[] = Object.freeze([]);
+
+/**
+ * What in a selector can follow the reader: a state or hover selector, a state leaf, the live
+ * hover-or-selection reference, a scope on the selection or the focus, or a kept set (a set can
+ * follow the selection). Read off the selector's JSON, so a new selector form that names any of
+ * these counts as following the reader, and an id that happens to spell one only costs a recount.
+ */
+const FOLLOWS_READER = /"(?:match|kind)":"(?:state|hover|selection|focus)"|"hovered-or-selected"|"set":/;
+
+/**
+ * Whether a selector can match differently when the selection, the hover or the pins move.
+ * @param selector - The selector.
+ * @returns True when it may follow them.
+ */
+function followsReader(selector: Selector): boolean {
+    return FOLLOWS_READER.test(JSON.stringify(selector));
+}
+
+/**
+ * The channels and shader addresses a layer writes, fixed or bound.
+ * @param layer - The layer.
+ * @returns Their names.
+ */
+function channelsOf(layer: Layer): Set<string> {
+    return new Set([...Object.keys(layer.set ?? {}), ...Object.keys(layer.encode ?? {})]);
+}
 
 /** Nothing further qualifies a style edit. */
 const NO_NOTES: readonly string[] = Object.freeze([]);
@@ -2318,6 +2353,17 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
               ];
     /** A reading of the stack, kept while nothing it reads changes (see `readingCache.ts`). */
     const kept = createReadingCache(readingToken);
+    /**
+     * Counts kept across selection, hover and pin changes, for a layer those states cannot move
+     * ({@link pointerFree}): the same token with the state revision that ignores them.
+     */
+    const keptPointerFree = createReadingCache(() => {
+        const token = readingToken();
+        const { inputRevisionBesidesPointer: input, stateRevisionBesidesPointer: state } = sources;
+        return token === null || input === undefined || state === undefined
+            ? null
+            : [...token.slice(0, 4), input(), state(), ...token.slice(6)];
+    });
     /** The selector answers of one moment, kept apart from the readings: a reading asks for them mid-read. */
     const keptMatches = createReadingCache(readingToken);
 
@@ -4732,6 +4778,32 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     };
 
     /**
+     * Whether a layer's counts stay the same when the selection, the hover or the pins move.
+     *
+     * Its own selector must not follow the reader, and no layer whose selector can may paint
+     * a channel it paints on the same kind of element, or a shader, which can cover any channel. A
+     * click then recounts only the layers that follow the selection: on the yEd sample every row was
+     * walked over every element on each click and hover (issue #10116).
+     * @param id - The layer.
+     * @returns True when no selection, hover or pin change can move its counts.
+     */
+    const pointerFree = (id: LayerId): boolean => {
+        const stack = basePainting(current());
+        const own = stack.find((entry) => entry.layer.id === id)?.layer;
+        if (own === undefined || !own.enabled || followsReader(own.selector)) {
+            return false;
+        }
+        const mine = channelsOf(own);
+        return stack.every(({ layer }) => {
+            if (!layer.enabled || layer.target !== own.target || !followsReader(layer.selector)) {
+                return true;
+            }
+            const theirs = channelsOf(layer);
+            return ![...theirs].some((channel) => mine.has(channel) || channel.includes("shaders"));
+        });
+    };
+
+    /**
      * Count what one layer covers and where it wins: {@link StylesApi.counts}, read fresh.
      * @param id - The layer.
      * @param scope - Over the whole graph, or over what is shown.
@@ -5625,7 +5697,8 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             // Kept while nothing it reads moves, as `agreement` is: a read walks the layer's kind of
             // element, and the graphty app's panels read the same layer several times a render
             // (issue #7966).
-            return kept(JSON.stringify(["counts", id, scope]), () => countsOf(id, scope));
+            const key = JSON.stringify(["counts", id, scope]);
+            return (pointerFree(id) ? keptPointerFree : kept)(key, () => countsOf(id, scope));
         },
 
         drawnCount(id: LayerId): number {

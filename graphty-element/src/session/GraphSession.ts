@@ -3712,6 +3712,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // Moves whenever the selection, the filter, or an element's state a `{match:"state"}` layer reads, moves:
     // the style stack keeps its readings until it does.
     let stateRevision = 0;
+    /** Moves with `stateRevision` except when only the selection, the hover or the pins change. */
+    let stateRevisionBesidesPointer = 0;
     // Set once the selection and the filter exist: what a `state` leaf and a state layer read.
     let elementInState: NonNullable<FilterSources["inState"]> = () => false;
     // The query engine, late-bound for the same reason: it reads the style layers' selector
@@ -3728,6 +3730,12 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     const inputs = (store.store as { readonly inputs?: InputCounters }).inputs ?? inputCountersOf(store.store);
     const advanceTick = (): void => {
         inputs.tick.advance();
+    };
+    /** How many of the input tick's moves were the selection or the hover moving, and nothing else. */
+    let pointerTicks = 0;
+    const advancePointerTick = (): void => {
+        pointerTicks++;
+        advanceTick();
     };
     const acceleration = resolveAcceleration(options.acceleration, policy, minNodes);
     /**
@@ -4242,6 +4250,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             // What the filter keeps is read by the style stack's kept readings (`styles.counts`,
             // `drawnValues`): moved before anyone hears of the change, so a reader answers fresh.
             stateRevision++;
+            stateRevisionBesidesPointer++;
             notifier.notify({ kind: "visibility" });
             timeline()?.visibilityChanged(change);
             repaintGhosts();
@@ -4697,7 +4706,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         },
         records,
         onChange: (delta) => {
-            stateRevision++;
+            stateRevision++; // not stateRevisionBesidesPointer: only the selection moved
             notifier.notify({ kind: "selection" });
             repaintSelected(delta);
             publish(watchers, "selection:changed", delta);
@@ -4713,7 +4722,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 return at === undefined ? [] : [at];
             });
             // An input moved: what a count read before the move is stale now.
-            advanceTick();
+            advancePointerTick();
             // A union step reading "hovered-or-selected" follows the pointer.
             notifier.notify({ kind: "hover" });
             repaintStates({ node: nodes, edge: [] }, HOVER_STATES);
@@ -4726,7 +4735,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             );
         },
         onHoverPreview: (ids) => {
-            advanceTick();
+            advancePointerTick();
             repaintStates({ node: ids.flatMap((id) => nodeIndex(id) ?? []), edge: [] }, HOVER_STATES);
         },
         onPeek: (dirty, peeked) => {
@@ -4740,7 +4749,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             notifier.notify({ kind: "selection" });
             publish(watchers, "selection:origin-changed", { origin });
         },
-        onMaskVersion: advanceTick,
+        onMaskVersion: advancePointerTick,
     });
 
     // ONE registry for the stack and for the pass that paints from it. Two would let a layer be
@@ -4814,6 +4823,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     const repaintStates = (dirty: ElementIndices, states: readonly ElementState[], rowsOnly = false): void => {
         if (dirty.node.length > 0 || dirty.edge.length > 0) {
             stateRevision++;
+            if (states === WINDOW_STATES) {
+                stateRevisionBesidesPointer++;
+            }
             // A rule reading a state follows it through its live scope.
             notifier.notify({ kind: "state" });
         }
@@ -4847,6 +4859,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         notifier.notify({ kind: "attributes", element: "node", fields: [field] });
         notifier.notify({ kind: "attributes", element: "edge", fields: [field] });
         stateRevision++;
+        stateRevisionBesidesPointer++;
         if (stack === null) {
             return;
         }
@@ -5150,6 +5163,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             seen.ghosts = ghosts;
             seen.outside = outside;
             stateRevision++;
+            stateRevisionBesidesPointer++;
             notifier.notify({ kind: "state" });
         }
 
@@ -5351,6 +5365,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         engine: runsOptions.engine ?? runEngine(),
         inputRevision: () => inputs.tick.value,
         stateRevision: () => stateRevision,
+        stateRevisionBesidesPointer: () => stateRevisionBesidesPointer,
+        inputRevisionBesidesPointer: () => inputs.tick.value - pointerTicks,
         onChange: (change) => {
             // Only the scopes the stack names stay live.
             layerScopes.keep(layerScopesOf(stack));

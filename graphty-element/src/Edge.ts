@@ -2595,7 +2595,8 @@ export class Edge {
         // a pulled line that becomes a curve, or stops being one, moves between batches (`EdgeMesh.pullsCurve`)
         const pulls = this.wantsPull(style);
         const samePull =
-            pulls === (this.pulled !== null) && (this.pulled === null || this.pulled.curve === this.pullsCurve(style));
+            pulls === (this.pulled !== null) &&
+            (this.pulled === null || (this.pulled.curve === this.pullsCurve(style) && !this.straightOffCurves()));
         const sameRoute = wantsPattern === this.mesh instanceof PatternedLineMesh && samePull;
         // A surface or a taper keys no source mesh either (`content` channels), but it is drawn
         // from a batch of its own, so asking for another one rebuilds the line.
@@ -3437,10 +3438,12 @@ export class Edge {
         }
 
         const headGone = this.pulled.head !== null && !(this.headEnd("source", rows) && this.headEnd("target", rows));
-        // a straight line in a curve batch runs center to center: one with an end turned seen through takes the
-        // straight batch, which stops it at the outline (`EdgeMesh.pulledBatch`'s `straightInCurve`)
-        const seenGone = !this.pulled.curve && this.pulled.batch.drawsCurves && !this.endsOpaque(rows);
-        if (!headGone && !seenGone && !this.endHiddenByStyle("source") && !this.endHiddenByStyle("target")) {
+        if (
+            !headGone &&
+            !this.straightOffCurves() &&
+            !this.endHiddenByStyle("source") &&
+            !this.endHiddenByStyle("target")
+        ) {
             return false;
         }
 
@@ -3549,7 +3552,20 @@ export class Edge {
             route: this.routeOf(style),
             lean: this.context.leansLines?.() ?? false,
             straightInCurve: EdgeMesh.drawsNoCap(style.arrowHead) && this.endsOpaque(rows),
+            held: this.pulled?.batch,
         });
+    }
+
+    /**
+     * Whether this edge's straight line is drawn from a curve batch, which runs it center to center, while an end is
+     * seen through: it is drawn again from the straight batch, which stops it at the outline
+     * (`EdgeMesh.pulledBatch`'s `straightInCurve`).
+     * @returns True when it must move.
+     */
+    private straightOffCurves(): boolean {
+        const { pulled } = this;
+        const rows = this.context.getRowTable?.() ?? null;
+        return pulled !== null && !pulled.curve && pulled.batch.drawsCurves && rows !== null && !this.endsOpaque(rows);
     }
 
     /**

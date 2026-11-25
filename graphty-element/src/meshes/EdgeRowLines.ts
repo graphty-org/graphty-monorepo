@@ -430,6 +430,8 @@ export class EdgeRowLines {
      * @returns False, drawing nothing, for a paint only an `Edge` draws ({@link EdgeRowLines.draws}).
      */
     paintRow(row: number, source: number, target: number, paint: EdgePaint): boolean {
+        // the batch it is drawn from now, which a straight line keeps (`EdgeMesh.pulledBatch`'s `held`)
+        const held = this.batches[this.lines.batchOf[row] ?? NO_LINE] as PulledLineBatch | undefined;
         this.unpaintRow(row);
         const { style, meshKey } = paint;
         const look = this.lookOf(style);
@@ -460,6 +462,7 @@ export class EdgeRowLines {
             route: "straight",
             lean: this.host.lean(),
             straightInCurve: this.joinsCurves(head, source, target),
+            held,
         });
         // as `Edge.pullLine` gives its piece the look: in 2D, or with a pattern, a world width
         const drawnWidth = EdgeMesh.drawsFlat(scene) || look.patterned ? width / 40 : width * 20;

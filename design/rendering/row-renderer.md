@@ -852,7 +852,8 @@ batch drew one after the other, so where a curve crossed a straight line in one 
 whatever the rows' order. Once a curve batch exists, `EdgeMesh.pulledBatch` hands a straight line of its width and pass
 that batch (`straightInCurve`), and the line is drawn there with a one-piece straight span (`pulledCurve.STRAIGHT_SPAN`,
 `PulledLineBatch.drawStraight`): a flat raised arc between the two centers, which no move rewrites. A straight batch made
-before the curve batch holds only lines taken before every curve, and draws first. Left in their own batches: a line
+before the curve batch holds only lines taken before every curve, and draws first; a line already in it keeps it when
+restyled (`held`), taking back the piece it gave up, as the object path keeps a restyled line's slot. Left in their own batches: a line
 with a head, a patterned, animated or lean one, and one with an end it is seen through, which the straight program
 stops at the outline. A row that turns seen through or opaque counts in `RowTable.roundWrites`, so a straight line in
 a curve batch whose end turned seen through is painted again and takes the straight batch

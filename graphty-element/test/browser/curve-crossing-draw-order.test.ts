@@ -50,7 +50,7 @@ const MIXED = [
 async function crossing(
     path: Path,
     dim: Dim,
-    edges: readonly { src: string; dst: string; hot?: boolean }[],
+    edges: readonly { id?: string; src: string; dst: string; hot?: boolean; plain?: boolean }[],
 ): Promise<Graphty> {
     const element = document.createElement("graphty-element");
     element.renderer = "webgl";
@@ -104,23 +104,55 @@ describe("a curved and a straight edge that cross draw in row order on batched (
         });
     }
 
-    it("a straight line beside a curve stops at a node turned translucent after it was drawn", async () => {
-        // the straight line (c to a) is drawn from the curve's batch, and crosses nothing
-        const translucent = async (path: Path): Promise<Graphty> => {
-            const element = await crossing(path, 3, [EDGES[0], { src: "c", dst: "a" }]);
+    it("straight lines drawn before a curve stay under it when restyled", async () => {
+        const restyled = async (path: Path): Promise<Graphty> => {
+            const element = await crossing(path, 3, [
+                { src: "a", dst: "d", plain: true },
+                { src: "c", dst: "b", plain: true },
+                EDGES[0],
+            ]);
             await element.session.styles.add({
-                name: "faded",
-                target: "node",
-                selector: { match: "everything" },
-                set: { "node.opacity": 0.5 },
+                name: "blue",
+                target: "edge",
+                selector: { match: "has", path: "data.plain" },
+                set: { "edge.color": "#0000ff" },
             } as never);
             await operationQueueOf(element.graph).waitForCompletion();
             await element.waitForStableFrame();
             return element;
         };
-        const want = await readCanvas((await translucent("objects")).graph);
+        const want = await readCanvas((await restyled("objects")).graph);
         document.body.replaceChildren();
-        const got = await readCanvas((await translucent("batched")).graph);
+        const got = await readCanvas((await restyled("batched")).graph);
         assertSameFrame(want, got, "batched against objects");
     });
+
+    for (const built of [false, true]) {
+        it(`a straight line beside a curve stops at a node turned translucent after it was drawn${built ? ", its edge selected" : ""}`, async () => {
+            // the straight line (c to a) is drawn from the curve's batch, and crosses nothing; selected, it is drawn
+            // by an edge object rather than a row line
+            const translucent = async (path: Path): Promise<Graphty> => {
+                const element = await crossing(path, 3, [EDGES[0], { id: "ca", src: "c", dst: "a" }]);
+                if (built) {
+                    await element.session.selection.apply({ edges: ["ca"] });
+                    await operationQueueOf(element.graph).waitForCompletion();
+                    await element.waitForStableFrame();
+                }
+
+                await element.session.styles.add({
+                    name: "faded",
+                    target: "node",
+                    selector: { match: "everything" },
+                    set: { "node.opacity": 0.5 },
+                } as never);
+                await operationQueueOf(element.graph).waitForCompletion();
+                await element.waitForStableFrame();
+                return element;
+            };
+            const want = await readCanvas((await translucent("objects")).graph);
+            document.body.replaceChildren();
+            const got = await readCanvas((await translucent("batched")).graph);
+            assertSameFrame(want, got, "batched against objects");
+        });
+    }
 });

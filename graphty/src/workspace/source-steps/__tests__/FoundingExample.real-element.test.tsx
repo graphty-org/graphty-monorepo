@@ -143,7 +143,7 @@ describe("the founding example through the app (source-steps)", () => {
         await choose(modal, "In graph field", "Key");
         await choose(modal, "Incoming field", "badge");
         await userEvent.click(within(modal).getByRole("switch", { name: "Ignore case" }));
-        await userEvent.click(within(modal).getByRole("radio", { name: "Connect" }));
+        await userEvent.click(within(modal).getByRole("radio", { name: "A node linked to what it names" }));
         await typeInto(modal, "Edge type", "entered");
         const newEdges = (): number => session.data.currentDraft()?.preview().steps.at(-1)?.buckets?.newEdges ?? -1;
         await waitFor(() => {
@@ -192,7 +192,7 @@ describe("the founding example through the app (source-steps)", () => {
         await choose(modal, "In graph field", "Key");
         await choose(modal, "Incoming source", "entries.csv");
         await choose(modal, "Incoming field", "door");
-        await userEvent.click(within(modal).getByRole("radio", { name: "Connect" }));
+        await userEvent.click(within(modal).getByRole("radio", { name: "A node linked to what it names" }));
         await typeInto(modal, "Edge type", "at");
         await done(modal);
         assert.strictEqual(edgesOf(session, "at"), 6, "every entry but E5's D3");
@@ -203,7 +203,7 @@ describe("the founding example through the app (source-steps)", () => {
         await choose(modal, "In graph type", "person");
         await choose(modal, "In graph field", "Key");
         await choose(modal, "Incoming field", "badge");
-        await userEvent.click(within(modal).getByRole("radio", { name: "Merge" }));
+        await userEvent.click(within(modal).getByRole("radio", { name: "Fields on a node" }));
         await choose(modal, "Both have dept", "Use 2");
         await userEvent.click(await within(modal).findByRole("button", { name: "Cells dept" }));
         const cells = await within(modal).findByRole("grid", { name: "Cells" });

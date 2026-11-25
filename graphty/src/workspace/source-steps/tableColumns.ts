@@ -17,7 +17,14 @@ import { cellWords, DRILL_WORDS, EFFECT_WORDS, JOIN_WORDS } from "./words";
 
 /** The value list's columns: the value, then how many in each side hold it. */
 export const MATCH_VALUE_COLUMNS: readonly DataTableColumn<SourceMatchValue>[] = [
-    { id: "value", header: JOIN_WORDS.value, sortable: false, rowHeader: true, value: (row) => cellWords(row.value) },
+    {
+        id: "value",
+        header: JOIN_WORDS.value,
+        width: 240,
+        sortable: false,
+        rowHeader: true,
+        value: (row) => cellWords(row.value),
+    },
     { id: "in1", header: JOIN_WORDS.in1, sortable: false, align: "end", value: (row) => row.count1 },
     { id: "in2", header: JOIN_WORDS.in2, sortable: false, align: "end", value: (row) => row.count2 },
 ];

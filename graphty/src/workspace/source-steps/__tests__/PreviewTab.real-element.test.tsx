@@ -65,7 +65,8 @@ async function joinOn(
     await choose(modal, "In graph type", "person");
     await choose(modal, "In graph field", "Key");
     await choose(modal, "Incoming field", "badge");
-    await userEvent.click(within(modal).getByRole("radio", { name: result }));
+    const becomes = result === "Merge" ? "Fields on a node" : "A node linked to what it names";
+    await userEvent.click(within(modal).getByRole("radio", { name: becomes }));
     await waitFor(() => {
         assert.isAbove(
             draftOf(project.session)

@@ -128,3 +128,74 @@ dialog.jw-modal {
 .jw-key-mark[data-mark="untouched"] {
     border-style: dotted;
 }
+
+/* A join card's body keeps clear of the card's borders, as the selection workspace's cards do. */
+.jw-card {
+    padding: 8px;
+}
+
+.jw-card .mantine-Radio-label,
+.jw-card .mantine-Switch-label {
+    padding-inline-start: 6px;
+}
+
+.jw-card .mantine-Radio-body,
+.jw-card .mantine-Switch-body {
+    align-items: center;
+}
+
+/* A card's named row: its words in one column, so the controls start at one x. */
+.jw-row {
+    display: grid;
+    grid-template-columns: 96px minmax(0, 1fr);
+    gap: 8px;
+    align-items: center;
+    min-height: 24px;
+}
+
+.jw-row-controls {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    min-width: 0;
+}
+
+.jw-row-controls > .mantine-Select-root,
+.jw-row-controls > .mantine-MultiSelect-root {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+/* A card's matching rows: the number, the type or source, its field, and the other end's remove. */
+.jw-match {
+    display: grid;
+    grid-template-columns: 12px minmax(0, 1fr) minmax(0, 1fr) auto;
+    gap: 4px;
+    align-items: center;
+    /* The last column is the other end's remove; empty, its gap runs past the card's other controls. */
+    margin-inline-end: -4px;
+}
+
+.jw-match > .jw-match-count {
+    grid-column: 2 / -1;
+    padding-block: 2px 4px;
+}
+
+.jw-match > .jw-add-match {
+    grid-column: 2 / -1;
+    justify-self: start;
+}
+
+.jw-read {
+    gap: 4px;
+}
+
+.jw-counts {
+    font-size: var(--mantine-font-size-xs);
+}
+
+.jw-key-mark[data-mark="edges-merged"] {
+    height: 0;
+    border-width: 2px 0 0;
+    border-radius: 0;
+}

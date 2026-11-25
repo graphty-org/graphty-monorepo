@@ -10,6 +10,7 @@ import {
     type SourceCellValue,
     type SourceClashRule,
     type SourceDraftRow,
+    type SourceMatchCounts,
     type SourceOverlapQuestion,
     type SourceProfileKind,
     type SourceStepCounts,
@@ -18,6 +19,7 @@ import {
 } from "@graphty/graphty-element/session";
 
 import { formatNumber } from "../inspector/words";
+import type { Becomes, CardAct } from "./joinCards";
 
 /** The fixed labels. */
 export const STAGED_WORDS = {
@@ -165,7 +167,6 @@ export const WORKSPACE_WORDS = {
     frame: "Frame",
     remove: "Remove",
     rows: "Rows",
-    unknown: "?",
     drawing: "Drawing",
     committed: "Joined",
     matchCount: "Match count",
@@ -180,7 +181,51 @@ export const WORKSPACE_WORDS = {
     addAsIs: "Add as is",
     added: "Added",
     readSettings: "Read as",
+    eachRow: "Each row becomes",
+    newNodes: "New nodes",
+    newType: "New type",
+    splitOn: "Split on",
+    carry: "Carry",
+    none: "None",
+    existing: "Existing edge",
+    nodes: "Nodes",
+    valuesIn: "Values in",
+    onNodes: "The nodes",
+    namedBy: "Named by",
+    sharedField: "Shared field",
+    linkAs: "Link by",
+    aNodeEach: "Node per value",
+    hubCap: "Hub cap",
+    minShared: "Minimum shared",
+    ignore: "Ignore",
+    overCap: "over the cap",
+    edgesMerged: "edges merged",
 } as const;
+
+/** What each row of a card's source becomes, in the order the card asks. */
+export const BECOMES: readonly { readonly value: Becomes; readonly label: string }[] = [
+    { value: "fields", label: "Fields on a node" },
+    { value: "edge", label: "An edge between two nodes" },
+    { value: "node", label: "A node linked to what it names" },
+    { value: "links", label: "Links between nodes sharing a value" },
+];
+
+/** What a card's step does, beside its title. */
+export const CARD_ACT_WORDS: Readonly<Record<CardAct, string>> = {
+    merge: "Merge",
+    connect: "Connect",
+    link: "Link",
+    extract: "New nodes",
+};
+
+/**
+ * A match's live count.
+ * @param counts - the element's counts of the incoming field's values.
+ * @returns such as "283 of 308 match".
+ */
+export function matchWords(counts: Pick<SourceMatchCounts, "matched" | "only2">): string {
+    return `${formatNumber(counts.matched)} of ${formatNumber(counts.matched + counts.only2)} match`;
+}
 
 /** The value-overlap list's filters, as `data.matchValues` takes them. */
 export const OVERLAP_FILTERS = [
@@ -273,7 +318,10 @@ export const BUCKET_WORDS: Readonly<
     edge: [
         { id: "matched", label: "matched" },
         { id: "unmatched", label: "unmatched" },
+        { id: "newNodes", label: "new nodes" },
         { id: "newEdges", label: "new edges" },
+        { id: "mergedEdges", label: "edges merged" },
+        { id: "pairsBelowMin", label: "below the minimum" },
         { id: "repeated2", label: "keys repeat" },
         { id: "fanOut", label: "fan-out" },
         { id: "parallelPairs", label: "parallel" },
@@ -293,7 +341,10 @@ export type SourceStepNumberBucket = Extract<
     | "namedOnly"
     | "matched"
     | "unmatched"
+    | "newNodes"
     | "newEdges"
+    | "mergedEdges"
+    | "pairsBelowMin"
     | "parallelPairs"
     | "selfLoops"
 >;
@@ -435,6 +486,18 @@ export function stepCountWords(row: SourceStepRow): string {
             return `${formatNumber(buckets.matched)} matched`;
         }
     }
+}
+
+/**
+ * What an Add step brings, as its card says it.
+ * @param step - the step
+ * @returns such as "60 nodes new, 0 edges new", or "" while it is not built
+ */
+export function addStepWords(step: SourceStepRow): string {
+    const b = step.buckets;
+    return b === null
+        ? ""
+        : `${formatNumber(b.newNodes)} ${STEP_WORDS.nodes.toLowerCase()} ${WORKSPACE_WORDS.new}, ${formatNumber(b.newEdges)} ${STEP_WORDS.edges.toLowerCase()} ${WORKSPACE_WORDS.new}`;
 }
 
 /**

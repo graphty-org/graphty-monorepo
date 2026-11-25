@@ -73,12 +73,18 @@ function cardCount(modal: HTMLElement): number {
 }
 
 /**
- * Pick Connect on the open card and wait for its step.
+ * Say on the open card that each row becomes a node linked to what it names, or an edge between two
+ * nodes, and wait for its step.
  * @param modal - the workspace.
  * @param session - the session.
+ * @param becomes - the choice, as the card names it.
  */
-async function connect(modal: HTMLElement, session: GraphSession): Promise<void> {
-    await userEvent.click(within(modal).getByRole("radio", { name: "Connect" }));
+async function connect(
+    modal: HTMLElement,
+    session: GraphSession,
+    becomes = "A node linked to what it names",
+): Promise<void> {
+    await eachRow(modal, becomes);
     await waitFor(() => {
         assert.isTrue(
             session.data
@@ -87,6 +93,15 @@ async function connect(modal: HTMLElement, session: GraphSession): Promise<void>
                 .some((row) => row.op === "join.edges") === true,
         );
     });
+}
+
+/**
+ * Say on the open card what each row becomes.
+ * @param modal - the workspace.
+ * @param becomes - the choice, as the card names it.
+ */
+async function eachRow(modal: HTMLElement, becomes: string): Promise<void> {
+    await userEvent.click(within(modal).getByRole("radio", { name: becomes }));
 }
 
 describe("the join workspace (source-steps)", () => {
@@ -106,7 +121,7 @@ describe("the join workspace (source-steps)", () => {
         await waitFor(() => {
             assert.strictEqual(
                 within(modal).getByLabelText("Match count").textContent,
-                `${String(counts?.matched)} / ${String((counts?.matched ?? 0) + (counts?.only2 ?? 0))}`,
+                `${String(counts?.matched)} of ${String((counts?.matched ?? 0) + (counts?.only2 ?? 0))} match`,
             );
         });
         assert.strictEqual(session.data.currentDraft()?.steps().length, steps, "no step before a result is picked");
@@ -264,7 +279,7 @@ describe("the join workspace (source-steps)", () => {
         await userEvent.click(within(modal).getByRole("button", { name: "+ Match" }));
         await choose(modal, "Other end field", "door");
         await choose(modal, "Other end type", "doors.csv");
-        await connect(modal, session);
+        await connect(modal, session, "An edge between two nodes");
         const act = session.data.currentDraft()?.steps().at(-1)?.act;
         assert.strictEqual(act?.to?.field, "door", "the step reads its other end back");
         await userEvent.click(within(modal).getByRole("button", { name: "Done" }));
@@ -318,7 +333,7 @@ describe("the join workspace (source-steps)", () => {
         // The entries' own nodes would land in the space they connect to.
         await userEvent.fill(within(modal).getByRole("combobox", { name: "Space" }), "person");
         await userEvent.keyboard("{Enter}");
-        await userEvent.click(within(modal).getByRole("radio", { name: "Connect" }));
+        await eachRow(modal, "A node linked to what it names");
         await within(modal).findByRole("alert");
         assert.isNull(store.get().notice, "no notice behind the modal");
     });
@@ -334,7 +349,7 @@ describe("the join workspace (source-steps)", () => {
         await userEvent.click(within(modal).getByRole("button", { name: "+ Match" }));
         await choose(modal, "Other end field", "door");
         await choose(modal, "Other end type", "doors.csv");
-        await connect(modal, session);
+        await connect(modal, session, "An edge between two nodes");
         assert.isNull(within(modal).queryByRole("alert"), "the edge rows are joined, not refused");
         await userEvent.click(within(modal).getByRole("button", { name: "Done" }));
         await waitFor(() => {
@@ -346,7 +361,7 @@ describe("the join workspace (source-steps)", () => {
 
     it("Merge: Many rows Last folds the last row, No match Skip leaves B9 out, and B flips Before / After", async () => {
         const { session, modal } = await opened();
-        await userEvent.click(within(modal).getByRole("radio", { name: "Merge" }));
+        await eachRow(modal, "Fields on a node");
         const merged = (): readonly SourceStepRow[] => session.data.currentDraft()?.steps() ?? [];
         await waitFor(() => {
             assert.isTrue(merged().some((row) => row.op === "join.merge"));

@@ -8,7 +8,7 @@ import type {
     SourceKey,
     SourceStepRow,
 } from "@graphty/graphty-element/session";
-import { Button, Group, Stack, Text } from "@mantine/core";
+import { Button, Group, Stack, Text, UnstyledButton } from "@mantine/core";
 import React, { useState } from "react";
 
 import { formatNumber } from "../inspector/words";
@@ -17,6 +17,7 @@ import { profileOf } from "./join";
 import { Pick } from "./Pick";
 import { nameOf, valueWords } from "./tableColumns";
 import {
+    addStepWords,
     afterWords,
     CELL_FILTERS,
     cellWords,
@@ -78,11 +79,13 @@ export function DifferRow({
 }>): React.JSX.Element {
     const reduce = step.act?.aggregate?.[column] ?? NO_REDUCE;
     return (
-        <Group gap={4} wrap="nowrap" justify="space-between">
-            <Button size="compact-xs" variant="subtle" onClick={onShow} aria-label={`${DRILL_WORDS.cells} ${column}`}>
-                {column}
-            </Button>
-            <Group gap={4} wrap="nowrap">
+        <div className="jw-row">
+            <UnstyledButton className="ss-count-show" onClick={onShow} aria-label={`${DRILL_WORDS.cells} ${column}`}>
+                <Text size="xs" truncate>
+                    {column}
+                </Text>
+            </UnstyledButton>
+            <div className="jw-row-controls">
                 <Pick
                     name={`${WORKSPACE_WORDS.clash} ${column}`}
                     data={rules.map((each) => ({ value: each, label: RULE_WORDS[each as keyof typeof RULE_WORDS] }))}
@@ -97,8 +100,8 @@ export function DifferRow({
                         onReduce(REDUCE_CHOICES.find((each) => each.value === value)?.value ?? null);
                     }}
                 />
-            </Group>
-        </Group>
+            </div>
+        </div>
     );
 }
 
@@ -124,7 +127,6 @@ export function AddStepBody({
     onError: (error: unknown) => void;
 }>): React.JSX.Element {
     const questions = draft.preview().questions.filter((question) => question.params.source === step.source);
-    const b = step.buckets;
     return (
         <Stack gap={4}>
             {questions.map((question) => (
@@ -153,11 +155,9 @@ export function AddStepBody({
                     </Group>
                 </Group>
             ))}
-            {b === null ? null : (
-                <Text size="xs" c="dimmed">
-                    {`${formatNumber(b.newNodes)} ${STEP_WORDS.nodes.toLowerCase()} ${WORKSPACE_WORDS.new}, ${formatNumber(b.newEdges)} ${STEP_WORDS.edges.toLowerCase()} ${WORKSPACE_WORDS.new}`}
-                </Text>
-            )}
+            <Text size="xs" c="dimmed">
+                {addStepWords(step)}
+            </Text>
         </Stack>
     );
 }

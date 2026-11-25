@@ -29,7 +29,7 @@ export function openJoinWorkspace(workspace: WorkspaceStore, open: JoinWorkspace
 
 /**
  * A column's profile as a draft reads it: a source's column in its node rows, else its edge rows,
- * or a space's keys.
+ * a space's keys, or a column its nodes carry.
  * @param reader - `session.data` or a draft.
  * @param side - the column, or the space.
  * @param side.source - the source.
@@ -45,7 +45,9 @@ export function profileOf(
         if (side.source !== undefined && side.field !== undefined) {
             return reader.sourceTable(side.source).profile(side.field);
         }
-        return side.space === undefined || side.space === "" ? null : reader.profile({ space: side.space });
+        return side.space === undefined || side.space === ""
+            ? null
+            : reader.profile({ space: side.space, ...(side.field === undefined ? {} : { field: side.field }) });
     } catch {
         return null;
     }

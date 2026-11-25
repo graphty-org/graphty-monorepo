@@ -20,24 +20,37 @@ type Reader = Pick<GraphSession["data"], "sourceTable" | "matchCounts">;
 type End = "source" | "target";
 
 /**
+ * A row of a label and its control: the sidebar's Fields row, or a join card's, as wide as the card.
+ * @param props - Component props
+ * @param props.full - whether it is a join card's
+ * @param props.children - the label and the control
+ * @returns the row
+ */
+function StagedRow({ full, children }: Readonly<{ full: boolean; children: React.ReactNode }>): React.JSX.Element {
+    return full ? <div className="jw-row">{children}</div> : <FieldRow>{children}</FieldRow>;
+}
+
+/**
  * One labeled row: the words, then the control, as the Fields rows draw them.
  * @param props - Component props
+ * @param props.full - whether it is a join card's row
  * @param props.label - the row's words
  * @param props.children - the control, given the id its label points at
  * @returns the row
  */
 function LabeledRow({
+    full,
     label,
     children,
-}: Readonly<{ label: string; children: (id: string) => React.ReactNode }>): React.JSX.Element {
+}: Readonly<{ full: boolean; label: string; children: (id: string) => React.ReactNode }>): React.JSX.Element {
     const id = useId();
     return (
-        <FieldRow>
+        <StagedRow full={full}>
             <Text component="label" htmlFor={id} size="xs" truncate>
                 {label}
             </Text>
             {children(id)}
-        </FieldRow>
+        </StagedRow>
     );
 }
 
@@ -50,14 +63,14 @@ function LabeledRow({
  */
 function FactRow({ label, value }: Readonly<{ label: string; value: string }>): React.JSX.Element {
     return (
-        <FieldRow>
+        <StagedRow full>
             <Text size="xs" truncate>
                 {label}
             </Text>
             <Text size="xs" truncate aria-label={label}>
                 {value}
             </Text>
-        </FieldRow>
+        </StagedRow>
     );
 }
 
@@ -246,7 +259,7 @@ export function StagedRows({
                 onChange={pickRows}
             />
             {shownRows === "edges" ? null : (
-                <LabeledRow label={STAGED_WORDS.key}>
+                <LabeledRow full={full} label={STAGED_WORDS.key}>
                     {(id) => (
                         <ColumnSelect
                             id={id}
@@ -262,7 +275,7 @@ export function StagedRows({
             )}
             {full && shownRows !== "edges" ? (
                 <>
-                    <FieldRow>
+                    <StagedRow full>
                         <Text size="xs">{STAGED_WORDS.space}</Text>
                         <NamePicker
                             name={STAGED_WORDS.space}
@@ -275,14 +288,14 @@ export function StagedRows({
                                 }
                             }}
                         />
-                    </FieldRow>
+                    </StagedRow>
                     {profile === null ? null : (
                         <>
                             <FactRow label={STAGED_WORDS.distinct} value={distinctWords(profile.distinct)} />
                             <FactRow label={STAGED_WORDS.repeats} value={repeatsWords(profile.repeated)} />
                         </>
                     )}
-                    <FieldRow>
+                    <StagedRow full>
                         <Text size="xs">{STAGED_WORDS.type}</Text>
                         <NamePicker
                             name={STAGED_WORDS.type}
@@ -293,7 +306,7 @@ export function StagedRows({
                                 write({ type: next });
                             }}
                         />
-                    </FieldRow>
+                    </StagedRow>
                 </>
             ) : null}
             {shownRows === "nodes"
@@ -316,7 +329,7 @@ export function StagedRows({
                       }
                       return (
                           <React.Fragment key={end}>
-                              <LabeledRow label={label}>
+                              <LabeledRow full={full} label={label}>
                                   {(id) => (
                                       <ColumnSelect
                                           id={id}
@@ -330,7 +343,7 @@ export function StagedRows({
                                   )}
                               </LabeledRow>
                               {full && wanted === null && mapping.edges !== undefined ? (
-                                  <FieldRow>
+                                  <StagedRow full>
                                       <NamePicker
                                           name={`${label} ${STAGED_WORDS.type.toLowerCase()}`}
                                           choices={types}
@@ -356,7 +369,7 @@ export function StagedRows({
                                               }
                                           }}
                                       />
-                                  </FieldRow>
+                                  </StagedRow>
                               ) : null}
                               {meets === null ? null : (
                                   <FactRow label={`${label} ${STAGED_WORDS.meets}`} value={formatNumber(meets)} />

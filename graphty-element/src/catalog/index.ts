@@ -12,7 +12,14 @@ export type { EnabledFeatures } from "../features/resolve";
 export { featuresFromUrl, resolveFeatures } from "../features/resolve";
 export type { CanvasKeyAction, CanvasKeyDescriptor, CanvasKeyView } from "./canvasKeys";
 export { CANVAS_KEY_DESCRIPTORS } from "./canvasKeys";
-export type { StyleFamilyDescriptor, StyleFamilyId, StyleFamilyMember } from "./families";
+export type {
+    ChannelStyleFamily,
+    FieldStyleFamily,
+    StyleFamilyBase,
+    StyleFamilyDescriptor,
+    StyleFamilyId,
+    StyleFamilyMember,
+} from "./families";
 export { STYLE_FAMILIES, styleFamily } from "./families";
 export type { KeymapAction, KeymapDescriptor } from "./keymap";
 export { KEYMAP_DESCRIPTORS } from "./keymap";

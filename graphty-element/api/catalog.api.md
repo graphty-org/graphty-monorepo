@@ -711,6 +711,9 @@ export type ChannelScalar = string | number | boolean;
 export function channelsFor(target: "node" | "edge"): readonly ChannelDescriptor[];
 
 // @public
+export type ChannelStyleFamily = StyleFamilyBase<"node" | "edge", Channel>;
+
+// @public
 export type ChannelValue = string | number | boolean | LabelStyle | Rgba | readonly ShaderUse[] | readonly LabelEntry[] | PieData | StripeData | ChartData | RecordData;
 
 // @public
@@ -1064,6 +1067,9 @@ export interface FieldInterpretation {
     // @deprecated
     summary: string;
 }
+
+// @public
+export type FieldStyleFamily = StyleFamilyBase<"label" | "graph", string>;
 
 // @public @deprecated
 export type Filter = RuleTree;
@@ -3768,24 +3774,27 @@ export type StyleDocumentRow = ({
 export function styleFamily(id: StyleFamilyId): StyleFamilyDescriptor | undefined;
 
 // @public
-export interface StyleFamilyDescriptor {
+export interface StyleFamilyBase<Target extends string, Name extends string> {
     readonly field?: string;
     // (undocumented)
     readonly id: StyleFamilyId;
-    readonly members: readonly StyleFamilyMember[];
+    readonly members: readonly StyleFamilyMember<Name>[];
     readonly plainName: string;
-    readonly shared: readonly string[];
-    readonly target: "node" | "edge" | "label" | "graph";
+    readonly shared: readonly Name[];
+    readonly target: Target;
 }
+
+// @public
+export type StyleFamilyDescriptor = ChannelStyleFamily | FieldStyleFamily;
 
 // @public
 export type StyleFamilyId = "node.shape" | "node.fill" | "edge.line" | "label.look" | "graph.background";
 
 // @public
-export interface StyleFamilyMember {
+export interface StyleFamilyMember<Name extends string = string> {
     readonly id: string;
-    readonly keeps?: readonly string[];
-    readonly owns: readonly string[];
+    readonly keeps?: readonly Name[];
+    readonly owns: readonly Name[];
     readonly place?: ShaderPlace;
     readonly plainName: string;
     readonly shader?: string;

@@ -82,7 +82,7 @@ import { type GraphSnapshot, maskToIndices } from "@graphty/graph-format";
 
 import type { DataChannel, DataFacts } from "../../catalog/data-lists";
 import { drawnDefault } from "../../catalog/drawnWhen";
-import { styleFamily, type StyleFamilyDescriptor, type StyleFamilyId } from "../../catalog/families";
+import { type ChannelStyleFamily, styleFamily, type StyleFamilyId } from "../../catalog/families";
 import { type LabelEntry, MAIN_LABEL_ID } from "../../catalog/label-style";
 import type { ShaderProblem } from "../../catalog/shaders";
 import type {
@@ -625,7 +625,9 @@ export interface StylesApi {
      *
      * The patch is applied over the layer's current specification, one key deep. A key present
      * with `undefined` CLEARS it, so `{ set: undefined }` drops the literal values; a key absent
-     * leaves what was there. The merged specification is checked exactly as a new one would be,
+     * leaves what was there. Inside `set` and `encode` the same holds for a channel: one written
+     * as `undefined` is left out, so `{ set: { ...layer.set, "node.gradientColor": undefined } }`
+     * takes that one value off (since 3.70.0). The merged specification is checked exactly as a new one would be,
      * so an update cannot leave a layer in a state `add` would have refused. A patch that takes
      * the last value away leaves the layer in place, painting nothing.
      * @param id - The layer to change.
@@ -2232,6 +2234,24 @@ export interface StyleRepaintFailure {
 }
 
 /**
+ * A layer patch with every channel its `set` or `encode` writes as `undefined` left out, so writing one undefined
+ * clears it as writing the whole key undefined clears that key; a map left with no channel is cleared whole.
+ * @param patch - The patch.
+ * @returns The patch as it is applied.
+ */
+function clearedEntries(patch: Partial<LayerSpec>): Partial<LayerSpec> {
+    const kept = (map: object | undefined): object | undefined => {
+        const entries = Object.entries(map ?? {}).filter(([, value]) => value !== undefined);
+        return entries.length === 0 ? undefined : Object.fromEntries(entries);
+    };
+    return {
+        ...patch,
+        ...("set" in patch ? { set: kept(patch.set) } : {}),
+        ...("encode" in patch ? { encode: kept(patch.encode) as LayerSpec["encode"] } : {}),
+    };
+}
+
+/**
  * The failure a repaint nobody awaited publishes.
  * @param cause - What the repaint was for.
  * @param error - What it threw.
@@ -2330,7 +2350,7 @@ function layerIn(state: ProjectState, id: LayerId): Layer | undefined {
  * @param id - The family's id.
  * @returns The family, or undefined for a label or graph family or an unknown id.
  */
-function drawnFamily(id: StyleFamilyId): StyleFamilyDescriptor | undefined {
+function drawnFamily(id: StyleFamilyId): ChannelStyleFamily | undefined {
     const family = styleFamily(id);
     return family?.target === "node" || family?.target === "edge" ? family : undefined;
 }
@@ -3545,7 +3565,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         }
 
         const before = specOf(existing.layer);
-        const merged: LayerSpec = { ...before, ...patch };
+        const merged: LayerSpec = { ...before, ...clearedEntries(patch) };
 
         if (isElementSource(sourceOf(merged))) {
             throw protectedLayer(existing.layer, "given an element source");

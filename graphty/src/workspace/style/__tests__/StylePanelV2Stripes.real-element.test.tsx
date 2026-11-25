@@ -13,8 +13,8 @@ import { assert, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
-import { screen, waitFor, within } from "../../../test/test-utils";
-import { openGroup, openProject, openStyle, sectionOf, written } from "./v2Harness";
+import { findValuePicker, screen, waitFor, within } from "../../../test/test-utils";
+import { moreButton, openGroup, openProject, openStyle, sectionOf, written } from "./v2Harness";
 
 /**
  * Opens the project with fixed stripes on its layer, and the Stripes pop-over.
@@ -61,6 +61,67 @@ async function openStripes(
 async function typeInto(field: HTMLElement, text: string): Promise<void> {
     await userEvent.click(field);
     await userEvent.keyboard(`{Control>}a{/Control}${text}{Enter}`);
+}
+
+/**
+ * Opens the project with stripes from data on its layer.
+ * @param spec - the stripes' data spec.
+ * @returns the session, the layer and the Style tab.
+ */
+async function openDataStripes(
+    spec: Readonly<Record<string, unknown>>,
+): Promise<{ session: GraphSession; layer: string; tab: HTMLElement }> {
+    const { session, id } = await openProject();
+    await session.data.updateNodes([
+        { id: "a", values: { x1: 3, x2: 5, sets: ["setA", "setC"] } },
+        { id: "b", values: { x1: 1, x2: 2, sets: ["setC"] } },
+    ]);
+    await session.styles.update(id, { set: { "node.color": "#E8590C", "node.stripeData": spec } });
+    await session.styles.settled();
+    const tab = await openStyle("Key people");
+    return { session, layer: id, tab };
+}
+
+/**
+ * Opens a pop-over from its settings button, hovering its line first as a reader does.
+ * @param name - the button's name.
+ * @returns the pop-over.
+ */
+async function openSettings(name: string): Promise<HTMLElement> {
+    const button = await screen.findByRole("button", { name });
+    await userEvent.hover(button.closest<HTMLElement>(".ws-row") ?? button);
+    await userEvent.click(button);
+    return waitFor(() => {
+        assert.strictEqual(button.getAttribute("aria-expanded"), "true", `${name} is open`);
+        const pop = document.getElementById(button.getAttribute("aria-controls") ?? "");
+        assert.isNotNull(pop);
+        return pop;
+    });
+}
+
+/**
+ * A pop-over opened beside another, by its title.
+ * @param title - its title.
+ * @returns its content.
+ */
+async function beside(title: string): Promise<HTMLElement> {
+    return waitFor(() => {
+        const found = document.querySelector<HTMLElement>(`[data-beside-pop="${title}"]`);
+        assert.isNotNull(found, `${title} is open`);
+        return found;
+    });
+}
+
+/**
+ * Opens an entry's Format pop-over from its Entry pop-over's Format line, the one way to it.
+ * @param entry - the entry's name.
+ * @returns the Format pop-over.
+ */
+async function openFormat(entry: string): Promise<HTMLElement> {
+    const pop = await openSettings(`${entry} settings`);
+    assert.isNull(within(pop).queryByRole("combobox", { name: "Format" }), "no second set of format presets");
+    await userEvent.click(within(pop).getByRole("button", { name: `${entry} format` }));
+    return beside("Format");
 }
 
 describe("Style panel v2's Stripes", () => {
@@ -244,5 +305,130 @@ describe("Style panel v2's Stripes", () => {
             );
         assert.lengthOf(bands("a"), 2, "setA and setC");
         assert.deepEqual(bands("b"), [bands("a")[1]], "setC is one color on a and on b");
+    });
+    it("takes the list off only from the row's minus, names its two inputs above it, and takes 8-digit hex", async () => {
+        const { session, layer, pop } = await openStripes({ "node.stripeColors": "#E69F00 #56B4E9" });
+        const line = document.querySelector<HTMLElement>('[data-thing-popover] [data-line="node.stripeColors"]');
+        assert.isNotNull(line, "the pop-over's Stripes line");
+        assert.isNull(within(line).queryByRole("button", { name: /^Remove/ }), "the row's minus is the one path");
+        assert.isNotNull(within(pop).queryByRole("button", { name: "Remove stripe 1" }), "each stripe keeps its own");
+        assert.isNull(pop.querySelector(".ws-list-caption"), "no caption row of the app's own");
+        assert.isNotNull(within(pop).queryByRole("group", { name: "Color / Share" }), "compact-mantine's name above");
+        await userEvent.click(within(pop).getByRole("button", { name: /^Stripe 1 color/ }));
+        const hex = await screen.findByRole("textbox", { name: "Color value" });
+        await userEvent.click(hex);
+        await userEvent.keyboard("{Control>}a{/Control}00FF0080{Enter}");
+        await waitFor(() => {
+            assert.strictEqual(written(session, layer, "node.stripeColors"), "#00FF00 #56B4E9");
+            assert.closeTo(Number(written(session, layer, "node.stripeOpacities")), 0.5, 0.01, "its alpha the opacity");
+        });
+    });
+
+    it("names each frame side's link for its side, and a side's link binds that side alone", async () => {
+        const { session, layer } = await openStripes({ "node.stripeColors": "#E69F00 #56B4E9" });
+        await session.data.updateNodes([
+            { id: "a", values: { depth: 0.1 } },
+            { id: "b", values: { depth: 0.2 } },
+        ]);
+        await userEvent.keyboard("{Escape}");
+        const fixed = await waitFor(() => {
+            const found = document.querySelector<HTMLElement>("[data-thing-popover]");
+            assert.isNotNull(found);
+            return found;
+        });
+        const area = await openGroup(fixed, "Stripe area");
+        await userEvent.click(within(area).getByText("Rim"));
+        for (const side of ["top", "right", "bottom", "left"]) {
+            await within(area).findByRole("button", { name: `Band frame ${side} by attribute` });
+        }
+        const link = within(area).getByRole("button", { name: "Band frame right by attribute" });
+        await userEvent.hover(link.closest<HTMLElement>(".ws-row") ?? link);
+        await userEvent.click(link);
+        await userEvent.click(within(await findValuePicker()).getByRole("option", { name: /^depth\b/ }));
+        await waitFor(() => {
+            const encode = session.styles.get(layer)?.encode ?? {};
+            assert.deepEqual(
+                Object.keys(encode).filter((key) => key.startsWith("node.stripeFrame")),
+                ["node.stripeFrame.1"],
+                "the right side alone is bound",
+            );
+        });
+    });
+
+    it("sets a plain entry's look only from its own pop-over, whose Format line is one button", async () => {
+        const { tab } = await openDataStripes({ entries: [{ field: "data.x1" }, { field: "data.x2" }] });
+        const section = sectionOf(tab, "node-fill");
+        // The entry's line holds its source; its "..." is the one way to its Entry pop-over.
+        await waitFor(() => {
+            assert.lengthOf(within(section).getAllByRole("combobox", { name: "Field" }), 2);
+        });
+        assert.isNull(within(section).queryByRole("button", { name: /^x1,/ }), "no value button opening it again");
+        const format = await openFormat("x1");
+        assert.isNotNull(within(format).queryByText("Decimals"));
+        await userEvent.keyboard("{Escape}");
+        await userEvent.keyboard("{Escape}");
+        const pop = await openSettings("Node stripes settings");
+        const colors = await openGroup(pop, "Colors");
+        assert.isNull(within(colors).queryByRole("combobox", { name: "Category" }), "a plain entry is not listed");
+        assert.isNull(within(colors).queryByRole("textbox", { name: "Name" }), "its name is its pop-over's");
+    });
+
+    it("shows a category's drawn name as its unset Name, and the menu of three groups has no headings", async () => {
+        await openDataStripes({ entries: [{ field: "data.sets" }], keep: 5 });
+        const pop = await openSettings("Node stripes settings");
+        const more = moreButton(pop);
+        assert.isNotNull(more);
+        await userEvent.click(more);
+        const items = await screen.findAllByRole("menuitem");
+        assert.isAtMost(items.length, 6);
+        assert.isNull(document.querySelector(".mantine-Menu-label"), "a short menu needs no headings");
+        await userEvent.keyboard("{Escape}");
+        const colors = await openGroup(pop, "Colors");
+        const name = within(colors).getByRole<HTMLInputElement>("textbox", { name: "Name" });
+        assert.strictEqual(name.value, "setA", "the name the category is drawn under");
+    });
+
+    it("picks a currency from a drop-down and gives Notation its own line, its words whole", async () => {
+        const { session, layer } = await openDataStripes({ entries: [{ field: "data.x1" }] });
+        const format = await openFormat("x1");
+        await userEvent.click(within(format).getByText("Money"));
+        await userEvent.click(await within(format).findByRole("combobox", { name: "Currency" }));
+        await userEvent.click(await screen.findByRole("option", { name: /^EUR\b/ }));
+        await waitFor(() => {
+            const spec = written(session, layer, "node.stripeData") as {
+                entries: { format?: { currency?: string } }[];
+            };
+            assert.strictEqual(spec.entries[0].format?.currency, "EUR");
+        });
+        await userEvent.click(within(format).getByText("Number"));
+        const notation = await waitFor(() => {
+            const found = format.querySelector<HTMLElement>('[data-line="format.notation"]');
+            assert.isNotNull(found, "Notation's own line");
+            return found;
+        });
+        assert.isNull(within(notation).queryByRole("combobox", { name: "Decimals" }), "Decimals is on its own line");
+        for (const word of ["Plain", "Compact", "Scientific"]) {
+            const label = within(notation).getByText(word);
+            assert.isAtMost(label.scrollWidth, label.clientWidth, `${word} fits`);
+        }
+    });
+
+    it("names the Max and How many fields beside Set max and Top N, and No values is a line of the pop-over", async () => {
+        const { session, layer } = await openDataStripes({ entries: [{ field: "data.x1" }, { field: "data.x2" }] });
+        const pop = await openSettings("Node stripes settings");
+        const empty = pop.querySelector<HTMLElement>('[data-line="data.empty"]');
+        assert.isNotNull(empty, "No values joins the main pop-over: a group of one line is not a menu entry");
+        await userEvent.click(within(empty).getByText("Unknown"));
+        await waitFor(() => {
+            assert.strictEqual((written(session, layer, "node.stripeData") as { empty?: string }).empty, "band");
+        });
+        await userEvent.click(within(pop).getByText("Set max"));
+        await waitFor(() => {
+            assert.include(pop.querySelector('[data-line="data.whole"]')?.textContent, "Whole / Max");
+        });
+        await userEvent.click(within(pop).getByText("Top N"));
+        await waitFor(() => {
+            assert.include(pop.querySelector('[data-line="data.keep"]')?.textContent, "Keep / How many");
+        });
     });
 });

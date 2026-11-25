@@ -370,11 +370,7 @@ export class NodeBatch {
         order.forEach(({ slot: from }, slot) => {
             this.rows[slot] = rows[from] ?? HOLE;
             this.keys[slot] = keys[from] ?? 0;
-            this.colors.set(colors.subarray(from * COLOR_FLOATS, (from + 1) * COLOR_FLOATS), slot * COLOR_FLOATS);
-            this.matrices?.set(
-                matrices?.subarray(from * MATRIX_FLOATS, (from + 1) * MATRIX_FLOATS) ?? [],
-                slot * MATRIX_FLOATS,
-            );
+            this.copyLook(colors, matrices, from, slot);
             this.setSlot(rowOf(this.rows[slot] ?? 0), slot);
         });
         this.unsorted = false;
@@ -407,6 +403,21 @@ export class NodeBatch {
         this.slotOf[row] = slot;
     }
 
+    /**
+     * Copy one slot's color and matrix from the arrays the slots had before a reorder.
+     * @param colors - The old colors.
+     * @param matrices - The old matrices, when the batch has them.
+     * @param from - The slot in the old arrays.
+     * @param slot - The slot in the current arrays.
+     */
+    private copyLook(colors: Float32Array, matrices: Float32Array | undefined, from: number, slot: number): void {
+        this.colors.set(colors.subarray(from * COLOR_FLOATS, (from + 1) * COLOR_FLOATS), slot * COLOR_FLOATS);
+        this.matrices?.set(
+            matrices?.subarray(from * MATRIX_FLOATS, (from + 1) * MATRIX_FLOATS) ?? [],
+            slot * MATRIX_FLOATS,
+        );
+    }
+
     /** Take the holes out and put the rows in draw order, which keeps depth ties as they were. */
     private compact(): void {
         const live: { row: number; key: number; from: number }[] = [];
@@ -425,11 +436,7 @@ export class NodeBatch {
         live.forEach(({ row, key, from }, slot) => {
             this.rows[slot] = row;
             this.keys[slot] = key;
-            this.colors.set(colors.subarray(from * COLOR_FLOATS, (from + 1) * COLOR_FLOATS), slot * COLOR_FLOATS);
-            this.matrices?.set(
-                matrices?.subarray(from * MATRIX_FLOATS, (from + 1) * MATRIX_FLOATS) ?? [],
-                slot * MATRIX_FLOATS,
-            );
+            this.copyLook(colors, matrices, from, slot);
             this.setSlot(rowOf(row), slot);
         });
         this.slots = live.length;

@@ -82,6 +82,13 @@ export async function loadModel(
         throw new ModelLoadFailure({ code: "E_MODEL_PARSE", params: { format } });
     }
 
+    // A scene made on an engine already disposed (a graph's check scene asked for after the graph
+    // went) is live, so Babylon's loader loads into it, yet the engine's dispose never reaches it:
+    // its BRDF texture would decode on the dead engine and throw "Cannot read properties of null
+    // (reading 'program')" as an unhandled rejection. Refused as a disposed scene is.
+    if (scene.getEngine().isDisposed) {
+        throw new ModelLoadFailure({ code: "E_MODEL_PARSE", params: { format } });
+    }
     own.pinPbrShaders();
     own.prepareScene(scene);
     try {

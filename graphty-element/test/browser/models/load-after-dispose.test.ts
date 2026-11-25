@@ -75,6 +75,24 @@ describe("a graph disposed while a model loads", () => {
         assert.isNull(brdf?.getScene(), "and disposed with the scene");
     });
 
+    it("refuses a scene made on an engine already disposed, making no BRDF texture in it", async () => {
+        const { loadModel } = await import("../../../src/models/loadModel");
+        // Not makeScene: its cleanup would dispose the engine again.
+        const engine = new Engine(document.createElement("canvas"), false);
+        engine.dispose();
+        // Live, yet out of reach of the engine's dispose: a texture made in it would decode on the
+        // dead engine and throw (a graph's check scene asked for after the graph went).
+        const scene = new Scene(engine, { virtual: true });
+
+        const outcome = await loadModel(scene, new Map([["sphere.glb", sphereGlb(8, 4)]]), "sphere.glb", "glb").then(
+            () => "loaded",
+            () => "rejected",
+        );
+
+        assert.strictEqual(outcome, "rejected");
+        assert.notExists(scene.environmentBRDFTexture, "no BRDF texture was made in it");
+    });
+
     it("draws nothing for a BRDF texture whose engine is disposed while its decode shader loads", async () => {
         const { prepareScene } = await import("../../../src/models/chunk");
         const { engine, scene } = makeScene();

@@ -514,6 +514,18 @@ const OFF_SHARDS = [
         "full-run-only": true,
         local: "never",
     })),
+    // Hover, click and edges in motion in WebKit on both render paths (the "interactions-webkit" project: pick-parity's
+    // at-rest cases and edges-follow's ngraph and glide cases, with Playwright's mouse). Pictures alone are compared
+    // in WebKit by render-parity-webkit; this is where a WebKit-only pick or edge-follow failure shows. Full run only.
+    {
+        shard: "graphty-element-interactions-webkit",
+        package: "graphty-element",
+        "test-command": `cd graphty-element && pnpm run test:interactions-webkit ${ELEMENT_REPORTERS}`,
+        "needs-browser": true,
+        browsers: "chromium webkit",
+        "full-run-only": true,
+        local: "never",
+    },
     ...[
         { engine: "webgl", env: "GRAPHTY_BROWSER_GPU=swiftshader VITE_PARITY_RENDERER=webgl", storyMs: 2_200 },
         { engine: "webgpu", env: "GRAPHTY_BROWSER_GPU=swiftshader VITE_PARITY_RENDERER=webgpu", storyMs: 3_700 },

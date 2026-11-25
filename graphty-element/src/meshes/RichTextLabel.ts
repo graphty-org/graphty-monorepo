@@ -3093,6 +3093,19 @@ export class RichTextLabel {
     }
 
     /**
+     * Whether the label's style puts it on what it is attached to: at its center or inside it, not beside it.
+     * @returns True for a `"center"` or `"inside-*"` label attached to a mesh.
+     */
+    public get onTarget(): boolean {
+        const at = this.options.attachPosition;
+        return (
+            this.options.attachTo !== undefined &&
+            !(this.options.attachTo instanceof Vector3) &&
+            (at === "center" || Object.hasOwn(INSIDE, at))
+        );
+    }
+
+    /**
      * Gets the label's mesh
      * @returns The Babylon.js mesh or null if not created
      */

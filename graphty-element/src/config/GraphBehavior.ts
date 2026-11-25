@@ -79,7 +79,8 @@ const LabelBehaviorOpts = z
          * four corners) and draws it at the first one that covers no other label, node or edge;
          * failing that, at one that covers no label or node. When none of them is clear of other
          * labels and nodes, `declutter` hides the label; with `declutter` off it stays where its
-         * style puts it. Decided again whenever `declutter` is.
+         * style puts it. A label whose style puts it on its node (`location: "center"` or `"inside-*"`) is never
+         * moved off it; `declutter` may still hide it. Decided again whenever `declutter` is.
          */
         avoidNodesAndEdges: z.boolean().default(false),
         /**

@@ -26,6 +26,10 @@ interface Expected {
     readonly edgeColors: readonly string[];
     /** How many edges the file draws in a line style other than solid. */
     readonly edgeStyles?: Readonly<Partial<Record<SceneEdge["style"], number>>>;
+    /** Whether the file centers its labels on their nodes, so each must be drawn on its node. */
+    readonly labelsCentered?: true;
+    /** Nodes whose label the file centers on the node and then moves beside it (Cytoscape's label anchors). */
+    readonly labelsBeside?: readonly string[];
     /** Whether the file stores every node's position. */
     readonly placed: boolean;
 }
@@ -52,6 +56,7 @@ const EXPECTED: Readonly<Record<string, Expected>> = {
         placed: true,
     },
     cytoscape: {
+        labelsCentered: true,
         nodes: {
             "7541": { shape: "rect", fill: "#ffffff", label: "Apoptosis" },
             "7539": { shape: "ellipse", fill: "#ccffcc", label: "CREB1" },
@@ -61,6 +66,7 @@ const EXPECTED: Readonly<Record<string, Expected>> = {
         placed: true,
     },
     "cytoscape-xgmml": {
+        labelsCentered: true,
         nodes: {
             "392": { shape: "rect", fill: "#f2e1df", label: "SNF3" },
             "390": { shape: "ellipse", fill: "#f7f7f7", label: "YBR043C" },
@@ -69,15 +75,19 @@ const EXPECTED: Readonly<Record<string, Expected>> = {
         placed: true,
     },
     "ndex-cx": {
+        labelsCentered: true,
         nodes: {
             "1655": { shape: "ellipse", fill: "#006666", label: "STAT3", labelColor: "#ffffff" },
             "1650": { shape: "roundrect", fill: "#ffffff", label: "Cell Growth" },
             "1645": { shape: "octagon", fill: "#ffffff", label: "PtsIns(3,4,5)P3" },
         },
         edgeColors: ["#ffffff"],
+        // its small molecules' labels hang below right of the node (NODE_LABEL_POSITION S,NW)
+        labelsBeside: ["1645"],
         placed: true,
     },
     "ndex-cx2": {
+        labelsCentered: true,
         nodes: {
             "136962": { shape: "rect", fill: "#ffffff", label: "FBXW5", labelColor: "#0033ff" },
             "137115": { shape: "rect", fill: "#ff9999", label: "TLR1" },
@@ -166,7 +176,19 @@ describe("the sample files from other programs, drawn with their file styles", (
             assert.equal(element.layout, "fixed", `${sample.id} is drawn where the file placed it`);
             assert.equal(element.session.seededNodeCount, sample.nodes);
         }
+        // as the graphty app draws it: labels kept clear of each other and moved off the nodes and edges they cover
+        element.layoutBehavior = { labels: { declutter: true, avoidNodesAndEdges: true } };
+        await element.waitForSettled();
         const scene = drawnScene(element, sha256, command);
+        // a label the file puts on its node is drawn on it (Cytoscape's centered labels were moved beside their node)
+        const beside = new Set(expected.labelsBeside ?? []);
+        const offNode = scene.nodes
+            .filter((node) => expected.labelsCentered === true && node.requested?.labelPosition === "inside")
+            .filter((node) => node.label?.visible === true)
+            .filter((node) => node.label?.text !== "" && !beside.has(node.id))
+            .filter((node) => node.label?.position !== "inside")
+            .map((node) => `${node.id} ${String(node.label?.text)} ${String(node.label?.position)}`);
+        assert.deepEqual(offNode, [], `${sample.id} labels the file centers on their node`);
         const nodes = new Map(scene.nodes.map((node) => [node.id, node]));
         for (const [id, want] of Object.entries(expected.nodes)) {
             const node = nodes.get(id);

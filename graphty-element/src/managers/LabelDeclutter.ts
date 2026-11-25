@@ -1494,7 +1494,10 @@ export class LabelDeclutter {
 
         let best = 0;
         let lowest = Number.POSITIVE_INFINITY;
-        for (let place = 0; place <= AROUND.length && lowest > 0; place++) {
+        // A label its style puts on its node (centered, or inside it) belongs there: moved beside the node it would
+        // say something the file or style did not, so only its own place is tried.
+        const places = entry.node.label?.onTarget === true ? 0 : AROUND.length;
+        for (let place = 0; place <= places && lowest > 0; place++) {
             this.frame(entry, place);
             const cost = this.cost(entry, size, lowest);
             if (cost < lowest) {

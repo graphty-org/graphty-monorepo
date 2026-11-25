@@ -247,6 +247,8 @@ const WORDS: Readonly<Record<HistoryCode, (params: Params, session: GraphSession
     "shader.replace": (p, s) => `changing ${shaderName(s, p.id)}`,
     "shader.remove": (p, s) => `removing ${shaderName(s, p.id)}`,
     "asset.defaults": () => "changing a model's settings",
+    "font.add": (p) => `adding the font ${text(p, "family", "")}`.trimEnd(),
+    "font.remove": (p) => `removing the font ${text(p, "family", "")}`.trimEnd(),
     "visibility.filter": () => "filtering",
     "visibility.clear-filter": () => "clearing the filter",
     "visibility.window": () => "setting the time window",

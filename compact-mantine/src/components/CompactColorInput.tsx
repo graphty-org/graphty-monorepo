@@ -485,18 +485,18 @@ function ColorChip({
 }: Readonly<ColorChipProps>): React.JSX.Element {
     const { showsMixed, hexState } = reading;
     const chipNoun = name === undefined ? labels.colorSwatch : labels.colorValue(name);
-    const chipName = `${chipNoun}, ${hexState}`;
     /**
-     * The chip's name: the caller's words for the color, else its state and hex.
-     * @param stated - the name with the state
+     * The chip's name: the caller's words for the color, else its state and hex. A part with no
+     * words (a state an application words as "") is left out, never read as an empty part.
      * @param words - the caller's words, if any
      * @returns the name
      */
-    const chipLabel = (stated: string, words: string | undefined): string => {
-        if (words !== undefined && !showsMixed) {
-            return `${chipNoun}, ${words}`;
-        }
-        return isColorDefault ? stated : `${stated}, ${displayColor.toUpperCase()}`;
+    const chipLabel = (words: string | undefined): string => {
+        const parts =
+            words !== undefined && !showsMixed
+                ? [chipNoun, words]
+                : [chipNoun, hexState, isColorDefault ? "" : displayColor.toUpperCase()];
+        return parts.filter((part) => part !== "").join(", ");
     };
     // Nothing chosen, with words for it: an empty chip, since no color is in force here.
     const emptyChip = !showsMixed && isColorDefault && (emptyText !== undefined || emptySwatch);
@@ -512,7 +512,7 @@ function ColorChip({
                         data-mixed={showsMixed || undefined}
                         data-empty={emptyChip || undefined}
                         disabled={disabled}
-                        aria-label={chipLabel(chipName, valueText)}
+                        aria-label={chipLabel(valueText)}
                         aria-describedby={annotation.describedBy}
                     >
                         <SwatchFace showsMixed={showsMixed} empty={emptyChip} color={chitColor} />

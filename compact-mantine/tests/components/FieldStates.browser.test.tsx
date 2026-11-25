@@ -10,7 +10,7 @@
 import { TextInput } from "@mantine/core";
 import { screen } from "@testing-library/react";
 import React from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, assert, describe, expect, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import {
@@ -18,6 +18,7 @@ import {
     CompactColorInput,
     FieldRow,
     GradientEditor,
+    LabelsProvider,
     PanelField,
     Popout,
     PopoutManager,
@@ -143,6 +144,28 @@ describe("chip-only color", () => {
         await userEvent.click(notSet);
         await expect.element(page.getByRole("dialog")).toBeInTheDocument();
         expect(notSet.element().getAttribute("aria-expanded")).toBe("true");
+    });
+});
+
+describe("chip with a state worded as nothing", () => {
+    it("leaves the empty part out of its name", async () => {
+        // An application that does not say "set here" words that state as "".
+        await renderThemed(
+            <LabelsProvider labels={{ fieldSet: "" }}>
+                <PopoutManager>
+                    <CompactColorInput
+                        aria-label="Slice 1"
+                        variant="chip"
+                        color="#A9A9A9"
+                        defaultColor="#3388FF"
+                        showOpacity={false}
+                    />
+                </PopoutManager>
+            </LabelsProvider>,
+        );
+        const chip = screen.getByTestId("compact-color-input-chip");
+        assert.equal(chip.getAttribute("aria-label"), "Slice 1 color, #A9A9A9");
+        await expect.element(page.getByRole("button", { name: "Slice 1 color, #A9A9A9", exact: true })).toBeVisible();
     });
 });
 

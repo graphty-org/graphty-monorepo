@@ -4150,7 +4150,8 @@ export class SessionData implements SessionDataApi {
                         if (!Object.values(copies).some((tables) => hasRows(tables))) {
                             throw emptyCopy(load.source.type ?? source.type);
                         }
-                        read = { source: { ...compiled.edit.source, read: facts }, copies };
+                        // Kept, so the source can be read again as a load can.
+                        read = { source: { ...compiled.edit.source, input: this.keep(source), read: facts }, copies };
                     }
                     return Promise.resolve();
                 },

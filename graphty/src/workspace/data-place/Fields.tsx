@@ -470,10 +470,15 @@ function SideGroup({
     const reloadable = source?.reloadable === true && roles !== undefined;
     // `located` is read once a render: it reads every node's values.
     const located = side === "nodes" ? session?.layout.locationColumns() : undefined;
-    const locationOf = (entry: FieldEntry): string | null | undefined =>
-        located === undefined || !LOCATION_ENTRIES.some((each) => each.id === entry.id)
-            ? undefined
-            : (located.kinds[entry.id as keyof typeof located.kinds] ?? null);
+    const locationOf = (entry: FieldEntry): string | null | undefined => {
+        if (located === undefined || !LOCATION_ENTRIES.some((each) => each.id === entry.id)) {
+            return undefined;
+        }
+        // The graph's location, listed under the load whose rows carry its column.
+        const column = located.kinds[entry.id as keyof typeof located.kinds] ?? null;
+        const own = source === undefined || attributes.some((each) => each.kind === kind && each.name === column);
+        return own ? column : null;
+    };
     const holderOf = (entry: FieldEntry): string | null => {
         const location = locationOf(entry);
         if (location !== undefined) {

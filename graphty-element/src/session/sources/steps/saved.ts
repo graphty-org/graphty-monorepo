@@ -575,8 +575,7 @@ const optional = (v: unknown, test: (v: unknown) => boolean): boolean => v === u
  */
 function stepShaped(step: Record<string, unknown>): boolean {
     const { op, read, link, extract } = step;
-    const filter = (v: unknown): boolean =>
-        isObject(v) && typeof v.column === "string" && Array.isArray(v.values);
+    const filter = (v: unknown): boolean => isObject(v) && typeof v.column === "string" && Array.isArray(v.values);
     const reads = op === "join.add" ? read === undefined : isObject(read);
     return (
         reads &&
@@ -587,11 +586,7 @@ function stepShaped(step: Record<string, unknown>): boolean {
         optional(step.aggregate, isObject) &&
         optional(
             link,
-            (v) =>
-                isObject(v) &&
-                isTexts(v.columns) &&
-                Number.isInteger(v.maxShared) &&
-                Number.isInteger(v.minShared),
+            (v) => isObject(v) && isTexts(v.columns) && Number.isInteger(v.maxShared) && Number.isInteger(v.minShared),
         ) &&
         optional(
             extract,

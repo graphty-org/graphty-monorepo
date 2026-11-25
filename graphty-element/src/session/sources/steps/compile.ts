@@ -208,6 +208,7 @@ function sourceFacts(
         unmatched: command.unmatched === "leave-out" ? ("leave-out" as const) : undefined,
     });
     const { name, type } = importFact(command).params;
+    const { url } = command.source.config ?? {};
     const direction = command.held?.declaredDirection ?? undefined;
     return {
         kind: kindOf(command),
@@ -215,6 +216,7 @@ function sourceFacts(
         tables: command.tables ?? [],
         ...defined({
             type: typeof type === "string" ? type : undefined,
+            config: kindOf(command) === "url" ? { url } : undefined,
             tableRows: command.tableRows,
             input: command.input,
             spacePicked: options.space === undefined ? undefined : true,

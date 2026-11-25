@@ -87,6 +87,33 @@ describe("the url source in a session", () => {
         });
     });
 
+    it("keeps the file's own id column, and under source-steps lists no id column the file never had", async () => {
+        const url = `${HOST}/data/people.csv`;
+        const people = "person_id,name\np1,Ann\np2,Bob\n";
+        const fetch = (): ReturnType<typeof replayFetch> => replayFetch([{ url, body: people }]);
+        await withSession(async (session) => {
+            await session.data.import({ source: "url", config: { url } }, { fetch: fetch() });
+            assert.strictEqual(session.data.node("p1")?.person_id, "p1");
+        });
+
+        const steps = createGraphSession({ features: ["source-steps"] });
+        await steps.data.import({ source: "url", config: { url } }, { fetch: fetch() });
+        const key = steps.data.sources()[0]?.key ?? "";
+        const facts = steps.data.sourceTable(key).summary();
+        assert.strictEqual(facts.mapping.key, "person_id");
+        assert.sameMembers([...(facts.tables[0]?.columns ?? [])], ["person_id", "name"]);
+        assert.deepInclude(steps.data.node("p1"), { person_id: "p1", name: "Ann" });
+        await steps.data.refresh(key, { fetch: fetch() });
+        assert.strictEqual(steps.data.nodes().length, 2);
+        assert.deepInclude(steps.data.node("p2"), { person_id: "p2" });
+        const { text } = await steps.project.save();
+        const other = createGraphSession({ features: ["source-steps"] });
+        await other.project.open(text);
+        assert.strictEqual(other.data.sourceTable(key).summary().mapping.key, "person_id");
+        other.dispose();
+        steps.dispose();
+    });
+
     it("reopens a CSV node table keyed by the id column it was loaded with, not the importer's default now", async () => {
         // person_id and name are both filled and distinct: graph-io's default picks person_id,
         // an older default picked name. A reopened load must key the rows as they were saved.

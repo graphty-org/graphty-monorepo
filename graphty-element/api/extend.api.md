@@ -2534,6 +2534,8 @@ class Node_2 implements ModelUser {
     isSelected(): boolean;
     label?: RichTextLabel;
     // @internal
+    get labelPlaced(): boolean;
+    // @internal
     get layoutRadius(): number;
     // @internal
     makeDrawnPickable(actions: ActionManager): void;

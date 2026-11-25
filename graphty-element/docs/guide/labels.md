@@ -100,7 +100,8 @@ that would cover one: it tries the label's own place first, then above, below, r
 four corners of its node, and draws it at the first place that covers no other label, node or edge.
 When every place covers something, it takes the one that covers least (another label is worst, then
 a node, then an edge). A label its style puts on its node -- `location: "center"` or one of the
-`"inside-*"` places -- stays on its node.
+`"inside-*"` places -- stays on its node, and a label whose place a style layer states (`node.labelLocation`, as a
+file's styles state a label below its node) stays at that place.
 
 ```typescript
 element.layoutBehavior = { labels: { declutter: true, avoidNodesAndEdges: true } }; // both off by default

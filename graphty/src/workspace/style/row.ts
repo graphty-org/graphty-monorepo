@@ -871,6 +871,59 @@ export function hiddenByOf(
 }
 
 /**
+ * Which of a row's fields a layer outside the row draws over on every one of the row's elements: a
+ * layer above that paints the channel there, or one that draws a shader in place of it. Read from
+ * graphty-element's answer over the row's own elements with the whole stack (`styles.agreement`
+ * with `over`) and the row's counts (`styles.counts(...).covers`). A layer above that draws over
+ * only some of them (Selected over a few) is not reported: the row's own value still draws.
+ * @param session - the element's session.
+ * @param row - the tree row.
+ * @param ids - the row's layers.
+ * @returns a reader by channel: the name of the layer drawn instead, or undefined.
+ */
+export function paintedOverOf(
+    session: GraphSession,
+    row: string,
+    ids: readonly LayerId[],
+): (channel: Channel) => string | undefined {
+    let agreement: ReturnType<GraphSession["styles"]["agreement"]>;
+    try {
+        agreement = session.styles.agreement("graph", undefined, { over: row });
+    } catch (error) {
+        logUnexpected("styles.agreement", error, ["E_UNKNOWN_LAYER"]);
+        return () => undefined;
+    }
+    if (agreement.readOver !== "row") {
+        return () => undefined;
+    }
+    const nameOf = (id: LayerId): string | undefined => session.styles.get(id)?.name;
+    return (channel) => {
+        const entry = agreement.channels.find((c) => c.channel === channel);
+        if (entry === undefined) {
+            return undefined;
+        }
+        const read = agreement.elements ?? { nodes: 0, edges: 0 };
+        const painted = (channel.startsWith("node.") ? read.nodes : read.edges) - entry.unpainted;
+        const shares =
+            entry.state === "agree"
+                ? [{ layerId: entry.layerId, count: painted }]
+                : entry.breakdown.map((share) => ({ layerId: share.layerId, count: share.count }));
+        if (painted > 0 && shares.every((share) => !ids.includes(share.layerId))) {
+            return nameOf(shares[0].layerId);
+        }
+        if ((entry.covered ?? 0) < painted || painted === 0) {
+            return undefined;
+        }
+        // A shader drawn in place of the channel on all of them, by a layer outside the row.
+        const covers = shaderCovers(session, ids, channel);
+        const top = covers.at(0);
+        return top !== undefined && top.count >= painted && covers.every((share) => !ids.includes(share.layerId))
+            ? nameOf(top.layerId)
+            : undefined;
+    };
+}
+
+/**
  * The name of the shader a layer draws in place of a node's shape (its last `replace` use, which
  * wins), from the catalog.
  * @param session - the element's session.

@@ -124,6 +124,12 @@ export function dimOf(ctx: RowContext, channel: Channel): string | undefined {
     if (channelDescriptor(channel) === undefined) {
         return undefined;
     }
+    // A value the row writes that a layer above draws over on every one of its elements draws nothing.
+    const own = lineIn(ctx, channel);
+    const over = own?.layer.enabled === true ? ctx.paintedOverBy?.(channel) : undefined;
+    if (over !== undefined) {
+        return `${over} draws over it`;
+    }
     const read = rowReader(ctx);
     // The layout itself, so a lift out of a 3D layout's plane and a location map's raised routes are read too.
     const found = channelDrawn(channel, read, ctx.session.layout);

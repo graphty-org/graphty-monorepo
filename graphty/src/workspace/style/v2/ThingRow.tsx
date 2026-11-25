@@ -98,8 +98,8 @@ export function UseParams({
 }
 
 /**
- * How many of the shapes'-place shader's parameters the Shape pop-over's main lines hold: under its tab strip, Shape
- * and Rotation lines, so the pop-over stays 6 rows tall (owner's input rules).
+ * How many of the shapes'-place shader's parameters the Shape pop-over's main lines hold: under its tab strip and
+ * Rotation line, so the pop-over stays 6 rows tall (owner's input rules).
  */
 const REPLACE_MAIN_PARAMS = 3;
 
@@ -230,10 +230,11 @@ function setLinesOf(
 
 /**
  * The pop-over's first main line, the row's main value's: none where a list (strands, stripes, a record's fields)
- * edits it, as the list is its one editor (owner, 2026-11-24).
+ * edits it, as the list is its one editor (owner, 2026-11-24), and none where a shader drawn in the shapes' place
+ * covers it (a basic shape under a sticker draws nothing).
  * @param rubric - the thing's rubric.
  * @param main - the row's main channel.
- * @param listed - whether the pop-over draws a list of it.
+ * @param listed - whether the pop-over draws a list of it, or a shader covers it.
  * @returns the line, if any.
  */
 function popoverHead(rubric: ThingRubric, main: Channel, listed: boolean): LineSpec | undefined {
@@ -561,7 +562,7 @@ export function ThingRow({
                             <FirstLines ctx={ctx} main={main} />
                         </>
                     }
-                    head={popoverHead(rubric, main.channel, popoverList !== undefined)}
+                    head={popoverHead(rubric, main.channel, popoverList !== undefined || replacing !== undefined)}
                     extra={params?.main}
                     moreGroups={params?.groups}
                     after={popoverList}

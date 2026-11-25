@@ -111,6 +111,8 @@ export interface RowContext {
     readonly many?: ManyRows;
     /** Which of the row's fields its own shader hides, by the shader's name, where the row is a tree row. */
     readonly hiddenBy?: (channel: Channel) => string | undefined;
+    /** The layer outside the row drawn instead of a field on every one of the row's elements, by its name. */
+    readonly paintedOverBy?: (channel: Channel) => string | undefined;
     /** `"listbox"`: a choice property picks from a named, searchable list with the graph's values first. */
     readonly pickers?: "listbox";
     /** A long value list's sections, so its picker shows one at a time (Style panel v2 only). */

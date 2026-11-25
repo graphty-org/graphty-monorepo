@@ -27,6 +27,7 @@ import {
     everythingRow,
     hiddenByOf,
     type NewLayer,
+    paintedOverOf,
     rowLayers,
     selectedLayerRow,
     sourceName,
@@ -432,6 +433,8 @@ export function RowStyle({
     const fresher = fresh !== undefined && fresh.selector.match !== "everything";
     const beneath = beneathOf(session, treeRow, fresher ? "selection" : "graph");
     const hiddenBy = treeRow === undefined || many !== undefined ? undefined : hiddenByOf(session, treeRow, row);
+    const paintedOverBy =
+        treeRow === undefined || many !== undefined ? undefined : paintedOverOf(session, treeRow, row);
     const colors = documentColors(session);
     const dataVersion = useDataVersion(session, element);
     const ctxOf = (side: Target): RowContext => ({
@@ -442,6 +445,7 @@ export function RowStyle({
         fresh,
         beneath,
         hiddenBy,
+        paintedOverBy,
         documentColors: colors,
         ...many?.(side),
     });
@@ -459,7 +463,11 @@ export function RowStyle({
                   ctx.layers,
                   // Its revision moves with every repaint, whatever it painted.
                   ctx.layers.map((layer) => ({ ...session.styles.counts(layer.id), revision: undefined })),
-                  channelsFor(side).map(({ channel }) => [beneath(channel), hiddenBy?.(channel)]),
+                  channelsFor(side).map(({ channel }) => [
+                      beneath(channel),
+                      hiddenBy?.(channel),
+                      paintedOverBy?.(channel),
+                  ]),
                   colors,
                   dataVersion,
                   fileStylesOn(session),

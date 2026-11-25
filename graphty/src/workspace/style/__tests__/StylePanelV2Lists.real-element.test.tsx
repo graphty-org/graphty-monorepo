@@ -116,6 +116,8 @@ describe("Style panel v2's list things", () => {
             return found;
         });
         await userEvent.click(within(row).getByRole("button", { name: /^Node stripes settings/ }));
+        // The stripes are one line of the pop-over, opening their list beside (design "Lists in pop-overs").
+        await userEvent.click(await screen.findByRole("button", { name: /^Edit stripes/ }));
         // A number showing a value is a spin button.
         const share = await screen.findByRole("spinbutton", { name: "Stripe 1 share" });
         // Unset, the share shows the even split drawn (design "Input rules"): typed over.
@@ -213,6 +215,15 @@ describe("Style panel v2's list things", () => {
         const fill = sectionOf(tab, "node-fill");
         await userEvent.click(within(fill).getByRole("button", { name: /^Add to node fill/ }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Pie" }));
+        // "+" opens the data picker (design 5.1): Escape keeps the pie beneath, whose slices open beside its pop-over.
+        await userEvent.keyboard("{Escape}");
+        const pie = await waitFor(() => {
+            const found = fill.querySelector<HTMLElement>('[data-thing="pie"]');
+            assert.isNotNull(found);
+            return found;
+        });
+        await userEvent.click(within(pie).getByRole("button", { name: /^Node pie settings/ }));
+        await userEvent.click(await screen.findByRole("button", { name: /^Edit slices/ }));
         // The pie beneath shows: three slices, nothing written yet.
         const chip = await waitFor(() => {
             const line = document.querySelector<HTMLElement>('[data-line="node.pieColors:1"]');

@@ -40,6 +40,12 @@ async function withAnimals(): Promise<{ session: GraphSession; layer: string }> 
 async function plus(section: HTMLElement, kind: "fill" | "text", thing: string): Promise<void> {
     await userEvent.click(within(section).getByRole("button", { name: new RegExp(`^Add to node ${kind}`) }));
     await userEvent.click(await screen.findByRole("menuitem", { name: thing }));
+    // "+" opens the entries picker at once (design 5.1); Escape keeps the fixed values, for the steps that follow.
+    await screen.findByRole("listbox", { name: `Node ${thing.toLowerCase()} data` });
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => {
+        assert.isNull(screen.queryByRole("listbox", { name: `Node ${thing.toLowerCase()} data` }));
+    });
 }
 
 /**

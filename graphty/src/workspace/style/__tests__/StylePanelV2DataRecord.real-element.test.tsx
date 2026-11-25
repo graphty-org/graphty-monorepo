@@ -39,8 +39,8 @@ async function withGenes(): Promise<{ session: GraphSession; layer: string }> {
  */
 async function recordOf(tab: HTMLElement, fields: readonly string[]): Promise<void> {
     await userEvent.click(within(sectionOf(tab, "node-text")).getByRole("button", { name: /^Add to node text/ }));
+    // "+" opens the entries picker at once (design 5.1).
     await userEvent.click(await screen.findByRole("menuitem", { name: "Record" }));
-    await userEvent.click(await screen.findByRole("combobox", { name: "Node record data" }));
     const list = await screen.findByRole("listbox", { name: "Node record data" });
     for (const field of fields) {
         await userEvent.click(within(list).getByRole("option", { name: new RegExp(`^${field}\\b`) }));

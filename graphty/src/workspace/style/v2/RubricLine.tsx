@@ -909,6 +909,7 @@ export function SeparateSidesLine({
  * @param descriptor - its channel.
  * @param rule - its rule.
  * @param set - whether the layer sets it.
+ * @param inline - drawn under its row in the panel, not in a pop-over: a list keeps its items in place.
  * @returns the line, or undefined when the rubric's own control draws it.
  */
 function keptField(
@@ -918,6 +919,7 @@ function keptField(
     descriptor: ChannelDescriptor,
     rule: Rule,
     set: boolean,
+    inline: boolean,
 ): React.JSX.Element | undefined {
     const { channel } = descriptor;
     const own = lineIn(ctx, channel);
@@ -925,7 +927,7 @@ function keptField(
     const bound = own?.binding !== undefined || own?.template !== undefined;
     const list = ITEM_LISTS[channel];
     if (rule === "R15" && list !== undefined && !bound && !spread) {
-        return <ItemListEditor ctx={ctx} channel={channel} list={list} />;
+        return <ItemListEditor ctx={ctx} channel={channel} list={list} inline={inline} />;
     }
     if (rule !== "field" && rule !== "R15" && !bound && !spread) {
         return undefined;
@@ -1105,7 +1107,7 @@ function OneLine({ ctx, line, row, named: alwaysNamed = false }: RubricLineProps
     // A line graphty-element draws nothing for now (a 3D-only line in 2D) is dimmed, never hidden.
     const dimmed = dimOf(ctx, channel);
     const rule = ruleOf(line, descriptor);
-    const kept = keptField(ctx, line, row, descriptor, rule, set);
+    const kept = keptField(ctx, line, row, descriptor, rule, set, alwaysNamed);
     if (kept !== undefined || rule === "field" || rule === "R15") {
         return kept === undefined ? null : (
             <div className="ws-dim" data-dimmed={dimmed === undefined ? undefined : ""} title={dimmed}>

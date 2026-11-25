@@ -361,6 +361,10 @@ describe("Style panel v2's '+' lists", () => {
         const fill = sectionOf(tab, "node-fill");
         await userEvent.click(within(fill).getByRole("button", { name: "Add to node fill" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Pie" }));
+        // "+" opens the data picker (design 5.1); Escape keeps the fixed slices, whose list opens beside the pop-over.
+        await userEvent.keyboard("{Escape}");
+        await userEvent.click(await within(fill).findByRole("button", { name: /^Node pie settings/ }));
+        await userEvent.click(await screen.findByRole("button", { name: /^Edit slices/ }));
         const slices = await waitFor(() => {
             const found = [
                 ...document.querySelectorAll<HTMLElement>('[data-thing-popover] [data-plus-list="group"]'),

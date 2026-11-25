@@ -35,6 +35,8 @@ interface ItemListEditorProps {
     readonly list: ListSpec | ItemList;
     /** A structured list's channel; a parallel list names its own. */
     readonly channel?: Channel;
+    /** Drawn under its row in the panel rather than in a pop-over: its items stay in place, under a "+" line. */
+    readonly inline?: boolean;
 }
 
 /**
@@ -43,9 +45,10 @@ interface ItemListEditorProps {
  * @param props.ctx - see ItemListEditorProps
  * @param props.list - see ItemListEditorProps
  * @param props.channel - see ItemListEditorProps
+ * @param props.inline - see ItemListEditorProps
  * @returns The list, or nothing for a channel the element does not offer here
  */
-export function ItemListEditor({ ctx, list, channel }: ItemListEditorProps): React.JSX.Element | null {
+export function ItemListEditor({ ctx, list, channel, inline = false }: ItemListEditorProps): React.JSX.Element | null {
     const { store } = useWorkspace();
     const [open, setOpen] = useState(false);
     const fail = (error: unknown): void => {
@@ -76,6 +79,35 @@ export function ItemListEditor({ ctx, list, channel }: ItemListEditorProps): Rea
             onAdd={items.add}
         />
     );
+    if (inline && channel !== undefined) {
+        const held = value !== undefined && value !== "";
+        return (
+            <>
+                <LineFrame
+                    line={channel}
+                    name={list.name}
+                    set={held}
+                    rule="R15"
+                    control={null}
+                    modifier={
+                        <AddButton
+                            kind={ctx.side}
+                            title={list.name}
+                            name={`Add ${list.item.toLowerCase()}`}
+                            inRow
+                            options={[{ key: "item", label: list.item }]}
+                            onAdd={items.add}
+                        />
+                    }
+                    removeName={held ? `Remove ${list.name.toLowerCase()}` : undefined}
+                    onRemove={() => {
+                        unsetIn(ctx, [channel]).catch(fail);
+                    }}
+                />
+                {items.lines}
+            </>
+        );
+    }
     const shown =
         "colors" in list ? (
             <ValueButton

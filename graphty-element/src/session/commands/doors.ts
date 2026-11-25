@@ -1373,6 +1373,7 @@ const STYLES_API: Readonly<Record<string, Door>> = {
     showDraft: exempt("a preview view: it suspends the stack's picture while a source draft is drawn, never the stack"),
     showingBranches: READ,
     shownBranches: READ,
+    shownDraft: READ,
     list: READ,
     get: READ,
     validate: READ,
@@ -2164,6 +2165,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             pinOnDrag: INPUT,
             size: RENDER,
             shapeType: RENDER,
+            // Whether a style hides the node: read by the pulled edges at its ends.
+            hiddenByStyle: READ,
             update: RENDER,
             setMeshPosition: RENDER,
             updateStyle: RENDER,
@@ -2293,6 +2296,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             drawnCenter: READ,
             drawnCentre: READ,
             drawnCaps: READ,
+            drawnHeadPosition: READ,
+            // Draws a pulled edge again when a style hid or showed one of its ends.
+            redrawPulledOffEnds: RENDER,
             arrowHeadStackCaps: READ,
             arrowTailStackCaps: READ,
             drawnGradient: READ,
@@ -3701,6 +3707,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             editStep: DRAFT_ACT,
             removeStep: DRAFT_ACT,
             moveStep: DRAFT_ACT,
+            replaceStep: DRAFT_ACT,
             removeSource: DRAFT_ACT,
             removeEdit: DRAFT_ACT,
             setMapping: DRAFT_ACT,
@@ -3717,6 +3724,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             clearPicks: DRAFT_ACT,
             exclude: DRAFT_ACT,
             include: DRAFT_ACT,
+            batch: DRAFT_ACT,
+            suggestMatches: READ,
             commit: SOURCE_STEPS_WRITE,
             dispose: exempt("closes the draft, writing nothing"),
             displayed: READ,
@@ -3759,6 +3768,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             rows: READ,
             elements: READ,
             cells: READ,
+            marks: READ,
+            ids: READ,
         },
     },
     {
@@ -3898,7 +3909,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                     kind: "call",
                     args: ["set_door-kept"],
                     // A set a rule names keeps its record once removed, so it can be restored.
-                    around: async (target) => {
+                    around: (target) => {
                         const sets = target as {
                             create(definition: unknown, options: { name: string }): string;
                             remove(id: string): void;

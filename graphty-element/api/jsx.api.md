@@ -220,6 +220,7 @@ export interface GraphtyElementJSXProps {
     "onrender-initialized"?: (event: CustomEvent<EventOfType<"render-initialized">>) => void;
     "onrender-lost"?: (event: CustomEvent<EventOfType<"render-lost">>) => void;
     "onrender-restored"?: (event: CustomEvent<EventOfType<"render-restored">>) => void;
+    "onrender-warning"?: (event: CustomEvent<EventOfType<"render-warning">>) => void;
     "onscreenshot-enhancing"?: (event: CustomEvent<EventOfType<"screenshot-enhancing">>) => void;
     "onscreenshot-ready"?: (event: CustomEvent<EventOfType<"screenshot-ready">>) => void;
     "onselection-changed"?: (event: CustomEvent<EventOfType<"selection-changed">>) => void;

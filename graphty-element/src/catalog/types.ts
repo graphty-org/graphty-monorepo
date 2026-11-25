@@ -26,6 +26,7 @@ import type { GraphtyErrorCode } from "../errors/codes";
 import type { EstimateRefusalCode } from "../session/cost/estimate";
 import type { CodedFact } from "../session/shared";
 import type { ChannelDescriptor } from "../session/styles/channels";
+import type { StyleRowId } from "../session/styles/tree";
 import type { TransitionDescriptor } from "../transitions/registry";
 import type { ChannelValueDescriptor } from "./channelValues";
 import type { LabelLookDescriptor } from "./label-looks";
@@ -1740,6 +1741,15 @@ export interface StyleDocument {
     /** The layers, bottom first. */
     layers: readonly LayerSpec[];
     /**
+     * The id each layer had in the session that wrote it, by its place in `layers`. Applying the
+     * document gives a layer this id again when no layer in the session already has it, and mints a
+     * new one from the layer's name otherwise, so an application that holds a layer by id (the
+     * reader's pick, an open editor) still finds it after the work is opened again. Absent, or a
+     * place left empty, mints every id from the name.
+     * @since 3.40.0
+     */
+    ids?: readonly (LayerId | undefined)[];
+    /**
      * Every palette a layer names, built-ins included, as the writing build painted it. A layer's
      * palette name resolves here before the reader's own catalog, so a file opens with the same
      * colors on a build that no longer ships a palette, or ships it changed. A document written
@@ -1790,6 +1800,12 @@ export type StyleDocumentRow = (
     | {
           /** The folder's name. */
           folder: string;
+          /**
+           * The folder's id in the session that wrote it: applying the document keeps it when it is
+           * free, as {@link StyleDocument.ids} keeps a layer's.
+           * @since 3.40.0
+           */
+          id?: StyleRowId;
           /** The folder's rows, bottom first. */
           children: readonly StyleDocumentRow[];
       }

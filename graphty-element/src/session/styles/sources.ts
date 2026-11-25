@@ -89,7 +89,7 @@ export interface SelectorSourceParts {
      */
     readonly records?: SessionRecordSource;
     /**
-     * The note values of one node or edge row, for the `graphty.notes.*` paths. Absent, those
+     * The note values of one node or edge row, for the `store.graphty.notes.*` paths. Absent, those
      * paths read nothing, as they do on an element no note names.
      */
     readonly notes?: NoteFactsReader;
@@ -218,6 +218,13 @@ const RESULT_PREFIX = `${RESULT_ROOT}.`;
 const ELEMENT_ROOT = "graphty.";
 
 /**
+ * The shared area graphty-element and extensions keep per-element values in,
+ * `store.<namespace>.<key>.<field>`. Like {@link ELEMENT_ROOT}, a path under it never reads a
+ * column; `data.store.<name>` does.
+ */
+const STORE_ROOT = "store.";
+
+/**
  * The node path an edge reads at one end: `graphty.source.<node path>` reads the value its source
  * node carries at `<node path>`, `graphty.target.<node path>` its target's.
  * @param path - The path as the selector spelled it.
@@ -286,7 +293,7 @@ type PathKind =
     | "end"
     /** A key of the record a node or an edge arrived with, or a column of the snapshot. */
     | "attribute"
-    /** One of the note values, under `graphty.notes.`. */
+    /** One of the note values, under `store.graphty.notes.`. */
     | "note"
     /** What a drawn draft does to the element, at `graphty.draft`. */
     | "draft"
@@ -363,7 +370,7 @@ function parsePath(path: Path): PathEntry {
         return { kind: "attribute", key: path, runId: "", field: "" };
     }
 
-    if (path.startsWith(ELEMENT_ROOT)) {
+    if (path.startsWith(ELEMENT_ROOT) || path.startsWith(STORE_ROOT)) {
         return parseElementPath(path);
     }
 
@@ -376,10 +383,10 @@ function parsePath(path: Path): PathEntry {
 }
 
 /**
- * Work out what a `graphty.` path names: a note field or a file style column. The degrees are
+ * Work out what a `graphty.` or `store.` path names: a note field or a file style column. The degrees are
  * {@link STRUCTURE_PATHS}, read before this.
  * @param path - The path.
- * @returns What reads it; a `graphty.` path this release does not know reads nothing, so a later one is an addition.
+ * @returns What reads it; a `graphty.` or `store.` path this release does not know reads nothing, so a later one is an addition.
  */
 function parseElementPath(path: Path): PathEntry {
     const note = noteFieldOf(path);

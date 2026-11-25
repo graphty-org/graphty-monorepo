@@ -48,6 +48,7 @@ import {
 import { convexRayHit } from "./meshes/convexHit";
 import { surfaceReach, type Xyz } from "./meshes/edgeRoute";
 import { applyFlatHalo, flatHaloLift } from "./meshes/flatHalo";
+import { disposeLater } from "./meshes/handOverTogether";
 import { oweLabelAnimations } from "./meshes/labelAnimationDebt";
 import { unfreezeFor } from "./meshes/LabelBatch";
 import { imageAspectExtent, labelFitExtent } from "./meshes/labelFit";
@@ -959,6 +960,15 @@ export class Node implements ModelUser {
     private styleHidden = false;
 
     /**
+     * Whether its style hides it (`node.visible` false), however a filter or a time window shows it.
+     * @returns True when it does.
+     * @internal
+     */
+    get hiddenByStyle(): boolean {
+        return this.styleHidden;
+    }
+
+    /**
      * Whether this node is in the session's selection.
      *
      * The highlight this drives is drawn BY CONSTRUCTION -- a halo mesh the element owns -- and
@@ -1220,7 +1230,7 @@ export class Node implements ModelUser {
             return { min: pos.subtract(half), max: pos.add(half) };
         }
 
-        this.#anchor.computeWorldMatrix(true);
+        this.syncWorldMatrix();
         const box = this.bounds().boundingBox;
         // The half-size from the mesh's own extent and scaling, not from the world box Babylon keeps in
         // single precision: the same node measured twice frames the same. A node mesh is not turned,
@@ -1244,6 +1254,31 @@ export class Node implements ModelUser {
             Math.fround((box.extendSize[axis] * Math.abs(scale[axis])) / grown + reach) * Math.abs(root?.[axis] ?? 1);
         const half = new Vector3(along("x", far), along("y", far), along("z", 1));
         return { min: box.centerWorld.subtract(half), max: box.centerWorld.add(half) };
+    }
+
+    /**
+     * Bring the anchor's world matrix (and its world bounds) up to date with where the node is now, computing only what
+     * changed. Babylon refreshes world matrices only while it renders, and between renders it answers an unforced
+     * `computeWorldMatrix` from the last render even when the node has moved since, so framing has to make it
+     * recompute. Forcing it (`computeWorldMatrix(true)`) did that, but also forced the graph root above every node:
+     * each forced root bumped its child counter, so every other node's matrix went stale again and was computed a
+     * second time by the render. On a 20,000-node graph that was the root 20,000 times and every node twice a frame
+     * (issue #9420). Here the root is computed only when it is itself stale, and a node only when it moved, scaled or
+     * its root did.
+     */
+    private syncWorldMatrix(): void {
+        const anchor = this.#anchor;
+        const { parent } = anchor;
+        if (parent !== null && !anchor.isSynchronizedWithParent()) {
+            parent.computeWorldMatrix(true);
+        }
+
+        if (!anchor.isSynchronized()) {
+            // Dirty, so the unforced compute below cannot answer from the last render.
+            anchor.markAsDirty();
+        }
+
+        anchor.computeWorldMatrix();
     }
 
     /**
@@ -1756,7 +1791,7 @@ export class Node implements ModelUser {
         // The same box as the shared source's, which it is but for float32 rounding of the rebuilt vertices: the
         // group's size is read off it (drawAsGroup's stretch, drawnHalfExtents), and must not move by a rebuild.
         const { minimum, maximum } = shared.getBoundingInfo();
-        mesh.buildBoundingInfo(minimum, maximum);
+        mesh.buildBoundingInfo(minimum, maximum, mesh.worldMatrixFromCache);
         if (from !== this.groupFill) {
             // The shared source stays alive under a hidden instance: the mesh cache disposes a source with no
             // instance left, and its material with it, which the group's own fill is drawn with (as groupBorderSource).
@@ -2055,7 +2090,7 @@ export class Node implements ModelUser {
                     : new TransformNode(this.#anchor.name, scene);
             Node.moveOnto(this.#mesh, anchor);
             this.retargetLabels(this.#mesh, anchor);
-            this.#mesh.dispose();
+            disposeLater(this.#mesh);
             this.#anchor = anchor;
             this.#mesh = null;
             this.forgetMeasuredMesh();
@@ -2064,7 +2099,7 @@ export class Node implements ModelUser {
             this.build(this.#fit.meshKey, this.#fit.style);
             Node.moveOnto(anchor, this.#anchor);
             this.retargetLabels(anchor, this.#anchor);
-            anchor.dispose();
+            disposeLater(anchor);
             this.forgetMeasuredMesh();
             if (this.#actions !== null) {
                 this.makeDrawnPickable(this.#actions);
@@ -2793,6 +2828,8 @@ export class Node implements ModelUser {
         if (hidden !== this.styleHidden) {
             this.styleHidden = hidden;
             this.applyRenderState();
+            // an edge pulled from the row table onto this node's row draws nothing to a hidden row: its edges look again
+            this.context.getUpdateManager?.()?.noteEndsChanged(this.index);
         }
 
         this.syncShaders();

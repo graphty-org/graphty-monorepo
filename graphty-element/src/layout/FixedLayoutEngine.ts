@@ -7,7 +7,7 @@ import type { Node } from "../Node";
 import { GRAPHVIZ_TIME_BUDGET_MS } from "./graphviz/engines";
 import { POINTS_PER_UNIT } from "./graphviz/toDot";
 import type { LaidRoute } from "./GraphvizLayoutEngine";
-import { type EdgePosition, SimpleLayoutConfig } from "./LayoutEngine";
+import { edgeEndsFollowNodes, type EdgePosition, SimpleLayoutConfig } from "./LayoutEngine";
 import { SnapshotLayoutEngine, type SnapshotLayoutInput } from "./SnapshotLayoutEngine";
 
 /**
@@ -410,3 +410,5 @@ function flatten(positions: F32): void {
         positions[i] = 0;
     }
 }
+
+edgeEndsFollowNodes(FixedLayout);

@@ -46,7 +46,9 @@ export function moveInstance(instance: InstancedMesh, to: Mesh): void {
 
     if (to.hasBoundingInfo) {
         const { minimum, maximum } = to.getBoundingInfo();
-        instance.buildBoundingInfo(minimum, maximum);
+        // In the world where the instance stands: without the matrix Babylon boxes it at the origin, and nothing puts
+        // it back, because the instance's world matrix is already up to date (issue #10066).
+        instance.buildBoundingInfo(minimum, maximum, instance.worldMatrixFromCache);
     }
 
     instance._syncSubMeshes();

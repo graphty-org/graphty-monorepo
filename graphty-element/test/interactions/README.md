@@ -73,7 +73,8 @@ Checks that hover, the `graphty-node-hover` event, `elementAt`, `screenToWorld`,
 click's selection agree with each other, on `renderPath: "objects"` and `"batched"`, for nodes of
 every size and place, every kind of edge, shift, ctrl and right-click selection, the Hovered and
 Selected layers' pixels on a plain edge, a hover on every node of a seeded 200-node graph, a hover
-while a force layout moves the node, and a click on a settled layout. The "pointing after the view
+while a force layout moves the node, a click on a settled layout, and hover, click and `elementAt` on
+nodes whose rows were renumbered by a removal (and its undo) while a force layout ran. The "pointing after the view
 changes" cases change the view after a first pick (a resize bigger, smaller and to an odd size, a
 pixel ratio of 2 and 1.5, a real wheel zoom, a real drag that turns or pans the camera) and then
 point at every node and edge again, so a hover or click that reads a picking buffer left at the old

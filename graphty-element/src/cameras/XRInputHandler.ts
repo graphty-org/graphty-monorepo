@@ -1,4 +1,4 @@
-import type { WebXRInputSource } from "@babylonjs/core";
+import type { TransformNode, WebXRInputSource } from "@babylonjs/core";
 import { Ray } from "@babylonjs/core/Culling/ray.js";
 import { Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
@@ -137,6 +137,8 @@ export class XRInputHandler {
     // What enable() attached (observers, timers): disable() runs and empties it, so nothing
     // set up while enabled outlives it (#7239).
     private teardown: (() => void)[] = [];
+    // What each controller's ray was on in this frame's XR callback (`underLaser`).
+    private readonly laserHits = new Map<string, TransformNode | null>();
 
     // Node drag state - for XR node interaction
     private isDraggingNode = false;
@@ -195,6 +197,7 @@ export class XRInputHandler {
 
         // Try to get hand tracking feature
         this.enableHandTracking();
+        this.castLasersEachFrame();
 
         // Subscribe to controller events
         const { onControllerAddedObservable, onControllerRemovedObservable } = this.xr.input;
@@ -684,14 +687,42 @@ export class XRInputHandler {
     }
 
     /**
+     * What a controller's ray was on in this frame's XR callback, where Babylon's pointer selection
+     * casts the laser it draws. A cast in the render instead would see the rows after the layout's
+     * step in this tick moved them, so a tap could select a row the laser was not on, or nothing
+     * (issue #9959). Cast here for every controller, not read from the pointer selection, which
+     * re-picks only the controller holding the laser.
+     * @param controller - The controller.
+     * @returns The mesh, or null when the ray is on nothing or no XR frame has run.
+     */
+    private underLaser(controller: WebXRInputSource): TransformNode | null {
+        return this.laserHits.get(controller.uniqueId) ?? null;
+    }
+
+    /** Cast every controller's ray in each XR frame, before the layout steps the rows. */
+    private castLasersEachFrame(): void {
+        const frames = this.xr.baseExperience.sessionManager.onXRFrameObservable;
+        const ray = new Ray(Vector3.Zero(), Vector3.Forward(), 100);
+        const observer = frames.add(() => {
+            this.laserHits.clear();
+            for (const controller of this.xr.input.controllers) {
+                controller.getWorldPointerRayToRef(ray);
+                this.laserHits.set(controller.uniqueId, pickRayAsDrawn(this.scene, ray).mesh);
+            }
+        });
+        this.teardown.push(() => {
+            frames.remove(observer);
+            this.laserHits.clear();
+        });
+    }
+
+    /**
      * Report the node each ray points at, when it changes.
      * @param assistant - The bindings.
      */
     private reportPointed(assistant: XRAssistantInput): void {
-        const ray = new Ray(Vector3.Zero(), Vector3.Forward(), 100);
         for (const controller of this.xr.input.controllers) {
-            controller.getWorldPointerRayToRef(ray);
-            const { mesh } = pickRayAsDrawn(this.scene, ray);
+            const mesh = this.underLaser(controller);
             const id = (mesh?.metadata as { graphNode?: { id?: NodeId } } | null | undefined)?.graphNode?.id;
             if (id !== undefined && this.pointedBy.get(controller.uniqueId) !== id) {
                 this.pointedBy.set(controller.uniqueId, id);
@@ -1019,27 +1050,7 @@ export class XRInputHandler {
             return;
         }
 
-        // Get the controller's pointer ray using Babylon.js's proper method
-        // This gives us the actual ray the WebXR system uses for interaction
-        const ray = new Ray(Vector3.Zero(), Vector3.Forward(), 100);
-
-        // Try to get the world pointer ray from the controller
-        const controllerWithRay = controller as unknown as {
-            getWorldPointerRayToRef?: (ray: Ray) => void;
-        };
-
-        if (controllerWithRay.getWorldPointerRayToRef) {
-            controllerWithRay.getWorldPointerRayToRef(ray);
-        } else {
-            // Fallback: Use pointer node (always available) or grip node
-            const pointerNode = controller.grip ?? controller.pointer;
-            ray.origin = pointerNode.position.clone();
-            ray.direction = pointerNode.forward.clone();
-        }
-
-        // Pick meshes in the scene
-        // Only pick node meshes (they have dragHandler in metadata or on the node)
-        const { mesh: picked, point: pickedPoint } = pickRayAsDrawn(this.scene, ray);
+        const picked = this.underLaser(controller);
         if (picked === null) {
             return;
         }
@@ -1058,7 +1069,6 @@ export class XRInputHandler {
             handedness,
             handPos: { x: handPosition.x, y: handPosition.y, z: handPosition.z },
             nodePos: { x: nodeMeshPosition.x, y: nodeMeshPosition.y, z: nodeMeshPosition.z },
-            pickPt: pickedPoint ? { x: pickedPoint.x, y: pickedPoint.y, z: pickedPoint.z } : null,
         });
 
         this.isDraggingNode = true;

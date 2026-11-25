@@ -25,7 +25,6 @@ import {
 } from "@graphty/compact-mantine";
 import {
     type GraphSession,
-    isGraphtyError,
     type RuleTree,
     type ScopeEdit,
     type StepReading,
@@ -61,6 +60,7 @@ import {
     removeStep,
     type Verb,
 } from "./model";
+import { cameraRefused, usePreviewCanvas } from "./previewCanvas";
 import { RowMore, type SelectionMenuItem } from "./SelectionMenu";
 import { StepPane } from "./StepPane";
 import { StyleOpenLine } from "./StyleOpenLine";
@@ -180,17 +180,6 @@ function afterPaint(work: () => void): void {
             setTimeout(work, 0);
         });
     });
-}
-
-/**
- * Leave the camera where it is when the element refuses a move: the drawing mode changed (2D and
- * 3D, or a headset) since the move was asked for. Anything else is a real failure.
- * @param error - Why the move was rejected.
- */
-function cameraRefused(error: unknown): void {
-    if (!isGraphtyError(error) || error.code !== "E_UNSUPPORTED") {
-        throw error;
-    }
 }
 
 /**
@@ -1538,61 +1527,7 @@ export function SelectionEditor({
     // and above the strip, never under them. On open it frames the graph when more than a quarter
     // of what was drawn now lies outside the cell, and on close the camera goes back where it was.
     const placed = wsPlace !== null && warm;
-    useLayoutEffect(() => {
-        const cell = wsBox.current?.querySelector<HTMLElement>(".sel-ws-preview");
-        const canvas = frame?.querySelector<HTMLElement>(".ws-canvas");
-        if (!open || !placed || cell === null || cell === undefined || canvas === null || canvas === undefined) {
-            return undefined;
-        }
-        const camera = element?.getCameraState();
-        // Opened while the element is still framing a load: that camera is not where it would have
-        // ended, so the drawing is framed again on close rather than put back mid-way.
-        const framing = element?.framing === true;
-        // The graph is framed in the preview cell once the element has taken the cell's size.
-        const fit = (): void => {
-            void element?.waitForPainted().then(() => {
-                element.zoomToFit();
-            });
-        };
-        // The drawing lies fixed over the modal's preview cell, wherever the canvas column is.
-        const placeCanvas = (): void => {
-            const inner = cell.getBoundingClientRect();
-            canvas.style.setProperty("--sel-preview-top", `${String(inner.top)}px`);
-            canvas.style.setProperty("--sel-preview-left", `${String(inner.left)}px`);
-            canvas.style.setProperty("--sel-preview-width", `${String(inner.width)}px`);
-            canvas.style.setProperty("--sel-preview-height", `${String(inner.height)}px`);
-        };
-        placeCanvas();
-        canvas.dataset.selPreview = "";
-        // Placed on the next frame: resizing the canvas inside the observer's own delivery would
-        // loop the page's resize observers (graphty-element's follows the canvas).
-        const observer = new ResizeObserver(() => {
-            requestAnimationFrame(placeCanvas);
-        });
-        observer.observe(cell);
-        observer.observe(canvas);
-        // The element resizes its canvas on its own observer; the framing reads the new size after it.
-        let frameId = requestAnimationFrame(() => {
-            frameId = requestAnimationFrame(fit);
-        });
-        return () => {
-            cancelAnimationFrame(frameId);
-            observer.disconnect();
-            delete canvas.dataset.selPreview;
-            for (const each of ["top", "left", "width", "height"]) {
-                canvas.style.removeProperty(`--sel-preview-${each}`);
-            }
-            if (framing) {
-                requestAnimationFrame(() => {
-                    requestAnimationFrame(fit);
-                });
-            } else if (camera !== undefined) {
-                // Switched to 2D or 3D, or into a headset, while open: the old camera no longer fits.
-                void element?.setCameraState(camera).catch(cameraRefused);
-            }
-        };
-        // The canvas is placed once per opening; its observer follows the cell from there.
-    }, [open, placed, frame, element]);
+    usePreviewCanvas(open && placed, wsBox, frame);
 
     // While it is the preview, the drawing is named for it, as its F6 stop follows the workspace's.
     useEffect(() => {

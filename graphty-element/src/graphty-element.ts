@@ -7450,6 +7450,10 @@ export class Graphty extends LitElement {
      * a property of something already in the Babylon.js scene (through `graph.scene`, a material's
      * color, say): during the layout that waits for its next landing. Use `"objects"` if it must
      * show at once.
+     *
+     * `"batched"` needs WebGL2 or WebGPU. On a WebGL1 context every node is drawn as an object, as
+     * under `"objects"`: `rowCounts.batchedNodes` stays 0, and `limits` are not in force
+     * (`W_LIMITS_IGNORED`).
      * @returns The path asked for.
      * @example
      * ```html

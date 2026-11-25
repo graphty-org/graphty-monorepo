@@ -1,5 +1,7 @@
 // Benchmark page: one library per page load. The runner (run.mjs) calls window.B.* in order.
-import { erdosRenyiGnmGraph } from "@graphty/graph-samples/generators";
+import { erdosRenyiGnmGraph, plantedPartitionGraph } from "@graphty/graph-samples/generators";
+
+import { adjacency, layoutQuality } from "./quality.js";
 
 const host = document.getElementById("host");
 const now = () => performance.now();
@@ -91,19 +93,43 @@ const B = {
         c.remove();
         return stats(intervals(st));
     },
-    gen(n, m) {
+    // kind "planted": a planted partition graph of 100 equal communities (fewer when a community would hold
+    // under 10 nodes), about m edges, 80% of each node's edges inside its community; its `community` column is the
+    // ground truth the quality stage scores against. Otherwise an Erdos-Renyi G(n, m) graph.
+    gen(n, m, kind) {
         const t = now();
-        const g = erdosRenyiGnmGraph({ n, m, seed: 42 });
+        let g;
+        if (kind === "planted") {
+            const groups = Math.max(1, Math.min(100, Math.floor(n / 10)));
+            const size = Math.floor(n / groups);
+            const deg = (2 * m) / (groups * size);
+            g = plantedPartitionGraph({
+                groups,
+                groupSize: size,
+                pIn: Math.min(1, (0.8 * deg) / (size - 1)),
+                pOut: groups > 1 ? (0.2 * deg) / (groups * size - size) : 0,
+                seed: 42,
+            });
+            n = g.nodeCount;
+        } else g = erdosRenyiGnmGraph({ n, m, seed: 42 });
         const r = mulberry32(7);
         const L = 4 * Math.sqrt(n);
         const xy = new Float32Array(2 * n);
         for (let i = 0; i < 2 * n; i++) xy[i] = (r() - 0.5) * L;
-        G = { n, m: g.src.length, src: g.src, dst: g.dst, xy };
-        return { n, m: G.m, genMs: Math.round(now() - t) };
+        G = { n, m: g.src.length, src: g.src, dst: g.dst, xy, community: g.nodeColumns?.community };
+        return {
+            n,
+            m: G.m,
+            kind: kind ?? "gnm",
+            groups: kind === "planted" ? Math.max(1, Math.min(100, Math.floor(n / 10))) : undefined,
+            genMs: Math.round(now() - t),
+        };
     },
 
     async setup(name, opts) {
         lib = name === "cosmos" ? await cosmosAdapter(opts) : await graphtyAdapter(opts);
+        B.adapter = lib; // for a debugging session in the console; the runner never reads it
+        B.score = (p) => layoutQuality(G, p);
         return lib.describe();
     },
     // No per-frame readback while a load runs: a load spans several of graphty-element's frames, and a
@@ -154,7 +180,41 @@ const B = {
         }
         return { cam, t, stamps: stamps.length, after: lib.el?.graph.getCameraState() };
     },
-    hoverTargets: (k) => lib.hoverTargets(k),
+    hoverTargets: (k, seed) => lib.hoverTargets(k, seed),
+    // Layout quality: the force layout runs from the loaded positions, drawn as usual, until it settles or `capMs`
+    // passes. Positions are copied at each mark (ms since the start) and at the end, and every copy, with the
+    // starting positions, is scored by quality.js after the run, so the scoring never slows the layout.
+    // With `steps` (cosmos.gl only), the simulation is stepped by hand with no frames drawn, up to `steps` steps or
+    // until it ends, and copied at `stepMarks`: how a software renderer, where wall time means nothing, is scored.
+    async quality(capMs, marks, steps, stepMarks) {
+        const p0 = lib.positions();
+        SYNC = false; // no blocking read per frame: the layout runs as it would on a reader's page
+        let run;
+        try {
+            run =
+                steps && lib.qualitySteps
+                    ? await lib.qualitySteps(steps, stepMarks)
+                    : await lib.qualityRun(capMs, marks);
+        } finally {
+            SYNC = true;
+        }
+        const t = now();
+        const csr = adjacency(G.n, G.src, G.dst);
+        const score = (p) => layoutQuality(G, p, { csr });
+        const out = {
+            start: score(p0),
+            snaps: run.snaps.map((s) => ({ atMs: s.atMs, atStep: s.atStep, ...score(s.p) })),
+            settledMs: run.settledMs,
+            endMs: run.endMs,
+            iterations: run.iterations,
+            frames: run.frames,
+            engine: run.engine,
+            accelerated: run.accelerated,
+        };
+        out.scoreMs = Math.round(now() - t);
+        drawPositions(run.snaps.at(-1).p);
+        return out;
+    },
     // A lasso over the middle half of the canvas, through the `{ region }` selection target
     // (row-renderer.md stage 23): each call's time, the nodes it selected and whether the cap cut it.
     // cosmos.gl's region select is not measured here.
@@ -228,8 +288,72 @@ const hoverHit = (detail) => {
         };
 };
 
+/**
+ * Draws a layout's positions over the page, one pixel per node colored by its community, framed on the middle 99%
+ * of x and y, so the screenshot of every library is the same kind of picture whatever it draws itself.
+ * @param {Float32Array} p - x, y and z of every node.
+ */
+function drawPositions(p) {
+    const W = 900;
+    const c = globalThis.document.createElement("canvas");
+    c.width = c.height = W;
+    c.style.cssText = "position:fixed;left:0;top:0;z-index:10;background:#fff";
+    globalThis.document.body.append(c);
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, W, W);
+    const quantiles = (axis) => {
+        const v = [];
+        for (let i = 0; i < G.n; i += Math.max(1, Math.floor(G.n / 20000))) v.push(p[3 * i + axis]);
+        v.sort((a, b) => a - b);
+        return [v[Math.floor(0.005 * (v.length - 1))], v[Math.ceil(0.995 * (v.length - 1))]];
+    };
+    const [x0, x1] = quantiles(0),
+        [y0, y1] = quantiles(1);
+    const span = Math.max(x1 - x0, y1 - y0) * 1.05 || 1;
+    const cx = (x0 + x1) / 2,
+        cy = (y0 + y1) / 2;
+    const groups = G.community ? Math.max(...G.community.subarray(0, Math.min(G.n, 100000))) + 1 : 1;
+    const styles = Array.from({ length: groups }, (_, k) => `hsl(${(k * 137.5) % 360} 70% 45%)`);
+    for (let i = 0; i < G.n; i++) {
+        const x = ((p[3 * i] - cx) / span + 0.5) * W,
+            y = ((p[3 * i + 1] - cy) / span + 0.5) * W;
+        ctx.fillStyle = styles[G.community ? G.community[i] % groups : 0];
+        ctx.fillRect(x, y, 1.5, 1.5);
+    }
+}
+
+/**
+ * The quality stage's run: copies positions at each mark and stops when the layout says it is done or at the cap.
+ * @param {{ capMs: number, marks: number[], read: () => Float32Array, done: () => boolean, stop: () => Promise<void> | void }} o - The library's hooks.
+ * @returns {Promise<{ snaps: { atMs: number, p: Float32Array }[], settledMs: number | null, endMs: number, frames: number }>} The copies.
+ */
+async function runToMarks({ capMs, marks, read, done, stop }) {
+    const t0 = now();
+    const snaps = [];
+    let next = 0;
+    let settledMs = null;
+    stamps.length = 0;
+    // The first frames are never "done": a layout that has not taken its first step can still read as settled.
+    for (let frame = 0; ; frame++) {
+        await raf();
+        const at = now() - t0;
+        while (next < marks.length && at >= marks[next]) snaps.push({ atMs: marks[next++], p: read() });
+        if (frame >= 30 && done()) {
+            settledMs = Math.round(at);
+            break;
+        }
+        if (at >= capMs) break;
+    }
+    const endMs = Math.round(now() - t0);
+    const frames = stamps.length;
+    await stop();
+    snaps.push({ atMs: endMs, p: read() });
+    return { snaps, settledMs, endMs, frames };
+}
+
 // ---------------------------------------------------------------- cosmos.gl
-async function cosmosAdapter({ dpr }) {
+async function cosmosAdapter({ dpr, cosmosConfig }) {
     const { Graph } = await import("@cosmos.gl/graph");
     const div = document.createElement("div");
     div.style.cssText = "width:1200px;height:900px";
@@ -248,6 +372,7 @@ async function cosmosAdapter({ dpr }) {
         pointDefaultColor: "#6366F1",
         linkDefaultColor: "#999999",
         onPointMouseOver: (index) => hoverHit({ index }),
+        ...cosmosConfig,
     });
     await graph.ready;
     const readyMs = now() - tCreate;
@@ -282,6 +407,7 @@ async function cosmosAdapter({ dpr }) {
     };
     let k0 = null;
     const a = {
+        graph,
         describe: () => ({ lib: "cosmos", deviceReadyMs: Math.round(readyMs) }),
         async load() {
             // Same layout as graphty's, mapped into cosmos' space (spaceSize 4096) so no rescale runs.
@@ -328,16 +454,72 @@ async function cosmosAdapter({ dpr }) {
             const dx = 100 * Math.sin(i / 20);
             graph.setViewTransform({ k: k0, x: w / 2 - (k0 * w) / 2 + dx, y: h / 2 - (k0 * h) / 2 });
         },
-        hoverTargets(k) {
-            const p = graph.getPointPositionsArray();
-            const r = mulberry32(11);
-            const out = [];
-            for (let tries = 0; out.length < k && tries < 100000; tries++) {
-                const i = Math.floor(r() * G.n);
-                const [x, y] = graph.spaceToScreenPosition([p[2 * i], p[2 * i + 1]]);
-                if (x > 100 && x < 1100 && y > 100 && y < 800) out.push({ id: i, x, y });
+        hoverTargets(k, seed = 11) {
+            const pick = () => {
+                const p = graph.getPointPositionsArray();
+                const r = mulberry32(seed);
+                const out = [];
+                for (let tries = 0; out.length < k && tries < 100000; tries++) {
+                    const i = Math.floor(r() * G.n);
+                    const [x, y] = graph.spaceToScreenPosition([p[2 * i], p[2 * i + 1]]);
+                    if (x > 100 && x < 1100 && y > 100 && y < 800) out.push({ id: i, x, y });
+                }
+                return out;
+            };
+            const out = pick();
+            if (out.length >= k) return out;
+            // A running simulation spreads the points past the view that fitted them at the load; graphty-element
+            // keeps its graph in view while a layout runs, so cosmos.gl's view is fitted again before picking.
+            graph.fitView(0);
+            return pick().map((t) => ({ ...t, fitted: true }));
+        },
+        positions() {
+            const xy = graph.getPointPositionsArray();
+            const p = new Float32Array(3 * G.n);
+            for (let i = 0; i < G.n; i++) {
+                p[3 * i] = xy[2 * i];
+                p[3 * i + 1] = xy[2 * i + 1];
             }
-            return out;
+            return p;
+        },
+        async qualityRun(capMs, marks) {
+            graph.start(1);
+            const run = await runToMarks({
+                capMs,
+                marks,
+                read: () => a.positions(),
+                done: () => !graph.isSimulationRunning,
+                stop: () => graph.pause(),
+            });
+            return { ...run, iterations: null, engine: "cosmos.gl", accelerated: true };
+        },
+        async qualitySteps(maxSteps, stepMarks) {
+            running = false; // stop our frame loop: nothing is drawn while the steps run
+            await raf();
+            await raf();
+            graph.start(1);
+            graph.pause();
+            const t0 = now();
+            const snaps = [];
+            let s = 0;
+            while (s < maxSteps && graph.progress < 1) {
+                graph.step();
+                s++;
+                if (stepMarks.includes(s)) snaps.push({ atStep: s, atMs: Math.round(now() - t0), p: a.positions() });
+                if (s % 100 === 0) await sleep(0); // let the runner's protocol messages through
+            }
+            snaps.push({ atStep: s, atMs: Math.round(now() - t0), p: a.positions() });
+            running = true;
+            globalThis.requestAnimationFrame(tick);
+            return {
+                snaps,
+                settledMs: graph.progress >= 1 ? snaps.at(-1).atMs : null,
+                endMs: snaps.at(-1).atMs,
+                iterations: s,
+                frames: 0,
+                engine: "cosmos.gl",
+                accelerated: true,
+            };
         },
         async layoutFps(count, capMs) {
             graph.start(1);
@@ -1020,8 +1202,8 @@ async function graphtyAdapter({
                 );
             for (let i = 0; i < 5; i++) await raf();
         },
-        hoverTargets(k) {
-            const r = mulberry32(11);
+        hoverTargets(k, seed = 11) {
+            const r = mulberry32(seed);
             const out = [];
             for (let tries = 0; out.length < k && tries < 100000; tries++) {
                 const i = Math.floor(r() * G.n);
@@ -1030,6 +1212,40 @@ async function graphtyAdapter({
                     out.push({ id: i, x: at.x, y: at.y, radius: at.radius });
             }
             return out;
+        },
+        positions() {
+            const lane = el.session.positions;
+            const at = { x: 0, y: 0, z: 0 };
+            const p = new Float32Array(3 * G.n);
+            for (let i = 0; i < G.n; i++) {
+                lane.read(i, at);
+                p[3 * i] = at.x;
+                p[3 * i + 1] = at.y;
+                p[3 * i + 2] = at.z || 0;
+            }
+            return p;
+        },
+        async qualityRun(capMs, marks) {
+            await el.setLayout("ngraph");
+            while (!graph.getLayoutManager().layoutEngine) await raf();
+            const eng = graph.getLayoutManager().layoutEngine;
+            const it0 = eng.iterationsDone ?? null;
+            const run = await runToMarks({
+                capMs,
+                marks,
+                read: () => a.positions(),
+                done: () => eng.isSettled === true,
+                stop: async () => {
+                    el.setRunning(false);
+                    for (let i = 0; i < 5; i++) await raf();
+                },
+            });
+            return {
+                ...run,
+                iterations: it0 === null ? null : eng.iterationsDone - it0,
+                engine: eng.type,
+                accelerated: eng.isAccelerated ?? false,
+            };
         },
         // One style layer, or one reader action, timed from the call to the stable frame that shows it.
         async restyle(name) {

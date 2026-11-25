@@ -104,7 +104,8 @@ export default {
         return {
             ImportDeclaration(node) {
                 const from = String(node.source.value);
-                if (from === COMPACT || node.importKind === "type") {
+                // typescript-eslint's nodes carry `importKind`; ESLint's estree types do not.
+                if (from === COMPACT || /** @type {any} */ (node).importKind === "type") {
                     return;
                 }
                 for (const spec of node.specifiers) {
@@ -112,7 +113,7 @@ export default {
                         namespaces.set(spec.local.name, from);
                         continue;
                     }
-                    if (spec.type !== "ImportSpecifier" || spec.importKind === "type") {
+                    if (spec.type !== "ImportSpecifier" || /** @type {any} */ (spec).importKind === "type") {
                         continue;
                     }
                     const name = spec.imported.type === "Identifier" ? spec.imported.name : String(spec.imported.value);
@@ -124,11 +125,19 @@ export default {
                     checkMember(node, node.object.name, node.property.name);
                 }
             },
+            /**
+             * Checks `ns.Name` when `ns` is a namespace import.
+             * @param {any} node - the JSX member name (no estree type).
+             */
             JSXMemberExpression(node) {
                 if (node.object.type === "JSXIdentifier") {
                     checkMember(node, node.object.name, node.property.name);
                 }
             },
+            /**
+             * Reports a hand-drawn native input.
+             * @param {any} node - the JSX opening element (no estree type).
+             */
             JSXOpeningElement(node) {
                 if (node.name.type === "JSXIdentifier" && NATIVE.has(node.name.name)) {
                     context.report({ node, messageId: "native", data: { name: node.name.name } });

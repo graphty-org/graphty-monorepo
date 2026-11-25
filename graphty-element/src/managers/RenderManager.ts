@@ -99,8 +99,8 @@ interface RenderManagerConfig {
     /**
      * Whether to flush right after each frame's fence, so the GPU sees the fence at once rather
      * than at the browser's next flush (about every 18 ms in Chromium, which set an 18 ms floor
-     * under every frame). Asked each frame; the element answers true under renderPath "batched",
-     * and on every path for the frame that drew the finished picture. Left out, it never flushes.
+     * under every frame). Asked each frame; the element answers true under renderPath "batched".
+     * Left out, it never flushes.
      */
     flushesFrameFence?: () => boolean;
     /** See {@link RenderManager.setPixelRatio}. Left out, 1. */

@@ -268,8 +268,6 @@ describe("render loop pacing", () => {
             element.graph.setRenderPath("objects");
             const renderManager = renderManagerOf(element.graph);
             const fenced = recordFences((renderManager.engine as Engine)._gl);
-            // The path change draws a new finished picture, whose fence is flushed on every path.
-            await element.graph.waitForStableFrame();
             await frames(2);
             fenced();
 
@@ -285,50 +283,6 @@ describe("render loop pacing", () => {
             const batched = fenced();
             assert.isAbove(batched.fences, 0, "the element's loop fenced its frames");
             assert.strictEqual(batched.flushed, batched.fences, "batched: a flush after every frame fence");
-        } finally {
-            element.remove();
-        }
-    });
-    /**
-     * A wait for the final picture waits for the GPU to finish the frame that drew it. Under
-     * "objects" that frame's fence went unflushed, so the GPU saw it only at Chromium's own next
-     * flush, and the wait for a 100-node graph ended about 20 ms after the frame (issue #10136).
-     * One flush per finished picture, never one per frame.
-     */
-    it("objects: flushes once after the fence of each frame that draws a finished picture, and no other", async () => {
-        const element = document.createElement("graphty-element");
-        element.renderOnDemand = false;
-        element.style.display = "block";
-        element.style.width = "400px";
-        element.style.height = "300px";
-        document.body.appendChild(element);
-        try {
-            await element.updateComplete;
-            const { graph } = element;
-            await operationQueueOf(graph).waitForCompletion();
-            graph.setRenderPath("objects");
-            const renderManager = renderManagerOf(graph);
-            const fenced = recordFences((renderManager.engine as Engine)._gl);
-            let finished = 0;
-            graph.on("graph-frame-stable", () => {
-                finished++;
-            });
-            await graph.waitForStableFrame();
-            await frames(2);
-            fenced();
-            finished = 0;
-
-            await graph.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }]);
-            await graph.addEdges([
-                { src: "a", dst: "b" },
-                { src: "b", dst: "c" },
-            ]);
-            await graph.waitForStableFrame();
-            await frames(5);
-            const counted = fenced();
-            assert.isAbove(finished, 0, "the new graph was drawn final");
-            assert.isAbove(counted.fences, finished, "frames that were not final were fenced too");
-            assert.strictEqual(counted.flushed, finished, "one flush per finished picture's fence");
         } finally {
             element.remove();
         }

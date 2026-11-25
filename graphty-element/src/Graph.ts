@@ -1240,15 +1240,6 @@ export class Graph implements GraphContext {
      */
     readonly #batchedFrames = (): boolean => this.#batchesDraw();
     /**
-     * Whether the render loop flushes right after the frame fence it just made: after every frame
-     * under renderPath "batched" (see {@link Graph.#batchedFrames}), and on every path after the
-     * fence of the frame that drew the finished picture, which a wait for the final picture waits
-     * on; unflushed, the GPU saw it only at the browser's own next flush, about 18 ms later (issue
-     * #10136). Asked each frame.
-     * @returns True when the loop flushes after this frame's fence.
-     */
-    readonly #flushesFrameFence = (): boolean => this.#batchedFrames() || this.updateManager.fencedFinishedFrame();
-    /**
      * Whether rows are drawn in batches: under renderPath "batched", on an engine that compiles
      * their GLSL ES 3.00 shaders. A WebGL1 context does not, so there every row is drawn as an
      * object, as `rowCounts` says (#10022). Asked each time, so it follows the engine WebGPU replaces.
@@ -1447,7 +1438,7 @@ export class Graph implements GraphContext {
             awaitsLanding: this.awaitsLanding,
             drawsOnDemand: this.drawsOnDemand,
             restsBetweenLandings: this.#batchedFrames,
-            flushesFrameFence: this.#flushesFrameFence,
+            flushesFrameFence: this.#batchedFrames,
             antialias: this.#multisampled,
             antialiasAtRest: this.#antialiasAtRest,
             preserveDrawingBuffer: this.preserveDrawingBuffer,
@@ -2865,7 +2856,7 @@ export class Graph implements GraphContext {
             awaitsLanding: this.awaitsLanding,
             drawsOnDemand: this.drawsOnDemand,
             restsBetweenLandings: this.#batchedFrames,
-            flushesFrameFence: this.#flushesFrameFence,
+            flushesFrameFence: this.#batchedFrames,
             antialiasAtRest: this.#antialiasAtRest,
         });
         this.engine = this.renderManager.engine;

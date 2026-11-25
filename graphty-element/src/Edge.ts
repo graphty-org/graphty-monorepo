@@ -53,6 +53,7 @@ import {
     interiorOutside,
     liftRoute,
     loopTeardrop,
+    type MidpointHeads,
     parseBends,
     parsePort,
     pointFromEnd,
@@ -5357,8 +5358,32 @@ export class Edge {
         const lineStart = this.placeArrowTail(start, afterStart, afterStart.subtract(start).normalize(), path);
         const lineEnd = this.lineEndBefore(beforeEnd, end);
         const flat = Edge.runUnderCaps(mid, start, end, lineStart, lineEnd);
-        this.placeLineRun(batch, sampled ? flat : Edge.curveThroughBends(line, flat));
+        this.placeLineRun(batch, sampled ? flat : Edge.curveThroughBends(line, flat, this.endHeads(start, end)));
         return true;
+    }
+
+    /**
+     * The arrowheads drawn at this edge's two ends, each with its tip and its length, for a curve through midpoints
+     * that keeps its end controls behind them ({@link curveThroughMidpoints}); an end without one, or with one drawn
+     * part-way along, is left out.
+     * @param start - Where the route starts, at the tail's tip.
+     * @param end - Where it ends, at the head's tip.
+     * @returns The heads.
+     */
+    private endHeads(start: Vector3, end: Vector3): MidpointHeads {
+        const style = this.currentStyle;
+        const atEnd = (arrow: typeof style.arrowHead): boolean =>
+            arrow?.type !== undefined && arrow.type !== "none" && (arrow.position ?? 0) <= 0;
+        const length = (arrow: typeof style.arrowHead, node: "source" | "target"): number =>
+            EdgeMesh.calculateArrowLength() * (arrow?.size ?? 1) * this.capScaleAt(node);
+        return {
+            ...(this.arrowTailCap && atEnd(style.arrowTail)
+                ? { start: { tip: start, length: length(style.arrowTail, "source") } }
+                : {}),
+            ...(this.arrowCap && atEnd(style.arrowHead)
+                ? { end: { tip: end, length: length(style.arrowHead, "target") } }
+                : {}),
+        };
     }
 
     /**
@@ -5525,14 +5550,19 @@ export class Edge {
      * its corners rounded or through the segments' midpoints (`line.bendCurve`; a "bezier" curve is sampled before).
      * @param line - The line's style.
      * @param flat - The line's points, flat x, y, z, ends included.
+     * @param heads - The arrowheads at its ends, for a curve through midpoints.
      * @returns The points it is drawn through.
      */
-    private static curveThroughBends(line: EdgeStyleConfig["line"], flat: number[]): number[] {
+    private static curveThroughBends(
+        line: EdgeStyleConfig["line"],
+        flat: number[],
+        heads: MidpointHeads = {},
+    ): number[] {
         if (line?.bezier !== true) {
             return flat;
         }
 
-        return line.bendCurve === "midpoints" ? curveThroughMidpoints(flat) : roundCorners(flat);
+        return line.bendCurve === "midpoints" ? curveThroughMidpoints(flat, heads) : roundCorners(flat);
     }
 
     /**

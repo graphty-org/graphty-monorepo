@@ -431,6 +431,16 @@ describe("OrbitCameraController", () => {
                 );
             });
 
+            test("works out the corners of the outermost nodes only, not all eight of every node", () => {
+                const count = 8_000;
+                const { spots, min, max } = ball(count);
+                centeringWork.outlined = 0;
+                controller.zoomToBoundingBox(min, max, spots);
+                // two axes, eight corners a node: all of them was 128,000; about 1,800 are left
+                assert.isAbove(centeringWork.outlined, 0);
+                assert.isBelow(centeringWork.outlined, (count * 8 * 2) / 20);
+            });
+
             test("nodes well inside the others change the fit not at all", () => {
                 const { spots, min, max } = ball(500);
                 controller.zoomToBoundingBox(min, max, spots);

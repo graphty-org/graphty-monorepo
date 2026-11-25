@@ -8766,9 +8766,7 @@ export interface StepCheckOptions {
 
 // @public
 export interface StepCounts {
-    // (undocumented)
     readonly start: Counts;
-    // (undocumented)
     readonly steps: readonly (Counts & {
         readonly id: string;
     })[];

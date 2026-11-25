@@ -11,6 +11,7 @@ import {
     type DataChannel,
     type DataEntry,
     type DataEntryFact,
+    type DataFacts,
     dataFit,
     type ReadableValue,
 } from "@graphty/graphty-element/catalog";
@@ -302,4 +303,32 @@ export function pruned<T extends object>(value: T): T {
 }
 
 /** The picker row that takes a choice off, drawn as the picker's value while nothing is chosen. */
+/**
+ * The key graphty-element gives a plain entry's one part (its category key): a field's path, else its kind and place.
+ * @param entry - the entry.
+ * @param at - its place.
+ * @returns the key.
+ */
+export function partKey(entry: DataEntry, at: number): string {
+    if ("field" in entry) {
+        return entry.field;
+    }
+    return "graph" in entry ? `graph.${String(at)}` : `value.${String(at)}`;
+}
+
+/**
+ * The category keys of a spec's plain entries (one part each, no list and no pattern): their color and name are the
+ * entry's own, set in its Entry pop-over, so the Colors group leaves them out (one path to any control).
+ * @param spec - the spec.
+ * @param facts - the sample's facts.
+ * @returns the keys.
+ */
+export function plainKeys(spec: Spec, facts: DataFacts | undefined): Set<string> {
+    return new Set(
+        spec.entries.flatMap((entry, at) =>
+            (facts?.entries[at]?.parts?.length ?? 0) > 0 || "pattern" in entry ? [] : [partKey(entry, at)],
+        ),
+    );
+}
+
 export const NONE = { id: "none", label: "None" } as const;

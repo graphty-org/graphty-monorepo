@@ -29,7 +29,7 @@ import { swatchesOf } from "./colorItems";
 import { dataChannelOf } from "./dataEntries";
 import { DataRow } from "./DataRow";
 import { dimOf } from "./drawn";
-import { familyOf, pickReplace, replaceUse } from "./families";
+import { familyOf, replaceUse } from "./families";
 import { ItemListEditor } from "./ItemListEditor";
 import { kindGroupOf, type KindMember } from "./kindGroups";
 import { removeEntry } from "./labelEntries";
@@ -38,7 +38,7 @@ import { TEXT_THINGS, type TextThing } from "./labelRubric";
 import { unsetIn } from "./lineWrites";
 import { firstItemWords, ITEM_LISTS, listOf } from "./lists";
 import { listChanged } from "./listState";
-import { EntryLookMenu, KindMenu, MemberMenu, ReplaceGallery } from "./MemberMenu";
+import { EntryLookMenu, KindMenu, MemberMenu } from "./MemberMenu";
 import { takeReopening } from "./reopening";
 import { rowNames } from "./rowNames";
 import {
@@ -149,51 +149,6 @@ function replaceParams(
 }
 
 /**
- * The Shape row's control while a shader draws in the shapes' place (design 7.1, "preset R10"):
- * the shader's name, opening the gallery of shaders for that place; a pick draws it instead.
- * @param props - Component props
- * @param props.ctx - the row
- * @param props.shader - the shader drawn now
- * @returns The control
- */
-function ReplacePreset({ ctx, shader }: Readonly<{ ctx: RowContext; shader: string }>): React.JSX.Element {
-    const { store } = useWorkspace();
-    const [open, setOpen] = useState(false);
-    const box = useRef<HTMLDivElement>(null);
-    const name = ctx.session.shaders.describe(shader)?.plainName ?? shader;
-    const family = familyOf(ctx.side, "shape");
-    return (
-        <div ref={box}>
-            <ValueButton
-                label="Node shape"
-                words={name}
-                opens="dialog"
-                expanded={open}
-                onClick={() => {
-                    setOpen(true);
-                }}
-            />
-            {open && family !== undefined ? (
-                <ReplaceGallery
-                    ctx={ctx}
-                    anchor={box}
-                    title="Node shape"
-                    onPick={(id) => {
-                        setOpen(false);
-                        pickReplace(ctx, family, id).catch((error: unknown) => {
-                            store.set({ notice: { message: failureWords("Shape", "changed", error), error: true } });
-                        });
-                    }}
-                    onClose={() => {
-                        setOpen(false);
-                    }}
-                />
-            ) : null}
-        </div>
-    );
-}
-
-/**
  * The rubric's lines the layer sets, but the row's own, in the pop-over's order, each once: the lines a
  * row draws under it in the sidebar (design 2.5).
  * @param ctx - the row.
@@ -253,11 +208,11 @@ function opensAdded(thing: string, opening: boolean | undefined): boolean {
 
 /**
  * The pop-over's first main line, the row's main value's: none where a list (strands, stripes, a record's fields)
- * edits it, as the list is its one editor (owner, 2026-11-24), and none where a shader drawn in the shapes' place
- * covers it (a basic shape under a sticker draws nothing).
+ * edits it, as the list is its one editor (owner, 2026-11-24), and none on a Shape, whose row's drop-down is the one
+ * control choosing its shape, model or shader (owner, 2026-11-24: one path to any control).
  * @param rubric - the thing's rubric.
  * @param main - the row's main channel.
- * @param listed - whether the pop-over draws a list of it, or a shader covers it.
+ * @param listed - whether the pop-over draws a list of it, or is a Shape's.
  * @returns the line, if any.
  */
 function popoverHead(rubric: ThingRubric, main: Channel, listed: boolean): LineSpec | undefined {
@@ -352,11 +307,6 @@ function MainControl({
             onRemove={slots.onRemove}
         />
     );
-    if (replacing !== undefined) {
-        // The shader drawn in the shapes' place is a Shape member: the row shows its preset, and
-        // Switch to stays the pop-over's first line, as in every member (design 5, 7.1).
-        return frame("node.shaders:replace", "R10", <ReplacePreset ctx={ctx} shader={replacing} />);
-    }
     if (
         (main.channel === "node.gradientColors" || main.channel === "edge.gradientColors") &&
         setOn(ctx, main.channel)
@@ -390,11 +340,17 @@ function MainControl({
     if (row !== undefined) {
         return <RubricLine ctx={ctx} line={row} row={slots} />;
     }
+    // A model or a shader drawn in the shapes' place: the row is still the Shape list, naming what it draws, so one
+    // drop-down chooses a basic shape, a model or a shader in every state (owner, 2026-11-24: one path to any control).
+    const shapeList =
+        thing.id === "shape" && (replacing !== undefined || main.channel === "node.model")
+            ? shownChannel(ctx.session, "node", "node.shape", false)
+            : undefined;
     return (
         <Field
             ctx={ctx}
-            descriptor={main}
-            pending={pending || !setOn(ctx, main.channel)}
+            descriptor={shapeList ?? main}
+            pending={shapeList === undefined && (pending || !setOn(ctx, main.channel))}
             onCancel={onCancel}
             thing={{ name: thing.unnamed === true ? null : thing.name, hint, ...slots }}
         />
@@ -428,13 +384,14 @@ function textThingOf(
  * @param ctx - the row.
  * @param thing - the thing.
  * @param kind - the kind the row draws, for a kind group's row.
- * @param inRow - drawn under the row (a basic shape's, with no pop-over), not as a pop-over's tabs.
  * @returns the menu, or nothing for a thing with neither.
  */
-function switchTo(ctx: RowContext, thing: ThingSpec, kind: KindMember | undefined, inRow: boolean): React.ReactNode {
+function switchTo(ctx: RowContext, thing: ThingSpec, kind: KindMember | undefined): React.ReactNode {
     const family = familyOf(ctx.side, thing.id);
+    // The Shape's members are the Shape list's sections (basic shapes, Models, Shaders): its row's drop-down is
+    // their one control, so no tabs or buttons choose them again (owner, 2026-11-24).
     if (family !== undefined) {
-        return <MemberMenu ctx={ctx} family={family} inRow={inRow} />;
+        return thing.id === "shape" ? undefined : <MemberMenu ctx={ctx} family={family} />;
     }
     const kinds = kindGroupOf(ctx.side, thing.id);
     return kinds === undefined || kind === undefined ? undefined : <KindMenu ctx={ctx} group={kinds} now={kind} />;
@@ -541,8 +498,7 @@ export function ThingRow({
     }
     const text = textThingOf(ctx, thing, kind, main.channel);
     const { name, title } = rowNames(ctx, thing, kind, entry);
-    const member =
-        entry === undefined ? switchTo(ctx, thing, kind, false) : <EntryLookMenu ctx={ctx} entry={entry.id} />;
+    const member = entry === undefined ? switchTo(ctx, thing, kind) : <EntryLookMenu ctx={ctx} entry={entry.id} />;
     const list = listOf(ctx.side, thing.id, main.channel);
     // A shader drawn in the shapes' place is the Shape row's member (design 5): its row names it.
     const replacing = thing.id === "shape" ? replaceUse(ctx) : undefined;
@@ -592,7 +548,7 @@ export function ThingRow({
                             <FirstLines ctx={ctx} main={main} />
                         </>
                     }
-                    head={popoverHead(rubric, main.channel, popoverList !== undefined || replacing !== undefined)}
+                    head={popoverHead(rubric, main.channel, popoverList !== undefined || thing.id === "shape")}
                     extra={params?.main}
                     moreGroups={params?.groups}
                     after={popoverList}
@@ -690,8 +646,8 @@ export function ThingRow({
                 onRemove={() => undefined}
             />
         ) : null;
-    // A basic shape's row has no settings pop-over (owner, 2026-11-23): its drop-down picks the shape, its Kind
-    // line is drawn under it, and the lines a layer sets (Rotation, Corners, Custom shape) under that.
+    // A basic shape's row has no settings pop-over (owner, 2026-11-23): its drop-down picks the shape, a model or a
+    // shader, and the lines a layer sets (Rotation, Corners, Custom shape) are drawn under it.
     const plainShape = thing.id === "shape" && replacing === undefined && main.channel === "node.shape";
     // A row whose value list spans channels (a Finish's Shading) has no data link, so with no other lines its
     // pop-over would only repeat the row: no "..." then.
@@ -728,8 +684,6 @@ export function ThingRow({
                     slots={slots}
                 />
             )}
-            {/* With no pop-over, a basic shape's Kind (Basic shape, Model, a shader) is the line under its row. */}
-            {plainShape && switchTo(ctx, thing, kind, true)}
             {/* Every line of the thing the layer sets, in the pop-over's order, named, each with its minus (design 2.5). */}
             {setLines.map((line) => (
                 <RubricLine key={line.channel} ctx={ctx} line={line} named />

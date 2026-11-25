@@ -28,6 +28,17 @@ import { PlusList } from "./PlusList";
 import { LineFrame } from "./RubricLine";
 import { ValueButton } from "./ValueButton";
 
+/**
+ * A list's line address: a color list's is its colors' (a chart's Values, never its Kind), so each value has one
+ * address; another list's, its channel's.
+ * @param list - the list.
+ * @param channel - the channel it edits, if any.
+ * @returns the address.
+ */
+function addressOf(list: ListSpec | ItemList, channel: Channel | undefined): string {
+    return "colors" in list ? list.colors : (channel ?? list.name);
+}
+
 /** Props for ItemListEditor. */
 interface ItemListEditorProps {
     readonly ctx: RowContext;
@@ -123,7 +134,7 @@ export function ItemListEditor({ ctx, list, channel, inline = false }: ItemListE
     return (
         <>
             <LineFrame
-                line={channel ?? list.name}
+                line={addressOf(list, channel)}
                 name={list.name}
                 set={set}
                 rule="R15"

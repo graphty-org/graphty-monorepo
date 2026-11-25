@@ -171,8 +171,9 @@ export function CommitText({
  * @param props - Component props
  * @param props.label - its name
  * @param props.value - the number set, if any
- * @param props.unset - the word it shows while unset
+ * @param props.unset - what it shows while unset: a word, or the element's default
  * @param props.min - its least value
+ * @param props.glyph - its scrub letter: its name's initial unless given
  * @param props.onWrite - writes a number, or undefined to unset
  * @returns The field
  */
@@ -181,12 +182,14 @@ export function WordNumber({
     value,
     unset,
     min,
+    glyph = label.charAt(0),
     onWrite,
 }: Readonly<{
     label: string;
     value: number | undefined;
-    unset: string;
+    unset: number | string;
     min?: number;
+    glyph?: string;
     onWrite: (value: number | undefined) => void;
 }>): React.JSX.Element {
     return (
@@ -205,7 +208,7 @@ export function WordNumber({
                 width="100%"
                 numeric
                 options={[]}
-                glyph={label.charAt(0)}
+                glyph={glyph}
                 value={value ?? unset}
                 min={min}
                 onChange={(next) => {

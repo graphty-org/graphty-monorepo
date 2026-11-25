@@ -6,14 +6,15 @@
  */
 
 import { CompactColorInput, PanelField, RangeSlider } from "@graphty/compact-mantine";
-import type { Channel, DataChannel, DataFacts } from "@graphty/graphty-element/catalog";
+import type { Channel, DataCategoryFact, DataChannel, DataFacts } from "@graphty/graphty-element/catalog";
+import { Group } from "@mantine/core";
 import React, { useState } from "react";
 
 import { useWorkspace } from "../../state/WorkspaceContext";
 import { PaletteSelect } from "../BindingPopover";
 import type { RowContext } from "../PropertyRow";
 import { colorPalettes } from "../words";
-import { failed, pruned, type Spec, word } from "./dataEntries";
+import { failed, plainKeys, pruned, type Spec, word } from "./dataEntries";
 import { CommitText, PopLine, Segments, WordNumber } from "./dataLines";
 import { GroupMenu, type MenuGroup } from "./GroupMenu";
 import { unsetIn } from "./lineWrites";
@@ -55,12 +56,13 @@ interface DataGroup extends MenuGroup {
 }
 
 /**
- * A color line: a chip with no name (a swatch says it is a color). With `onOpacity`, its picker shows the opacity the
- * part draws at, its color's alpha folded in, and an edit writes both (`paint.ts`).
+ * A color line: a chip, with no name unless it has one of its own (a swatch says it is a color, not which). With
+ * `onOpacity`, its picker shows the opacity the part draws at, its color's alpha folded in, and an edit writes both
+ * (`paint.ts`).
  * @param props - Component props
  * @param props.ctx - the row
+ * @param props.name - its name above it, when the chip alone does not say which color it is
  * @param props.label - its accessible name
- * @param props.name - its name above it
  * @param props.color - the color set, if any
  * @param props.shown - the color drawn when none is set
  * @param props.onPick - called with the color, or undefined to unset it
@@ -70,8 +72,53 @@ interface DataGroup extends MenuGroup {
  */
 function ColorLine({
     ctx,
+    name = null,
     label,
-    name,
+    color,
+    shown,
+    onPick,
+    opacity,
+    onOpacity,
+}: Readonly<{
+    ctx: RowContext;
+    name?: string | null;
+    label: string;
+    color: string | undefined;
+    shown: string;
+    onPick: (color: string | undefined) => void;
+    opacity?: number;
+    onOpacity?: (color: string | undefined, opacity: number) => void;
+}>): React.JSX.Element {
+    return (
+        <PopLine line={`data.${label}`} name={name}>
+            <ColorChip
+                ctx={ctx}
+                label={label}
+                color={color}
+                shown={shown}
+                onPick={onPick}
+                opacity={opacity}
+                onOpacity={onOpacity}
+            />
+        </PopLine>
+    );
+}
+
+/**
+ * A color chip: the color set, else the color drawn.
+ * @param props - Component props
+ * @param props.ctx - the row
+ * @param props.label - its accessible name
+ * @param props.color - the color set, if any
+ * @param props.shown - the color drawn when none is set
+ * @param props.onPick - called with the color, or undefined to unset it
+ * @param props.opacity - the opacity set, 0 to 1, when the chip has one
+ * @param props.onOpacity - with an opacity: called with the color and the opacity together
+ * @returns The chip
+ */
+function ColorChip({
+    ctx,
+    label,
     color,
     shown,
     onPick,
@@ -80,7 +127,6 @@ function ColorLine({
 }: Readonly<{
     ctx: RowContext;
     label: string;
-    name: string;
     color: string | undefined;
     shown: string;
     onPick: (color: string | undefined) => void;
@@ -89,24 +135,58 @@ function ColorLine({
 }>): React.JSX.Element {
     const paint = shownPaint(color ?? shown, opacity ?? 1);
     return (
-        <PopLine line={`data.${label}`} name={name}>
-            <CompactColorInput
-                palettes={colorPalettes(ctx.session)}
-                variant="chip"
-                aria-label={label}
-                color={onOpacity === undefined ? (color ?? shown) : paint.color}
-                defaultColor={shown}
-                opacity={onOpacity === undefined ? undefined : paint.percent}
-                showOpacity={onOpacity !== undefined}
-                showReset={color !== undefined}
-                swatches={ctx.documentColors}
-                onChange={(next, percent) => {
-                    if (onOpacity === undefined || next === undefined) {
-                        onPick(next);
-                        return;
-                    }
-                    const written = writtenPaint(next, percent ?? 100);
-                    onOpacity(written.color, written.opacity);
+        <CompactColorInput
+            palettes={colorPalettes(ctx.session)}
+            variant="chip"
+            aria-label={label}
+            color={onOpacity === undefined ? (color ?? shown) : paint.color}
+            defaultColor={shown}
+            opacity={onOpacity === undefined ? undefined : paint.percent}
+            showOpacity={onOpacity !== undefined}
+            showReset={color !== undefined}
+            swatches={ctx.documentColors}
+            onChange={(next, percent) => {
+                if (onOpacity === undefined || next === undefined) {
+                    onPick(next);
+                    return;
+                }
+                const written = writtenPaint(next, percent ?? 100);
+                onOpacity(written.color, written.opacity);
+            }}
+        />
+    );
+}
+
+/**
+ * The categories the Colors group lists: graphty-element's, but Other and a plain entry's (whose color and name are its
+ * Entry pop-over's: owner, 2026-11-24, one path to any control).
+ * @param spec - the spec.
+ * @param facts - the sample's facts.
+ * @returns the categories.
+ */
+function listedCategories(spec: Spec, facts: DataFacts | undefined): DataCategoryFact[] {
+    const plain = plainKeys(spec, facts);
+    return (facts?.categories ?? []).filter((each) => each.role !== "other" && !plain.has(each.key));
+}
+
+/**
+ * The palette line: a chart's in its data pop-over, a pie's or stripes' first in its Colors group.
+ * @param props - Component props
+ * @param props.args - the spec
+ * @returns The line
+ */
+export function PaletteLine({ args }: Readonly<{ args: GroupArgs }>): React.JSX.Element {
+    const { ctx, channel, spec, facts, put } = args;
+    return (
+        <PopLine line="data.palette" name={null}>
+            <PaletteSelect
+                session={ctx.session}
+                channel={PALETTE_OF[channel]}
+                value={typeof spec.palette === "string" ? spec.palette : undefined}
+                shown={facts?.palette}
+                inForceShown
+                patch={({ palette }) => {
+                    put({ palette, colors: undefined });
                 }}
             />
         </PopLine>
@@ -117,8 +197,9 @@ function ColorLine({
 type Override = { color?: string; label?: string; opacity?: number };
 
 /**
- * The Colors group: the palette, one category picked from graphty-element's categories, its color and its name, and a
- * gauge's track.
+ * The Colors group: the palette, one category picked from graphty-element's categories, its color and its name, a
+ * gauge's track and, for a pie, what a node with no values draws. A plain entry's color and name are its Entry
+ * pop-over's, so its category is not listed here (owner, 2026-11-24: one path to any control).
  * @param props - Component props
  * @param props.args - the spec
  * @returns The lines
@@ -126,7 +207,7 @@ type Override = { color?: string; label?: string; opacity?: number };
 function ColorsLines({ args }: Readonly<{ args: GroupArgs }>): React.JSX.Element {
     const { ctx, channel, spec, facts, put } = args;
     const [key, setKey] = useState<string | null>(null);
-    const categories = (facts?.categories ?? []).filter((each) => each.role !== "other");
+    const categories = listedCategories(spec, facts);
     const picked = categories.find((each) => each.key === key) ?? categories.at(0);
     const overrides = (spec.categories ?? {}) as Readonly<Record<string, Override>>;
     const own = picked === undefined ? undefined : overrides[picked.key];
@@ -142,35 +223,25 @@ function ColorsLines({ args }: Readonly<{ args: GroupArgs }>): React.JSX.Element
     const whole = spec.whole as { max?: number; track?: string } | undefined;
     return (
         <>
-            <PopLine line="data.palette" name="Palette">
-                <PaletteSelect
-                    captioned={false}
-                    session={ctx.session}
-                    channel={PALETTE_OF[channel]}
-                    value={typeof spec.palette === "string" ? spec.palette : undefined}
-                    shown={facts?.palette}
-                    inForceShown
-                    patch={({ palette }) => {
-                        put({ palette, colors: undefined });
-                    }}
-                />
-            </PopLine>
-            <PopLine line="data.category" name="Category">
-                <PanelField
-                    label="Category"
-                    kind="select"
-                    width="fill"
-                    value={picked?.key ?? null}
-                    placeholder="None"
-                    data={categories.map((each) => ({
-                        value: each.key,
-                        label: each.role === "missing" ? "Unknown" : each.name,
-                    }))}
-                    onChange={(next) => {
-                        setKey(String(next));
-                    }}
-                />
-            </PopLine>
+            {channel === "node.chartData" ? null : <PaletteLine args={args} />}
+            {categories.length === 0 ? null : (
+                <PopLine line="data.category" name="Category">
+                    <PanelField
+                        label="Category"
+                        kind="select"
+                        width="fill"
+                        value={picked?.key ?? null}
+                        placeholder="None"
+                        data={categories.map((each) => ({
+                            value: each.key,
+                            label: each.role === "missing" ? "Unknown" : each.name,
+                        }))}
+                        onChange={(next) => {
+                            setKey(String(next));
+                        }}
+                    />
+                </PopLine>
+            )}
             {picked === undefined ? null : (
                 <>
                     <ColorLine
@@ -191,7 +262,7 @@ function ColorsLines({ args }: Readonly<{ args: GroupArgs }>): React.JSX.Element
                         <CommitText
                             label="Name"
                             value={own?.label}
-                            unset={picked.key}
+                            unset={picked.name}
                             onCommit={(words) => {
                                 override({ label: words === "" ? undefined : words });
                             }}
@@ -202,8 +273,8 @@ function ColorsLines({ args }: Readonly<{ args: GroupArgs }>): React.JSX.Element
             {whole?.max === undefined ? null : (
                 <ColorLine
                     ctx={ctx}
+                    name="Track"
                     label="Track color"
-                    name="Track color"
                     color={whole.track}
                     shown={MISSING_GRAY}
                     onPick={(track) => {
@@ -211,6 +282,7 @@ function ColorsLines({ args }: Readonly<{ args: GroupArgs }>): React.JSX.Element
                     }}
                 />
             )}
+            {channel === "node.pieData" || channel === "node.stripeData" ? <EmptyLine args={args} /> : null}
         </>
     );
 }
@@ -294,12 +366,12 @@ function OtherLines({ args }: Readonly<{ args: GroupArgs }>): React.JSX.Element 
 }
 
 /**
- * The No values group: what a node with no value draws, and its color.
+ * The No values line: what a node with no value draws, and its color beside once it draws one.
  * @param props - Component props
  * @param props.args - the spec
- * @returns The lines
+ * @returns The line
  */
-function EmptyLines({ args }: Readonly<{ args: GroupArgs }>): React.JSX.Element {
+function EmptyLine({ args }: Readonly<{ args: GroupArgs }>): React.JSX.Element {
     const { ctx, channel, spec, put } = args;
     const empty = word(spec.empty, "none");
     // Stripes draw a node with no value as one full band; a pie as a ring or one full slice.
@@ -311,22 +383,19 @@ function EmptyLines({ args }: Readonly<{ args: GroupArgs }>): React.JSX.Element 
                   ["slice", "Unknown"],
               ];
     return (
-        <>
-            <PopLine line="data.empty" name="No values">
-                <Segments
-                    label="No values"
-                    value={empty}
-                    options={[["none", "None"], ...shapes]}
-                    onPick={(next) => {
-                        put({ empty: next === "none" ? undefined : next });
-                    }}
-                />
-            </PopLine>
+        <PopLine line="data.empty" name="No values" wide={empty !== "none"} first={empty === "none" ? undefined : 156}>
+            <Segments
+                label="No values"
+                value={empty}
+                options={[["none", "None"], ...shapes]}
+                onPick={(next) => {
+                    put({ empty: next === "none" ? undefined : next });
+                }}
+            />
             {empty === "none" ? null : (
-                <ColorLine
+                <ColorChip
                     ctx={ctx}
                     label="No values color"
-                    name="Color"
                     color={typeof spec.emptyColor === "string" ? spec.emptyColor : undefined}
                     shown={MISSING_GRAY}
                     onPick={(emptyColor) => {
@@ -334,7 +403,7 @@ function EmptyLines({ args }: Readonly<{ args: GroupArgs }>): React.JSX.Element 
                     }}
                 />
             )}
-        </>
+        </PopLine>
     );
 }
 
@@ -356,6 +425,72 @@ interface Scale {
 function putScale(args: GroupArgs, patch: Partial<Scale>): void {
     const next = pruned({ ...(args.spec.scale as Scale | undefined), ...patch });
     args.put({ scale: Object.keys(next).length === 0 ? undefined : next });
+}
+
+/**
+ * The Clip line: the percentiles the scale is clipped at, a range slider with each end's number field beside it, so
+ * each is read and typed (design "Input rules": a range is a slider with its number field beside it).
+ * @param props - Component props
+ * @param props.args - the spec
+ * @param props.clip - the percentiles now
+ * @returns The line
+ */
+function ClipLine({ args, clip }: Readonly<{ args: GroupArgs; clip: readonly [number, number] }>): React.JSX.Element {
+    // The thumbs follow a drag before it is written.
+    const [moving, setMoving] = useState<[number, number] | null>(null);
+    const [low, high] = moving ?? clip;
+    const write = (from: number, to: number): void => {
+        putScale(args, { clip: from === 0 && to === 100 ? undefined : [from, to] });
+    };
+    const end = (value: string | number, at: 0 | 1): number => {
+        const next = Math.round(Math.min(100, Math.max(0, Number(value))));
+        return at === 0 ? Math.min(next, high - 1) : Math.max(next, low + 1);
+    };
+    return (
+        <PopLine line="data.clip" name="Clip">
+            <Group gap={4} wrap="nowrap">
+                <RangeSlider
+                    size="xs"
+                    style={{ flex: 1, minWidth: 0 }}
+                    min={0}
+                    max={100}
+                    step={1}
+                    minRange={1}
+                    label={null}
+                    thumbFromLabel="Clip from"
+                    thumbToLabel="Clip to"
+                    value={[low, high]}
+                    onChange={setMoving}
+                    onChangeEnd={([from, to]: [number, number]) => {
+                        setMoving(null);
+                        write(from, to);
+                    }}
+                />
+                <div style={{ flex: "0 0 52px", minWidth: 0 }}>
+                    <PanelField
+                        width="fill"
+                        label="Clip from"
+                        kind="number"
+                        value={low}
+                        onChange={(next) => {
+                            write(end(next, 0), high);
+                        }}
+                    />
+                </div>
+                <div style={{ flex: "0 0 52px", minWidth: 0 }}>
+                    <PanelField
+                        width="fill"
+                        label="Clip to"
+                        kind="number"
+                        value={high}
+                        onChange={(next) => {
+                            write(low, end(next, 1));
+                        }}
+                    />
+                </div>
+            </Group>
+        </PopLine>
+    );
 }
 
 /**
@@ -433,19 +568,7 @@ function ScaleLines({ args }: Readonly<{ args: GroupArgs }>): React.JSX.Element 
                     }}
                 />
             </PopLine>
-            <PopLine line="data.clip" name="Clip">
-                <RangeSlider
-                    aria-label="Clip"
-                    min={0}
-                    max={100}
-                    step={1}
-                    minRange={1}
-                    value={[clip[0], clip[1]]}
-                    onChangeEnd={([low, high]: [number, number]) => {
-                        putScale(args, { clip: low === 0 && high === 100 ? undefined : [low, high] });
-                    }}
-                />
-            </PopLine>
+            <ClipLine args={args} clip={clip} />
             {horizontal === undefined ? null : <RubricLine ctx={args.ctx} line={horizontal.line} />}
         </>
     );
@@ -472,13 +595,16 @@ function without(keys: readonly string[]): (args: GroupArgs) => void {
     };
 }
 
+/** The options the Colors group writes. */
+const COLOR_KEYS = ["palette", "colors", "categories"];
+
 /** The Colors group. */
 const COLORS: DataGroup = {
     name: "Colors",
     heading: "Data",
     lines: (args) => <ColorsLines args={args} />,
-    set: (args) => holds(args.spec, ["palette", "colors", "categories"]),
-    unset: without(["palette", "colors", "categories"]),
+    set: (args) => holds(args.spec, COLOR_KEYS),
+    unset: without(COLOR_KEYS),
 };
 
 /**
@@ -520,7 +646,11 @@ function groupsOf(ctx: RowContext, channel: DataChannel): DataGroup[] {
     if (channel === "node.pieData" || channel === "node.stripeData") {
         const stripes = channel === "node.stripeData";
         return [
-            COLORS,
+            {
+                ...COLORS,
+                set: (args) => holds(args.spec, [...COLOR_KEYS, "empty", "emptyColor"]),
+                unset: without([...COLOR_KEYS, "empty", "emptyColor"]),
+            },
             {
                 name: "Other",
                 heading: "Data",
@@ -528,13 +658,6 @@ function groupsOf(ctx: RowContext, channel: DataChannel): DataGroup[] {
                 set: (args) => holds(args.spec, ["other"]),
                 unset: without(["other"]),
                 when: (args) => typeof args.spec.keep === "number",
-            },
-            {
-                name: "No values",
-                heading: "Data",
-                lines: (args) => <EmptyLines args={args} />,
-                set: (args) => holds(args.spec, ["empty", "emptyColor"]),
-                unset: without(["empty", "emptyColor"]),
             },
             ...(stripes
                 ? lookGroups(ctx, "stripes", "node.stripeColors", ["node.stripeDirection"])
@@ -563,7 +686,13 @@ function groupsOf(ctx: RowContext, channel: DataChannel): DataGroup[] {
                 set: (args) => holds(args.spec, ["keep", "other"]),
                 unset: without(["keep", "other"]),
             },
-            { ...COLORS },
+            {
+                ...COLORS,
+                // The chart's palette is in its data pop-over: Colors holds the categories, when any is listed.
+                set: (args) => holds(args.spec, ["categories"]),
+                unset: without(["categories"]),
+                when: (args) => listedCategories(args.spec, args.facts).length > 0,
+            },
             // The scale writes a chart's range from data, so Axis would hold Horizontal alone: it joins Scale.
             ...lookGroups(ctx, "chart", "node.chartKind", ["node.chartMin", "node.chartHorizontal"]),
         ];

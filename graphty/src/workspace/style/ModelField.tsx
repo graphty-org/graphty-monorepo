@@ -21,11 +21,12 @@ import { ModelProblems } from "./ModelProblems";
 import { ModelSettings } from "./ModelSettings";
 import { ModelsPopover } from "./ModelsPopover";
 import { modelProblemLines } from "./modelWords";
+import { ValueListbox } from "./parts/ValueListbox";
 import type { RowContext } from "./PropertyRow";
 import { layerWord, lineIn, removeLine, without, writeIn, writeLine } from "./row";
 import { ShaderEditorDialog } from "./ShaderEditorDialog";
 import { focusSectionNext } from "./useFocusLine";
-import { familyOf, pickReplace } from "./v2/families";
+import { currentMember, familyOf, membersOf, pickReplace, replaceUse, switchMember } from "./v2/families";
 import { ModelValueField, ValueField } from "./ValueField";
 import {
     CUSTOM_MODEL,
@@ -52,7 +53,10 @@ export interface AssetLine {
     readonly name?: string;
     /** The label column's word, when not the property's own ("Picture"). */
     readonly label?: string;
-    /** What the Shape line's own layer names as its model, if anything. */
+    /**
+     * What the Shape line draws in place of a built-in shape, if anything: the model its own layer names, or (Style
+     * panel v2) the shader drawn in the shapes' place.
+     */
     readonly model?: string;
     /** The Shape list's Model... entry. */
     readonly extraChoices?: React.ComponentProps<typeof ValueField>["extraChoices"];
@@ -175,6 +179,15 @@ export function useAssetLine(args: AssetLineArgs): AssetLine | undefined {
     return undefined;
 }
 
+/** What a shader member's key starts with in the Shape family (families.ts). */
+const SHADER_MEMBER = "replace:";
+
+/** The Shape family's basic shape member. */
+const BASIC_MEMBER = "basic";
+
+/** What the Shape list's entry for the model drawn now starts with: picked, it changes nothing. */
+const CURRENT_MODEL = "+model:";
+
 /** What Style panel v2's Shape list needs of `useAssetLine`'s state. */
 interface ShapeListState {
     readonly replaceCode: boolean;
@@ -185,7 +198,9 @@ interface ShapeListState {
 /**
  * Style panel v2's Shape list (E378, E381): after the shapes, a Models section (with the node-models
  * experiment on: Model... and Custom model...) and a Shaders section, "New shader..." first and then every
- * shader that declares it draws in the node's place, built-in and custom alike, by the catalog's place.
+ * shader that declares it draws in the node's place, built-in and custom alike, by the catalog's place. It is the
+ * one control choosing a basic shape, a model or a shader (owner, 2026-11-24: one path to any control): while a model
+ * or a shader draws, the list names it and picks any other, the row's family switching with it.
  * @param args - the line.
  * @param base - what the node-models experiment draws for the line, if on.
  * @param state - the list's state.
@@ -220,7 +235,28 @@ function shapeList(args: LineHelpers, base: AssetLine | undefined, state: ShapeL
     const fail = (error: unknown): void => {
         store.set({ notice: { message: failureWords("Shape", "changed", error), error: true } });
     };
+    // A shader drawn in the shapes' place: its list choice is the value shown.
+    const members = family === undefined ? [] : membersOf(ctx, family);
+    const now = family === undefined ? undefined : currentMember(ctx, family, members);
+    const shader = now?.startsWith(SHADER_MEMBER) === true ? now.slice(SHADER_MEMBER.length) : undefined;
+    // A model: listed first in Models, so the list names it.
+    const model = base?.model;
+    const named =
+        model === undefined
+            ? []
+            : [
+                  {
+                      value: `${CURRENT_MODEL}${model}`,
+                      label: modelName(ctx.session, model),
+                      section: SHAPE_LIST_SECTIONS.models,
+                      glyph: <GLYPHS.model size={14} aria-hidden />,
+                  },
+              ];
+    const choices = [...named, ...models, ...shaders];
     const pick = (value: ChannelValue): boolean => {
+        if (typeof value === "string" && value.startsWith(CURRENT_MODEL)) {
+            return true;
+        }
         if (value === NEW_REPLACE_PICK) {
             state.setReplaceCode(true);
             return true;
@@ -230,11 +266,32 @@ function shapeList(args: LineHelpers, base: AssetLine | undefined, state: ShapeL
             return true;
         }
         if (typeof value === "string" && value.startsWith(REPLACE_PICK) && family !== undefined) {
-            pickReplace(ctx, family, value.slice(REPLACE_PICK.length)).catch(fail);
+            const id = value.slice(REPLACE_PICK.length);
+            // From a basic shape or a model, a family switch, which holds what the row left for a switch back; from
+            // another shader, only the shader changes.
+            const done =
+                shader === undefined && now !== undefined
+                    ? switchMember(ctx, family, members, now, `${SHADER_MEMBER}${id}`, id)
+                    : pickReplace(ctx, family, id);
+            done.catch(fail);
             return true;
         }
-        return base?.pick(value) ?? false;
+        if (base?.pick(value) === true) {
+            return true;
+        }
+        if (shader !== undefined && family !== undefined && now !== undefined) {
+            // A basic shape picked while a shader draws: back to the basic member, with the shape picked.
+            switchMember(ctx, family, members, now, BASIC_MEMBER, undefined, { "node.shape": value }).catch(fail);
+            return true;
+        }
+        return false;
     };
+    let current: string | undefined;
+    if (shader !== undefined) {
+        current = `${REPLACE_PICK}${shader}`;
+    } else if (model !== undefined) {
+        current = `${CURRENT_MODEL}${model}`;
+    }
     const code =
         state.replaceCode && family !== undefined ? (
             <ShaderEditorDialog
@@ -249,8 +306,26 @@ function shapeList(args: LineHelpers, base: AssetLine | undefined, state: ShapeL
         ) : null;
     return {
         ...base,
-        extraChoices: [...models, ...shaders],
+        model: model ?? shader,
+        extraChoices: choices,
         pick,
+        // The list naming the model or shader drawn, as it names a basic shape.
+        control:
+            current === undefined ? undefined : (
+                <ValueListbox
+                    session={ctx.session}
+                    descriptor={args.descriptor}
+                    label={fieldName(args.descriptor.channel)}
+                    value={current}
+                    shown={undefined}
+                    extraChoices={choices}
+                    sections={ctx.listSections?.(args.descriptor.channel)}
+                    counts={false}
+                    onPick={(value) => {
+                        pick(value);
+                    }}
+                />
+            ),
         ownsVary: base?.ownsVary ?? false,
         extras: (
             <>
@@ -346,7 +421,18 @@ function shapeLine(args: LineHelpers, state: ShapeState): AssetLine {
         focusField();
         // The model, the layer's settings from the dialog and the model's own, in one undo step.
         let done: Promise<unknown>;
-        if (saveDefaults === undefined) {
+        const family = familyOf(ctx.side, "shape");
+        if (into === "node.model" && family !== undefined && replaceUse(ctx) !== undefined) {
+            // A shader draws in the shapes' place (Style panel v2): the Shape family switches to the model.
+            const members = membersOf(ctx, family);
+            const now = currentMember(ctx, family, members);
+            // ponytail: the model's saved defaults are a second undo step here, after the switch.
+            done = switchMember(ctx, family, members, now, "model", ref, { ...settings, "node.model": ref }).then(() =>
+                saveDefaults === undefined
+                    ? undefined
+                    : session.transaction(`changing ${name.toLowerCase()}`, saveDefaults),
+            );
+        } else if (saveDefaults === undefined) {
             done = writeIn(ctx, into, { value: ref }, settings);
         } else if (ctx.many === undefined) {
             done = session.transaction(`changing ${name.toLowerCase()}`, async (tx) => {

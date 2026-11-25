@@ -60,6 +60,8 @@ import { BOTH_SCHEMES } from "../../helpers/schemes";
  * - Hue and opacity are Mantine sliders: arrows step 1, Shift 10, Home / End go to the ends.
  * - The value box commits on Enter or blur and reverts on Escape; the format select offers Hex,
  *   RGB, HSL and HSB.
+ * - In Hex the box takes 3 or 6 digits or a color name. With `allowHexAlpha` it also takes 4 or 8
+ *   digits (`RRGGBBAA`, as Figma does): the last digits set the opacity. Off by default.
  * - Each swatch is a button named by its color string; the set is a group named "Swatches".
  * - The eyedropper appears only where the browser has the EyeDropper API (Chromium).
  * - Every name can be replaced through the `labels` prop.
@@ -129,6 +131,7 @@ export const Default: Story = {
         onChange: fn(),
         onChangeEnd: fn(),
         withAlpha: true,
+        allowHexAlpha: false,
         defaultFormat: "hex",
         swatches: SWATCH_COLORS_HEXA,
     },

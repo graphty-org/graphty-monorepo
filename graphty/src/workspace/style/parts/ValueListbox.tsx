@@ -123,6 +123,27 @@ function sectionRows(
 }
 
 /**
+ * The row a list names as its value: one of the property's own values, else one of its extra choices (the Shape
+ * list's model or shader drawn now).
+ * @param values - the property's values.
+ * @param extraChoices - its extra choices.
+ * @param value - the value set or shown, if any.
+ * @returns the value's row, or the extra choice's.
+ */
+function currentOf<T extends { readonly id: string }>(
+    values: readonly T[],
+    extraChoices: readonly ExtraChoice[],
+    value: unknown,
+): { current: T | undefined; extra: ExtraChoice | undefined } {
+    const key = ["string", "number", "boolean"].includes(typeof value) ? String(value) : undefined;
+    if (key === undefined) {
+        return { current: undefined, extra: undefined };
+    }
+    const current = values.find((each) => each.id === key);
+    return { current, extra: current === undefined ? extraChoices.find((each) => each.value === key) : undefined };
+}
+
+/**
  * The value picker: see the file header.
  * @param props - Component props
  * @param props.session - the element's session
@@ -166,9 +187,10 @@ export function ValueListbox({
     const [opened, setOpened] = useState(false);
     const [query, setQuery] = useState("");
     const values = session.catalog.channelValues(descriptor.channel);
-    const current = mixed ? undefined : values.find((each) => each.id === String(value ?? shown));
+    const { current, extra } = currentOf(values, extraChoices, mixed ? undefined : (value ?? shown));
     const startSection =
         sections?.find((each) => current !== undefined && each.values.includes(current.id))?.name ??
+        extra?.section ??
         sections?.[0]?.name ??
         "";
     const [section, setSection] = useState(startSection);
@@ -192,7 +214,8 @@ export function ValueListbox({
     // As the shared choice field reads it: "mixed", or the default in force when nothing is set.
     const unset = value === undefined && !mixed;
     const prefix = unset ? "default " : "";
-    let name = current === undefined ? label : `${label}, ${prefix}${current.plainName}`;
+    const words = current?.plainName ?? extra?.label;
+    let name = words === undefined ? label : `${label}, ${prefix}${words}`;
     if (mixed) {
         name = `${label}, mixed`;
     }
@@ -216,10 +239,14 @@ export function ValueListbox({
                     className="ws-value-listbox"
                     data-unset={unset ? "" : undefined}
                     leftSection={
-                        current?.glyph === undefined ? icons?.[current?.id ?? ""] : <Glyph svg={current.glyph} />
+                        current?.glyph === undefined ? (
+                            (icons?.[current?.id ?? ""] ?? extra?.glyph)
+                        ) : (
+                            <Glyph svg={current.glyph} />
+                        )
                     }
                 >
-                    {mixed ? "Mixed" : (current?.plainName ?? "")}
+                    {mixed ? "Mixed" : (words ?? "")}
                 </Button>
             </Popout.Trigger>
             <Popout.Panel
@@ -251,7 +278,9 @@ export function ValueListbox({
                     width={240}
                     height={320}
                     descriptions="end"
-                    {...(current === undefined ? {} : { highlight: current.id })}
+                    {...(current === undefined && extra === undefined
+                        ? {}
+                        : { highlight: current?.id ?? extra?.value })}
                     query={query}
                     onQueryChange={setQuery}
                     actions={listed}

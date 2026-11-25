@@ -74,7 +74,7 @@ async function openChartSettings(tab: HTMLElement): Promise<HTMLElement> {
 describe("Style panel v2's chart from data", () => {
     withFeatures(["file-styles", "style-panel-v2"]);
 
-    it("picks a pattern with All starting with, and the line reads the sample's values", async () => {
+    it("picks a pattern with All starting with, and the line reads the pattern", async () => {
         const { session, layer } = await withExpression();
         const tab = await openStyle("Key people");
         await addChart(tab);
@@ -83,8 +83,10 @@ describe("Style panel v2's chart from data", () => {
             assert.deepEqual(written(session, layer, "node.chartData"), { entries: [{ pattern: "expr" }] });
         });
         assert.isUndefined(written(session, layer, "node.chartValues"));
+        // The line holds its source, the pattern it reads (never one node's values).
         await waitFor(() => {
-            assert.isNotNull(screen.queryByRole("button", { name: /5\.2, 4\.9, 8\.1/ }));
+            const field = within(sectionOf(tab, "node-fill")).getByRole("combobox", { name: "Field" });
+            assert.match((field as HTMLInputElement).value, /expr/);
         });
     });
 

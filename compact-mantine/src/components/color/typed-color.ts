@@ -9,16 +9,22 @@ const HEXA_ALPHA_START = 7;
  * its words ("blue", "Dark Green", "rebeccapurple"); undefined for words
  * that name no opaque color. The paint field's hex box and the picker's value box both read
  * through this, so they take the same entries.
+ * With `allowAlpha`, four or eight hex digits are taken too, and the color comes back as
+ * `#RRGGBBAA` with the typed alpha pair (Figma's 8-digit hex: the last two digits are the opacity).
  * @param typed - what was typed
+ * @param allowAlpha - also take 4- and 8-digit hex, returned as `#RRGGBBAA`
  * @returns the color, upper case, or undefined
  */
-export function typedColor(typed: string): string | undefined {
+export function typedColor(typed: string, allowAlpha = false): string | undefined {
     // A keyword said as words ("dark green") is the keyword written together ("darkgreen").
     const trimmed = typed.trim();
     const text = /^[a-z]+(\s+[a-z]+)+$/i.test(trimmed) ? trimmed.split(/\s+/).join("") : trimmed;
     const digits = trimmed.replace("#", "");
     if (/^[0-9a-f]{3}$|^[0-9a-f]{6}$/i.test(digits)) {
         return normalizeHexa(digits)?.slice(0, HEXA_ALPHA_START).toUpperCase();
+    }
+    if (allowAlpha && /^[0-9a-f]{4}$|^[0-9a-f]{8}$/i.test(digits)) {
+        return normalizeHexa(digits);
     }
     // A host without CSS.supports (a DOM emulation) reads names as no color rather than throwing.
     if (

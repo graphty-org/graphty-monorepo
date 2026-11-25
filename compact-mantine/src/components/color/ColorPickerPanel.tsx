@@ -129,6 +129,13 @@ export interface ColorPickerPanelProps {
      */
     withAlpha?: boolean;
     /**
+     * Let the Hex value box take 4- and 8-digit hex (`RRGGBBAA`, as Figma does): the last digits
+     * set the opacity, reported through `onChange` like any other change. Off, the box takes
+     * only 3 or 6 digits and keeps the opacity as it was.
+     * @default false
+     */
+    allowHexAlpha?: boolean;
+    /**
      * The swatch set under the divider, as hex or hexa strings. Each is named by its color word
      * and hex. The color the picker opened on is always one of them (first, when the set lacks
      * it), marked as the color before this edit, so going back to it is one click. While the
@@ -206,13 +213,18 @@ function formatValue(hsva: Hsva, format: ColorPickerFormat): string {
  * @param text - what the reader typed
  * @param format - the format
  * @param alpha - the alpha to keep
+ * @param allowHexAlpha - in hex, also take 4- and 8-digit hex, whose alpha replaces `alpha`
  * @returns the color, or undefined when the text does not read
  */
-function parseValue(text: string, format: ColorPickerFormat, alpha: number): Hsva | undefined {
+function parseValue(text: string, format: ColorPickerFormat, alpha: number, allowHexAlpha: boolean): Hsva | undefined {
     if (format === "hex") {
         // The same entries as the paint field's hex box: hex digits or a color's name.
-        const color = typedColor(text);
-        return color === undefined ? undefined : { ...parseColor(color), a: alpha };
+        const color = typedColor(text, allowHexAlpha);
+        if (color === undefined) {
+            return undefined;
+        }
+        // `#RRGGBBAA` only comes back when alpha digits were typed: they set the opacity.
+        return color.length === 9 ? parseColor(color) : { ...parseColor(color), a: alpha };
     }
     const n = text
         .split(/[\s,]+/)
@@ -301,6 +313,7 @@ function GradientGlyph(): React.JSX.Element {
  * @param props.onChange - called on every change
  * @param props.onChangeEnd - called once per finished edit: a settled drag, a step, a commit or a pick
  * @param props.withAlpha - offer opacity
+ * @param props.allowHexAlpha - the Hex box also takes 4- and 8-digit hex, setting the opacity
  * @param props.swatches - the swatch set
  * @param props.closeOnEnter - Enter in the value box closes the enclosing pop-out
  * @param props.defaultFormat - the value row's first format
@@ -321,6 +334,7 @@ export function ColorPickerPanel({
     onChange,
     onChangeEnd,
     withAlpha = true,
+    allowHexAlpha = false,
     swatches = [],
     closeOnEnter = false,
     defaultFormat = "hex",
@@ -424,7 +438,7 @@ export function ColorPickerPanel({
      * in force, as Figma's box does, and the reason is said aloud.
      */
     const commitDraft = (): void => {
-        const parsed = parseValue(draft, format, hsvaRef.current.a);
+        const parsed = parseValue(draft, format, hsvaRef.current.a, allowHexAlpha);
         if (parsed === undefined) {
             const typed = draft.trim();
             const shownValue = formatValue(hsvaRef.current, format);

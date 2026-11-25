@@ -7,7 +7,6 @@
  */
 
 import {
-    ComboInput,
     CompactColorInput,
     ControlGroup,
     ControlSection,
@@ -36,6 +35,7 @@ import { BackgroundShader, ShaderSection } from "../settings/ShaderSettings";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { PickerNamesOnly } from "../style/pickerNames";
 import { AddButton } from "../style/Section";
+import { WordNumber } from "../style/v2/dataLines";
 import { V2_LABELS } from "../style/v2/rubric";
 import { AngleLine, LineFrame, SegmentsLine } from "../style/v2/RubricLine";
 import { RowSettings } from "../style/v2/ThingLine";
@@ -87,51 +87,6 @@ function useProjectVersion(session: GraphSession | null): void {
     useEffect(() => session?.on("project:changed", bump), [session]);
     // The highlight color is a view setting, not a project change: it has its own event.
     useEffect(() => session?.on("style:highlight-color-changed", bump), [session]);
-}
-
-/**
- * A number field (R5), Figma's number input as every v2 number line is (E183, E330): a letter slot, its name's
- * initial, is the scrub handle; the arrow keys step; no caret; unset, it shows what the element does then
- * (design "Input rules": no input is empty); clearing it unsets.
- * @param props - Component props
- * @param props.label - its name
- * @param props.value - the value, if set
- * @param props.unset - what it shows while unset: the element's default, or a word where it has no one number
- * @param props.min - its least value
- * @param props.onWrite - writes a number, or undefined to unset
- * @returns The field
- */
-function NumberField({
-    label,
-    value,
-    unset,
-    min,
-    onWrite,
-}: Readonly<{
-    label: string;
-    value: number | undefined;
-    unset: number | string;
-    min?: number;
-    onWrite: (value: number | undefined) => void;
-}>): React.JSX.Element {
-    return (
-        <ComboInput
-            label={label}
-            width="100%"
-            numeric
-            options={[]}
-            glyph={scrubLetter(label)}
-            value={value ?? unset}
-            min={min}
-            onChange={(next) => {
-                if (typeof next === "number") {
-                    onWrite(next);
-                } else if (next === "") {
-                    onWrite(undefined);
-                }
-            }}
-        />
-    );
 }
 
 /**
@@ -480,8 +435,9 @@ export function GraphSettingsV2(): React.JSX.Element | null {
                                 "framing.padding",
                                 "Padding",
                                 "R5",
-                                <NumberField
+                                <WordNumber
                                     label="Padding"
+                                    glyph={scrubLetter("Padding")}
                                     value={framing?.padding}
                                     // Unset, the element keeps a margin in proportion to the view.
                                     unset="Auto"
@@ -520,9 +476,10 @@ export function GraphSettingsV2(): React.JSX.Element | null {
                                 // too little room to type in the sidebar's width.
                                 <Stack gap={4}>
                                     {(["node", "edge"] as const).map((which) => (
-                                        <NumberField
+                                        <WordNumber
                                             key={which}
                                             label={which === "node" ? "Smallest node" : "Smallest edge"}
+                                            glyph={scrubLetter(which === "node" ? "Smallest node" : "Smallest edge")}
                                             min={0}
                                             value={minMarkSize?.[which]}
                                             unset={0}
@@ -592,8 +549,9 @@ export function GraphSettingsV2(): React.JSX.Element | null {
                             "labels.sampleCell",
                             "Sample",
                             "R5",
-                            <NumberField
+                            <WordNumber
                                 label="Label sample cell"
+                                glyph={scrubLetter("Label sample cell")}
                                 value={labelSampleCell ?? undefined}
                                 // Unset, every label is built: no sampling.
                                 unset="Off"

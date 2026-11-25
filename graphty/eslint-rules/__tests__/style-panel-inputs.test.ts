@@ -1,6 +1,7 @@
 /**
  * The style-panel-inputs rule: an input control imported from anywhere but compact-mantine, or a native input drawn
- * by hand, is refused in the Style panel; a gap the config names is let through from Mantine only.
+ * by hand, is refused in the Style panel; a Mantine component compact-mantine's theme styles, and a gap the config
+ * names, are let through from Mantine only.
  */
 
 import { RuleTester } from "eslint";
@@ -18,6 +19,7 @@ const tester = new RuleTester({
 });
 
 const gaps = [{ gaps: { Checkbox: "no compact-mantine check box" } }];
+const themed = [{ themed: ["Button", "ActionIcon"] }];
 
 tester.run("style-panel-inputs", rule, {
     valid: [
@@ -33,6 +35,9 @@ tester.run("style-panel-inputs", rule, {
         'import * as MC from "@mantine/core"; <MC.Group />;',
         'import * as CM from "@graphty/compact-mantine"; <CM.SegmentedControl />;',
         { code: 'import * as MC from "@mantine/core"; <MC.Checkbox />;', options: gaps },
+        // A Mantine component compact-mantine's theme styles counts as compact-mantine's (owner, 2026-11-24).
+        { code: 'import { ActionIcon, Button } from "@mantine/core";', options: themed },
+        { code: 'import * as MC from "@mantine/core"; <MC.Button />;', options: themed },
     ],
     invalid: [
         { code: 'import { TextInput } from "@mantine/core";', errors: [{ messageId: "imported" }] },
@@ -45,5 +50,12 @@ tester.run("style-panel-inputs", rule, {
         { code: 'import * as MC from "@mantine/core"; <MC.Select data={[]} />;', errors: [{ messageId: "imported" }] },
         { code: 'import * as MC from "@mantine/core"; const S = MC.TextInput;', errors: [{ messageId: "imported" }] },
         { code: "<button>Go</button>;", errors: [{ messageId: "native" }] },
+        // An unthemed Mantine input is still refused beside themed ones, and a themed name from elsewhere is too.
+        {
+            code: 'import { Button, UnstyledButton } from "@mantine/core";',
+            options: themed,
+            errors: [{ messageId: "imported" }],
+        },
+        { code: 'import { Button } from "./MyButton";', options: themed, errors: [{ messageId: "imported" }] },
     ],
 });

@@ -274,7 +274,7 @@ function WhereLine({ args }: Readonly<{ args: CalcArgs }>): React.JSX.Element {
 }
 
 /**
- * The "Measure / Of" line: what is measured, and of which value (none for a count).
+ * The "Measure / Of" line: what is measured, and of which value (none for a count, whose line is named "Measure").
  * @param props - Component props
  * @param props.args - the Graph value
  * @returns The line
@@ -284,7 +284,7 @@ function MeasureLine({ args }: Readonly<{ args: CalcArgs }>): React.JSX.Element 
     const { over, measure } = graph;
     const fits = measure === "mode" ? ANY : NUMBERS;
     return (
-        <PopLine line="calc.measure" name="Measure / Of" wide={measure !== "count"}>
+        <PopLine line="calc.measure" name={measure === "count" ? "Measure" : "Measure / Of"} wide={measure !== "count"}>
             <PanelField
                 width="fill"
                 label="Measure"

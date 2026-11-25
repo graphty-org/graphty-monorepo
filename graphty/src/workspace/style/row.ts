@@ -819,6 +819,46 @@ export function beneathOf(
     };
 }
 
+/** Who paints a channel over a row's elements: its agreement entry, how many it paints, and each layer's share. */
+interface RowShares {
+    readonly covered: number;
+    readonly painted: number;
+    readonly shares: readonly { readonly layerId: LayerId; readonly count: number }[];
+}
+
+/**
+ * graphty-element's answer over a row's own elements with the whole stack (`styles.agreement` with `over`), read by
+ * channel.
+ * @param session - the element's session.
+ * @param row - the tree row.
+ * @returns a reader by channel: undefined for every channel when the answer is not read over the row.
+ */
+function rowShares(session: GraphSession, row: string): (channel: Channel) => RowShares | undefined {
+    let agreement: ReturnType<GraphSession["styles"]["agreement"]>;
+    try {
+        agreement = session.styles.agreement("graph", undefined, { over: row });
+    } catch (error) {
+        logUnexpected("styles.agreement", error, ["E_UNKNOWN_LAYER"]);
+        return () => undefined;
+    }
+    if (agreement.readOver !== "row") {
+        return () => undefined;
+    }
+    return (channel) => {
+        const entry = agreement.channels.find((c) => c.channel === channel);
+        if (entry === undefined) {
+            return undefined;
+        }
+        const read = agreement.elements ?? { nodes: 0, edges: 0 };
+        const painted = (channel.startsWith("node.") ? read.nodes : read.edges) - entry.unpainted;
+        const shares =
+            entry.state === "agree"
+                ? [{ layerId: entry.layerId, count: painted }]
+                : entry.breakdown.map((share) => ({ layerId: share.layerId, count: share.count }));
+        return { covered: entry.covered ?? 0, painted, shares };
+    };
+}
+
 /**
  * Which of a row's fields its own shader hides: a shader one of the row's own layers draws in place
  * of the channel (a sprite in place of the shape), while no layer above paints over it. Read from
@@ -834,28 +874,13 @@ export function hiddenByOf(
     row: string,
     ids: readonly LayerId[],
 ): (channel: Channel) => string | undefined {
-    let agreement: ReturnType<GraphSession["styles"]["agreement"]>;
-    try {
-        agreement = session.styles.agreement("graph", undefined, { over: row });
-    } catch (error) {
-        logUnexpected("styles.agreement", error, ["E_UNKNOWN_LAYER"]);
-        return () => undefined;
-    }
-    if (agreement.readOver !== "row") {
-        return () => undefined;
-    }
+    const sharesOf = rowShares(session, row);
     return (channel) => {
-        const entry = agreement.channels.find((c) => c.channel === channel);
-        if (entry === undefined || (entry.covered ?? 0) === 0) {
+        const read = sharesOf(channel);
+        if (read === undefined || read.covered === 0) {
             return undefined;
         }
-        const read = agreement.elements ?? { nodes: 0, edges: 0 };
-        const of = channel.startsWith("node.") ? read.nodes : read.edges;
-        const shares =
-            entry.state === "agree"
-                ? [{ layerId: entry.layerId, count: of - entry.unpainted }]
-                : entry.breakdown.map((share) => ({ layerId: share.layerId, count: share.count }));
-        if (shares.some((share) => !ids.includes(share.layerId) && share.count > 0)) {
+        if (read.shares.some((share) => !ids.includes(share.layerId) && share.count > 0)) {
             return undefined;
         }
         const shaded = shaderCovers(session, ids, channel);
@@ -882,32 +907,18 @@ export function paintedOverOf(
     row: string,
     ids: readonly LayerId[],
 ): (channel: Channel) => string | undefined {
-    let agreement: ReturnType<GraphSession["styles"]["agreement"]>;
-    try {
-        agreement = session.styles.agreement("graph", undefined, { over: row });
-    } catch (error) {
-        logUnexpected("styles.agreement", error, ["E_UNKNOWN_LAYER"]);
-        return () => undefined;
-    }
-    if (agreement.readOver !== "row") {
-        return () => undefined;
-    }
+    const sharesOf = rowShares(session, row);
     const nameOf = (id: LayerId): string | undefined => session.styles.get(id)?.name;
     return (channel) => {
-        const entry = agreement.channels.find((c) => c.channel === channel);
-        if (entry === undefined) {
+        const read = sharesOf(channel);
+        if (read === undefined) {
             return undefined;
         }
-        const read = agreement.elements ?? { nodes: 0, edges: 0 };
-        const painted = (channel.startsWith("node.") ? read.nodes : read.edges) - entry.unpainted;
-        const shares =
-            entry.state === "agree"
-                ? [{ layerId: entry.layerId, count: painted }]
-                : entry.breakdown.map((share) => ({ layerId: share.layerId, count: share.count }));
+        const { painted, shares } = read;
         if (painted > 0 && shares.every((share) => !ids.includes(share.layerId))) {
             return nameOf(shares[0].layerId);
         }
-        if ((entry.covered ?? 0) < painted || painted === 0) {
+        if (read.covered < painted || painted === 0) {
             return undefined;
         }
         // A shader drawn in place of the channel on all of them, by a layer outside the row.

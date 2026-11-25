@@ -171,16 +171,20 @@ describe("Graph settings", () => {
         await userEvent.click(screen.getByRole("button", { name: "Add to background" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Image/ }));
 
+        // The picture field (compact-mantine's ImagePicker) opens its Picture pop-over, whose Choose picture loads a file.
+        await userEvent.click(await screen.findByRole("combobox", { name: /^Sky picture/ }));
+        const picture = await screen.findByRole("dialog", { name: "Picture" });
         // Bytes no browser here decodes, named as an iPad camera roll hands over a HEIC photo.
         await commands.chooseNextFile("IMG_0001.HEIC", "image/heic", "\u0000\u0000\u0000\u0018ftypheic");
-        await userEvent.click(await screen.findByRole("button", { name: "Upload image" }));
+        await userEvent.click(within(picture).getByRole("button", { name: "Choose picture" }));
         const alert = await screen.findByRole("alert");
         assert.include(alert.textContent ?? "", "IMG_0001.HEIC is HEIC, which this browser cannot draw.");
         assert.notStrictEqual(element.session.config.background.backgroundType, "skybox", "nothing was written");
 
         const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="16"><rect width="32" height="16" fill="#369"/></svg>`;
         await commands.chooseNextFile("sky.svg", "image/svg+xml", svg);
-        await userEvent.click(screen.getByRole("button", { name: "Upload image" }));
+        // A file it could not use picked nothing, so the pop-over is still open.
+        await userEvent.click(within(picture).getByRole("button", { name: "Choose picture" }));
         await waitFor(() => {
             assert.strictEqual(element.session.config.background.backgroundType, "skybox");
         });

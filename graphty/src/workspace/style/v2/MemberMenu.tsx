@@ -1,9 +1,8 @@
 /**
- * A family thing's Switch to (design/ui/style-panel-v2/design.md, section 5): the Kind line, first in the row's
- * "..." pop-over, choosing among every member. A member an experiment has off is listed,
- * disabled, never hidden. A member that needs a pick (a model, a picture, a shader in the shapes' place)
- * opens its picker beside the row and switches on the pick; Escape changes nothing. Others switch at once,
- * in one undo step.
+ * A family thing's Switch to (design/ui/style-panel-v2/design.md, section 5): the tab strip, first in the row's
+ * "..." pop-over, choosing among every member. A member an experiment has off is listed, disabled, never hidden.
+ * A pick switches at once, in one undo step; no tab opens a picker (owner, 2026-11-24: no button group opens
+ * menus). The Shape family has no strip: its row's Shape list is its one control (ThingRow.tsx).
  */
 
 import { PanelField, Popout } from "@graphty/compact-mantine";
@@ -14,17 +13,15 @@ import {
     type ShaderPlace,
     type StyleFamilyDescriptor,
 } from "@graphty/graphty-element/catalog";
-import React, { useLayoutEffect, useRef, useState } from "react";
+import React, { useLayoutEffect, useRef } from "react";
 
 import { useWorkspace } from "../../state/WorkspaceContext";
-import { ImageField } from "../ImageField";
-import { ModelsPopover } from "../ModelsPopover";
 import { FieldLine, type RowContext } from "../PropertyRow";
 import { writeIn } from "../row";
 import { ShaderGallery } from "../ShaderGallery";
 import { failureWords } from "../words";
 import { rowReader } from "./drawn";
-import { currentMember, isHeld, type MemberChoice, type MemberPick, membersOf, switchMember } from "./families";
+import { currentMember, membersOf, switchMember } from "./families";
 import { type KindGroup, type KindMember, kindsShown, lookOf, PLAIN_LOOK, switchKind, writeLook } from "./kindGroups";
 import { entryLook, entryOf, writeEntry } from "./labelEntries";
 import { TEXT_THINGS } from "./labelRubric";
@@ -105,34 +102,28 @@ let refocus: string | undefined;
  * A row's one-of choice of what it draws (a family's members, a kind group's kinds, a text's looks), the current one
  * picked: shared by a graphty-element family's row and a kind group's row.
  * @param props - Component props
- * @param props.boxRef - the box it is drawn in, for a picker opened beside it
  * @param props.attribute - the box's data attribute naming what it switches
  * @param props.name - its name above it, and its accessible name
  * @param props.form - how it is drawn
  * @param props.members - the choices, in order
  * @param props.now - the current choice's key
  * @param props.onChoose - told the choice picked
- * @param props.children - what opens beside it (a picker)
  * @returns The line
  */
 function SwitchMenu<T extends { readonly key: string; readonly name: string; readonly disabled: boolean }>({
-    boxRef,
     attribute,
     name = "Kind",
     form,
     members,
     now,
     onChoose,
-    children,
 }: Readonly<{
-    boxRef?: React.RefObject<HTMLSpanElement | null>;
     attribute: Readonly<Record<string, string>>;
     name?: string;
     form: SwitchForm;
     members: readonly T[];
     now: string;
     onChoose: (member: T) => void;
-    children?: React.ReactNode;
 }>): React.JSX.Element {
     const own = Object.entries(attribute).flat().join("=");
     const strip = useRef<HTMLSpanElement | null>(null);
@@ -181,22 +172,15 @@ function SwitchMenu<T extends { readonly key: string; readonly name: string; rea
             />
         </div>
     );
-    const boxes = (element: HTMLSpanElement | null): void => {
-        strip.current = element;
-        if (boxRef !== undefined) {
-            boxRef.current = element;
-        }
-    };
     if (shown === "strip") {
         return (
-            <span ref={boxes} className="ws-member" data-strip="" {...attribute}>
+            <span ref={strip} className="ws-member" data-strip="" {...attribute}>
                 {segments}
-                {children}
             </span>
         );
     }
     return (
-        <span ref={boxes} className="ws-member" {...attribute}>
+        <span ref={strip} className="ws-member" {...attribute}>
             {/* Named by its caption above it, as every line is (owner's input rules: every input is self describing). */}
             <FieldLine name={name} settings={null} above>
                 {shown === "buttons" ? (
@@ -220,19 +204,9 @@ function SwitchMenu<T extends { readonly key: string; readonly name: string; rea
                     </div>
                 )}
             </FieldLine>
-            {children}
         </span>
     );
 }
-
-/** What every shader member's key starts with: the Shader tab's key. */
-const SHADER_TAB = "replace:";
-
-/**
- * A tab's word where its member's name does not fit: a Shape's three choices sit under a basic shape's row, 152 px
- * wide, as well as atop its pop-over, in the same words in both (owner, 2026-11-24).
- */
-const TAB_WORDS: Readonly<Partial<Record<string, string>>> = { "node.shape:basic": "Basic" };
 
 /** A fill gradient's kinds, each a tab of the Fill's strip. */
 const GRADIENT_KINDS = [
@@ -424,23 +398,18 @@ export function EntryLookMenu({ ctx, entry }: Readonly<{ ctx: RowContext; entry:
  * @param props - Component props
  * @param props.ctx - the row
  * @param props.family - the thing's family
- * @param props.inRow - drawn under its row, where a pop-over's tabs do not belong: the same choices as grouped buttons
- * @returns The tab strip, or the Kind line under a row
+ * @returns The tab strip
  */
 export function MemberMenu({
     ctx,
     family,
-    inRow = false,
-}: Readonly<{ ctx: RowContext; family: StyleFamilyDescriptor; inRow?: boolean }>): React.JSX.Element {
+}: Readonly<{ ctx: RowContext; family: StyleFamilyDescriptor }>): React.JSX.Element {
     const { store } = useWorkspace();
-    const box = useRef<HTMLSpanElement>(null);
-    const [picking, setPicking] = useState<{ readonly to: MemberChoice; readonly pick: MemberPick } | null>(null);
     const members = membersOf(ctx, family);
     const now = currentMember(ctx, family, members);
-    const go = (toKey: string, picked?: string, also?: Readonly<Partial<Record<Channel, ChannelValue>>>): void => {
-        setPicking(null);
+    const go = (toKey: string, also?: Readonly<Partial<Record<Channel, ChannelValue>>>): void => {
         const to = members.find((member) => member.key === toKey);
-        switchMember(ctx, family, members, now, toKey, picked, also)
+        switchMember(ctx, family, members, now, toKey, undefined, also)
             .then(() => {
                 store.set({ announcement: `${family.plainName} now ${to?.name ?? toKey}` });
             })
@@ -448,33 +417,13 @@ export function MemberMenu({
                 store.set({ notice: { message: failureWords(family.plainName, "changed", error), error: true } });
             });
     };
-    const choose = (to: MemberChoice): void => {
-        setPicking(null);
-        if (to.key === now || to.disabled) {
-            return;
-        }
-        // A member that needs a pick, and holds nothing from before, waits for it; the row keeps the old
-        // member until then.
-        if (to.pick !== undefined && !isHeld(ctx, family, to.key)) {
-            setPicking({ to, pick: to.pick });
-            return;
-        }
-        go(to.key);
-    };
-    const close = (): void => {
-        setPicking(null);
-    };
-    const shaders = members.filter((member) => member.shader !== undefined);
     const kindRead = rowReader(ctx)("node.gradientKind");
     const gradient = family.id === "node.fill" ? "gradient" : undefined;
     const kindNow = typeof kindRead === "string" ? kindRead : "linear";
-    // Every shader drawn in the shapes' place is one Shader tab (its gallery picks which); a fill's gradient is a
-    // Linear and a Radial tab, its kind changing its settings too (owner, 2026-11-24: a nested one-of is merged
-    // into the strip when the combinations fit).
+    // A fill's gradient is a Linear and a Radial tab, its kind changing its settings too (owner, 2026-11-24: a nested
+    // one-of is merged into the strip when the combinations fit). The Shape family has no strip: its members are the
+    // Shape list's sections (ThingRow.tsx).
     const tabs = members.flatMap((member): { key: string; name: string; disabled: boolean }[] => {
-        if (member.shader !== undefined) {
-            return member === shaders[0] ? [{ key: SHADER_TAB, name: "Shader", disabled: false }] : [];
-        }
         if (member.key === gradient) {
             return GRADIENT_KINDS.map((kind) => ({
                 key: `${member.key}:${kind.value}`,
@@ -482,15 +431,9 @@ export function MemberMenu({
                 disabled: member.disabled,
             }));
         }
-        const word = TAB_WORDS[`${family.id}:${member.key}`];
-        return [word === undefined ? member : { ...member, name: word }];
+        return [member];
     });
-    let tabNow = now;
-    if (now.startsWith(SHADER_TAB)) {
-        tabNow = SHADER_TAB;
-    } else if (now === gradient) {
-        tabNow = `${now}:${kindNow}`;
-    }
+    const tabNow = now === gradient ? `${now}:${kindNow}` : now;
     const writeKind = (kind: string): void => {
         writeIn(ctx, "node.gradientKind", { value: kind }).catch((error: unknown) => {
             store.set({ notice: { message: failureWords(family.plainName, "changed", error), error: true } });
@@ -500,71 +443,30 @@ export function MemberMenu({
         if (tab.key === tabNow) {
             return;
         }
-        if (tab.key === SHADER_TAB && shaders.length > 0) {
-            // The gallery lists every shader: titled by the tab, not by one shader.
-            setPicking({ to: { ...shaders[0], name: "Shader" }, pick: "shader" });
-            return;
-        }
         if (gradient !== undefined && tab.key.startsWith(`${gradient}:`)) {
             const kind = tab.key.slice(gradient.length + 1);
             // From Solid, the gradient and its kind are one undo step.
             if (now === gradient) {
                 writeKind(kind);
             } else {
-                go(gradient, undefined, { "node.gradientKind": kind });
+                go(gradient, { "node.gradientKind": kind });
             }
             return;
         }
         const to = members.find((member) => member.key === tab.key);
-        if (to !== undefined) {
-            choose(to);
+        // No tab waits on a picker (owner, 2026-11-24: no button group opens menus); a member that needs a pick (a
+        // model, a picture) is never a tab.
+        if (to !== undefined && !to.disabled) {
+            go(to.key);
         }
     };
     return (
         <SwitchMenu
-            boxRef={box}
             attribute={{ "data-member-menu": family.id }}
-            // Under a row with no pop-over (a basic Shape), the same choices in the same words as the pop-over's tabs,
-            // as grouped buttons named above them: one control in every state (owner, 2026-11-24).
-            form={inRow ? "buttons" : "strip"}
+            form="strip"
             members={tabs}
             now={tabNow}
             onChoose={onTab}
-        >
-            {picking?.pick === "model" && (
-                <ModelsPopover
-                    opened
-                    anchor={box}
-                    onPick={(ref) => {
-                        go(picking.to.key, ref);
-                    }}
-                    onCustom={close}
-                    onClose={close}
-                />
-            )}
-            {picking?.pick === "shader" && (
-                <ReplaceGallery
-                    ctx={ctx}
-                    anchor={box}
-                    title={picking.to.name}
-                    onPick={(id) => {
-                        go(`${SHADER_TAB}${id}`, id);
-                    }}
-                    onClose={close}
-                />
-            )}
-            {picking?.pick === "picture" && (
-                // The member waits for its picture: compact-mantine's ImagePicker, open at once under the tabs.
-                <ImageField
-                    label={picking.to.name}
-                    value={undefined}
-                    defaultOpened
-                    onPick={(ref) => {
-                        go(picking.to.key, ref);
-                    }}
-                    onDismiss={close}
-                />
-            )}
-        </SwitchMenu>
+        />
     );
 }

@@ -159,6 +159,8 @@ interface StepChoices {
 /** `join.add`: every table of the source, through its mapping. */
 export interface AddStep extends StepChoices {
     readonly op: "join.add";
+    /** A join act added the source because it needed its nodes: once no step needs them, it goes too. */
+    readonly joined?: true;
     readonly duplicateIds?: "first" | "merge" | "refuse";
 }
 
@@ -264,7 +266,10 @@ export interface EdgesStep extends StepChoices, Translating {
     /** Minted by the element, unique among the source's steps and never reused (3.3). */
     readonly part: number;
     readonly read: EdgesStepRead;
-    /** Which end `via` or `nodeColumn` translates; default `"target"`. */
+    /**
+     * Which end `via` or `nodeColumn` translates; default `"target"`. With neither, which end of two
+     * named by columns is node 1; default `"source"`.
+     */
     readonly viaEnd?: "source" | "target";
     /**
      * Each row is a node: the edge's source or target end, or the node between the two ends, with an
@@ -284,6 +289,8 @@ export interface EdgesStep extends StepChoices, Translating {
     /** Makes one edge per end pair, as `repeated` does, with these columns reduced over its rows. */
     readonly aggregate?: Aggregate;
     readonly unmatchedRows?: "add" | "leave-out";
+    /** The end whose values naming no node make one, whatever `unmatchedRows` says of the other. */
+    readonly addEnd?: "source" | "target";
 }
 
 /** One entry of the ordered join history (3.4). */

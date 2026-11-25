@@ -4316,15 +4316,16 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
-     * The profile of the keys of the nodes one id space holds.
-     * @param options - The space.
+     * The profile of the keys of the nodes one id space holds, or of a column they carry.
+     * @param options - The space, and the column.
      * @param options.space - The space.
+     * @param options.field - The column; absent, the keys.
      * @returns The profile.
      * @throws A `GraphtyError` with `E_FEATURE_OFF`.
      */
-    profile(options: { readonly space: string }): SourceColumnProfile {
+    profile(options: { readonly space: string; readonly field?: string }): SourceColumnProfile {
         this.requireSteps("profile");
-        return spaceProfile(this.stepsValue(), this.stepsCopies(), options.space);
+        return spaceProfile(this.stepsValue(), this.stepsCopies(), options.space, options.field);
     }
 
     /**

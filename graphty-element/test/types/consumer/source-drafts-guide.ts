@@ -53,6 +53,21 @@ export async function sourceJoinOptions(
 }
 
 /**
+ * The guide's new nodes at a Connect's other end, and the whole join taken back.
+ * @param draft - the open draft
+ * @param doors - the staged door entries
+ */
+export function sourceNewEnd(draft: SourceDraft, doors: string): void {
+    draft.connect({
+        from: { source: doors, field: "person" },
+        into: { space: "person" },
+        to: { field: "bldg", into: { space: "building" }, unmatched: "add", type: "building" },
+    }); // an edge from each person to a node per building, unknown people left out
+    draft.removeStep(draft.steps().length - 1, { adds: "remove" }); // the whole join taken back
+    console.log(draft.profile({ space: "person", field: "dept" }).distinct);
+}
+
+/**
  * The guide's shared values and columns into nodes: accounts linked by a phone or a device, and their
  * tags and branches made nodes.
  * @param draft - the open draft

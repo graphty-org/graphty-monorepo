@@ -7,10 +7,11 @@
 
 import type { GraphtyErrorCode } from "../../../errors/codes";
 import { GraphtyError } from "../../../errors/GraphtyError";
+import { isSourceFactKey } from "../ids";
 import { isEmpty, normalize, tableRows } from "./build";
 import type { DraftState } from "./draft";
 import { numberedKey } from "./profile";
-import { buildOf, copyMap, mintEditId, type SourceSteps, type StepsEdit, type StepsSource } from "./project";
+import { buildOf, copyMap, mintEditId, type SourceSteps, type StepsEdit } from "./project";
 import { type Conflict, conflicts, pickEdit } from "./provenance";
 import type {
     BuildResult,
@@ -240,18 +241,14 @@ function effectOf(now: Built | null, was: Built | null): DrillRow["effect"] {
 }
 
 /**
- * A row's cells without the key its source's rows were numbered by, which is no column of theirs.
- * @param cells - The cells.
- * @param src - The source.
- * @returns The cells.
+ * A record's columns: without the facts the session keeps beside them (`_source.loads` and the rest)
+ * and the key its source's rows were numbered by, which are no column of theirs.
+ * @param record - The record.
+ * @param numbered - That key, if the rows were numbered.
+ * @returns The columns.
  */
-function ownCells(cells: Row | null, src: StepsSource | undefined): Row | null {
-    const numbered = src === undefined ? undefined : numberedKey(src);
-    if (cells === null || numbered === undefined) {
-        return cells;
-    }
-    const { [numbered]: _number, ...own } = cells;
-    return own;
+function ownColumns<T>(record: Readonly<Record<string, T>>, numbered?: string): Readonly<Record<string, T>> {
+    return Object.fromEntries(Object.entries(record).filter(([name]) => !isSourceFactKey(name) && name !== numbered));
 }
 
 /**
@@ -298,8 +295,8 @@ export function drillRows(
             key,
             name: u.name ?? null,
             element: now === null ? null : refOf(now),
-            held: was === null ? null : { ...was.values },
-            incoming: ownCells(incoming, src),
+            held: was === null ? null : ownColumns(was.values),
+            incoming: incoming === null ? null : ownColumns(incoming, src && numberedKey(src)),
             shown: now === null ? null : { ...now.values },
             effect: effectOf(now, was),
             codes,

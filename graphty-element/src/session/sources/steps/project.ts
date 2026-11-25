@@ -13,7 +13,7 @@
 
 import type { EdgeId, NodeId } from "../../../catalog/types";
 import { GraphtyError } from "../../../errors/GraphtyError";
-import type { JoinRecord, SourceExtractOptions, SourceLinkOptions } from "../../types";
+import type { JoinRecord, SourceExtractOptions, SourceLinkOptions, SourceStepAct } from "../../types";
 import { applyAct, extractOf, movedAfter, type StepsAct } from "./acts";
 import { build, copyKey, isStaged, nodeSpace, ownSpace, resolveNode, rowNodeSpace, stepSources } from "./build";
 import { RECORD_PATHS } from "./paths";
@@ -1047,7 +1047,7 @@ interface StepAct {
     readonly unmatched?: "skip" | "add";
     readonly perPair?: boolean;
     /** Each row an edge between node 1 and the node its `field` names in `into.space`, or a node between them. */
-    readonly to?: { readonly field: string; readonly into: { readonly space: string }; readonly keepRow?: boolean };
+    readonly to?: NonNullable<SourceStepAct["to"]>;
     /** A row whose ends an edge already joins folds into that edge. */
     readonly existing?: "merge";
 }
@@ -1121,7 +1121,7 @@ export function stepAct(value: SourceSteps, step: Step): StepAct | null {
         unmatched: step.unmatchedRows === "add" ? "add" : "skip",
         perPair: step.repeated === "first",
         ...(step.existing === undefined ? {} : { existing: step.existing }),
-        ...(ownTarget || ownSource ? {} : otherEnd(two, rowNode === "middle")),
+        ...(ownTarget || ownSource ? {} : otherEnd(value, step, two, intoFrom ? "target" : "source")),
     };
 }
 
@@ -1129,11 +1129,16 @@ export function stepAct(value: SourceSteps, step: Step): StepAct | null {
  * The type the rules naming one edge step's part give what it makes.
  * @param value - The value.
  * @param step - The step.
- * @param kind - The nodes at its target end, or its edges.
+ * @param kind - The nodes at one end, or its edges.
+ * @param end - Which end's nodes; default the target's.
  * @returns The type, or undefined.
  */
-function partType(value: SourceSteps, step: EdgesStep, kind: "node" | "edge"): string | undefined {
-    const end = kind === "node" ? "target" : undefined;
+function partType(
+    value: SourceSteps,
+    step: EdgesStep,
+    kind: "node" | "edge",
+    end: "source" | "target" | undefined = kind === "node" ? "target" : undefined,
+): string | undefined {
     return value.types.find(
         (t) =>
             t.kind === kind && t.rules.some((r) => r.source === step.source && r.part === step.part && r.end === end),
@@ -1218,20 +1223,32 @@ export function defined<T extends Record<string, unknown>>(members: T): Partial<
 /**
  * A Connect's other end, read back. A step whose other end names no column reads back as a one-match
  * Connect, never `to.field: ""`.
+ * @param value - The value.
+ * @param step - The Connect's step.
  * @param end - The column naming it and the space its nodes live in.
  * @param end.field - The column.
  * @param end.space - The space.
- * @param keepRow - Whether each row is a node between the two ends.
+ * @param which - The edge end it is.
  * @returns The act's `to`, if it has one.
  */
 function otherEnd(
+    value: SourceSteps,
+    step: EdgesStep,
     end: { readonly field: string | undefined; readonly space: string | undefined },
-    keepRow: boolean,
+    which: "source" | "target",
 ): Pick<StepAct, "to"> {
     if (end.field === undefined || end.field === "" || end.space === undefined) {
         return {};
     }
-    return { to: { field: end.field, into: { space: end.space }, ...(keepRow ? { keepRow } : {}) } };
+    return {
+        to: {
+            field: end.field,
+            into: { space: end.space },
+            ...(step.rowNode === "middle" ? { keepRow: true } : {}),
+            ...(step.addEnd === which ? { unmatched: "add" as const } : {}),
+            ...defined({ type: partType(value, step, "node", which) }),
+        },
+    };
 }
 
 /**
@@ -1282,7 +1299,7 @@ function readsOf(step: Step, src: Source | undefined): string[] {
  * @param src - Its source.
  * @returns The spaces.
  */
-function stepSpaces(step: Step, src: StepsSource | undefined): ReadonlySet<string> {
+export function stepSpaces(step: Step, src: StepsSource | undefined): ReadonlySet<string> {
     const spaces = new Set<string>();
     if (step.op === "join.add" && src !== undefined) {
         if (src.mapping.nodes !== undefined) {

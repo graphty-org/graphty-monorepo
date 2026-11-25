@@ -6932,6 +6932,7 @@ export interface SessionDataApi {
     previewType(column: ColumnRef, type: ValueType): TypeChangePreview;
     profile(options: {
         readonly space: SourceSpaceName;
+        readonly field?: string;
     }): SourceColumnProfile;
     readableValues(): readonly ReadableValue[];
     readExample(source: string, example: string, options?: SourceLoadOptions): Promise<SourceRead>;
@@ -7742,6 +7743,8 @@ export interface SourceConnectOptions {
         readonly field: string;
         readonly into: SourceJoinInto;
         readonly keepRow?: boolean;
+        readonly unmatched?: "add";
+        readonly type?: SourceTypeName;
     };
     readonly unmatched?: "skip" | "add";
 }
@@ -7823,7 +7826,9 @@ export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "match
     preview(): SourceDraftPreview;
     removeEdit(id: string): void;
     removeSource(source: SourceKey): void;
-    removeStep(index: number): void;
+    removeStep(index: number, options?: {
+        readonly adds?: "keep" | "remove";
+    }): void;
     renameColumn(column: ColumnRef, name: string, options: {
         readonly source: SourceKey;
     }): void;
@@ -8654,6 +8659,8 @@ export interface SourceStepAct {
             readonly space: SourceSpaceName;
         };
         readonly keepRow?: boolean;
+        readonly unmatched?: "add";
+        readonly type?: SourceTypeName;
     };
     readonly unmatched?: "skip" | "add";
     readonly unmatchedFrom?: "keep" | "drop";

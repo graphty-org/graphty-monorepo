@@ -249,21 +249,29 @@ function sourceProfile(
 }
 
 /**
- * The profile of the keys of the nodes one id space holds in a build: Field 1's Key.
+ * The profile of the keys of the nodes one id space holds in a build (Field 1's Key), or of a column
+ * they carry, each value of a list apart.
  * @param value - The value.
  * @param copies - The rows as read.
  * @param space - The space.
+ * @param field - The column; absent, the keys.
  * @returns The profile; every count 0 for a space no node lives in.
  */
-export function spaceProfile(value: SourceSteps, copies: Copies, space: string): ColumnProfile {
-    const keys = function* (): Generator<string> {
+export function spaceProfile(value: SourceSteps, copies: Copies, space: string, field?: string): ColumnProfile {
+    const cells = function* (): Generator<CellValue | undefined> {
         for (const n of buildOf(value, copies).nodes.values()) {
-            if (n.space === space) {
-                yield n.key;
+            if (n.space !== space) {
+                continue;
+            }
+            const v = field === undefined ? n.key : n.values[field];
+            if (Array.isArray(v)) {
+                yield* v as CellValue[];
+            } else {
+                yield v as CellValue | undefined;
             }
         }
     };
-    return profileOf(keys());
+    return profileOf(cells());
 }
 
 /** One column the nodes of a space carry. */

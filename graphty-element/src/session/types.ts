@@ -1883,14 +1883,16 @@ export interface SessionDataApi {
      */
     sourceTable(source: SourceKey): SourceTable;
     /**
-     * The profile of the keys of the nodes one id space holds: the join card's Key field.
-     * @param options - The space.
+     * The profile of the keys of the nodes one id space holds, or of a column they carry: the two
+     * sides a join on that space can match.
+     * @param options - The space, and the column.
      * @param options.space - The space, as `spaces()` names it.
+     * @param options.field - A column its nodes carry, each value of a list apart; absent, their keys.
      * @returns The profile; every count 0 for a space no node lives in.
      * @throws A `GraphtyError` with `E_FEATURE_OFF` while the source-steps experiment is off.
      * @experimental source-steps
      */
-    profile(options: { readonly space: SourceSpaceName }): SourceColumnProfile;
+    profile(options: { readonly space: SourceSpaceName; readonly field?: string }): SourceColumnProfile;
     /**
      * Change what a staged source's rows are and are for -- nodes, edges or both, its key, space,
      * type, edge ends and roles --
@@ -5170,6 +5172,10 @@ export interface SourceStepAct {
         readonly into: { readonly space: SourceSpaceName };
         /** True when each row stays a node between the two ends; absent when it makes none. */
         readonly keepRow?: boolean;
+        /** `"add"` when a value naming no node at this end makes one; absent when `unmatched` decides. */
+        readonly unmatched?: "add";
+        /** The type this end's new nodes are declared with, when one was given. */
+        readonly type?: SourceTypeName;
     };
     /** Make an edge: `"merge"` when a row folds into an edge already joining its ends; absent for `"add"`. */
     readonly existing?: "add" | "merge";
@@ -5639,6 +5645,14 @@ export interface SourceConnectOptions {
          * false, where the row is one edge between them. Every row stays a node, whatever it names.
          */
         readonly keepRow?: boolean;
+        /**
+         * `"add"` makes a node of every value naming none at this end only, so a column's values
+         * become new nodes while the other end still skips; absent, the act's own `unmatched`
+         * decides. The space may be one no node lives in yet.
+         */
+        readonly unmatched?: "add";
+        /** The type this end's nodes are declared with. */
+        readonly type?: SourceTypeName;
     };
     /**
      * A row whose two ends an edge an earlier step made already joins, the same way round:
@@ -6233,8 +6247,11 @@ export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "match
     /**
      * Delete one step (as `data.removeStep` does).
      * @param index - The step's place.
+     * @param options - What becomes of the sources the step's act added for itself.
+     * @param options.adds - `"keep"` (default) leaves them added; `"remove"` takes them along once no
+     *   step needs their nodes, so they are staged again and the whole join is taken back.
      */
-    removeStep(index: number): void;
+    removeStep(index: number, options?: { readonly adds?: "keep" | "remove" }): void;
     /**
      * Move one step to another place in the build order; the steps between shift by one. Editing a
      * step's field or act removes it and makes the new act, which lands last: moving it back keeps
@@ -6253,7 +6270,8 @@ export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "match
     moveStep(index: number, to: number): void;
     /**
      * Make a join act again in one step's place, as one act: a changed field, result or option
-     * keeps the step's place, its rows left out and its clash rules (unless the act names its own).
+     * keeps the step's place, its rows left out and its clash rules (unless the act names its own). A
+     * source the old act added for itself, whose nodes the new one does not need, goes back to staged.
      *
      * ```ts
      * draft.replaceStep(2, { act: "connect", options: { from: { source: entries, field: "badge" }, into: { space: "person" } } });

@@ -446,8 +446,8 @@ export class SourceDraftHandle implements SourceDraft {
     }
 
     /** @inheritdoc */
-    removeStep(index: number): void {
-        this.stepsAct("removeStep", { act: "remove-step", index });
+    removeStep(index: number, options: { readonly adds?: "keep" | "remove" } = {}): void {
+        this.stepsAct("removeStep", { act: "remove-step", index, ...options });
     }
 
     /** @inheritdoc */
@@ -603,9 +603,9 @@ export class SourceDraftHandle implements SourceDraft {
     }
 
     /** @inheritdoc */
-    profile(options: { readonly space: string }): SourceColumnProfile {
+    profile(options: { readonly space: string; readonly field?: string }): SourceColumnProfile {
         this.live("profile");
-        return spaceProfile(this.state.value, this.state.copies, options.space);
+        return spaceProfile(this.state.value, this.state.copies, options.space, options.field);
     }
 
     /** @inheritdoc */

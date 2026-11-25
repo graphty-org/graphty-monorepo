@@ -17,6 +17,7 @@ import {
     copyMap,
     declared,
     type SourceSteps,
+    stepSpaces,
     type StepsSource,
     withSourceRules,
 } from "./project";
@@ -80,7 +81,13 @@ interface ConnectAct {
      * The other end: each row becomes an edge between node 1 and the node this field names, making
      * no node, or under `keepRow` a node of its own with an edge to each.
      */
-    readonly to?: { readonly field: string; readonly into: JoinInto; readonly keepRow?: boolean };
+    readonly to?: {
+        readonly field: string;
+        readonly into: JoinInto;
+        readonly keepRow?: boolean;
+        readonly unmatched?: "add";
+        readonly type?: string;
+    };
     /** A row whose ends an edge already joins: add another (default), or fold its columns into that edge. */
     readonly existing?: "add" | "merge";
 }
@@ -145,7 +152,7 @@ export type StepsAct =
           readonly column: string;
           readonly source: string;
       }
-    | { readonly act: "remove-step"; readonly index: number }
+    | { readonly act: "remove-step"; readonly index: number; readonly adds?: "keep" | "remove" }
     /** Make a join act again in one step's place, keeping the old step's rows left out and clash rules. */
     | {
           readonly act: "replace-step";
@@ -242,8 +249,7 @@ function rowsOnto(
     s1: string | undefined,
     id: string,
 ): { value: SourceSteps; src: StepsSource; table: TableName } {
-    const value =
-        s1 !== undefined && isStaged(prior, s1) ? addSource(prior, sourceOf(prior, s1), copies, undefined) : prior;
+    const value = s1 !== undefined && isStaged(prior, s1) ? joinedSource(prior, copies, s1) : prior;
     return { value, ...rowSource(value, copies, id) };
 }
 
@@ -433,12 +439,66 @@ function addStaged(
             {
                 op: "join.add",
                 source: src.id,
+                joined: true,
                 ...(mergeDuplicates ? { duplicateIds: "merge" } : {}),
                 ...(columns === undefined ? {} : { columns }),
             },
         ],
     };
     return withRule(next, "node", type, { source: src.id });
+}
+
+/**
+ * Add a staged source a join act needs the nodes of (see `AddStep.joined`).
+ * @param value - The value.
+ * @param copies - The rows as read.
+ * @param id - The staged source.
+ * @returns The value with the source added.
+ */
+function joinedSource(value: SourceSteps, copies: Copies, id: string): SourceSteps {
+    const next = addSource(value, sourceOf(value, id), copies, undefined);
+    const steps = next.steps.map((s, i) =>
+        i === next.steps.length - 1 && s.op === "join.add" ? { ...s, joined: true as const } : s,
+    );
+    return { ...next, steps };
+}
+
+/**
+ * Whether a step needs the nodes a source's `join.add` builds: it makes or folds the source's own row
+ * nodes, reads its edges, or reads or writes an id space they are in. A step that only reads the
+ * source's rows, as a Connect whose rows are edges between two ends does, needs none of them.
+ * @param step - The step.
+ * @param value - The value.
+ * @param add - The source's `join.add`.
+ * @returns True when it does.
+ */
+function needsNodesOf(step: Step, value: SourceSteps, add: Step): boolean {
+    const id = add.source;
+    if (step === add) {
+        return false;
+    }
+    const others = stepSources(step).filter((each) => each !== step.source);
+    const own = step.source === id && step.op === "join.merge" && step.read.table !== "edges";
+    const spaces = stepSpaces(add, value.sources[id]);
+    return (
+        own ||
+        others.includes(id) ||
+        [...stepSpaces(step, value.sources[step.source])].some((space) => spaces.has(space))
+    );
+}
+
+/**
+ * The value without the adds join acts made for themselves whose nodes no step needs any more: each
+ * of their sources is staged again.
+ * @param value - The value.
+ * @returns The value.
+ */
+function withoutUnneededAdds(value: SourceSteps): SourceSteps {
+    const at = value.steps.findIndex(
+        (add) =>
+            add.op === "join.add" && add.joined === true && !value.steps.some((step) => needsNodesOf(step, value, add)),
+    );
+    return at === -1 ? value : withoutUnneededAdds(withoutStep(value, at));
 }
 
 /**
@@ -637,6 +697,10 @@ function readEnds(a: EndRead | null, b: EndRead | null): Omit<EdgesStep["read"],
  * @param at.read - The table and ends.
  * @param at.key - The column keying each row's edge, if any.
  * @param at.rowNode - Where the row's own node stands, if the step needs it.
+ * @param at.end - A Connect's other end.
+ * @param at.end.which - Which edge end it is.
+ * @param at.end.add - Whether its values naming no node make one.
+ * @param at.end.type - The type its nodes are declared with.
  * @returns The next value.
  */
 function withEdgesStep(
@@ -648,6 +712,7 @@ function withEdgesStep(
         readonly read: EdgesStep["read"];
         readonly key: string | undefined;
         readonly rowNode?: EdgesStep["rowNode"];
+        readonly end?: { readonly which: "source" | "target"; readonly add: boolean; readonly type?: string };
     },
 ): SourceSteps {
     const mint = minted(value, at.source);
@@ -663,9 +728,12 @@ function withEdgesStep(
             weight: null,
         },
         unmatchedRows: o.unmatched === "add" ? "add" : "leave-out",
+        ...(at.end?.add === true ? { addEnd: at.end.which } : {}),
         ...(o.perPair === true ? { repeated: "first" as const } : {}),
         ...defined({ ignoreCase: o.ignoreCase, ignoreSpaces: o.ignoreSpaces, rowNode: at.rowNode }),
         ...existingOf(o.to !== undefined && o.to.keepRow !== true, o.existing),
+        // Says which end is node 1, so the step reads back the way round it was made.
+        ...(at.end?.which === "source" ? { viaEnd: "target" as const } : {}),
         ...viaOf(o.into, n1, intoFrom),
     };
     const { stagedType } = value.sources[at.source];
@@ -673,6 +741,7 @@ function withEdgesStep(
     const typed = at.rowNode !== undefined && at.read.table === "edges" ? stagedType : undefined;
     let next: SourceSteps = { ...mint.value, steps: [...mint.value.steps, step] };
     next = withRule(next, "node", typed, { source: at.source, part: mint.part });
+    next = withRule(next, "node", at.end?.type, { source: at.source, part: mint.part, end: at.end?.which });
     return withRule(next, "edge", o.edgeType, { source: at.source, part: mint.part });
 }
 
@@ -748,7 +817,7 @@ function connectRows(
     let value = prior;
     for (const end of [o.into.source, to.into.source]) {
         if (end !== undefined && end !== o.from.source && isStaged(value, end)) {
-            value = addSource(value, sourceOf(value, end), copies, undefined);
+            value = joinedSource(value, copies, end);
         }
     }
     const { src: rows, table } = rowSource(value, copies, o.from.source);
@@ -779,6 +848,7 @@ function connectRows(
         // An edge row source keys each edge by its edge id column, if it names one, else by the row.
         key: table === "nodes" ? rows.mapping.nodes?.key : rows.mapping.edges?.edgeId,
         ...(keepRow ? { rowNode: "middle" as const } : {}),
+        end: { which: intoFrom ? "target" : "source", add: to.unmatched === "add", type: to.type },
     });
 }
 
@@ -803,7 +873,7 @@ function replaceStep(
     if (old === undefined) {
         throw refused("E_BAD_COMMAND", `No step at ${String(index)}.`, { reason: "no-step", index });
     }
-    const gone = removeStep(value, index);
+    const gone = withoutStep(value, index);
     let next = joined(gone, copies, act);
     const made = next.steps.length - gone.steps.length;
     for (let i = 0; i < made; i++) {
@@ -814,14 +884,14 @@ function replaceStep(
     const at = movedAfter(next.steps, end - 1) ? end - 1 : end;
     const last = next.steps[at];
     if (old.source !== last.source || old.op !== last.op) {
-        return next;
+        return withoutUnneededAdds(next);
     }
     const kept = {
         ...last,
         ...(last.except === undefined && old.except !== undefined ? { except: old.except } : {}),
         ...(last.clash === undefined && old.clash !== undefined ? { clash: old.clash } : {}),
     };
-    return { ...next, steps: next.steps.map((s, i) => (i === at ? kept : s)) };
+    return withoutUnneededAdds({ ...next, steps: next.steps.map((s, i) => (i === at ? kept : s)) });
 }
 
 /**
@@ -967,7 +1037,7 @@ function extractRows(
         if (src.mapping.nodes === undefined) {
             throw refused("E_BAD_COMMAND", `Source ${id} holds no node rows.`, { reason: "no-nodes", source: id });
         }
-        value = isStaged(value, id) ? addSource(value, src, copies, undefined) : value;
+        value = isStaged(value, id) ? joinedSource(value, copies, id) : value;
     }
     const space = o.space ?? o.type ?? ownSpace(id);
     const m = from === "row" ? null : edgeMapping(value, id);
@@ -1156,7 +1226,7 @@ function withHolders(
     if (held === undefined || (own && (into !== undefined || table === "edges")) || !isStaged(value, held)) {
         return value;
     }
-    return addSource(value, sourceOf(value, held), copies, undefined);
+    return joinedSource(value, copies, held);
 }
 
 /**
@@ -1184,7 +1254,7 @@ function moveColumns(value: SourceSteps, id: string, o: MoveColumnsAct): SourceS
  * @param index - The step's place.
  * @returns The next value.
  */
-function removeStep(value: SourceSteps, index: number): SourceSteps {
+function withoutStep(value: SourceSteps, index: number): SourceSteps {
     const gone = value.steps[index] as Step | undefined;
     if (gone === undefined) {
         throw refused("E_BAD_COMMAND", `No step at ${String(index)}.`, { reason: "no-step", index });
@@ -1345,7 +1415,9 @@ export function applyAct(value: SourceSteps, act: StepsAct, copies: Copies): Sou
             }
             return mapped(value, act.source, act.patch, copies);
         default:
-            return removeStep(value, act.index);
+            return act.adds === "remove"
+                ? withoutUnneededAdds(withoutStep(value, act.index))
+                : withoutStep(value, act.index);
     }
 }
 

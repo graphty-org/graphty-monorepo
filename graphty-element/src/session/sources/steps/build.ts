@@ -2147,7 +2147,7 @@ class Builder {
             this.end(st, n?.space ?? space, n?.id, at);
             return n ? { n } : { miss: "left-out:unmatched" };
         }
-        const how = s.unmatchedRows ?? this.source(s.source).settings?.unmatched ?? "add";
+        const how = this.unmatchedEnd(s, which);
         const idx = loose === null ? null : this.looseKeys(loose, space, s);
         const key = idx?.get(normalize(v, s)) ?? text(v);
         this.end(st, space, this.resolve(space, key), at);
@@ -2156,6 +2156,11 @@ class Builder {
             idx.set(normalize(v, s), n.key);
         }
         return n ? { n } : { miss: "left-out:unmatched" };
+    }
+
+    // What an end's value naming no node does: the end the step adds nodes at, else what the step or its source says.
+    private unmatchedEnd(s: EdgesStep, which: "source" | "target"): "add" | "leave-out" {
+        return s.addEnd === which ? "add" : (s.unmatchedRows ?? this.source(s.source).settings?.unmatched ?? "add");
     }
 
     // Each node key of a space, by its compared form, built once per step.

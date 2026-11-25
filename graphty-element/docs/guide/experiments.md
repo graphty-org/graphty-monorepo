@@ -245,6 +245,20 @@ draft.replaceStep(at, { act: "connect", options: { ...ends, to: { ...ends.to, ke
 draft.steps()[at]?.act?.to?.keepRow; // true: each entry is a node between a person and a building
 ```
 
+The other end may be new nodes: `to.unmatched: "add"` makes a node of every value naming none at that
+end only, in a space that may hold no node yet, and `to.type` declares their type. A join adds the
+staged sources it needs; `removeStep(index, { adds: "remove" })` takes them back with it once no step
+needs their nodes, and `replaceStep` does so when the new act needs them no more.
+
+```ts
+draft.connect({
+    from: { source: doors, field: "person" },
+    into: { space: "person" },
+    to: { field: "bldg", into: { space: "building" }, unmatched: "add", type: "building" },
+}); // an edge from each person to a node per building, unknown people left out
+draft.removeStep(draft.steps().length - 1, { adds: "remove" }); // the whole join taken back
+```
+
 `draft.link` links nodes whose rows share a value in a column: an edge per pair of nodes, its
 `shared` attribute the number of values they share, or with `as: "nodes"` one node per value. A value
 more than `maxShared` nodes hold (default 10) links none of them, and a pair must share `minShared`
@@ -270,7 +284,8 @@ if (step?.link) {
 ones its merges brought included, each with its `kind` (`"list"` for a merged list) and how many nodes
 fill it. `into: { space, field }` matches on one of them, in `merge`, `connect`, `matchCounts` and
 `matchValues`, and a link's `nodes` links the nodes of a space by them. A list matches by each of its
-values, in a column the nodes carry or in a source's own cell:
+values, in a column the nodes carry or in a source's own cell, and `profile({ space, field })` profiles
+one:
 
 ```ts
 draft.merge({ from: { source: ids, field: "account" }, into: { space: "account" }, aggregate: { "*": "list" } });

@@ -16,8 +16,9 @@
  * and a network source's `_source.loads` cells from its id. A source's key-overlap reports are
  * session-only. The file keeps no part counter: parts are minted from the parts present (3.3).
  *
- * An edge step's `rowNode`, `existing`, `link` and `extract`, and a `join.merge` reading edge rows, are
- * written as the session keeps them: version 2 spells none of them yet (4.1.8 rule 10). So is a
+ * An edge step's `rowNode`, `existing`, `addEnd`, `link` and `extract`, an add's `joined`, and a
+ * `join.merge` reading edge rows, are written as the session keeps them: version 2 spells none of
+ * them yet (4.1.8 rule 10). So is a
  * source's `numbered`, the column its keyless rows were numbered under.
  *
  * Every source is saved as a copy; a reference (3.11) is not written yet. Pure and free of

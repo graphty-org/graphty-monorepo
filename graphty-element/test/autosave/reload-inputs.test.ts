@@ -76,4 +76,11 @@ describe("autosave and what each load was read from", () => {
         );
         again.saver.stop();
     });
+
+    it("keeps no input whose options carry a credential", async () => {
+        const session = sessionWithRuns();
+        await session.data.import({ type: "csv", config: { data: LINKS, accessToken: "SECRET" }, name: "links.csv" });
+        assert.isTrue(session.data.sources()[0].reloadable, "this session can read it again");
+        assert.deepStrictEqual((session.data as unknown as SessionData).savedInputs(), {});
+    });
 });

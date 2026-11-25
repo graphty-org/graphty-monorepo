@@ -208,6 +208,7 @@ import {
 import { SourceLedger } from "./sources/ledger";
 import {
     type LoadFacts,
+    paramsOf,
     redactedParams,
     redactUrl,
     type ReferenceEntry,
@@ -10376,8 +10377,8 @@ function savedBytes(bytes: Uint8Array): { readonly utf8: string } | { readonly b
  * An input as autosave keeps it.
  * @param input - What the load was read from.
  * @param bytes - The file's bytes, when it names a file.
- * @returns It, or undefined when it cannot be kept (a network source, a file not read yet, or
- *     nothing to read again).
+ * @returns It, or undefined when it is not kept (a network source, a URL, a file not read yet,
+ *     or options that carry a credential).
  */
 function savedInput(input: DataSourceInput, bytes: Uint8Array | undefined): SavedInput | undefined {
     const { file, data, ...config } = input.config;
@@ -10386,7 +10387,11 @@ function savedInput(input: DataSourceInput, bytes: Uint8Array | undefined): Save
     if (blob === null) {
         held = isSourceData(data) ? toSourceInput(data) : undefined;
     }
-    if (input.source !== undefined || (held === undefined && (blob !== null || typeof config.url !== "string"))) {
+    // Only bytes the session holds, and never an option that marks a credential (a URL's included):
+    // autosave writes no secret, as a save writes none.
+    const dropped = new Set<string>();
+    const options = paramsOf(config, dropped);
+    if (input.source !== undefined || held === undefined || typeof config.url === "string" || dropped.size > 0) {
         return undefined;
     }
     let body = {};
@@ -10395,8 +10400,7 @@ function savedInput(input: DataSourceInput, bytes: Uint8Array | undefined): Save
     } else if (held !== undefined) {
         body = savedBytes(held);
     }
-    // Written as JSON, so only what JSON keeps of the options is kept.
-    return { type: input.type, name: input.name ?? blob?.name, config, ...body };
+    return { type: input.type, name: input.name ?? blob?.name, config: options, ...body };
 }
 
 /**

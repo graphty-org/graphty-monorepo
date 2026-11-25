@@ -1658,6 +1658,12 @@ export class Graph implements GraphContext {
                     this.updateManager.redrawArrangement(wrote);
                 }
             },
+            hold: (ids, wake) => {
+                layoutManagerInternals.holdDraft(this.layoutManager, ids, wake);
+            },
+            seed: (places) => {
+                layoutManagerInternals.seedPlaces(this.layoutManager, places);
+            },
             pin: (id, pinned) => {
                 const node = this.getNode(id);
                 const engine = this.layoutManager.layoutEngine;

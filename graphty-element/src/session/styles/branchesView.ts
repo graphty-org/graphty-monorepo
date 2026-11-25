@@ -278,6 +278,19 @@ function mergedEdgeLook(color: string): LayerSpec["set"] {
 }
 
 /**
+ * What a removed element gets in a color, drawn while Before shows: a new one's look, dimmed.
+ * @param color - The color.
+ * @returns The layers.
+ */
+function removedLayers(color: string): LayerSpec[] {
+    const selector = { match: "expression", where: `${DRAFT_PATH} == 'removed'` } as const;
+    return [
+        { name: "Removed", target: "node", selector, set: { ...newNodeLook(color), "node.opacity": 0.4 } },
+        { name: "Removed", target: "edge", selector, set: { ...newEdgeLook(color), "edge.opacity": 0.4 } },
+    ];
+}
+
+/**
  * What an untouched node gets in a color: a dotted border.
  * @param color - The color.
  * @returns The channels.
@@ -290,7 +303,7 @@ function untouchedLook(color: string): LayerSpec["set"] {
  * The layers a draft view (`styles.showDraft`) draws, bottom first: the rest faint when asked, a
  * ring on each node the commit would merge and each edge it would fold a row into in that color, a
  * dashed border on each node it would add, and each edge it would add drawn dashed, read from `graphty.draft`; a dotted border on the untouched nodes;
- * each listed step's in its own color over those; the marked elements at full strength; the ghosts
+ * each listed step's in its own color over those; what it would remove dashed and dimmed; the marked elements at full strength; the ghosts
  * drawn faint as under a branches view.
  * @param view - The colors.
  * @param stack - The stack as project state holds it now.
@@ -353,6 +366,9 @@ export function draftLayers(
                 { "edge.color": color },
             ),
         );
+    }
+    if (view.removed !== undefined) {
+        specs.push(...removedLayers(view.removed));
     }
     if (strong !== null) {
         specs.push(...idLayers("Marked", strong, { "node.opacity": 1 }, { "edge.opacity": 1 }));

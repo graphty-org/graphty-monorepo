@@ -159,6 +159,7 @@ export class SourceDraftHandle implements SourceDraft {
     private batchFrom: DraftState | null = null;
     // Whether the draft is drawn, and which side of its commit.
     private shown: { readonly on: boolean; readonly side: "before" | "after" } = { on: false, side: "after" };
+    private hold = false;
     // The marks of the current state, kept until an act or an undo changes it.
     private marked: { readonly state: DraftState; readonly marks: DraftMarks } | null = null;
     // the preview of the current state, kept until an act, an undo or the session's references and
@@ -197,16 +198,26 @@ export class SourceDraftHandle implements SourceDraft {
         return this.shown.on;
     }
 
+    /**
+     * Whether the draft, while it is drawn, holds the committed graph's nodes where they are.
+     * @returns True under `display(true, { hold: true })`.
+     */
+    get holds(): boolean {
+        return this.hold && this.shown.on;
+    }
+
     /** @inheritdoc */
     get side(): "before" | "after" {
         return this.shown.side;
     }
 
     /** @inheritdoc */
-    display(on: boolean): Promise<void> {
+    display(on: boolean, options: { readonly hold?: boolean } = {}): Promise<void> {
         this.live("display");
-        if (this.shown.on !== on) {
+        const hold = options.hold === true;
+        if (this.shown.on !== on || this.hold !== hold) {
             this.shown = { ...this.shown, on };
+            this.hold = hold;
             this.host.emit({ draft: this.id, reason: "displayed" });
         }
         return this.host.drawn();

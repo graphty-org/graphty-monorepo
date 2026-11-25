@@ -3700,6 +3700,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     let redrawDraft = (): void => undefined;
     // Set once the style stack exists: takes a drawn draft's After off the graph now.
     let stopAfter = (): void => undefined;
+    // Set once the style stack exists: forgets where a closed draft drew its nodes.
+    let forgetDraft = (): void => undefined;
     // Settles once the graph draws what the open source draft shows.
     let draftDrawn = (): Promise<void> => Promise.resolve();
     // The draft events waiting for the graph to draw what they say, published in order.
@@ -3834,6 +3836,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 redrawDraft();
                 const drawn = wasDrawn || afterDrawn;
                 const change = detail as SourceDraftChange;
+                if (change.reason === "committed" || change.reason === "discarded") {
+                    forgetDraft();
+                }
                 // A change to a drawn After is told once the graph draws it, so a listener reading the
                 // graph counts what it shows; the events after it wait their turn, in order.
                 const redrawn = drawn && (change.reason === "changed" || change.reason === "displayed");
@@ -4884,7 +4889,33 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // so the history never holds it, and a save takes it off while it writes. While it is on,
     // statistics, the legend and a count read the draft's graph, and a reader's command that would
     // measure or name its elements (a run, a pin, a note) is refused. `marks` is what it was drawn for.
-    let after: { readonly marks: object; readonly abort: () => void; readonly ended: Promise<void> } | null = null;
+    let after: {
+        readonly marks: object;
+        /** The nodes the committed graph holds, which a held preview keeps where they are. */
+        readonly committed: ReadonlySet<NodeId>;
+        readonly abort: () => void;
+        readonly ended: Promise<void>;
+    } | null = null;
+    // Where After last drew the nodes the draft adds, under a held preview: the next After, and the commit, draw
+    // them from there.
+    const places = new Map<NodeId, { readonly x: number; readonly y: number; readonly z: number }>();
+    const keepPlaces = (committed: ReadonlySet<NodeId>): void => {
+        const added = [...dispatcher.state.graph.nodes.keys()].filter((id) => !committed.has(id));
+        const drawn = added.length === 0 ? null : dispatcher.arrangement.rowsNow(added);
+        drawn?.ids.forEach((id, row) => {
+            const [x, y, z] = drawn.values.subarray(6 * row + 3, 6 * row + 6);
+            if ([x, y, z].every((each) => Number.isFinite(each))) {
+                places.set(id, { x, y, z });
+            }
+        });
+        dispatcher.arrangement.engine?.seed?.(places);
+    };
+    const forgetPlaces = (): void => {
+        if (places.size > 0) {
+            places.clear();
+            dispatcher.arrangement.engine?.seed?.(places);
+        }
+    };
     // Settles once the graph draws what the draft shows now: After landed, or taken off again.
     let drawing: Promise<void> = Promise.resolve();
     /**
@@ -4902,6 +4933,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             drawingAfter = false;
         }
     };
+    const holdDraft = (committed: ReadonlySet<NodeId>): void => {
+        const holds = data.draftHolds();
+        const added = [...dispatcher.state.graph.nodes.keys()].some((id) => !committed.has(id));
+        dispatcher.arrangement.engine?.hold?.(holds ? committed : null, holds && added);
+    };
     const drawAfter = (marks: object): void => {
         const drawn = data.draftAfterDiff();
         if (drawn === null) {
@@ -4917,6 +4953,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         const landed = new Promise<void>((resolve) => {
             land = resolve;
         });
+        const committed = new Set<NodeId>();
         const held = dispatcher.transaction(
             "source-draft-after",
             async (tx, signal) => {
@@ -4927,6 +4964,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 if (signal.aborted) {
                     return;
                 }
+                for (const id of dispatcher.state.graph.nodes.keys()) {
+                    committed.add(id);
+                }
+                // Held before the first write, so no step moves the reader's graph round a node half added.
+                holdDraft(committed);
                 const writes: DataMutation[] = [];
                 removeAndPatch(diff, (mutation) => writes.push(mutation));
                 if (diff.addNodes.length > 0) {
@@ -4950,6 +4992,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 data.drawnAfter(ids, reportOfBuild(sealed, drawn.after));
                 repaintDraft();
                 await dispatcher.lane.settled();
+                // Again over the rows After wrote: a row newer than the hold is held until then.
+                holdDraft(committed);
                 land();
                 // Held open until After comes off the graph.
                 await new Promise((_resolve, reject) => {
@@ -4967,11 +5011,18 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             { moves: true, unlisted: true },
         );
         // Aborting it is how it ends; a waiter on the drawing is never left waiting.
-        const ended = held.catch(() => undefined).finally(land);
+        // Let go before the next After holds: that one waits for this to end.
+        const ended = held
+            .catch(() => undefined)
+            .finally(() => {
+                dispatcher.arrangement.engine?.hold?.(null, false);
+                land();
+            });
         afterDrawn = true;
         drawing = landed;
         after = {
             marks,
+            committed,
             abort: () => {
                 abort();
             },
@@ -4982,8 +5033,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         if (after === null) {
             return;
         }
-        const { abort, ended } = after;
+        const { abort, committed, ended } = after;
         draftPass.abort();
+        if (data.draftHolds()) {
+            keepPlaces(committed);
+        }
         after = null;
         drawing = ended;
         afterDrawn = false;
@@ -5000,6 +5054,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             await waited;
         }
     };
+    forgetDraft = forgetPlaces;
     let draftShown = false;
     redrawDraft = (): void => {
         const shown = data.shownDraft();
@@ -5011,6 +5066,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         const drawn = wanted !== null && after === null;
         if (drawn) {
             drawAfter(wanted);
+        }
+        if (after !== null && !drawn) {
+            holdDraft(after.committed);
         }
         if (!draftShown && shown === null) {
             return;

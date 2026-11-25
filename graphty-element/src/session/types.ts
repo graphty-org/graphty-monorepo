@@ -6858,10 +6858,16 @@ export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "match
      * await draft.show("before"); // the graph as it is now
      * ```
      * @param on - True to draw it.
+     * @param options - How After is laid out.
+     * @param options.hold - True keeps every node of the committed graph where it is while After is
+     *     drawn, under whatever layout: only what the draft adds is laid out, round them. A node the
+     *     draft adds keeps its place through `show` and later acts, and the commit draws it from
+     *     there. The hold ends with After; the reader's own layout scope is untouched. Default false:
+     *     the layout runs over the whole of After, as over any graph.
      * @returns Settles once the graph draws it.
      * @throws A `GraphtyError` with `E_BAD_COMMAND` (reason `draft-closed`) once the draft is closed.
      */
-    display(on: boolean): Promise<void>;
+    display(on: boolean, options?: { readonly hold?: boolean }): Promise<void>;
     /**
      * Choose which side of the commit a displayed draft draws. `"before"` draws the graph as it is,
      * where `graphty.draft` reads `"removed"` on what the commit would remove. `"after"` draws the

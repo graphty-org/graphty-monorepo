@@ -4270,6 +4270,14 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * Whether the draft drawn now holds the committed graph's nodes where they are.
+     * @returns True while it does.
+     */
+    draftHolds(): boolean {
+        return this.sourceDraft?.holds === true;
+    }
+
+    /**
      * Whether a draft's After is drawn: the graph holds what its commit would leave.
      * @returns True while it is.
      */

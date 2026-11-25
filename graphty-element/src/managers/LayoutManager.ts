@@ -164,6 +164,13 @@ const FORCE_ACCELERATED_CAPABILITY = SIMULATION_CAPABILITY[SpringElectricalLayou
  */
 const FORCE_ACCELERATED_MIN_NODES = 2000;
 
+/** Where a node starts. */
+interface Place {
+    readonly x: number;
+    readonly y: number;
+    readonly z: number;
+}
+
 /**
  * Every option any of the three simulation layouts publishes, once Zod has applied its defaults.
  *
@@ -534,6 +541,13 @@ export const layoutManagerInternals = {} as {
     setLayout(manager: LayoutManager, type: string, opts?: object, scope?: ScopeInput): Promise<void>;
     /** Take the members a scoped layout built over an empty graph owes; see `LayoutManager.takeOwedMembers`. */
     takeOwedMembers(manager: LayoutManager): void;
+    /**
+     * Hold some nodes where they are, whatever the layout runs over, or let them go with null; see
+     * `LayoutManager.holdDraft`.
+     */
+    holdDraft(manager: LayoutManager, ids: ReadonlySet<NodeIdType> | null, wake: boolean): void;
+    /** Where the next nodes of these ids start; see `LayoutManager.seedPlaces`. */
+    seedPlaces(manager: LayoutManager, places: ReadonlyMap<NodeIdType, Place>): void;
     /** The styles the manager reads now; see `LayoutManager.updateStyles`. */
     styles(manager: LayoutManager): Styles;
     /** Install an engine, or none, as a standalone test's stand-in for a build. */
@@ -716,6 +730,12 @@ export class LayoutManager implements Manager {
         layoutManagerInternals.takeOwedMembers = (manager) => {
             manager.takeOwedMembers();
         };
+        layoutManagerInternals.holdDraft = (manager, ids, wake) => {
+            manager.holdDraft(ids, wake);
+        };
+        layoutManagerInternals.seedPlaces = (manager, places) => {
+            manager.seedPlaces(places);
+        };
         layoutManagerInternals.setEngine = (manager, engine) => {
             manager.engine = engine;
         };
@@ -886,6 +906,15 @@ export class LayoutManager implements Manager {
      */
     private members: ReadonlySet<NodeIdType> | null = null;
 
+    /**
+     * The nodes a source draft's preview holds still (`draft.display(true, { hold: true })`), or null
+     * when it holds none. Apart from {@link LayoutManager.members}, which stays the reader's own scope.
+     */
+    private draftHeld: ReadonlySet<NodeIdType> | null = null;
+
+    /** Where the next nodes of these ids start, instead of where the layout would drop them. */
+    private seeds = new Map<NodeIdType, Place>();
+
     /** The engine and the rows {@link syncFollowers} last handed it. */
     private followersOf: LayoutEngine | null = null;
     private followersKey = "";
@@ -1047,6 +1076,9 @@ export class LayoutManager implements Manager {
         const observer = this.eventManager.onGraphEvent.add((event) => {
             if (event.type === "snapshot-replaced") {
                 this.onSnapshotReplaced(event);
+                if (this.seeds.size > 0) {
+                    this.takeSeeds();
+                }
             }
 
             // A node removed ends the arrangement being the layout's own: a seeded start over places
@@ -1309,8 +1341,8 @@ export class LayoutManager implements Manager {
 
         // A FREEZE RENUMBERS THE ROWS the hold mask indexes, so it is rebuilt from the captured
         // members -- before a simulation reloads, so that its reload packs the new mask.
-        if (engine !== undefined && this.members !== null) {
-            engine.setHoldMask(...this.holdMaskOf(this.members));
+        if (engine !== undefined && (this.members !== null || this.draftHeld !== null)) {
+            this.applyHoldMask(engine);
         }
 
         // AND THE ROWS THE WORKING GRAPH COVERS: the engine is handed the view of the new snapshot,
@@ -1571,8 +1603,8 @@ export class LayoutManager implements Manager {
             this.replayPins(engine, nodeArray);
             this.members = members;
             this.membersOwed = members !== null && nodeArray.length === 0;
-            if (members !== null) {
-                this.applyHold(engine, members, nodeArray);
+            if (members !== null || this.draftHeld !== null) {
+                this.applyHold(engine, nodeArray);
             }
 
             // Update DataManager with new layout engine
@@ -2819,7 +2851,10 @@ export class LayoutManager implements Manager {
         }
 
         this.members = null;
-        this.layoutEngine?.setHoldMask(null, 0);
+        if (this.layoutEngine !== undefined) {
+            this.applyHoldMask(this.layoutEngine);
+        }
+
         this.running = true;
     }
 
@@ -2892,18 +2927,95 @@ export class LayoutManager implements Manager {
     }
 
     /**
-     * The hold mask for the graph as it stands: every row whose node is not a member.
-     * @param members - The captured members.
+     * Hold some nodes where they are, or let them go: a source draft's preview, so what the draft adds
+     * is laid out round the graph the reader has, which stays put. The reader's own scope is untouched.
+     * The arrangement is no longer the layout's alone to start over: a seeded start would move them.
+     * @param ids - The nodes, or null.
+     * @param wake - Whether there are nodes to lay out round them: a layout at rest steps again. One that
+     *     settled while a new row waited for its mask would leave it where the engine dropped it.
+     */
+    private holdDraft(ids: ReadonlySet<NodeIdType> | null, wake: boolean): void {
+        if (ids === null && this.draftHeld === null) {
+            return;
+        }
+
+        this.draftHeld = ids;
+        this.ownArrangement = false;
+        if (this.layoutEngine !== undefined) {
+            this.applyHoldMask(this.layoutEngine);
+        }
+
+        if (wake) {
+            this.takeSeeds();
+            this.layoutEngine?.wakeForLift();
+            this.running = true;
+        }
+    }
+
+    /**
+     * Say where the next nodes of some ids start.
+     * @param places - The places by id; empty for nowhere in particular.
+     */
+    private seedPlaces(places: ReadonlyMap<NodeIdType, Place>): void {
+        this.seeds = new Map(places);
+    }
+
+    /** Put each seeded node the graph now holds where it starts, once. */
+    private takeSeeds(): void {
+        const engine = this.layoutEngine;
+        if (engine === undefined) {
+            return;
+        }
+
+        for (const [id, place] of this.seeds) {
+            const node = this.dataManager.nodes.get(id);
+            if (node === undefined || !validRow(node.index)) {
+                continue;
+            }
+
+            try {
+                layoutEngineInternals.setNodePosition(engine, node, this.onEnginePlane({ ...place }));
+                this.seeds.delete(id);
+            } catch {
+                // An engine not told of the node yet takes its place at the next pass.
+            }
+        }
+    }
+
+    /**
+     * Whether the layout may not move a node: it is outside the running scope, or a draft's preview holds it.
+     * @param id - The node.
+     * @returns True when it may not.
+     */
+    private holdsNode(id: NodeIdType): boolean {
+        return (this.members !== null && !this.members.has(id)) || this.draftHeld?.has(id) === true;
+    }
+
+    /**
+     * Hand an engine the rows it may not move, as the graph now stands: the ones outside the running
+     * scope and the ones a draft's preview holds; none when there is neither.
+     * @param engine - The engine.
+     */
+    private applyHoldMask(engine: LayoutEngine): void {
+        if (this.members === null && this.draftHeld === null) {
+            engine.setHoldMask(null, 0);
+        } else {
+            engine.setHoldMask(...this.holdMaskOf());
+        }
+    }
+
+    /**
+     * The hold mask for the graph as it stands.
      * @returns The mask and the rows it covers.
      */
-    private holdMaskOf(members: ReadonlySet<NodeIdType>): [NodeMask, number] {
+    private holdMaskOf(): [NodeMask, number] {
         // Batched: by row from the snapshot, since iterating the nodes builds a `Node` for every
         // row, each read through an engine that does not hold it yet.
         if (this.dataManager.renderLimits?.batched() === true) {
             const { ids, nodeCount } = wholeGraph(this.dataManager);
             const held = makeMask(nodeCount);
             for (let row = 0; row < nodeCount; row++) {
-                if (!members.has(ids.idOf(row))) {
+                if (this.holdsNode(ids.idOf(row))) {
                     maskSet(held, row, true);
                 }
             }
@@ -2920,7 +3032,7 @@ export class LayoutManager implements Manager {
 
         const mask = makeMask(rows);
         for (const node of this.dataManager.nodes.values()) {
-            if (validRow(node.index) && !members.has(node.id)) {
+            if (validRow(node.index) && this.holdsNode(node.id)) {
                 maskSet(mask, node.index, true);
             }
         }
@@ -2937,8 +3049,8 @@ export class LayoutManager implements Manager {
      */
     private holdBeforeInit(engine: LayoutEngine, members: ReadonlySet<NodeIdType> | null): void {
         this.members = members;
-        if (members !== null) {
-            engine.setHoldMask(...this.holdMaskOf(members));
+        if (members !== null || this.draftHeld !== null) {
+            this.applyHoldMask(engine);
         }
     }
 
@@ -2948,20 +3060,19 @@ export class LayoutManager implements Manager {
      * Placed first for the reason `replayPins` places before it pins: a live simulation's own idea
      * of where a node is starts wherever its initialization put it, and d3 fixes a node at that.
      * @param engine - The engine about to become current.
-     * @param members - The members it lays out.
      * @param nodes - Every node in the graph.
      */
-    private applyHold(engine: LayoutEngine, members: ReadonlySet<NodeIdType>, nodes: readonly Node[]): void {
+    private applyHold(engine: LayoutEngine, nodes: readonly Node[]): void {
         const { positions } = this.dataManager;
         const placed = { x: 0, y: 0, z: 0 };
         for (const node of nodes) {
-            if (!members.has(node.id) && positions.isPlaced(node.index)) {
+            if (this.holdsNode(node.id) && positions.isPlaced(node.index)) {
                 positions.read(node.index, placed);
                 layoutEngineInternals.setNodePosition(engine, node, this.onEnginePlane(placed));
             }
         }
 
-        engine.setHoldMask(...this.holdMaskOf(members));
+        this.applyHoldMask(engine);
     }
 
     /**
@@ -3316,11 +3427,7 @@ export class LayoutManager implements Manager {
 
         this.membersOwed = false;
         this.members = this.captureMembers(true, false);
-        if (this.members === null) {
-            engine.setHoldMask(null, 0);
-        } else {
-            this.applyHold(engine, this.members, [...this.dataManager.nodes.values()]);
-        }
+        this.applyHold(engine, this.members === null ? [] : [...this.dataManager.nodes.values()]);
     }
 
     /**

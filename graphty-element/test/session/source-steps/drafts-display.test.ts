@@ -396,6 +396,40 @@ describe("source-steps drafts: drawing a draft", () => {
         session.dispose();
     });
 
+    it("showDraft marks what the commit removes while Before shows, only with a color for it", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        await session.data.import(csv("people.csv", "badge,name\nB1,Ann\nB2,Bo"), { key: "badge", type: "person" });
+        const people = session.data.sources()[0]?.key ?? "";
+        const boss = await session.data.stage(csv("boss.csv", "badge,boss\nB1,B2"), { key: "badge", type: "boss" });
+        await session.data.add(boss);
+        await session.data.connect({ from: { source: boss, field: "boss" }, into: { source: people } });
+        const d = session.data.draft();
+        d.removeSource(boss);
+        await d.display(true);
+        await d.show("before");
+        const edge = session.data.edges()[0]?.id ?? "";
+        const look = (): unknown => {
+            const node = (id: string): Readonly<Record<string, unknown>> => session.styles.explain({ node: id }).merged;
+            const line = session.styles.explain({ edge }).merged as Readonly<Record<string, unknown>>;
+            const gone = node(String(session.data.nodes().at(-1)?.id));
+            return [
+                (gone["node.borderColor"] as { hex?: string } | undefined)?.hex,
+                gone["node.opacity"],
+                line["edge.opacity"],
+                node("B2")["node.opacity"],
+            ];
+        };
+        session.styles.showDraft({ merged: "#7048E8", new: "#E8590C" });
+        await session.styles.settled();
+        const plain = look();
+        session.styles.showDraft({ merged: "#7048E8", new: "#E8590C", removed: "#123456" });
+        await session.styles.settled();
+        assert.deepStrictEqual(look(), ["#123456", 0.4, 0.4, (plain as unknown[])[3]]);
+        assert.notDeepEqual(plain, look());
+        d.dispose();
+        session.dispose();
+    });
+
     it("showDraft dashes the edges the founding example's joins add, in the new color", async () => {
         const { session, d } = await foundingDraft();
         await d.display(true);

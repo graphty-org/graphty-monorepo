@@ -381,9 +381,12 @@ shown and whether a pick decided it; `editStep(step, { clash })` changes a colum
 `pick` or `pickAll` decide cells. `draft.display(true)` draws the draft, where every element reads
 `graphty.draft` (`"merged"`, `"new"`, `"changed"`, `"removed"` or `"unchanged"`) for a style layer
 to show, and `draft.show("before" | "after")` switches between the graph as it is and as the
-commit would leave it. `session.styles.showDraft({ merged, new })` draws the join preview in the
+commit would leave it. `draft.display(true, { hold: true })` keeps the nodes the graph has where they
+are while After is drawn: only what the draft adds is laid out, and the commit draws it from there.
+`session.styles.showDraft({ merged, new })` draws the join preview in the
 two colors you pass: a ring on each node the commit would merge, each edge it would fold a row into
-in that color, a dashed border on each node it would add, and each edge it would add dashed. It suspends the style layers while it is drawn (they
+in that color, a dashed border on each node it would add, and each edge it would add dashed; with a
+`removed` color, what it would remove is dashed and dimmed while Before shows. It suspends the style layers while it is drawn (they
 stay listed, and it is no undo step), is never saved, and its `end()` takes it off.
 `preview.marks` counts what it marks, in all and as `nodes: { merged, new, untouched, removed }` and
 `edges: { merged, new, removed }`. `draft.spaces()` lists the id spaces as the draft builds them, each

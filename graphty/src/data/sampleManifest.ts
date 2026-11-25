@@ -21,6 +21,20 @@ export interface StartSample {
     readonly url: string;
     /** Its picture, for a sample with no graph-samples dataset to take one from. */
     readonly picture?: string;
+    /**
+     * The element's reader options it opens with, beside its address: the columns a table's edges run between when
+     * its header does not name them.
+     */
+    readonly options?: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * A sample file from another program, on the start screen's own section for them.
+ * @public
+ */
+export interface ProgramSample extends StartSample {
+    /** The program that wrote the file, which its card is named for. */
+    readonly program: string;
 }
 
 /**
@@ -103,5 +117,165 @@ export const START_SAMPLES: readonly StartSample[] = [
         size: "159 nodes, 453 edges",
         url: `${import.meta.env.BASE_URL}samples/paper-citations.json`,
         picture: `${import.meta.env.BASE_URL}samples/paper-citations.webp`,
+    },
+];
+
+/** Where the samples from other programs are served (public/samples/programs/SOURCES.md has their sources). */
+const PROGRAMS_URL = `${import.meta.env.BASE_URL}samples/programs/`;
+
+/**
+ * One sample file from each program whose files graphty reads, as the program (or its own tutorials, tests or
+ * examples) wrote it, each opened with its file's styles. graph-io/test/corpus/programs/samples.json holds the same
+ * files as the official load tests, with their counts, sources and licenses.
+ */
+export const PROGRAM_SAMPLES: readonly ProgramSample[] = [
+    {
+        id: "program-yed",
+        program: "yEd",
+        name: "FileMaker object dependencies",
+        sentence:
+            "A yEd diagram with stars, hexagons, diamonds and rounded boxes in nine colors, drawn where yEd put them.",
+        size: "65 nodes, 102 edges",
+        picture: `${PROGRAMS_URL}yed.webp`,
+        url: `${PROGRAMS_URL}yed.graphml`,
+    },
+    {
+        id: "program-yed-live",
+        program: "yEd Live",
+        name: "WaveNet",
+        sentence: "A yEd Live diagram of filled and hollow shapes with dashed and dotted outlines and dashed edges.",
+        size: "183 nodes, 207 edges",
+        picture: `${PROGRAMS_URL}yed-live.webp`,
+        url: `${PROGRAMS_URL}yed-live.graphml`,
+    },
+    {
+        id: "program-cytoscape",
+        program: "Cytoscape",
+        name: "Malignant melanoma",
+        sentence:
+            "The first network of a Cytoscape session that ships with Cytoscape, with its shapes, colors and arrows.",
+        size: "30 nodes, 137 edges",
+        picture: `${PROGRAMS_URL}cytoscape.webp`,
+        url: `${PROGRAMS_URL}cytoscape.cys`,
+    },
+    {
+        id: "program-cytoscape-xgmml",
+        program: "Cytoscape (XGMML)",
+        name: "Yeast expression",
+        sentence:
+            "The network of Cytoscape's data visualization tutorial, genes colored by expression where Cytoscape placed them.",
+        size: "331 nodes, 362 edges",
+        picture: `${PROGRAMS_URL}cytoscape-xgmml.webp`,
+        url: `${PROGRAMS_URL}cytoscape.xgmml`,
+    },
+    {
+        id: "program-ndex-cx",
+        program: "NDEx (CX)",
+        name: "JAK/STAT signaling, dark theme",
+        sentence: "An NDEx network in the CX format, drawn on a dark background with white edges.",
+        size: "34 nodes, 116 edges",
+        picture: `${PROGRAMS_URL}ndex-cx.webp`,
+        url: `${PROGRAMS_URL}ndex.cx`,
+    },
+    {
+        id: "program-ndex-cx2",
+        program: "NDEx (CX2)",
+        name: "Toll-like receptor pathway",
+        sentence: "A WikiPathways pathway from NDEx in the CX2 format, with its colored edges, arrows and annotations.",
+        size: "280 nodes, 159 edges",
+        picture: `${PROGRAMS_URL}ndex-cx2.webp`,
+        url: `${PROGRAMS_URL}ndex.cx2`,
+    },
+    {
+        id: "program-cytoscape-js",
+        program: "Cytoscape.js",
+        name: "GeneMANIA genes",
+        sentence: "Cytoscape.js's GeneMANIA demo with its stylesheet: genes sized by score, edges colored by kind.",
+        size: "31 nodes, 255 edges",
+        picture: `${PROGRAMS_URL}cytoscape-js.webp`,
+        url: `${PROGRAMS_URL}cytoscape-js.json`,
+    },
+    {
+        id: "program-gephi",
+        program: "Gephi",
+        name: "Les Miserables",
+        sentence: "The sample that ships with Gephi: characters colored by community and sized by importance.",
+        size: "77 nodes, 254 edges",
+        picture: `${PROGRAMS_URL}gephi.webp`,
+        url: `${PROGRAMS_URL}gephi.gexf`,
+    },
+    {
+        id: "program-graphviz",
+        program: "Graphviz",
+        name: "Linux kernel diagram",
+        sentence: "A Graphviz gallery graph of colored boxes, ellipses and octagons, laid out as Graphviz would.",
+        size: "65 nodes, 68 edges",
+        picture: `${PROGRAMS_URL}graphviz.webp`,
+        url: `${PROGRAMS_URL}graphviz.gv`,
+    },
+    {
+        id: "program-ogdf",
+        program: "OGDF",
+        name: "Entity-relationship diagram",
+        sentence: "An OGDF example of boxes in ten colors with black and white labels and dotted edges.",
+        size: "43 nodes, 57 edges",
+        picture: `${PROGRAMS_URL}ogdf.webp`,
+        url: `${PROGRAMS_URL}ogdf.gml`,
+    },
+    {
+        id: "program-pajek",
+        program: "Pajek",
+        name: "Phone calls",
+        sentence: "A Pajek network of ellipses, boxes and diamonds in seven colors, drawn where the file placed them.",
+        size: "111 nodes, 193 edges",
+        picture: `${PROGRAMS_URL}pajek.webp`,
+        url: `${PROGRAMS_URL}pajek.net`,
+    },
+    {
+        id: "program-neo4j",
+        program: "Neo4j",
+        name: "Movies",
+        sentence:
+            "Neo4j's Movies graph as a neo4j-admin import file: people, films and who acted in, directed or reviewed what.",
+        size: "169 nodes, 250 edges",
+        picture: `${PROGRAMS_URL}neo4j.webp`,
+        url: `${PROGRAMS_URL}neo4j-movies.csv`,
+    },
+    {
+        id: "program-obo-foundry",
+        program: "OBO Foundry",
+        name: "Taxonomic ranks",
+        sentence: "An OBO Foundry ontology of taxonomic ranks, from kingdom to species, as one tree.",
+        size: "77 nodes, 75 edges",
+        picture: `${PROGRAMS_URL}obo-foundry.webp`,
+        url: `${PROGRAMS_URL}obo-foundry.obo`,
+    },
+    {
+        id: "program-cytoscape-sif",
+        program: "Cytoscape (SIF)",
+        name: "Group nodes tutorial",
+        sentence: "The network of Cytoscape's group nodes tutorial in the simple interaction format.",
+        size: "37 nodes, 62 edges",
+        picture: `${PROGRAMS_URL}cytoscape-sif.webp`,
+        url: `${PROGRAMS_URL}cytoscape.sif`,
+    },
+    {
+        id: "program-cytoscape-table",
+        program: "Cytoscape (CSV table)",
+        name: "HIV protein interactions",
+        sentence: "Cytoscape's AP-MS tutorial table, read as a network from its Bait and Prey columns.",
+        size: "453 nodes, 499 edges",
+        picture: `${PROGRAMS_URL}cytoscape-table.webp`,
+        url: `${PROGRAMS_URL}cytoscape-table.csv`,
+        options: { edgeSource: "Bait", edgeTarget: "Prey" },
+    },
+    {
+        id: "program-d3",
+        program: "D3",
+        name: "Les Miserables",
+        sentence: "D3's own force layout sample: characters in ten groups and who appears with whom.",
+        size: "77 nodes, 254 edges",
+        picture: `${PROGRAMS_URL}d3.webp`,
+        url: `${PROGRAMS_URL}d3.json`,
     },
 ];

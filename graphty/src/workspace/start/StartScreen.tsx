@@ -29,7 +29,14 @@ import { DatasetDialog, GeneratorDialog } from "./LibraryDialogs";
 import { NETWORK_DIALOG, NetworkDataDialog } from "./NetworkDataDialog";
 import { openDataset, openFiles, openGenerated, openNetworkSample, openSample, pickFiles } from "./open";
 import { SampleCard } from "./SampleCard";
-import { GENERATED, type LibraryTile, NETWORK_TILES, type NetworkTile, offeredTiles } from "./sampleLibrary";
+import {
+    GENERATED,
+    type LibraryTile,
+    NETWORK_TILES,
+    type NetworkTile,
+    offeredTiles,
+    PROGRAM_TILES,
+} from "./sampleLibrary";
 
 /** Where the code and the license live. */
 const GITHUB = "https://github.com/graphty-org/graphty-monorepo";
@@ -255,9 +262,10 @@ function SampleLibrary(): React.JSX.Element {
     };
     const query = text.trim().toLowerCase();
     const library = offeredTiles();
-    // In the order the sections are drawn: samples, network data, then generated.
+    // In the order the sections are drawn: samples, files from other programs, network data, then generated.
     const offered = [
         ...library.filter((tile) => tile.field !== GENERATED),
+        ...PROGRAM_TILES,
         ...NETWORK_TILES,
         ...library.filter((tile) => tile.field === GENERATED),
     ];
@@ -268,10 +276,11 @@ function SampleLibrary(): React.JSX.Element {
         each.filter((tile) => (field === "" || tile.field === field) && (query === "" || tile.words.includes(query)));
     const tiles = shown(library);
     const samples = tiles.filter((tile) => tile.field !== GENERATED);
+    const programSamples = shown(PROGRAM_TILES);
     const networkSamples = shown(NETWORK_TILES);
     const generators = tiles.filter((tile) => tile.field === GENERATED);
     // How many the box and the field filter leave, said as they change; never on arrival.
-    useAnnounceChange(`${count(tiles.length + networkSamples.length, "sample")} shown`);
+    useAnnounceChange(`${count(tiles.length + programSamples.length + networkSamples.length, "sample")} shown`);
     return (
         <section className="ws-land-band" id="ws-land-samples" aria-label="Sample library">
             <h2 className="ws-land-h2 cm-focus-inside" id="ws-land-samples-title" tabIndex={-1}>
@@ -342,6 +351,27 @@ function SampleLibrary(): React.JSX.Element {
                     ))}
                 </div>
             )}
+            {programSamples.length === 0 ? null : (
+                <section aria-label="Files from other programs">
+                    <h3 className="ws-land-h3">Files from other programs</h3>
+                    <p className="ws-land-intro">
+                        One file from each program graphty reads, drawn with the shapes, colors and labels its program
+                        gave it.
+                    </p>
+                    <div className="ws-land-samples" data-view={view}>
+                        {programSamples.map((tile) => (
+                            <SampleCard
+                                key={tile.id}
+                                card={tile}
+                                label={`Open the ${tile.hook} sample: ${tile.name}`}
+                                onClick={() => {
+                                    openTile(tile);
+                                }}
+                            />
+                        ))}
+                    </div>
+                </section>
+            )}
             {networkSamples.length === 0 ? null : (
                 <section aria-label="Load network data">
                     <h3 className="ws-land-h3">Load network data</h3>
@@ -385,7 +415,7 @@ function SampleLibrary(): React.JSX.Element {
                     </div>
                 </section>
             )}
-            {tiles.length + networkSamples.length === 0 ? (
+            {tiles.length + programSamples.length + networkSamples.length === 0 ? (
                 <p className="ws-land-empty">
                     No sample matches &quot;{text}&quot;. Try a field, such as biology or places.
                 </p>

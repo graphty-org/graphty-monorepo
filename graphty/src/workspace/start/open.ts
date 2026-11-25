@@ -503,6 +503,15 @@ export function sampleKey(sample: Pick<StartSample, "id">): string {
 }
 
 /**
+ * One of the app's own samples as a source: its address and the reader options it opens with.
+ * @param sample - the sample.
+ * @returns the source.
+ */
+export function sampleSource(sample: Pick<StartSample, "name" | "url" | "options">): DataSourceInput {
+    return { config: { ...sample.options, url: sample.url }, name: sample.name };
+}
+
+/**
  * Opens one of the app's own samples as a new project named after it, drawn as a first file is.
  * @param workspace - the workspace store.
  * @param sample - the sample.
@@ -511,7 +520,7 @@ export function sampleKey(sample: Pick<StartSample, "id">): string {
 export function openSample(workspace: WorkspaceStore, sample: StartSample, callerKey = sampleKey(sample)): void {
     openSeparate(workspace, {
         name: sample.name,
-        source: { config: { url: sample.url }, name: sample.name },
+        source: sampleSource(sample),
         origin: "sample",
         callerKey,
     });

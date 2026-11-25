@@ -21,6 +21,7 @@ import {
     openProject,
     openSeparate,
     sampleKey,
+    sampleSource,
 } from "./open";
 import { SampleCard } from "./SampleCard";
 import {
@@ -30,6 +31,8 @@ import {
     NETWORK_TILES,
     type NetworkTile,
     offeredTiles,
+    PROGRAM_TILES,
+    PROGRAMS,
     type SampleCardData,
 } from "./sampleLibrary";
 
@@ -135,10 +138,10 @@ function libraryEntry(ctx: CommandContext, tile: LibraryTile, { ask, configure }
     const { source } = tile;
     const open = (target: Target): void => {
         if (source.kind === "sample") {
-            const { name, url } = source.sample;
+            const { name } = source.sample;
             bringFile(
                 ctx,
-                { name, source: { config: { url }, name }, origin: "sample", callerKey: sampleKey(source.sample) },
+                { name, source: sampleSource(source.sample), origin: "sample", callerKey: sampleKey(source.sample) },
                 target,
             );
         } else if (source.kind === "generator") {
@@ -149,8 +152,13 @@ function libraryEntry(ctx: CommandContext, tile: LibraryTile, { ask, configure }
             bringDataset(ctx, source.dataset, target);
         }
     };
-    // As the start page splits them: the samples, then the generators.
-    const group = source.kind === "generator" ? GENERATED : "Samples";
+    // As the start page splits them: the samples, the files from other programs, then the generators.
+    let group = "Samples";
+    if (source.kind === "generator") {
+        group = GENERATED;
+    } else if (tile.field === PROGRAMS) {
+        group = PROGRAMS;
+    }
     return { key: tile.id, group, card: tile, words: tile.words, open };
 }
 
@@ -165,6 +173,7 @@ function libraryEntry(ctx: CommandContext, tile: LibraryTile, { ask, configure }
  */
 function sampleEntries(ctx: CommandContext, asks: Asks): SampleEntry[] {
     const library = offeredTiles().map((tile) => libraryEntry(ctx, tile, asks));
+    const programs = PROGRAM_TILES.map((tile) => libraryEntry(ctx, tile, asks));
     const network = NETWORK_TILES.map((tile): SampleEntry => ({
         key: tile.id,
         group: NETWORK,
@@ -176,6 +185,7 @@ function sampleEntries(ctx: CommandContext, asks: Asks): SampleEntry[] {
     }));
     return [
         ...library.filter((entry) => entry.group !== GENERATED),
+        ...programs,
         ...network,
         ...library.filter((entry) => entry.group === GENERATED),
     ];

@@ -1,21 +1,70 @@
+import type { GraphSession } from "@graphty/graphty-element/session";
 import React from "react";
 
+import { MoreMenu } from "../data-place/SourceEntry";
+import { CommandMenuItem } from "../frame/menus";
+import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
+import { namingLines, rowNames, sourceNames } from "./cardWords";
 import { openJoinWorkspace } from "./join";
-import { JoinList } from "./JoinList";
+import { isJoin, stepCardId } from "./joinCards";
+import { JoinList, type JoinListRow } from "./JoinList";
+import { WORKSPACE_WORDS } from "./words";
 
 /**
  * "Join +" below the data sources (the source-steps experiment), built as "Filter +" is: its "+" opens
- * the join workspace, with its key (Shift+J) shown beside it.
- * @returns the row
+ * the join workspace, with its key (Shift+J) shown beside it. Every join of the graph is listed under it,
+ * one line each: a press opens the workspace on it, and so does its "..." menu's Open; Remove opens the
+ * workspace with it taken out.
+ * @param props - Component props
+ * @param props.session - the element's session
+ * @returns the section
  */
-export function JoinRow(): React.JSX.Element {
+export function JoinRow({ session }: Readonly<{ session: GraphSession }>): React.JSX.Element {
     const { store } = useWorkspace();
+    const all = session.data.steps();
+    const joins = all.filter((step) => isJoin(step));
+    const names = rowNames(
+        session,
+        sourceNames(session),
+        joins.map((step) => namingLines(all, { lines: null, step })),
+    );
+    const rows = joins.map((step, at): JoinListRow => {
+        const name = names[at];
+        return {
+            id: stepCardId(step.index),
+            name,
+            menu: (
+                <MoreMenu name={name}>
+                    <CommandMenuItem
+                        icon={<GLYPHS.join size={14} aria-hidden />}
+                        label={WORKSPACE_WORDS.openJoin}
+                        shortcut={undefined}
+                        reason={null}
+                        onRun={() => {
+                            openJoinWorkspace(store, { step: step.index });
+                        }}
+                    />
+                    <CommandMenuItem
+                        icon={<GLYPHS.delete size={14} aria-hidden />}
+                        label={WORKSPACE_WORDS.remove}
+                        shortcut={undefined}
+                        reason={null}
+                        onRun={() => {
+                            openJoinWorkspace(store, { without: step.index });
+                        }}
+                    />
+                </MoreMenu>
+            ),
+        };
+    });
     return (
         <JoinList
-            rows={[]}
+            rows={rows}
             current={null}
-            onSelect={() => undefined}
+            onSelect={(id) => {
+                openJoinWorkspace(store, { step: joins.find((step) => stepCardId(step.index) === id)?.index });
+            }}
             onAdd={() => {
                 openJoinWorkspace(store);
             }}

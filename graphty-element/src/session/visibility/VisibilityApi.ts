@@ -123,6 +123,7 @@ import {
     type ScopeLeaf,
     type TimePlayback,
     type TimeWindow,
+    waitingSources,
     windowBounds,
     windowInstants,
     windowReadsRecords,
@@ -2599,16 +2600,8 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         waiting: NonNullable<ReturnType<NonNullable<FilterSources["waiting"]>>>,
         rule: RuleTree,
     ): Omit<FilterConditionCount, "id"> => {
-        const { graph, values } = waiting;
-        const space = edgeSpaceOf(graph);
-        const edgeIds = Array.from({ length: graph.edgeCount }, (_, at) => space.idOf(at));
-        const compiled = compileVisibility(graph, rule, null, {
-            ...passSources(graph),
-            values,
-            own: () => values,
-            supplied: () => ({ nodes: new Set(graph.ids), edges: new Set(edgeIds) }),
-            sourceSteps: () => false,
-        });
+        const { graph } = waiting;
+        const compiled = compileVisibility(graph, rule, null, waitingSources(passSources(graph), waiting));
         const tally = (test: ((index: number) => boolean) | null, total: number): FilterConditionMatches | null => {
             if (test === null) {
                 return null;

@@ -50,7 +50,10 @@ export function DataPlace(): React.JSX.Element {
 
     const tab = useWorkspaceState((state) => state.dataTab);
     // Join + (the source-steps experiment) once there is a source to join.
-    const joinable = session !== null && sourceStepsOn(session) && session.data.staged().length + sources.length >= 1;
+    const joining =
+        session !== null && sourceStepsOn(session) && session.data.staged().length + sources.length >= 1
+            ? session
+            : null;
     const sourcesSection = <Sources sources={sources} selected={selected?.key} onSelect={select} />;
     return (
         <section className="dp" data-tabs="" aria-label="Data place">
@@ -73,7 +76,7 @@ export function DataPlace(): React.JSX.Element {
                 </Tabs.List>
                 <Tabs.Panel value="loaded" className="dp-tab-body">
                     {sourcesSection}
-                    {joinable ? <JoinRow /> : null}
+                    {joining === null ? null : <JoinRow session={joining} />}
                     {/* Each load's filters sit in its own entry; with no load, or several, the
                         filters of every load sit here, under Data sources. */}
                     {sources.length === 1 ? null : <FiltersSection unscoped={sources.length > 1} />}

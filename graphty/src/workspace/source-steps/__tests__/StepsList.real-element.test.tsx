@@ -219,8 +219,12 @@ describe("steps and reader edits in the join workspace (source-steps)", () => {
         await userEvent.click(await screen.findByRole("menuitem", { name: "Remove" }));
         const modal = await screen.findByRole("dialog", { name: "Join" });
         const strip = await within(modal).findByRole("region", { name: "Remove people" });
-        const later = within(strip).getByRole("group", { name: "Later steps" });
-        assert.include(later.textContent ?? "", "step removed", "HR's merge goes with it");
+        const later = within(strip).getByRole("group", { name: "Other joins" });
+        assert.strictEqual(
+            later.textContent,
+            "Other joins 2people + entries: removedpeople + hr: removed",
+            "each join that goes with it, by its line in the list",
+        );
         assert.isTrue(sourcesHold(session, people), "nothing removed yet");
         await done(modal);
         assert.isFalse(sourcesHold(session, people));

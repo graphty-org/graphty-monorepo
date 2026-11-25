@@ -252,6 +252,27 @@ describe("a source's details", () => {
         assert.strictEqual(older.Nodes, 3);
     });
 
+    it("names a web address one way, whether the network form or the data page read it", () => {
+        const url = "https://example.com/people.csv";
+        const base = loaded("people.csv", ["people.csv"], { nodes: 3, edges: 0 });
+        const form: LoadedSource = { ...base, kind: "server", type: "source:url", url };
+        const { source: about } = sourceFacts(form, [form], {
+            issues: 0,
+            waiting: false,
+            settings: [
+                { name: "URL", value: url },
+                { name: "Id column", value: "id" },
+            ],
+        });
+        const page = facts({ ...base, kind: "url", type: "csv", url });
+        assert.deepEqual(
+            about.map(({ name }) => name),
+            ["Type", "Address", "Id column"],
+        );
+        assert.strictEqual(about[0].value, page.Type);
+        assert.strictEqual(page.Address, url);
+    });
+
     it("says when a load was retrieved, and its size in words", () => {
         const newer = facts({
             ...loaded("people.csv", ["people.csv"], { nodes: 3, edges: 0 }),

@@ -294,6 +294,10 @@ export function sourceName(source: LoadedSource): string {
  */
 export function sourceKindWord(source: LoadedSource): string {
     const id = source.type?.replace(/^source:/, "");
+    // A file at a web address is one kind of thing, whichever form read it.
+    if (id === "url") {
+        return KIND_NAMES.url;
+    }
     const entry = source.kind === "server" ? sourceDescriptors().find((each) => each.id === id) : undefined;
     return entry === undefined ? KIND_NAMES[source.kind] : kindName(entry);
 }
@@ -433,14 +437,14 @@ export function sourceFacts(
     const facts: readonly (SourceFact | false)[] = [
         { name: "Type", value: sourceKindWord(source) },
         local && source.fileName !== undefined && { name: "File", value: source.fileName },
-        // A network load's settings say its address themselves.
+        // A network load's settings say its address themselves, by the same word.
         !local &&
             source.url !== undefined &&
             extras.settings?.some((each) => each.value === source.url) !== true && {
                 name: "Address",
                 value: source.url,
             },
-        ...(extras.settings ?? []),
+        ...(extras.settings ?? []).map((each) => (each.value === source.url ? { ...each, name: "Address" } : each)),
         !server && source.type !== undefined && { name: "Format", value: formatWord(source) },
         size !== undefined && !server && { name: "Size", value: sizeWords(size) },
         loadedAt !== undefined && {

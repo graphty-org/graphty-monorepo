@@ -106,6 +106,7 @@ export const WORKSPACE_WORDS = {
     title: "Join",
     open: "Join",
     joins: "Joins",
+    openJoin: "Open",
     newJoin: "New join",
     source: "Source",
     waiting: "Waiting",
@@ -434,7 +435,7 @@ export const STEP_WORDS = {
     graphAfter: "Graph after",
     nodes: "Nodes",
     edges: "Edges",
-    laterSteps: "Later steps",
+    otherJoins: "Other joins",
     references: "References",
     readerEdits: "Reader edits",
     applies: "apply",
@@ -443,35 +444,15 @@ export const STEP_WORDS = {
     notRemoved: "Not removed",
 } as const;
 
-/** A step's kind, as the Steps list names it. */
-const OP_WORDS: Readonly<Record<SourceStepRow["op"], string>> = {
-    "join.add": "Add",
-    "join.merge": "Merge",
-    "join.edges": "Edges",
-    "join.node-values": "Values",
-    "join.edge-values": "Values",
-};
-
 /**
- * A later step, as the removal names it.
- * @param source - its source's name.
- * @param op - its kind.
- * @returns such as "door_entries.csv Edges".
- */
-function laterStep(source: string, op: SourceStepRow["op"]): string {
-    return `${source} ${OP_WORDS[op]}`;
-}
-
-/**
- * A later step whose counts the change moves, as the removal lists it.
- * @param source - its source's name.
- * @param op - its kind.
+ * A join whose counts the change moves, as the removal lists it.
+ * @param name - its line in the list.
  * @param before - its counts now, from `stepCountWords`.
  * @param after - its counts once committed.
- * @returns such as "door_entries.csv Edges: 5 edges -> 0 edges".
+ * @returns such as "people + door_entries: 5 edges -> 0 edges".
  */
-export function stepChangedWords(source: string, op: SourceStepRow["op"], before: string, after: string): string {
-    return `${laterStep(source, op)}: ${before || STEP_WORDS.off} -> ${after || STEP_WORDS.off}`;
+export function stepChangedWords(name: string, before: string, after: string): string {
+    return `${name}: ${before || STEP_WORDS.off} -> ${after || STEP_WORDS.off}`;
 }
 
 /**
@@ -518,26 +499,21 @@ export function addStepWords(step: SourceStepRow): string {
         : `${formatNumber(b.newNodes)} ${STEP_WORDS.nodes.toLowerCase()}, ${formatNumber(b.newEdges)} ${STEP_WORDS.edges.toLowerCase()}`;
 }
 
-/** Why a later step goes with the removal, by `W_STEP_REMOVED`'s reason. */
+/** What becomes of a join the removal reaches, by `W_STEP_REMOVED`'s reason. */
 const REMOVED_REASON_WORDS: Readonly<Record<"source-removed" | "step-removed" | "source-held", string>> = {
-    "source-removed": "source removed",
-    "step-removed": "step removed",
-    "source-held": "source held",
+    "source-removed": "removed",
+    "step-removed": "removed",
+    "source-held": "left out",
 };
 
 /**
- * A later step the removal takes away, from the preview's `W_STEP_REMOVED`.
- * @param source - its source's name.
- * @param op - its kind, or undefined for a step no longer listed.
+ * A join the removal takes away, from the preview's `W_STEP_REMOVED`.
+ * @param name - its line in the list.
  * @param reason - why it goes.
- * @returns such as "door_entries.csv Edges: source removed".
+ * @returns such as "people + door_entries: removed".
  */
-export function stepRemovedWords(
-    source: string,
-    op: SourceStepRow["op"] | undefined,
-    reason: "source-removed" | "step-removed" | "source-held",
-): string {
-    return `${op === undefined ? source : laterStep(source, op)}: ${REMOVED_REASON_WORDS[reason]}`;
+export function stepRemovedWords(name: string, reason: "source-removed" | "step-removed" | "source-held"): string {
+    return `${name}: ${REMOVED_REASON_WORDS[reason]}`;
 }
 
 /**

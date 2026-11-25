@@ -159,7 +159,7 @@ export function stepCardId(index: number): string {
  * @param row - The step.
  * @returns True when it is.
  */
-function isJoin(row: SourceStepRow): boolean {
+export function isJoin(row: SourceStepRow): boolean {
     return row.act !== null || row.link !== null || row.extract !== null;
 }
 

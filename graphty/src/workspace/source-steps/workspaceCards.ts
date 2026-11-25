@@ -122,6 +122,7 @@ export function firstCards(
     const last = made.at(-1);
     if (
         how.remove !== undefined ||
+        how.without !== undefined ||
         (adopted && last !== undefined && how.source === undefined && how.into === undefined)
     ) {
         return { mine: [], open: last?.id ?? null };

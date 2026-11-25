@@ -99,7 +99,10 @@ describe("a second source arrives staged (source-steps)", () => {
             "door",
             "keyed by its door column, as a first source would be",
         );
-        assert.isNull(within(entry).queryByRole("button", { name: /^(Add|Join)/ }), "no join doors on the entry");
+        assert.isNull(
+            within(entry).queryByRole("button", { name: /^(Add( as is)?|Join)$/ }),
+            "no join doors on the entry",
+        );
 
         const modal = await workspace();
         await choose(modal, "Source 1", "buildings");
@@ -316,6 +319,50 @@ describe("a second source arrives staged (source-steps)", () => {
         const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
         await waitFor(() => {
             assert.isNotNull(inspector.getByRole("button", { name: "From people.csv" }));
+        });
+    });
+
+    it("has its own Filters: a card lists its columns, counts its rows, and judges them once it is joined", async () => {
+        const { session } = await withPeopleDropped();
+        const entry = await stage("rooms.csv", "room,wing,floor\nR1,east,1\nR2,east,2\nR3,west,3\nR4,west,9");
+        await userEvent.click(within(entry).getByRole("button", { name: "Add filter" }));
+        const modal = await waitFor(() => {
+            const found = document.querySelector<HTMLElement>(".sel-ws");
+            assert.isNotNull(found, "the filter's workspace is open");
+            return found;
+        });
+        if (screen.queryByRole("combobox", { name: "Find attributes, results" }) === null) {
+            await userEvent.click(await screen.findByRole("button", { name: "Value" }));
+        }
+        await screen.findByRole("combobox", { name: "Find attributes, results" });
+        const offered = screen.getAllByRole("option").map((each) => each.textContent ?? "");
+        assert.isTrue(
+            offered.some((text) => text.startsWith("floor")),
+            offered.join(", "),
+        );
+        assert.isFalse(
+            offered.some((text) => text.startsWith("dept") || text.startsWith("Degree")),
+            `nothing of the graph: ${offered.join(", ")}`,
+        );
+        await userEvent.keyboard("floor{Enter}");
+        const from = await within(modal).findByRole("textbox", { name: "floor from, number" });
+        await userEvent.clear(from);
+        await userEvent.type(from, "3{Enter}");
+        await waitFor(() => {
+            assert.include(modal.querySelector(".sel-ws-head")?.textContent ?? "", "2 of 4");
+        });
+        await userEvent.click(within(modal).getByRole("button", { name: /^Done/ }));
+        await waitFor(() => {
+            assert.isNull(document.querySelector(".sel-ws"));
+        });
+        const card = within(await within(entry).findByRole("list", { name: "Filters" })).getByRole("listitem");
+        assert.include(card.textContent ?? "", "floor");
+        assert.include(card.textContent ?? "", "2 of 4");
+        assert.strictEqual(session.visibility.summary.visibleNodes, 3, "the people stay");
+
+        await session.data.add(session.data.staged()[0].key);
+        await waitFor(() => {
+            assert.strictEqual(session.visibility.summary.visibleNodes, 5, "three people and two rooms of four");
         });
     });
 

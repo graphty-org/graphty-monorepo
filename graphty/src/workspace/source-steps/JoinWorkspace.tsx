@@ -397,10 +397,11 @@ function listRows(
     joins: JoinCards,
     colorOf: ((at: number) => string) | null,
 ): readonly JoinListRow[] {
+    const steps = draft.steps();
     const named = rowNames(
         session,
         names,
-        joins.cards.map((card) => namingLines(draft, card)),
+        joins.cards.map((card) => namingLines(steps, card)),
     );
     const rows = [
         ...joins.addSteps.map((step) => ({
@@ -739,6 +740,12 @@ function JoinWorkspace({
             if (how.remove !== undefined && opening.steps().some((step) => step.source === how.remove)) {
                 // A source its joins added goes with them: with nothing left to match, its rows wait again.
                 opening.removeSource(how.remove, { adds: "remove" });
+            }
+            const out = opening
+                .preview()
+                .steps.find((step) => step.committed !== null && step.committed === how.without);
+            if (out !== undefined) {
+                opening.removeStep(out.index, { adds: "remove" });
             }
             setOpened({ draft: opening, first: firstCards(opening, how, adopted !== null) });
             // The draft holds it from here: a reload opens the workspace on the draft as it is.

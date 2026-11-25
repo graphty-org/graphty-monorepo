@@ -3,7 +3,8 @@ import { Group, Text } from "@mantine/core";
 import React from "react";
 
 import { formatNumber } from "../inspector/words";
-import { nameOf, type SourceNames } from "./cardWords";
+import { nameOf, namingLines, rowNames, type SourceNames } from "./cardWords";
+import { isJoin } from "./joinCards";
 import { STEP_WORDS, stepChangedWords, stepCountWords, stepRemovedWords } from "./words";
 
 /**
@@ -25,8 +26,8 @@ export function Line({ label, value }: Readonly<{ label: string; value: string }
 }
 
 /**
- * What a draft that changes committed steps does to the rest (design 7.13): the later steps it
- * takes away or whose counts it moves, the references it leaves unbound and the reader edits that
+ * What a draft that changes committed steps does to the rest (design 7.13): the other joins it
+ * takes away or whose counts it moves, each by its line in the list, the references it leaves unbound and the reader edits that
  * lose their element. The step card and the Join card editing a step both show it.
  * @param props - Component props
  * @param props.session - the element's session
@@ -48,18 +49,29 @@ export function DraftEffects({
     own: (step: { readonly step: number; readonly source: string }) => boolean;
 }>): React.JSX.Element {
     const committed = session.data.steps();
+    const joins = committed.filter((step) => isJoin(step));
+    const lines = rowNames(
+        session,
+        names,
+        joins.map((step) => namingLines(committed, { lines: null, step })),
+    );
+    const named = ({ index, source }: { readonly index: number; readonly source: string }): string =>
+        lines[joins.findIndex((step) => step.index === index)] ?? nameOf(names, source);
     const removed = preview.issues.flatMap((issue) =>
-        issue.code === "W_STEP_REMOVED" && !own(issue.params) ? [issue.params] : [],
+        // A source a join added goes with it: the join says so.
+        issue.code === "W_STEP_REMOVED" && !own(issue.params) && committed.at(issue.params.step)?.joined !== true
+            ? [issue.params]
+            : [],
     );
     // The steps the draft keeps whose counts it moves, such as edges onto a removed source's nodes.
     const changed = preview.steps.flatMap((step) => {
         const was = step.committed === null ? undefined : committed[step.committed];
-        if (was === undefined || own({ step: was.index, source: was.source })) {
+        if (was === undefined || was.joined === true || own({ step: was.index, source: was.source })) {
             return [];
         }
         const before = stepCountWords(was);
         const after = stepCountWords(step);
-        return before === after ? [] : [stepChangedWords(nameOf(names, was.source), was.op, before, after)];
+        return before === after ? [] : [stepChangedWords(named(was), before, after)];
     });
     const unbound = preview.issues.filter((issue) => issue.code === "W_REFERENCE_UNBOUND").length;
     const { edits } = preview;
@@ -67,13 +79,13 @@ export function DraftEffects({
     return (
         <>
             {removed.length + changed.length === 0 ? null : (
-                <fieldset className="ss-field" aria-label={STEP_WORDS.laterSteps}>
+                <fieldset className="ss-field" aria-label={STEP_WORDS.otherJoins}>
                     <Text component="legend" size="xs" fw={600}>
-                        {`${STEP_WORDS.laterSteps} ${formatNumber(removed.length + changed.length)}`}
+                        {`${STEP_WORDS.otherJoins} ${formatNumber(removed.length + changed.length)}`}
                     </Text>
                     {removed.map((params) => (
                         <Text key={params.step} size="xs">
-                            {stepRemovedWords(nameOf(names, params.source), committed[params.step]?.op, params.reason)}
+                            {stepRemovedWords(named({ index: params.step, source: params.source }), params.reason)}
                         </Text>
                     ))}
                     {changed.map((words) => (

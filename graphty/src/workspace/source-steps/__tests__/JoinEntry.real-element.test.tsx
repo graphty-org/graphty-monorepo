@@ -16,7 +16,7 @@ import { page, userEvent } from "vitest/browser";
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import type { WorkspaceStore } from "../../state/store";
-import { drop, emptyProject, joinLines } from "./sourceSteps";
+import { done, drop, emptyProject, joinLines } from "./sourceSteps";
 
 withFeatures(["source-steps"]);
 
@@ -50,6 +50,16 @@ async function joinPlus(): Promise<HTMLElement> {
     return within(place).findByRole("button", { name: "Join" });
 }
 
+/**
+ * The entries joined to people: an edge from each person to the entries they badged.
+ * @param session - the session.
+ */
+async function joinEntries(session: GraphSession): Promise<void> {
+    const draft = session.data.draft();
+    draft.connect({ from: { source: session.data.staged()[0].key, field: "badge" }, into: { space: "person" } });
+    await draft.commit();
+}
+
 describe("the doors into the join workspace (source-steps)", () => {
     it("Join + below the data sources opens the workspace, showing its Shift+J key", async () => {
         await foundingProject();
@@ -68,15 +78,69 @@ describe("the doors into the join workspace (source-steps)", () => {
         assert.strictEqual(within(modal).getByRole<HTMLInputElement>("combobox", { name: "Source 1" }).value, "");
     });
 
-    it("the sidebar holds no join information: no Join card, steps list or join buttons", async () => {
-        await foundingProject();
+    it("the sidebar holds no join information besides a line per join: no card, options, counts or join buttons", async () => {
+        const { session } = await foundingProject();
+        await joinEntries(session);
         const place = await screen.findByRole("region", { name: "Data place" });
+        const list = await within(place).findByRole("grid", { name: "Joins" });
+        assert.deepStrictEqual(joinLines(place), ["people + entries"]);
+        assert.strictEqual(list.textContent, "people + entries", "the name alone: no act, options or counts");
         assert.isNull(within(place).queryByRole("form", { name: "Join" }));
         assert.isNull(within(place).queryByText("Steps"));
         assert.isNull(within(place).queryByRole("button", { name: /Edit joins/ }));
         assert.lengthOf(within(place).getAllByRole("button", { name: "Join" }), 1, "only Join +");
-        const staged = within(place).getByRole("listitem", { name: "entries.csv" });
-        assert.isNull(within(staged).queryByRole("button", { name: /^(Add|Join)/ }), "no Add or Join on the entry");
+        drop("buildings.csv", BUILDINGS);
+        const staged = await within(place).findByRole("listitem", { name: "buildings.csv" });
+        assert.isNull(
+            within(staged).queryByRole("button", { name: /^(Add( as is)?|Join)$/ }),
+            "no Add or Join on the entry",
+        );
+    });
+
+    it("each join is one line under Join +; pressing it, or its menu's Open, opens the workspace on it", async () => {
+        const { session } = await foundingProject();
+        await joinEntries(session);
+        const place = await screen.findByRole("region", { name: "Data place" });
+        const grid = await within(place).findByRole("grid", { name: "Joins" });
+        const plus = await joinPlus();
+        assert.isTrue(
+            (plus.compareDocumentPosition(grid) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
+            "the list is under the Join header",
+        );
+        await userEvent.click(within(grid).getByRole("gridcell", { name: "people + entries" }));
+        let modal = await screen.findByRole("dialog", { name: "Join" });
+        assert.deepStrictEqual(joinLines(modal), ["people + entries"], "that join, and no blank card");
+        await within(modal).findByRole("radio", { name: "Node per entries row, linked to people", checked: true });
+        await userEvent.click(within(modal).getByRole("button", { name: /^Cancel/ }));
+
+        await userEvent.click(within(place).getByRole("button", { name: "people + entries menu" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Open" }));
+        modal = await screen.findByRole("dialog", { name: "Join" });
+        await within(modal).findByRole("radio", { name: "Node per entries row, linked to people", checked: true });
+    });
+
+    it("its menu's Remove opens the workspace with the join taken out, and Done takes it out in one step", async () => {
+        const { session } = await foundingProject();
+        await joinEntries(session);
+        assert.isAbove(session.data.edges().length, 0);
+        const place = await screen.findByRole("region", { name: "Data place" });
+        await userEvent.click(await within(place).findByRole("button", { name: "people + entries menu" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Remove" }));
+        const modal = await screen.findByRole("dialog", { name: "Join" });
+        assert.deepStrictEqual(joinLines(modal), []);
+        await within(modal).findByText("edges removed");
+        assert.isAbove(session.data.edges().length, 0, "nothing is committed before Done");
+        const steps = session.history.steps.length;
+        await done(modal);
+        assert.lengthOf(session.data.edges(), 0);
+        assert.strictEqual(session.history.steps.length, steps + 1, "one undo step");
+        assert.isNull(within(place).queryByRole("grid", { name: "Joins" }), "and its line went with it");
+        await within(place).findByRole("listitem", { name: "entries.csv" });
+        assert.deepStrictEqual(
+            session.data.staged().map((each) => each.name),
+            ["entries.csv"],
+            "the rows wait again",
+        );
     });
 
     it("two sources and an open draft: Join + still opens the workspace, which adopts the draft", async () => {

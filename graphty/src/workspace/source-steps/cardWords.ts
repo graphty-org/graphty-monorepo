@@ -198,17 +198,17 @@ export function rowNames(
 
 /**
  * The lines a card is named by: its own, else its step's.
- * @param draft - the open draft
+ * @param steps - the steps it is one of
  * @param card - the card
  * @param card.lines - its lines
  * @param card.step - its step
  * @returns the lines
  */
 export function namingLines(
-    draft: SourceDraft,
+    steps: readonly SourceStepRow[],
     card: { readonly lines: readonly CardLine[] | null; readonly step: SourceStepRow | null },
 ): readonly CardLine[] {
-    return card.lines ?? (card.step === null ? [] : linesNaming(draft.steps(), card.step));
+    return card.lines ?? (card.step === null ? [] : linesNaming(steps, card.step));
 }
 
 const or = (words: readonly string[]): string => words.join(" or ");

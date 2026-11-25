@@ -87,8 +87,8 @@ export interface ReportPin {
 
 /**
  * How the join workspace opens (the source-steps experiment): on a new blank card, on one whose first
- * source the reader pressed, on a join already made, or holding the removal of a source (from its
- * Remove), whose effects it shows before Done.
+ * source the reader pressed, on a join already made, or holding the removal of a join or a source (from
+ * its Remove), whose effects it shows before Done.
  */
 export interface JoinWorkspaceOpen {
     /** The source the first card starts with. */
@@ -97,6 +97,8 @@ export interface JoinWorkspaceOpen {
     readonly into?: string;
     /** The join it opens on, by its place in `data.steps()`. */
     readonly step?: number;
+    /** The join the opened draft takes out, by its place in `data.steps()`. */
+    readonly without?: number;
     /** The source the opened draft removes. */
     readonly remove?: SourceKey;
 }

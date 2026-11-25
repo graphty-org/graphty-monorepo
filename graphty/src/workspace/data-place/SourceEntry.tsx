@@ -101,13 +101,13 @@ function IssuesChip({ source, name }: Readonly<{ source: LoadedSource; name: str
 }
 
 /**
- * The "..." button of an entry, opening its menu.
+ * The "..." button of an entry or a join, opening its menu.
  * @param props - Component props
  * @param props.name - the entry's name
  * @param props.children - the menu's items
  * @returns the button and its menu
  */
-function MoreMenu({ name, children }: Readonly<{ name: string; children: React.ReactNode }>): React.JSX.Element {
+export function MoreMenu({ name, children }: Readonly<{ name: string; children: React.ReactNode }>): React.JSX.Element {
     return (
         <Menu position="bottom-end">
             <Menu.Target>
@@ -353,9 +353,10 @@ export function SourceEntry({
 
 /**
  * A staged source's entry (the source-steps experiment): never drawn, matched or joined here. Closed,
- * it shows its name and the nodes and edges its rows are read as; open, how its rows are read (Rows are, Key, an edge's ends), and its
- * details in the inspector. Its "..." (also by right-click) holds Rename (F2) and Remove. Adding and
- * joining it happen in the join workspace (Join +), and a filter judges what it then builds.
+ * it shows its name and the nodes and edges its rows are read as; open, how its rows are read (Rows are,
+ * Key, an edge's ends) and its own Filters, which test its rows and count them, and judge what it builds
+ * once it is joined; its details are in the inspector. Its "..." (also by right-click) holds Rename (F2)
+ * and Remove. Adding and joining it happen in the join workspace (Join +).
  * @param props - Component props
  * @param props.source - the staged source
  * @param props.selected - whether it is the picked source
@@ -429,6 +430,7 @@ export function StagedEntry({
                         void remap(store, session, source.key, patch);
                     }}
                 />
+                <FiltersSection source={source.key} primary={false} headingLevel={4} />
             </ControlSection>
         </EntryFrame>
     );

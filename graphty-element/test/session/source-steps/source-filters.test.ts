@@ -206,6 +206,106 @@ describe("a filter made for a source that waits", () => {
         session.dispose();
     });
 
+    it("reads a selection of a waiting source's rows step by step, holding nothing of the graph", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        await session.data.import(csv("people.csv", "id,name,age", "P1,Ann,30", "R1,Bo,41"), { key: "id" });
+        const rooms = await session.data.stage(
+            csv("rooms.csv", "room,floor,wing", "R1,1,east", "R2,2,east", "R3,,west"),
+            { key: "room" },
+        );
+        let heard = 0;
+        const watch = session.scope.watchSteps(
+            {
+                kind: "union",
+                side: "nodes",
+                within: "graph",
+                sources: [rooms],
+                branches: [
+                    {
+                        start: "all",
+                        steps: [
+                            { op: "keep", rule: { kind: "categories", attribute: "data.wing", values: ["east"] } },
+                            { op: "keep", rule: { kind: "range", attribute: "data.floor", min: 2, max: 3 } },
+                        ],
+                    },
+                ],
+            },
+            () => {
+                heard++;
+            },
+        );
+        const { current } = watch;
+        assert.deepEqual(current.total, { count: 1, of: 3, shown: 0 });
+        assert.deepEqual(
+            current.branches[0].steps.map((step) => step.count),
+            [2, 1],
+        );
+        const [wing, floor] = current.branches[0].steps.map((step) => step.values);
+        assert.deepEqual(wing?.kind === "categorical" ? wing.values.map((each) => [each.value, each.count]) : null, [
+            ["east", 2],
+            ["west", 1],
+        ]);
+        assert.deepInclude(floor, { kind: "numeric", min: 1, max: 2, missing: 0, of: 2 });
+        assert.deepEqual(current.result, { nodes: [] }, "R1 in the graph is another thing");
+        assert.strictEqual(current.branchOf("R1"), null);
+        await session.data.add(rooms);
+        await session.styles.settled();
+        assert.isAbove(heard, 0, "once added, it is read over the graph");
+        assert.deepEqual(watch.current.total, { count: 1, of: 3, shown: 1 });
+        watch.end();
+        session.dispose();
+    });
+
+    it("judges a source's elements by a selection that reads no column, such as their degree", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        await session.data.import(csv("links.csv", "source,target", "a,b", "b,c"));
+        const rooms = await session.data.stage(csv("rooms.csv", "room,floor", "R1,1", "R2,2"), { key: "room" });
+        await session.data.add(rooms);
+        await session.visibility.addCondition({
+            effect: "keep",
+            on: true,
+            source: rooms,
+            rule: {
+                kind: "union",
+                side: "nodes",
+                within: "graph",
+                sources: [rooms],
+                branches: [{ start: "none", steps: [{ op: "add", rule: { kind: "degree", min: 1 } }] }],
+            },
+        });
+        assert.strictEqual(session.visibility.summary.visibleNodes, 3, "no room has a link; the rest stay");
+        session.dispose();
+    });
+
+    it("judges a waiting source's rows from the moment they are in the graph", async () => {
+        for (const union of [false, true]) {
+            const session = createGraphSession({ features: ["source-steps"] });
+            await session.data.import(csv("people.csv", "id,name", "P1,Ann", "P2,Bo"), { key: "id" });
+            const rooms = await session.data.stage(csv("rooms.csv", "room,floor", "R1,1", "R2,2", "R3,3"), {
+                key: "room",
+            });
+            const rule = { kind: "range" as const, attribute: "data.floor", min: 2 };
+            await session.visibility.addCondition({
+                effect: "keep",
+                on: true,
+                source: rooms,
+                rule: union
+                    ? {
+                          kind: "union",
+                          side: "nodes",
+                          within: "graph",
+                          sources: [rooms],
+                          branches: [{ start: "none", steps: [{ op: "add", rule }] }],
+                      }
+                    : rule,
+            });
+            assert.strictEqual(session.visibility.summary.visibleNodes, 2, "the people stay");
+            await session.data.add(rooms);
+            assert.strictEqual(session.visibility.summary.visibleNodes, 4, "two people, two rooms of three");
+            session.dispose();
+        }
+    });
+
     it("counts a waiting edge list's rows as edges, and follows its Rows are", async () => {
         const session = createGraphSession({ features: ["source-steps"] });
         const links = await session.data.stage(csv("links.csv", "from,to,kind", "a,b,x", "b,c,y", "c,a,x"), {

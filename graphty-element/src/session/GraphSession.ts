@@ -4174,6 +4174,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         matchEdges: (where: Query) => requireQuery(query).edges(where),
         values: valueSourceOf(records, snapshot, fieldKinds, () => elements),
         supplied: suppliedNow,
+        waiting: (source: SourceKey) => data.waitingGraph(source),
         focus: () => focusedNode(),
         inState: (state, target, index) => elementInState(state, target, index),
         stateRevision: () => stateRevision,

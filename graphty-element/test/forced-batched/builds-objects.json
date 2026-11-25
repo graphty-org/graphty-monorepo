@@ -18,7 +18,6 @@
     "test/browser/algorithms-on-load-options.test.ts",
     "test/browser/an-arrow-caption-draws.test.ts",
     "test/browser/an-edge-in-front-leaves-the-outline-outside.test.ts",
-    "test/browser/an-edge-tooltip-is-withdrawn.test.ts",
     "test/browser/antialias-at-rest.test.ts",
     "test/browser/arrowhead-batching.test.ts",
     "test/browser/batch-partial-upload.test.ts",

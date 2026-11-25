@@ -29,5 +29,9 @@
         "reason": "Starts each check on the objects path by hand"
     },
     { "file": "test/browser/label-texture-uploads-once.test.ts", "reason": "Sets each case's render path by hand" },
-    { "file": "test/browser/layout-edge-positions.test.ts", "reason": "Sets each case's render path by hand" }
+    { "file": "test/browser/layout-edge-positions.test.ts", "reason": "Sets each case's render path by hand" },
+    {
+        "file": "test/interactions/batched-reads-build-no-objects.test.ts",
+        "reason": "Sets each case's render path by hand"
+    }
 ]

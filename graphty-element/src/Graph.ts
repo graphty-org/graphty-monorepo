@@ -3332,6 +3332,12 @@ export class Graph implements GraphContext {
             this.renderManager.applyBackground(this.styles.config.graph.background, this.#announceSkybox);
             this.applyViewRotation(false);
 
+            // The drawing takes the canvas's laid-out size before the first frame. Left at the
+            // canvas's default 300 x 150 until the element's first resize (two frames after this),
+            // a load already waiting framed the graph for that 2:1 shape, and whether the refit
+            // after the resize landed before a screenshot depended on the machine (issue #10096).
+            this.renderManager.resize();
+
             // Start the graph system (render loop, etc.)
             this.lifecycleManager.startGraph((frameMs) => {
                 this.update(frameMs);

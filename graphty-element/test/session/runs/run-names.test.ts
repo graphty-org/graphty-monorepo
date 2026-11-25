@@ -132,6 +132,22 @@ describe("the id of an unnamed run", () => {
         assert.isTrue(runs.isDerivedId(run.id));
     });
 
+    it("is the plain name when a registered algorithm suggests nothing for these settings", () => {
+        registerPlugin((options) => (options.hops === 3 ? { id: "acme_reach_3", label: "Reach in 3" } : undefined));
+        const { runs } = harness([PLUGIN]);
+
+        assert.strictEqual(runs.start("acme-reach", { hops: 3 }).id, "acme_reach_3");
+        const plain = runs.start("acme-reach", { hops: 4 });
+        assert.strictEqual(plain.id, "acme_reach");
+        assert.strictEqual(runs.defaultLayerName(plain.id), "Acme reach");
+    });
+
+    it("is `run` for an algorithm whose key has no letters a selector could start with", () => {
+        const { runs } = harness([descriptor({ key: "42", plainName: "Answer" })]);
+
+        assert.strictEqual(runs.start("42").id, "run");
+    });
+
     it("refuses a suggested id a selector could not carry", () => {
         registerPlugin(() => ({ id: "Acme Reach", label: "Reach" }));
         const { runs } = harness([PLUGIN]);

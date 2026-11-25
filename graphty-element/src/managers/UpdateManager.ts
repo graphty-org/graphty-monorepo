@@ -2622,6 +2622,15 @@ export class UpdateManager implements Manager {
         return dataManagerInternals.builtEdges(this.dataManager).values();
     }
 
+    /** Lay every built edge again from its ends' places now, however little they moved since it was last laid. */
+    private relayEveryEdge(): void {
+        for (const edge of this.builtEdges()) {
+            edge.invalidatePositionCache();
+        }
+        this.forceEdgeWalk();
+        this.updateEdges();
+    }
+
     /**
      * A node's built edges, from the data manager's index of them by end, which every build and teardown keeps: no
      * edit lists every built edge again to find one node's (issue #9164).
@@ -3373,9 +3382,16 @@ export class UpdateManager implements Manager {
         // One clock reading for the whole pass, so every node of a layout transition is placed at
         // the same moment; the move ends after the pass that placed its last frame.
         const transitions = transitionsOf(this.layoutManager);
+        const moving = transitions?.active === true;
         transitions?.beginPass();
         this.runUpdatePass(frameMs);
         transitions?.endPass();
+        // The move landed this pass: its last step can be shorter than the distance an edge counts as a
+        // move, which left an edge at the place before (a pixel short on some loads, issue #9925). Every
+        // edge is laid again at the landed places, once.
+        if (moving && !transitions.active) {
+            this.relayEveryEdge();
+        }
 
         // After the nodes have moved for this pass, so a node's depth is the one it is drawn at.
         const scaled = this.sizeNodesForView();
@@ -3393,11 +3409,7 @@ export class UpdateManager implements Manager {
                     UpdateManager.RETRIM_COUNTER,
                     dataManagerInternals.builtEdges(this.dataManager).size,
                 );
-                for (const edge of this.builtEdges()) {
-                    edge.invalidatePositionCache();
-                }
-                this.forceEdgeWalk();
-                this.updateEdges();
+                this.relayEveryEdge();
             }
         }
         this.refreshScreenBorders();

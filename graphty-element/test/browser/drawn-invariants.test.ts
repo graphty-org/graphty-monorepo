@@ -25,7 +25,6 @@ import {
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
 import { dataManagerInternals } from "../../src/managers/DataManager";
-import { HOVER_RADIUS_PX, MIN_RADIUS_PX } from "../../src/render/NodeIdTarget";
 import { strayInk, undrawnEdges, undrawnNodes } from "../helpers/drawn-invariants";
 import { click, hover, nodePoint } from "../helpers/real-input";
 
@@ -345,6 +344,26 @@ async function tinyLine(path: Path, view: View): Promise<{ element: Graphty; ids
     await settle(element);
     return { element, ids };
 }
+
+// The node ID target's least radius and hover radius (src/render/NodeIdTarget), held here rather than imported:
+// the build from before the batched path has no such module, and this file's objects cases run against that build
+// too (benchmarks/compare/parity-vs-reference.mjs, behavior stage). The test below holds them to the target's,
+// loading it by a glob, which finds nothing there instead of failing the whole file.
+const MIN_RADIUS_PX = 1.5;
+const HOVER_RADIUS_PX = 0.71;
+const NODE_ID_TARGET = import.meta.glob<{ MIN_RADIUS_PX: number; HOVER_RADIUS_PX: number }>(
+    "../../src/render/NodeIdTarget.ts",
+);
+
+it("uses the node ID target's radii", async () => {
+    const load = NODE_ID_TARGET["../../src/render/NodeIdTarget.ts"];
+    assert.isFunction(load, "the node ID target is in this build");
+    const target = await load();
+    assert.deepEqual(
+        { MIN_RADIUS_PX, HOVER_RADIUS_PX },
+        { MIN_RADIUS_PX: target.MIN_RADIUS_PX, HOVER_RADIUS_PX: target.HOVER_RADIUS_PX },
+    );
+});
 
 // #9377: hover read a node's neighbor, drawn larger than it is in the node ID target, wherever that
 // neighbor's disc covered the node, so on a dense graph some nodes could never be hovered.

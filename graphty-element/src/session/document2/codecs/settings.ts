@@ -1,6 +1,6 @@
 /**
  * @file The `settings` section codec, version 1: project settings no other section holds, and timeline playback (spec 4.4).
- * Experimental (`save-files-v2`).
+ *
  *
  * `settings` is keyed by the names the spec's settings table gives (spec 4.4 rule 1), never by
  * graphty-element's `config.set` paths: `SETTINGS` maps each name to the config path it reads and

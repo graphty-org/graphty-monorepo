@@ -61,6 +61,7 @@ import {
     removeStep,
     type Verb,
 } from "./model";
+import { holdOpenWorkspace } from "./openWorkspace";
 import { RowMore, type SelectionMenuItem } from "./SelectionMenu";
 import { StepPane } from "./StepPane";
 import { StyleOpenLine } from "./StyleOpenLine";
@@ -244,13 +245,11 @@ export function SelectionEditor({
     restoredFrom,
 }: SelectionEditorProps): React.JSX.Element {
     const { store, element } = useWorkspace();
-    // The one workspace is this editor's while the store names it (spec 3.0). An opening draws the
-    // workspace's header ("Drawing") in the frame of its click or key, and names it in the store, which
-    // the panels around it follow, after that frame is painted.
+    // The one workspace is this editor's while the store names it (spec 3.0). An opening names it in
+    // the store at once, in the frame of its click or key, so a reload at any moment after it brings
+    // the workspace back (issue #10017); its header says "Drawing" until its first frame is drawn.
     const named = useWorkspaceState((state) => state.selectionWorkspace?.owner === owner);
-    // on reload: fresh: in flight: an opening under way
-    const [opening, setOpening] = useState(false);
-    const open = named || opening;
+    const open = named;
     // An empty selection (All, no condition) opens as one empty card that holds nothing, "0 of N"
     // (the approved prototype); nothing is written until a card has a value, and a workspace left
     // with no value keeps All.
@@ -458,19 +457,7 @@ export function SelectionEditor({
                 `[data-row="${TITLE}"]`,
             ];
         }
-        if (named) {
-            store.set({ selectionWorkspace: { owner, host } });
-            return;
-        }
-        setOpening(true);
-        afterPaint(() => {
-            flushSync(() => {
-                setOpening(false);
-                if (mounted.current) {
-                    store.set({ selectionWorkspace: { owner, host } });
-                }
-            });
-        });
+        store.set({ selectionWorkspace: { owner, host } });
     };
     /**
      * Closes the workspace: Done keeps every edit; Cancel restores the selection as it was when it
@@ -649,20 +636,13 @@ export function SelectionEditor({
         wasOpen.current = open;
     }, [open]);
     // Leaving the place unmounts the editor: the workspace closes with it, as Done. Decided a
-    // microtask later: StrictMode's development-only rerun mounts the editor again first, and a
-    // workspace a reload kept stays open (issue #9655).
+    // microtask later, and only when no editor under the same key has mounted by then: StrictMode's
+    // development-only rerun and a hot swap's remount leave it open (issues #9655, #9982).
     useEffect(
-        () => () => {
-            queueMicrotask(() => {
-                if (mounted.current) {
-                    return;
-                }
+        () =>
+            holdOpenWorkspace(store, owner, () => {
                 endVisit("done");
-                if (store.get().selectionWorkspace?.owner === owner) {
-                    store.set({ selectionWorkspace: null });
-                }
-            });
-        },
+            }),
         [store, owner],
     );
 

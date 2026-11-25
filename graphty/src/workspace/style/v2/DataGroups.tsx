@@ -60,6 +60,7 @@ interface DataGroup extends MenuGroup {
  * @param props - Component props
  * @param props.ctx - the row
  * @param props.label - its accessible name
+ * @param props.name - its name above it
  * @param props.color - the color set, if any
  * @param props.shown - the color drawn when none is set
  * @param props.onPick - called with the color, or undefined to unset it
@@ -70,6 +71,7 @@ interface DataGroup extends MenuGroup {
 function ColorLine({
     ctx,
     label,
+    name,
     color,
     shown,
     onPick,
@@ -78,6 +80,7 @@ function ColorLine({
 }: Readonly<{
     ctx: RowContext;
     label: string;
+    name: string;
     color: string | undefined;
     shown: string;
     onPick: (color: string | undefined) => void;
@@ -86,7 +89,7 @@ function ColorLine({
 }>): React.JSX.Element {
     const paint = shownPaint(color ?? shown, opacity ?? 1);
     return (
-        <PopLine line={`data.${label}`} name={null}>
+        <PopLine line={`data.${label}`} name={name}>
             <CompactColorInput
                 palettes={colorPalettes(ctx.session)}
                 variant="chip"
@@ -139,8 +142,9 @@ function ColorsLines({ args }: Readonly<{ args: GroupArgs }>): React.JSX.Element
     const whole = spec.whole as { max?: number; track?: string } | undefined;
     return (
         <>
-            <PopLine line="data.palette" name={null}>
+            <PopLine line="data.palette" name="Palette">
                 <PaletteSelect
+                    captioned={false}
                     session={ctx.session}
                     channel={PALETTE_OF[channel]}
                     value={typeof spec.palette === "string" ? spec.palette : undefined}
@@ -172,6 +176,7 @@ function ColorsLines({ args }: Readonly<{ args: GroupArgs }>): React.JSX.Element
                     <ColorLine
                         ctx={ctx}
                         label={`${picked.name} color`}
+                        name="Color"
                         color={own?.color}
                         shown={picked.color}
                         opacity={own?.opacity}
@@ -198,6 +203,7 @@ function ColorsLines({ args }: Readonly<{ args: GroupArgs }>): React.JSX.Element
                 <ColorLine
                     ctx={ctx}
                     label="Track color"
+                    name="Track color"
                     color={whole.track}
                     shown={MISSING_GRAY}
                     onPick={(track) => {
@@ -276,6 +282,7 @@ function OtherLines({ args }: Readonly<{ args: GroupArgs }>): React.JSX.Element 
             <ColorLine
                 ctx={ctx}
                 label="Other color"
+                name="Color"
                 color={other.color}
                 shown={OTHER_GRAY}
                 onPick={(color) => {
@@ -319,6 +326,7 @@ function EmptyLines({ args }: Readonly<{ args: GroupArgs }>): React.JSX.Element 
                 <ColorLine
                     ctx={ctx}
                     label="No values color"
+                    name="Color"
                     color={typeof spec.emptyColor === "string" ? spec.emptyColor : undefined}
                     shown={MISSING_GRAY}
                     onPick={(emptyColor) => {

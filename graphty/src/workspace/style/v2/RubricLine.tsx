@@ -80,6 +80,8 @@ const AUTO = "Auto";
  * @param props.letter - its slot's letter (a pair's "X" or "W"), else its name's initial
  * @param props.slider - whether a percent draws its slider (false where several share a line, a list item's)
  * @param props.zeroAt - an angle's zero on its dial, when not at the top
+ * @param props.plain - a list item's number beside its slider: no letter, one decimal, narrow
+ * @param props.onMove - hears each value a slider drag passes over, and null when a drag ends writing nothing
  * @param props.onWrite - writes a number, or undefined to unset
  * @returns The field
  */
@@ -91,6 +93,8 @@ export function NumberLine({
     letter,
     slider = true,
     zeroAt,
+    plain = false,
+    onMove,
     onWrite,
 }: Readonly<{
     descriptor: ChannelDescriptor;
@@ -101,6 +105,10 @@ export function NumberLine({
     slider?: boolean;
     /** An angle's zero on its dial, when not at the top. */
     zeroAt?: "right";
+    /** A list item's number beside its slider: no letter, one decimal, a narrow field (stripes design 3.1). */
+    plain?: boolean;
+    /** Called with each value a slider drag passes over, and with null when a drag ends writing nothing. */
+    onMove?: (value: number | null) => void;
     onWrite: (value: number | undefined) => void;
 }>): React.JSX.Element {
     const scale = (percent ?? readsAsPercent(descriptor)) ? 100 : 1;
@@ -125,8 +133,12 @@ export function NumberLine({
                 width="100%"
                 numeric
                 options={[]}
-                glyph={letter ?? scrubLetter(name)}
-                value={typeof value === "number" ? Math.round(value * scale * 100) / 100 : AUTO}
+                glyph={plain ? undefined : (letter ?? scrubLetter(name))}
+                value={
+                    typeof value === "number"
+                        ? Math.round(value * scale * (plain ? 10 : 100)) / (plain ? 10 : 100)
+                        : AUTO
+                }
                 suffix={scale === 100 ? "%" : undefined}
                 min={min === undefined ? undefined : min * scale}
                 max={max === undefined ? undefined : max * scale}
@@ -148,8 +160,8 @@ export function NumberLine({
     }
     return (
         <Group gap={4} wrap="nowrap" className="ws-percent">
-            <PercentSlider label={name} value={value} min={min ?? 0} max={max ?? 1} onWrite={onWrite} />
-            <div style={{ flex: "0 0 64px", minWidth: 0 }}>{field}</div>
+            <PercentSlider label={name} value={value} min={min ?? 0} max={max ?? 1} onMove={onMove} onWrite={onWrite} />
+            <div style={{ flex: `0 0 ${plain ? "44px" : "64px"}`, minWidth: 0 }}>{field}</div>
         </Group>
     );
 }
@@ -213,6 +225,7 @@ function wideLine(line: LineSpec, descriptor: ChannelDescriptor, split: boolean)
  * @param props.value - the value shown (set, or drawn), a fraction
  * @param props.min - its least fraction
  * @param props.max - its greatest fraction
+ * @param props.onMove - hears each value a drag passes over, and null when a drag ends writing nothing
  * @param props.onWrite - writes a fraction
  * @returns The slider
  */
@@ -221,17 +234,21 @@ function PercentSlider({
     value,
     min,
     max,
+    onMove,
     onWrite,
 }: Readonly<{
     label: string;
     value: unknown;
     min: number;
     max: number;
+    onMove?: (value: number | null) => void;
     onWrite: (value: number) => void;
 }>): React.JSX.Element {
     const given = typeof value === "number" ? Math.round(value * 100) : max * 100;
-    // The thumb follows a drag before it is written.
+    // The thumb follows a drag before it is written. The value the drag began at decides whether it wrote anything:
+    // `value` may follow the drag itself (a list's shares preview it).
     const [moving, setMoving] = React.useState<number | null>(null);
+    const began = React.useRef<number | null>(null);
     const shown = moving ?? given;
     return (
         <Slider
@@ -244,11 +261,19 @@ function PercentSlider({
             label={null}
             thumbLabel={label}
             thumbProps={{ "aria-valuetext": `${String(shown)}%` }}
-            onChange={setMoving}
+            onChange={(next) => {
+                began.current ??= given;
+                setMoving(next);
+                onMove?.(next / 100);
+            }}
             onChangeEnd={(next) => {
+                const from = began.current ?? given;
+                began.current = null;
                 setMoving(null);
-                if (next !== given) {
+                if (next !== from) {
                     onWrite(next / 100);
+                } else {
+                    onMove?.(null);
                 }
             }}
         />
@@ -1023,12 +1048,14 @@ function keptField(
  * @param props - Component props
  * @param props.ctx - the row
  * @param props.targets - each value of the line
+ * @param props.label - the link's name, when not its first value's channel's
  * @returns The link, or nothing
  */
 export function ByDataLink({
     ctx,
     targets,
-}: Readonly<{ ctx: RowContext; targets: readonly VaryTarget[] }>): React.JSX.Element | null {
+    label,
+}: Readonly<{ ctx: RowContext; targets: readonly VaryTarget[]; label?: string }>): React.JSX.Element | null {
     const bindable = targets.filter(
         ({ descriptor }) => takesBinding(descriptor) || (descriptor.renderable && descriptor.accepts === "boolean"),
     );
@@ -1041,6 +1068,7 @@ export function ByDataLink({
             ctx={ctx}
             descriptor={first.descriptor}
             to={first.to}
+            label={label}
             anyKind
             which={bindable.length > 1 ? bindable : undefined}
         />

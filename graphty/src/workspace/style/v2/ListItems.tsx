@@ -4,10 +4,10 @@
  * arranges them.
  */
 
-import { CompactColorInput } from "@graphty/compact-mantine";
-import { type Channel, listItemAddress, setListShare } from "@graphty/graphty-element/catalog";
+import { CompactColorInput, ScrollArea } from "@graphty/compact-mantine";
+import { type Channel, listItemAddress, listShares, setListShare } from "@graphty/graphty-element/catalog";
 import { ActionIcon, Group, Tooltip } from "@mantine/core";
-import React, { useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import { GLYPHS } from "../../glyphs";
 import { useWorkspace } from "../../state/WorkspaceContext";
@@ -15,10 +15,13 @@ import { lineIn, sourceName, writeIn } from "../row";
 import { altArrowMove, useRowDrag } from "../useRowDrag";
 import { colorPalettes } from "../words";
 import { unsetIn } from "./lineWrites";
-import { itemDescriptor, type ListState, movedOrder, type Part, reorder, writeAll } from "./listState";
+import { itemDescriptor, type ListState, movedOrder, type Part, reorder, takeRevealed, writeAll } from "./listState";
 import { shownPaint, writtenPaint } from "./paint";
 import { ByDataLink, LineFrame, NumberLine } from "./RubricLine";
 import { ValueButton } from "./ValueButton";
+
+/** What can take focus in a line. */
+const FOCUSABLE = 'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /**
  * A bound item's sub-line under its line: its caption above, the column's name, its link and its "-" (stop varying).
@@ -57,7 +60,15 @@ export function BoundLine({
                     onClick={() => undefined}
                 />
             }
-            modifier={<ByDataLink ctx={ctx} targets={[{ name: part.name, descriptor, to }]} />}
+            modifier={
+                <ByDataLink
+                    ctx={ctx}
+                    targets={[{ name: part.name, descriptor, to }]}
+                    label={`${
+                        at === undefined ? plural : `${state.list.item} ${String(at + 1)} ${part.name.toLowerCase()}`
+                    } by attribute`}
+                />
+            }
             removeName={`Stop varying ${caption.toLowerCase()}`}
             onRemove={() => {
                 unsetIn(ctx, [to]).catch(state.fail);
@@ -71,9 +82,18 @@ export function BoundLine({
  * @param props - Component props
  * @param props.state - the lists
  * @param props.at - the item
+ * @param props.onPreview - shows the shares a share drag would leave on every line (null: what draws)
  * @returns The line and its bound sub-lines
  */
-export function ItemLine({ state, at }: Readonly<{ state: ListState; at: number }>): React.JSX.Element {
+export function ItemLine({
+    state,
+    at,
+    onPreview,
+}: Readonly<{
+    state: ListState;
+    at: number;
+    onPreview: (shares: readonly number[] | null) => void;
+}>): React.JSX.Element {
     const { store } = useWorkspace();
     const { ctx, list, colors, share, opacity, value, own } = state;
     const box = useRef<HTMLDivElement>(null);
@@ -85,7 +105,23 @@ export function ItemLine({ state, at }: Readonly<{ state: ListState; at: number 
         }
         store.set({ announcement: `${name} moved to place ${String(to + 1)} of ${String(count)}` });
         reorder(state, movedOrder(count, at, to));
+        // Lines are keyed by place, so the moved stripe is drawn in the line at its new place: focus follows it there,
+        // to the same control.
+        const row = box.current;
+        const controls = (line: Element | null | undefined): HTMLElement[] => [
+            ...(line?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? []),
+        ];
+        const nth = controls(row).indexOf(document.activeElement as HTMLElement);
+        const target = row?.parentElement?.querySelector(`:scope > [data-item-line="${String(to)}"]`);
+        const next = controls(target).at(Math.max(nth, 0));
+        next?.focus();
+        next?.scrollIntoView({ block: "nearest" });
     };
+    useEffect(() => {
+        if (at === count - 1 && takeRevealed(list.colors)) {
+            box.current?.scrollIntoView({ block: "nearest" });
+        }
+    }, [at, count, list.colors]);
     const { dragging, handlers } = useRowDrag(
         box,
         at,
@@ -148,16 +184,25 @@ export function ItemLine({ state, at }: Readonly<{ state: ListState; at: number 
     const number = share ?? value;
     let numberControl: React.ReactNode = null;
     if (share !== undefined && !share.bound) {
+        const sizes = share.items.map((item) => (item === "" ? "auto" : item)).join(" ");
         numberControl = (
             <div className="ws-share" style={{ flex: 1, minWidth: 0 }}>
                 <NumberLine
                     descriptor={itemDescriptor(share.descriptor)}
                     label={`${name} share`}
                     percent
+                    plain
                     value={state.shares[at] ?? 0}
+                    onMove={(next) => {
+                        // A drag computes from the list as it was when it began: nothing is written until release.
+                        onPreview(
+                            next === null
+                                ? null
+                                : listShares(share.channel, setListShare(share.channel, sizes, count, at, next), count),
+                        );
+                    }}
                     onWrite={(next) => {
                         // The edited share as typed, the others giving way (graphty-element's `setListShare`).
-                        const sizes = share.items.map((item) => (item === "" ? "auto" : item)).join(" ");
                         const text = setListShare(share.channel, sizes, count, at, next);
                         const items = text === "" ? [] : text.split(" ").map((item) => (item === "auto" ? "" : item));
                         if (!own || items.length === 0) {
@@ -239,7 +284,8 @@ export function ItemLine({ state, at }: Readonly<{ state: ListState; at: number 
                         {number === undefined ? null : numberControl}
                     </Group>
                 }
-                modifier={<ByDataLink ctx={ctx} targets={targets} />}
+                // One link for the line's values (Color, Share, Opacity): named for the item, not its color.
+                modifier={<ByDataLink ctx={ctx} targets={targets} label={`${name} by attribute`} />}
                 removeName={`Remove ${name.toLowerCase()}`}
                 onRemove={() => {
                     if (count <= 1) {
@@ -327,6 +373,65 @@ export function ListTools({ state }: Readonly<{ state: ListState }>): React.JSX.
                     <GLYPHS.swap size={14} aria-hidden />
                 </ActionIcon>,
             )}
+        </>
+    );
+}
+
+/** How tall the scroll region is: four rows of a line's height (stripes design 3.1, item 6). */
+const REGION = 4 * 28;
+
+/**
+ * The caption row and the scroll region of a list's lines. A share being dragged shows its value, and the shares
+ * giving way theirs, on every line while the drag lasts; the write lands once, on release (stripes design 3.2).
+ * @param props - Component props
+ * @param props.state - the lists
+ * @returns The lines
+ */
+export function ColorLines({ state }: Readonly<{ state: ListState }>): React.JSX.Element {
+    const { colors, share, value } = state;
+    const [preview, setPreview] = useState<readonly number[] | null>(null);
+    // A drag's write landed (or the list changed under it): the lines show what draws again.
+    const drawn = state.shares.join(" ");
+    useEffect(() => {
+        setPreview(null);
+    }, [drawn]);
+    const number = share ?? value;
+    const wholeBound = [colors, share, state.opacity, value].flatMap((part) =>
+        part?.bound === true ? [<BoundLine key={part.channel} state={state} part={part} at={undefined} />] : [],
+    );
+    const shown = preview === null ? state : { ...state, shares: preview };
+    return (
+        <>
+            {colors.bound ? null : (
+                <div className="ws-list-caption" aria-hidden>
+                    <span>Color</span>
+                    {number === undefined || number.bound ? null : <span>{number.name}</span>}
+                </div>
+            )}
+            {/* Its scrollbar takes its own room beside the lines, never over a "-"; it never scrolls sideways. */}
+            <ScrollArea.Autosize
+                mah={REGION}
+                type="auto"
+                scrollbars="y"
+                offsetScrollbars="y"
+                className="ws-list-region"
+                classNames={{ content: "ws-list-content" }}
+            >
+                <div className="ws-list-items">
+                    {wholeBound}
+                    {colors.bound
+                        ? null
+                        : colors.items.map((_, at) => (
+                              <ItemLine
+                                  // eslint-disable-next-line react/no-array-index-key -- an item is its place in the list
+                                  key={at}
+                                  state={shown}
+                                  at={at}
+                                  onPreview={setPreview}
+                              />
+                          ))}
+                </div>
+            </ScrollArea.Autosize>
         </>
     );
 }

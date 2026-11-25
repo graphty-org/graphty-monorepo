@@ -9,16 +9,12 @@
  * values and item bindings move with their items, every edit one undo step.
  */
 
-import { ScrollArea } from "@graphty/compact-mantine";
-import React from "react";
+import type React from "react";
 
 import type { RowContext } from "../PropertyRow";
-import { BoundLine, ItemLine, ListTools } from "./ListItems";
+import { ColorLines, ListTools } from "./ListItems";
 import { drawnItems, type ListSpec, nextColor } from "./lists";
-import { stateOf, writeAll } from "./listState";
-
-/** How tall the scroll region is: four rows of a line's height (stripes design 3.1, item 6). */
-const REGION = 4 * 28;
+import { revealAdded, stateOf, writeAll } from "./listState";
 
 /**
  * A parallel color list's lines and "+", for `ItemListEditor`: see the file header.
@@ -41,38 +37,15 @@ export function colorItems({
     if (state === undefined) {
         return { lines: null, add: undefined, tools: null };
     }
-    const { colors, share, value } = state;
+    const { colors } = state;
     const add = (): void => {
+        revealAdded(list.colors);
         writeAll(state, [...colors.items, nextColor(ctx, colors.items)]);
     };
-    const number = share ?? value;
-    const wholeBound = [colors, share, state.opacity, value].flatMap((part) =>
-        part?.bound === true ? [<BoundLine key={part.channel} state={state} part={part} at={undefined} />] : [],
-    );
     return {
         add: colors.bound ? undefined : add,
         tools: <ListTools state={state} />,
-        lines: (
-            <>
-                {colors.bound ? null : (
-                    <div className="ws-list-caption" aria-hidden>
-                        <span>Color</span>
-                        {number === undefined || number.bound ? null : <span>{number.name}</span>}
-                    </div>
-                )}
-                <ScrollArea.Autosize mah={REGION} type="auto" className="ws-list-region">
-                    <div className="ws-list-items">
-                        {wholeBound}
-                        {colors.bound
-                            ? null
-                            : colors.items.map((_, at) => (
-                                  // eslint-disable-next-line react/no-array-index-key -- an item is its place in the list
-                                  <ItemLine key={at} state={state} at={at} />
-                              ))}
-                    </div>
-                </ScrollArea.Autosize>
-            </>
-        ),
+        lines: <ColorLines state={state} />,
     };
 }
 

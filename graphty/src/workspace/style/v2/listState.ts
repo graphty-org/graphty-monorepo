@@ -3,7 +3,7 @@
  * them, the shares graphty-element draws (`listShares`), and the writes of a whole list, a reorder and a removal.
  */
 
-import { type Channel, type ChannelDescriptor, listShares } from "@graphty/graphty-element/catalog";
+import { type Channel, type ChannelDescriptor, listItemAddress, listShares } from "@graphty/graphty-element/catalog";
 
 import { shownChannel } from "../offered";
 import type { RowContext } from "../PropertyRow";
@@ -155,4 +155,48 @@ export function movedOrder(count: number, from: number, to: number): number[] {
     const order = Array.from({ length: count }, (_, at) => at).filter((at) => at !== from);
     order.splice(to, 0, from);
     return order;
+}
+
+/**
+ * Whether a list thing's layer holds more than its colors: a share or an opacity (the list's or one item's), or a
+ * binding on any list or item. The row's "..." takes the set mark for it (stripes design 2).
+ * @param ctx - the row.
+ * @param list - the list, if the thing is one.
+ * @returns whether it does.
+ */
+export function listChanged(ctx: RowContext, list: ListSpec | undefined): boolean {
+    if (list === undefined) {
+        return false;
+    }
+    const count = drawnItems(ctx, list.colors).items.length;
+    return [list.colors, ...list.numbers.map((each) => each.channel)].some((channel) => {
+        const counts = (line: ReturnType<typeof lineIn>): boolean =>
+            line !== undefined && (channel !== list.colors || line.binding !== undefined);
+        return (
+            counts(lineIn(ctx, channel)) ||
+            Array.from({ length: count }, (_, at) => lineIn(ctx, listItemAddress(channel, at))).some((line) =>
+                counts(line),
+            )
+        );
+    });
+}
+
+/** Lists whose "+" just added an item: that item's line scrolls into view when it appears. */
+const revealing = new Set<Channel>();
+
+/**
+ * Scroll the item "+" is adding into view once its line appears.
+ * @param channel - the list's colors channel.
+ */
+export function revealAdded(channel: Channel): void {
+    revealing.add(channel);
+}
+
+/**
+ * Whether a list's last line, just drawn, is the item "+" added: true once.
+ * @param channel - the list's colors channel.
+ * @returns whether to scroll it into view.
+ */
+export function takeRevealed(channel: Channel): boolean {
+    return revealing.delete(channel);
 }

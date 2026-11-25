@@ -5115,6 +5115,8 @@ export interface SourceStepRow {
      * with one changed. Null for any other step.
      */
     readonly link: SourceLinkOptions | null;
+    /** For a step `draft.link` made: the space of the nodes it links. Null for any other step. */
+    readonly holders: SourceSpaceName | null;
     /**
      * For a step `extract` made: its options, read back, so `draft.replaceStep` can make it again for
      * its `source` with one changed. Null for any other step.
@@ -5179,6 +5181,10 @@ export interface SourceStepAct {
     };
     /** Make an edge: `"merge"` when a row folds into an edge already joining its ends; absent for `"add"`. */
     readonly existing?: "add" | "merge";
+    /** `"each"` when a row naming several nodes joins every one of them; absent for `"skip"`. */
+    readonly fanOut?: "skip" | "each";
+    /** Make an edge: `"drop"` when a row no edge reaches makes no node; absent for `"keep"`. */
+    readonly unlinked?: "keep" | "drop";
 }
 
 /**
@@ -5234,6 +5240,11 @@ export interface SourceSpaceRow {
 export interface SourceDraftSpaceRow extends SourceSpaceRow {
     /** The source, staged before the draft opened, that a step of the draft adds into this space; null for none. */
     readonly staged: SourceKey | null;
+    /**
+     * The sources whose own rows are nodes of the space: those added into it, and those merged into
+     * its nodes. `sources` also lists the ones whose rows only name its nodes.
+     */
+    readonly rowsOf: readonly SourceKey[];
 }
 
 /**
@@ -5479,7 +5490,10 @@ export interface SourceMatchCounts {
     readonly repeated1: number;
     /** Keys side 2 holds more than once. */
     readonly repeated2: number;
-    /** Rows of side 2 whose key reaches more than one node 1: they name several nodes, so merge nothing. */
+    /**
+     * Rows of side 2 whose key reaches more than one node 1: they name several nodes, so they join
+     * nothing unless the act says `fanOut: "each"`.
+     */
     readonly fanOut: number;
     /** Rows of side 2 that match nothing as text but would as numbers, such as `"007"` against `7`. */
     readonly textVersusNumber: number;
@@ -5487,6 +5501,18 @@ export interface SourceMatchCounts {
     readonly moreWithIgnoreCase: number | null;
     /** How many more keys would match with `ignoreSpaces` on; null while it is on. */
     readonly moreWithIgnoreSpaces: number | null;
+    /** Rows of side 2, the ones holding no value included. */
+    readonly rows: number;
+    /** Rows of side 2 with a value side 1 holds. */
+    readonly matchedRows: number;
+    /** Rows of side 2 holding no value. */
+    readonly emptyRows: number;
+    /** How many more rows would match with `ignoreCase` on; null while it is on. */
+    readonly moreRowsWithIgnoreCase: number | null;
+    /** How many more rows would match with `ignoreSpaces` on; null while it is on. */
+    readonly moreRowsWithIgnoreSpaces: number | null;
+    /** How many more rows would match with both on; null while either is. */
+    readonly moreRowsWithBoth: number | null;
 }
 
 /**
@@ -5594,6 +5620,12 @@ export interface SourceMergeOptions {
     readonly ignoreCase?: boolean;
     /** Match keys ignoring spaces. */
     readonly ignoreSpaces?: boolean;
+    /**
+     * A row whose value names several nodes, such as a phone several accounts hold: `"skip"`
+     * (default) folds it into none of them, `"each"` folds its columns into every one; its edges
+     * and its key go to the first. Under `unmatchedFrom: "drop"` a skipped row makes no node.
+     */
+    readonly fanOut?: "skip" | "each";
 }
 
 /**
@@ -5658,10 +5690,20 @@ export interface SourceConnectOptions {
      * A row whose two ends an edge an earlier step made already joins, the same way round:
      * `"add"` (default) adds another edge, `"merge"` folds the row into that edge. With an
      * `edgeType`, only an edge of that type is folded into. A row with both ends named and not kept
-     * as a node brings all its columns, to the edge it folds into (by the step's `clash` rules) or
-     * makes; under `"add"` it brings none.
+     * as a node brings its columns to the edge it makes or (by the step's `clash` rules) folds into;
+     * under `perPair` the edge keeps its first row's.
      */
     readonly existing?: "add" | "merge";
+    /**
+     * A row whose value names several nodes: `"skip"` (default) makes no edge of it, `"each"` makes
+     * one to every node it names.
+     */
+    readonly fanOut?: "skip" | "each";
+    /**
+     * Rows that are nodes (no `to`, or `to.keepRow`): a row no edge reaches, because nothing it
+     * names is there, is `"keep"` (default) kept as a node, or `"drop"` left out.
+     */
+    readonly unlinked?: "keep" | "drop";
 }
 
 /**
@@ -5677,7 +5719,7 @@ export interface SourceConnectOptions {
 export interface SourceExtractOptions {
     /** The column whose values become nodes. */
     readonly column: string;
-    /** The id space the new nodes live in; default `type`, else the source's own space. */
+    /** The id space the new nodes live in; default `type`, else a space named after the column. */
     readonly space?: SourceSpaceName;
     /** The type the new nodes are declared with. */
     readonly type?: SourceTypeName;

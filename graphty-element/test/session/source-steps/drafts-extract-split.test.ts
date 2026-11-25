@@ -325,7 +325,11 @@ describe("source-steps drafts: Extract from edge rows", () => {
         await d.commit();
         assert.deepStrictEqual(drawn(session), ["x-web", "x-y", "x-z", "y-sms", "y-web", "y-x"]);
         assert.strictEqual(session.data.node("web")?.ver, 2);
-        assert.isFalse(session.data.edges().some((e) => e.ver !== undefined));
+        assert.deepStrictEqual(
+            session.data.edges().flatMap((e) => (e.ver === undefined ? [] : [[e.source, e.target, e.ver]])),
+            [["x", "z", 3]],
+            "only the row naming no app keeps its own",
+        );
         assert.deepStrictEqual(await reopened(session), now(session));
         session.dispose();
     });

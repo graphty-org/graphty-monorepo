@@ -168,7 +168,11 @@ function exceptColumn(step: Step): string | null {
         case "join.edge-values":
             return step.read.edgeId;
         default:
-            // A step that links by shared values matches its rows by the values.
+            // A step that links nodes by the values they carry leaves a node or an edge out by its key; one that
+            // links by rows matches its rows by the values.
+            if (step.link?.of === "nodes") {
+                return "key";
+            }
             return step.link?.columns[0] ?? step.read.edgeId ?? step.read.source ?? step.read.target ?? null;
     }
 }

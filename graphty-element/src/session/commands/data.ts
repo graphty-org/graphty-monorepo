@@ -375,6 +375,11 @@ export interface HeldRows {
     readonly idPath?: string;
     /** The node records named no id and were numbered under `idPath`, a column they did not hold. */
     readonly numbered?: true;
+    /**
+     * The file's own column its node records' ids were read from, which the records carry beside the
+     * `idPath` the reader put them under.
+     */
+    readonly idColumn?: string;
     /** The expression an edge's source is read with; probed when absent. */
     readonly source?: string;
     /** The expression an edge's target is read with; probed when absent. */

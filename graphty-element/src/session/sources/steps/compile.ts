@@ -268,7 +268,7 @@ export function compileImport(
             ...(nodes.length > 0
                 ? {
                       nodes: {
-                          key: options.key ?? held.idPath ?? known.nodeIdPath,
+                          key: options.key ?? held.idColumn ?? held.idPath ?? known.nodeIdPath,
                           ...defined({ space, time: times.nodes }),
                       },
                   }
@@ -278,7 +278,10 @@ export function compileImport(
                 : {}),
         },
         ...sourceFacts(command, options),
-        ...(held.numbered === true && nodes.length > 0 ? { numbered: held.idPath } : {}),
+        // the reader's own column, which the file never held
+        ...((held.numbered === true || held.idColumn !== undefined) && nodes.length > 0
+            ? { numbered: held.idPath }
+            : {}),
     };
     return {
         op: "data.steps-set",

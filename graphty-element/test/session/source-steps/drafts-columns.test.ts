@@ -144,7 +144,7 @@ describe("source-steps drafts: matching on a merged list", () => {
         await committedAndReopened(session, d);
         assert.strictEqual(session.data.node("A1")?.risk, "high");
         assert.isUndefined(session.data.node("A2")?.risk, "d3 names two accounts");
-        assert.strictEqual(session.data.statistics().nodeCount, 4 + 1, "the row naming two accounts stays its own");
+        assert.strictEqual(session.data.statistics().nodeCount, 4, "under drop, the row naming two makes no node");
         session.dispose();
     });
 

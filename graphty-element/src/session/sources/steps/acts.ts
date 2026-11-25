@@ -64,6 +64,8 @@ interface MergeAct {
     readonly columns?: readonly string[];
     /** Per column (`"*"` for every column it does not match on), how a node's repeated rows reduce. */
     readonly aggregate?: Aggregate;
+    /** A row whose value names several node 1s: left out (default), or folded into each of them. */
+    readonly fanOut?: "skip" | "each";
 }
 
 /** Make an edge (3.6): each row of the source becomes an edge between its node and node 1. */
@@ -90,6 +92,10 @@ interface ConnectAct {
     };
     /** A row whose ends an edge already joins: add another (default), or fold its columns into that edge. */
     readonly existing?: "add" | "merge";
+    /** A row whose value names several nodes: no edge (default), or an edge to each. */
+    readonly fanOut?: "skip" | "each";
+    /** A row kept as a node that no edge reaches: kept (default), or dropped. */
+    readonly unlinked?: "keep" | "drop";
 }
 
 /** Extract (4.3): one column becomes nodes, joined to an edge row's end or to the row's own node by new edges. */
@@ -488,17 +494,28 @@ function needsNodesOf(step: Step, value: SourceSteps, add: Step): boolean {
 }
 
 /**
- * The value without the adds join acts made for themselves whose nodes no step needs any more: each
- * of their sources is staged again.
- * @param value - The value.
+ * The value without the adds a step was made with, once it is gone and no other step needs their
+ * nodes: each of their sources is staged again. An add kept by an earlier removal stays.
+ * @param before - The value the step was in.
+ * @param gone - The step.
+ * @param value - The value without it.
  * @returns The value.
  */
-function withoutUnneededAdds(value: SourceSteps): SourceSteps {
+function withoutAddsOf(before: SourceSteps, gone: Step, value: SourceSteps): SourceSteps {
+    const made = new Set(
+        before.steps.flatMap((add) =>
+            add.op === "join.add" && add.joined === true && needsNodesOf(gone, before, add) ? [add.source] : [],
+        ),
+    );
     const at = value.steps.findIndex(
         (add) =>
-            add.op === "join.add" && add.joined === true && !value.steps.some((step) => needsNodesOf(step, value, add)),
+            add.op === "join.add" &&
+            add.joined === true &&
+            made.has(add.source) &&
+            // an add makes its own nodes: it needs no other source's, even in the same space
+            !value.steps.some((step) => step.op !== "join.add" && needsNodesOf(step, value, add)),
     );
-    return at === -1 ? value : withoutUnneededAdds(withoutStep(value, at));
+    return at === -1 ? value : withoutAddsOf(before, gone, withoutStep(value, at));
 }
 
 /**
@@ -567,6 +584,7 @@ function merge(prior: SourceSteps, copies: Copies, o: MergeAct): SourceSteps {
             except: o.except,
             ignoreCase: o.ignoreCase,
             ignoreSpaces: o.ignoreSpaces,
+            fanOut: o.fanOut === "each" ? o.fanOut : undefined,
             columns: table === "edges" ? o.columns : undefined,
         }),
         ...throughOf(o.into, n1),
@@ -731,6 +749,10 @@ function withEdgesStep(
         ...(at.end?.add === true ? { addEnd: at.end.which } : {}),
         ...(o.perPair === true ? { repeated: "first" as const } : {}),
         ...defined({ ignoreCase: o.ignoreCase, ignoreSpaces: o.ignoreSpaces, rowNode: at.rowNode }),
+        ...defined({
+            fanOut: o.fanOut === "each" ? o.fanOut : undefined,
+            unlinked: at.rowNode !== undefined || o.to === undefined ? dropped(o.unlinked) : undefined,
+        }),
         ...existingOf(o.to !== undefined && o.to.keepRow !== true, o.existing),
         // Says which end is node 1, so the step reads back the way round it was made.
         ...(at.end?.which === "source" ? { viaEnd: "target" as const } : {}),
@@ -746,8 +768,17 @@ function withEdgesStep(
 }
 
 /**
- * What an edge step does with a row whose ends an edge already joins. An edge carries none of its
- * row's columns, except that a row making no node folds its columns into the edge it meets.
+ * A row no edge reaches, as its step says it.
+ * @param unlinked - The choice.
+ * @returns `"drop"`, or undefined to keep it.
+ */
+function dropped(unlinked: ConnectAct["unlinked"]): EdgesStep["unlinked"] {
+    return unlinked === "drop" ? unlinked : undefined;
+}
+
+/**
+ * What an edge step does with a row whose ends an edge already joins. A row making no node brings its
+ * columns to the edge it makes or folds into; a row that is a node keeps them itself.
  * @param rowsOnly - Whether the step's rows make no node.
  * @param existing - The choice.
  * @returns The step's `existing` and `columns`; absent columns bring every one.
@@ -756,10 +787,10 @@ export function existingOf(
     rowsOnly: boolean,
     existing: "add" | "merge" | undefined,
 ): Pick<EdgesStep, "existing" | "columns"> {
-    if (existing !== "merge") {
-        return { columns: [] };
-    }
-    return rowsOnly ? { existing } : { existing, columns: [] };
+    return {
+        ...(existing === "merge" ? { existing } : {}),
+        ...(rowsOnly ? {} : { columns: [] }),
+    };
 }
 
 /**
@@ -884,14 +915,14 @@ function replaceStep(
     const at = movedAfter(next.steps, end - 1) ? end - 1 : end;
     const last = next.steps[at];
     if (old.source !== last.source || old.op !== last.op) {
-        return withoutUnneededAdds(next);
+        return withoutAddsOf(value, old, next);
     }
     const kept = {
         ...last,
         ...(last.except === undefined && old.except !== undefined ? { except: old.except } : {}),
         ...(last.clash === undefined && old.clash !== undefined ? { clash: old.clash } : {}),
     };
-    return withoutUnneededAdds({ ...next, steps: next.steps.map((s, i) => (i === at ? kept : s)) });
+    return withoutAddsOf(value, old, { ...next, steps: next.steps.map((s, i) => (i === at ? kept : s)) });
 }
 
 /**
@@ -970,7 +1001,8 @@ function extract(prior: SourceSteps, id: string, copies: Copies, o: ExtractAct):
     }
     const value = prior;
     const m = edgeMapping(value, id);
-    const space = o.space ?? o.type ?? ownSpace(id);
+    // never the rows' own space, where a value equal to a row's key would be that row
+    const space = o.space ?? o.type ?? o.column;
     const mint = minted(value, id);
     const step: EdgesStep = {
         op: "join.edges",
@@ -1039,7 +1071,8 @@ function extractRows(
         }
         value = isStaged(value, id) ? joinedSource(value, copies, id) : value;
     }
-    const space = o.space ?? o.type ?? ownSpace(id);
+    // never the rows' own space, where a value equal to a row's key would be that row
+    const space = o.space ?? o.type ?? o.column;
     const m = from === "row" ? null : edgeMapping(value, id);
     const mint = minted(value, id);
     const step: EdgesStep = {
@@ -1266,9 +1299,13 @@ function withoutStep(value: SourceSteps, index: number): SourceSteps {
         return next;
     }
     const own = ownSpace(src.id);
+    const { nodes, edges } = src.mapping;
+    if (src.spacePicked === true && nodes?.space !== own) {
+        // The space the reader picked is not one an act wrote: it stays.
+        return next;
+    }
     const proposal = src.stagedType ?? undefined;
     const back = (s: string | undefined): string | undefined => (s === own ? proposal : s);
-    const { nodes, edges } = src.mapping;
     const proposed: StepsSource = {
         ...src,
         spacePicked: false,
@@ -1416,7 +1453,7 @@ export function applyAct(value: SourceSteps, act: StepsAct, copies: Copies): Sou
             return mapped(value, act.source, act.patch, copies);
         default:
             return act.adds === "remove"
-                ? withoutUnneededAdds(withoutStep(value, act.index))
+                ? withoutAddsOf(value, value.steps[act.index], withoutStep(value, act.index))
                 : withoutStep(value, act.index);
     }
 }

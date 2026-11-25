@@ -162,6 +162,30 @@ interface Read {
     readonly issues: readonly CodedFact[];
 }
 
+/** graph-io's report of a CSV table whose rows no column keys: they were numbered. */
+const NO_UNIQUE_ID = "W_CSV_NO_UNIQUE_ID";
+
+/**
+ * The file's own column its nodes were keyed by, which graph-io reads into the node's id: the records
+ * carry it again, under its own name.
+ * @param params - The params the read was made with, its CSV id column worked out.
+ * @param nodes - The node records.
+ * @returns The column, or undefined when the read names none, names it `id`, or a record holds it already.
+ */
+function ownIdColumn(
+    params: Readonly<Record<string, unknown>>,
+    nodes: readonly Record<string, unknown>[],
+): string | undefined {
+    const column = params.idColumn;
+    return typeof column === "string" &&
+        column !== "" &&
+        column !== "id" &&
+        !/^\d+$/.test(column) &&
+        nodes.every((row) => !(column in row))
+        ? column
+        : undefined;
+}
+
 /**
  * Read a source into rows, outside any command.
  * @param id - the source id
@@ -181,9 +205,10 @@ async function readRows(
     const { nodes, edges } = toRecords(sourceGraph(loaded), columnsMapping(snapshot));
     const errors = new ErrorAggregator(ERROR_LIMIT);
     aggregateErrors(report, errors);
+    const idColumn = ownIdColumn({ ...config, ...report.source?.params }, nodes);
     return {
         held: {
-            nodes,
+            nodes: idColumn === undefined ? nodes : nodes.map(({ id, ...row }) => ({ id, [idColumn]: id, ...row })),
             edges,
             // ponytail: the direction a source declares is not passed on yet; add it once a source
             // states one in its report.
@@ -191,6 +216,8 @@ async function readRows(
             errors: errors.getErrors(),
             errorLimit: ERROR_LIMIT,
             idPath: "id",
+            ...(idColumn === undefined ? {} : { idColumn }),
+            ...(report.issues.some((issue) => issue.code === NO_UNIQUE_ID) ? { numbered: true as const } : {}),
             source: "source",
             target: "target",
         },

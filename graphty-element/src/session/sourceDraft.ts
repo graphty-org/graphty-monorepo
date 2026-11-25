@@ -43,6 +43,7 @@ import {
     type Copies,
     editRows,
     mintEditId,
+    rowSources,
     spaceRows,
     stepRows,
     type StepsEdit,
@@ -572,10 +573,15 @@ export class SourceDraftHandle implements SourceDraft {
         this.live("spaces");
         const { value, copies } = this.state;
         const before = new Set(this.base.value.steps.map((step) => step.source));
-        const added = new Set(value.steps.map((step) => step.source).filter((source) => !before.has(source)));
+        const added = rowSources(value, false);
+        const rows = rowSources(value, true);
         return Object.freeze(
             spaceRows(buildOf(value, copies)).map((row) =>
-                Object.freeze({ ...row, staged: row.sources.find((source) => added.has(source)) ?? null }),
+                Object.freeze({
+                    ...row,
+                    staged: added.get(row.space)?.find((source) => !before.has(source)) ?? null,
+                    rowsOf: Object.freeze([...(rows.get(row.space) ?? [])]),
+                }),
             ),
         );
     }

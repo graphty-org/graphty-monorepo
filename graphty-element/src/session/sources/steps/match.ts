@@ -181,6 +181,8 @@ interface Ways {
     readonly asked: MatchOptions;
     readonly caseOff: MatchOptions | null;
     readonly spacesOff: MatchOptions | null;
+    /** Both toggles on, when neither is. */
+    readonly bothOff: MatchOptions | null;
 }
 
 /**
@@ -194,6 +196,7 @@ function waysOf(o: MatchOptions): Ways {
         asked,
         caseOff: asked.ignoreCase ? null : { ...asked, ignoreCase: true },
         spacesOff: asked.ignoreSpaces ? null : { ...asked, ignoreSpaces: true },
+        bothOff: asked.ignoreCase || asked.ignoreSpaces ? null : { ignoreCase: true, ignoreSpaces: true },
     };
 }
 
@@ -241,15 +244,17 @@ function hashOne(
  * Hash one side's values every way in one pass, each value of a list apart.
  * @param values - The values.
  * @param ways - The ways.
- * @returns One table per way, in `asked`, `caseOff`, `spacesOff` order (null for a way not hashed).
+ * @returns One table per way, in `asked`, `caseOff`, `spacesOff`, `bothOff` order (null for a way not hashed).
  */
-function hash(values: Iterable<Entry>, ways: Ways): [Hashed, Hashed | null, Hashed | null] {
-    const out: [Hashed, Hashed | null, Hashed | null] = [
+function hash(values: Iterable<Entry>, ways: Ways): [Hashed, Hashed | null, Hashed | null, Hashed | null] {
+    const table = (way: MatchOptions | null): Hashed | null => (way === null ? null : (new Map() as Hashed));
+    const out: [Hashed, Hashed | null, Hashed | null, Hashed | null] = [
         new Map() as Hashed,
-        ways.caseOff ? (new Map() as Hashed) : null,
-        ways.spacesOff ? (new Map() as Hashed) : null,
+        table(ways.caseOff),
+        table(ways.spacesOff),
+        table(ways.bothOff),
     ];
-    const opts = [ways.asked, ways.caseOff, ways.spacesOff];
+    const opts = [ways.asked, ways.caseOff, ways.spacesOff, ways.bothOff];
     for (const [cell, node] of values) {
         for (const v of new Set(cellValues(cell).filter((each) => !isEmpty(each)))) {
             hashOne(out, opts, v ?? null, node);
@@ -268,6 +273,23 @@ function both(a: Hashed, b: Hashed): number {
     let n = 0;
     for (const k of b.keys()) {
         if (a.has(k)) {
+            n++;
+        }
+    }
+    return n;
+}
+
+/**
+ * Rows of side 2 with a value side 1 holds, compared one way: a list's row counts once.
+ * @param a - Side 1, hashed that way.
+ * @param two - Side 2's cells.
+ * @param o - The way.
+ * @returns How many rows.
+ */
+function rowsMeeting(a: Hashed, two: readonly Entry[], o: MatchOptions): number {
+    let n = 0;
+    for (const [cell] of two) {
+        if (cellValues(cell).some((v) => !isEmpty(v) && a.has(normalize(v, o)))) {
             n++;
         }
     }
@@ -343,9 +365,12 @@ function numbersOnly(a: Hashed, b: Hashed): number {
 export function matchCounts(value: SourceSteps, copies: Copies, pair: MatchPair, o: CountOptions = {}): MatchCounts {
     const ways = waysOf(o);
     const { one, two } = sides(upTo(value, o.before), copies, pair);
-    const [a, aCase, aSpaces] = hash(one, ways);
+    const [a, aCase, aSpaces, aBoth] = hash(one, ways);
     const [b, bCase, bSpaces] = hash(two, ways);
     const matched = both(a, b);
+    const matchedRows = rowsMeeting(a, two, ways.asked);
+    const more = (table: Hashed | null, o: MatchOptions | null): number | null =>
+        table === null || o === null ? null : rowsMeeting(table, two, o) - matchedRows;
     let fanOut = 0;
     for (const [k, { n }] of b) {
         if ((a.get(k)?.nodes.size ?? 0) > 1) {
@@ -362,6 +387,12 @@ export function matchCounts(value: SourceSteps, copies: Copies, pair: MatchPair,
         textVersusNumber: numbersOnly(a, b),
         moreWithIgnoreCase: aCase && bCase ? both(aCase, bCase) - matched : null,
         moreWithIgnoreSpaces: aSpaces && bSpaces ? both(aSpaces, bSpaces) - matched : null,
+        rows: two.length,
+        matchedRows,
+        emptyRows: two.filter(([cell]) => cellValues(cell).every((v) => isEmpty(v))).length,
+        moreRowsWithIgnoreCase: more(aCase, ways.caseOff),
+        moreRowsWithIgnoreSpaces: more(aSpaces, ways.spacesOff),
+        moreRowsWithBoth: more(aBoth, ways.bothOff),
     };
 }
 
@@ -382,7 +413,7 @@ export function matchValues(
     o: MatchValuesOptions = {},
 ): { readonly total: number; readonly values: readonly MatchValue[] } {
     const asked = { ignoreCase: o.ignoreCase === true, ignoreSpaces: o.ignoreSpaces === true };
-    const ways: Ways = { asked, caseOff: null, spacesOff: null };
+    const ways: Ways = { asked, caseOff: null, spacesOff: null, bothOff: null };
     const { one, two } = sides(upTo(value, o.before), copies, pair);
     const [a] = hash(one, ways);
     const [b] = hash(two, ways);

@@ -197,6 +197,8 @@ export interface MergeStep extends StepChoices, Translating {
     /** Settles the merged values of every node 2 folding into one node 1. */
     readonly aggregate?: Aggregate;
     readonly unmatchedFrom?: "keep" | "drop";
+    /** `"each"` folds a row whose value names several node 1s into each of them; absent leaves it out. */
+    readonly fanOut?: "each";
 }
 
 /** `join.node-values`: a row's columns onto the node its key names; builds no node unless `unmatchedRows: "add"`. */
@@ -278,6 +280,10 @@ export interface EdgesStep extends StepChoices, Translating {
      * makes the node unless the source's `join.add` did.
      */
     readonly rowNode?: "source" | "target" | "middle";
+    /** With `rowNode`: `"drop"` takes out the node of a row no edge reaches; absent keeps it. */
+    readonly unlinked?: "drop";
+    /** `"each"` makes an edge to each node an end's value names; absent leaves such a row out. */
+    readonly fanOut?: "each";
     /** `"merge"` folds a row into an edge an earlier step made between its ends; absent adds one. */
     readonly existing?: "merge";
     /** Links nodes whose rows share a value, instead of one edge per row (see {@link LinkRead}). */

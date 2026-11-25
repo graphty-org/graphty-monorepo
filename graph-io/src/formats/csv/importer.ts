@@ -195,6 +195,15 @@ export interface CsvImportOptions extends CommonImportOptions {
      */
     rowNumberIds?: boolean | undefined;
     /**
+     * What a table whose header names neither endpoints nor an id is: `"fail"` stops the import with
+     * E_CSV_NO_ENDPOINT_COLUMNS; `"nodes"` reads it as a node table by its values: keyed by the first
+     * text column that is nearly all distinct (95 of 100 rows), else numbered by row
+     * (W_CSV_NO_UNIQUE_ID). Two text columns that mostly hold the same values still stop the import:
+     * they are an edge list's ends. It applies to an unpaired table read as `"auto"`.
+     * @defaultValue "fail"
+     */
+    unnamed?: "fail" | "nodes" | undefined;
+    /**
      * Keep a node row whose id cell is blank, as a node whose id is this prefix followed by the
      * row's number (0 for the first data row), instead of skipping it with E_MISSING_ID. Choose a
      * prefix no id in the file starts with: a minted id that repeats one is merged like any repeated id.
@@ -386,6 +395,7 @@ interface ResolvedCsvOptions {
     readonly labelColumn: CsvColumnRef | null;
     readonly nodes: ImportInput | null;
     readonly rowNumberIds: boolean;
+    readonly unnamed: "fail" | "nodes";
     readonly blankIdPrefix: string | null;
     /** The NFC forms of the missing option's cell texts; null when none were given. */
     readonly missing: ReadonlySet<string> | null;
@@ -553,6 +563,12 @@ function resolveCsvOptions(options: (CsvImportOptions & CommonImportOptions) | u
     if (o.table === "adjacency") {
         checkAdjacencyOptions(o);
     }
+    if (o.unnamed !== undefined && o.unnamed !== "fail" && o.unnamed !== "nodes") {
+        throw new GraphFormatError("E_UNSUPPORTED", 'option unnamed: expected "fail" or "nodes"', {
+            option: "unnamed",
+            found: o.unnamed,
+        });
+    }
     if (o.rowNumberIds !== undefined && typeof o.rowNumberIds !== "boolean") {
         throw new GraphFormatError("E_UNSUPPORTED", "option rowNumberIds: expected a boolean", {
             option: "rowNumberIds",
@@ -577,6 +593,7 @@ function resolveCsvOptions(options: (CsvImportOptions & CommonImportOptions) | u
         labelColumn: o.labelColumn ?? null,
         nodes: nodesInput(o.nodes),
         rowNumberIds: o.rowNumberIds ?? false,
+        unnamed: o.unnamed ?? "fail",
         blankIdPrefix: o.blankIdPrefix ?? null,
         missing: missingSet(o.missing),
         explicitDirected: typeof options?.defaultDirected === "boolean" ? options.defaultDirected : null,
@@ -815,6 +832,41 @@ function isKey(rows: readonly PendingRow[], column: number, blankKept = false): 
         seen.add(text);
     }
     return true;
+}
+
+/** How nearly every value of a text column must be its own for it to key a table read by its values. */
+const NEARLY_UNIQUE = 0.95;
+
+/** How much of the smaller of two text columns' values the other must also hold for the two to read as an edge's ends. */
+const SHARED_ENDS = 0.5;
+
+/**
+ * The distinct set values of a column of text; none for a column of numbers.
+ * @param rows - the data rows
+ * @param column - the column index
+ * @returns the values
+ */
+function textValues(rows: readonly PendingRow[], column: number): ReadonlySet<string> {
+    const out = new Set<string>();
+    for (const { row } of rows) {
+        const text = row[column] ?? "";
+        if (!isBlank(text)) {
+            out.add(text);
+        }
+    }
+    const numeric = [...out].every((text) => Number.isFinite(Number(text)));
+    return numeric ? new Set() : out;
+}
+
+/**
+ * Whether two columns mostly hold the same values, as an edge list's two ends do.
+ * @param a - one column's values
+ * @param b - the other's
+ * @returns true when they do
+ */
+function sharesMost(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
+    const [small, big] = a.size <= b.size ? [a, b] : [b, a];
+    return small.size > 0 && [...small].filter((each) => big.has(each)).length >= SHARED_ENDS * small.size;
 }
 
 /**
@@ -1205,7 +1257,7 @@ class TableReader {
             csv.sourceColumn === null &&
             csv.targetColumn === null &&
             csv.nodes === null &&
-            idCandidates(names).length > 0 &&
+            (idCandidates(names).length > 0 || csv.unnamed === "nodes") &&
             headerDialect(names) === null &&
             findColumn(names, SOURCE_NAMES) < 0 &&
             findColumn(names, TARGET_NAMES) < 0
@@ -1500,7 +1552,7 @@ class TableReader {
         // headed user_id,friend_id names the same ids in both columns, and must fail rather than
         // lose its edges as a node table
         const idResolves = header ? findColumn(names, ID_NAMES) >= 0 || this.ownKey(names) : names.length >= 1;
-        if (this.kind === "auto" && csv.idColumn === null && !idResolves && !this.rowNumbers) {
+        if (this.kind === "auto" && csv.idColumn === null && !idResolves && !this.rowNumbers && !this.byValues()) {
             report.fail(
                 NO_ENDPOINT_COLUMNS_CODE,
                 `no source / target columns and no id column in the header (${shown}); the input is neither an edge table nor a node table`,
@@ -1508,6 +1560,35 @@ class TableReader {
                 { columns: [...names] },
             );
         }
+    }
+
+    /**
+     * Whether a table whose header names nothing is read as a node table by its values (`unnamed`):
+     * its rows were read ahead, and no two of its text columns mostly hold the same values, as an
+     * edge list's ends do.
+     * @returns true when it is
+     */
+    private byValues(): boolean {
+        const rows = this.drained;
+        if (this.state.csv.unnamed !== "nodes" || rows === null) {
+            return false;
+        }
+        const values = rows[0]?.row.map((_cell, i) => textValues(rows, i)) ?? [];
+        return !values.some((a, i) => values.slice(i + 1).some((b) => sharesMost(a, b)));
+    }
+
+    /**
+     * The column a table read by its values is keyed by: the first text column set on every row and
+     * nearly all distinct. The rows repeating a value are one node, as a repeated id is.
+     * @param names - the column names
+     * @returns the column, or -1 for none
+     */
+    private valueKey(names: readonly string[]): number {
+        const rows = this.drained ?? [];
+        return names.findIndex((_name, i) => {
+            const full = rows.every(({ row, quoted }) => i < row.length && !isUnset(row[i], quoted[i]));
+            return full && rows.length > 0 && textValues(rows, i).size >= NEARLY_UNIQUE * rows.length;
+        });
     }
 
     /**
@@ -1811,11 +1892,13 @@ class TableReader {
             rows === null || candidates.length === 0
                 ? findColumn(names, ID_NAMES)
                 : (candidates.find((column) => isKey(rows, column, this.state.csv.blankIdPrefix !== null)) ?? null);
-        if (chosen !== null) {
-            if (chosen >= 0) {
-                this.state.report.resolve("idColumn", names[chosen]);
+        const byValue = this.byValues() && (chosen ?? -1) < 0 ? this.valueKey(names) : -1;
+        const key = byValue >= 0 ? byValue : chosen;
+        if (key !== null && (key >= 0 || !this.byValues())) {
+            if (key >= 0) {
+                this.state.report.resolve("idColumn", names[key]);
             }
-            return chosen;
+            return key;
         }
         const columns = candidates.map((c) => names[c]);
         this.state.report.warning(
@@ -2648,6 +2731,7 @@ export const csvImporter: GraphImporter<CsvImportOptions> = Object.freeze({
         "missing",
         "nodes",
         "rowNumberIds",
+        "unnamed",
         "sourceColumn",
         "table",
         "targetColumn",

@@ -1024,6 +1024,8 @@ export interface StepRow {
     readonly act: StepAct | null;
     /** For a step that links nodes sharing a value: its choices, as `link` would take them again. */
     readonly link: SourceLinkOptions | null;
+    /** For a step that links nodes sharing a value: the space of the nodes it links. */
+    readonly holders: string | null;
     /** For an Extract's step: its choices, as `extract` would take them again for its source. */
     readonly extract: SourceExtractOptions | null;
 }
@@ -1050,6 +1052,10 @@ interface StepAct {
     readonly to?: NonNullable<SourceStepAct["to"]>;
     /** A row whose ends an edge already joins folds into that edge. */
     readonly existing?: "merge";
+    /** A row naming several nodes joins each of them. */
+    readonly fanOut?: "each";
+    /** A row no edge reaches makes no node. */
+    readonly unlinked?: "drop";
 }
 
 /**
@@ -1088,6 +1094,7 @@ export function stepAct(value: SourceSteps, step: Step): StepAct | null {
             repeated: step.repeated ?? null,
             aggregate: step.aggregate ?? null,
             unmatchedFrom: step.unmatchedFrom ?? "keep",
+            ...defined({ fanOut: step.fanOut }),
         };
     }
     const src = value.sources[step.source] as Source | undefined;
@@ -1120,7 +1127,7 @@ export function stepAct(value: SourceSteps, step: Step): StepAct | null {
         aggregate: step.aggregate ?? null,
         unmatched: step.unmatchedRows === "add" ? "add" : "skip",
         perPair: step.repeated === "first",
-        ...(step.existing === undefined ? {} : { existing: step.existing }),
+        ...defined({ existing: step.existing, fanOut: step.fanOut, unlinked: step.unlinked }),
         ...(ownTarget || ownSource ? {} : otherEnd(value, step, two, intoFrom ? "target" : "source")),
     };
 }
@@ -1177,6 +1184,62 @@ function stepLink(value: SourceSteps, step: Step): SourceLinkOptions | null {
         ignoreCase: step.ignoreCase === true,
         ignoreSpaces: step.ignoreSpaces === true,
     });
+}
+
+/**
+ * The space of the nodes a link's values are held by: the one it names, else the one its rows' own
+ * nodes are in by then, which is node 1's once a merge folded them.
+ * @param value - The value.
+ * @param step - The link's step.
+ * @param index - Its place.
+ * @returns The space.
+ */
+function holdersOf(value: SourceSteps, step: EdgesStep, index: number): string {
+    if (step.read.sourceSpace !== undefined) {
+        return step.read.sourceSpace;
+    }
+    const merged = value.steps
+        .slice(0, index)
+        .flatMap((s) =>
+            s.op === "join.merge" && s.source === step.source && s.off !== true && s.read.table !== "edges"
+                ? [s.read.space]
+                : [],
+        )
+        .at(-1);
+    if (merged !== undefined) {
+        return merged;
+    }
+    const src = value.sources[step.source] as Source | undefined;
+    return src === undefined ? ownSpace(step.source) : rowNodeSpace(src, step.read.table ?? "edges");
+}
+
+/**
+ * The sources whose own rows are nodes of each space: added into it, made nodes of it by an edge step,
+ * and, with `merged`, merged into its nodes.
+ * @param value - The value.
+ * @param merged - Whether the merged ones count.
+ * @returns The sources, by space.
+ */
+export function rowSources(value: SourceSteps, merged: boolean): ReadonlyMap<string, readonly string[]> {
+    const out = new Map<string, string[]>();
+    const note = (space: string, id: string): void => {
+        const held = out.get(space) ?? [];
+        out.set(space, held.includes(id) ? held : [...held, id]);
+    };
+    for (const step of value.steps) {
+        const src = value.sources[step.source] as Source | undefined;
+        if (src === undefined || step.off === true) {
+            continue;
+        }
+        if (step.op === "join.add" && src.mapping.nodes !== undefined) {
+            note(nodeSpace(src), src.id);
+        } else if (step.op === "join.edges" && step.rowNode !== undefined) {
+            note(rowNodeSpace(src, step.read.table ?? "edges"), src.id);
+        } else if (merged && step.op === "join.merge" && step.read.table !== "edges") {
+            note(step.read.space, src.id);
+        }
+    }
+    return out;
 }
 
 /**
@@ -1363,6 +1426,7 @@ export function stepRows(value: SourceSteps, result: BuildResult, copies: Copies
             except: step.op === "join.add" || step.except === undefined ? null : step.except,
             act: stepAct(value, step),
             link: stepLink(value, step),
+            holders: step.op === "join.edges" && step.link !== undefined ? holdersOf(value, step, index) : null,
             extract: stepExtract(value, index),
         });
     });

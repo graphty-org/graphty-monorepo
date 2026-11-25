@@ -554,6 +554,56 @@ const listOf = (list: unknown, name: string, ok: (item: Record<string, unknown>)
     Array.isArray(list) && list.every((item) => isObject(item) && typeof item[name] === "string" && ok(item));
 
 /**
+ * Whether a value is a list of text.
+ * @param v - The value.
+ * @returns True for one.
+ */
+const isTexts = (v: unknown): boolean => Array.isArray(v) && v.every((each) => typeof each === "string");
+
+/**
+ * Whether a value is absent or passes a test.
+ * @param v - The value.
+ * @param test - The test.
+ * @returns True when it may be read.
+ */
+const optional = (v: unknown, test: (v: unknown) => boolean): boolean => v === undefined || test(v);
+
+/**
+ * Whether a saved step holds its members in the shapes the build reads.
+ * @param step - The step.
+ * @returns True when it does.
+ */
+function stepShaped(step: Record<string, unknown>): boolean {
+    const { op, read, link, extract } = step;
+    const filter = (v: unknown): boolean =>
+        isObject(v) && typeof v.column === "string" && Array.isArray(v.values);
+    const reads = op === "join.add" ? read === undefined : isObject(read);
+    return (
+        reads &&
+        optional(step.columns, isTexts) &&
+        optional(step.rows, filter) &&
+        optional(step.except, filter) &&
+        optional(step.clash, (v) => typeof v === "string" || isObject(v)) &&
+        optional(step.aggregate, isObject) &&
+        optional(
+            link,
+            (v) =>
+                isObject(v) &&
+                isTexts(v.columns) &&
+                Number.isInteger(v.maxShared) &&
+                Number.isInteger(v.minShared),
+        ) &&
+        optional(
+            extract,
+            (v) =>
+                isObject(v) &&
+                optional(v.columns, isTexts) &&
+                optional(v.split, (split) => typeof split === "string" && split !== ""),
+        )
+    );
+}
+
+/**
  * Where a member's sources and steps are not shaped as saved, beyond each source.
  * @param member - The `graphty-sources` member.
  * @returns A pointer relative to the member, or null when the lists are shaped as saved.
@@ -564,6 +614,10 @@ function shapeProblem(member: Readonly<Record<string, unknown>>): string | null 
     }
     if (!listOf(member.joins, "op", (step) => OPS.has(step.op as string) && typeof step.source === "string")) {
         return "/joins";
+    }
+    const misshaped = (member.joins as Record<string, unknown>[]).findIndex((step) => !stepShaped(step));
+    if (misshaped !== -1) {
+        return `/joins/${String(misshaped)}`;
     }
     if (
         !listOf(

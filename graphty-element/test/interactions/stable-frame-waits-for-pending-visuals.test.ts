@@ -17,6 +17,7 @@ import { afterEach, assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { renderManagerOf } from "../../src/Graph.js";
+import { meshAnnouncementsDelivered } from "../helpers/mesh-announcements";
 import { hover, type Point } from "../helpers/real-input";
 
 const WIDTH = 480;
@@ -227,6 +228,27 @@ describe("waitForStableFrame waits for the frame that draws", () => {
         const now = haloOnScreen(element)?.scaling.x;
         assert.notStrictEqual(now, before, "the new style reached the halo");
         assert.strictEqual(drawnScale, now, "the stable frame drew the halo at the new scale");
+    });
+
+    it("a mesh announced after the frame that drew it does not settle the picture again", async () => {
+        const element = await mounted();
+        let settled = 0;
+        const onStable = (): void => {
+            settled++;
+        };
+        element.addEventListener("graph-frame-stable", onStable);
+        cleanups.unshift(() => {
+            element.removeEventListener("graph-frame-stable", onStable);
+        });
+
+        // The halo is built in the pass before the frame that draws it, and Babylon announces it a
+        // timer later, after that frame: the frame is still the final one.
+        await element.session.selection.apply({ ids: ["a"] });
+        await element.waitForStableFrame();
+        await meshAnnouncementsDelivered();
+        await element.waitForStableFrame();
+        assert.isDefined(haloOnScreen(element), "the stable frame drew the halo");
+        assert.strictEqual(settled, 1, "the selection settled the picture once");
     });
 
     it("a framing request", async () => {

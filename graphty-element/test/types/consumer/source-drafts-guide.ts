@@ -72,3 +72,23 @@ export async function sourceSharedValues(
         console.log(draft.steps()[step.index]?.buckets?.newEdges); // pairs sharing two values
     }
 }
+
+/**
+ * The guide's columns a space carries: a watchlist matched on the device list an earlier merge brought.
+ * @param draft - the open draft
+ * @param ids - the identifiers, staged
+ * @param watchlistCsv - the watchlist file
+ */
+export async function sourceMergedColumns(
+    draft: SourceDraft,
+    ids: string,
+    watchlistCsv: { type: string; config: { data: string } },
+): Promise<void> {
+    draft.merge({ from: { source: ids, field: "account" }, into: { space: "account" }, aggregate: { "*": "list" } });
+    console.log(draft.columns("account")); // [..., { name: "device", kind: "list", filled: 63 }]
+    const watch = await draft.stage(watchlistCsv, { key: "value" });
+    const onDevice = { from: { source: watch, field: "value" }, into: { space: "account", field: "device" } };
+    console.log(draft.matchCounts(onDevice).matched); // watchlist values some account's device list holds
+    draft.merge({ ...onDevice, unmatchedFrom: "drop" });
+    draft.link({ source: ids, nodes: "account", columns: ["device"] }); // accounts sharing a device
+}

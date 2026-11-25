@@ -343,6 +343,8 @@ const PLAIN_STRING_MEMBERS = new Set([
     "DraftView.untouched",
     "JoinChoices.membership",
     "JoinLink.kind",
+    // the separator the consumer's cells hold several values by, as the consumer passed it
+    "SourceExtractOptions.split",
     "SourceHubValue.value",
     "SourceDraftPreview.draft",
     "SourceDraftPreviewIssue.filter",

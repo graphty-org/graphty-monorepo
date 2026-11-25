@@ -266,6 +266,25 @@ if (step?.link) {
 }
 ```
 
+`draft.columns(space)` lists the columns the nodes of an id space carry as the draft builds them, the
+ones its merges brought included, each with its `kind` (`"list"` for a merged list) and how many nodes
+fill it. `into: { space, field }` matches on one of them, in `merge`, `connect`, `matchCounts` and
+`matchValues`, and a link's `nodes` links the nodes of a space by them. A list matches by each of its
+values, in a column the nodes carry or in a source's own cell:
+
+```ts
+draft.merge({ from: { source: ids, field: "account" }, into: { space: "account" }, aggregate: { "*": "list" } });
+draft.columns("account"); // [..., { name: "device", kind: "list", filled: 63 }]
+const watch = await draft.stage(watchlistCsv, { key: "value" });
+const onDevice = { from: { source: watch, field: "value" }, into: { space: "account", field: "device" } };
+draft.matchCounts(onDevice).matched; // watchlist values some account's device list holds
+draft.merge({ ...onDevice, unmatchedFrom: "drop" });
+draft.link({ source: ids, nodes: "account", columns: ["device"] }); // accounts sharing a device
+```
+
+A file with no key column stages with its rows keyed by their place: `summary().mapping.key` is
+absent, and no column is added to its rows.
+
 `preview()` compares the draft's graph with the committed one, counted over every row: totals and
 counts per type `before` and `after`; nodes and edges added, removed and changed; and for each
 step its counts (`buckets`) and their change from the committed ones:

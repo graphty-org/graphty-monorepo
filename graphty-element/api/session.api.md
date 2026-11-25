@@ -7793,6 +7793,9 @@ export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "match
     // @beta
     batch<T>(acts: () => T): T;
     clearPicks(options: SourceClearPicksOptions): number;
+    columns(space: SourceSpaceName, options?: {
+        readonly before?: number;
+    }): readonly SourceDraftColumn[];
     commit(): Promise<void>;
     connect(options: SourceConnectOptions): number;
     declareType(entry: SourceTypeEntry): void;
@@ -7865,6 +7868,13 @@ export interface SourceDraftCellsQuery {
 export interface SourceDraftChange {
     readonly draft: string;
     readonly reason: "opened" | "changed" | "committed" | "discarded" | "displayed";
+}
+
+// @public
+export interface SourceDraftColumn {
+    readonly filled: number;
+    readonly kind: SourceProfileKind | "list";
+    readonly name: string;
 }
 
 // @public
@@ -8227,7 +8237,7 @@ export type SourceJoinInto = {
 } | {
     readonly space: SourceSpaceName;
     readonly source?: undefined;
-    readonly field?: undefined;
+    readonly field?: string;
 };
 
 // @public
@@ -8265,6 +8275,7 @@ export interface SourceLinkOptions {
     readonly into?: SourceJoinInto;
     readonly maxShared?: number;
     readonly minShared?: number;
+    readonly nodes?: SourceSpaceName;
     readonly source: SourceKey;
     readonly space?: SourceSpaceName;
     readonly type?: SourceTypeName;

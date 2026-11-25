@@ -159,7 +159,7 @@ export function stepCardId(index: number): string {
  * @param row - The step.
  * @returns True when it is.
  */
-export function isJoin(row: SourceStepRow): boolean {
+function isJoin(row: SourceStepRow): boolean {
     return row.act !== null || row.link !== null || row.extract !== null;
 }
 
@@ -376,26 +376,31 @@ export function loadOrder(session: GraphSession, side: SourceJoinSide): number {
 }
 
 /**
- * A step's lines as its card reopens on them: the element's matches, each line's earlier loaded side first.
+ * A step's lines as its card reopens on them: the element's matches, the earlier loaded side first, and
+ * in a further line the side an earlier line names.
  * @param session - The element's session.
  * @param draft - The open draft.
  * @param row - The step.
  * @returns The lines.
  */
 export function linesOfStep(session: GraphSession, draft: SourceDraft, row: SourceStepRow): readonly CardLine[] {
-    const endOf = (ref: SourceJoinField): CardEnd => {
+    const endOf = (ref: SourceJoinField): CardEnd & { readonly side: SourceJoinSide } => {
         const side: SourceJoinSide = ref.source === undefined ? { space: ref.space } : { source: ref.source };
         return { side, field: ref.field ?? keyOf(draft, side, row.index) };
     };
+    const named: SourceJoinSide[] = [];
+    const place = ({ side }: { readonly side: SourceJoinSide }): number =>
+        named.some((each) => sameSide(each, side)) ? -Infinity : loadOrder(session, side);
     return draft.joinOutcomes({ step: row.index }).matches.map(({ a, b }) => {
         const one = endOf(a);
         if ("new" in b) {
+            named.push(one.side);
             return { a: one, b: { ...NO_END, isNew: true as const } };
         }
         const other = endOf(b);
-        return one.side !== null && other.side !== null && loadOrder(session, other.side) < loadOrder(session, one.side)
-            ? { a: other, b: one }
-            : { a: one, b: other };
+        const turned = place(other) < place(one);
+        named.push(one.side, other.side);
+        return turned ? { a: other, b: one } : { a: one, b: other };
     });
 }
 

@@ -410,8 +410,8 @@ const CASES: readonly Case[] = [
                 ["staff", "boss"],
             ],
         ],
-        ways: ["Edge from staff to staff, sid -> boss"],
-        pick: "Edge from staff to staff, sid -> boss",
+        ways: ["Edge from staff to staff, boss -> sid"],
+        pick: "Edge from staff to staff, boss -> sid",
         lines: ["staff, boss"],
         makes: [3, 2],
     },
@@ -514,6 +514,9 @@ describe("a join card's ways to join (source-steps)", () => {
             await selectJoin(again, lines[0]);
             await within(again).findByRole("radio", { checked: true, name: pick });
             assert.lengthOf(waysToJoin(again), ways.length);
+            const boxes = [...again.querySelectorAll<HTMLInputElement>(".jw-line input")];
+            const shown = boxes.filter((box) => box.type !== "hidden").map((box) => box.value);
+            assert.notInclude(shown, "", "every source and field is read back");
             if (makes[1] > 0) {
                 // An option set on it leaves what it makes, and which way its edges run, as they were.
                 const edges = (): string[] =>

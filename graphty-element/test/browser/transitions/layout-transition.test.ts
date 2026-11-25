@@ -466,8 +466,9 @@ describe("layout transitions", () => {
 });
 
 // Issue #9864: on the batched path a node added after the first frame is drawn from its row with no
-// Node, and a transition moves that row by itself. A dashed edge is laid on the CPU from its rows,
-// and was left at the old layout while its nodes moved.
+// Node, and a transition moves that row by itself. A dashed edge was laid on the CPU from its rows,
+// and was left at the old layout while its nodes moved. The batched path now pulls a dashed line from
+// the row table, as it does a solid one; the objects path still lays it on the CPU.
 describe.each([
     { path: "objects", view: "2d" },
     { path: "objects", view: "3d" },
@@ -512,10 +513,13 @@ describe.each([
 
             const scene = element.graph.getScene();
             const edge = [...element.graph.getDataManager().edges.values()][0];
-            assert.isNull(
-                edgeModule.edgeInternals.drawn(edge).pulled,
-                "the dashed line is laid on the CPU, not pulled",
-            );
+            const { pulled } = edgeModule.edgeInternals.drawn(edge);
+            if (path === "batched") {
+                assert.isNotNull(pulled, "the dashed line is pulled from the row table");
+            } else {
+                assert.isNull(pulled, "the dashed line is laid on the CPU, not pulled");
+            }
+
             const runner = (): ReturnType<typeof transitionsOf> => transitionsOf(element.graph.getLayoutManager());
             const misses: string[] = [];
             let moving = 0;

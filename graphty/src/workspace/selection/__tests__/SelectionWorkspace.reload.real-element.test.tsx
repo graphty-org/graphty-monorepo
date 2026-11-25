@@ -12,7 +12,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeAll, beforeEach, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { forgetAutosave, openAutosaved, reload, screenNow } from "../../../test/reload";
+import { expectRestoreMiss, forgetAutosave, openAutosaved, reload, screenNow } from "../../../test/reload";
 import { screen, waitFor, within } from "../../../test/test-utils";
 
 /** Starts with nothing kept: no autosaved work and nothing in this tab's session storage. */
@@ -190,6 +190,8 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
             await screen.findByRole("region", { name: "Matches" });
             // The empty card holds nothing graphty-element could keep: its workspace goes with it.
             const workspace = screenNow().filter((each) => !was.includes(each));
+            // A loss by design: the card holds nothing to keep, so its workspace's key names nothing.
+            expectRestoreMiss();
 
             const after = await reload(before, { lostSession, lost: workspace });
             await waitFor(() => {

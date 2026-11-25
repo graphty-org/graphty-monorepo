@@ -51,7 +51,7 @@ describe("source-steps off: nothing changes", () => {
         assert.notInclude(saved, "join.add");
         assert.notInclude(saved, '"joins"', "no sources and steps in the sources member");
         const digest = createHash("sha256").update(JSON.stringify({ sources, events, saved })).digest("hex");
-        assert.strictEqual(digest, "c2a513501e341417c4cbcafe2c8e03a71346320259fafcc707dc8ddfb682669c");
+        assert.strictEqual(digest, "9e1ed81bb14ab231b66c08f16af6e8fc87b6930862242efd498acb93a27c3723");
         session.dispose();
     });
 

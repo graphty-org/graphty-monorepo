@@ -389,7 +389,14 @@ function writeTree(rows: readonly StyleDocumentRow[], idAt: (place: number) => s
             return layer === undefined ? [] : [{ layer, ...flags }];
         }
 
-        return [{ folder: row.folder, children: writeTree(row.children, idAt), ...flags }];
+        return [
+            {
+                folder: row.folder,
+                ...(row.id === undefined ? {} : { id: row.id }),
+                children: writeTree(row.children, idAt),
+                ...flags,
+            },
+        ];
     });
 }
 
@@ -976,7 +983,14 @@ function readTree(rows: unknown, placeOf: ReadonlyMap<string, number>): StyleDoc
         }
 
         return typeof row.folder === "string"
-            ? [{ folder: row.folder, children: readTree(row.children, placeOf), ...flags }]
+            ? [
+                  {
+                      folder: row.folder,
+                      ...(typeof row.id === "string" ? { id: row.id } : {}),
+                      children: readTree(row.children, placeOf),
+                      ...flags,
+                  },
+              ]
             : [];
     });
 }
@@ -1081,6 +1095,7 @@ async function apply(
             await context.tx.styles.applyTemplate({
                 version: 1,
                 layers: [spec],
+                ids: [document.ids?.[at]],
                 ...(document.palettes === undefined ? {} : { palettes: document.palettes }),
             });
         } catch (error) {
@@ -1168,9 +1183,11 @@ async function read(section: ReadSection, context: ReadContext): Promise<void> {
         (shader): shader is { id: string; text: string } =>
             isObject(shader) && typeof shader.id === "string" && typeof shader.text === "string",
     );
+    const writtenIds = indexes.map((index) => (raws[index] as JsonObject).id);
     const document: StyleDocument = {
         version: 1,
         layers: specs,
+        ids: writtenIds.map((id) => (typeof id === "string" ? id : undefined)),
         ...(shaders.length === 0 ? {} : { shaders }),
         ...(body.tree === undefined ? {} : { tree: readTree(body.tree, placeOf) }),
     };
@@ -1192,6 +1209,10 @@ async function read(section: ReadSection, context: ReadContext): Promise<void> {
         const original = raws[applied[place]];
         if (isObject(original)) {
             memory.layers.set(id, { original, baseline: "" });
+            // The id was taken here already: whoever held the layer by its saved id must look again.
+            if (typeof original.id === "string" && original.id !== id) {
+                problems.push({ code: "W_LAYER_ID_CHANGED", params: { section: "style", from: original.id, to: id } });
+            }
         }
     });
 

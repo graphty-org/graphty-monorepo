@@ -91,21 +91,8 @@ const KNOWN_STRIPS: readonly string[] = [];
 /** Pop-overs one of whose tabs is more than 6 lines tall. */
 const KNOWN_TAB_TALL: readonly string[] = [];
 
-/**
- * "..." menus of more than 16 entries, with a heading over more than 6, or not fully visible. A text's 16-entry menu
- * scrolls: compact-mantine's header menu (`Popout.Panel` `more`) opens above or below its button only, where 16
- * entries under 4 headings do not fit; opening it beside the pop-over is a compact-mantine change, waiting on the
- * owner.
- */
-const KNOWN_MENU_LONG: readonly string[] = [
-    "edge.endCaption",
-    "edge.label",
-    "edge.tooltip",
-    "edge.xlabel",
-    "node.label",
-    "node.tooltip",
-    "node.xlabel",
-];
+/** "..." menus of more than 16 entries, with a heading over more than 6, or not fully visible. */
+const KNOWN_MENU_LONG: readonly string[] = [];
 
 /** Group pop-overs more than 6 lines tall. */
 const KNOWN_GROUP_TALL: readonly string[] = [];
@@ -145,10 +132,11 @@ const KNOWN_NAMES_NOT_BUILT_IN: readonly string[] = [];
 const KNOWN_EDITED_TWICE: readonly string[] = [];
 
 /**
- * Pop-overs with a drop-down of fewer than six options. A text's Look (5 looks, whose words do not fit grouped buttons
- * on a 200 px line, and Font (an open list a file can add to); an arrow's End (4 ends, "Middle to target" too long);
- * a node's Shading and an edge's Force curves, sidebar rows (design "Sidebar rows with ... a drop-down"). Each waits
- * on the owner's call.
+ * Pop-overs with a drop-down of fewer than six options, each kept with its reason recorded in design.md ("Drop-downs
+ * of fewer than six"): a text's Look (five looks whose words do not fit grouped buttons on a 200 px line, and no
+ * common-knowledge icon for a card, a pill or a callout); an arrow's End (four ends, "Middle to target" too long, no
+ * common-knowledge icon for a middle end); an edge's Force curves (Barnes-Hut and ForceAtlas2, names of methods too
+ * long for buttons on the 176 px row, with no icon).
  */
 const KNOWN_FEW_OPTIONS: readonly string[] = [
     "edge.arrow",
@@ -157,7 +145,6 @@ const KNOWN_FEW_OPTIONS: readonly string[] = [
     "edge.label",
     "edge.tooltip",
     "edge.xlabel",
-    "node.finish",
     "node.label",
     "node.tooltip",
     "node.xlabel",
@@ -255,6 +242,25 @@ const STATES: readonly {
         set: { "node.borderColor": "#111111", "node.borderWidth": 0.1, "node.borderStyle": "sinewave" },
     },
     { side: "edge", thing: "line", state: "strands", set: { "edge.strandColors": "#6366F1 #000000" } },
+    // A list of seven: it is one line of its pop-over, and the list opens beside (design "Lists in pop-overs").
+    {
+        side: "node",
+        thing: "pie",
+        state: "seven",
+        set: { "node.pieColors": "#e41a1c #377eb8 #4daf4a #984ea3 #ff7f00 #ffff33 #a65628" },
+    },
+    {
+        side: "node",
+        thing: "stripes",
+        state: "seven",
+        set: { "node.stripeColors": "#e41a1c #377eb8 #4daf4a #984ea3 #ff7f00 #ffff33 #a65628" },
+    },
+    {
+        side: "edge",
+        thing: "line",
+        state: "seven strands",
+        set: { "edge.strandColors": "#e41a1c #377eb8 #4daf4a #984ea3 #ff7f00 #ffff33 #a65628" },
+    },
 ];
 
 const WALKED = (["node", "edge"] as const).flatMap((side) =>
@@ -514,7 +520,7 @@ async function closeAll(): Promise<void> {
  * Drop-downs of fewer than six options, opened as a reader does to count them: fewer than six exclusive options are
  * grouped buttons (owner's input rules). A Kind or Look drop-down too.
  * @param root - the surface.
- * @param reopen - opens it again, when Escape closed it.
+ * @param reopen - opens it again, fresh, for each drop-down.
  * @returns their names, with their options.
  */
 async function fewOptions(root: HTMLElement, reopen: () => Promise<HTMLElement>): Promise<string[]> {
@@ -547,8 +553,8 @@ async function fewOptions(root: HTMLElement, reopen: () => Promise<HTMLElement>)
         if (options.length < 6) {
             found.push(`${select.getAttribute("aria-label") ?? ""} (${options.join(" / ")})`);
         }
-        // Escape closes the list, and the pop-over with it: it is opened again for the next drop-down. (The list
-        // covers its field, and Tab leaves it open.)
+        // Escape closes only the list, leaving the pop-over open; the next drop-down still starts from a fresh
+        // pop-over. (The list covers its field, and Tab leaves it open.)
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
             assert.isTrue(!select.isConnected || select.getAttribute("aria-expanded") !== "true", "its list closed");

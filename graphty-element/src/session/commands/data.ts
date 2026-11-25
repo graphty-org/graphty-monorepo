@@ -1136,10 +1136,7 @@ export const dataImport: UndoableDefinition<DataImportCommand> = {
         // The file's styles, in this same step.
         const applied = await applyFileStyles(command, outcome ?? null, ctx);
         ({ sceneScale } = applied);
-        // The layout the drawn styles ask for, unless the reader asked for its own.
-        if (applied.layout !== null && !ctx.state.graph.values.has(REQUESTED_LAYOUT_VALUE)) {
-            ctx.services.data?.values?.({ [REQUESTED_LAYOUT_VALUE]: applied.layout }, ctx.draft);
-        }
+        requestLayout(applied.layout, ctx);
         if (earlier !== null) {
             await settleEarlierLayers(earlier, ctx);
         }
@@ -1151,6 +1148,17 @@ export const dataImport: UndoableDefinition<DataImportCommand> = {
         }
     },
 };
+
+/**
+ * Records the layout the drawn styles ask for, unless the reader asked for its own.
+ * @param layout - The layout the file's styles ask for, or null.
+ * @param ctx - The import's context.
+ */
+function requestLayout(layout: Awaited<ReturnType<typeof applyFileStyles>>["layout"], ctx: UndoableContext): void {
+    if (layout !== null && !ctx.state.graph.values.has(REQUESTED_LAYOUT_VALUE)) {
+        ctx.services.data?.values?.({ [REQUESTED_LAYOUT_VALUE]: layout }, ctx.draft);
+    }
+}
 
 /** What a replacing load reads of the graph and stack before it loads. */
 interface Earlier {

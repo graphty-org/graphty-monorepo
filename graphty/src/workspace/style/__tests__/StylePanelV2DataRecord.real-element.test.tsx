@@ -140,7 +140,8 @@ describe("Style panel v2's record from data", () => {
         assert.match(within(pop).getByRole<HTMLInputElement>("combobox", { name: "Sample" }).value, /^TP53/);
         await userEvent.keyboard("{Escape}");
 
-        const first = await screen.findByRole("button", { name: /^degree, 34$/ });
+        // The first entry's line moves from any of its own controls: its "..." here.
+        const first = await screen.findByRole("button", { name: "degree settings" });
         first.focus();
         await userEvent.keyboard("{Alt>}{ArrowDown}{/Alt}");
         await waitFor(() => {

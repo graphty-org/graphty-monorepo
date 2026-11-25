@@ -17,7 +17,7 @@ import {
     writeChannelList,
 } from "@graphty/graphty-element/catalog";
 import type { NodeId } from "@graphty/graphty-element/session";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useId, useState } from "react";
 
 import { useWorkspace } from "../../state/WorkspaceContext";
 import type { RowContext } from "../PropertyRow";
@@ -284,6 +284,8 @@ function KindTabs({ args }: Readonly<{ args: EntryArgs }>): React.JSX.Element {
  */
 function SourceControl({ args }: Readonly<{ args: EntryArgs }>): React.JSX.Element {
     const { ctx, channel, entry, name, put, beside, setBeside } = args;
+    // The Calculate pop-over the Graph value opens, named by the button (aria-controls).
+    const calculateId = useId();
     if ("field" in entry || "pattern" in entry) {
         return (
             <DataFieldPicker
@@ -307,12 +309,14 @@ function SourceControl({ args }: Readonly<{ args: EntryArgs }>): React.JSX.Eleme
                     label="Graph value"
                     words={entryName(ctx.session, { ...entry, label: undefined })}
                     opens="dialog"
+                    controls={calculateId}
                     expanded={beside === "calculate"}
                     onClick={() => {
                         setBeside(beside === "calculate" ? null : "calculate");
                     }}
                 />
                 <BesidePopover
+                    id={calculateId}
                     title="Calculate"
                     opened={beside === "calculate"}
                     onOpenChange={(open) => {
@@ -450,18 +454,22 @@ function FormatLine({ args }: Readonly<{ args: EntryArgs }>): React.JSX.Element 
     const { channel, entry, fact, name, put, beside, setBeside } = args;
     const numeric = numericEntry(entry, fact);
     const sample = numeric ? sampleNumber(fact) : (fact?.text ?? "Text");
+    // The Format pop-over the line's button opens, named by the button (aria-controls).
+    const formatId = useId();
     return (
         <PopLine line="entry.format" name="Format">
             <ValueButton
                 label={`${name} format`}
                 words={formatValue(sample, entry.format)}
                 opens="dialog"
+                controls={formatId}
                 expanded={beside === "format"}
                 onClick={() => {
                     setBeside(beside === "format" ? null : "format");
                 }}
             />
             <BesidePopover
+                id={formatId}
                 title="Format"
                 opened={beside === "format"}
                 onOpenChange={(open) => {

@@ -394,9 +394,9 @@ export function refuseBoth(op: Step["op"], repeated: string | null | undefined):
 }
 
 /**
- * Merge 2 into 1 (3.6): a staged source 2 is added in its own space first, then `join.merge` folds
- * each of its nodes into the node 1 its field names.
- * @param value - The value.
+ * Merge 2 into 1 (3.6): a staged node 1 is added first, a staged source 2 in its own space, then
+ * `join.merge` folds each of its nodes into the node 1 its field names.
+ * @param prior - The value.
  * @param copies - The rows as read.
  * @param o - The choices.
  * @returns The next value.

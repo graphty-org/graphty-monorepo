@@ -368,4 +368,57 @@ describe("the join workspace (source-steps)", () => {
         });
         assert.isNotNull(screen.queryByRole("dialog", { name: "Join" }), "B leaves the workspace open");
     });
+    it("Direction 2->1 on a written Connect card rewrites its step the other way, still one card", async () => {
+        const { session, modal } = await opened();
+        await connect(modal, session);
+        await userEvent.click(within(within(modal).getByRole("radiogroup", { name: "Direction" })).getByText("2->1"));
+        await waitFor(() => {
+            assert.strictEqual(session.data.currentDraft()?.steps().at(-1)?.act?.direction, "from-into");
+        });
+        assert.strictEqual(cardCount(modal), 1, "the card is rewritten, not drawn again");
+    });
+
+    it("deleting a written card takes its step out, and Undo brings it back", async () => {
+        const { session, modal } = await opened();
+        await connect(modal, session);
+        const edges = (): boolean =>
+            session.data
+                .currentDraft()
+                ?.steps()
+                .some((row) => row.op === "join.edges") === true;
+        const card = modal.querySelector<HTMLElement>("[data-join-card]:not([data-join-card^='add:'])");
+        assert.isNotNull(card);
+        if (card !== null) {
+            await userEvent.click(within(card).getByRole("button", { name: /^Delete / }));
+        }
+        await waitFor(() => {
+            assert.isFalse(edges(), "the card's step is gone");
+        });
+        await userEvent.click(within(modal).getByRole("button", { name: /^Undo/ }));
+        await waitFor(() => {
+            assert.isTrue(edges(), "Undo brings the step back");
+        });
+    });
+
+    it("draws two cards for two joins from one source", async () => {
+        const { session, modal } = await opened(false, { name: "doors.csv", text: "door,name\nD1,North\nD2,South" });
+        await connect(modal, session);
+        await userEvent.click(within(modal).getByRole("button", { name: /^\+ Join/ }));
+        await waitFor(() => {
+            assert.strictEqual(cardCount(modal), 2);
+        });
+        await choose(modal, "In graph type", "doors.csv");
+        await choose(modal, "Incoming field", "door");
+        await connect(modal, session);
+        await waitFor(() => {
+            assert.strictEqual(
+                session.data
+                    .currentDraft()
+                    ?.steps()
+                    .filter((row) => row.op === "join.edges").length,
+                2,
+            );
+        });
+        assert.strictEqual(cardCount(modal), 2, "one card per join, both drawn");
+    });
 });

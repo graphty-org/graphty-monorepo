@@ -357,7 +357,7 @@ async function openLoaded(source: {
     });
     await session.data.import(source);
     const row = await screen.findByRole("listitem", { name: /server/ });
-    await userEvent.click(row.querySelector(".dp-source-main") ?? row);
+    await userEvent.click(row.querySelector<HTMLElement>("[aria-expanded]") ?? row);
     const panel = await screen.findByRole("complementary", { name: "Inspector" });
     await within(panel).findByRole("button", { name: "Edit source" });
     return { session, panel };
@@ -457,7 +457,7 @@ describe("editing a network source", () => {
         });
         await session.data.import({ type: "csv", config: { data: "source,target\na,b\n" }, name: "ships.csv" });
         const row = await screen.findByRole("listitem", { name: /ships/ });
-        await userEvent.click(row.querySelector(".dp-source-main") ?? row);
+        await userEvent.click(row.querySelector<HTMLElement>("[aria-expanded]") ?? row);
         const panel = await screen.findByRole("complementary", { name: "Inspector" });
         await within(panel).findByText("Type");
         assert.isNull(within(panel).queryByRole("button", { name: "Edit source" }));
@@ -518,7 +518,7 @@ describe("server sources on the real element", () => {
         const row = await screen.findByRole("listitem", { name: /^People server/ });
         // The load takes focus to its new row.
         await waitFor(() => {
-            assert.strictEqual(document.activeElement, row.querySelector(".dp-source-main"));
+            assert.strictEqual(document.activeElement, row.querySelector("[aria-expanded]"));
         });
         await userEvent.hover(row);
         await userEvent.click(within(row).getByRole("button", { name: "Load more" }));
@@ -588,12 +588,20 @@ describe("server sources on the real element", () => {
         assert.notInclude(text, "sekret-key", "the key is never in the project");
     });
 
-    it("shows a counted server load as 10 of 171 on its row's node chip", async () => {
+    it("shows a counted server load as 10 of 171 in its closed entry's summary", async () => {
         const { session } = await openDataPlace();
         await session.data.import({ source: COUNTED, config: {}, name: "Counted" });
         const row = await screen.findByRole("listitem", { name: "Counted" });
+        const header = row.querySelector<HTMLElement>("[aria-expanded]");
+        assert.isNotNull(header);
+        if (header?.getAttribute("aria-expanded") === "true") {
+            await userEvent.click(header);
+        }
         await waitFor(() => {
-            assert.strictEqual(row.querySelector('.dp-source-chips [data-kind="node"]')?.textContent, "Node 10 of 171");
+            assert.strictEqual(
+                row.querySelector("[data-testid=control-section-summary]")?.textContent,
+                "10 of 171 nodes",
+            );
         });
     });
 

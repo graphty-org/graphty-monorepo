@@ -314,7 +314,7 @@ interface Scale {
  * @param args - the spec.
  * @param patch - the parts.
  */
-export function putScale(args: GroupArgs, patch: Partial<Scale>): void {
+function putScale(args: GroupArgs, patch: Partial<Scale>): void {
     const next = pruned({ ...(args.spec.scale as Scale | undefined), ...patch });
     args.put({ scale: Object.keys(next).length === 0 ? undefined : next });
 }

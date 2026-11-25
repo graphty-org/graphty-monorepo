@@ -57,7 +57,7 @@ const skip = flags.includes("skip-layout"),
     quality = flags.includes("quality"),
     planted = quality || flags.includes("planted");
 const QUALITY_CAP_MS = 1000 * Number(process.env.BENCH_QUALITY_CAP_S ?? 60);
-const QUALITY_MARKS = [1000, 5000, 15000, 30000];
+const QUALITY_MARKS = (process.env.BENCH_QUALITY_MARKS_S ?? "1,5,15,30").split(",").map((x) => 1000 * Number(x));
 // BENCH_QUALITY_STEPS: cosmos.gl's quality stage steps its simulation by hand, up to this many steps (see B.quality).
 const QUALITY_STEPS = Number(process.env.BENCH_QUALITY_STEPS ?? 0);
 const QUALITY_STEP_MARKS = [100, 500, 1000, 2000, 4000];
@@ -129,6 +129,7 @@ const out = {
     cosmosConfig:
         lib === "cosmos" && process.env.BENCH_COSMOS_CONFIG ? JSON.parse(process.env.BENCH_COSMOS_CONFIG) : undefined,
     scenario: process.env.BENCH_SCENARIO || undefined,
+    qualityCapS: quality && !QUALITY_STEPS ? QUALITY_CAP_MS / 1000 : undefined,
     n: N,
     m: M,
     dpr: DPR,
@@ -286,10 +287,15 @@ try {
         );
         await page
             .screenshot({
-                path: join(dirname(RESULTS), "shots", `quality-${lib}-${RENDER_PATH ?? "default"}-${N}.png`),
-                timeout: 20000,
+                path: join(
+                    dirname(RESULTS),
+                    "shots",
+                    `quality-${lib}-${RENDER_PATH ?? "default"}${SOFTWARE ? "-swiftshader" : ""}-${N}-${out.qualityCapS ?? QUALITY_STEPS + "steps"}.png`,
+                ),
+                // SwiftShader can take far longer than the card to draw the frame a screenshot waits for.
+                timeout: SOFTWARE ? 300000 : 20000,
             })
-            .catch(() => {});
+            .catch((e) => console.log("screenshot failed", String(e).slice(0, 120)));
         throw new Error(ONLY_STAGE_DONE);
     }
     if (style) log("restyle", await page.evaluate((name) => globalThis.B.restyle(name), style));

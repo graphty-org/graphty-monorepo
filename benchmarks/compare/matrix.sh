@@ -58,10 +58,10 @@ declare -A C=(
   [lean-l-full]="graphty lean on 1000000 1000000 1"
   [lean-l-dpr2]="graphty lean on 1000000 1000000 2 skip-layout"
   [quality-cosmos-s]="cosmos default on 10000 100000 1 quality"
-  [quality-cosmos-m]="cosmos default on 100000 1000000 1 quality"
+  [quality-cosmos-m]="cosmos default on 100000 990000 1 quality"
   [quality-cosmos-l]="cosmos default on 1000000 2000000 1 quality"
   [quality-lean-s]="graphty lean on 10000 100000 1 quality"
-  [quality-lean-m]="graphty lean on 100000 1000000 1 quality"
+  [quality-lean-m]="graphty lean on 100000 990000 1 quality"
   [quality-lean-l]="graphty lean on 1000000 2000000 1 quality"
 )
 [ "$1" = list ] && { printf '%s\n' "${!C[@]}" | sort; exit; }

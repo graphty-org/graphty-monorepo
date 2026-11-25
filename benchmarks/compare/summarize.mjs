@@ -223,18 +223,20 @@ for (const [size, key, cfgs] of [
 // mark (seconds of layout, or steps for a stepped run) and at the end of the run.
 if (qualityRows.length) {
     console.log(
-        "\n## Layout quality\n\nPlanted partition graphs, 100 communities. Stress and edge spread: lower is better; neighborhood, silhouette and purity: higher is better (quality.js). A cell is the median across runs.\n\n| Library | Nodes | At | Stress | Edge spread | Neighborhood | Silhouette | Purity | Runs |\n|---|---|---|---|---|---|---|---|---|",
+        "\n## Layout quality\n\nPlanted partition graphs, 100 communities. Stress and edge spread: lower is better; neighborhood, silhouette and purity: higher is better (quality.js). A cell is the median across runs.\n\n| Library | Nodes + edges requested | At | Stress | Edge spread | Neighborhood | Silhouette | Purity | Runs |\n|---|---|---|---|---|---|---|---|---|",
     );
     const keyOf = (r) =>
         [
             r.lib === "cosmos" ? "cosmos.gl" : `graphty-element ${r.renderPath ?? "default"}`,
             r.software ? "(SwiftShader)" : "",
+            (r.qualityCapS ?? 60) === 60 ? "" : `(${r.qualityCapS} s run)`,
         ]
+            .filter(Boolean)
             .join(" ")
             .trim();
     const byKey = new Map();
     for (const r of qualityRows) {
-        const k = `${keyOf(r)}|${r.n}`;
+        const k = `${keyOf(r)}|${r.n.toLocaleString("en-US")} + ${r.m.toLocaleString("en-US")}`;
         byKey.set(k, [...(byKey.get(k) ?? []), r]);
     }
     const fields = ["stress", "edgeSpread", "neighborhood", "silhouette", "purity"];
@@ -243,27 +245,21 @@ if (qualityRows.length) {
             const v = snaps.map((x) => x?.[f]).filter((x) => typeof x === "number");
             return v.length ? med(v).toFixed(3) : "-";
         });
-        console.log(`| ${lib} | ${n.toLocaleString("en-US")} | ${at} | ${cells.join(" | ")} | ${snaps.length} |`);
+        console.log(`| ${lib} | ${n} | ${at} | ${cells.join(" | ")} | ${snaps.length} |`);
     };
     for (const [k, rs] of byKey) {
-        const [lib, n] = [k.split("|")[0], Number(k.split("|")[1])];
+        const [lib, n] = k.split("|");
         line(
             lib,
             n,
             "start",
             rs.map((r) => r.quality.start),
         );
-        const marks = rs[0].quality.snaps
-            .slice(0, -1)
-            .map((x) => (x.atStep ? `step ${x.atStep}` : `${x.atMs / 1000} s`));
-        marks.forEach((m, i) =>
-            line(
-                lib,
-                n,
-                m,
-                rs.map((r) => r.quality.snaps[i]),
-            ),
-        );
+        // Marks are matched by name, so runs with different marks (BENCH_QUALITY_MARKS_S) pool where they share one.
+        const label = (x) => (x.atStep ? `step ${x.atStep}` : `${x.atMs / 1000} s`);
+        const marks = [...new Set(rs.flatMap((r) => r.quality.snaps.slice(0, -1).map((x) => label(x))))];
+        for (const at of marks)
+            line(lib, n, at, rs.map((r) => r.quality.snaps.slice(0, -1).find((x) => label(x) === at)).filter(Boolean));
         const ends = rs.map((r) => r.quality.snaps.at(-1));
         const settled = rs.filter((r) => r.quality.settledMs !== null).length;
         line(

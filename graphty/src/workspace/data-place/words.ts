@@ -341,7 +341,7 @@ function matchedUnit(shape: JoinShape): "node" | "edge" | "row" {
  * @param bytes - how many bytes.
  * @returns such as "45 B", "12 KB" or "1.4 MB".
  */
-export function sizeWords(bytes: number): string {
+function sizeWords(bytes: number): string {
     if (bytes < 1000) {
         return `${String(bytes)} B`;
     }

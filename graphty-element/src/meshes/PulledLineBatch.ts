@@ -167,6 +167,40 @@ export const LEAN_TEMPLATE = { indices: LEAN_TEMPLATE_INDICES, vertices: LEAN_TE
 /** The lean program's define, which a batch that switches program adds to and takes from its material. */
 const LEAN_DEFINE = "#define EDGE_PULLED_LEAN";
 
+/**
+ * What holds pieces of a scene's straight batches (`Edge`s, `EdgeRowLines`): asked for the pieces of a straight
+ * batch that a curve batch can draw (no head, no seen-through end), and told where each moved
+ * ({@link PulledLineBatch.moveStraightInto}).
+ */
+export interface StraightPieceHolder {
+    /**
+     * The pieces of a batch this holds that a curve batch can draw.
+     * @param batch - The straight batch.
+     * @returns Each piece, with what to call once it has moved.
+     */
+    straightPieces(
+        batch: PulledLineBatch,
+    ): Iterable<{ piece: number; moved: (to: PulledLineBatch, piece: number) => void }>;
+}
+
+/** Each scene's {@link StraightPieceHolder}s. */
+const HOLDERS = new WeakMap<Scene, Set<StraightPieceHolder>>();
+
+/**
+ * Name a holder of a scene's straight pieces ({@link PulledLineBatch.moveStraightInto}).
+ * @param scene - The scene.
+ * @param holder - The holder.
+ */
+export function holdStraightPieces(scene: Scene, holder: StraightPieceHolder): void {
+    let holders = HOLDERS.get(scene);
+    if (holders === undefined) {
+        holders = new Set();
+        HOLDERS.set(scene, holders);
+    }
+
+    holders.add(holder);
+}
+
 /** Each scene's batches that can draw their pieces with either program; see {@link drawLinesLean}. */
 const SWITCHING = new WeakMap<Scene, Set<PulledLineBatch>>();
 
@@ -1409,6 +1443,42 @@ export class PulledLineBatch {
     }
 
     /**
+     * Compare two pieces' draw places: `edge.drawOrder` first, then the width group's rank and slot, then the piece.
+     * @param a - A piece.
+     * @param b - Another.
+     * @returns Below 0 when `a` draws first.
+     */
+    private drawsBefore(a: number, b: number): number {
+        const { keys, orders } = this;
+        return (orders?.[a] ?? UNORDERED) - (orders?.[b] ?? UNORDERED) || (keys?.[a] ?? a) - (keys?.[b] ?? b) || a - b;
+    }
+
+    /**
+     * Move this straight batch's pieces that a curve batch can draw into a curve batch of the same key that was just
+     * made, in this batch's draw order, before the curve that made it takes a piece: straight lines and curves of one
+     * key then draw from one batch, in the order their pieces were taken, as the object path's one line batch draws
+     * them, with widths and `edge.drawOrder` ranked among all of them (#9201). A piece under a pulled head stays.
+     * @param to - The curve batch.
+     */
+    moveStraightInto(to: PulledLineBatch): void {
+        const moving = [...(HOLDERS.get(this.scene) ?? [])]
+            .flatMap((holder) => [...holder.straightPieces(this)])
+            .filter(({ piece }) => this.rows[piece * this.pieceFloats + 7] === 0 && !this.endLooks.has(piece))
+            .sort((a, b) => this.drawsBefore(a.piece, b.piece));
+        for (const { piece, moved } of moving) {
+            const at = piece * this.pieceFloats;
+            const order = this.orders?.[piece];
+            const taken = to.acquire(this.rows[at + 2], order === UNORDERED ? undefined : order);
+            to.rows.set(this.rows.subarray(at, at + 7), taken * to.pieceFloats);
+            to.touch(taken);
+            to.setHidden(taken, this.hidden[piece] === 255);
+            to.drawStraight(taken);
+            this.release(piece);
+            moved(to, taken);
+        }
+    }
+
+    /**
      * Put the pieces handed out in draw order ({@link PulledLineBatch.keys}): in the draw order table while two widths
      * interleave, else in plain piece order with no table read.
      */
@@ -1426,11 +1496,8 @@ export class PulledLineBatch {
         if (ordered) {
             // ponytail: sorts every handed-out piece, at most once a frame and only while widths interleave; give
             // each group its own slot range if a large mixed-width load shows it
-            const drawn = Uint32Array.from({ length: highWater }, (_, piece) => piece).sort(
-                (a, b) =>
-                    (orders?.[a] ?? UNORDERED) - (orders?.[b] ?? UNORDERED) ||
-                    (keys?.[a] ?? a) - (keys?.[b] ?? b) ||
-                    a - b,
+            const drawn = Uint32Array.from({ length: highWater }, (_, piece) => piece).sort((a, b) =>
+                this.drawsBefore(a, b),
             );
             const shape = this.flagShape(capacity);
             this.orderWidth = shape.width;

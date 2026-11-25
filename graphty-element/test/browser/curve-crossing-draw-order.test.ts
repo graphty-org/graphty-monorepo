@@ -126,6 +126,11 @@ describe("a curved and a straight edge that cross draw in row order on batched (
 
     // straight lines of several widths and draw orders keep the object path's order beside a curve
     const STACKED: Record<string, readonly Row[]> = {
+        "one width, a curve between two straight lines": [
+            { src: "a", dst: "d" },
+            { src: "e", dst: "f", hot: true },
+            { src: "c", dst: "b" },
+        ],
         "widths, straight first": [
             { src: "a", dst: "d", wide: true },
             { src: "c", dst: "a" },
@@ -168,6 +173,22 @@ describe("a curved and a straight edge that cross draw in row order on batched (
             assertSameFrame(want, got, "batched against objects");
         });
     }
+
+    it("one width, a straight line added after a curve drawn after another straight line: 0 pixels against objects", async () => {
+        // a curve takes the rest of its pieces when it is first placed, so the straight line added in the same call is
+        // under it on both paths; one added once the curve is drawn is over it
+        const later = async (path: Path): Promise<Graphty> => {
+            const element = await crossing(path, 3, [{ src: "a", dst: "d" }, EDGES[0]]);
+            await element.session.data.addEdges([{ src: "c", dst: "b" }]);
+            await operationQueueOf(element.graph).waitForCompletion();
+            await element.waitForStableFrame();
+            return element;
+        };
+        const want = await readCanvas((await later("objects")).graph);
+        document.body.replaceChildren();
+        const got = await readCanvas((await later("batched")).graph);
+        assertSameFrame(want, got, "batched against objects");
+    });
 
     it("straight lines drawn before a curve stay under it when restyled", async () => {
         const restyled = async (path: Path): Promise<Graphty> => {

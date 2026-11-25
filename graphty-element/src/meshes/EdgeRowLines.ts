@@ -16,7 +16,7 @@ import { EdgeMesh } from "./EdgeMesh";
 import { batchUploadFrames } from "./FrameRoster";
 import type { MeshCache } from "./MeshCache";
 import { type PulledHead, pulledHeadBatch, pulledHeadOf, roundRow } from "./pulledHead";
-import type { LeanLines, PulledLineBatch } from "./PulledLineBatch";
+import { holdStraightPieces, type LeanLines, type PulledLineBatch, type StraightPieceHolder } from "./PulledLineBatch";
 
 /** Style keys a row line may set: any other needs an `Edge` (a label or a band is drawn by one). */
 const ROW_STYLE_KEYS = new Set(["line", "label", "arrowHead", "arrowTail", "band", "visible"]);
@@ -175,7 +175,7 @@ export interface EdgeRowLinesHost {
  * design/rendering/row-renderer.md. {@link EdgeRowLines.paintRow} returns false for a paint only an `Edge` draws;
  * a self-loop, a route the layout's map arcs, and an end drawn behind edges are the caller's to rule out.
  */
-export class EdgeRowLines {
+export class EdgeRowLines implements StraightPieceHolder {
     /**
      * Each drawn row's line, at its row: a million-row load spent about 0.3 s of CPU in a map keyed by row
      * (design/rendering/cosmos-gap.md G8). Rows are dense, so the array stays packed when a load paints in order.
@@ -198,7 +198,9 @@ export class EdgeRowLines {
      * Start with no edge row drawn.
      * @param host - What it reads from the graph.
      */
-    constructor(private readonly host: EdgeRowLinesHost) {}
+    constructor(private readonly host: EdgeRowLinesHost) {
+        holdStraightPieces(host.scene, this);
+    }
 
     /**
      * How many edge rows are drawn here.
@@ -723,6 +725,42 @@ export class EdgeRowLines {
         }
 
         return off;
+    }
+
+    /**
+     * The row lines of a straight batch that a curve batch can draw ({@link EdgeRowLines.joinsCurves}), for a curve
+     * batch of its key just made (`PulledLineBatch.moveStraightInto`).
+     * @param batch - The straight batch.
+     * @returns Each line's piece, with what moves the line to its new batch and piece.
+     */
+    straightPieces(batch: PulledLineBatch): ReturnType<StraightPieceHolder["straightPieces"]> {
+        const from = this.batches.indexOf(batch);
+        const { lines } = this;
+        return from === -1
+            ? []
+            : this.drawnRows(lines)
+                  .filter(
+                      (row) =>
+                          lines.batchOf[row] === from &&
+                          (lines.capBatchOf[row] ?? NO_LINE) === NO_LINE &&
+                          this.joinsCurves(null, lines.source[row], lines.target[row]),
+                  )
+                  .map((row) => ({
+                      piece: lines.piece[row],
+                      moved: (to: PulledLineBatch, piece: number) => {
+                          let at = this.batches.indexOf(to);
+                          if (at === -1) {
+                              at = this.batches.push(to) - 1;
+                          }
+
+                          if (this.plainBatches.has(from)) {
+                              this.plainBatches.add(at);
+                          }
+
+                          lines.batchOf[row] = at;
+                          lines.piece[row] = piece;
+                      },
+                  }));
     }
 
     /**

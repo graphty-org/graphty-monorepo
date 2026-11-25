@@ -670,7 +670,8 @@ export class SourceDraftHandle implements SourceDraft {
         this.closed = true;
         if (value !== this.base.value) {
             const held = this.host.committedCopies();
-            const staged = Object.fromEntries(Object.entries(copies).filter(([id]) => !(id in held)));
+            // A new copy, or a held one the draft reads otherwise (a staged source's Rows are changed).
+            const staged = Object.fromEntries(Object.entries(copies).filter(([id, tables]) => held[id] !== tables));
             const removed = Object.keys(this.base.value.sources).filter((id) => value.sources[id] === undefined);
             try {
                 await this.host.send(

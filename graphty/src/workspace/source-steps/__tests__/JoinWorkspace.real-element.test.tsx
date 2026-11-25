@@ -10,7 +10,7 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import type { GraphSession } from "@graphty/graphty-element/session";
+import type { GraphSession, SourceStepRow } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
@@ -322,5 +322,50 @@ describe("the join workspace (source-steps)", () => {
         await userEvent.click(within(modal).getByRole("radio", { name: "Merge" }));
         await within(modal).findByRole("alert");
         assert.isNull(store.get().notice, "no notice behind the modal");
+    });
+    it("door entries read as edges connect a person to the door each names, one edge per entry", async () => {
+        const { session, modal } = await opened(false, { name: "doors.csv", text: "door,name\nD1,North\nD2,South" });
+        const rows = within(modal).getByRole("radiogroup", { name: "Rows are" });
+        await userEvent.click(within(rows).getByText("Edges"));
+        await choose(modal, "From", "badge");
+        await choose(modal, "To", "door");
+        await choose(modal, "In graph type", "person");
+        await choose(modal, "In graph field", "Key");
+        await choose(modal, "Incoming field", "badge");
+        await userEvent.click(within(modal).getByRole("button", { name: "+ Match" }));
+        await choose(modal, "Other end field", "door");
+        await choose(modal, "Other end type", "doors.csv");
+        await connect(modal, session);
+        assert.isNull(within(modal).queryByRole("alert"), "the edge rows are joined, not refused");
+        await userEvent.click(within(modal).getByRole("button", { name: "Done" }));
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("dialog", { name: "Join" }));
+        });
+        const edges = session.data.edges().map((edge) => `${String(edge.source)}->${String(edge.target)}`);
+        assert.sameMembers(edges, ["B1->D1", "B1->D2", "B2->D1", "B2->D2"], "E4's B9 names no one");
+    });
+
+    it("Merge: Many rows Last folds the last row, No match Skip leaves B9 out, and B flips Before / After", async () => {
+        const { session, modal } = await opened();
+        await userEvent.click(within(modal).getByRole("radio", { name: "Merge" }));
+        const merged = (): readonly SourceStepRow[] => session.data.currentDraft()?.steps() ?? [];
+        await waitFor(() => {
+            assert.isTrue(merged().some((row) => row.op === "join.merge"));
+        });
+        await userEvent.click(within(within(modal).getByRole("radiogroup", { name: "Many rows" })).getByText("Last"));
+        await waitFor(() => {
+            assert.strictEqual(merged().at(-1)?.act?.repeated, "last");
+        });
+        await userEvent.click(within(within(modal).getByRole("radiogroup", { name: "No match" })).getByText("Skip"));
+        await waitFor(() => {
+            assert.strictEqual(merged().at(-1)?.act?.unmatchedFrom, "drop");
+        });
+        const side = session.data.currentDraft()?.side;
+        within(modal).getByRole("button", { name: "Done" }).focus();
+        await userEvent.keyboard("b");
+        await waitFor(() => {
+            assert.notStrictEqual(session.data.currentDraft()?.side, side, "B flips the side drawn");
+        });
+        assert.isNotNull(screen.queryByRole("dialog", { name: "Join" }), "B leaves the workspace open");
     });
 });

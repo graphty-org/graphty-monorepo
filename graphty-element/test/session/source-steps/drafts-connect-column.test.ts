@@ -163,4 +163,28 @@ describe("source-steps drafts: an edge from a column of a source in the graph", 
         assert.deepStrictEqual(drawn(session), ["P1->H1", "P1->H2", "P2->H1"], "P9 names no person");
         session.dispose();
     });
+    it("commits a staged source the draft reads as edges, so the Connect over its rows lands", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        await session.data.import(csv("people.csv", "person,name", "P1,Ann", "P2,Bo"), {
+            key: "person",
+            type: "person",
+        });
+        const buildings = await session.data.stage(csv("buildings.csv", "bldg,floors", "H1,4", "H2,9"), {
+            key: "bldg",
+            type: "building",
+        });
+        const doors = await session.data.stage(csv("doors.csv", "entry,person,bldg", "E1,P1,H1", "E2,P2,H2"), {
+            key: "entry",
+        });
+        const draft = session.data.draft();
+        draft.setMapping(doors, { rows: "edges", edges: { source: "person", target: "bldg" } });
+        draft.connect({
+            from: { source: doors, field: "person" },
+            into: { space: "person" },
+            to: { field: "bldg", into: { source: buildings } },
+        });
+        await draft.commit();
+        assert.deepStrictEqual(drawn(session), ["P1->H1", "P2->H2"], "the rows are read as edges after the commit");
+        session.dispose();
+    });
 });

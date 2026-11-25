@@ -3647,7 +3647,9 @@ export function projectOf(
         }
 
         // A load that starts the history clears it too, holding its graph: that load is the baseline.
-        if (reason === "clear" && !settled && session.data.nodes({ scope: "graph" }).length === 0) {
+        // Read from the records, never by freezing a snapshot: a clear of the data clears the history,
+        // and a snapshot frozen of the emptied store is one an accelerator would be told to release.
+        if (reason === "clear" && !settled && dispatcher.state.graph.nodes.size === 0) {
             fresh = true;
             point = { step: null, lost: false, seq: ++seq };
             top = topNow();

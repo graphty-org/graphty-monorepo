@@ -122,6 +122,22 @@ describe("source-steps drafts: the join workspace's reads", () => {
         session.dispose();
     });
 
+    it("setMapping changes a source still staged in the session, and the change commits with the draft", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        await session.data.import(csv("people.csv", "badge,name\nB1,Ann\nB2,Bo\nB3,Cy"), {
+            key: "badge",
+            type: "person",
+        });
+        const hr = await session.data.stage(csv("hr.csv", HR), { key: "badge" });
+        const d = session.data.draft();
+        d.setMapping(hr, { type: "person" });
+        assert.strictEqual(d.sourceTable(hr).summary().mapping.type, "person");
+        assert.notStrictEqual(session.data.sourceTable(hr).summary().mapping.type, "person", "not before the commit");
+        await d.commit();
+        assert.strictEqual(session.data.sourceTable(hr).summary().mapping.type, "person");
+        session.dispose();
+    });
+
     it("spaces() lists the spaces the draft builds, naming the staged source a step adds", async () => {
         const { session, d, hr, entries } = await opened();
         assert.isTrue(

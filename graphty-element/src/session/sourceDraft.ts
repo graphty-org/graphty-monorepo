@@ -13,7 +13,7 @@ import { GraphtyError } from "../errors/GraphtyError";
 import type { ColumnRef } from "./shared";
 import type { SavedSourceDraft } from "./sourceDraftHooks";
 import type { StepsAct } from "./sources/steps/acts";
-import { copyKey } from "./sources/steps/build";
+import { copyKey, isStaged } from "./sources/steps/build";
 import {
     built,
     draftAdd,
@@ -475,9 +475,10 @@ export class SourceDraftHandle implements SourceDraft {
     /** @inheritdoc */
     setMapping(source: SourceKey, patch: SourceMappingPatch): void {
         this.live("setMapping");
-        if (!this.state.owned.has(source)) {
-            // Only the source the draft brings in is the draft's to change; every other one is
-            // the committed project's, refused as every data write is while a draft is open.
+        if (!this.state.owned.has(source) && !isStaged(this.state.value, source)) {
+            // Only a source the draft brings in, or one still staged (nothing builds it), is the
+            // draft's to change; every other one is the committed project's, refused as every data
+            // write is while a draft is open.
             throw draftOpenError(this.id);
         }
         this.act("setMapping", (state) => mappingApply(state, source, patch));

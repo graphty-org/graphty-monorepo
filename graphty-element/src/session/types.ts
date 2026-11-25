@@ -6129,10 +6129,11 @@ export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "match
      */
     removeEdit(id: string): void;
     /**
-     * Change the mapping, space or type of a source this draft staged, added or acted on.
+     * Change the mapping, space or type of a source this draft staged, added or acted on, or of
+     * any source still staged; the change commits with the draft.
      * @param source - The source.
      * @param patch - The change.
-     * @throws A `GraphtyError` with `E_DRAFT_OPEN` for any other source.
+     * @throws A `GraphtyError` with `E_DRAFT_OPEN` for a source the committed graph builds.
      */
     setMapping(source: SourceKey, patch: SourceMappingPatch): void;
     /**

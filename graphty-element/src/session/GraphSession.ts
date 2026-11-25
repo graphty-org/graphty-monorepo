@@ -2657,6 +2657,9 @@ function historyOf(dispatcher: Dispatcher, version: () => number): SessionHistor
         restoreTo: (step: string | null, options?: HistoryRestoreOptions) =>
             dispatcher.restoreTo(step, options?.redo === "drop") as Promise<HistoryOutcome>,
         cancel: (pending: string) => dispatcher.cancel(pending) as Published["pending"],
+        endStep: () => {
+            history.endStep();
+        },
         clear: (options?: HistoryClearOptions) => {
             dispatcher.clear(options?.pending === "keep");
         },

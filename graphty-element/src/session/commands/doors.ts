@@ -4849,6 +4849,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             limitSteps: BUDGET,
             restoreTo: HISTORY,
             cancel: IN_FLIGHT,
+            endStep: HISTORY,
             clear: HISTORY,
         },
     },

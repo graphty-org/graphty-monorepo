@@ -660,6 +660,11 @@ export class History<P> {
         this.changed("clear");
     }
 
+    /** End the top step: the next record starts a step of its own, however it coalesces. */
+    endStep(): void {
+        this.mergeable = false;
+    }
+
     /** Discard the redo tail. */
     private discardUndone(): void {
         if (this.counted !== null && this.cursor < this.counted.steps) {

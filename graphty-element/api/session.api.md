@@ -7234,6 +7234,7 @@ export interface SessionHistory {
     readonly bytes: number;
     cancel(pending: PendingId): readonly PendingStep[];
     clear(options?: HistoryClearOptions): void;
+    endStep(): void;
     limitBytes: number;
     limitSteps: number;
     readonly nextUndo: {

@@ -112,6 +112,19 @@ describe("a style edit in the history", () => {
         assert.lengthOf(session.history.steps, 4, "the transaction, then the edit after it");
     });
 
+    it("starts a new step after history.endStep, so two deliberate edits of one channel undo one at a time", async () => {
+        const { session } = clocked();
+        const layer = await session.styles.add(RED);
+
+        await session.styles.update(layer.id, { set: { "node.color": "#00ff00" } });
+        session.history.endStep();
+        await session.styles.update(layer.id, { set: { "node.color": "#0000ff" } });
+        assert.lengthOf(session.history.steps, 3, "the add, then each color edit");
+
+        await session.undo();
+        assert.strictEqual(session.styles.get(layer.id)?.set?.["node.color"], "#00ff00");
+    });
+
     it("makes the same steps from the same updates on an idle and on a loaded machine (#9488)", async () => {
         // Each reading of the real clock a whole stall later than the last: a machine so loaded
         // that every frame of a drag lands seconds after the one before.

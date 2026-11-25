@@ -7698,6 +7698,14 @@ export interface SessionHistory {
      */
     cancel(pending: PendingId): readonly PendingStep[];
     /**
+     * End the newest step: the next edit records a step of its own, even one that would otherwise merge into it
+     * (back-to-back updates of the same setting of one layer merge, so a drag of a color picker is one step). A host
+     * calls it where one gesture of its reader ends and another begins (a press, a typed value committed), so two
+     * deliberate edits of the same setting are two undo steps.
+     * @since 3.40.0
+     */
+    endStep(): void;
+    /**
      * Drop every step: the current state becomes the baseline. Pending work that has already
      * changed something (an open transaction that wrote, a layout moving nodes) is canceled,
      * since its step would undo to a state older than the baseline. By default the rest of the

@@ -2058,7 +2058,7 @@ export class UpdateManager implements Manager {
      * its route ({@link unbuiltEdgePainted}): a row line runs straight between its nodes, and nothing else paints it when only the layout changed.
      *
      * When it stops (the layout that came in runs edges straight, or one that would have laid them failed or was
-     * cancelled and the last one is back), every built edge is restyled so a plain one is pulled again: the edges
+     * canceled and the last one is back), every built edge is restyled so a plain one is pulled again: the edges
      * built or taken out of the batch meanwhile (`Edge.followRoute`) never return to it on their own.
      * @param painter - Where the rows are queued.
      */

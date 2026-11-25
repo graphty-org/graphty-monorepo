@@ -149,7 +149,7 @@ describe("the sample files from other programs, drawn with their file styles", (
         // read by the element's CSV source, which knows it by its header
         const columns = "columns" in sample ? sample.columns : undefined;
         const options = columns === undefined ? undefined : { edgeSource: columns.source, edgeTarget: columns.target };
-        const type = "type" in sample ? sample.type : sample.format;
+        const type = ("type" in sample ? sample.type : undefined) ?? sample.format;
         const { element, sha256, command } = await mountSample(
             { id: sample.id, format: type, file: sample.file, license: sample.license, routes: [] },
             undefined,

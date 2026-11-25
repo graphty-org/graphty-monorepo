@@ -63,6 +63,43 @@ describe("source-steps: a join step's act", () => {
         }
     });
 
+    it("takes and reads back a merge's several rows in one spelling, repeated, for a row or a reduction", async () => {
+        const DUPES = csv("dupes.csv", "badge,dept", "B1,Ops", "B1,Lab", "B2,Sales");
+        for (const repeated of ["first", "last", "list", "count"] as const) {
+            const { session } = await people();
+            const dupes = await session.data.stage(DUPES, { key: "badge" });
+            const draft = session.data.draft();
+            draft.merge({ from: { source: dupes, field: "badge" }, into: { space: "person" }, repeated });
+            const at = draft.steps().findIndex((s) => s.op === "join.merge");
+            assert.strictEqual(draft.steps()[at]?.act?.repeated, repeated, `merge takes ${repeated}`);
+            // What steps() returns is what editStep takes back, and replaces the step's whole choice.
+            draft.editStep(at, { repeated: "count" });
+            assert.strictEqual(draft.steps()[at]?.act?.repeated, "count");
+            draft.editStep(at, { repeated });
+            const act = draft.steps()[at]?.act;
+            assert.strictEqual(act?.repeated, repeated, `editStep takes ${repeated}`);
+            assert.deepStrictEqual(
+                act?.aggregate,
+                repeated === "list" || repeated === "count" ? { "*": repeated } : null,
+            );
+            draft.dispose();
+            session.dispose();
+        }
+    });
+
+    it("refuses a repeated reduction on a step other than a merge", async () => {
+        const { session } = await people();
+        const entries = await session.data.stage(ENTRIES, { key: "entry", type: "entry" });
+        const draft = session.data.draft();
+        draft.connect({ from: { source: entries, field: "badge" }, into: { space: "person" } });
+        const at = draft.steps().findIndex((s) => s.op === "join.edges");
+        assert.throws(() => {
+            draft.editStep(at, { repeated: "list" });
+        }, /repeated reduction/);
+        draft.dispose();
+        session.dispose();
+    });
+
     it("reads Make an edge back with its direction and edge type, either way round", async () => {
         for (const direction of ["into-from", "from-into"] as const) {
             const { session } = await people();

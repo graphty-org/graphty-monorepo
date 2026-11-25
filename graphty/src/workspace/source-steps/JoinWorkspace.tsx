@@ -414,10 +414,10 @@ function Options({
             <Stack gap={4}>
                 <Choice
                     label={WORKSPACE_WORDS.manyRows}
-                    value={result.many}
+                    value={result.repeated}
                     data={MANY_ROWS}
                     onChange={(value) => {
-                        set({ many: MANY_ROWS.find((each) => each.value === value)?.value ?? "first" });
+                        set({ repeated: MANY_ROWS.find((each) => each.value === value)?.value ?? "first" });
                     }}
                 />
                 {step?.valuesDiffer.map(({ params }) => (
@@ -506,7 +506,7 @@ function Options({
     );
 }
 
-/** Merge's "many rows" ways, as `CardResult.many` names them. */
+/** Merge's "many rows" ways the workspace offers, as the element's `repeated` names them. */
 const MANY_ROWS = [
     { value: "first", label: WORKSPACE_WORDS.first },
     { value: "last", label: WORKSPACE_WORDS.last },

@@ -27,6 +27,7 @@ import { sha256Hex, type SourceListing, type SourceListQuery, type SourceProbe }
 import {
     DATASET_NAMES,
     DatasetError,
+    DATASETS,
     fetchDataset,
     GENERATOR_CATALOG,
     type SampleGraph,
@@ -1920,7 +1921,10 @@ export class SessionData implements SessionDataApi {
             } catch (error) {
                 throw datasetError(name, baseUrl, signal, status, error);
             }
-            const sample = this.sampleLoad(snapshot, name, load);
+            // Named as the catalog names it ("Doubtful Sound dolphins", not "dolphins"); a dataset the catalog does not
+            // list (a mirror's own) by its name.
+            const title = DATASETS.find((each) => each.name === name)?.title ?? name;
+            const sample = this.sampleLoad(snapshot, title, load);
             await this.importVia(send, sample.source, load, turn, {
                 ...sample,
                 facts: { dataset: name, baseUrl },
@@ -4200,6 +4204,7 @@ export class SessionData implements SessionDataApi {
                 emit: (change) => this.writes.emit?.("data:draft-changed", change),
                 drawn: () => this.writes.drawing?.drawn() ?? Promise.resolve(),
                 redraw: () => this.writes.drawing?.resume(),
+                edgeIds: (side) => (side === "after" ? this.afterEdgeIds : null) ?? this.stepsEdgeIds(),
             },
             { value: this.stepsValue(), copies: this.stepsCopies() },
             { ...(options.askOverlap === undefined ? {} : { askOverlap: options.askOverlap }) },
@@ -4450,6 +4455,15 @@ export class SessionData implements SessionDataApi {
             this.shownMarks = { marks, ids, edges };
         }
         return { nodes: marks.nodes, edges: this.shownMarks.edges, side: draft.side };
+    }
+
+    /**
+     * The session ids of some elements of the drawn draft, on the side it draws.
+     * @param query - Element references, some counts of one step, or the untouched nodes.
+     * @returns The ids, or null while no draft is drawn or the experiment is off.
+     */
+    drawnDraftIds(query: Parameters<SourceDraftHandle["drawnIds"]>[0]): ReturnType<SourceDraftHandle["drawnIds"]> {
+        return this.stepsOn() ? (this.sourceDraft?.drawnIds(query) ?? null) : null;
     }
 
     /**

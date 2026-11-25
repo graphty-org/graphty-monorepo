@@ -372,6 +372,8 @@ export interface WorkspaceState {
      * (`data.currentDraft()`).
      */
     readonly sourceCard: { readonly kind: "add"; readonly source: SourceKey } | JoinCardState | StepCardState | null;
+    /** The join workspace is open over the canvas (the source-steps experiment, issue #9796). */
+    readonly joinWorkspace: boolean;
     /** The Data place's Reader edits list is open (the source-steps experiment). */
     readonly readerEditsOpen: boolean;
     /**
@@ -559,7 +561,8 @@ export interface WorkspaceState {
 /**
  * What a reload of this tab does with each field of {@link WorkspaceState}: "kept" puts it back as
  * the reader left it, and stashes it with the project's autosaved work so restoring that work in
- * another tab or on a later visit puts it back too; "this tab: <why>" puts it back after a reload
+ * another tab or on a later visit puts it back too ("kept: element-id" when what it holds is a
+ * graphty-element id, which must still name something after a restore); "this tab: <why>" puts it back after a reload
  * of this tab only; "fresh: <kind>: <why>" starts it from its default, and is allowed only for
  * the kinds of state in fresh-kinds.json (requests, work in flight, notices, readings, derived
  * state, pointer state); "gap #<issue>: <why>" is state the reader made that should come back but
@@ -574,9 +577,9 @@ export const ON_RELOAD = {
     place: "kept",
     dialog: "kept",
     renaming: "kept",
-    renamingRow: "kept",
-    inspected: "kept",
-    styleRow: "kept",
+    renamingRow: "kept: element-id",
+    inspected: "kept: element-id",
+    styleRow: "kept: element-id",
     tabs: "kept",
     styleSide: "kept",
     leftWidth: "this tab: changes on every drag step, too often to write to autosaved work",
@@ -601,7 +604,7 @@ export const ON_RELOAD = {
     dockIssue: "fresh: request: a one-time request the dock clears",
     dockRows: "fresh: request: a one-time request the dock clears",
     editingSelection: "fresh: derived: the selection editor that reopens writes it again",
-    selectionWorkspace: "kept",
+    selectionWorkspace: "kept: element-id",
     filterDraft: "fresh: request: a one-time request the Filters section clears",
     fieldsEntry: "fresh: request: a one-time request Fields clears",
     dockMaximized: "kept",
@@ -609,6 +612,8 @@ export const ON_RELOAD = {
     editingJoin: "kept",
     ends: "kept",
     sourceCard: "kept",
+    joinWorkspace:
+        "fresh: in flight: the workspace closes on a reload; its draft, which autosave keeps, opens with it the next time",
     readerEditsOpen: "fresh: pointer: a list opened for a look",
     stagedEnds: "kept",
     draftOpen: "fresh: in flight: asks about a write this page made, which a reload ends",
@@ -657,21 +662,32 @@ export const ON_RELOAD = {
     reportPins: "kept",
 } as const satisfies Record<
     keyof WorkspaceState,
-    "kept" | `this tab: ${string}` | `fresh: ${string}: ${string}` | `gap #${number}: ${string}`
+    "kept" | "kept: element-id" | `this tab: ${string}` | `fresh: ${string}: ${string}` | `gap #${number}: ${string}`
 >;
+
+/**
+ * The kept fields that name something graphty-element holds by id (a style row, a layer's
+ * selection editor): after a restore each must still name something, or the reader's pick is
+ * silently gone (restoreCheck.ts checks each one, issue #9973).
+ */
+export type ElementIdKey = {
+    [K in keyof typeof ON_RELOAD]: (typeof ON_RELOAD)[K] extends "kept: element-id" ? K : never;
+}[keyof WorkspaceState];
 
 /** The fields a reload of this tab puts back. */
 type KeptKey = {
-    [K in keyof typeof ON_RELOAD]: (typeof ON_RELOAD)[K] extends "kept" | `this tab: ${string}` ? K : never;
+    [K in keyof typeof ON_RELOAD]: (typeof ON_RELOAD)[K] extends "kept" | "kept: element-id" | `this tab: ${string}`
+        ? K
+        : never;
 }[keyof WorkspaceState];
 
 /** The fields a reload of this tab puts back, in the order the table lists them. */
 export const KEPT_FIELDS = (Object.keys(ON_RELOAD) as (keyof WorkspaceState)[]).filter(
-    (key): key is KeptKey => ON_RELOAD[key] === "kept" || ON_RELOAD[key].startsWith("this tab:"),
+    (key): key is KeptKey => ON_RELOAD[key].startsWith("kept") || ON_RELOAD[key].startsWith("this tab:"),
 );
 
 /** The fields stashed with the project's autosaved work: the kept ones, not the this-tab ones. */
-export const STASHED_FIELDS = KEPT_FIELDS.filter((key) => ON_RELOAD[key] === "kept");
+export const STASHED_FIELDS = KEPT_FIELDS.filter((key) => ON_RELOAD[key].startsWith("kept"));
 
 /** The part of the chrome a reload of this tab puts back. */
 export type KeptPlace = Pick<WorkspaceState, KeptKey>;
@@ -755,6 +771,7 @@ const INITIAL: WorkspaceState = {
     editingJoin: null,
     ends: null,
     sourceCard: null,
+    joinWorkspace: false,
     readerEditsOpen: false,
     stagedEnds: null,
     draftOpen: null,

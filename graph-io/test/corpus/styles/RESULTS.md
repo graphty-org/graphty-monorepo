@@ -368,7 +368,7 @@ Tool values are elements drawn with the writing program's default.
 | json/fidelity/vis-lesmiserables.json | ok | 77 | 254 | 15 | 3 | 126 | 0% | 0% | 0 | 4018 | 0 |  |
 | json/fidelity/vis-nodelegend.json | ok | 21 | 15 | 9 | 4 | 69 | 54% | 7% | 0 | 306 | 0 |  |
 | json/fidelity/vis-siblings.json | ok | 200 | 284 | 6 | 3 | 158 | 0% | 0% | 0 | 4808 | 0 |  |
-| json/fidelity/vis-synth.json | ok | 72 | 84 | 10 | 6 | 235 | 65% | 24% | 0 | 1052 | 0 | W_STYLE_UNKNOWN_VALUE |
+| json/fidelity/vis-synth.json | ok | 72 | 84 | 10 | 5 | 235 | 66% | 24% | 0 | 1052 | 0 | W_STYLE_UNKNOWN_VALUE |
 | json/fidelity/vis-transparency.json | ok | 50 | 100 | 3 | 3 | 0 | - | - | 0 | 1850 | 0 |  |
 | json/fidelity/vis-unix.json | ok | 41 | 49 | 3 | 3 | 0 | - | - | 0 | 916 | 0 |  |
 | json/fidelity/vis-world.json | ok | 48 | 69 | 3 | 3 | 0 | - | - | 0 | 1308 | 0 |  |
@@ -376,9 +376,9 @@ Tool values are elements drawn with the writing program's default.
 | json/generated/cytoscape-tamper-block-truncated.json | ok | 4 | 3 | 8 | 11 | 14 | 57% | 57% | 0 | 103 | 0 | W_STYLE_BLOCK_IGNORED |
 | json/generated/cytoscape-tamper-native-edited.json | ok | 4 | 3 | 7 | 5 | 14 | 86% | 64% | 0 | 3 | 0 |  |
 | json/generated/cytoscape-tamper-node-added.json | ok | 5 | 3 | 8 | 11 | 14 | 57% | 57% | 0 | 116 | 0 | W_STYLE_BLOCK_IGNORED |
-| json/generated/graphology-graphty-written.json | ok | 4 | 3 | 6 | 5 | 9 | 78% | 67% | 0 | 100 | 0 |  |
+| json/generated/graphology-graphty-written.json | ok | 4 | 3 | 6 | 5 | 9 | 78% | 67% | 0 | 101 | 0 |  |
 | json/generated/graphology-tamper-block-truncated.json | ok | 4 | 3 | 2 | 2 | 9 | 100% | 0% | 0 | 54 | 0 | W_STYLE_BLOCK_IGNORED |
-| json/generated/graphology-tamper-native-edited.json | ok | 4 | 3 | 7 | 5 | 9 | 89% | 78% | 0 | 100 | 0 |  |
+| json/generated/graphology-tamper-native-edited.json | ok | 4 | 3 | 7 | 5 | 9 | 89% | 78% | 0 | 101 | 0 |  |
 | json/generated/graphology-tamper-node-added.json | ok | 5 | 3 | 2 | 2 | 9 | 100% | 0% | 0 | 66 | 0 | W_STYLE_BLOCK_IGNORED |
 | json/graphology-arctic.json.gz | ok | 1715 | 6228 | 1 | 1 | 0 | - | - | 0 | 70404 | 0 |  |
 | json/graphology-eurosis.json.gz | ok | 1285 | 7524 | 4 | 1 | 2118 | 0% | 0% | 1540 | 71757 | 0 | W_STYLE_RAMP_ROUNDED |
@@ -449,7 +449,7 @@ Tool values are elements drawn with the writing program's default.
 | xgmml/BasicDataVizDemo.xgmml.gz | ok | 331 | 362 | 7 | 5 | 438 | 74% | 0% | 0 | 4158 | 0 | W_STYLE_NOT_CARRIED |
 | xgmml/STRING-BreastCancer_expr.xgmml.gz | ok | 21 | 98 | 4 | 3 | 101 | 19% | 0% | 0 | 714 | 0 | W_STYLE_NOT_CARRIED |
 | xgmml/String_Network-breast_cancer.xgmml.gz | ok | 90 | 378 | 3 | 3 | 324 | 0% | 0% | 0 | 2808 | 0 | W_STYLE_NOT_CARRIED |
-| xgmml/fidelity/aracne-mycccnd1.xgmml.gz | ok | 236 | 241 | 6 | 3 | 50 | 2% | 2% | 0 | 4529 | 0 |  |
+| xgmml/fidelity/aracne-mycccnd1.xgmml.gz | ok | 236 | 241 | 6 | 5 | 52 | 2% | 2% | 0 | 4529 | 0 |  |
 | xgmml/fidelity/dream4-signaling.xgmml | ok | 40 | 58 | 5 | 2 | 13 | 0% | 0% | 0 | 922 | 0 |  |
 | xgmml/fidelity/gcmodeller-demo.xgmml | ok | 20 | 24 | 3 | 3 | 23 | 100% | 0% | 0 | 264 | 0 | W_STYLE_NOT_CARRIED |
 | xgmml/fidelity/imagenet-dog-children.xgmml | ok | 190 | 189 | 5 | 2 | 22 | 100% | 100% | 0 | 3601 | 0 |  |

@@ -604,9 +604,8 @@ export function resolveCytoscape(
             out.bends = bends;
         }
         // before the tool's defaults: an edge the style leaves unset is curved as Cytoscape's EDGE_CURVED default is
-        const curvedAsSet = out.curved?.slice();
         straightenBendless(out, one, n, elements.ends);
-        loopHandles(out, one, curvedAsSet, elements.ends);
+        loopHandles(out, one, elements.ends);
         arrowProportions(out, column);
     }
     fillToolDefaults(target, out, n, options.defaults ?? null);
@@ -1134,17 +1133,16 @@ function outlineToward(
  * (`DEdgeDetails.getAnchors`): one left of the node's center and one above it, each `(i + 3) / 2` of the node's
  * size times twice `EDGE_STACKING_DENSITY` away, where the size is the larger side of the node with its border
  * (its extents in desktop's spatial index) and `i` counts the node's earlier loops without bends, newest first as
- * desktop walks them. A loop is curved through them unless `EDGE_CURVED` says false. Measured on Cytoscape
- * 3.10.5's SVG of the edges-lines specimen sheet (within 0.3 px of its loops).
+ * desktop walks them. A loop is curved through them whatever `EDGE_CURVED` says, as a fanned edge is: desktop draws
+ * the two loops of xgmml-aracne-mycccnd1, whose edges say `cy:curved="STRAIGHT_LINES"`, as curves. Measured on
+ * Cytoscape 3.10.5's SVG of the edges-lines specimen sheet (within 0.3 px of its loops) and of that sample.
  * @param out - the values per property, changed in place
  * @param one - reads one visual property of one element
- * @param curvedAsSet - each edge's `curved` as the style set it, before bendless edges were straightened
  * @param ends - each edge's source and target node index, in creation order, and each node's box, when known
  */
 function loopHandles(
     out: Partial<Record<string, StyleColumn>>,
     one: Resolver["one"],
-    curvedAsSet: readonly (StyleValue | null)[] | undefined,
     ends: CytoscapeElements["ends"],
 ): void {
     const box = ends?.nodeBox;
@@ -1172,7 +1170,7 @@ function loopHandles(
         const reach = (((rank + 3) * (Math.max(b[0], b[1]) + b[2])) / 2) * 2 * density;
         // as `x,y` fractions of the node's half width and half height, y up: left of the center, then above it
         bends[i] = `${fraction(-reach / (b[0] / 2))},0 0,${fraction(reach / (b[1] / 2))}`;
-        curved[i] = curvedAsSet?.[i] !== false;
+        curved[i] = true;
         changed = true;
     }
     if (changed) {

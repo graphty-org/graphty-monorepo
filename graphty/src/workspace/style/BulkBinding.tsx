@@ -184,8 +184,6 @@ export function BulkBinding({
         >
             <Popout.Panel
                 width={POPOUT_WIDTH}
-                placement="left"
-                alignment="start"
                 anchorY={anchor}
                 header={{ variant: "title", title: bindingTitle(channel, source) }}
                 closeLabel={`Close ${bindingTitle(channel, source)}`}

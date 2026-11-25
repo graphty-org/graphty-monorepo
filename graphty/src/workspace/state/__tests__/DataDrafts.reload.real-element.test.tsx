@@ -107,7 +107,16 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
                 const after = await reload(before, {
                     lostSession,
                     // gap #9848: Fields drops the edge file's controls after any reload that follows a join.
-                    lost: ["value: Rows are = edges", "value: Source = source", "value: Target = target"],
+                    lost: [
+                        "value: Rows are = edges",
+                        "value: Source = source",
+                        "value: Target = target",
+                        "list: Source",
+                        "list: Target",
+                        "selected: edges",
+                        "selected: source",
+                        "selected: target",
+                    ],
                 });
                 // The join screen itself, with what it matched on, is checked by reload().
                 await screen.findByRole("region", { name: "Join depts.csv" });

@@ -494,7 +494,9 @@ for (const [name, setUp, line, counts] of [
         setUp();
         graph = await createTestGraphWithData();
         await translucentNodes(line);
-        assert.deepInclude(graph.rowCounts, counts);
+        // on renderPath "batched" a dashed line is a row line drawn from the row table, with no `Edge`
+        const patternedRowLine = graph.renderPath === "batched" && "objectEdges" in counts;
+        assert.deepInclude(graph.rowCounts, patternedRowLine ? { objectEdges: 0 } : counts);
 
         await assertEndsOnOutlines();
     });

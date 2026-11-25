@@ -438,8 +438,8 @@ describe("nodes drawn as models", () => {
          * @returns The distance.
          */
         const headFromB = (): number => {
-            const at = edge.arrowCap?.position;
-            return at === undefined ? Number.NaN : Math.hypot(at.x - 3, at.y, at.z);
+            const at = edge.drawnHeadPosition;
+            return at === null ? Number.NaN : Math.hypot(at.x - 3, at.y, at.z);
         };
         const onPlaceholder = headFromB();
 

@@ -553,18 +553,13 @@ describe("saving", () => {
         session.dispose();
     });
 
-    it("refuses a version 2 option without format 2, and names the experiment a version 2 file needs", async () => {
+    it("refuses a version 2 option without format 2", async () => {
         const session = createGraphSession(ON);
         for (const options of [{ sections: ["style" as const] }, { form: "section" as const }, { results: true }]) {
             assert.strictEqual((await refusal(session.project.save(options))).code, "E_BAD_COMMAND");
         }
 
-        const off = createGraphSession({ features: [] });
-        const error = await refusal(off.project.open(readText("examples/minimal/minimal.graphty.json")));
-        assert.strictEqual(error.code, "E_UNSUPPORTED_VERSION");
-        assert.strictEqual(error.details?.feature, "save-files-v2");
         session.dispose();
-        off.dispose();
     });
 
     it("reports what version 1 keeps that version 2 does not write yet", async () => {

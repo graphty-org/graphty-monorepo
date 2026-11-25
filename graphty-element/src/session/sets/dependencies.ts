@@ -369,7 +369,7 @@ export function pathsRead(
 }
 
 /**
- * Refuse a value that reads a `graphty.notes.*` path at a write door: a note must not change what
+ * Refuse a value that reads a `store.graphty.notes.*` path at a write door: a note must not change what
  * a result, a set or the visibility filter is computed over (design/notes 6.2). Only style layers
  * and `select({ where })` read them.
  * @param value - A set definition, a scope or a rule tree.

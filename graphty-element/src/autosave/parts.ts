@@ -13,6 +13,7 @@
  * | `asset:<sha256>` | the files of one embedded model, written once per digest |
  * | `stash` | the consumer's stash |
  * | `drafts` | the filter drafts still open, reopened after a restore |
+ * | `sourceDraft` | the draft of the sources and steps still open, written with `drafts` and reopened after a restore |
  * @module autosave
  */
 
@@ -35,6 +36,7 @@ import {
     styleMember,
     viewStateMember,
 } from "../session/projectFile";
+import { type SavedSourceDraft, sourceDraftHooks } from "../session/sourceDraftHooks";
 import type { GraphSession } from "../session/types";
 import { filterDraftHooks, type SavedFilterDraft } from "../session/visibility/draftHooks";
 import type { AutosaveEntryMeta, AutosaveParts } from "./types";
@@ -253,6 +255,9 @@ export function buildParts(
 
     if (tags.has("drafts")) {
         parts.drafts = attempt("drafts", () => JSON.stringify(filterDraftHooks(session.visibility)?.saved() ?? []));
+        parts.sourceDraft = attempt("sourceDraft", () =>
+            JSON.stringify(sourceDraftHooks(session.data)?.saved() ?? null),
+        );
     }
 
     return { parts, runs, order: [...finished.keys()], ...(assets === undefined ? {} : { assets }) };
@@ -337,4 +342,14 @@ export function stashOf(parts: AutosaveParts): Map<string, unknown> {
 export function draftsOf(parts: AutosaveParts): SavedFilterDraft[] {
     const text = parts.drafts;
     return typeof text === "string" ? (JSON.parse(text) as SavedFilterDraft[]) : [];
+}
+
+/**
+ * The open source draft an entry holds; an entry written before source drafts were kept holds none.
+ * @param parts - The entry's parts.
+ * @returns The draft, or null.
+ */
+export function sourceDraftOf(parts: AutosaveParts): SavedSourceDraft | null {
+    const text = parts.sourceDraft;
+    return typeof text === "string" ? (JSON.parse(text) as SavedSourceDraft | null) : null;
 }

@@ -104,7 +104,8 @@ async function loaded(
     await element.session.data.addEdges(EDGES);
     await element.graph.setLayout("fixed", { dim: 3 });
     await element.setViewMode(view);
-    // The graph is directed, so every edge starts with a head: take them off, then put one back.
+    // The graph is directed, so every edge starts with a head: take them off, then cap one edge with a tail, which only
+    // an object edge draws (a head is pulled from the row table on "batched").
     await element.session.styles.add({
         name: "uncapped",
         target: "edge",
@@ -115,7 +116,7 @@ async function loaded(
         name: "capped",
         target: "edge",
         selector: { match: "ids", edges: [edgeId(element, 0, 1)] },
-        set: { "edge.arrowHead": "normal" },
+        set: { "edge.arrowTail": "normal" },
     } as never);
     await operationQueueOf(element.graph).waitForCompletion();
     await element.waitForStableFrame();

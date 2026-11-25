@@ -368,6 +368,24 @@ describe("encode", () => {
         assert.strictEqual(session.styles.get(made.params.layer as string)?.target, "edge");
     });
 
+    it("takes a missing value of the channel's own type", async () => {
+        const { session, call } = await styleAssistant();
+        const made = await call({
+            action: "encode",
+            encode: { channel: "edge.width", attribute: "weight", missing: 1 },
+        });
+        assert.strictEqual(made.code, "style.encode");
+        const layer = session.styles.get(made.params.layer as string);
+        assert.deepInclude(layer?.encode?.["edge.width"] as object, { missing: { value: 1 } });
+
+        const wrong = await call({
+            action: "encode",
+            encode: { channel: "edge.width", attribute: "weight", missing: "1" },
+        });
+        assert.strictEqual(wrong.code, "AI_ARG_INVALID");
+        assert.include(wrong.params, { path: "encode.missing", expected: "number" });
+    });
+
     it("binds a channel to a run's field", async () => {
         const { session, call } = await styleAssistant();
         await session.runs.start("degree", undefined, { style: false });

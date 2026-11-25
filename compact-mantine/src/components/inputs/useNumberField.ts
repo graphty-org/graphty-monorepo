@@ -48,6 +48,8 @@ interface NumberFieldInputProps {
     "aria-valuenow"?: number;
     "aria-valuemin"?: number;
     "aria-valuemax"?: number;
+    /** present while the field holds its committed value and no typing of its own */
+    "data-committed"?: "";
     onChange: ChangeEventHandler<HTMLInputElement>;
     onKeyDown: KeyboardEventHandler<HTMLInputElement>;
     onFocus: FocusEventHandler<HTMLInputElement>;
@@ -147,6 +149,10 @@ export function useNumberField(options: NumberFieldOptions): NumberField {
         "aria-valuenow": value ?? undefined,
         "aria-valuemin": min,
         "aria-valuemax": max,
+        // Marks a field that holds its committed value and no typing of its own (after Enter, an
+        // arrow key or a scrub), so an application's Undo key can take back the last change rather
+        // than the field's native text undo -- as the color box does.
+        "data-committed": draft === null ? "" : undefined,
         onChange: (event) => {
             const text = event.currentTarget.value;
             // A letter is taken as typed and reverts on commit, as in Figma.

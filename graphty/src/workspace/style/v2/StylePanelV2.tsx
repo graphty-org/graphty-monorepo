@@ -778,9 +778,6 @@ function ThingSection({
 /** Each section's waiting things, by row, kind and section, kept across the sections being drawn anew. */
 const WAITING = new Map<string, readonly string[]>();
 
-/** Keys that commit a panel number field's value: see `StylePanelV2`. */
-const COMMIT_KEYS = new Set(["Enter", "ArrowUp", "ArrowDown"]);
-
 /**
  * One kind's Style panel v2 body: see the file header.
  * @param props - Component props
@@ -792,21 +789,9 @@ export function StylePanelV2({ ctx: row }: Readonly<{ ctx: RowContext }>): React
     const box = useRef<HTMLInputElement>(null);
     const onKeyDown = useFindKey(box);
     // Each press or key in the panel starts a new undo step: a drag stays one step, and two deliberate edits of one
-    // setting undo one at a time (graphty-element merges back-to-back edits of a setting otherwise). A number field
-    // committed by Enter or an arrow key holds its committed value, so Control+Z there is the app's Undo, not the
-    // browser's text undo (which moves to another field). Temporary: compact-mantine's ComboInput should mark itself
-    // `data-committed` as its color box does, a change to compact-mantine that needs the owner.
-    const onKeyDownCapture = (event: React.KeyboardEvent): void => {
+    // setting undo one at a time (graphty-element merges back-to-back edits of a setting otherwise).
+    const onKeyDownCapture = (): void => {
         row.session.history.endStep();
-        const field = event.target;
-        if (field instanceof HTMLInputElement && field.role === "spinbutton" && COMMIT_KEYS.has(event.key)) {
-            field.dataset.committed = "";
-        }
-    };
-    const onInputCapture = (event: React.SyntheticEvent): void => {
-        if (event.target instanceof HTMLInputElement) {
-            delete event.target.dataset.committed;
-        }
     };
     const ctx: RowContext = { ...row, pickers: "listbox", listSections: sectionsOf, namesOnly: true, withNeeds: true };
     // The owner removed Order and groups from the panel (E420, E422): its part draws no section and Find a
@@ -861,7 +846,6 @@ export function StylePanelV2({ ctx: row }: Readonly<{ ctx: RowContext }>): React
                 row.session.history.endStep();
             }}
             onKeyDownCapture={onKeyDownCapture}
-            onInputCapture={onInputCapture}
         >
             <LabelsProvider labels={V2_LABELS}>
                 <PickerNamesOnly.Provider value>

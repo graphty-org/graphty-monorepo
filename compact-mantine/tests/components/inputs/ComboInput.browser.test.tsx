@@ -1,7 +1,7 @@
 import { MantineProvider } from "@mantine/core";
 import { render, screen } from "@testing-library/react";
 import React from "react";
-import { describe, expect, it, vi } from "vitest";
+import { assert, describe, expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
 import { compactTheme } from "../../../src";
@@ -48,6 +48,23 @@ describe("ComboInput", () => {
         await userEvent.type(box, "12*2");
         await userEvent.tab();
         expect(onChange).toHaveBeenCalledWith(24, expect.anything());
+    });
+
+    it("a number box marks itself committed after Enter or an arrow, and not while it holds typing", async () => {
+        // The mark lets an application's Undo key take back the last change instead of the box's
+        // native text undo, as the color box's does.
+        renderCombo(<ComboInput label="Size" numeric defaultValue={12} options={[]} />);
+        const box = screen.getByRole("spinbutton", { name: "Size" });
+        await userEvent.click(box);
+        await userEvent.keyboard("30");
+        assert.isFalse(box.hasAttribute("data-committed"), "typing of its own");
+        await userEvent.keyboard("{Enter}");
+        assert.equal(box.getAttribute("data-committed"), "");
+        await userEvent.keyboard("4");
+        assert.isFalse(box.hasAttribute("data-committed"));
+        await userEvent.keyboard("{ArrowUp}");
+        assert.equal(box.getAttribute("data-committed"), "");
+        assert.equal((box as HTMLInputElement).value, "5");
     });
 
     it("a numeric field steps with the arrows while the list is closed", async () => {

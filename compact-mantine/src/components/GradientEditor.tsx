@@ -153,6 +153,9 @@ export function UnitField({
                 aria-valuemax={role === undefined ? undefined : max}
                 aria-valuetext={role === undefined ? undefined : format(value)}
                 data-testid={testId}
+                // Marks a field holding its committed value and no typing of its own, so an
+                // application's Undo key takes back the last change, as the color box's does.
+                data-committed={draft === format(value) || undefined}
                 style={style}
                 value={draft}
                 onChange={(event) => {

@@ -1,7 +1,7 @@
 import { DirectionProvider, MantineProvider } from "@mantine/core";
 import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { assert, describe, expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
 import { type ColorStop, compactTheme, createColorStop, GradientEditor, PopoutManager } from "../../src";
@@ -93,6 +93,20 @@ describe("GradientEditor", () => {
         );
         expect(screen.getByText("Direction")).toBeInTheDocument();
         expect(screen.getByRole("spinbutton", { name: "Gradient direction" })).toBeInTheDocument();
+    });
+
+    it("marks the direction field committed after Enter or an arrow, and not while it holds typing", async () => {
+        renderGradientEditor(
+            <GradientEditor stops={defaultStops} defaultDirection={90} showDirection onChange={vi.fn()} />,
+        );
+        const angle = screen.getByRole("spinbutton", { name: "Gradient direction" });
+        await userEvent.click(angle);
+        await userEvent.keyboard("45");
+        assert.isFalse(angle.hasAttribute("data-committed"), "typing of its own");
+        await userEvent.keyboard("{Enter}");
+        assert.isTrue(angle.hasAttribute("data-committed"));
+        await userEvent.keyboard("{ArrowUp}");
+        assert.isTrue(angle.hasAttribute("data-committed"));
     });
 
     it("hides the direction field when showDirection is false", () => {

@@ -431,6 +431,15 @@ describe("OrbitCameraController", () => {
                 );
             });
 
+            test("sorts only the corners near the outline, a few in a hundred of a round drawing", () => {
+                const { spots, min, max } = ball(8_000);
+                centeringWork.sorted = 0;
+                controller.zoomToBoundingBox(min, max, spots);
+
+                // eight corners a spot, on each of the two screen axes; sorting a quarter of them cost 6 ms a frame
+                assert.isBelow(centeringWork.sorted, 0.08 * 8 * 8_000 * 2);
+            });
+
             test("nodes well inside the others change the fit not at all", () => {
                 const { spots, min, max } = ball(500);
                 controller.zoomToBoundingBox(min, max, spots);

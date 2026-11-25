@@ -894,8 +894,11 @@ function seenCorners(
     return { xs, depths };
 }
 
-/** How many corners a fit's centering has weighed over all its halvings, so a test can count the work. */
-export const centeringWork = { corners: 0 };
+/**
+ * How many corners a fit's centering has weighed over all its halvings, and how many it sorted to find their outline,
+ * so a test can count the work.
+ */
+export const centeringWork = { corners: 0, sorted: 0 };
 
 /**
  * The corners on the outline of all of them, as seen along one screen axis and in depth: the convex hull of the
@@ -912,34 +915,47 @@ function outline(corners: { xs: Float64Array; depths: Float64Array }): { x: numb
     type Corner = { x: number; depth: number };
     const { xs, depths } = corners;
     const count = xs.length;
-    const at = (i: number): Corner => ({ x: xs[i], depth: depths[i] });
-    let [left, right, near, far] = [0, 0, 0, 0];
+    // the extremes along eight directions in the plane (x, depth, and both diagonals), in turning order: an octagon
+    // on the outline. Four (x and depth alone) left a quarter of a round drawing's corners outside, all sorted below.
+    // Each direction is (weight of x, weight of depth), toward the smallest x * wx + depth * wd.
+    const directions = [1, 0, 1, 1, 0, 1, -1, 1, -1, 0, -1, -1, 0, -1, 1, -1];
+    const extreme = new Int32Array(8);
+    const best = new Float64Array(8);
+    for (let k = 0; k < 8; k++) {
+        best[k] = xs[0] * directions[2 * k] + depths[0] * directions[2 * k + 1];
+    }
     for (let i = 1; i < count; i++) {
-        left = xs[i] < xs[left] ? i : left;
-        right = xs[i] > xs[right] ? i : right;
-        near = depths[i] < depths[near] ? i : near;
-        far = depths[i] > depths[far] ? i : far;
+        for (let k = 0; k < 8; k++) {
+            const reach = xs[i] * directions[2 * k] + depths[i] * directions[2 * k + 1];
+            if (reach < best[k]) {
+                best[k] = reach;
+                extreme[k] = i;
+            }
+        }
     }
 
-    // drop every corner strictly inside the four extremes' quadrilateral first, which is most of them, so the sort
-    // below sees few (Akl and Toussaint)
+    // drop every corner strictly inside that octagon first, which is nearly all of them, so the sort below sees few
+    // (Akl and Toussaint); a corner that is the extreme two ways is one vertex, else no corner is strictly inside
+    const ring = [...extreme].filter((v, k, all) => v !== all[(k + 7) % 8]);
+    const ringX = ring.map((i) => xs[i]);
+    const ringDepth = ring.map((i) => depths[i]);
     const turnAt = (ox: number, oz: number, ax: number, az: number, bx: number, bz: number): number =>
         (ax - ox) * (bz - oz) - (az - oz) * (bx - ox);
     const turn = (o: Corner, a: Corner, b: Corner): number => turnAt(o.x, o.depth, a.x, a.depth, b.x, b.depth);
-    const ring = [left, near, right, far];
     const kept: Corner[] = [];
     for (let i = 0; i < count; i++) {
-        let inside = true;
-        for (let r = 0; r < 4 && inside; r++) {
-            const [o, a] = [ring[r], ring[(r + 1) % 4]];
-            inside = turnAt(xs[o], depths[o], xs[a], depths[a], xs[i], depths[i]) > 0;
+        let inside = ring.length >= 3;
+        for (let r = 0; r < ring.length && inside; r++) {
+            const a = r + 1 === ring.length ? 0 : r + 1;
+            inside = turnAt(ringX[r], ringDepth[r], ringX[a], ringDepth[a], xs[i], depths[i]) > 0;
         }
 
         if (!inside) {
-            kept.push(at(i));
+            kept.push({ x: xs[i], depth: depths[i] });
         }
     }
 
+    centeringWork.sorted += kept.length;
     kept.sort((a, b) => a.x - b.x || a.depth - b.depth);
     // boxes share corners' places: a repeated corner makes every turn after it 0, so nothing behind it is dropped
     const distinct = kept.filter((c, i) => i === 0 || c.x !== kept[i - 1].x || c.depth !== kept[i - 1].depth);

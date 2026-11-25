@@ -144,32 +144,34 @@ export function FormatLines({
     return (
         <>
             {numeric ? (
-                <PopLine line="format.kind" name={null}>
-                    <Segments
-                        label="Format kind"
-                        value={tab}
-                        options={[
-                            ["number", "Number"],
-                            ["percent", "Percent"],
-                            ["money", "Money"],
-                            ["date", "Date"],
-                        ]}
-                        onPick={(next) => {
-                            const { prefix, suffix } = format ?? {};
-                            const kept: Format = { prefix, suffix };
-                            const by: Readonly<Record<string, Format>> = {
-                                number: kept,
-                                percent: { ...kept, style: "percent" },
-                                money: { ...kept, style: "currency", currency: "USD" },
-                                date: { ...kept, date: { style: "absolute" } },
-                            };
-                            setFormat({
-                                ...Object.fromEntries(Object.keys(format ?? {}).map((key) => [key, undefined])),
-                                ...by[next],
-                            });
-                        }}
-                    />
-                </PopLine>
+                <div data-strip="">
+                    <PopLine line="format.kind" name={null}>
+                        <Segments
+                            label="Format kind"
+                            value={tab}
+                            options={[
+                                ["number", "Number"],
+                                ["percent", "Percent"],
+                                ["money", "Money"],
+                                ["date", "Date"],
+                            ]}
+                            onPick={(next) => {
+                                const { prefix, suffix } = format ?? {};
+                                const kept: Format = { prefix, suffix };
+                                const by: Readonly<Record<string, Format>> = {
+                                    number: kept,
+                                    percent: { ...kept, style: "percent" },
+                                    money: { ...kept, style: "currency", currency: "USD" },
+                                    date: { ...kept, date: { style: "absolute" } },
+                                };
+                                setFormat({
+                                    ...Object.fromEntries(Object.keys(format ?? {}).map((key) => [key, undefined])),
+                                    ...by[next],
+                                });
+                            }}
+                        />
+                    </PopLine>
+                </div>
             ) : null}
             {numeric && (tab === "number" || tab === "percent") ? (
                 <PopLine line="format.digits" name="Decimals / Notation" wide first={64}>

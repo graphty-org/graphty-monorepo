@@ -18,6 +18,7 @@ import { LineFrame } from "./RubricLine";
  * @param props.wide - two inputs on the line: its name above them and they across the line
  * @param props.modifier - its "..." slot
  * @param props.first - a wide line's first control's width in px, when it is a short field beside a wider one
+ * @param props.set - whether the spec sets what the line edits (its mark in a group's "..." menu)
  * @param props.children - its control
  * @returns The line
  */
@@ -27,6 +28,7 @@ export function PopLine({
     wide,
     modifier,
     first,
+    set = false,
     children,
 }: Readonly<{
     line: string;
@@ -34,6 +36,7 @@ export function PopLine({
     wide?: boolean;
     modifier?: React.ReactNode;
     first?: number;
+    set?: boolean;
     children: React.ReactNode;
 }>): React.JSX.Element {
     // Two inputs side by side across the line, each half of it, as a rubric line's number and its unit sit.
@@ -62,7 +65,7 @@ export function PopLine({
         <LineFrame
             line={line}
             name={name}
-            set
+            set={set}
             rule="R12"
             control={control}
             modifier={modifier ?? null}

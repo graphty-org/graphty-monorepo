@@ -16,7 +16,7 @@ import { failed, pruned, type Spec, word } from "./dataEntries";
 import { CommitText, PopLine, Segments, WordNumber } from "./dataLines";
 import { GroupMenu, type MenuGroup } from "./GroupMenu";
 import { unsetIn } from "./lineWrites";
-import { lineChannels, rubricOf, type SubGroup } from "./rubric";
+import { lineChannels, lineFor, rubricOf, type SubGroup } from "./rubric";
 import { RubricLine } from "./RubricLine";
 import { setOn } from "./things";
 
@@ -119,7 +119,8 @@ function ColorsLines({ args }: Readonly<{ args: GroupArgs }>): React.JSX.Element
                     session={ctx.session}
                     channel={channel === "node.pieData" ? "node.pieColors" : "node.chartColors"}
                     value={typeof spec.palette === "string" ? spec.palette : undefined}
-                    shown={undefined}
+                    shown={facts?.palette}
+                    inForceShown
                     patch={({ palette }) => {
                         put({ palette, colors: undefined });
                     }}
@@ -324,6 +325,7 @@ export function putScale(args: GroupArgs, patch: Partial<Scale>): void {
  * @returns The lines
  */
 function ScaleLines({ args }: Readonly<{ args: GroupArgs }>): React.JSX.Element {
+    const horizontal = lineFor("node", "node.chartHorizontal");
     const scale = (args.spec.scale ?? {}) as Scale;
     const fixed = scale.min !== undefined && scale.max !== undefined;
     const clip = scale.clip ?? [0, 100];
@@ -403,6 +405,7 @@ function ScaleLines({ args }: Readonly<{ args: GroupArgs }>): React.JSX.Element 
                     }}
                 />
             </PopLine>
+            {horizontal === undefined ? null : <RubricLine ctx={args.ctx} line={horizontal.line} />}
         </>
     );
 }
@@ -502,7 +505,7 @@ function groupsOf(ctx: RowContext, channel: DataChannel): DataGroup[] {
                 lines: (args) => <ScaleLines args={args} />,
                 set: (args) => {
                     const { share: _share, ...rest } = (args.spec.scale ?? {}) as Scale;
-                    return Object.keys(rest).length > 0;
+                    return Object.keys(rest).length > 0 || setOn(args.ctx, "node.chartHorizontal");
                 },
                 unset: (args) => {
                     const share = (args.spec.scale as Scale | undefined)?.share;
@@ -517,8 +520,8 @@ function groupsOf(ctx: RowContext, channel: DataChannel): DataGroup[] {
                 unset: without(["keep", "other"]),
             },
             { ...COLORS },
-            // The scale writes a chart's range from data: Axis keeps only Horizontal.
-            ...lookGroups(ctx, "chart", "node.chartKind", ["node.chartMin"]),
+            // The scale writes a chart's range from data, so Axis would hold Horizontal alone: it joins Scale.
+            ...lookGroups(ctx, "chart", "node.chartKind", ["node.chartMin", "node.chartHorizontal"]),
         ];
     }
     return [];

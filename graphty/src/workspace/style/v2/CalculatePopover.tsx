@@ -11,7 +11,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import React from "react";
 
 import { readableName, valueFact } from "../words";
-import { pruned, TYPES } from "./dataEntries";
+import { NONE, pruned, TYPES } from "./dataEntries";
 import { PopLine, Segments, WordNumber } from "./dataLines";
 import { walkingOver } from "./graphWalks";
 
@@ -110,6 +110,15 @@ const NUMBERS = (kind: string): boolean => kind === "number";
  * @returns whether it holds times.
  */
 const TIMES = (_kind: string, valueKind: string | undefined): boolean => valueKind === "time";
+
+/**
+ * The picker row a group in force is, when it is not a value.
+ * @param groupBy - the group.
+ * @returns "direction", or undefined for a value.
+ */
+function actionOf(groupBy: NonNullable<GraphMeasure["groupBy"]>): string | undefined {
+    return groupBy.by === "direction" ? "direction" : undefined;
+}
 
 /** The measures, with their words. */
 const MEASURES: readonly (readonly [GraphMeasure["measure"], string])[] = [
@@ -216,9 +225,13 @@ function WhereLine({ args }: Readonly<{ args: CalcArgs }>): React.JSX.Element {
         <PopLine line="calc.where" name="Only where" wide={value !== undefined}>
             <DataFieldPicker
                 label="Only where"
-                clearable
                 fields={walkFields(session, over, ANY)}
                 value={id}
+                actions={[NONE]}
+                actionValue={id === null ? NONE.id : undefined}
+                onAction={() => {
+                    set({ where: undefined, whereOn: undefined });
+                }}
                 onChange={(next) => {
                     if (next === null) {
                         set({ where: undefined, whereOn: undefined });
@@ -323,13 +336,15 @@ function GroupLine({ args }: Readonly<{ args: CalcArgs }>): React.JSX.Element {
         >
             <DataFieldPicker
                 label="Group by"
-                clearable
                 fields={walkFields(session, over, ANY)}
                 value={id}
-                actions={over === "edges" && session.status.directed ? [{ id: "direction", label: "Direction" }] : []}
-                actionValue={groupBy?.by === "direction" ? "direction" : undefined}
-                onAction={() => {
-                    set({ groupBy: { by: "direction" } });
+                actions={[
+                    NONE,
+                    ...(over === "edges" && session.status.directed ? [{ id: "direction", label: "Direction" }] : []),
+                ]}
+                actionValue={groupBy === undefined ? NONE.id : actionOf(groupBy)}
+                onAction={(action) => {
+                    set({ groupBy: action === "direction" ? { by: "direction" } : undefined });
                 }}
                 onChange={(next) => {
                     if (next === null) {
@@ -424,20 +439,22 @@ export function CalculateLines({
     };
     return (
         <>
-            <PopLine line="calc.over" name={null}>
-                <Segments
-                    label="Over"
-                    value={graph.over}
-                    options={[
-                        ["edges", "Edges"],
-                        ["neighbors", "Neighbors"],
-                        ["members", "Members"],
-                    ]}
-                    onPick={(next) => {
-                        put(walkingOver(graph, next as GraphMeasure["over"]));
-                    }}
-                />
-            </PopLine>
+            <div data-strip="">
+                <PopLine line="calc.over" name={null}>
+                    <Segments
+                        label="Over"
+                        value={graph.over}
+                        options={[
+                            ["edges", "Edges"],
+                            ["neighbors", "Neighbors"],
+                            ["members", "Members"],
+                        ]}
+                        onPick={(next) => {
+                            put(walkingOver(graph, next as GraphMeasure["over"]));
+                        }}
+                    />
+                </PopLine>
+            </div>
             <DirectionLine args={args} />
             <WhereLine args={args} />
             <MeasureLine args={args} />

@@ -34,6 +34,7 @@ import {
     FIXED,
     holderOf,
     moved,
+    NONE,
     pruned,
     type Spec,
     specOf,
@@ -278,29 +279,31 @@ function KindTabs({ args }: Readonly<{ args: EntryArgs }>): React.JSX.Element {
     const { ctx, channel, entry, name, put } = args;
     const record = channel === "node.recordData";
     return (
-        <PopLine line="entry.kind" name={null}>
-            <Segments
-                label={`${name} kind`}
-                value={kindOf(entry)}
-                options={[["field", "Field"], ["graph", "Graph"], record ? ["text", "Text"] : ["value", "Value"]]}
-                onPick={(next) => {
-                    const common = optionsOf(entry);
-                    const fits = fieldsFor(ctx.session, channel, []).find(
-                        (field) => field.disabledReason === undefined,
-                    );
-                    const to: Readonly<Record<string, DataEntry | undefined>> = {
-                        field: fits === undefined ? undefined : { ...common, field: fits.id },
-                        graph: { ...common, ...NEW_GRAPH },
-                        value: { ...common, value: 1 },
-                        text: { ...common, text: "Text" },
-                    };
-                    const written = to[next];
-                    if (written !== undefined) {
-                        put(written);
-                    }
-                }}
-            />
-        </PopLine>
+        <div data-strip="">
+            <PopLine line="entry.kind" name={null}>
+                <Segments
+                    label={`${name} kind`}
+                    value={kindOf(entry)}
+                    options={[["field", "Field"], ["graph", "Graph"], record ? ["text", "Text"] : ["value", "Value"]]}
+                    onPick={(next) => {
+                        const common = optionsOf(entry);
+                        const fits = fieldsFor(ctx.session, channel, []).find(
+                            (field) => field.disabledReason === undefined,
+                        );
+                        const to: Readonly<Record<string, DataEntry | undefined>> = {
+                            field: fits === undefined ? undefined : { ...common, field: fits.id },
+                            graph: { ...common, ...NEW_GRAPH },
+                            value: { ...common, value: 1 },
+                            text: { ...common, text: "Text" },
+                        };
+                        const written = to[next];
+                        if (written !== undefined) {
+                            put(written);
+                        }
+                    }}
+                />
+            </PopLine>
+        </div>
     );
 }
 
@@ -868,9 +871,13 @@ function RecordLines({ args }: Readonly<{ args: SpecArgs }>): React.JSX.Element 
             <PopLine line="data.header" name="Header">
                 <DataFieldPicker
                     label="Header"
-                    clearable
                     fields={fieldsFor(ctx.session, channel, []).filter((each) => each.group !== "Calculated")}
                     value={typeof spec.header === "string" ? spec.header : null}
+                    actions={[NONE]}
+                    actionValue={typeof spec.header === "string" ? undefined : NONE.id}
+                    onAction={() => {
+                        put({ header: undefined });
+                    }}
                     onChange={(next) => {
                         put({ header: next ?? undefined });
                     }}
@@ -1017,15 +1024,17 @@ function EntryLine({
                 }
                 modifier={
                     <RowSettings label={`${name} settings`} title={name} opened={open} onOpenChange={setOpen}>
-                        <EntryLines
-                            ctx={ctx}
-                            channel={channel}
-                            spec={spec}
-                            at={at}
-                            fact={fact}
-                            color={color}
-                            calculate={calculateFirst}
-                        />
+                        <div data-thing-popover="">
+                            <EntryLines
+                                ctx={ctx}
+                                channel={channel}
+                                spec={spec}
+                                at={at}
+                                fact={fact}
+                                color={color}
+                                calculate={calculateFirst}
+                            />
+                        </div>
                     </RowSettings>
                 }
                 removeName={`Remove ${name}`}
@@ -1092,8 +1101,10 @@ export function DataRow({
             fixedSettings
         ) : (
             <RowSettings label={`${title} settings`} title={title} changed opened={open} onOpenChange={setOpen}>
-                <SpecLines ctx={ctx} channel={channel} spec={spec} facts={facts} />
-                <SampleLine ctx={ctx} channel={channel} facts={facts} onSample={setPicked} />
+                <div data-thing-popover="">
+                    <SpecLines ctx={ctx} channel={channel} spec={spec} facts={facts} />
+                    <SampleLine ctx={ctx} channel={channel} facts={facts} onSample={setPicked} />
+                </div>
             </RowSettings>
         );
     const calculated = React.useCallback(() => {

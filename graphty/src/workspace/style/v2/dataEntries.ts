@@ -296,3 +296,6 @@ export function word(value: unknown, fallback: string): string {
 export function pruned<T extends object>(value: T): T {
     return Object.fromEntries(Object.entries(value).filter(([, each]) => each !== undefined)) as T;
 }
+
+/** The picker row that takes a choice off, drawn as the picker's value while nothing is chosen. */
+export const NONE = { id: "none", label: "None" } as const;

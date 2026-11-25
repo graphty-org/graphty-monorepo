@@ -762,6 +762,8 @@ function SourceHeader({
  * @param props.value - the palette the binding names
  * @param props.shown - the palette it paints with when it names none
  * @param props.patch - writes the pick
+ * @param props.inForceShown - unset, show the palette in force as the field's value (Style panel v2's rule that every
+ *     input shows a value), not as its placeholder
  * @returns The select
  */
 export function PaletteSelect({
@@ -770,12 +772,14 @@ export function PaletteSelect({
     value,
     shown,
     patch,
+    inForceShown = false,
 }: Readonly<{
     session: GraphSession;
     channel: ChannelDescriptor["channel"];
     value: string | undefined;
     shown: string | undefined;
     patch: (change: { palette: string | undefined }) => void;
+    inForceShown?: boolean;
 }>): React.JSX.Element {
     const palettes = session.catalog.palettes().filter((p) => p.kind === "categorical");
     const inForce = shown ?? palettes.at(0)?.id;
@@ -822,7 +826,7 @@ export function PaletteSelect({
                     kind="select"
                     width="fill"
                     data={palettes.map((p) => ({ value: p.id, label: paletteWord(p.id) }))}
-                    value={value ?? null}
+                    value={value ?? (inForceShown ? (inForce ?? null) : null)}
                     placeholder={value === undefined && inForce !== undefined ? paletteWord(inForce) : undefined}
                     glyph={strips[value ?? inForce ?? ""]}
                     optionGlyphs={strips}

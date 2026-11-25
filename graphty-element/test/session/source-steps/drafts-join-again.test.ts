@@ -502,6 +502,22 @@ describe("source-steps drafts: rows left out one by one", () => {
     });
 });
 
+describe("source-steps drafts: a row left out by its own id", () => {
+    it("is listed by it alone", async () => {
+        const session = on();
+        await session.data.import(csv("people.csv", "person", "P1", "P2"), { key: "person", type: "person" });
+        const e = await session.data.stage(csv("e.csv", "entry,person", "e1,P1", "e2,P1"), { key: "entry" });
+        const d = session.data.draft();
+        d.connect({ from: { source: e, field: "person" }, into: { space: "person" } });
+        const step = d.steps().at(-1)?.index ?? 0;
+        d.exclude(step, d.preview().rows({ step, bucket: "newEdges", limit: 1 }).rows);
+        assert.deepStrictEqual(d.steps().at(-1)?.except, { column: "entry", values: ["e1"] });
+        assert.strictEqual(d.steps().at(-1)?.buckets?.newEdges, 1);
+        d.dispose();
+        session.dispose();
+    });
+});
+
 describe("source-steps drafts: the draft drawn", () => {
     it("keeps its colors when it is drawn again: its edges may have other ids then", async () => {
         const session = on();

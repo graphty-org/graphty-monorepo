@@ -412,6 +412,11 @@ type ExceptItem = CellValue | Pick<DrillRow, "key" | "incoming"> | ExceptCell;
  */
 function tellingColumn(step: Step, src: Source | undefined, column: string, row: Row): string | null {
     const keys = [src?.mapping.nodes?.key, src?.mapping.edges?.edgeId];
+    // a row's own id names it, but not what a link's rows of one node share
+    const linked = step.op === "join.edges" && step.link !== undefined;
+    if (!linked && keys.includes(column)) {
+        return null;
+    }
     const ends = step.op === "join.edges" ? [...(step.link?.columns ?? []), step.read.source, step.read.target] : [];
     return [...keys, ...ends].find((each) => each !== undefined && each !== column && !isEmpty(row[each])) ?? null;
 }

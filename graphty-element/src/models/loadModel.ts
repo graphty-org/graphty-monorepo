@@ -83,6 +83,7 @@ export async function loadModel(
     }
 
     own.pinPbrShaders();
+    own.prepareScene(scene);
     try {
         return await models.loadModelFiles(scene, files, main, format, {
             ...own.LOAD_OPTIONS,

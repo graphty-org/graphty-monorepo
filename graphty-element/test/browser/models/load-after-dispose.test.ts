@@ -7,15 +7,15 @@
  * material of a scene makes the scene's BRDF lookup texture. That texture's RGBD decode imports
  * and compiles a shader, then runs a post-process; on a disposed engine the effect reports ready
  * with no program, and the decode threw "Cannot read properties of null (reading 'program')" as an
- * unhandled rejection, in whatever test or page code ran at that moment (issue #6683). The decode
- * is stopped by patches/@babylonjs__core@8.56.2.patch; test/setup.ts fails a test on an unhandled
- * rejection.
+ * unhandled rejection, in whatever test or page code ran at that moment (issue #6683).
+ * graphty-element makes the scene's BRDF texture before the load starts (prepareScene in
+ * src/models/chunk.ts), so it belongs to the live scene, is disposed with it, and its decode then
+ * draws nothing; test/setup.ts fails a test on an unhandled rejection.
  */
 
 import { Engine } from "@babylonjs/core/Engines/engine.js";
 import { SceneLoader } from "@babylonjs/core/Loading/sceneLoader.js";
 import type { Texture } from "@babylonjs/core/Materials/Textures/texture.js";
-import { GetEnvironmentBRDFTexture } from "@babylonjs/core/Misc/brdfTextureTools.js";
 import { Scene } from "@babylonjs/core/scene.js";
 import type { GLTFFileLoader } from "@babylonjs/loaders/glTF/glTFFileLoader.js";
 import { afterEach, assert, describe, it } from "vitest";
@@ -68,12 +68,19 @@ describe("a graph disposed while a model loads", () => {
 
         assert.isTrue(scene.isDisposed);
         assert.strictEqual(outcome, "rejected");
+        // The materials made after the dispose reuse the texture made while the scene was alive,
+        // which went with the scene; one made in the disposed scene would still name it, and decode.
+        const brdf = scene.environmentBRDFTexture;
+        assert.isNotNull(brdf, "the scene's BRDF texture was made");
+        assert.isNull(brdf?.getScene(), "and disposed with the scene");
     });
 
-    it("does not decode the BRDF texture on an engine disposed while its decode shader loads", async () => {
+    it("draws nothing for a BRDF texture whose engine is disposed while its decode shader loads", async () => {
+        const { prepareScene } = await import("../../../src/models/chunk");
         const { engine, scene } = makeScene();
+        prepareScene(scene);
         // Babylon makes it as a Texture and types it as a BaseTexture.
-        const brdf = GetEnvironmentBRDFTexture(scene) as Texture;
+        const brdf = scene.environmentBRDFTexture as Texture;
         // Babylon's own onLoad observer, added first, has started the decode and waits on the
         // shader's import; the engine goes before that import resolves.
         const loaded = new Promise<void>((resolve) => {
@@ -83,9 +90,11 @@ describe("a graph disposed while a model loads", () => {
             });
         });
         await loaded;
-        // The same import, resolved after the decode's: by now the decode has run or stopped.
+        // The same import, resolved after the decode's: by now the decode has run, and drawn
+        // nothing, since its texture went with the scene.
         await import("@babylonjs/core/Shaders/rgbdDecode.fragment.js");
 
         assert.isTrue(engine.isDisposed);
+        assert.isNull(brdf.getScene());
     });
 });

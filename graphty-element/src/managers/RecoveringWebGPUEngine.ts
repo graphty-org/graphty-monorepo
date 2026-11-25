@@ -12,6 +12,13 @@ import type { GpuDeviceHandle } from "../render/gpuHandles";
  * `device.destroy()` and dies in `createBuffer` after a GPU process crash. Here the rebuild and
  * the restored event wait for the new device, and the loop's frames stay skipped until then. The
  * overrides are Babylon internals: a Babylon upgrade reruns `test/gpu-loss/`.
+ *
+ * It also destroys the map-readable buffers Babylon leaves behind (issue #9850). Babylon never destroys its
+ * occlusion query buffers, nor a readPixels buffer whose read was cut short by a loss or a dispose, and Chromium
+ * keeps every such buffer until the page's frame goes away. Then it destroys them all, and one made on a device
+ * of a GPU process that has since crashed is a use-after-free that takes the page's renderer down (chromium
+ * 143.0.7499.4, in `LocalDOMWindow::FrameDestroyed`). Destroyed here when their device is done with, there is
+ * nothing left for it.
  */
 export class RecoveringWebGPUEngine extends WebGPUEngine {
     /** Told when no new device could be had, so nothing will be drawn again. */
@@ -28,6 +35,28 @@ export class RecoveringWebGPUEngine extends WebGPUEngine {
     private reopen: (() => void) | null = null;
     /** Those told of the new device by {@link drawingDevice}. */
     private readonly waiting: { resolve: (device: GpuDeviceHandle) => void; reject: (error: unknown) => void }[] = [];
+    /** The map-readable and map-writable buffers made on this engine's devices and not destroyed yet. */
+    private readonly mappable = new Set<GPUBuffer>();
+
+    /**
+     * Opens nothing yet: as Babylon's engine, with every map-readable buffer of each device it opens noted.
+     * @param args - Babylon's `WebGPUEngine` arguments: the canvas and the options.
+     */
+    constructor(...args: ConstructorParameters<typeof WebGPUEngine>) {
+        super(...args);
+        // Babylon sets `_device` once per device it opens, in `initAsync`, before it makes any buffer on it.
+        let device: GPUDevice | undefined;
+        Object.defineProperty(this, "_device", {
+            configurable: true,
+            get: () => device,
+            set: (opened: GPUDevice | undefined) => {
+                device = opened;
+                if (opened !== undefined) {
+                    this.trackMappable(opened);
+                }
+            },
+        });
+    }
 
     /**
      * The device drawn on, waiting for the new one during a loss. The wait is already set when a
@@ -59,6 +88,7 @@ export class RecoveringWebGPUEngine extends WebGPUEngine {
     /** Disposes the engine and refuses whoever waits for its device. */
     override dispose(): void {
         super.dispose();
+        this.destroyMappable();
         this.giveUp(new Error("the WebGPU engine was disposed"));
     }
 
@@ -87,7 +117,11 @@ export class RecoveringWebGPUEngine extends WebGPUEngine {
             // the new device that throws fails the restore as a refused device does: left as an
             // unhandled rejection, nothing said the graph had stopped drawing and every wait for
             // the restore waited forever (issue #6422).
-            (initEngine as unknown as () => Promise<void>)()
+            const reopened = (initEngine as unknown as () => Promise<void>)();
+            // The lost device's buffers, now that `initAsync` has moved the engine on: a read of one still
+            // waiting resolves empty instead of failing.
+            this.destroyMappable();
+            reopened
                 .then(() => {
                     this.finishRestore(loss);
                 })
@@ -157,6 +191,34 @@ export class RecoveringWebGPUEngine extends WebGPUEngine {
         this.noDevice = { error };
         for (const { reject } of this.waiting.splice(0)) {
             reject(error);
+        }
+    }
+
+    /**
+     * Notes every map-readable or map-writable buffer the device makes, until something destroys it.
+     * @param device - A device the engine opened.
+     */
+    private trackMappable(device: GPUDevice): void {
+        const createBuffer = device.createBuffer.bind(device);
+        device.createBuffer = (descriptor: GPUBufferDescriptor): GPUBuffer => {
+            const buffer = createBuffer(descriptor);
+            if ((descriptor.usage & (GPUBufferUsage.MAP_READ | GPUBufferUsage.MAP_WRITE)) !== 0) {
+                this.mappable.add(buffer);
+                const destroy = buffer.destroy.bind(buffer);
+                buffer.destroy = (): undefined => {
+                    this.mappable.delete(buffer);
+                    destroy();
+                };
+            }
+
+            return buffer;
+        };
+    }
+
+    /** Destroys every map-readable or map-writable buffer still alive. */
+    private destroyMappable(): void {
+        for (const buffer of [...this.mappable]) {
+            buffer.destroy();
         }
     }
 

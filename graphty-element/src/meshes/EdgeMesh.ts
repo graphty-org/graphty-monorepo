@@ -744,6 +744,12 @@ export class EdgeMesh {
      * @param edge.lean - Whether a straight line draws the lean program (`EDGE_PULLED_LEAN`): the
      *     graph's `antialias` is false under renderPath "batched" (cosmos-gap.md G12); `"smooth"`, the
      *     lean program with shader-smoothed edges (`antialias` "shader"). A curve never does.
+     * @param edge.straightInCurve - Whether a straight line may be drawn from the curve batch of its width and pass
+     *     ({@link PulledLineBatch.drawStraight}): a line with no head, between two ends it is not seen through. Once
+     *     that batch exists such a line is drawn from it, and when it is made the straight batch's such lines move
+     *     into it ({@link PulledLineBatch.moveStraightInto}), so straight lines and curves of one width draw in the
+     *     order their pieces were taken, as the object path's one line batch draws them, not one batch over the other
+     *     (#9201).
      * @returns The batch.
      */
     static pulledBatch(
@@ -752,9 +758,14 @@ export class EdgeMesh {
         style: EdgeStyleConfig,
         scene: Scene,
         rows: () => PulledRowTextures,
-        edge: { loop?: boolean; route?: NonNullable<EdgeStyleConfig["line"]>["route"]; lean?: LeanLines } = {},
+        edge: {
+            loop?: boolean;
+            route?: NonNullable<EdgeStyleConfig["line"]>["route"];
+            lean?: LeanLines;
+            straightInCurve?: boolean;
+        } = {},
     ): PulledLineBatch {
-        const { loop = false, route = style.line?.route, lean = false } = edge;
+        const { loop = false, route = style.line?.route, lean = false, straightInCurve = false } = edge;
         // a patterned line is a straight line (`Edge.pullsLine`, `EdgeRowLines.drawsStyle`), never lean: the lean
         // program draws no pattern
         const pattern = this.pulledPattern(style, options.width) ?? undefined;
@@ -789,13 +800,18 @@ export class EdgeMesh {
         // draws (`pulledLineSortsWith`)
         const width = flat ? `|w${String(options.width)}` : "";
         const key = `edge-pulled|${String(style.line?.minScreenWidth ?? 0)}${width}|${pass}${suffix}${flat ? "|2d" : ""}${patterned}`;
+        const curves = straightInCurve && kind === true ? this.curveBatchFor(cache, key, pass, pattern) : undefined;
+        if (curves !== undefined) {
+            return curves;
+        }
+
         return cache.getPulledBatch(key, () => {
             const mesh = flat
                 ? this.createFlatPulledLine(options, style, scene, leanLine, pattern)
                 : this.createStaticLine(options, style, scene, false, kind, pattern);
             // The rows are in graph-root's space, as a line batch's slots are.
             mesh.parent = scene.getTransformNodeByName("graph-root");
-            return new PulledLineBatch(
+            const batch = new PulledLineBatch(
                 mesh,
                 scene,
                 () => rows().positionTexture,
@@ -804,7 +820,49 @@ export class EdgeMesh {
                 kind === true && pattern === undefined,
                 rows,
             );
+            this.takeStraightLines(cache, key, curve, pattern, batch);
+            return batch;
         });
+    }
+
+    /**
+     * The curve batch a plain straight line of a key is drawn from, when one exists ({@link EdgeMesh.pulledBatch}'s
+     * `straightInCurve`). A patterned line keeps its own batch.
+     * @param cache - The cache that keeps the batches.
+     * @param key - The straight line's batch key.
+     * @param pass - Its pass.
+     * @param pattern - Its pattern, if any.
+     * @returns The curve batch, or undefined.
+     */
+    private static curveBatchFor(
+        cache: MeshCache,
+        key: string,
+        pass: string,
+        pattern: JoinedLineOptions["pattern"] | undefined,
+    ): PulledLineBatch | undefined {
+        return pattern === undefined ? cache.pulledBatchMap.get(key.replace(`|${pass}`, `|${pass}|curve`)) : undefined;
+    }
+
+    /**
+     * Move the straight lines of a curve batch's key that it can draw into it as it is made, before the curve that
+     * made it takes a piece, so they stay under that curve and every later straight line of the key joins them
+     * ({@link PulledLineBatch.moveStraightInto}).
+     * @param cache - The cache that keeps the batches.
+     * @param key - The new batch's key.
+     * @param curve - Whether it is a curve batch.
+     * @param pattern - Its pattern, if any.
+     * @param batch - The new batch.
+     */
+    private static takeStraightLines(
+        cache: MeshCache,
+        key: string,
+        curve: boolean,
+        pattern: JoinedLineOptions["pattern"] | undefined,
+        batch: PulledLineBatch,
+    ): void {
+        if (curve && pattern === undefined) {
+            cache.pulledBatchMap.get(key.replace("|curve", ""))?.moveStraightInto(batch);
+        }
     }
 
     /**

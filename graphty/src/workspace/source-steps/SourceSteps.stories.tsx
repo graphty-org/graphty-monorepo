@@ -156,3 +156,26 @@ export const AfterCommitSteps: Story = {
         });
     },
 };
+
+/**
+ * The join workspace (issue #9796): Edit joins opens the modal over the canvas with one card for
+ * the staged entries, its match the element's guess; Connect makes the card's step, drawn in the
+ * card's color in the preview.
+ */
+export const JoinWorkspace: Story = {
+    ...freshStore(DOORS),
+    play: async (context) => {
+        const session = await staged(context, "entries.csv", ENTRIES);
+        const canvas = within(context.canvasElement);
+        await userEvent.click(canvas.getByRole("button", { name: /^Edit joins/ }));
+        const body = within(context.canvasElement.ownerDocument.body);
+        const modal = await body.findByRole("dialog", { name: "Join" });
+        await userEvent.click(within(modal).getByRole("radio", { name: "Connect" }));
+        await waitFor(() => {
+            if ((session.styles.shownDraft?.steps?.length ?? 0) === 0) {
+                throw new Error("the card's step is drawn in its color");
+            }
+        });
+        await session.styles.settled();
+    },
+};

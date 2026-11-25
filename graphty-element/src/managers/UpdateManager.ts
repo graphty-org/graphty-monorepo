@@ -2632,49 +2632,73 @@ export class UpdateManager implements Manager {
             this.remeasureEdgesOf(resized, !this.repaintEndsInWalk(painter));
         }
 
+        // While a load holds the draw, the edges of a resized node are not placed with its batch: the walk that ends
+        // the repaint places them.
+        this.repaintMovedEdgeEnds ||= resized.size > 0 || this.dataManager.drawHeld;
+
         // A repaint can change how a node is drawn in ways that move where its edges stop without
         // moving the node, so the frame that finishes the repaint visits every edge. The frames in
         // between walk no edge: on a graph of 36,906 edges that walk was most of every frame a
         // repaint was spread over. A frame that resized a node places only that node's edges again.
         // A time window's slide changes nothing but the rows it painted, and the lines above placed
         // the edges of any node of those that changed size or was rebuilt.
+        // A repaint that changed no node's size, shape or outline (a color, say) walks no edge at all: every change
+        // that moves where an edge stops reports itself (`Node.edgeEndsChanged`), and a walk of edges none of whose
+        // ends moved places nothing. On the "objects" path it walked every edge twice for nothing (issue #10018).
         if (!painter.hasPendingNodes) {
             this.reportObjectCap("nodes");
-        }
-
-        if (!painter.hasPendingNodes) {
-            const rowsOnly = painter.takeNodesRowsOnly();
-            const buildsOnly = painter.takeNodesBuildsOnly();
-            const few = this.paintedRows;
-            this.paintedRows = [];
-            const built = new Set(this.builtNodesPainted);
-            this.builtNodesPainted.clear();
-            if (rowsOnly) {
-                return;
-            }
-
-            if (buildsOnly) {
-                // Nodes built from their rows (a hover under "batched") are drawn as their rows were: their own edges
-                // are placed again, not every edge of the graph, a whole walk per node hovered (issue #9166).
-                this.remeasureEdgesOf(built);
-                return;
-            }
-
-            // A repaint of a few nodes -- the ends of an added edge, a node an edit built -- places
-            // those nodes' edges, not every edge (issue #9164).
-            if (few !== null && this.placeEdgesOfRows(few)) {
-                return;
-            }
-
-            this.forceEdgeWalk();
-            this.paintIndex = { rows: null };
+            this.finishNodeRepaint(painter);
         }
     }
 
     /**
+     * Place what the frame that finished a node repaint owes the edges; see {@link syncNodeStyles}.
+     * @param painter - Where the rows were queued.
+     */
+    private finishNodeRepaint(painter: StylePainter): void {
+        const rowsOnly = painter.takeNodesRowsOnly();
+        const buildsOnly = painter.takeNodesBuildsOnly();
+        const few = this.paintedRows;
+        this.paintedRows = [];
+        const endsMoved = this.repaintMovedEdgeEnds;
+        this.repaintMovedEdgeEnds = false;
+        const built = new Set(this.builtNodesPainted);
+        this.builtNodesPainted.clear();
+        if (rowsOnly) {
+            return;
+        }
+
+        if (buildsOnly) {
+            // Nodes built from their rows (a hover under "batched") are drawn as their rows were: their own edges
+            // are placed again, not every edge of the graph, a whole walk per node hovered (issue #9166).
+            this.remeasureEdgesOf(built);
+            return;
+        }
+
+        // A repaint of a few nodes -- the ends of an added edge, a node an edit built -- places
+        // those nodes' edges, not every edge (issue #9164).
+        if (few !== null && this.placeEdgesOfRows(few)) {
+            return;
+        }
+
+        if (endsMoved) {
+            this.forceEdgeWalk();
+        }
+
+        this.paintIndex = { rows: null };
+    }
+
+    /**
+     * Whether a frame of the node repaint under way resized a node (or ran while a load held the draw), so the frame
+     * that finishes it walks every edge; see {@link syncNodeStyles}.
+     */
+    private repaintMovedEdgeEnds = false;
+
+    /**
      * Whether the node repaint under way will end in a walk of every edge ({@link syncNodeStyles}): it has painted
      * too many rows to place their edges one by one, and it is neither a time window's slide nor only `Node`s built
-     * from their rows.
+     * from their rows. It is asked only on a frame that resized a node, which owes that walk
+     * ({@link repaintMovedEdgeEnds}).
      * @param painter - Where the paint is read from.
      * @returns True when it will.
      */
@@ -2741,6 +2765,7 @@ export class UpdateManager implements Manager {
      * @internal
      */
     placeEdgesOfRow(row: number): void {
+        this.repaintMovedEdgeEnds = true;
         this.placeEdgesOfRows([row]);
     }
 

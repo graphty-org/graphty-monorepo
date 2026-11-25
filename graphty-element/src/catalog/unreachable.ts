@@ -307,6 +307,8 @@ export const UNREACHABLE_STYLE_FIELDS: readonly UnreachableStyleField[] = [
     // Edges
     // ------------------------------------------------------------------------------------------
     ...namedBlockOf("edge", "label", LABEL_RESIDUE),
+    // An edge's tooltip: its words and its appearance are channels, as the node's.
+    ...namedBlockOf("edge", "tooltip", LABEL_RESIDUE),
     // An edge's external label: its words, its place and its appearance are channels, as the node's.
     ...namedBlockOf("edge", "xlabel", LABEL_RESIDUE),
 
@@ -321,6 +323,7 @@ export const UNREACHABLE_STYLE_FIELDS: readonly UnreachableStyleField[] = [
         ["node", "tooltip"],
         ["node", "xlabel"],
         ["edge", "xlabel"],
+        ["edge", "tooltip"],
         ["edge", "arrowHead.text"],
         ["edge", "arrowTail.text"],
     ].flatMap(([target, prefix]) => namedBlockOf(target as "node" | "edge", prefix, TABLE_RESIDUE)),
@@ -398,6 +401,26 @@ export const UNPAINTED_CHANNELS: readonly UnpaintedChannel[] = [
             "requires the typeface, the panel colour and the size a layer asked for to be the " +
             "ones drawn.",
     },
+    ...(
+        [
+            "edge.tooltip",
+            "edge.tooltipStyle",
+            "edge.tooltipSize",
+            "edge.tooltipColor",
+            "edge.tooltipBackground",
+        ] as const
+    ).map((channel): UnpaintedChannel => ({
+        kind: "by-design",
+        channel,
+        reason:
+            "AN EDGE TOOLTIP IS DRAWN, so this waiver is about the reading, as for the node's: " +
+            "the tooltip is hover-only and this gate paints into a RESTING scene. " +
+            "`test/browser/edge-tooltip-on-hover.test.ts` hovers straight, curved and patterned " +
+            "edges with a real pointer on both render paths and requires the words a layer asked " +
+            "for, and reads the drawn tooltip's texture and plane to require the panel colour " +
+            "(`edge.tooltipStyle`, `edge.tooltipBackground`), the letter colour " +
+            "(`edge.tooltipColor`) and the size (`edge.tooltipSize`) a layer asked for.",
+    })),
     ...(["node.modelAnimationSpeed", "node.modelAnimationOffset"] as const).map((channel): UnpaintedChannel => ({
         kind: "by-design",
         channel,
@@ -488,31 +511,11 @@ export interface WithdrawnCapability {
 /**
  * Everything 2.0 stopped publishing, with the reason and the replacement for each.
  *
- * All three entries are the same shape of defect: a name the element published, a renderer that
+ * Every entry is the same shape of defect: a name the element published, a renderer that
  * never read it, and no way for a consumer to find that out but by writing it and watching
  * nothing happen. 2.0 is the first opportunity to take any of them back.
  */
 export const WITHDRAWN_CAPABILITIES: readonly WithdrawnCapability[] = [
-    {
-        subject: "edge.tooltip",
-        withdrawnIn: "2.0",
-        reason:
-            "No edge tooltip was ever drawn, in any released version of this package. A tooltip " +
-            "appears when the pointer arrives over something, and an edge cannot be pointed at: " +
-            "`src/Edge.ts` sets `isPickable = false` in three places and `PatternedLineMesh` " +
-            "declares it false as a field, which is the same fact that leaves the element with " +
-            "no `edge-click` event. The channel was nonetheless published `renderable: true` and " +
-            'sold in the styling guide as "the words to show on hover", so a consumer wrote a ' +
-            "layer, got nothing, and had nowhere to read why -- which is what `src/events.ts` " +
-            "calls a documented lie. The whole `tooltip` block went from `EdgeStyle` with the " +
-            "channel: sixty-two settings that reached no pixel.",
-        instead:
-            "Put the words on the edge itself with `edge.label`, which is drawn at the middle of " +
-            "the line, or at one of its ends with `edge.arrowHeadText` and `edge.arrowTailText`. " +
-            "A hover tooltip on an edge comes back if edge picking is ever built, on the same " +
-            "terms as the `edge-click` event; a NODE tooltip is drawn today and has both a " +
-            "`node.tooltip` channel and a `node.tooltipStyle` channel.",
-    },
     {
         subject: "NodeStyle.enabled",
         withdrawnIn: "2.0",

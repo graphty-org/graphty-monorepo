@@ -377,6 +377,8 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.marker": "content",
     "edge.label": "content",
     "edge.labelStyle": "content",
+    "edge.tooltip": "content",
+    "edge.tooltipStyle": "content",
     // A label field lands in its label style's column and is drawn with it.
     "node.labelColor": "content",
     "node.labelSize": "content",
@@ -449,6 +451,9 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.labelOnTop": "content",
     "edge.labelRotation": "content",
     "edge.labelBackground": "content",
+    "edge.tooltipSize": "content",
+    "edge.tooltipColor": "content",
+    "edge.tooltipBackground": "content",
     "edge.labelOutline": "content",
     "edge.labelOutlineWidth": "content",
     "edge.labelBorder": "content",

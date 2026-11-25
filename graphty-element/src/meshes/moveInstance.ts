@@ -1,4 +1,3 @@
-import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
 import type { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh.js";
 import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 
@@ -52,40 +51,4 @@ export function moveInstance(instance: InstancedMesh, to: Mesh): void {
     }
 
     instance._syncSubMeshes();
-}
-
-/**
- * Put meshes at the end of their scene's mesh list, in the order given, keeping the order of the
- * rest: where an instance built for them now would be.
- *
- * Babylon draws a source's instances in the order it meets them in `scene.meshes`, and a
- * translucent source when it meets its first instance there, so the order translucent nodes blend
- * in is their order in that list. A rebuilt node's new instance is added at the end; a node moved
- * by {@link moveInstance} is put there too, so a moved node blends as a rebuilt one would. One pass
- * over the list, however many meshes are moved.
- * @param moved - The meshes, all of one scene.
- */
-export function drawLast(moved: readonly AbstractMesh[]): void {
-    if (moved.length === 0) {
-        return;
-    }
-
-    const last = new Set(moved);
-    const { meshes } = moved[0].getScene();
-    const found = new Set<AbstractMesh>();
-    let kept = 0;
-    for (const mesh of meshes) {
-        if (last.has(mesh)) {
-            found.add(mesh);
-        } else {
-            meshes[kept++] = mesh;
-        }
-    }
-
-    meshes.length = kept;
-    for (const mesh of last) {
-        if (found.has(mesh)) {
-            meshes.push(mesh);
-        }
-    }
 }

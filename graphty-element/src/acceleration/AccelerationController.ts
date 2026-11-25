@@ -158,8 +158,9 @@ interface AccelerationControllerOptions {
     /**
      * How many times to try attaching a fresh accelerator after a device loss before giving up.
      * Defaults to 3. The first try follows the loss at once; each later one waits for the next
-     * {@link AccelerationController.plan} call or factory registration while the state is
-     * `"error"`. The count starts again once a reattached device has finished a piece of work.
+     * {@link AccelerationController.plan} call, factory registration or renderer device restored
+     * while the state is `"error"`. The count starts again once a reattached device has finished a
+     * piece of work. `status.recovering` is present while a try runs.
      */
     readonly maxRecoveryAttempts?: number;
     /**
@@ -325,6 +326,7 @@ function sameStatus(a: AccelerationStatus, b: AccelerationStatus): boolean {
         a.exactMaxNodesBasis === b.exactMaxNodesBasis &&
         a.reason === b.reason &&
         a.code === b.code &&
+        a.recovering === b.recovering &&
         JSON.stringify(a.params) === JSON.stringify(b.params)
     );
 }
@@ -1180,6 +1182,8 @@ export class AccelerationController {
         this.#backend = accelerator.backend;
         this.#device = accelerator.device;
         this.#failure = undefined;
+        // A reattach ends here when it succeeds, announced with the state below.
+        this.#recovering = false;
 
         const { lost } = accelerator;
         if (lost !== undefined) {
@@ -1273,9 +1277,10 @@ export class AccelerationController {
      * Starts one more try at reattaching after a device loss or a run that got no answer, when
      * the budget allows it.
      *
-     * Called at the loss itself, and then on the next `plan()` and the next factory registration
-     * while the state is still `"error"`: a browser often has no adapter to hand out in the first
-     * moments after a GPU reset, and those events are the moments worth trying again. No timer.
+     * Called at the loss itself, and then on the next `plan()`, the next factory registration and
+     * the renderer's next restored device while the state is still `"error"`: a browser often has no
+     * adapter to hand out in the first moments after a GPU reset, and those events are the moments
+     * worth trying again. No timer.
      */
     #retryRecovery(): void {
         const failure = this.#failure;
@@ -1293,10 +1298,33 @@ export class AccelerationController {
         }
 
         this.#recoveryAttempts += 1;
-        this.#recovering = true;
+        this.#setRecovering(true);
         void this.#recover(failure.sentence, failure.code).finally(() => {
-            this.#recovering = false;
+            // Already ended, and published, by the attach or the failure it came to; still set
+            // only when something overtook it (a policy change, a dispose).
+            if (this.#recovering) {
+                this.#setRecovering(false);
+            }
         });
+    }
+
+    /**
+     * Tells the controller a GPU device has just become available again -- the renderer's, after a
+     * loss -- which is a moment worth another try at a reattach that failed while the GPU was gone.
+     * Does nothing unless a reattach is owed and the recovery budget allows it.
+     * @internal
+     */
+    deviceAvailable(): void {
+        this.#retryRecovery();
+    }
+
+    /**
+     * Starts or ends a reattach, and publishes the change as {@link AccelerationStatus.recovering}.
+     * @param recovering - Whether a reattach is in flight now.
+     */
+    #setRecovering(recovering: boolean): void {
+        this.#recovering = recovering;
+        this.#transition(this.#state, this.#reason, this.#code, this.#params);
     }
 
     /**
@@ -1328,6 +1356,7 @@ export class AccelerationController {
         }
 
         const why = this.#reason ?? "no accelerator available";
+        this.#recovering = false;
         this.#transition("error", `${failure}; reattaching failed: ${why}`, code);
     }
 
@@ -1706,6 +1735,10 @@ export class AccelerationController {
 
         if (this.#params !== undefined) {
             status.params = this.#params;
+        }
+
+        if (this.#recovering) {
+            status.recovering = true;
         }
 
         return Object.freeze(status);

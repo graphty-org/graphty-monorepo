@@ -65,6 +65,14 @@ export class EventManager implements Manager {
     }
 
     /**
+     * Gets the edge event observable, which the element forwards a hover from to the DOM.
+     * @returns Observable for edge events
+     */
+    get onEdgeEvent(): Observable<EdgeEvent> {
+        return this.edgeObservable;
+    }
+
+    /**
      * Gets the graph error observable for direct subscription
      * @returns Observable for graph error events
      */
@@ -611,7 +619,8 @@ export class EventManager implements Manager {
 
             case "edge-update-after":
             case "edge-update-before":
-            case "edge-add-before": {
+            case "edge-add-before":
+            case "edge-hover": {
                 const observer = this.edgeObservable.add((event) => {
                     if (event.type === type) {
                         callback(event);

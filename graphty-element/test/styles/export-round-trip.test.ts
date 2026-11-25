@@ -92,6 +92,7 @@ const PROPERTIES: Readonly<Record<string, readonly string[]>> = {
     "edge.sourcePort": ["sourcePort"],
     "edge.targetPort": ["targetPort"],
     "edge.label": ["label"],
+    "edge.tooltip": ["tooltip"],
     "edge.arrowHeadText": ["targetLabel"],
     "edge.arrowTailText": ["sourceLabel"],
     "edge.xlabel": ["xlabel"],

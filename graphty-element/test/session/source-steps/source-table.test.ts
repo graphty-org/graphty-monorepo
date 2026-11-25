@@ -97,6 +97,13 @@ describe("source-steps: a source's tables and profiles", () => {
         session.dispose();
     });
 
+    it("lists a source's columns without the element's own _source. facts", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        const key = await session.data.stage(csv("stamped.csv", "id,_source.loads,name", "a,load-1,Ann"));
+        const columns = session.data.sourceTable(key).summary().tables[0]?.columns ?? [];
+        assert.sameMembers([...columns], ["id", "name"]);
+    });
+
     it("profiles the keys of a space: Field 1's Key, in the session and in a draft", async () => {
         const { session } = await withPeople();
         assert.deepStrictEqual(session.data.profile({ space: "person" }), {

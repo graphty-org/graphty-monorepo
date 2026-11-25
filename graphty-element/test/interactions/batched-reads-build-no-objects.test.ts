@@ -245,7 +245,7 @@ describe("reads on the batched path", () => {
         assert.strictEqual(built(element).edges, before.edges, "the drag built no Edge");
     });
 
-    it("a curve drawn from its rows is drawn by its Edge, fanned, once a parallel edge joins it", async () => {
+    it("a curve drawn from its rows is cut again when its node's border or shape changes", async () => {
         const element = await mounted("batched", "3d", FIXED_3D);
         await element.session.styles.add({
             name: "curves",
@@ -256,20 +256,85 @@ describe("reads on the batched path", () => {
         await operationQueueOf(element.graph).waitForCompletion();
         await element.waitForStableFrame();
         const lines = element.graph.getEdgeRowLines();
-        const manager = element.graph.getDataManager();
-        const [first] = dataManagerInternals.incidentEdgeIds(manager, 0);
-        const row = lines?.rows().find((at) => dataManagerInternals.unbuiltEdgeId(manager, at) === first) ?? -1;
-        assert.isTrue(lines?.isCurve(row), "edge 0-1 is a curve drawn from its rows");
-        const before = built(element).edges;
+        // how far each curve starts from its source node's center, by edge row
+        const starts = (): Map<number, number> => {
+            const all = new Map<number, number>();
+            const table = element.graph.getRowTable();
+            lines?.forEachShownCurve((row, points) => {
+                const source = lines.endsOf(row)?.[0] ?? -1;
+                const centre = table?.centerOf(source);
+                if (centre !== undefined) {
+                    all.set(row, Math.hypot(points[0] - centre.x, points[1] - centre.y, points[2] - centre.z));
+                }
+            });
+            return all;
+        };
+        const plain = starts();
 
-        await element.session.data.addEdges([{ src: 1, dst: 0 }]);
+        await element.session.styles.add({
+            name: "bordered",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.borderWidth": 0.3 },
+        });
         await operationQueueOf(element.graph).waitForCompletion();
         await element.waitForStableFrame();
-
-        assert.isFalse(lines?.isCurve(row), "the pair fans: no lone curve is drawn from its rows");
-        assert.strictEqual(built(element).edges, before + 2, "both edges of the pair are drawn by their Edge");
-        assert.strictEqual(lines?.shownCurveRows().length, EDGES.length - 1, "every other curve is still a row's");
+        const bordered = starts();
+        assert.strictEqual(bordered.size, EDGES.length, "every curve is still drawn from its rows");
+        for (const [row, start] of bordered) {
+            assert.isAbove(start, (plain.get(row) ?? 0) + 0.1, `curve ${String(row)} starts past the border`);
+        }
     });
+
+    // An add of more edges than the edge set's log keeps (4,096, `data/edgeSetLog.ts`) names no pairs: every edge is
+    // walked instead, and the curve must still leave the rows.
+    const MORE = 4200;
+    it.each([
+        ["alone", [] as { src: number; dst: number }[]],
+        [
+            "in an add the edge set's log cannot list",
+            Array.from({ length: MORE }, (_, i) => ({ src: 1000 + i, dst: 1001 + i })),
+        ],
+    ])(
+        "a curve drawn from its rows is drawn by its Edge, fanned, once a parallel edge joins it %s",
+        async (_, more) => {
+            const element = await mounted("batched", "3d", FIXED_3D);
+            await element.session.styles.add({
+                name: "curves",
+                target: "edge",
+                selector: { match: "everything" },
+                set: { "edge.arrowHead": "none", "edge.curvature": true },
+            });
+            await operationQueueOf(element.graph).waitForCompletion();
+            await element.waitForStableFrame();
+            const lines = element.graph.getEdgeRowLines();
+            const manager = element.graph.getDataManager();
+            const [first] = dataManagerInternals.incidentEdgeIds(manager, 0);
+            const row = lines?.rows().find((at) => dataManagerInternals.unbuiltEdgeId(manager, at) === first) ?? -1;
+            assert.isTrue(lines?.isCurve(row), "edge 0-1 is a curve drawn from its rows");
+            const before = built(element).edges;
+
+            if (more.length > 0) {
+                await element.session.data.addNodes(
+                    Array.from({ length: MORE + 1 }, (_, i) => ({ id: 1000 + i, position: { x: 40 + i, y: 0, z: 0 } })),
+                );
+                await operationQueueOf(element.graph).waitForCompletion();
+                await element.waitForStableFrame();
+            }
+
+            await element.session.data.addEdges([{ src: 1, dst: 0 }, ...more]);
+            await operationQueueOf(element.graph).waitForCompletion();
+            await element.waitForStableFrame();
+
+            assert.isFalse(lines?.isCurve(row), "the pair fans: no lone curve is drawn from its rows");
+            assert.strictEqual(built(element).edges, before + 2, "both edges of the pair are drawn by their Edge");
+            assert.strictEqual(
+                lines?.shownCurveRows().length,
+                EDGES.length - 1 + more.length,
+                "every other curve is still a row's",
+            );
+        },
+    );
 
     it("getEdges builds each Edge as it is read, in the order getEdgeIds lists the ids", async () => {
         const element = await mounted("batched", "3d", FIXED_3D);

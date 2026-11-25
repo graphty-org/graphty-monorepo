@@ -5021,6 +5021,16 @@ export class UpdateManager implements Manager {
      * @param edgeVersion - The store's edge set.
      */
     private walkedEverything(edgeCount: number, edgeVersion: number): void {
+        // A walk of every edge places each fan; a curve drawn with no `Edge` is a lone curve, so one whose pair the
+        // edges that came or went made a bundle is painted again, and its `Edge` draws it in its fan slot. Only the
+        // edge set changing can do that; an edit whose pairs are known is handled by `placeChangedPairs`.
+        if (edgeVersion !== this.lastWalkedEdgeVersion) {
+            const painter = this.graphContext.getStylePainter?.();
+            for (const row of this.graphContext.getEdgeRowLines?.()?.bundledCurveRows() ?? []) {
+                painter?.queue("edge", row);
+            }
+        }
+
         this.lastWalkedEdgeCount = edgeCount;
         this.lastWalkedEdgeVersion = edgeVersion;
         // The table's moves too: left behind, the next frame took every row as moved and compared each batched row

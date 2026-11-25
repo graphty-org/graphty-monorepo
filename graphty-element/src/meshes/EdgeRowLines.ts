@@ -8,7 +8,7 @@ import { drawnText } from "../config/RichTextStyle";
 import { EDGE_CONSTANTS } from "../constants/meshConstants";
 import { GraphtyError } from "../errors/GraphtyError";
 import { type EdgePaint, isPlainPaint } from "../managers/StylePainter";
-import type { RowTable } from "../render/RowTable";
+import { EXTENT_FLOATS, type RowTable } from "../render/RowTable";
 import type { ArrowCapBatch } from "./ArrowCapBatch";
 import { DirtyRuns } from "./DirtyRuns";
 import type { EdgeLineBatch } from "./EdgeLineBatch";
@@ -265,6 +265,8 @@ export class EdgeRowLines implements StraightPieceHolder {
     private readonly refusedCurves = new Set<number>();
     /** The row table's bounds when the curves were last placed ({@link EdgeRowLines.movedEnds}); null for never. */
     private placedBounds: Float32Array | null = null;
+    /** The row table's extents when the curves were last placed (`RowTable.rowExtent`); null for never. */
+    private placedExtents: Float32Array | null = null;
     /** A curve's two centers, reused by each placement. */
     private readonly ends = new Float64Array(6);
 
@@ -414,6 +416,29 @@ export class EdgeRowLines implements StraightPieceHolder {
      */
     isCurve(row: number): boolean {
         return this.lines.has(row) && this.lines.curved(row);
+    }
+
+    /**
+     * The curves drawn here whose two nodes more than one edge now joins ({@link EdgeRowLinesHost.edgesJoining}): a
+     * curve in a bundle fans, so each is painted again and its `Edge` draws it (one that does not fan, `line.fanned`
+     * false, is drawn here again).
+     * @returns Their edge rows, in row order.
+     */
+    bundledCurveRows(): number[] {
+        const { edgesJoining } = this.host;
+        const rows: number[] = [];
+        if (this.curves === 0 || edgesJoining === undefined) {
+            return rows;
+        }
+
+        const { curve, source, target } = this.lines;
+        for (let row = 0; row < curve.length; row++) {
+            if (curve[row] === 1 && edgesJoining(source[row], target[row]) > 1) {
+                rows.push(row);
+            }
+        }
+
+        return rows;
     }
 
     /**
@@ -724,6 +749,7 @@ export class EdgeRowLines implements StraightPieceHolder {
         if (nodeRemap !== null || this.unplaced.length > 0) {
             this.unplaced = [];
             this.placedBounds = null;
+            this.placedExtents = null;
             this.curvesPlacedAt = -1;
         }
         this.changes.whole();
@@ -744,6 +770,7 @@ export class EdgeRowLines implements StraightPieceHolder {
         this.curves = 0;
         this.unplaced = [];
         this.placedBounds = null;
+        this.placedExtents = null;
         this.refusedCurves.clear();
         this.changes.whole();
     }
@@ -830,8 +857,8 @@ export class EdgeRowLines implements StraightPieceHolder {
     }
 
     /**
-     * The node rows whose place or size changed since the curves were last placed, read off the row table's places and
-     * bounds (`RowTable.rowPosition`, `RowTable.rowBounds`), so a drag of one node places only its curves, as it places only its `Edge`s.
+     * The node rows whose place, size or outline changed since the curves were last placed, read off the row table's
+     * places, bounds and extents (`RowTable.rowPosition`, `RowTable.rowBounds`, `RowTable.rowExtent`), so a drag of one node places only its curves, as it places only its `Edge`s.
      * ponytail: a move below a float32 step of a held row is not seen; the heads' rest placement reads those.
      * @returns A flag a node row, 1 for moved; true for every row (the first placement, or the rows renumbered); null
      *     for none.
@@ -841,26 +868,39 @@ export class EdgeRowLines implements StraightPieceHolder {
         const places = rows.rowPosition;
         const bounds = rows.rowBounds;
         const placed = this.placedBounds;
+        const { placedExtents } = this;
         // x, y and z from the places, the bounding radius from the bounds, four floats a row
         const now = places.slice();
         for (let at = 3; at < now.length; at += 4) {
             now[at] = bounds[at] ?? 0;
         }
 
+        // ...and each row's shape, radius, border and extents, which cut its curves (`Edge.outside`)
+        const extents = rows.rowExtent.slice();
         this.placedBounds = now;
-        if (placed?.length !== now.length) {
+        this.placedExtents = extents;
+        if (placed?.length !== now.length || placedExtents?.length !== extents.length) {
             return true;
         }
 
-        let flags: Uint8Array | null = null;
+        const flags = new Uint8Array(now.length / 4);
+        let moved = false;
         for (let at = 0; at < now.length; at++) {
             if (now[at] !== placed[at]) {
-                flags ??= new Uint8Array(now.length / 4);
                 flags[at >> 2] = 1;
+                moved = true;
             }
         }
 
-        return flags;
+        const ends = Math.min(extents.length, flags.length * EXTENT_FLOATS);
+        for (let at = 0; at < ends; at++) {
+            if (extents[at] !== placedExtents[at]) {
+                flags[Math.floor(at / EXTENT_FLOATS)] = 1;
+                moved = true;
+            }
+        }
+
+        return moved ? flags : null;
     }
 
     /**

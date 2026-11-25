@@ -486,14 +486,39 @@ function connect(prior: SourceSteps, copies: Copies, o: ConnectAct): SourceSteps
     const mint = minted(next, s2.id);
     next = mint.value;
     const k2 = s2.mapping.nodes?.key ?? "";
+    const step = edgesStep(o, n1, s2.id, mint.part, { col: k2, space: nodeSpace(s2) }, k2);
+    next = { ...next, steps: [...next.steps, step] };
+    return withRule(next, "edge", o.edgeType, { source: s2.id, part: mint.part });
+}
+
+/**
+ * The `join.edges` step a connect act makes: node 1's end read from `o.from.field`, the other end
+ * from `two`, swapped when the act points the other way.
+ * @param o - The choices.
+ * @param n1 - Node 1.
+ * @param source - The source the step reads.
+ * @param part - The step's part.
+ * @param two - The other end.
+ * @param two.col - Its column.
+ * @param two.space - Its id space.
+ * @param edgeId - The column that ids each edge, or undefined for none.
+ * @returns The step.
+ */
+function edgesStep(
+    o: ConnectAct,
+    n1: NodeOne,
+    source: string,
+    part: EdgesStep["part"],
+    two: { col: string; space: EdgesStep["read"]["sourceSpace"] },
+    edgeId: string | undefined,
+): EdgesStep {
     const one = { col: o.from.field, space: n1.space };
-    const two = { col: k2, space: nodeSpace(s2) };
     const intoFrom = (o.direction ?? "into-from") === "into-from";
     const [a, b] = intoFrom ? [one, two] : [two, one];
-    const step: EdgesStep = {
+    return {
         op: "join.edges",
-        source: s2.id,
-        part: mint.part,
+        source,
+        part,
         read: {
             table: "nodes",
             source: a.col,
@@ -501,7 +526,7 @@ function connect(prior: SourceSteps, copies: Copies, o: ConnectAct): SourceSteps
             target: b.col,
             targetSpace: b.space,
             // one edge per pair keys the edges by their ends (build.ts edgeStepKey), not by the row
-            ...(o.perPair === true ? {} : { edgeId: k2 }),
+            ...(o.perPair === true || edgeId === undefined ? {} : { edgeId }),
             weight: null,
         },
         unmatchedRows: o.unmatched === "add" ? "add" : "leave-out",
@@ -510,8 +535,6 @@ function connect(prior: SourceSteps, copies: Copies, o: ConnectAct): SourceSteps
         ...defined({ ignoreCase: o.ignoreCase, ignoreSpaces: o.ignoreSpaces }),
         ...viaOf(o, n1, intoFrom),
     };
-    next = { ...next, steps: [...next.steps, step] };
-    return withRule(next, "edge", o.edgeType, { source: s2.id, part: mint.part });
 }
 
 /**
@@ -566,30 +589,8 @@ function connectRows(
         });
     }
     const mint = minted(value, rows.id);
-    const one = { col: o.from.field, space: n1.space };
     const two = { col: to.field, space: n2.space };
-    const intoFrom = (o.direction ?? "into-from") === "into-from";
-    const [a, b] = intoFrom ? [one, two] : [two, one];
-    const key = rows.mapping.nodes?.key;
-    const step: EdgesStep = {
-        op: "join.edges",
-        source: rows.id,
-        part: mint.part,
-        read: {
-            table: "nodes",
-            source: a.col,
-            sourceSpace: a.space,
-            target: b.col,
-            targetSpace: b.space,
-            ...(o.perPair === true || key === undefined ? {} : { edgeId: key }),
-            weight: null,
-        },
-        unmatchedRows: o.unmatched === "add" ? "add" : "leave-out",
-        columns: [],
-        ...(o.perPair === true ? { repeated: "first" as const } : {}),
-        ...defined({ ignoreCase: o.ignoreCase, ignoreSpaces: o.ignoreSpaces }),
-        ...viaOf(o, n1, intoFrom),
-    };
+    const step = edgesStep(o, n1, rows.id, mint.part, two, rows.mapping.nodes?.key);
     const next = { ...mint.value, steps: [...mint.value.steps, step] };
     return withRule(next, "edge", o.edgeType, { source: rows.id, part: mint.part });
 }

@@ -13,7 +13,6 @@ import {
     type DataEntry,
     type DataEntryFact,
     type DataFacts,
-    type DataFormat,
     formatValue,
     writeChannelList,
 } from "@graphty/graphty-element/catalog";
@@ -35,33 +34,21 @@ import {
     holderOf,
     moved,
     NONE,
+    partKey,
     pruned,
     type Spec,
     specOf,
     word,
     writeSpec,
 } from "./dataEntries";
-import { DataGroups, KeepLine } from "./DataGroups";
-import { BesideMore, BesidePopover, CommitText, PopLine, Segments, WordNumber } from "./dataLines";
+import { DataGroups, KeepLine, PaletteLine } from "./DataGroups";
+import { BesidePopover, CommitText, PopLine, Segments, WordNumber } from "./dataLines";
 import { FormatLines } from "./FormatPopover";
 import { firstColors, LISTS, type ListSpec } from "./lists";
 import { lineFor } from "./rubric";
 import { LineFrame, RubricLine } from "./RubricLine";
 import { RowSettings } from "./ThingLine";
 import { ValueButton } from "./ValueButton";
-
-/**
- * The key graphty-element gives a plain entry's one part (its category key): a field's path, else its kind and place.
- * @param entry - the entry.
- * @param at - its place.
- * @returns the key.
- */
-function partKey(entry: DataEntry, at: number): string {
-    if ("field" in entry) {
-        return entry.field;
-    }
-    return "graph" in entry ? `graph.${String(at)}` : `value.${String(at)}`;
-}
 
 /**
  * The first fixed values a thing gets back when the reader picks "Fixed": a list thing's first item.
@@ -207,30 +194,6 @@ function DataPicker({
     );
 }
 
-/** The format presets the Format line offers, by name (app words). */
-const PRESETS: readonly (readonly [string, DataFormat | undefined])[] = [
-    ["Auto", undefined],
-    ["Whole", { maximumFractionDigits: 0 }],
-    ["Fixed 2", { minimumFractionDigits: 2, maximumFractionDigits: 2 }],
-    ["Signed", { signDisplay: "exceptZero" }],
-    ["Percent", { style: "percent" }],
-    ["Compact", { notation: "compact" }],
-    ["Scientific", { notation: "scientific", maximumFractionDigits: 2 }],
-    ["Money", { style: "currency", currency: "USD" }],
-    ["In parentheses", { prefix: "(", suffix: ")" }],
-    ["Rank (#)", { prefix: "#", maximumFractionDigits: 0 }],
-];
-
-/**
- * The preset a format is, or "Custom".
- * @param format - the format.
- * @returns the preset's name.
- */
-function presetOf(format: DataFormat | undefined): string {
-    const found = PRESETS.find(([, each]) => JSON.stringify(each) === JSON.stringify(format));
-    return found?.[0] ?? "Custom";
-}
-
 /** Which pop-over an Entry pop-over has open beside it. */
 type Beside = "calculate" | "format" | null;
 
@@ -312,38 +275,37 @@ function KindTabs({ args }: Readonly<{ args: EntryArgs }>): React.JSX.Element {
 }
 
 /**
- * The Entry pop-over's source line: a Field's picker, a Graph value's sentence (opening Calculate beside), a fixed
- * Value or Text.
+ * An entry's source control: a Field's picker, a Graph value's button (opening Calculate beside), a fixed Value or
+ * Text. The Entry pop-over's source line and the entry's line under the row draw it alike (one control, in two places).
  * @param props - Component props
  * @param props.args - the entry
- * @returns The line
+ * @returns The control
  */
-function SourceLine({ args }: Readonly<{ args: EntryArgs }>): React.JSX.Element {
+function SourceControl({ args }: Readonly<{ args: EntryArgs }>): React.JSX.Element {
     const { ctx, channel, entry, name, put, beside, setBeside } = args;
     if ("field" in entry || "pattern" in entry) {
         return (
-            <PopLine line="entry.field" name="Field">
-                <DataFieldPicker
-                    label="Field"
-                    fields={fieldsFor(ctx.session, channel, []).filter((field) => field.group !== "Calculated")}
-                    value={"field" in entry ? entry.field : null}
-                    actionValue={"pattern" in entry ? "pattern" : undefined}
-                    actions={"pattern" in entry ? [{ id: "pattern", label: name }] : []}
-                    onChange={(next) => {
-                        if (next !== null) {
-                            put({ ...optionsOf(entry), field: next });
-                        }
-                    }}
-                />
-            </PopLine>
+            <DataFieldPicker
+                label="Field"
+                fields={fieldsFor(ctx.session, channel, []).filter((field) => field.group !== "Calculated")}
+                value={"field" in entry ? entry.field : null}
+                actionValue={"pattern" in entry ? "pattern" : undefined}
+                actions={"pattern" in entry ? [{ id: "pattern", label: name }] : []}
+                onChange={(next) => {
+                    if (next !== null) {
+                        put({ ...optionsOf(entry), field: next });
+                    }
+                }}
+            />
         );
     }
     if ("graph" in entry) {
         return (
-            <PopLine line="entry.graph" name="Value">
+            <>
                 <ValueButton
                     label="Graph value"
                     words={entryName(ctx.session, { ...entry, label: undefined })}
+                    opens="dialog"
                     expanded={beside === "calculate"}
                     onClick={() => {
                         setBeside(beside === "calculate" ? null : "calculate");
@@ -364,34 +326,53 @@ function SourceLine({ args }: Readonly<{ args: EntryArgs }>): React.JSX.Element 
                         }}
                     />
                 </BesidePopover>
-            </PopLine>
+            </>
         );
     }
     if ("value" in entry) {
         return (
-            <PopLine line="entry.value" name="Value">
-                <PanelField
-                    label="Value"
-                    kind="number"
-                    width="fill"
-                    value={entry.value}
-                    onChange={(next) => {
-                        put({ ...optionsOf(entry), value: Number(next) });
-                    }}
-                />
-            </PopLine>
+            <PanelField
+                label="Value"
+                kind="number"
+                width="fill"
+                value={entry.value}
+                onChange={(next) => {
+                    put({ ...optionsOf(entry), value: Number(next) });
+                }}
+            />
         );
     }
     return (
-        <PopLine line="entry.text" name="Text">
-            <CommitText
-                label="Text"
-                value={"text" in entry ? entry.text : ""}
-                unset="Text"
-                onCommit={(words) => {
-                    put({ ...optionsOf(entry), text: words });
-                }}
-            />
+        <CommitText
+            label="Text"
+            value={"text" in entry ? entry.text : ""}
+            unset="Text"
+            onCommit={(words) => {
+                put({ ...optionsOf(entry), text: words });
+            }}
+        />
+    );
+}
+
+/** The Entry pop-over's source line's name and address, by the entry's kind. */
+const SOURCE_LINES: Readonly<Record<string, readonly [string, string]>> = {
+    field: ["entry.field", "Field"],
+    graph: ["entry.graph", "Value"],
+    value: ["entry.value", "Value"],
+    text: ["entry.text", "Text"],
+};
+
+/**
+ * The Entry pop-over's source line: its source control under its name.
+ * @param props - Component props
+ * @param props.args - the entry
+ * @returns The line
+ */
+function SourceLine({ args }: Readonly<{ args: EntryArgs }>): React.JSX.Element {
+    const [line, name] = SOURCE_LINES[kindOf(args.entry)];
+    return (
+        <PopLine line={line} name={name}>
+            <SourceControl args={args} />
         </PopLine>
     );
 }
@@ -481,8 +462,8 @@ function numericEntry(entry: DataEntry, fact: DataEntryFact | undefined): boolea
 }
 
 /**
- * The Entry pop-over's Format line: the presets, each followed by the sample value in it, and its "..." opening the
- * Format pop-over beside.
+ * The Entry pop-over's Format line: the sample value in the entry's format, opening the Format pop-over beside, the
+ * one place a format is set (owner, 2026-11-24: one path to any control).
  * @param props - Component props
  * @param props.args - the entry
  * @returns The line
@@ -491,49 +472,26 @@ function FormatLine({ args }: Readonly<{ args: EntryArgs }>): React.JSX.Element 
     const { channel, entry, fact, name, put, beside, setBeside } = args;
     const numeric = numericEntry(entry, fact);
     const sample = numeric ? sampleNumber(fact) : (fact?.text ?? "Text");
-    const now = presetOf(entry.format);
     return (
-        <PopLine
-            line="entry.format"
-            name="Format"
-            modifier={
-                <BesideMore
-                    label={`${name} format settings`}
-                    title="Format"
-                    opened={beside === "format"}
-                    onOpenChange={(open) => {
-                        setBeside(open ? "format" : null);
-                    }}
-                >
-                    <FormatLines
-                        channel={channel}
-                        entry={entry}
-                        numeric={numeric}
-                        sample={entryWords(fact)}
-                        put={put}
-                    />
-                </BesideMore>
-            }
-        >
-            <PanelField
-                label="Format"
-                kind="select"
-                width="fill"
-                value={now}
-                data={[
-                    ...PRESETS.map(([words, preset]) => ({
-                        value: words,
-                        label: `${words}: ${formatValue(sample, preset)}`,
-                    })),
-                    ...(now === "Custom" ? [{ value: "Custom", label: "Custom" }] : []),
-                ]}
-                onChange={(next) => {
-                    const preset = PRESETS.find(([words]) => words === next);
-                    if (preset !== undefined) {
-                        put({ ...entry, format: preset[1] });
-                    }
+        <PopLine line="entry.format" name="Format">
+            <ValueButton
+                label={`${name} format`}
+                words={formatValue(sample, entry.format)}
+                opens="dialog"
+                expanded={beside === "format"}
+                onClick={() => {
+                    setBeside(beside === "format" ? null : "format");
                 }}
             />
+            <BesidePopover
+                title="Format"
+                opened={beside === "format"}
+                onOpenChange={(open) => {
+                    setBeside(open ? "format" : null);
+                }}
+            >
+                <FormatLines channel={channel} entry={entry} numeric={numeric} sample={entryWords(fact)} put={put} />
+            </BesidePopover>
         </PopLine>
     );
 }
@@ -804,7 +762,7 @@ function drawnExtent(ctx: RowContext, facts: DataFacts | undefined): { min: numb
 }
 
 /**
- * A chart's data lines: Kind, Series, Order and Scale.
+ * A chart's data lines: Kind, Series, Order, its palette and Scale.
  * @param props - Component props
  * @param props.args - the spec
  * @returns The lines
@@ -850,6 +808,7 @@ function ChartLines({ args }: Readonly<{ args: SpecArgs }>): React.JSX.Element {
                 )}
             </PopLine>
             <OrderLine args={args} />
+            <PaletteLine args={args} />
             <PopLine line="data.scale" name="Scale">
                 <Segments
                     label="Scale"
@@ -978,8 +937,7 @@ function SpecLines({
 }
 
 /**
- * One entry's line under the row: its name above, the sample's value in its format (a click opens the entry), its
- * "..." (the Entry pop-over) and its "-". Alt+ArrowUp and Alt+ArrowDown move it.
+ * One entry's line under the row: its name above, its source control, its "..." (the Entry pop-over) and its "-". Alt+ArrowUp and Alt+ArrowDown move it.
  * @param props - Component props
  * @param props.ctx - the row
  * @param props.channel - the data channel
@@ -1013,8 +971,22 @@ function EntryLine({
     calculate: boolean;
     onCalculating: () => void;
 }>): React.JSX.Element {
-    const name = entryName(ctx.session, spec.entries[at]);
+    const entry = spec.entries[at];
+    const name = entryName(ctx.session, entry);
     const [open, setOpen] = useState(false);
+    const [beside, setBeside] = useState<Beside>(null);
+    const args: EntryArgs = {
+        ctx,
+        channel,
+        entry,
+        fact,
+        name,
+        put: (next) => {
+            write(spec.entries.map((each, i) => (i === at ? next : each)));
+        },
+        beside,
+        setBeside,
+    };
     // Asked once, when the picker adds this Graph value: the Entry pop-over opens with Calculate beside it.
     const [calculateFirst, setCalculateFirst] = useState(false);
     useEffect(() => {
@@ -1043,17 +1015,9 @@ function EntryLine({
                 name={name}
                 set
                 rule="R12"
-                control={
-                    <ValueButton
-                        label={name}
-                        // The entry's setting (what it reads), never one node's values: the sidebar holds controls.
-                        words={entryName(ctx.session, { ...spec.entries[at], label: undefined })}
-                        expanded={open}
-                        onClick={() => {
-                            setOpen(!open);
-                        }}
-                    />
-                }
+                // What the entry reads, never one node's values: the sidebar holds controls. Its "..." is the one way
+                // to the Entry pop-over (owner, 2026-11-24: one path to any control).
+                control={<SourceControl args={args} />}
                 modifier={
                     <RowSettings label={`${name} settings`} title={name} opened={open} onOpenChange={setOpen}>
                         <div data-thing-popover="">

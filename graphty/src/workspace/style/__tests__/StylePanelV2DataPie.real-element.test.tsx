@@ -224,14 +224,16 @@ describe("Style panel v2's data entries", () => {
         assert.strictEqual(merged["node.pieSizes"], "0.5 0.5", "one blue neighbor, one red");
     });
 
-    it("opens an entry from its value, renames a category from Colors, and draws a ring from No values", async () => {
+    it('opens an entry from its "...", renames a category from Colors, and draws a ring from its No values', async () => {
         const { session, layer } = await withAnimals();
         await session.styles.update(layer, {
             set: { "node.color": "#E8590C", "node.pieData": { entries: [{ field: "data.animals" }] } },
         });
         await session.styles.settled();
         await openStyle("Key people");
-        await userEvent.click(await screen.findByRole("button", { name: "animals, animals" }));
+        const more = await screen.findByRole("button", { name: "animals settings" });
+        await userEvent.hover(more.closest<HTMLElement>(".ws-row") ?? more);
+        await userEvent.click(more);
         const entry = await openFrom("animals settings");
         await userEvent.click(within(entry).getByText("Equal share"));
         await waitFor(() => {
@@ -253,15 +255,15 @@ describe("Style panel v2's data entries", () => {
         await userEvent.click(within(colors).getByRole("combobox", { name: "Category" }));
         await userEvent.click(await screen.findByRole("option", { name: "dog" }));
         const name = within(colors).getByRole("textbox", { name: "Name" });
-        assert.strictEqual((name as HTMLInputElement).value, "dog", "unset, the name shows the key as its value");
+        assert.strictEqual((name as HTMLInputElement).value, "dog", "unset, the name shows the category's name");
         await userEvent.clear(name);
         await userEvent.type(name, "Dogs{Enter}");
         await waitFor(() => {
             const spec = written(session, layer, "node.pieData") as { categories?: unknown };
             assert.deepEqual(spec.categories, { dog: { label: "Dogs" } });
         });
-        const empty = await openGroup(await openFrom("Node pie settings"), "No values");
-        await userEvent.click(within(empty).getByText("Ring"));
+        // No values is a line of Colors, not a group of one line.
+        await userEvent.click(within(colors).getByText("Ring"));
         await waitFor(() => {
             assert.strictEqual((written(session, layer, "node.pieData") as { empty?: string }).empty, "ring");
         });

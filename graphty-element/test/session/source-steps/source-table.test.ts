@@ -104,6 +104,17 @@ describe("source-steps: a source's tables and profiles", () => {
         assert.sameMembers([...columns], ["id", "name"]);
     });
 
+    it("lists no id column for a file that has none: its numbered rows are not a column", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        const key = await session.data.stage(
+            csv("identifiers.csv", "account_id,phone", "AC1,+1555", "AC1,+1556", "AC2,+1557"),
+            { guess: "values" },
+        );
+        const columns = session.data.sourceTable(key).summary().tables[0]?.columns ?? [];
+        assert.sameMembers([...columns], ["account_id", "phone"]);
+        session.dispose();
+    });
+
     it("profiles the keys of a space: Field 1's Key, in the session and in a draft", async () => {
         const { session } = await withPeople();
         assert.deepStrictEqual(session.data.profile({ space: "person" }), {

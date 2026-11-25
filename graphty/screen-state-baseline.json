@@ -75,10 +75,9 @@
             "source",
             "tableId"
         ],
-        "src/workspace/data-place/Fields.tsx": ["asked", "opened", "openedFor"],
+        "src/workspace/data-place/Fields.tsx": ["asked"],
         "src/workspace/data-place/Runs.tsx": ["asking"],
         "src/workspace/data-place/ScoreDialog.tsx": ["name", "terms"],
-        "src/workspace/data-place/SourceRow.tsx": ["busy", "opened", "renaming"],
         "src/workspace/export/CameraImageOutput.tsx": ["backgroundCheck"],
         "src/workspace/export/DataOutput.tsx": ["busy", "failure", "open", "preview", "styleLosses"],
         "src/workspace/export/DocumentOutput.tsx": ["contents"],
@@ -221,8 +220,6 @@
         "src/workspace/settings/ShaderSettings.tsx": ["open", "paste", "picking", "settings"],
         "src/workspace/settings/numberFormat.ts": ["?"],
         "src/workspace/settings/shaderPreferences.ts": ["?"],
-        "src/workspace/source-steps/AddCard.tsx": ["answers", "questions"],
-        "src/workspace/source-steps/FieldsTab.tsx": ["filter", "offset"],
         "src/workspace/start/HeroGraph.tsx": [
             "attempt",
             "card",

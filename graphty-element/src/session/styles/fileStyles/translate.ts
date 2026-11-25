@@ -1139,6 +1139,7 @@ function channelPlans(
 const BEND_CURVES: ReadonlyMap<string, string> = new Map([
     ["corners", "corners"],
     ["midpoints", "midpoints"],
+    ["midpoints-headroom", "midpoints-headroom"],
     ["bezier", "bezier"],
     ["arc", "arc"],
 ]);

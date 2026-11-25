@@ -17,7 +17,7 @@ import { useWorkspace } from "../state/WorkspaceContext";
 import { IssuesList } from "../table/IssuesList";
 import { SourceFields } from "./Fields";
 import { FiltersSection } from "./Filters";
-import { countWords, sourceName } from "./words";
+import { countWords, sourceName, stagedCountWords } from "./words";
 
 const HOVER_ICONS: Readonly<Record<NonNullable<SourceRowCommand["icon"]>, React.ReactNode>> = {
     more: <GLYPHS.loadMore size={14} aria-hidden />,
@@ -353,7 +353,7 @@ export function SourceEntry({
 
 /**
  * A staged source's entry (the source-steps experiment): never drawn, matched or joined here. Closed,
- * it shows its name and rows; open, how its rows are read (Rows are, Key, an edge's ends), and its
+ * it shows its name and the nodes and edges its rows are read as; open, how its rows are read (Rows are, Key, an edge's ends), and its
  * details in the inspector. Its "..." (also by right-click) holds Rename (F2) and Remove. Adding and
  * joining it happen in the join workspace (Join +), and a filter judges what it then builds.
  * @param props - Component props
@@ -400,10 +400,8 @@ export function StagedEntry({
         </>
     );
     const name = sourceName(source);
-    const rows = session.data
-        .sourceTable(source.key)
-        .summary()
-        .tables.reduce((sum, table) => sum + table.rows, 0);
+    const { tables } = session.data.sourceTable(source.key).summary();
+    const rows = (table: "nodes" | "edges"): number => tables.find((each) => each.table === table)?.rows ?? 0;
     return (
         <EntryFrame
             name={name}
@@ -414,7 +412,7 @@ export function StagedEntry({
             <ControlSection
                 label={name}
                 headingLevel={3}
-                summary={`${formatNumber(rows)} ${rows === 1 ? "row" : "rows"}`}
+                summary={stagedCountWords(rows("nodes"), rows("edges"))}
                 opened={opened}
                 onOpenChange={onOpenChange}
                 actions={

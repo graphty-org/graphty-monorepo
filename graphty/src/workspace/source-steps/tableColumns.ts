@@ -9,6 +9,7 @@ import type {
     SourceDraftRow,
     SourceKey,
     SourceMatchValue,
+    SourceTableRows,
     SourceValue,
 } from "@graphty/graphty-element/session";
 
@@ -61,6 +62,28 @@ export function valueWords(value: SourceValue | undefined): string {
 export function nameOf(session: GraphSession, key: SourceKey): string {
     const source = session.data.sources({ staged: true }).find((each) => each.key === key);
     return source === undefined ? key : sourceName(source);
+}
+
+/** A source's row as read. */
+export type SourceRow = SourceTableRows["rows"][number];
+
+/**
+ * The columns of a source's own rows.
+ * @param rows - a page of them.
+ * @returns the columns, in the order first met.
+ */
+export function sourceColumns(rows: readonly SourceRow[]): DataTableColumn<SourceRow>[] {
+    return [...new Set(rows.flatMap((row) => Object.keys(row)))].map((name) => {
+        const words = [name, ...rows.slice(0, 20).map((row) => cellWords(row[name] ?? null))];
+        const longest = Math.max(...words.map((each) => each.length));
+        return {
+            id: name,
+            header: name,
+            width: Math.min(240, Math.max(96, longest * 8 + 32)),
+            sortable: false,
+            value: (row) => cellWords(row[name] ?? null),
+        };
+    });
 }
 
 /** A value the session keeps beside a record's own columns. */

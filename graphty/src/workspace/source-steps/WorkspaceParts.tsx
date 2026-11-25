@@ -2,10 +2,10 @@ import { DataTable, type DataTableColumn, PANEL_GRID, SegmentedControl } from "@
 import type {
     GraphSession,
     JoinReduce,
-    SourceCellValue,
     SourceColumnProfile,
     SourceDraft,
     SourceDraftCell,
+    SourceDraftRow,
     SourceElementRef,
     SourceKey,
     SourceStepRow,
@@ -50,86 +50,90 @@ const REDUCE_CHOICES: readonly { readonly value: JoinReduce; readonly label: str
 const NO_REDUCE = "row";
 
 /**
- * A merge step's Values differ row: the column (which lists its cells in the table), its clash
- * rule, and how its rows reduce when several meet one node (`editStep({ aggregate })`).
+ * A merge step's Values differ row: the column (which lists its cells in the table) and its clash rule.
  * @param props - Component props
- * @param props.step - the step
- * @param props.many - the card's Many rows choice, which a column with none of its own follows
  * @param props.column - the column
  * @param props.rule - its clash rule now
  * @param props.rules - the rules its values take
  * @param props.onRule - sets the rule
- * @param props.onReduce - sets the reduce, or null for the row rule
  * @param props.onShow - lists the column's cells in the table
  * @returns the row
  */
 export function DifferRow({
-    step,
-    many,
     column,
     rule,
     rules,
     onRule,
-    onReduce,
     onShow,
 }: Readonly<{
-    step: SourceStepRow;
-    many: string;
     column: string;
     rule: string;
     rules: readonly string[];
     onRule: (rule: string) => void;
-    onReduce: (reduce: JoinReduce | null) => void;
     onShow: () => void;
 }>): React.JSX.Element {
-    const reduce = step.act?.aggregate?.[column] ?? NO_REDUCE;
-    // Asked once a node takes several rows: a group is the node and what folds into it.
-    const several = reduce !== NO_REDUCE || (step.buckets?.groups[0] ?? 0) > 2;
     return (
-        <>
-            <div className="jw-row">
-                <UnstyledButton
-                    className="ss-count-show"
-                    onClick={onShow}
-                    aria-label={`${DRILL_WORDS.cells} ${column}`}
-                >
-                    <Text size="xs" truncate>
-                        {`${WORKSPACE_WORDS.clash} ${column}`}
-                    </Text>
-                </UnstyledButton>
-                <div className="jw-row-controls">
-                    <Pick
-                        name={`${WORKSPACE_WORDS.clash} ${column}`}
-                        data={rules.map((each) => ({
-                            value: each,
-                            label: RULE_WORDS[each as keyof typeof RULE_WORDS],
-                        }))}
-                        value={rule}
-                        onPick={onRule}
-                    />
-                </div>
+        <div className="jw-row">
+            <UnstyledButton className="ss-count-show" onClick={onShow} aria-label={`${DRILL_WORDS.cells} ${column}`}>
+                <Text size="xs" truncate>
+                    {`${WORKSPACE_WORDS.clash} ${column}`}
+                </Text>
+            </UnstyledButton>
+            <div className="jw-row-controls">
+                <Pick
+                    name={`${WORKSPACE_WORDS.clash} ${column}`}
+                    data={rules.map((each) => ({
+                        value: each,
+                        label: RULE_WORDS[each as keyof typeof RULE_WORDS],
+                    }))}
+                    value={rule}
+                    onPick={onRule}
+                />
             </div>
-            {several ? (
-                <div className="jw-row">
-                    <Text size="xs" truncate>
-                        {`${WORKSPACE_WORDS.manyRows} ${column}`}
-                    </Text>
-                    <div className="jw-row-controls">
-                        <Pick
-                            name={`${WORKSPACE_WORDS.manyRows} ${column}`}
-                            data={[
-                                { value: NO_REDUCE, label: many },
-                                ...REDUCE_CHOICES.filter((each) => each.label !== many || each.value === reduce),
-                            ]}
-                            value={reduce}
-                            onPick={(value) => {
-                                onReduce(REDUCE_CHOICES.find((each) => each.value === value)?.value ?? null);
-                            }}
-                        />
-                    </div>
-                </div>
-            ) : null}
-        </>
+        </div>
+    );
+}
+
+/**
+ * How one column's rows reduce when several meet one node (`editStep({ aggregate })`).
+ * @param props - Component props
+ * @param props.step - the step
+ * @param props.many - the card's Many rows choice, which a column with none of its own follows
+ * @param props.column - the column
+ * @param props.onReduce - sets the reduce, or null for the row rule
+ * @returns the row
+ */
+export function ReduceRow({
+    step,
+    many,
+    column,
+    onReduce,
+}: Readonly<{
+    step: SourceStepRow;
+    many: string;
+    column: string;
+    onReduce: (reduce: JoinReduce | null) => void;
+}>): React.JSX.Element {
+    const reduce = step.act?.aggregate?.[column] ?? NO_REDUCE;
+    return (
+        <div className="jw-row">
+            <Text size="xs" truncate>
+                {column}
+            </Text>
+            <div className="jw-row-controls">
+                <Pick
+                    name={`${WORKSPACE_WORDS.manyRows} ${column}`}
+                    data={[
+                        { value: NO_REDUCE, label: many },
+                        ...REDUCE_CHOICES.filter((each) => each.label !== many || each.value === reduce),
+                    ]}
+                    value={reduce}
+                    onPick={(value) => {
+                        onReduce(REDUCE_CHOICES.find((each) => each.value === value)?.value ?? null);
+                    }}
+                />
+            </div>
+        </div>
     );
 }
 
@@ -238,11 +242,17 @@ function cellColumns(session: GraphSession, cells: readonly SourceDraftCell[]): 
             header: nameOf(session, source),
             width: Math.min(240, Math.max(96, nameOf(session, source).length * 7 + 32)),
             sortable: false,
-            value: (cell) => valueWords(cell.values.find((each) => each.source === source)?.value),
+            // two matches of one source can bring a cell two values
+            value: (cell) =>
+                cell.values
+                    .filter((each) => each.source === source)
+                    .map((each) => valueWords(each.value))
+                    .join(" | "),
         })),
         {
             id: "shown",
             header: DRILL_WORDS.shown,
+            width: 200,
             sortable: false,
             // Both keeps every value: the one shown, and each other in a column of its own.
             value: (cell) =>
@@ -253,6 +263,7 @@ function cellColumns(session: GraphSession, cells: readonly SourceDraftCell[]): 
         {
             id: "by",
             header: DRILL_WORDS.by,
+            width: 112,
             sortable: false,
             value: (cell) => (cell.decided ? DRILL_WORDS.reader : RULE_WORDS[cell.rule]),
         },
@@ -267,7 +278,7 @@ function cellColumns(session: GraphSession, cells: readonly SourceDraftCell[]): 
  * @param props.draft - the open draft
  * @param props.step - the card's step
  * @param props.column - the Values differ column listed, or null while a count's rows are
- * @param props.keys - the keys of the picked rows
+ * @param props.rows - the picked rows
  * @param props.refs - the elements of the picked cells
  * @param props.onDone - called once an act was made
  * @param props.onError - shows a refusal on the card
@@ -277,7 +288,7 @@ export function TableActions({
     draft,
     step,
     column,
-    keys,
+    rows,
     refs,
     onDone,
     onError,
@@ -285,7 +296,7 @@ export function TableActions({
     draft: SourceDraft;
     step: SourceStepRow;
     column: string | null;
-    keys: readonly SourceCellValue[];
+    rows: readonly SourceDraftRow[];
     refs: readonly SourceElementRef[];
     onDone: () => void;
     onError: (error: unknown) => void;
@@ -328,22 +339,41 @@ export function TableActions({
             </Group>
         );
     }
+    const { values = [], cells } = step.except ?? {};
+    const left = [
+        ...values.map((key) => ({ words: String(key), item: key })),
+        ...(cells?.pairs ?? []).map((pair) => ({ words: `${String(pair.value)}, ${String(pair.with)}`, item: pair })),
+    ];
     return (
         <Group gap={6} wrap="wrap" data-table-actions="">
-            {keys.length === 0
+            {rows.length === 0
                 ? null
                 : button(WORKSPACE_WORDS.exclude, WORKSPACE_WORDS.exclude, false, () => {
-                      draft.exclude(step.index, keys);
+                      draft.exclude(step.index, rows);
                   })}
-            {step.except?.values.map((key) => {
-                const name = `${WORKSPACE_WORDS.include} ${String(key)}`;
+            {left.length === 0 ? null : (
+                <Text size="xs">{`${formatNumber(left.length)} ${WORKSPACE_WORDS.excluded}`}</Text>
+            )}
+            {left.slice(0, MOST_INCLUDES).map(({ words, item }) => {
+                const name = `${WORKSPACE_WORDS.include} ${words}`;
                 return button(name, name, false, () => {
-                    draft.include(step.index, [key]);
+                    draft.include(step.index, [item]);
                 });
             })}
+            {left.length <= 1
+                ? null
+                : button(WORKSPACE_WORDS.includeAll, WORKSPACE_WORDS.includeAll, false, () => {
+                      draft.include(
+                          step.index,
+                          left.map(({ item }) => item),
+                      );
+                  })}
         </Group>
     );
 }
+
+/** How many left-out rows a card offers to take back one by one. */
+const MOST_INCLUDES = 5;
 
 /** Which cells of a Values differ column the table lists. */
 export type CellFilter = (typeof CELL_FILTERS)[number]["value"];
@@ -490,7 +520,7 @@ export function FieldsPane({
     }[];
 }>): React.JSX.Element {
     return (
-        <Group gap="md" align="flex-start" wrap="nowrap" className="jw-table">
+        <Group gap="md" align="flex-start" wrap="wrap" className="jw-table jw-fields">
             {sides.map(({ title, side }) => (
                 <Profile key={title} title={title} profile={profileOf(draft, side)} />
             ))}

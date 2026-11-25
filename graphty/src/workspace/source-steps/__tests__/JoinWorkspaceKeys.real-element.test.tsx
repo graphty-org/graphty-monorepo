@@ -383,6 +383,70 @@ describe("a join card's matches and table (source-steps)", () => {
         assert.isNull(draftOf(session).steps().at(-1)?.except ?? null);
     });
 
+    it("lists the rows of a source nothing matches yet", async () => {
+        const { modal } = await opened(["parts.csv", "part,color\nX1,red\nX2,blue"]);
+        const grid = await within(modal).findByRole("grid", { name: "parts.csv" });
+        assert.isNotNull(rowWith(grid, "blue"));
+    });
+
+    it("a reopened card says which rows it leaves out, before any list is opened, and takes them back", async () => {
+        const { session, modal } = await opened(["entries.csv", ENTRIES]);
+        await eachRow(session, modal, NODE);
+        await userEvent.click(await within(modal).findByRole("button", { name: /new edges$/ }));
+        await select(rowWith(await within(modal).findByRole("grid", { name: "Rows" }), "E1"));
+        await userEvent.click(await within(modal).findByRole("button", { name: "Exclude" }));
+        await within(modal).findByRole("button", { name: "Include E1" });
+        await userEvent.click(within(modal).getByRole("button", { name: "Done" }));
+        await closed();
+        const again = await joinPlus();
+        assert.include(again.textContent ?? "", "1 excluded");
+        await userEvent.click(await within(again).findByRole("button", { name: "Include E1" }));
+        await waitFor(() => {
+            assert.isNull(draftOf(session).steps().at(-1)?.except ?? null);
+        });
+    });
+
+    it("deleting the card that added a source takes the joins onto it, whose rows wait again", async () => {
+        const { session, modal } = await opened(["entries.csv", ENTRIES]);
+        await eachRow(session, modal, FIELDS);
+        await userEvent.click(within(modal).getByRole("button", { name: "Done" }));
+        await closed();
+        const again = await joinPlus();
+        await userEvent.click(await within(again).findByRole("button", { name: "Delete people.csv -> Added" }));
+        await waitFor(() => {
+            assert.lengthOf(draftOf(session).steps(), 0);
+        });
+        assert.notInclude(again.textContent ?? "", "source:", "no card names a source by its id");
+        await userEvent.keyboard("{Control>}z{/Control}");
+        await waitFor(() => {
+            assert.isAbove(draftOf(session).steps().length, 1);
+        });
+    });
+
+    it("edges with their ends unpicked are neither added nor done", async () => {
+        const { session, modal } = await opened(["entries.csv", ENTRIES]);
+        await userEvent.click(within(modal).getByRole("button", { name: "Expand Read as" }));
+        await userEvent.click(await within(modal).findByText("Edges"));
+        await waitFor(() => {
+            assert.isTrue(within(modal).getByRole("button", { name: "Add as is" }).hasAttribute("disabled"));
+        });
+        await userEvent.click(within(modal).getByRole("button", { name: "Done" }));
+        assert.strictEqual((await within(modal).findByRole("alert")).textContent, "Unfinished");
+        assert.lengthOf(session.data.staged(), 1);
+    });
+
+    it("keeps Done on screen with every count in the key, at a tablet's width", async () => {
+        const { session, modal } = await opened(["entries.csv", ENTRIES]);
+        await page.viewport(1024, 1366);
+        await eachRow(session, modal, NODE);
+        await waitFor(() => {
+            const box = within(modal).getByRole("button", { name: "Done" }).getBoundingClientRect();
+            const frame = modal.getBoundingClientRect();
+            assert.isAtMost(box.right, frame.right);
+            assert.isAbove(within(modal).getByText("Join", { selector: ".sel-ws-title" }).clientWidth, 0);
+        });
+    });
+
     it("connects entries in the graph to staged people by the badge each names, drawn as counted", async () => {
         await page.viewport(1280, 1000);
         const { store, session } = await emptyProject();

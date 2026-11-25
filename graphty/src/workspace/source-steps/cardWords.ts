@@ -23,7 +23,7 @@ import {
     pairOf,
 } from "./joinCards";
 import { nameOf } from "./tableColumns";
-import { CARD_ACT_WORDS, JOIN_WORDS, WORKSPACE_WORDS } from "./words";
+import { CARD_ACT_WORDS, counted, JOIN_WORDS, WORKSPACE_WORDS } from "./words";
 
 /** A staged source's value in a type list: its keys, before any step builds it. */
 const STAGED = "staged:";
@@ -190,7 +190,7 @@ export function cardSummary(session: GraphSession, draft: SourceDraft, card: Joi
     const done =
         card.step?.op === "join.merge"
             ? `${formatNumber(b.groups.length)} ${WORKSPACE_WORDS.merged}, ${formatNumber(b.keptNew)} ${WORKSPACE_WORDS.new}`
-            : `${formatNumber(b.newEdges)} ${WORKSPACE_WORDS.edges.toLowerCase()}`;
+            : counted(b.newEdges, { one: "edge", many: "edges" });
     return `${match}; ${done}`;
 }
 

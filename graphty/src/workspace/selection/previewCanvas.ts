@@ -82,10 +82,19 @@ export function usePreviewCanvas(
             for (const each of ["top", "left", "width", "height"]) {
                 canvas.style.removeProperty(`--sel-preview-${each}`);
             }
-            if (framing || changed?.() === true) {
+            const other = changed?.() === true;
+            if (framing || other) {
                 requestAnimationFrame(() => {
                     requestAnimationFrame(fit);
                 });
+                if (other) {
+                    // Another graph is laid out from here: framed where it comes to rest, unless the reader moved.
+                    void element?.waitForSettled().then(() => {
+                        if (!element.cameraPlaced) {
+                            fit();
+                        }
+                    });
+                }
             } else if (camera !== undefined) {
                 // Switched to 2D or 3D, or into a headset, while open: the old camera no longer fits.
                 void element?.setCameraState(camera).catch(cameraRefused);

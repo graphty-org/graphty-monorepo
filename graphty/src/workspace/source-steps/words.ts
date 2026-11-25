@@ -140,6 +140,7 @@ export const WORKSPACE_WORDS = {
     inGraph: "In graph",
     incoming: "Incoming",
     manyRows: "Many rows",
+    manyRowsByField: "Many rows by field",
     clash: "Both have",
     noMatch: "No match",
     severalMatch: "Several match",
@@ -160,7 +161,9 @@ export const WORKSPACE_WORDS = {
     nodesMerged: "nodes merged",
     nodesNew: "nodes new",
     edgesNew: "edges new",
+    nodesChanged: "nodes changed",
     nodesRemoved: "nodes removed",
+    edgesChanged: "edges changed",
     edgesRemoved: "edges removed",
     incomingSource: "Incoming source",
     removedSource: "removed source",
@@ -173,6 +176,7 @@ export const WORKSPACE_WORDS = {
     undo: "Undo",
     redo: "Redo",
     unfinished: "Unfinished",
+    unanswered: "Question unanswered",
     frame: "Frame",
     remove: "Remove",
     rows: "Rows",
@@ -188,6 +192,8 @@ export const WORKSPACE_WORDS = {
     values: "Values",
     exclude: "Exclude",
     include: "Include",
+    excluded: "excluded",
+    includeAll: "Include all",
     addAsIs: "Add as is",
     added: "Added",
     readSettings: "Read as",
@@ -196,7 +202,7 @@ export const WORKSPACE_WORDS = {
     newNodes: "New nodes",
     newType: "New type",
     splitOn: "Split on",
-    carry: "Carry",
+    carry: "Move fields",
     none: "None",
     existing: "Existing edge",
     nodes: "Nodes",
@@ -321,8 +327,17 @@ interface BucketWords {
     readonly many: string;
 }
 
+/** What a step linking nodes that share a value makes, whatever it reads the values from. */
+const LINK_BUCKETS: readonly BucketWords[] = [
+    { id: "newNodes", one: "new node", many: "new nodes" },
+    { id: "newEdges", one: "new edge", many: "new edges" },
+    { id: "pairsBelowMin", one: "pair below the minimum", many: "pairs below the minimum" },
+    { id: "parallelPairs", one: "parallel edge", many: "parallel edges" },
+    { id: "selfLoops", one: "self-loop", many: "self-loops" },
+];
+
 /** A step's counts a card lists, in order, by what the step makes. */
-export const BUCKET_WORDS: Readonly<Record<"merge" | "edge" | "links", readonly BucketWords[]>> = {
+export const BUCKET_WORDS: Readonly<Record<"merge" | "edge" | "links" | "nodeLinks", readonly BucketWords[]>> = {
     merge: [
         { id: "merged", one: "node merged", many: "nodes merged" },
         { id: "keptNew", one: "new node", many: "new nodes" },
@@ -346,14 +361,15 @@ export const BUCKET_WORDS: Readonly<Record<"merge" | "edge" | "links", readonly 
         { id: "selfLoops", one: "self-loop", many: "self-loops" },
     ],
     links: [
-        { id: "matched", one: "linked", many: "linked" },
-        { id: "unmatched", one: "not linked", many: "not linked" },
+        { id: "matched", one: "row linked", many: "rows linked" },
+        { id: "unmatched", one: "row not linked", many: "rows not linked" },
         { id: "emptyKey", one: "empty row", many: "empty rows" },
-        { id: "newNodes", one: "new node", many: "new nodes" },
-        { id: "newEdges", one: "new edge", many: "new edges" },
-        { id: "pairsBelowMin", one: "pair below the minimum", many: "pairs below the minimum" },
-        { id: "parallelPairs", one: "parallel edge", many: "parallel edges" },
-        { id: "selfLoops", one: "self-loop", many: "self-loops" },
+        ...LINK_BUCKETS,
+    ],
+    nodeLinks: [
+        { id: "matched", one: "node linked", many: "nodes linked" },
+        { id: "unmatched", one: "node not linked", many: "nodes not linked" },
+        ...LINK_BUCKETS,
     ],
 };
 

@@ -832,7 +832,8 @@ export function writeCard(draft: SourceDraft, step: SourceStepRow | null, act: S
  * @returns The card's side.
  */
 function suggestedInto(into: SourceJoinInto): CardInto {
-    return into.source === undefined ? { space: into.space } : { space: "", source: into.source };
+    const field = into.field === undefined ? {} : { field: into.field };
+    return into.source === undefined ? { space: into.space, ...field } : { space: "", source: into.source, ...field };
 }
 
 /**
@@ -863,7 +864,7 @@ export function newCard(
         if (best === undefined || match === undefined) {
             return blank;
         }
-        // The element proposes a space's keys; a match on another column is the reader's pick.
+        // The element proposes a space's keys, or a column naming the rows on both sides.
         const picks = { ...NO_PICKS, from: match.from, into: suggestedInto(match.into) };
         if (best.result === "merge") {
             return { id, picks, guess: "fields", suggested: true };

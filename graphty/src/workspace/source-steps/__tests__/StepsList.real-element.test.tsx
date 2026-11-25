@@ -152,7 +152,7 @@ describe("steps and reader edits in the join workspace (source-steps)", () => {
         const card = await within(modal).findByRole("region", { name: "hr.csv -> Merge" });
         await choose(card, "Both have dept", "Use incoming");
         assert.isNull(
-            within(card).queryByRole("combobox", { name: "Many rows dept" }),
+            within(card).queryByText("Many rows by field"),
             "no person takes several rows, so how they reduce is not asked",
         );
         await done(modal);

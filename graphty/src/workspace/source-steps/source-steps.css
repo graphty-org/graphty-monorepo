@@ -29,9 +29,24 @@
     text-decoration: underline dotted;
 }
 
-/* The join workspace (issue #9796): the selection workspace's frame, sized for iPad and phones. */
+/* The join workspace (issue #9796): the selection workspace's frame, sized for iPad and phones, with a
+   row of its own for the key, so the counts never push Cancel and Done off the header. */
+.sel-ws.sel-modal.jw-modal {
+    grid-template-rows: 40px auto minmax(0, 1fr);
+}
+
 .jw-modal .sel-ws-head {
     overflow-x: auto;
+}
+
+.jw-key {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 12px;
+    align-items: center;
+    min-height: 24px;
+    padding-inline: 12px;
+    border-bottom: 1px solid var(--cm-border);
 }
 
 .jw-lower {
@@ -92,6 +107,16 @@ dialog.jw-modal {
     gap: 4px;
 }
 
+/* The fields' profiles, side by side while they fit, then under each other, scrolled. */
+.jw-modal .jw-table.jw-fields {
+    flex-direction: row;
+    overflow-y: auto;
+}
+
+.jw-fields > .ss-profile {
+    flex: 1 1 180px;
+}
+
 /* Sized by the pane alone, never by the table inside it, so its measured height cannot feed back. */
 .jw-table-grid {
     position: relative;
@@ -104,11 +129,13 @@ dialog.jw-modal {
     inset: 0;
 }
 
-/* The key's marks: the ring, dashed and dotted borders the preview draws for each effect. */
+/* The key's marks, large enough to tell apart: a node is a ring, an edge a line, drawn whole, dashed and
+   dotted as the preview draws each effect; what goes is struck through. */
 .jw-key-mark {
+    position: relative;
     display: inline-block;
-    width: 10px;
-    height: 10px;
+    width: 14px;
+    height: 14px;
     border: 2px solid currentcolor;
     border-radius: 50%;
 }
@@ -118,8 +145,8 @@ dialog.jw-modal {
     border-style: dashed;
 }
 
-/* New edges: a dashed line, as the preview draws an added edge. */
-.jw-key-mark[data-mark="edges"] {
+.jw-key-mark[data-mark^="edges"] {
+    width: 18px;
     height: 0;
     border-width: 2px 0 0;
     border-radius: 0;
@@ -127,6 +154,24 @@ dialog.jw-modal {
 
 .jw-key-mark[data-mark="untouched"] {
     border-style: dotted;
+}
+
+.jw-key-mark[data-mark$="-changed"] {
+    border-style: double;
+    border-width: 4px;
+}
+
+.jw-key-mark[data-mark="edges-changed"] {
+    border-width: 4px 0 0;
+}
+
+.jw-key-mark[data-mark$="-removed"]::after {
+    position: absolute;
+    inset: 50% -2px auto;
+    height: 2px;
+    content: "";
+    background: currentcolor;
+    transform: translateY(-50%) rotate(-45deg);
 }
 
 /* A join card's body keeps clear of the card's borders, as the selection workspace's cards do. */
@@ -202,12 +247,6 @@ dialog.jw-modal {
 
 .jw-counts {
     font-size: var(--mantine-font-size-xs);
-}
-
-.jw-key-mark[data-mark="edges-merged"] {
-    height: 0;
-    border-width: 2px 0 0;
-    border-radius: 0;
 }
 
 /* A folded join card: its name, then its whole join and what it did on the lines under it. */

@@ -1,4 +1,4 @@
-import { ComboInput, SegmentedControl } from "@graphty/compact-mantine";
+import { ComboInput, ControlSection, SegmentedControl } from "@graphty/compact-mantine";
 import type {
     GraphSession,
     SourceDraft,
@@ -52,7 +52,7 @@ import {
     OVER_CAP_WORDS,
     WORKSPACE_WORDS,
 } from "./words";
-import { DifferRow } from "./WorkspaceParts";
+import { DifferRow, ReduceRow } from "./WorkspaceParts";
 
 /** Field 1's Field value for the space's own key. */
 const KEY_VALUE = "key";
@@ -245,7 +245,7 @@ function ColumnsRow({
                 searchable
                 variant="outlined"
                 aria-label={label}
-                placeholder={value.length === 0 ? label : undefined}
+                placeholder={value.length === 0 ? WORKSPACE_WORDS.none : undefined}
                 data={[...new Set([...columns, ...value])]}
                 value={[...value]}
                 onChange={onChange}
@@ -288,6 +288,9 @@ function MatchCount({
     );
 }
 
+/** What each Ignore switch ignores, after the row's own word. */
+const IGNORE_WORDS = { ignoreCase: "Case", ignoreSpaces: "Spaces" } as const;
+
 /**
  * The "Ignore" switches of a card, which set how all its matches compare: each drawn while it is on
  * or would match more rows, alone or with the other.
@@ -321,12 +324,13 @@ function IgnoreSwitches({
                 <Group gap={12} wrap="wrap">
                     {shown.map((toggle) => {
                         const words = toggle.more === 0 ? null : moreWords(toggle.more);
+                        const name = IGNORE_WORDS[toggle.id];
                         return (
                             <Switch
                                 key={toggle.id}
                                 size="xs"
                                 aria-label={toggle.label}
-                                label={words === null ? toggle.label : `${toggle.label} ${words}`}
+                                label={words === null ? name : `${name} ${words}`}
                                 checked={toggle.on}
                                 onChange={(event) => {
                                     set({ [toggle.id]: event.currentTarget.checked });
@@ -801,6 +805,16 @@ function SeveralMatch({
 }
 
 /**
+ * Whether a merge step's nodes take several rows, so how their columns reduce is asked: a group is the
+ * node and what folds into it.
+ * @param step - the step
+ * @returns true when it is
+ */
+function takesSeveral(step: SourceStepRow): boolean {
+    return (step.buckets?.groups[0] ?? 0) > 2;
+}
+
+/**
  * The options of rows that become fields on a node: what a node named by several rows keeps, how each
  * column whose values differ is settled, and what a row naming no node does.
  * @param props - Component props
@@ -830,6 +844,10 @@ function FieldsOptions({
     const { step } = card;
     // In one order, whatever changed last.
     const differing = [...(step?.valuesDiffer ?? [])].sort((a, b) => a.params.column.localeCompare(b.params.column));
+    // Asked once a node takes several rows, of each column whose values differ or that has a way of its own.
+    const own = Object.keys(step?.act?.aggregate ?? {}).filter((column) => column !== "*");
+    const asked = step !== null && takesSeveral(step) ? differing.map(({ params }) => params.column) : [];
+    const reduced = [...new Set([...asked, ...own])].sort((a, b) => a.localeCompare(b));
     return (
         <>
             <Choice
@@ -845,8 +863,6 @@ function FieldsOptions({
                 step === null ? null : (
                     <DifferRow
                         key={params.column}
-                        step={step}
-                        many={MANY_ROWS.find((each) => each.value === result.many)?.label ?? WORKSPACE_WORDS.first}
                         column={params.column}
                         rule={params.rule}
                         rules={params.rules}
@@ -856,18 +872,30 @@ function FieldsOptions({
                                 onPatch(step.index, { clash: { [params.column]: picked } });
                             }
                         }}
-                        onReduce={(reduce) => {
-                            const { [params.column]: _was, ...rest } = step.act?.aggregate ?? {};
-                            const aggregate = reduce === null ? rest : { ...rest, [params.column]: reduce };
-                            onPatch(step.index, {
-                                aggregate: Object.keys(aggregate).length === 0 ? null : aggregate,
-                            });
-                        }}
                         onShow={() => {
                             onShowCells(step.index, params.column);
                         }}
                     />
                 ),
+            )}
+            {step === null || reduced.length === 0 ? null : (
+                <ControlSection label={WORKSPACE_WORDS.manyRowsByField} defaultOpened={false}>
+                    {reduced.map((column) => (
+                        <ReduceRow
+                            key={column}
+                            step={step}
+                            many={MANY_ROWS.find((each) => each.value === result.many)?.label ?? WORKSPACE_WORDS.first}
+                            column={column}
+                            onReduce={(reduce) => {
+                                const { [column]: _was, ...rest } = step.act?.aggregate ?? {};
+                                const aggregate = reduce === null ? rest : { ...rest, [column]: reduce };
+                                onPatch(step.index, {
+                                    aggregate: Object.keys(aggregate).length === 0 ? null : aggregate,
+                                });
+                            }}
+                        />
+                    ))}
+                </ControlSection>
             )}
             <Choice
                 label={WORKSPACE_WORDS.noMatch}
@@ -989,7 +1017,8 @@ function Options({
                             <Switch
                                 key={each}
                                 size="xs"
-                                label={JOIN_WORDS[each]}
+                                aria-label={JOIN_WORDS[each]}
+                                label={IGNORE_WORDS[each]}
                                 checked={picks[each]}
                                 onChange={(event) => {
                                     onChange(card, { ...picks, [each]: event.currentTarget.checked }, result);
@@ -1127,8 +1156,9 @@ function StepCounts({
     if (buckets === null) {
         return null;
     }
-    const links = step.link === null ? "edge" : "links";
-    const words = BUCKET_WORDS[step.op === "join.merge" ? "merge" : links];
+    const links = step.link?.nodes === undefined ? "links" : "nodeLinks";
+    const made = step.link === null ? "edge" : links;
+    const words = BUCKET_WORDS[step.op === "join.merge" ? "merge" : made];
     const show = (id: string, text: string): React.JSX.Element => (
         <UnstyledButton
             key={id}

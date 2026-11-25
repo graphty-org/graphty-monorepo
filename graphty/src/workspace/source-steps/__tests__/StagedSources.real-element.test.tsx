@@ -208,8 +208,15 @@ describe("a second source arrives staged (source-steps)", () => {
                     .some((step) => step.extract !== null),
             );
         });
-        await userEvent.click(within(modal).getByRole("button", { name: "Expand visitors.csv -> Added" }));
-        await userEvent.click(await within(modal).findByRole("button", { name: "Keep separate" }));
+        await userEvent.click(within(modal).getByRole("button", { name: "Done" }));
+        assert.strictEqual(
+            (await within(modal).findByRole("alert"))
+                .closest("[data-join-card]")
+                ?.textContent?.includes("Same person?"),
+            true,
+            "Done says which card waits",
+        );
+        await userEvent.click(within(modal).getByRole("button", { name: "Keep separate" }));
         await waitFor(() => {
             assert.isNull(within(modal).queryByText("Same person?"));
         });

@@ -494,6 +494,16 @@ export function countWords(source: LoadedSource): string {
     return `${words(nodes, source.total, "node")}, ${words(edges, source.totalEdges, "edge")}`;
 }
 
+/**
+ * What a source's entry says of one that waits: the nodes and edges its rows are read as.
+ * @param nodes - its node rows.
+ * @param edges - its edge rows.
+ * @returns such as "6 nodes, 0 edges".
+ */
+export function stagedCountWords(nodes: number, edges: number): string {
+    return `${count(nodes, "node")}, ${count(edges, "edge")}`;
+}
+
 /** Which table of a load a Fields row reads its column from. */
 export type FieldSide = "nodes" | "edges";
 

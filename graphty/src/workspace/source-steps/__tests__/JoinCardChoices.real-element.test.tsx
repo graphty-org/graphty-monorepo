@@ -231,7 +231,7 @@ describe("a join card's choices (source-steps)", () => {
         assert.deepInclude(split.buckets, { newNodes: 2, newEdges: 4 });
         await typeIn(modal, "New type", "tag");
         await newest(session, (step) => step.extract?.type === "tag", "typed");
-        await pickColumn(modal, "Carry", "floor");
+        await pickColumn(modal, "Move fields", "floor");
         await newest(session, (step) => step.extract?.columns?.includes("floor") === true, "floor moves onto the tags");
         await userEvent.keyboard("{Escape}");
         assert.isNotNull(screen.queryByRole("dialog", { name: "Join" }), "Escape closes the list, not the workspace");
@@ -432,6 +432,7 @@ describe("a join card's choices (source-steps)", () => {
         await waitFor(() => {
             assert.strictEqual(ruleOf(), "min");
         });
+        await userEvent.click(within(modal).getByRole("button", { name: "Expand Many rows by field" }));
         await choose(modal, "Many rows floor", "Max");
         await newest(session, (step) => step.act?.aggregate?.floor === "max", "the column's own");
         await pickWay(modal, "Many rows", "Count");

@@ -12,7 +12,6 @@ import {
 import {
     DEFAULT_BRANCH_PALETTE,
     type GraphSession,
-    type SourceCellValue,
     type SourceDraft,
     type SourceDraftMarkCounts,
     type SourceDraftRow,
@@ -57,8 +56,16 @@ import { JOIN_WORKSPACE_KEY, READER_EDITS_KEY, SIDE_KEY, WORKSPACE_REDO_KEY, WOR
 import { KeyWords } from "./KeyWords";
 import { ReaderEdits } from "./ReaderEdits";
 import { StagedRows } from "./StagedFields";
-import { EFFECT_COLORS, MATCH_VALUE_COLUMNS, nameOf, rowColumns } from "./tableColumns";
-import { addStepWords, JOIN_WORDS, OVERLAP_FILTERS, PREVIEW_WORDS, refusedWords, WORKSPACE_WORDS } from "./words";
+import { EFFECT_COLORS, MATCH_VALUE_COLUMNS, nameOf, rowColumns, sourceColumns, type SourceRow } from "./tableColumns";
+import {
+    addStepWords,
+    JOIN_WORDS,
+    OVERLAP_FILTERS,
+    overlapQuestionWords,
+    PREVIEW_WORDS,
+    refusedWords,
+    WORKSPACE_WORDS,
+} from "./words";
 import { AddStepBody, type CellFilter, CellsPane, FieldsPane, RemoveStrip, TableActions } from "./WorkspaceParts";
 
 /** The element's events after which the workspace reads its draft again. */
@@ -107,6 +114,7 @@ type TableShows =
           readonly other?: true;
       }
     | { readonly kind: "fields"; readonly card: string }
+    | { readonly kind: "source"; readonly source: string }
     | { readonly kind: "rows"; readonly step: number; readonly bucket: string }
     | { readonly kind: "cells"; readonly step: number; readonly column: string; readonly only: CellFilter };
 
@@ -150,7 +158,8 @@ function firstCards(
  */
 function changesOf(marks: SourceDraftMarkCounts): number {
     const { nodes, edges } = marks;
-    return nodes.merged + nodes.new + nodes.removed + edges.merged + edges.new + edges.removed;
+    const changed = (nodes.changed ?? 0) + (edges.changed ?? 0);
+    return nodes.merged + nodes.new + nodes.removed + edges.merged + edges.new + edges.removed + changed;
 }
 
 /** One item of the header's key. */
@@ -165,10 +174,9 @@ interface KeyItem {
  * The header's key.
  * @param marks - the preview's marks
  * @param colors - whether each card has a color
- * @param changes - how many elements the commit changes
  * @returns the items
  */
-function keyOf(marks: SourceDraftMarkCounts, colors: boolean, changes: number): readonly KeyItem[] {
+function keyOf(marks: SourceDraftMarkCounts, colors: boolean): readonly KeyItem[] {
     // The key names each effect by the mark the preview draws for it (a ring, a dashed border, a
     // dotted border), in the color it takes outside a card's own color.
     // While each card has a color, an element is drawn in its card's: the key names the marks alone.
@@ -187,8 +195,8 @@ function keyOf(marks: SourceDraftMarkCounts, colors: boolean, changes: number): 
                       count: marks.edges.merged,
                   },
               ]),
-        // With nothing the commit does, nothing is untouched by it.
-        ...(changes === 0
+        // Named only where a join leaves nodes of the type it reads unreached.
+        ...(marks.nodes.untouched === 0
             ? []
             : [
                   {
@@ -200,6 +208,8 @@ function keyOf(marks: SourceDraftMarkCounts, colors: boolean, changes: number): 
               ]),
         ...(
             [
+                ["nodes-changed", WORKSPACE_WORDS.nodesChanged, marks.nodes.changed ?? 0],
+                ["edges-changed", WORKSPACE_WORDS.edgesChanged, marks.edges.changed ?? 0],
                 ["nodes-removed", WORKSPACE_WORDS.nodesRemoved, marks.nodes.removed],
                 ["edges-removed", WORKSPACE_WORDS.edgesRemoved, marks.edges.removed],
             ] as const
@@ -244,7 +254,7 @@ interface Picked {
     readonly list: string;
     readonly ids: readonly string[];
     readonly refs: readonly SourceElementRef[];
-    readonly keys: readonly SourceCellValue[];
+    readonly rows: readonly SourceDraftRow[];
 }
 
 /**
@@ -287,10 +297,24 @@ function shownFor(card: JoinCardView | undefined): TableShows | null {
     if (hasMatch(card)) {
         return { kind: "values", card: card.id, only: "all" };
     }
+    // With nothing matched yet, the rows there are to match.
+    if (card.step === null && card.picks.from !== null && (card.picks.shared ?? []).length === 0) {
+        return { kind: "source", source: card.picks.from.source };
+    }
     const made = card.step?.extract ?? null;
     return card.step === null || made === null
         ? { kind: "fields", card: card.id }
         : { kind: "rows", step: card.step.index, bucket: "newNodes" };
+}
+
+/**
+ * Whether the table lists one of a step's counts or Values differ columns.
+ * @param shows - what it lists
+ * @param step - the step's place
+ * @returns true when it does
+ */
+function listsStep(shows: TableShows | null, step: number): boolean {
+    return (shows?.kind === "rows" || shows?.kind === "cells") && shows.step === step;
 }
 
 /**
@@ -562,9 +586,33 @@ function TablePane({
                         onShows({ ...shows, only });
                     }}
                     onSelect={(ids, refs) => {
-                        onPick({ ids, refs, keys: [] });
+                        onPick({ ids, refs, rows: [] });
                     }}
                 />
+            </div>
+        );
+    }
+    if (shows.kind === "source") {
+        const table = draft.sourceTable(shows.source);
+        const page = table.rows({ offset, limit: PAGE });
+        return (
+            <div className="jw-table">
+                <div ref={grid.ref} className="jw-table-grid">
+                    <DataTable<SourceRow>
+                        key={`source:${shows.source}`}
+                        label={nameOf(session, shows.source)}
+                        rowHeight={PANEL_GRID.ROW_PITCH}
+                        headerHeight={PANEL_GRID.ROW_PITCH}
+                        data={page.rows}
+                        rowCount={page.total}
+                        rowOffset={offset}
+                        onRangeChange={range}
+                        columns={sourceColumns(page.rows)}
+                        getRowId={(_row, index) => String(index)}
+                        height={height}
+                        selectionMode="none"
+                    />
+                </div>
             </div>
         );
     }
@@ -616,7 +664,7 @@ function TablePane({
                         onPick({
                             ids: [...selected],
                             refs: now.flatMap((row) => (row.element === null ? [] : [row.element])),
-                            keys: [...new Set(now.flatMap((row) => (row.key === null ? [] : [row.key])))],
+                            rows: now.filter((row) => row.key !== null),
                         });
                     }}
                 />
@@ -695,6 +743,8 @@ function JoinWorkspace({
     const [colors, setColors] = useState(true);
     // on reload: fresh: in flight: the first drawing of the draft
     const [drawing, setDrawing] = useState(true);
+    // A waiting source read as edges whose ends are not both picked yet: nothing reads it so until they are.
+    const unfinishedEnds = useWorkspaceState((state) => state.stagedEnds)?.source;
     const version = useSessionEvents(session, DRAFT_EVENTS);
     const frame = typeof document === "undefined" ? null : document.querySelector<HTMLElement>(".ws-body");
     // Done left another graph than the one the workspace opened on.
@@ -911,6 +961,9 @@ function JoinWorkspace({
         const id = `new:${String(++nextId.current)}`;
         const source = session.data.staged().at(-1) ?? session.data.sources().at(-1);
         setPending((now) => [...now, newCard(draft, id, source?.key)]);
+        // Another card's rows are not this one's.
+        setShows(null);
+        setPickedRows(null);
         setOpen(id);
     };
     const removeCard = (id: string): void => {
@@ -918,8 +971,9 @@ function JoinWorkspace({
         const index = card?.step?.index ?? addSteps.find((step) => addCardId(step.index) === id)?.index;
         if (index !== undefined) {
             try {
-                // A join's card takes back the sources its join added too.
-                draft.removeStep(index, { adds: card === undefined ? "keep" : "remove" });
+                // A join's card takes back the sources its join added too, and an Added card the joins that
+                // name its nodes.
+                draft.removeStep(index, { adds: "remove" });
             } catch (error) {
                 noticeOn(id)(error);
                 return;
@@ -962,11 +1016,22 @@ function JoinWorkspace({
     const done = (): void => {
         // A join begun and not finished is never dropped unseen.
         const half = cards.find(
-            (card) => (card.step === null && card.picks.becomes !== null) || pendingTo[card.id] !== undefined,
+            (card) =>
+                pendingTo[card.id] !== undefined ||
+                (card.step === null &&
+                    (card.picks.becomes !== null ||
+                        (unfinishedEnds !== undefined && card.picks.from?.source === unfinishedEnds))),
         );
         if (half !== undefined) {
             setOpen(half.id);
             setErrors((now) => ({ ...now, [half.id]: WORKSPACE_WORDS.unfinished }));
+            return;
+        }
+        const asking = addSteps.find((step) => asked.has(step.source));
+        if (asking !== undefined) {
+            const id = addCardId(asking.index);
+            setFoldedAdds((now) => new Set([...now].filter((each) => each !== id)));
+            setErrors((now) => ({ ...now, [id]: WORKSPACE_WORDS.unanswered }));
             return;
         }
         void commitWorkspace(store, session, draft, noticeOn("")).then((ok) => {
@@ -1038,7 +1103,7 @@ function JoinWorkspace({
     const { marks, sources: draftSources } = draft.preview();
     const removed = draftSources.filter((each) => each.state === "removed");
     const changes = changesOf(marks);
-    const keyItems = keyOf(marks, colors, changes);
+    const keyItems = keyOf(marks, colors);
     const items: CardListItem[] = cards.map((shown, at) => {
         const waitingTo = pendingTo[shown.id];
         const card: JoinCardView =
@@ -1073,14 +1138,16 @@ function JoinWorkspace({
                     onChange={change}
                     error={errors[card.id]}
                     tableActions={
-                        card.step !== null &&
-                        (tableShows?.kind === "rows" || tableShows?.kind === "cells") &&
-                        tableShows.step === card.step.index ? (
+                        card.step !== null && (card.step.except !== null || listsStep(tableShows, card.step.index)) ? (
                             <TableActions
                                 draft={draft}
                                 step={card.step}
-                                column={tableShows.kind === "cells" ? tableShows.column : null}
-                                keys={rowsPicked?.keys ?? []}
+                                column={
+                                    tableShows?.kind === "cells" && tableShows.step === card.step.index
+                                        ? tableShows.column
+                                        : null
+                                }
+                                rows={listsStep(tableShows, card.step.index) ? (rowsPicked?.rows ?? []) : []}
                                 refs={rowsPicked?.refs ?? []}
                                 onDone={() => {
                                     setPickedRows(null);
@@ -1111,6 +1178,7 @@ function JoinWorkspace({
                                     <Button
                                         size="compact-xs"
                                         variant="default"
+                                        disabled={unfinishedEnds === staged.key}
                                         onClick={() => {
                                             try {
                                                 draft.add(staged.key);
@@ -1154,7 +1222,13 @@ function JoinWorkspace({
             title: `${name} -> ${WORKSPACE_WORDS.added}`,
             summary: (
                 <Text size="xs" c="dimmed" truncate>
-                    {addStepWords(step)}
+                    {[
+                        ...draft
+                            .preview()
+                            .questions.filter((question) => question.params.source === step.source)
+                            .map((question) => overlapQuestionWords(spaceName(session, draft, question.params.space))),
+                        addStepWords(step),
+                    ].join(" ")}
                 </Text>
             ),
             data: { "data-join-card": id },
@@ -1197,17 +1271,6 @@ function JoinWorkspace({
                     <Text size="sm" fw={600} className="sel-ws-title" id={titleId}>
                         {WORKSPACE_WORDS.title}
                     </Text>
-                    {keyItems.map((each) => (
-                        <Group key={each.id} gap={4} wrap="nowrap" aria-label={`${each.label} ${String(each.count)}`}>
-                            <span
-                                className="jw-key-mark"
-                                data-mark={each.id}
-                                style={{ color: each.color }}
-                                aria-hidden
-                            />
-                            <Text size="xs">{`${each.label} ${formatNumber(each.count)}`}</Text>
-                        </Group>
-                    ))}
                     {drawing ? (
                         <Group gap={4} wrap="nowrap" data-drawing="">
                             <Loader size={12} aria-hidden />
@@ -1284,6 +1347,19 @@ function JoinWorkspace({
                         {WORKSPACE_WORDS.done}
                     </Button>
                 </header>
+                <div className="jw-key">
+                    {keyItems.map((each) => (
+                        <Group key={each.id} gap={4} wrap="nowrap" aria-label={`${each.label} ${String(each.count)}`}>
+                            <span
+                                className="jw-key-mark"
+                                data-mark={each.id}
+                                style={{ color: each.color }}
+                                aria-hidden
+                            />
+                            <Text size="xs">{`${each.label} ${formatNumber(each.count)}`}</Text>
+                        </Group>
+                    ))}
+                </div>
                 <div className="sel-ws-body">
                     <div className="sel-ws-cards">
                         {removed.map(({ source }) => (
@@ -1295,7 +1371,12 @@ function JoinWorkspace({
                             autoFold
                             folded={new Set(ids.filter((id) => !isOpen(id)))}
                             onFoldedChange={(folded) => {
-                                setFoldedAdds(new Set([...asks].filter((id) => folded.has(id))));
+                                // Another card opening folds no question: only the reader's own fold does.
+                                const opening = ids.some((id) => !isOpen(id) && !folded.has(id));
+                                setFoldedAdds(
+                                    (now) =>
+                                        new Set([...asks].filter((id) => folded.has(id) && (!opening || now.has(id)))),
+                                );
                                 // The card the reader just unfolded, else whichever is left open.
                                 const unfolded = ids.filter((id) => !asks.has(id) && !folded.has(id));
                                 const next = unfolded.find((id) => !isOpen(id)) ?? unfolded.at(0) ?? null;

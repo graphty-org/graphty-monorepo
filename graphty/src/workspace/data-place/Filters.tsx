@@ -307,6 +307,9 @@ export function FiltersSection({
         }
     }, [asked, session, store, primary]);
 
+    // A source with only edges is filtered by them.
+    const own = session?.data.sources().find((each) => each.key === source)?.counts;
+    const firstSide: Side = own?.nodes === 0 && own.edges > 0 ? "edge" : "node";
     const plus =
         session === null ? null : (
             <span data-filters-plus="">
@@ -316,7 +319,7 @@ export function FiltersSection({
                         data-add
                         aria-label="Add filter"
                         onClick={() => {
-                            open("node");
+                            open(firstSide);
                         }}
                     >
                         <GLYPHS.add size={14} aria-hidden />

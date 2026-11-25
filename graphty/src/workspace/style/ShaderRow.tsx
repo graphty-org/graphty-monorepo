@@ -24,7 +24,7 @@ import {
     writeParam,
 } from "./shaderSlots";
 import { focusSectionNext } from "./useFocusLine";
-import { useRowDrag } from "./useRowDrag";
+import { altArrowMove, useRowDrag } from "./useRowDrag";
 import { effectOffWords, failureWords, placeWords, SHADER_MOVE_WORDS, shaderProblemWords } from "./words";
 
 /** The width of a shader row's pop-outs: the settings, as every field's. */
@@ -247,17 +247,9 @@ export function ShaderRow({ ctx, entry, count, onMove, onCode }: Readonly<Shader
             data-shader={use.shader}
             data-shader-row=""
             data-dragging={dragging ? "" : undefined}
-            onKeyDown={(event) => {
-                if (!event.altKey || (event.key !== "ArrowUp" && event.key !== "ArrowDown")) {
-                    return;
-                }
-                // A key from the row's pop-outs reaches it through React's portal and is not the row's.
-                if (!box.current?.contains(event.target as Node)) {
-                    return;
-                }
-                event.preventDefault();
-                move(entry.index + (event.key === "ArrowUp" ? -1 : 1));
-            }}
+            onKeyDown={altArrowMove(box, (by) => {
+                move(entry.index + by);
+            })}
         >
             <div className="ws-field" data-shader-use="">
                 <Tooltip label={`Move ${name.toLowerCase()}`} position="top">

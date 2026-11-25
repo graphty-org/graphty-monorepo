@@ -12,7 +12,7 @@ import React, { useRef } from "react";
 import { GLYPHS } from "../../glyphs";
 import { useWorkspace } from "../../state/WorkspaceContext";
 import { lineIn, sourceName, writeIn } from "../row";
-import { useRowDrag } from "../useRowDrag";
+import { altArrowMove, useRowDrag } from "../useRowDrag";
 import { unsetIn } from "./lineWrites";
 import { itemDescriptor, type ListState, movedOrder, type Part, reorder, writeAll } from "./listState";
 import { shownPaint, writtenPaint } from "./paint";
@@ -201,16 +201,9 @@ export function ItemLine({ state, at }: Readonly<{ state: ListState; at: number 
             ref={box}
             data-item-line={at}
             data-dragging={dragging ? "" : undefined}
-            onKeyDown={(event) => {
-                if (!event.altKey || (event.key !== "ArrowUp" && event.key !== "ArrowDown")) {
-                    return;
-                }
-                if (!box.current?.contains(event.target as Node)) {
-                    return;
-                }
-                event.preventDefault();
-                move(at + (event.key === "ArrowUp" ? -1 : 1));
-            }}
+            onKeyDown={altArrowMove(box, (by) => {
+                move(at + by);
+            })}
         >
             <LineFrame
                 line={`${list.colors}:${String(at)}`}

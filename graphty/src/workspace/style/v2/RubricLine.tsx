@@ -728,6 +728,7 @@ const FIRST_RIM = "0.1 0.1 0.1 0.1";
  * @param props.ctx - the row
  * @param props.line - the line
  * @param props.descriptor - its channel
+ * @param props.under - drawn under its row in the sidebar: one read-only line reading its sides, with its "-"
  * @param props.write - writes the frame's text, or undefined to unset it
  * @returns The lines
  */
@@ -735,11 +736,13 @@ function SidesLines({
     ctx,
     line,
     descriptor,
+    under,
     write,
 }: Readonly<{
     ctx: RowContext;
     line: LineSpec;
     descriptor: ChannelDescriptor;
+    under: boolean;
     write: (text: string | undefined) => void;
 }>): React.JSX.Element {
     const { channel } = descriptor;
@@ -764,6 +767,24 @@ function SidesLines({
         }
         write(writeChannelList(channel, next));
     };
+    if (under) {
+        // Four values: one read-only field reading them, no link; its "-" unsets the frame (stripes design 2).
+        const words = sides.map((side) => String(Math.round((Number.isFinite(side) ? side : 0) * 1000) / 10));
+        return (
+            <LineFrame
+                line={channel}
+                name={name}
+                set
+                rule="R17"
+                control={<PanelField label={name} kind="text" width="fill" readOnly value={`${words.join(" / ")}%`} />}
+                modifier={null}
+                removeName={`Remove ${name.toLowerCase()}`}
+                onRemove={() => {
+                    write(undefined);
+                }}
+            />
+        );
+    }
     return (
         <>
             <LineFrame
@@ -1119,6 +1140,7 @@ function OneLine({ ctx, line, row, named: alwaysNamed = false }: RubricLineProps
                 ctx={ctx}
                 line={line}
                 descriptor={descriptor}
+                under={alwaysNamed}
                 write={(text) => {
                     write(channel, text);
                 }}

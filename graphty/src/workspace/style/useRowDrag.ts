@@ -85,3 +85,26 @@ export function useRowDrag(
     };
     return { dragging, handlers };
 }
+
+/**
+ * A row's key handler that moves it by one on Alt+ArrowUp and Alt+ArrowDown, from any of its own controls. A key
+ * from the row's pop-outs reaches it through React's portal and is not the row's.
+ * @param box - the row.
+ * @param move - moves it by -1 or 1.
+ * @returns the handler.
+ */
+export function altArrowMove(
+    box: React.RefObject<HTMLElement | null>,
+    move: (by: -1 | 1) => void,
+): React.KeyboardEventHandler<HTMLElement> {
+    return (event) => {
+        if (!event.altKey || (event.key !== "ArrowUp" && event.key !== "ArrowDown")) {
+            return;
+        }
+        if (!box.current?.contains(event.target as Node)) {
+            return;
+        }
+        event.preventDefault();
+        move(event.key === "ArrowUp" ? -1 : 1);
+    };
+}

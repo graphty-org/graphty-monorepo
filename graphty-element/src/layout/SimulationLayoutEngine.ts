@@ -75,7 +75,7 @@ import type { DrawnTarget } from "../render/RowTable";
 import { wholeGraph } from "../session/working/graphs";
 import { readCommunities, readRowCommunities, sameCommunities } from "./clusterForce";
 import { forceAtlas2MaxIterFor } from "./forceAtlas2Iterations";
-import { type EdgePosition, LayoutEngine, type Position } from "./LayoutEngine";
+import { type EdgePosition, LayoutEngine, layoutEngineInternals, type Position } from "./LayoutEngine";
 
 /**
  * Above this many nodes the automatic `iterationsPerStep` is raised, because a frame that
@@ -649,6 +649,10 @@ function missingController(): GraphtyError {
  * class could not be handed.
  */
 export class SimulationLayoutEngine extends LayoutEngine {
+    static {
+        layoutEngineInternals.endsOnly(this);
+    }
+
     /**
      * Every simulation accepts a scope: a held row is OR-ed into the fixed-node mask, so the
      * simulation stops integrating it as well as publishing it. See `LayoutEngineStatics.scoped`.

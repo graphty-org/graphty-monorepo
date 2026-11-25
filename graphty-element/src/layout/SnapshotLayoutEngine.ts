@@ -13,6 +13,7 @@ import {
     type EdgePosition,
     layoutDim,
     LayoutEngine,
+    layoutEngineInternals,
     type Position,
     type RowPositions,
     simpleLayoutInternals,
@@ -221,6 +222,7 @@ export function atPath(data: unknown, path: string): unknown {
  */
 export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
     static {
+        layoutEngineInternals.endsOnly(this);
         snapshotLayoutInternals.connect = (engine, host) => {
             engine.#host = host;
         };

@@ -335,7 +335,6 @@ answer is returned in scene units instead of being multiplied by `scalingFactor`
 import {
     type AuthoredLayoutDescriptor,
     type Edge,
-    type EdgePosition,
     LayoutEngine,
     type Node,
     type NodeIdType,
@@ -432,11 +431,6 @@ class RingLayout extends LayoutEngine {
         this.#placed.set(n.id, { x: p.x, y: p.y, z: p.z ?? 0 });
     }
 
-    getEdgePosition(e: Edge): EdgePosition {
-        // An edge names its two ends by id; look them up rather than reaching into the edge.
-        return { src: this.#at(e.srcId), dst: this.#at(e.dstId) };
-    }
-
     #at(id: NodeIdType): Position {
         return this.#placed.get(id) ?? { x: 0, y: 0, z: 0 };
     }
@@ -482,7 +476,7 @@ await graph.setLayout("acme-ring", { radius: 200 });
 <graphty-element layout="acme-ring"></graphty-element>
 ```
 
-### Four optional members, each with a working default
+### Five optional members, each with a working default
 
 Override one only if your engine needs it. Each is declared on the base class, so your editor
 offers it and the element calls it by name.
@@ -493,6 +487,28 @@ offers it and the element calls it by name.
 | `removeNode(n: Node): void`    | does nothing                                     | your engine keeps its own node list, or it will hold every removed node forever |
 | `removeEdge(e: Edge): void`    | does nothing                                     | the same, for edges                                                             |
 | `updatePositions(nodes): void` | steps up to ten times, stopping early if settled | your engine can place a newcomer without re-running the simulation              |
+| `getEdgePosition(e: Edge)`     | the edge runs between its two nodes' positions   | your layout places edges itself (see "Placing edges yourself")                  |
+
+### Placing edges yourself
+
+Override `getEdgePosition(e)` only when your layout decides where an edge runs: it returns the
+edge's two ends (`src`, `dst`), which may sit off the nodes' centers, and optionally `bends`, the
+points the line is laid through (`along, across` pairs relative to the line from `src` to `dst`, as
+the `line.bends` style holds them). The element draws every edge from your answer on both render
+paths.
+
+The cost is on `renderPath: "batched"`: there a plain edge of a layout that does not override
+`getEdgePosition` is drawn from one shared batch, straight between its nodes, and an engine that
+does override it has each edge drawn as an object of its own, as on `"objects"`. A layout whose
+edges simply run between their nodes should leave `getEdgePosition` out.
+
+```ts
+override getEdgePosition(e: Edge): EdgePosition {
+    const { src, dst } = super.getEdgePosition(e);
+    // draw every edge one unit above its nodes
+    return { src: { ...src, y: src.y + 1 }, dst: { ...dst, y: dst.y + 1 } };
+}
+```
 
 ### Positions are the element's job
 
@@ -636,5 +652,5 @@ or a registered one.
 the element has a GPU accelerator attached. Only the element's built-in simulation layouts
 (`forceatlas2`, `spring` and `spring-electrical`) run on an accelerator.
 
-**A routed or curved edge path is not available.** Edges are drawn between the two ends
-`getEdgePosition` reports, for every engine alike.
+**An edge's style wins over your route.** An edge whose style stores its own `line.bends` is laid
+along them, not along the `bends` your `getEdgePosition` returns.

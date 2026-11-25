@@ -206,6 +206,15 @@ export class FixedLayout extends SnapshotLayoutEngine {
     }
 
     /**
+     * Whether the edges are laid along routes: only when Graphviz routes them; else each runs straight between its nodes.
+     * @returns True when Graphviz routes the edges.
+     * @internal
+     */
+    protected override get laysEdges(): boolean {
+        return this.config.edgeRoutes === "graphviz";
+    }
+
+    /**
      * Have Graphviz route the edges between the placed nodes.
      * @param input - the run's input
      * @param positions - where the nodes are placed

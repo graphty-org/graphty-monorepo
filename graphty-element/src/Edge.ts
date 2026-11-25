@@ -3325,8 +3325,20 @@ export class Edge {
             (!line.animationSpeed || this.pullsAnimated(style)) &&
             // a line through bends is pulled straight, not rounded or round a self-loop's ring
             (parseBends(line.bends) === null || (line.bezier !== true && !this.isLoop)) &&
-            !batchUploadFrames.edgeAges(this.context.getScene()).on
+            !batchUploadFrames.edgeAges(this.context.getScene()).on &&
+            // a layout that lays its edges (Graphviz's routes, a third party's getEdgePosition) places this one
+            !this.laidByLayout()
         );
+    }
+
+    /**
+     * Whether the active layout lays this edge itself rather than running it straight between its nodes
+     * (`LayoutEngine.laysEdges`): its line is then placed from the layout's answer, never pulled.
+     * @returns True when it does.
+     */
+    private laidByLayout(): boolean {
+        const engine = this.context.getLayoutManager().layoutEngine;
+        return engine !== undefined && layoutEngineInternals.laysEdges(engine);
     }
 
     /**

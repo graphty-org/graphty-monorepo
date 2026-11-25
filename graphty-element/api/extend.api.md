@@ -2247,8 +2247,7 @@ export abstract class LayoutEngine {
     protected get followerGroups(): ReadonlyMap<number, readonly number[]>;
     static get(type: string, opts?: object): LayoutEngine | null;
     static getClass(type: string): (LayoutEngineClass & LayoutEngineStatics) | null;
-    // (undocumented)
-    abstract getEdgePosition(e: Edge): EdgePosition;
+    getEdgePosition(e: Edge): EdgePosition;
     // (undocumented)
     abstract getNodePosition(n: Node_2): Position;
     getNodeXlabelOffset(_n: Node_2): readonly [right: number, down: number] | undefined;
@@ -2275,6 +2274,8 @@ export abstract class LayoutEngine {
     protected keepInPublishedBox(n: Node_2 | ElementPositions | undefined, rows: ReadonlySet<number>): void;
     // @internal
     protected lastPublishedBox(): Readonly<Float64Array> | null;
+    // @internal
+    protected get laysEdges(): boolean;
     loadArrangement(): void;
     // (undocumented)
     static maxDimensions: number;

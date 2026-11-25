@@ -8,6 +8,7 @@ import { listAutosaves } from "@graphty/graphty-element/session";
 import { StrictMode } from "react";
 import { assert } from "vitest";
 
+import { fingerprintChanges, screenFingerprint } from "../../acceptance/screen-fingerprint.mjs";
 import { WORKSPACE_AUTOSAVE_KEY } from "../workspace/autosave/autosave";
 import { createWorkspaceStore, type WorkspaceStore } from "../workspace/state/store";
 import { Workspace } from "../workspace/Workspace";
@@ -30,6 +31,14 @@ export function forgetAutosave(): Promise<void> {
             reject(request.error ?? new Error("the autosave database was not deleted"));
         };
     });
+}
+
+/**
+ * Says this test expects a restore to lose a kept reference (restoreCheck.ts), so the test setup
+ * does not fail it for that. Say why in a comment where it is called.
+ */
+export function expectRestoreMiss(): void {
+    (globalThis as { __GRAPHTY_RESTORE_MISS_EXPECTED__?: boolean }).__GRAPHTY_RESTORE_MISS_EXPECTED__ = true;
 }
 
 /** A mounted workspace with autosave on. */
@@ -63,92 +72,30 @@ export interface ReloadOptions {
      * lists, each with the gap issue that tracks it in a comment where it is passed.
      */
     readonly lost?: readonly string[];
+    /**
+     * Unmount and mount the workspace again at once, with no page reload and without waiting for
+     * autosave to keep the work: what a Vite hot swap of the workspace does to a page in
+     * development (the 2026-11-22 loss). Session storage stays as it is.
+     */
+    readonly remount?: boolean;
 }
 
 /**
- * An element's accessible name, as far as this harness needs it: its aria-label, the text its
- * aria-labelledby names, or its own text.
- * @param element - the element.
- * @returns the name.
- */
-function nameOf(element: Element): string {
-    const label = element.getAttribute("aria-label");
-    if (label !== null) {
-        return label.trim();
-    }
-    const by = element.getAttribute("aria-labelledby");
-    if (by !== null) {
-        return by
-            .split(/\s+/)
-            .map((id) => document.getElementById(id)?.textContent?.trim() ?? "")
-            .join(" ")
-            .trim();
-    }
-    if (
-        element instanceof HTMLInputElement ||
-        element instanceof HTMLTextAreaElement ||
-        element instanceof HTMLSelectElement
-    ) {
-        return element.labels?.[0]?.textContent?.trim() ?? "";
-    }
-    return element.textContent?.trim() ?? "";
-}
-
-/** The form controls whose value the reader set, inside what is open. */
-const CONTROLS = "input:not([type=hidden]):not([type=file]), textarea, select";
-
-/**
- * What the reader sees open: each open dialog, each named region and each pressed toolbar button,
- * by role and name ("region: Timeline", "pressed: Table"); and inside the open dialogs and regions,
- * each selected tab ("tab: Values"), each named field's value ("value: Name = Hub") and each ticked
- * box ("checked: Show labels"), so a surface that comes back with its fields emptied is caught.
+ * What the reader sees and has picked: open dialogs, lists and named regions, pressed buttons,
+ * selected tabs, tree items and options, the current item, expanded controls, and the fields and
+ * boxes inside what is open (acceptance/screen-fingerprint.mjs, which the dry run's reload after
+ * every route reads too).
  * @returns the list, sorted, each once.
  */
 export function screenNow(): string[] {
-    const seen = new Set<string>();
-    const add = (role: string, element: Element): void => {
-        const name = nameOf(element);
-        if (name !== "") {
-            seen.add(`${role}: ${name}`);
-        }
-    };
-    document.querySelectorAll('[role="dialog"], dialog[open]').forEach((each) => {
-        add("dialog", each);
-    });
-    document
-        .querySelectorAll(
-            '[role="region"][aria-label], [role="region"][aria-labelledby], section[aria-label], section[aria-labelledby]',
-        )
-        .forEach((each) => {
-            add("region", each);
-        });
-    document.querySelectorAll('[role="toolbar"] [aria-pressed="true"]').forEach((each) => {
-        add("pressed", each);
-    });
-    const open = '[role="dialog"], dialog[open], [role="region"], section[aria-label], section[aria-labelledby]';
-    document.querySelectorAll(`:is(${open}) [role="tab"][aria-selected="true"]`).forEach((each) => {
-        add("tab", each);
-    });
-    document.querySelectorAll<HTMLInputElement>(`:is(${open}) :is(${CONTROLS})`).forEach((each) => {
-        const name = nameOf(each);
-        if (name === "") {
-            return;
-        }
-        if (each.type === "checkbox" || each.type === "radio") {
-            if (each.checked) {
-                seen.add(`checked: ${name}`);
-            }
-        } else if (each.value !== "") {
-            seen.add(`value: ${name} = ${each.value}`);
-        }
-    });
-    return [...seen].sort();
+    return screenFingerprint();
 }
 
 /**
  * Waits until autosave has kept the work, unmounts the workspace as a reload ends the page, mounts
- * it again and waits for this tab's work to reopen with everything the reader saw open before
- * (see {@link screenNow}), less what the test names in `lost`.
+ * it again and waits for this tab's work to reopen with the screen as the reader left it: every
+ * entry of {@link screenNow} the same, none gone and none changed (a picked row that comes back as
+ * another is both), less what the test names in `lost`.
  * @param before - the workspace to leave.
  * @param options - how the reload goes.
  * @returns the workspace after the reload.
@@ -160,20 +107,24 @@ export async function reload(before: AutosavedWorkspace, options: ReloadOptions 
     if (element === null) {
         throw new Error("no opened element");
     }
-    const entry = await waitFor(() => {
-        const { status } = element.autosaver;
-        assert.strictEqual(status.state, "saved");
-        assert.isNotNull(status.entry);
-        return status.entry;
-    });
-    const shown = screenNow().filter((each) => !(options.lost ?? []).includes(each));
-    before.view.unmount();
-    await waitFor(async () => {
-        const kept = (await listAutosaves(WORKSPACE_AUTOSAVE_KEY)).find((each) => each.id === entry);
-        assert.isTrue(kept !== undefined && !kept.live, "the work is not kept yet");
-    });
-    if (options.lostSession === true) {
-        sessionStorage.clear();
+    const shown = screenNow();
+    if (options.remount === true) {
+        before.view.unmount();
+    } else {
+        const entry = await waitFor(() => {
+            const { status } = element.autosaver;
+            assert.strictEqual(status.state, "saved");
+            assert.isNotNull(status.entry);
+            return status.entry;
+        });
+        before.view.unmount();
+        await waitFor(async () => {
+            const kept = (await listAutosaves(WORKSPACE_AUTOSAVE_KEY)).find((each) => each.id === entry);
+            assert.isTrue(kept !== undefined && !kept.live, "the work is not kept yet");
+        });
+        if (options.lostSession === true) {
+            sessionStorage.clear();
+        }
     }
     const store = createWorkspaceStore({ autosave: true });
     // Under StrictMode, as main.tsx mounts the app: its dev-only second run of each effect is
@@ -185,11 +136,11 @@ export async function reload(before: AutosavedWorkspace, options: ReloadOptions 
     );
     await openBy(store, () => Promise.resolve());
     await waitFor(() => {
-        const now = screenNow();
+        const changes = fingerprintChanges(shown, screenNow(), options.lost);
         assert.deepStrictEqual(
-            shown.filter((each) => !now.includes(each)),
-            [],
-            "what the reader saw open before the reload is open again",
+            changes,
+            { missing: [], appeared: [] },
+            `the screen after the reload is the screen the reader left: ${JSON.stringify(changes)}`,
         );
     });
     return { store, view };

@@ -70,8 +70,6 @@ const layout =
 const NONE: Budget = { objectNodes: 0, objectEdges: 0 };
 /** Every node an object, every edge still pulled. */
 const ALL_NODES: Budget = { objectNodes: N, objectEdges: 0 };
-/** Every edge an object, every node still batched. */
-const ALL_EDGES: Budget = { objectNodes: 0, objectEdges: M };
 
 const STYLE_CASES: readonly Case[] = [
     { name: "nothing more (plain edges)", apply: async () => {}, budget: NONE },
@@ -99,8 +97,8 @@ const STYLE_CASES: readonly Case[] = [
     { name: "edge.color", apply: edgeLayer({ "edge.color": "#4e79a7" }), budget: NONE },
     { name: "edge.width", apply: edgeLayer({ "edge.width": 3 }), budget: NONE },
     { name: "edge.opacity", apply: edgeLayer({ "edge.opacity": 0.5 }), budget: NONE },
-    { name: "edge.arrowHead", apply: edgeLayer({ "edge.arrowHead": "normal" }), budget: ALL_EDGES },
-    { name: "edge.style dash", apply: edgeLayer({ "edge.style": "dash" }), budget: ALL_EDGES },
+    { name: "edge.arrowHead", apply: edgeLayer({ "edge.arrowHead": "normal" }), budget: NONE },
+    { name: "edge.style dash", apply: edgeLayer({ "edge.style": "dash" }), budget: NONE },
     { name: "edge.curvature", apply: edgeLayer({ "edge.curvature": true }), budget: NONE },
 ];
 

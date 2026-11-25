@@ -43,6 +43,15 @@ import type { GraphSceneMetadata } from "./types/sceneMetadata";
 
 const graphLogger: Logger = GraphtyLogger.getLogger(["graphty", "graph"]);
 
+/**
+ * Whether an engine draws on a WebGL1 context, which compiles no GLSL ES 3.00 shader.
+ * @param engine - The engine.
+ * @returns True for WebGL1; false for WebGL2, WebGPU and NullEngine.
+ */
+function isWebGL1(engine: AbstractEngine): boolean {
+    return engine instanceof Engine && !(engine instanceof NullEngine) && engine.webGLVersion < 2;
+}
+
 /** One {@link Graph.waitForStableFrame} call: whether it gave up, and how to stop its current round. */
 /** The parts of a click's pointer event that decide what it does to the selection. */
 interface ClickModifiers {
@@ -187,6 +196,7 @@ import {
     type ReducedMotionChangedEvent,
     type RenderLostEvent,
     type RenderRestoredEvent,
+    type RenderWarningEvent,
     type TourEndedEvent,
     type TourProgressEvent,
     type XRMenuSelectEvent,
@@ -276,6 +286,7 @@ import {
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { type Antialias, type LeanLines, pulledEdgesDefault } from "./meshes/PulledLineBatch";
 import { RichTextLabel } from "./meshes/RichTextLabel";
+import { onRewriteMissed } from "./meshes/RowPullPlugin";
 import { loadChunk, loadModel, ModelLoadFailure } from "./models/loadModel";
 import { type ModelTemplate, optionsOf } from "./models/ModelCache";
 import { TextureCache } from "./models/TextureCache";
@@ -1120,6 +1131,8 @@ export class Graph implements GraphContext {
     #renderPath: RenderPath = renderPathDefault.value;
     /** The ceilings asked for through `limits`, and those in force on this render path. */
     readonly #limits = new RenderLimits(this.#renderPath === "batched");
+    /** Whether the log was told that WebGL1 draws `"batched"` as objects; see `#batchesDraw`. */
+    #warnedWebGL1 = false;
     /** The node batches, once the renderer is open on the `"batched"` path. */
     #nodeBatches: NodeBatches | null = null;
     /** Edge rows drawn with no `Edge`, on the `"batched"` path (`EdgeRowLines`). */
@@ -1218,7 +1231,14 @@ export class Graph implements GraphContext {
      * Asked each frame, so a live path change takes effect on the next one.
      * @returns True under renderPath "batched".
      */
-    readonly #batchedFrames = (): boolean => this.#renderPath === "batched";
+    readonly #batchedFrames = (): boolean => this.#batchesDraw();
+    /**
+     * Whether rows are drawn in batches: under renderPath "batched", on an engine that compiles
+     * their GLSL ES 3.00 shaders. A WebGL1 context does not, so there every row is drawn as an
+     * object, as `rowCounts` says (#10022). Asked each time, so it follows the engine WebGPU replaces.
+     * @returns True while batches draw.
+     */
+    readonly #batchesDraw = (): boolean => this.#renderPath === "batched" && !isWebGL1(this.engine);
     /**
      * Whether the render loop multisamples only the frame a still scene rests on: `antialias` is
      * `"at-rest"`. Asked each frame, so a change takes effect on the next one.
@@ -1416,6 +1436,10 @@ export class Graph implements GraphContext {
             antialiasAtRest: this.#antialiasAtRest,
             preserveDrawingBuffer: this.preserveDrawingBuffer,
         });
+        // A shader WebGL refuses is reported as WebGPU's are; WebGPU's own engine is watched once it opens.
+        if (!(this.renderManager.engine instanceof NullEngine)) {
+            this.watchShaderCompiles(this.renderManager.engine);
+        }
 
         this.basemapManager = new BasemapManager(
             () => this.scene,
@@ -1446,7 +1470,7 @@ export class Graph implements GraphContext {
         this.dataManager = new DataManager(this.eventManager, this.styles);
         this.dataManager.renderLimits = {
             ceilings: () => this.#limits.overrides,
-            batched: () => this.#renderPath === "batched",
+            batched: this.#batchesDraw,
             objectRows: () => this.#limits.effective.objectRows,
             objectEdges: () => this.#limits.effective.objectEdges,
             objectCap: (of, wanted, cap) => {
@@ -1512,7 +1536,7 @@ export class Graph implements GraphContext {
                 // Late-bound on purpose: a change of renderer replaces the render manager.
                 renderedFrame: () => this.renderManager.frameDrawn(),
                 // Under "batched" only, the repaint fills a uniform dirty set's mesh keys at once.
-                batched: () => this.#renderPath === "batched",
+                batched: this.#batchesDraw,
                 nodeSizeSpace: () => this.styles.config.behavior.node.sizeSpace,
                 darkScheme: () => this.#darkScheme,
                 layoutHidden: () => this.#layoutHidden,
@@ -2631,7 +2655,16 @@ export class Graph implements GraphContext {
      * @returns The status once {@link Graph.init} has chosen; null before.
      */
     get rendererStatus(): RendererStatus | null {
-        return this.#rendererStatus;
+        const status = this.#rendererStatus;
+        // Where the attached accelerator really runs, which can differ from what the renderer offered it: one
+        // probed before a renderer was on its way opened its own device (issue #9986).
+        const shared = this.acceleration.sharesRendererDevice;
+        if (status === null || shared === undefined) {
+            return status;
+        }
+
+        const layoutDevice = shared ? "shared" : "separate";
+        return status.layoutDevice === layoutDevice ? status : { ...status, layoutDevice };
     }
 
     /**
@@ -2908,18 +2941,25 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Reports a shader the GLSL compiler stops on. Babylon.js 9 hands the effect a rejection of its
-     * async compile as it would a synchronous failure, so everything listening to the effect hears
-     * as it does under WebGL; this reports it. An effect with its own `onError` is the shader
-     * check's, which has its own report. (Babylon 8 dropped the rejection, and this wrapped the
-     * engine's compile to tell the effect.)
+     * Reports a shader the GLSL compiler stops on, under WebGL and WebGPU alike: a refused shader
+     * never draws, and nothing else says so (#10022). Babylon.js 9 hands a WebGPU effect a rejection
+     * of its async compile as it would a synchronous failure, so everything listening to the effect
+     * hears as it does under WebGL. An effect with its own `onError` is the shader check's, which
+     * has its own report. A batch shader one of `RowPullPlugin`'s edits missed still draws, so it is
+     * a `render-warning` with `W_SHADER_EDIT_MISSED` (#10025), and drawing is left alone.
      * @param engine - The engine that compiles the graph's shaders.
      */
-    private watchShaderCompiles(engine: WebGPUEngine): void {
+    private watchShaderCompiles(engine: AbstractEngine): void {
         engine.onEffectErrorObservable.add(({ effect, errors }) => {
             if (!effect.onError) {
                 this.reportRefusedShader("compiler", [errors]);
             }
+        });
+        onRewriteMissed(engine, (patterns) => {
+            this.eventManager.emit("render-warning", {
+                code: "W_SHADER_EDIT_MISSED",
+                params: { renderer: engine.isWebGPU ? "webgpu" : "webgl", patterns },
+            } satisfies Omit<RenderWarningEvent, "type">);
         });
     }
 
@@ -2935,7 +2975,7 @@ export class Graph implements GraphContext {
 
         const error = new GraphtyError({
             code: "E_SHADER_REFUSED",
-            message: `the WebGPU ${stage} refused a shader, so it is not drawn: ${messages.join("; ")}`,
+            message: `the ${this.engine.isWebGPU ? "WebGPU" : "WebGL"} ${stage} refused a shader, so it is not drawn: ${messages.join("; ")}`,
             source: "view",
             recoverable: false,
             details: { stage, messages },
@@ -5518,8 +5558,8 @@ export class Graph implements GraphContext {
         }
 
         this.#renderPath = path;
-        this.#limits.honor(path === "batched");
-        if (path === "objects") {
+        this.#limits.honor(this.#batchesDraw());
+        if (!this.#batchesDraw()) {
             this.#warnLimitsIgnored();
         }
 
@@ -5630,7 +5670,22 @@ export class Graph implements GraphContext {
 
     /** Open or close the batches to match the path. Proxies stay, so neither way rebuilds a row. */
     #applyRenderPath(): void {
-        const batched = this.#renderPath === "batched" && !(this.engine instanceof NullEngine);
+        const batched = this.#batchesDraw() && !(this.engine instanceof NullEngine);
+        // On WebGL1 the ceilings asked for are not in force: every row is an object there. Said only
+        // when that is news: `setRenderPath` and `setLimits` already said it for a path they set aside.
+        const wasIgnored = this.#limits.ignored;
+        this.#limits.honor(this.#batchesDraw());
+        if (!wasIgnored) {
+            this.#warnLimitsIgnored();
+        }
+
+        if (this.#renderPath === "batched" && isWebGL1(this.engine) && !this.#warnedWebGL1) {
+            this.#warnedWebGL1 = true;
+            graphLogger.warn('renderPath "batched" needs WebGL2 or WebGPU: every row is drawn as an object', {
+                renderPath: "objects",
+            });
+        }
+
         // Pulled edges read node places from the row table (`PulledLineBatch`).
         if (pulledEdgesDefault.value && !(this.engine instanceof NullEngine)) {
             this.openRowTable();
@@ -5847,7 +5902,7 @@ export class Graph implements GraphContext {
     getDrawnTarget(): DrawnTarget | null {
         const { engine } = this;
         const table = this.#rowTable;
-        if (this.#renderPath !== "batched" || table === null) {
+        if (!this.#batchesDraw() || table === null) {
             return null;
         }
 
@@ -6089,7 +6144,7 @@ export class Graph implements GraphContext {
         // Under "batched" it waits for the first object row's mesh: until a mesh has an action,
         // Babylon runs no pick on a move (design/rendering/row-renderer.md 4.4).
         const nodeRoster = nodePointerRosterOf(this.scene);
-        if (this.#renderPath !== "batched") {
+        if (!this.#batchesDraw()) {
             nodeActionManagerOf(this.scene);
         }
 

@@ -167,6 +167,9 @@ function borderStyleOf(style: unknown): SceneNode["border"]["style"] {
 export function requestedScene(session: GraphSession, sourceSha256: string, command: string): Scene {
     const styleOf = (target: { node: string } | { edge: string }): Readonly<Record<string, unknown>> =>
         session.styles.explain(target).merged;
+    // Shown: kept by the visibility filter, and not drawn hidden by a style (a file's `visible: false`).
+    const shown = (id: string | number, visible: unknown): boolean =>
+        session.visibility.isVisible(id) && visible !== false;
     const records = session.data.nodes();
     const { positions } = session;
     // The element keeps a file's coordinates (the "fixed" layout, drawing them at the scale its
@@ -230,7 +233,7 @@ export function requestedScene(session: GraphSession, sourceSha256: string, comm
                           visible: labelStyle.enabled !== false,
                       }
                     : null,
-            visible: session.visibility.isVisible(record.id),
+            visible: shown(record.id, merged["node.visible"]),
             z: num(merged["node.zIndex"], 0),
         };
     });
@@ -248,7 +251,7 @@ export function requestedScene(session: GraphSession, sourceSha256: string, comm
             curved: false,
             color: color?.hex ?? "#000000",
             opacity:
-                (session.visibility.isVisible(record.id) ? 1 : 0) *
+                (shown(record.id, merged["edge.visible"]) ? 1 : 0) *
                 num(channel(merged, "edge.opacity"), 1) *
                 (color?.alpha ?? 1),
             // a 2D line is drawn SCENE_PER_UNIT.edge scene units wide per unit of edge.width

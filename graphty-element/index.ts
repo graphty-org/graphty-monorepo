@@ -391,6 +391,7 @@ export type {
     ReducedMotionChangedEvent,
     RenderLostEvent,
     RenderRestoredEvent,
+    RenderWarningEvent,
     StatsUpdateEvent,
     StyleChangedEvent,
     TourEndedEvent,

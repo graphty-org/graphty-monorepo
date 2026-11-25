@@ -536,6 +536,7 @@ export class EventManager implements Manager {
             case "basemap-status":
             case "render-lost":
             case "render-restored":
+            case "render-warning":
             case "operation-canceled":
             case "stats-update":
             case "input-enabled-changed":

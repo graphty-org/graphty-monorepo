@@ -213,14 +213,17 @@ await element.session.styles.add({
 
 ### Values the element provides
 
-A path that starts `graphty.` reads a value the element itself provides, not a column of your
-data:
+A path that starts `graphty.` or `store.` reads a value the element itself provides, not a column
+of your data. `store.<namespace>.` is the area where values kept on each node and edge live, one
+namespace per owner; graphty-element's own are under `store.graphty.`. A saved project or style
+that still reads a note value at its older address, `graphty.notes.<field>`, opens reading
+`store.graphty.notes.<field>`.
 
 | Path                                        | Value                                                                                                                                   |
 | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `graphty.notes.count`                       | How many notes name a node or an edge; no value when none do                                                                            |
-| `graphty.notes.latest`                      | The text of the newest of those notes                                                                                                   |
-| `graphty.notes.latestTime`                  | The `time` of the newest of those notes                                                                                                 |
+| `store.graphty.notes.count`                 | How many notes name a node or an edge; no value when none do                                                                            |
+| `store.graphty.notes.latest`                | The text of the newest of those notes                                                                                                   |
+| `store.graphty.notes.latestTime`            | The `time` of the newest of those notes                                                                                                 |
 | `graphty.degree`                            | How many edges a node has, as the graph stands now; no value on an edge                                                                 |
 | `graphty.inDegree`, `graphty.outDegree`     | How many edges reach a node, and how many leave it                                                                                      |
 | `graphty.members`                           | How many nodes a group holds directly; no value on a node that holds none. See [Groups](./data-sources#groups-nodes-inside-other-nodes) |

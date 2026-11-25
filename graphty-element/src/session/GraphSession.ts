@@ -2815,9 +2815,10 @@ function valueSourceOf(
 ): FilterValueSource {
     const keyOf = (path: Path): string =>
         path.startsWith(ATTRIBUTE_PREFIX) ? path.slice(ATTRIBUTE_PREFIX.length) : path;
-    // A run's value and every value under `graphty.` (an end's node value, a degree, a note value,
-    // a file's style value) are the style source's to read.
-    const isResult = (path: Path): boolean => path.startsWith("results.") || path.startsWith("graphty.");
+    // A run's value, every value under `graphty.` (an end's node value, a degree, a file's style
+    // value) and under `store.` (a note value) are the style source's to read.
+    const isResult = (path: Path): boolean =>
+        path.startsWith("results.") || path.startsWith("graphty.") || path.startsWith("store.");
 
     return {
         nodeValue: (index: number, path: Path): unknown =>
@@ -5480,7 +5481,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     });
 
     // The `notes` hook: a note written, edited, removed, merged, undone or redone moves the
-    // `graphty.notes.*` values of the nodes and edges it names (design/notes 8.3), so the layers
+    // `store.graphty.notes.*` values of the nodes and edges it names (design/notes 8.3), so the layers
     // reading one are repainted over what they matched before and match now, from the lowest of
     // them up. A stack reading no note path paints nothing.
     // ponytail: a reader repaints all it matches, not only the elements whose notes changed, so a

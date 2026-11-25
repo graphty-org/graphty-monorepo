@@ -25,6 +25,7 @@ import { withoutEyeLine } from "../meshes/labelEyeLine";
 import { screenFitFrames } from "../meshes/labelScreenFit";
 import { NodeShaderDrawing } from "../meshes/NodeShaderDrawing";
 import { armPoolReserve, clearPoolReserve } from "../meshes/poolReserve";
+import { pulledEdgesDefault } from "../meshes/PulledLineBatch";
 import { modelsFreeing, modelsLoading } from "../models/ModelCache";
 import { texturesFreeing, texturesLoading } from "../models/TextureCache";
 import { collectResizedNodes, type Node, type NodeRenderState } from "../Node";
@@ -2055,6 +2056,10 @@ export class UpdateManager implements Manager {
      * Paint every row line again when the layout starts laying edges itself (a map layout in the 3D view arrives, or
      * the view turns 3D under one; a layout that reports edge ends arrives), so each is drawn by an `Edge` that lays
      * its route ({@link unbuiltEdgePainted}): a row line runs straight between its nodes, and nothing else paints it when only the layout changed.
+     *
+     * When it stops (the layout that came in runs edges straight, or one that would have laid them failed or was
+     * canceled and the last one is back), every built edge is restyled so a plain one is pulled again: the edges
+     * built or taken out of the batch meanwhile (`Edge.followRoute`) never return to it on their own.
      * @param painter - Where the rows are queued.
      */
     private repaintRowLinesForMap(painter: StylePainter | undefined): void {
@@ -2068,6 +2073,14 @@ export class UpdateManager implements Manager {
             for (const row of this.graphContext.getEdgeRowLines?.()?.rows() ?? []) {
                 painter.queue("edge", row);
             }
+        } else if (pulledEdgesDefault.value || (this.graphContext.getNodeBatches?.() ?? null) !== null) {
+            for (const edge of this.builtEdges()) {
+                edge.updateStyle();
+            }
+
+            // a rebuilt placed line is placed by the next walk, as after a render path change
+            this.forceEdgeWalk();
+            this.meshesAdded();
         }
     }
 
@@ -2613,7 +2626,10 @@ export class UpdateManager implements Manager {
         }
 
         if (resized.size > 0) {
-            this.remeasureEdgesOf(resized);
+            // A repaint too large to place by its rows ends in a walk of every edge, which places these edges too.
+            // Placed here as well, a layer turning every node translucent placed its edges on the frames that
+            // painted their ends and again in that walk: 273 ms of a 680 ms restyle at 10,000 nodes (issue #10018).
+            this.remeasureEdgesOf(resized, !this.repaintEndsInWalk(painter));
         }
 
         // A repaint can change how a node is drawn in ways that move where its edges stop without
@@ -2653,6 +2669,17 @@ export class UpdateManager implements Manager {
             this.forceEdgeWalk();
             this.paintIndex = { rows: null };
         }
+    }
+
+    /**
+     * Whether the node repaint under way will end in a walk of every edge ({@link syncNodeStyles}): it has painted
+     * too many rows to place their edges one by one, and it is neither a time window's slide nor only `Node`s built
+     * from their rows.
+     * @param painter - Where the paint is read from.
+     * @returns True when it will.
+     */
+    private repaintEndsInWalk(painter: StylePainter): boolean {
+        return this.paintedRows === null && !painter.nodesFromRowsOnly && !painter.nodesFromBuildsOnly;
     }
 
     /** The Nodes a repaint of only Nodes built from their rows has painted so far ({@link syncNodeStyles}). */
@@ -2721,20 +2748,22 @@ export class UpdateManager implements Manager {
      * Make the edges of resized nodes measure again, and place them this frame. While a load holds
      * the draw they wait for their own paint, or for the walk that ends the repaint.
      * @param resized - The nodes this frame resized.
+     * @param place - False to leave placing them to a walk of every edge already owed.
      */
-    private remeasureEdgesOf(resized: ReadonlySet<Node>): void {
+    private remeasureEdgesOf(resized: ReadonlySet<Node>, place = true): void {
         for (const node of resized) {
-            this.remeasureEdgesAt(node.id);
+            this.remeasureEdgesAt(node.id, place);
         }
     }
 
     /**
      * Make the edges of one node measure again, and place them this frame unless a load holds the draw.
      * @param id - The node.
+     * @param placeNow - False to leave placing them to a walk of every edge already owed.
      */
-    private remeasureEdgesAt(id: NodeIdType): void {
+    private remeasureEdgesAt(id: NodeIdType, placeNow: boolean): void {
         this.sceneChanged = true;
-        const place = !this.dataManager.drawHeld;
+        const place = placeNow && !this.dataManager.drawHeld;
         for (const edge of this.edgesAt(id)) {
             edge.invalidatePositionCache();
             if (place) {
@@ -2783,8 +2812,8 @@ export class UpdateManager implements Manager {
     }
 
     /**
-     * A node's built edges, from the data manager's index of them by end, which every build and teardown keeps: no
-     * edit lists every built edge again to find one node's (issue #9164).
+     * A node's built edges, from the store's incidence lists through the data manager: no edit or hover lists every
+     * built edge to find one node's (issues #9164, #10028).
      * @param id - The node's id.
      * @returns They.
      */
@@ -4472,6 +4501,16 @@ export class UpdateManager implements Manager {
     }
 
     private updateEdges(): void {
+        // Placing edges changes no setting, so the graph's direction setting is read once for the whole walk.
+        dataManagerInternals.withSettingHeld(this.dataManager, () => {
+            this.placeEdges();
+        });
+    }
+
+    /**
+     * {@link UpdateManager.updateEdges}, with the direction setting held.
+     */
+    private placeEdges(): void {
         this.statsManager.edgeUpdate.beginMonitoring();
 
         this.followRenumberedRows();

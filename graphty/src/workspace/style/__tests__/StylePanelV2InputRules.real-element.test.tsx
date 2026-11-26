@@ -54,7 +54,7 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import type { Channel, ChannelValue, DataChannel } from "@graphty/graphty-element/catalog";
+import { type Channel, channelDescriptor, type ChannelValue, type DataChannel } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { afterAll, assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
@@ -63,7 +63,7 @@ import { withFeatures } from "../../../test/features";
 import { findValuePicker, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
-import { TEXT_THINGS } from "../v2/labelRubric";
+import { type LabelField, labelFieldDescriptor, TEXT_THINGS } from "../v2/labelRubric";
 import { SECTIONS, type ThingSpec } from "../v2/things";
 import { showKind } from "./kindTab";
 import { entryName, moreButton, openGraph, openGroup, openStyle, sectionOf } from "./v2Harness";
@@ -83,8 +83,12 @@ const KNOWN_FOURTH_LEVEL: readonly string[] = [];
 /** Pop-overs whose content is replaced in place by what they open, or that draw a back button. */
 const KNOWN_IN_PLACE: readonly string[] = [];
 
-/** Link dialogs more than 6 components tall. */
-const KNOWN_LINK_TALL: readonly string[] = [];
+/**
+ * Link dialogs more than 6 components tall, counted as the owner's wording reads, the histogram and its value range
+ * apart. A number's dialog is 7 (8 with Clamp outliers on), a color ramp's 7. Known until the ramp preview (its
+ * value range at the histogram's ends, on the tile and ramp preview branch) is accepted and one more line moves.
+ */
+const KNOWN_LINK_TALL: readonly string[] = ["node.borderWidth:bound", "node.fill:bound"];
 
 /** Pop-overs whose "..." is not the icon button named "More settings" in their header. */
 const KNOWN_MORE_NOT_ICON: readonly string[] = [];
@@ -264,6 +268,13 @@ const STATES: readonly {
         set: { "node.borderColor": "#111111", "node.borderWidth": 0.1, "node.borderStyle": "sinewave" },
     },
     { side: "edge", thing: "line", state: "strands", set: { "edge.strandColors": "#6366F1 #000000" } },
+    // Fit to label grows its padding's sides once it fits: it stays within six lines (owner's input rules).
+    {
+        side: "node",
+        thing: "size",
+        state: "fit inside",
+        set: { "node.labelFit": "inside", [TEXT_THINGS.node.label.words]: "Hello" },
+    },
     // A list of seven: it is one line of its pop-over, and the list opens beside (design "Lists in pop-overs").
     {
         side: "node",
@@ -520,6 +531,52 @@ function editedTwice(lines: readonly HTMLElement[]): string[] {
         ),
     );
     return [...twice.map((each) => `${each} and its list`), ...raw.map((line) => `${nameOf(line)} shows raw data`)];
+}
+
+/** How many lines of each picker kind the walks checked, so the picker check is never vacuous. */
+const PICKERS_SEEN = { angle: 0, font: 0, image: 0 };
+
+/**
+ * A line whose value is an angle, a font or an image that is not drawn with compact-mantine's AnglePicker,
+ * FontPicker or ImagePicker (owner, 2026-11-24).
+ * @param lines - the surface's lines.
+ * @returns what is wrong.
+ */
+function wrongPicker(lines: readonly HTMLElement[]): string[] {
+    return lines.flatMap((line) => {
+        const address = line.dataset.line ?? "";
+        // A unit strip names the channel it moves between places (an image On node or Wrapped): not its picker.
+        if (address === "" || address.includes(":") || line.dataset.rule === "R8") {
+            return [];
+        }
+        // A label line's address ends in its field ("node.labelStyle.font").
+        const field = address.slice(address.lastIndexOf(".") + 1);
+        const descriptor = channelDescriptor(address) ?? labelFieldDescriptor(field as LabelField);
+        const fontLike = /(^|\.|[a-z])(font|Font)$/.test(address);
+        const imageLike =
+            descriptor?.accepts === "text" &&
+            (/(^|\.|[a-z])(image|Image|imageFallback)$/.test(address) || address === "node.texture");
+        if (descriptor?.angle === true) {
+            PICKERS_SEEN.angle += 1;
+            return line.querySelector(".cm-angle-picker") === null
+                ? [`${nameOf(line)}: an angle without AnglePicker`]
+                : [];
+        }
+        if (imageLike) {
+            PICKERS_SEEN.image += 1;
+            return line.querySelector(".cm-image-picker") === null
+                ? [`${nameOf(line)}: an image without ImagePicker`]
+                : [];
+        }
+        if (fontLike) {
+            PICKERS_SEEN.font += 1;
+            // FontPicker's field is a combo box whose pop-up is its own picker, never a list of options.
+            const field = line.querySelector('[role="combobox"]');
+            const picker = field !== null && field.getAttribute("aria-haspopup") !== "listbox";
+            return picker ? [] : [`${nameOf(line)}: a font without FontPicker`];
+        }
+        return [];
+    });
 }
 
 /** What opens over a surface: a pop-out, a menu, a list. */
@@ -854,6 +911,8 @@ interface Found {
     names: string[];
     /** A value edited twice, or shown as raw data. */
     twice?: string[];
+    /** An angle, font or image line without its picker. */
+    pickers?: string[];
     /** Inputs that do not describe themselves (notDescribed). */
     described?: string[];
     /** Drop-downs of fewer than six options. */
@@ -1263,15 +1322,12 @@ function dialogParts(dialog: HTMLElement): HTMLElement[] {
 
 /**
  * How many lines of controls a part takes from top to bottom: controls side by side count once, a choice that
- * grows a second line under itself (a clamp's percentiles) counts twice. The ramp editor, its histogram with its
- * value range, is one component (design "Input rules", "Link dialog").
+ * grows a second line under itself (a clamp's percentiles) counts twice. The ramp editor counts as the owner's
+ * wording reads it, top to bottom: its histogram with its handles, then its value range under it.
  * @param part - the part.
  * @returns its lines.
  */
 function partLines(part: HTMLElement): number {
-    if (part.matches('[data-testid="ramp-editor"]') || part.querySelector('[data-testid="ramp-editor"]') !== null) {
-        return 1;
-    }
     const boxes = [...part.querySelectorAll(CONTROLS)]
         .filter(readable)
         .map((each) => each.getBoundingClientRect())
@@ -1379,6 +1435,7 @@ async function walkGroups(
         found.rest.push(...at(shownAtRest(lines)));
         found.empty.push(...at(emptyInputs(lines)));
         found.twice = [...(found.twice ?? []), ...at(editedTwice(lines))];
+        found.pickers = [...(found.pickers ?? []), ...at(wrongPicker(lines))];
         found.described = [...(found.described ?? []), ...at(notDescribed(lines))];
         found.paths = mergePaths(found.paths, controlsOf(lines));
         const reopenGroup = async (): Promise<HTMLElement> => {
@@ -1484,6 +1541,7 @@ describe("Style panel v2's input rules (owner, 2026-11-23)", () => {
                 plus: pop === null ? [] : plusReveals(pop),
                 // In the pop-over: the row's own line is the list's main value, its pop-over the list.
                 twice: pop === null ? [] : editedTwice(linesIn(pop)),
+                pickers: wrongPicker(lines),
                 paths: controlsOf(lines),
             };
             // Hovering a line shows its buttons.
@@ -1693,16 +1751,28 @@ describe("Style panel v2's input rules (owner, 2026-11-23)", () => {
         });
         const lines = linesIn(panel);
         assert.isAbove(lines.length, 4, "Graph settings' lines are read");
+        const names = namesNotBuiltIn(lines);
+        const pickers = wrongPicker(lines);
+        // Graph settings stays open in the inspector: "reopening" it is finding it again.
+        const few = await fewOptions(panel, async () =>
+            waitFor(() => {
+                const found = document.querySelector<HTMLElement>("[data-graph-settings-v2]");
+                assert.isNotNull(found);
+                return found;
+            }),
+        );
         FOUND.set("graph.settings", {
             fourth: [],
             inPlace: [],
             notIcon: [],
             covers: [],
-            names: namesNotBuiltIn(lines),
+            names,
             minus: [],
             slot: [],
             rest: [],
             empty: [],
+            pickers,
+            few,
         });
     });
 
@@ -1857,12 +1927,21 @@ describe("Style panel v2's input rules (owner, 2026-11-23)", () => {
                 KNOWN_GROUP_OPENS,
             ),
             compare(
+                "Angles, fonts and images without their pickers",
+                by((found) => found.pickers),
+                [],
+            ),
+            compare(
                 "A value edited by two different controls",
                 by((found) => twoPaths(found.paths)),
                 KNOWN_TWO_PATHS,
             ),
         ].filter((each) => each.fixed.length > 0 || each.added.length > 0);
         assert.deepEqual(results, []);
+        // The picker check saw lines of each kind, so passing it means something.
+        assert.isAbove(PICKERS_SEEN.angle, 0, "an angle line was checked");
+        assert.isAbove(PICKERS_SEEN.font, 0, "a font line was checked");
+        assert.isAbove(PICKERS_SEEN.image, 0, "an image line was checked");
     });
 });
 
@@ -2242,6 +2321,7 @@ async function checkedLines(what: string, pop: HTMLElement): Promise<string[]> {
         ...emptyInputs(lines),
         ...namesNotBuiltIn(lines),
         ...editedTwice(lines),
+        ...wrongPicker(lines),
         ...notDescribed(lines),
     ].map((each) => `${what}: ${each}`);
 }

@@ -65,15 +65,16 @@ describe("Unified Drag Handler", () => {
     });
 
     test("a real mouse click on a node does not pin it", async () => {
-        // A click runs through drag start and drag end. `pinOnDrag` pins what the reader PLACED,
-        // and a click places nothing: pinning it left every node a reader inspected stuck.
+        // `pinOnDrag` pins what the reader PLACED, and a click places nothing: pinning it left every
+        // node a reader inspected stuck. A press is no drag until the pointer travels (issue #10116),
+        // so a click starts and ends none.
         const ends: boolean[] = [];
         graph.addListener("node-drag-end", (event) => ends.push(event.pinned));
 
         await click(graph.canvas, nodePoint(graph, "test-node"));
         await graph.waitForStableFrame();
 
-        assert.deepEqual(ends, [false], "a press and release in place ends a drag that pins nothing");
+        assert.deepEqual(ends, [], "a press and release in place is no drag");
         assert.isFalse(node.isPinned());
     });
 

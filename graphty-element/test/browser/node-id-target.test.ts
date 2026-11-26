@@ -326,7 +326,13 @@ describe("the node ID target", () => {
 
         await hover(element, at("n0"));
         await element.waitForStableFrame();
-        const before = { ...pickWork };
+        // The element's own walks. Babylon's pick of each move (`pointerPicks`) is its own and
+        // runs whatever the element does; pointer-pick-scaling.test.ts holds it to one a move.
+        const walks = (): { meshPicks: number; rowScans: number } => ({
+            meshPicks: pickWork.meshPicks,
+            rowScans: pickWork.rowScans,
+        });
+        const before = walks();
         const { draws } = target.counts;
         const { reads } = target.counts;
         const ids = ["n1", "n2", "n3", "n4", "n5"];
@@ -336,7 +342,7 @@ describe("the node ID target", () => {
             await element.waitForStableFrame();
         }
 
-        assert.deepEqual(pickWork, before, "no move picked a mesh or walked the rows");
+        assert.deepEqual(walks(), before, "no move picked a mesh or walked the rows");
         assert.strictEqual(target.counts.reads - reads, ids.length, "each move read one pixel");
         assert.isAtMost(target.counts.draws - draws, ids.length, "at most one drawing a move");
     });
@@ -447,9 +453,11 @@ describe("the node ID target", () => {
         assert.strictEqual(target.counts.draws - draws, 1, "and draws nothing");
     });
 
-    it("does not redraw the target on each pointer move over hundreds of labels (#9466)", async () => {
+    it("does not draw hundreds of labels into the target on each pointer move (#9466)", async () => {
         // Each canvas label is a mesh of its own. Redrawing every one of them into the target on
-        // each pointer move made hover several times slower on "batched" than on "objects".
+        // each pointer move made hover several times slower on "batched" than on "objects". A
+        // node's label lets the pointer through, so the target leaves labels out: it is not
+        // crowded by them (a crowded target answers no read), and a move draws it at most once.
         const side = 18;
         const element = await labeledGraph("batched", 16, side);
         // Ready while few labels are drawn, so a read can draw it.
@@ -461,7 +469,7 @@ describe("the node ID target", () => {
         const labels = [...graph.getNodes()].filter((node) => node.label?.labelMesh?.isEnabled() === true).length;
         assert.isAtLeast(labels, 200, "hundreds of labels are drawn");
         const ids = ["n0", "n37", "n101", "n150", "n222", "n299"];
-        const { draws } = target.counts;
+        const { draws, reads } = target.counts;
         for (const id of ids) {
             await hover(element, nodeAndLabel(element, id)[0]);
             await element.waitForStableFrame();
@@ -469,10 +477,11 @@ describe("the node ID target", () => {
         }
 
         assert.strictEqual(
-            target.counts.draws - draws,
-            0,
-            `${String(ids.length)} moves over ${String(labels)} labels redraw the target`,
+            target.counts.reads - reads,
+            ids.length,
+            `the target answers each of ${String(ids.length)} moves over ${String(labels)} labels`,
         );
+        assert.isAtMost(target.counts.draws - draws, ids.length, "at most one drawing a move");
     });
 
     it("hovers the node or label objects hovers, labels on top included (#9466)", async () => {

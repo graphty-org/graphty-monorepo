@@ -33,8 +33,8 @@
  *   strands, a wavy border); and a strip's tab picked from the keyboard keeps focus, and Linear from Solid is one
  *   undo step;
  * - no button group opens anything (owner, 2026-11-24: "no button group should open menus"): every grouped button
- *   in the row, its pop-over and each group pop-over is clicked, and every tab of a strip picked, and none opens a
- *   menu, a list, a picker or a pop-over;
+ *   and every pressed-state toggle button in the row, its pop-over and each group pop-over is clicked, and every tab
+ *   of a strip picked, and none opens a menu, a list, a picker or a pop-over;
  * - one path to any control (owner, 2026-11-24: "there should only be one path to any control"): no value of a thing
  *   is edited by two different controls across its row, its pop-over and its group pop-overs (a line under a row
  *   repeating its pop-over's line in the same control is one control drawn twice); and the Shape's drop-down is its
@@ -604,41 +604,47 @@ function openCount(): number {
 }
 
 /**
- * Clicks every grouped button of a surface that is not a tab strip (walkTabs picks a strip's tabs), as a reader does,
- * and names each that opens a menu, a list, a picker or a pop-over (owner, 2026-11-24: "no button group should open
- * menus"). What it opened is closed again; a surface drawn anew is found again.
+ * Clicks every grouped button of a surface that is not a tab strip (walkTabs picks a strip's tabs), and every
+ * pressed-state toggle button (a text's Bold, Italic, Underline and Strikethrough, a Sticker's Icon buttons), as a
+ * reader does, and names each that opens a menu, a list, a picker or a pop-over (owner, 2026-11-24: "no button group
+ * should open menus"). What it opened is closed again; a surface drawn anew is found again.
  * @param root - the row or pop-over.
  * @param reopen - finds or opens it again.
  * @returns `<group> > <button>` for each that opened something.
  */
 async function groupsOpen(root: HTMLElement, reopen: () => Promise<HTMLElement>): Promise<string[]> {
-    const groupsIn = (surface: HTMLElement): HTMLElement[] =>
-        [...surface.querySelectorAll<HTMLElement>('[role="radiogroup"]')].filter(
-            (group) => laidOut(group) && group.closest("[data-strip]") === null,
-        );
-    const keyOf = (radio: HTMLInputElement): string =>
-        `${radio.closest('[role="radiogroup"]')?.getAttribute("aria-label") ?? ""}|${radio.value}`;
-    const keys = groupsIn(root).flatMap((group) =>
-        [...group.querySelectorAll<HTMLInputElement>('input[type="radio"]')].map(keyOf),
-    );
+    const buttonsIn = (surface: HTMLElement): HTMLElement[] => [
+        ...[...surface.querySelectorAll<HTMLElement>('[role="radiogroup"]')]
+            .filter((group) => laidOut(group) && group.closest("[data-strip]") === null)
+            .flatMap((group) => [...group.querySelectorAll<HTMLInputElement>('input[type="radio"]')]),
+        ...[...surface.querySelectorAll<HTMLElement>("button[aria-pressed]")].filter(laidOut),
+    ];
+    const keyOf = (button: HTMLElement): string =>
+        button instanceof HTMLInputElement
+            ? `${button.closest('[role="radiogroup"]')?.getAttribute("aria-label") ?? ""}|${button.value}`
+            : `toggle|${button.getAttribute("aria-label") ?? button.textContent ?? ""}`;
+    const keys = buttonsIn(root).map(keyOf);
     const found: string[] = [];
     let surface = root;
     for (const key of keys) {
         if (!surface.isConnected) {
             surface = await reopen();
         }
-        const radio = groupsIn(surface)
-            .flatMap((group) => [...group.querySelectorAll<HTMLInputElement>('input[type="radio"]')])
-            .find((each) => keyOf(each) === key);
-        if (radio === undefined || radio.disabled || radio.checked) {
+        const button = buttonsIn(surface).find((each) => keyOf(each) === key);
+        const radio = button instanceof HTMLInputElement ? button : undefined;
+        // As a picked radio, a pressed button is skipped: one of a set (a gallery's chosen picture) stays pressed.
+        const done = radio === undefined ? button?.getAttribute("aria-pressed") === "true" : radio.checked;
+        if (button === undefined || done || (button as HTMLInputElement | HTMLButtonElement).disabled) {
             continue;
         }
-        const label = surface.querySelector<HTMLElement>(`label[for="${radio.id}"]`);
+        const label = radio === undefined ? null : surface.querySelector<HTMLElement>(`label[for="${radio.id}"]`);
+        const pressed = button.getAttribute("aria-pressed");
         const before = openCount();
-        await userEvent.click(label ?? radio);
+        await userEvent.click(label ?? button);
         const opened = await waitFor(() => {
             const more = openCount() > before;
-            assert.isTrue(radio.checked || more || !radio.isConnected, `${key} is picked`);
+            const took = radio === undefined ? button.getAttribute("aria-pressed") !== pressed : radio.checked;
+            assert.isTrue(took || more || !button.isConnected, `${key} is picked`);
             return more;
         });
         if (opened) {

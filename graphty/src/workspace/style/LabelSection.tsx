@@ -44,6 +44,8 @@ const SETTINGS_WIDTH = 280;
 
 /** The source list's first choice: words the reader types, the same on every element. */
 const FIXED_TEXT = "Fixed text";
+/** The source list's row for text built from words and values. */
+export const FORMATTED_STRING = "Formatted string";
 
 /** The six formatting tags graphty-element reads inside typed words. */
 const TAGS_HELP =
@@ -502,6 +504,8 @@ function WordsInput({
  * @param props.onFixed - called when the reader picks Fixed text; left out, the list has no such row
  * @param props.inUse - the path already read, listed first
  * @param props.fixedInForce - whether the line holds typed words, so Fixed text is marked
+ * @param props.onFormatted - called when the reader picks Formatted string; left out, the list has no such row
+ * @param props.formattedInForce - whether the line holds a formatted string, so Formatted string is marked
  * @param props.title - the pop-out's title
  * @param props.children - the trigger
  * @returns The pop-out
@@ -515,6 +519,8 @@ export function SourcePicker({
     onFixed,
     inUse = [],
     fixedInForce = false,
+    onFormatted,
+    formattedInForce = false,
     title,
     children,
 }: Readonly<{
@@ -526,6 +532,8 @@ export function SourcePicker({
     onFixed?: () => void;
     inUse?: readonly string[];
     fixedInForce?: boolean;
+    onFormatted?: () => void;
+    formattedInForce?: boolean;
     title: string;
     children: React.ReactElement;
 }>): React.JSX.Element {
@@ -548,6 +556,9 @@ export function SourcePicker({
                     fixedLabel={onFixed === undefined ? undefined : FIXED_TEXT}
                     onFixed={onFixed}
                     fixedInForce={fixedInForce}
+                    formattedLabel={onFormatted === undefined ? undefined : FORMATTED_STRING}
+                    onFormatted={onFormatted}
+                    formattedInForce={formattedInForce}
                     onClose={() => {
                         onOpenChange(false);
                     }}

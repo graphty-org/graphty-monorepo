@@ -1,6 +1,6 @@
 /**
  * Style panel v2's Pie, Chart and Record from data on the REAL graphty-element, by real clicks: the row's entries
- * picker starts from "Fixed", a multi-pick written once on Done is one undo step, Escape writes nothing, the entry line
+ * picker starts from "Fixed" and only adds, a multi-pick written once on Done is one undo step, Escape writes nothing, the entry line
  * reads the sample node's parts, "Fixed" brings the fixed slices back, a layer holding only a data spec still has its
  * row, and the record and chart rows pick their entries the same way.
  */
@@ -118,6 +118,15 @@ describe("Style panel v2's data entries", () => {
             assert.strictEqual(screen.queryByRole<HTMLInputElement>("combobox", { name: "Field" })?.value, "animals");
         });
         assert.isNull(screen.queryByRole("button", { name: /cat 1, dog 2, horse 1/ }));
+        // The row's picker only adds (one path to any control): the field listed is not offered again, so which
+        // field an entry reads is its own Field picker's alone.
+        await userEvent.click(picker);
+        const list = await screen.findByRole("listbox", { name: "Node pie data" });
+        assert.isNull(within(list).queryByRole("option", { name: /^animals\b/ }), "animals is not offered again");
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("listbox", { name: "Node pie data" }));
+        });
 
         await session.undo();
         await waitFor(() => {

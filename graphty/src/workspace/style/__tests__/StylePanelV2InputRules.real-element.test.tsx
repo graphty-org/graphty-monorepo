@@ -804,6 +804,20 @@ function compactMantine(element: Element, line: Element): boolean {
 }
 
 /**
+ * Grouped buttons whose words are cut ("Headligh"): every input must be self describing (owner's input rules), and
+ * cut words no longer say what the button picks.
+ * @param lines - the lines.
+ * @returns each cut button's words, with the line it is on.
+ */
+function wordsCut(lines: readonly HTMLElement[]): string[] {
+    return lines.flatMap((line) =>
+        [...line.querySelectorAll<HTMLElement>(".mantine-SegmentedControl-innerLabel, .mantine-SegmentedControl-label")]
+            .filter((each) => laidOut(each) && each.scrollWidth > each.clientWidth)
+            .map((each) => `${line.dataset.line ?? "?"}: ${each.textContent.trim()}`),
+    );
+}
+
+/**
  * Lines with a name the app draws (words outside every control and every compact-mantine component), or a
  * compact-mantine name to the left of an input on its own line (owner, 2026-11-24: "Labels for an input must never go
  * to the left of the input").
@@ -1753,6 +1767,7 @@ describe("Style panel v2's input rules (owner, 2026-11-23)", () => {
         assert.isAbove(lines.length, 4, "Graph settings' lines are read");
         const names = namesNotBuiltIn(lines);
         const pickers = wrongPicker(lines);
+        assert.deepEqual(wordsCut(lines), [], "every grouped button's words show whole");
         // Graph settings stays open in the inspector: "reopening" it is finding it again.
         const few = await fewOptions(panel, async () =>
             waitFor(() => {

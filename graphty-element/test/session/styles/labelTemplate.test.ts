@@ -201,6 +201,27 @@ describe("a template layer in a session", () => {
         assert.strictEqual(result.errors[0]?.code, "E_BAD_LAYER");
     });
 
+    it("is what explain reports for an element: the words the canvas draws", async () => {
+        const harness = makeSession();
+        harness.add([{ id: "a", name: "Ada" }, { id: "b" }]);
+        const { session } = harness;
+
+        await session.styles.add({
+            name: "card",
+            target: "node",
+            selector: { match: "everything" },
+            encode: { "node.label": { template: ["Name: {data.name}", "Seen"] } },
+        });
+        await session.styles.settled();
+
+        assert.strictEqual(session.styles.explain({ node: "a" }).merged["node.label"], "Name: Ada\nSeen");
+        assert.strictEqual(
+            session.styles.explain({ node: "b" }).merged["node.label"],
+            "Seen",
+            "a line missing a value is left out",
+        );
+    });
+
     it("grows its community row when Louvain's result arrives", async () => {
         const harness = makeSession({ runs: { execute: partition } });
         harness.add([...MEMBERSHIP.map(([id]) => ({ id, name: id.toUpperCase() })), { id: "d", name: "D" }]);

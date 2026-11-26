@@ -39,6 +39,12 @@ interface ValuePickerProps {
     onFixed?: () => void;
     /** Whether `fixedLabel` is what the line holds now (typed words): the list opens marking it. */
     fixedInForce?: boolean;
+    /** A second choice after `fixedLabel`: text built from words and values ("Formatted string"). */
+    formattedLabel?: string;
+    /** Called when the reader picks `formattedLabel`. */
+    onFormatted?: () => void;
+    /** Whether `formattedLabel` is what the line holds now: the list opens marking it. */
+    formattedInForce?: boolean;
     /**
      * Several layers edited together: a first choice, "Layer", that gives each of them its own
      * value in list order. `count` is how many layers it reaches.
@@ -54,6 +60,8 @@ const TEXT_CHANNEL = /\.(label|tooltip|arrowHeadText|arrowTailText)$/;
 
 /** The key of the `fixedLabel` row; entry keys are the values' paths. */
 const FIXED = "fixed";
+/** The key of the `formattedLabel` row. */
+const FORMATTED = "formatted";
 /** The key of the "Layer" row. */
 const LAYER = "layer";
 /** The key of the closing row that folds what the property cannot take. */
@@ -321,6 +329,9 @@ function foldWhy(refused: readonly QuickAction[]): string {
  * @param props.fixedLabel - a first choice that keeps the field's own value
  * @param props.onFixed - called when the reader picks it
  * @param props.fixedInForce - whether the line holds typed words, so the fixed row is marked
+ * @param props.formattedLabel - a second choice after the fixed one: text built from words and values
+ * @param props.onFormatted - called when the reader picks it
+ * @param props.formattedInForce - whether the line holds a formatted string, so its row is marked
  * @param props.byLayer - several layers: the "Layer" choice
  * @returns The picker, or nothing before the element has come up
  */
@@ -334,6 +345,9 @@ export function ValuePicker({
     fixedLabel,
     onFixed,
     fixedInForce = false,
+    formattedLabel,
+    onFormatted,
+    formattedInForce = false,
     byLayer,
 }: Readonly<ValuePickerProps>): React.JSX.Element | null {
     const { session, element } = useWorkspace();
@@ -351,7 +365,8 @@ export function ValuePicker({
 
     // The list opens on the value in force (the one this line reads, or its typed words), as a
     // select opens on its value.
-    const inForce = inUse.find((path) => used.some((row) => row.value === path)) ?? (fixedInForce ? FIXED : undefined);
+    const ownInForce = formattedInForce ? FORMATTED : undefined;
+    const inForce = inUse.find((path) => used.some((row) => row.value === path)) ?? (fixedInForce ? FIXED : ownInForce);
 
     return (
         // Tab leaves the list (taking the attribute typed toward, see tabTakes): it closes, as a
@@ -384,6 +399,7 @@ export function ValuePicker({
                 actions={prefixFirst(
                     [
                         ...(fixedLabel === undefined ? [] : [{ value: FIXED, label: fixedLabel }]),
+                        ...(formattedLabel === undefined ? [] : [{ value: FORMATTED, label: formattedLabel }]),
                         ...layerRows(byLayer),
                         ...used,
                         ...elsewhere,
@@ -398,6 +414,10 @@ export function ValuePicker({
                 onRun={(key) => {
                     if (key === FIXED) {
                         onFixed?.();
+                        return;
+                    }
+                    if (key === FORMATTED) {
+                        onFormatted?.();
                         return;
                     }
                     if (key === LAYER) {

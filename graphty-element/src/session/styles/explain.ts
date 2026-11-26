@@ -758,6 +758,20 @@ function prepareStack(sources: ExplainSources): readonly StackEntry[] {
 }
 
 /**
+ * What a prepared binding is handed for one element: the value at its path, or for a binding that reads no one path
+ * (a template, which reads several) a reader for the element, as the repaint hands it. A literal ignores it.
+ * @param prepared - The binding.
+ * @param columns - What the session can read about elements of its kind.
+ * @param index - The element.
+ * @returns What its paint is handed.
+ */
+function readFor(prepared: PreparedBinding, columns: ElementColumns, index: number): unknown {
+    return prepared.path === null
+        ? (path: Path): unknown => columns.value(index, path)
+        : columns.value(index, prepared.path);
+}
+
+/**
  * Walk the stack over one element, bottom first, and report every value a layer paints on it.
  *
  * THE ONE WALK. {@link explainStyle} and {@link styleAgreement} both read through this, so the
@@ -785,7 +799,7 @@ function paintOne(
         }
 
         for (const prepared of bindings) {
-            const value = prepared.path === null ? undefined : columns.value(at.index, prepared.path);
+            const value = readFor(prepared, columns, at.index);
             const result = prepared.paintAt === undefined ? prepared.paint(value) : prepared.paintAt(at.index, beneath);
 
             if (result !== undefined) {

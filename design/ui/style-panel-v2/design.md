@@ -551,8 +551,9 @@ thing's groups when it has more than one, and each opens a new pop-over.
   rebuilt by the app: a tile button (`UnstyledButton`: model and shader tiles).
 - **Font style.** Bold, Italic, Underline and Strikethrough are toggle icon buttons on one line (compact-mantine
   `ToggleIconButton` or the existing grouped-button component, lucide glyphs, each with a hover tooltip). Bold
-  toggles the weight between the regular and the bold weight, and is the weight's one control (owner, 2026-11-24:
-  one path to any control): there is no Weight number line. graphty-element's label style carries underline and strikethrough (an additive API change where
+  toggles the weight between the regular and the bold weight, as a text editor's B does; any other weight (Thin to
+  Black, or a number) is the Letters group's **Weight** line (R5b), as a glyph's is, since every style
+  graphty-element has must be editable in the panel (owner, 2026-11-24). graphty-element's label style carries underline and strikethrough (an additive API change where
   missing).
 - **Names above, never beside (approved 2026-11-24).** Names go above inputs, never beside them: every input's
   visible name is a compact-mantine caption (FieldRow label above) or group legend (ControlGroup); app code never
@@ -616,6 +617,14 @@ thing's groups when it has more than one, and each opens a new pop-over.
   value, or "None" where none are drawn; left so, nothing is written. A picture (a label's image, a node image's
   Fallback, an arrow's Image) is compact-mantine's `ImagePicker` (R16), reading "None" with no picture. A
   label's Icon is a character drawn beside its words (graphty-element's `icon`), not a file, so it stays text.
+- **Formatted string (owner, 2026-11-24).** A node label's, edge label's or tooltip's source list offers
+  "Formatted string" after "Fixed text". It writes graphty-element's `{ template }` binding, starting from what the
+  label draws now (its value as `{path}`, or its typed words), and opens the "<label> text" pop-out beside the panel:
+  **Preview** (the words graphty-element draws for the selected node or edge, else the first that draws any),
+  **Text** (one line per line of the label, each value as `{path}`, written on leaving the field) and **Insert
+  value** (the value list: data columns and algorithm results, put at the caret).
+- **Data entries, one path each (owner, 2026-11-25).** A Pie's, Chart's or Record's entries picker only adds: it
+  lists the columns not yet in the list. Which field an entry reads is its own line's Field picker; its minus removes it.
 - **Drop-downs of fewer than six (2026-11-24).** Fewer than six exclusive options are grouped buttons wherever
   their words fit the line (a Finish's Shading: Smooth, Flat, Unlit, across the sidebar row under its name);
   where the words do not fit, icons, when every option has a common-knowledge icon. Three stay drop-downs, each

@@ -13,7 +13,7 @@ import { userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
 import { waitFor, within } from "../../../test/test-utils";
-import { openGraph, openStyle, picture, pixelsApart, written } from "./v2Harness";
+import { openGraph, openGroup, openStyle, picture, pixelsApart, written } from "./v2Harness";
 
 describe("Style panel v2's label font style", () => {
     withFeatures(["file-styles", "style-panel-v2"]);
@@ -85,6 +85,25 @@ describe("Style panel v2's label font style", () => {
                 within(toggles).getByRole("button", { name: "Bold" }).getAttribute("aria-pressed"),
                 "false",
             );
+        });
+
+        // Any other weight is the Letters group's Weight (owner, 2026-11-24: every style graphty-element has is
+        // editable in the panel): a typed 900 (Black) is written and drawn heavier than regular. (A lighter weight
+        // would draw the same as regular in a font with no light face.)
+        const regular = await picture(element);
+        const letters = await openGroup(pop, "Letters");
+        const weight = await waitFor(() => {
+            const found = letters.querySelector<HTMLInputElement>('[data-line="node.labelStyle.weight"] input');
+            assert.isNotNull(found, "the Weight line");
+            return found;
+        });
+        await userEvent.tripleClick(weight);
+        await userEvent.keyboard("900{Enter}");
+        await waitFor(() => {
+            assert.strictEqual(String(style().weight), "900", "Weight writes the number typed");
+        });
+        await waitFor(async () => {
+            assert.isAbove(pixelsApart(regular, await picture(element)), 0, "the heavier letters are drawn");
         });
     });
 });

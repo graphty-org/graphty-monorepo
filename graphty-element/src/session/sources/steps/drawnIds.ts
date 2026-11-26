@@ -155,8 +155,8 @@ export function markCounts(state: DraftState, marks: DraftMarks): SourceDraftMar
 /**
  * How many elements some steps of a draft make, each counted once however many of the steps reach it:
  * the nodes and edges they add, and those they fold rows into. An element a step adds counts as added
- * when the commit adds it, or when the graph holds it already and none of the steps folds rows into it:
- * what a committed join still makes. One a later step merges into a node the graph holds is not added.
+ * only when the commit adds it, as `markCounts` counts it: one the graph holds already, a committed join's
+ * own included, is not new to the reader.
  * @param state - The draft.
  * @param marks - What the commit does to each element.
  * @param steps - The steps' places; a place the draft does not hold makes nothing.
@@ -177,19 +177,16 @@ export function madeCounts(state: DraftState, marks: DraftMarks, steps: readonly
         }
         return out;
     };
-    const added = (made: ReadonlySet<string>, folded: ReadonlySet<string>, of: ReadonlyMap<string, string>): number =>
-        [...made].filter((id) => {
-            const mark = of.get(id);
-            return mark === "new" || ((mark === "unchanged" || mark === "changed") && !folded.has(id));
-        }).length;
+    const added = (made: ReadonlySet<string>, of: ReadonlyMap<string, string>): number =>
+        [...made].filter((id) => of.get(id) === "new").length;
     const merged = reached(["merged"]);
     const mergedEdges = reached(["mergedEdges"]);
     // A node a merge keeps is the one an earlier step made: new only when the commit adds it.
     const made = reached(["newNodes"]);
     const kept = [...reached(["keptNew"])].filter((id) => !made.has(id) && marks.nodes.get(id) === "new");
     return {
-        nodes: { new: added(made, merged, marks.nodes) + kept.length, merged: merged.size },
-        edges: { new: added(reached(["newEdges"]), mergedEdges, marks.edges), merged: mergedEdges.size },
+        nodes: { new: added(made, marks.nodes) + kept.length, merged: merged.size },
+        edges: { new: added(reached(["newEdges"]), marks.edges), merged: mergedEdges.size },
     };
 }
 

@@ -1,7 +1,8 @@
 /**
  * @file `preview.made`: how many elements some steps of a draft make, each counted once however many of the
  * steps reach it, so a join written as several steps (and the staged sources it adds for itself) reads as one
- * count: for steps new to the draft, the one `preview.marks` gives; for a committed join, what it still makes.
+ * count: the one `preview.marks` gives, what the commit does to the graph the reader already has, so a card's
+ * count agrees with the key: a committed join left as it is makes nothing new.
  */
 
 import { assert, describe, it } from "vitest";
@@ -89,7 +90,7 @@ describe("source-steps drafts: preview.made", () => {
         session.dispose();
     });
 
-    it("over a committed join the draft leaves as it is, counts what it makes, which the commit does not change", async () => {
+    it("over a committed join the draft leaves as it is, counts nothing new, as the key does", async () => {
         const session = createGraphSession({ features: ["source-steps"] });
         await session.data.import(BUILDINGS, { key: "building", type: "building" });
         const people = await session.data.stage(PEOPLE, { key: "person", type: "person" });
@@ -100,7 +101,7 @@ describe("source-steps drafts: preview.made", () => {
             into: { space: "building" },
             to: { field: "badge", into: { source: people, field: "badge" } },
         });
-        const made = effect(first.preview().made(every(first)));
+        assert.isAbove(first.preview().made(every(first)).edges.new, 0, "before its commit the join adds edges");
         await first.commit();
         const d = session.data.draft();
         const preview = d.preview();
@@ -108,7 +109,7 @@ describe("source-steps drafts: preview.made", () => {
             effect(preview.marks),
             effect({ nodes: { merged: 0, new: 0 }, edges: { merged: 0, new: 0 } }),
         );
-        assert.deepStrictEqual(effect(preview.made(every(d))), made, "the join still makes its people and its edges");
+        assert.deepStrictEqual(effect(preview.made(every(d))), effect(preview.marks), "the graph holds them already");
         d.dispose();
         session.dispose();
     });

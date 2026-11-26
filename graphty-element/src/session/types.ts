@@ -4891,8 +4891,9 @@ export interface SourceDraftPreview {
     /**
      * How many elements some steps make, each counted once however many of the steps reach it: the
      * nodes and edges they add and those they fold rows into. What a join written as several steps,
-     * with the staged sources it adds for itself, makes as a whole; for steps that are all new to the
-     * draft it agrees with `marks`.
+     * with the staged sources it adds for itself, makes as a whole. Added counts only what the commit
+     * adds, as `marks` does: an element the graph holds already, a committed join's own included, is
+     * not new.
      * Experimental: may change or be removed in a minor release.
      * @param steps - The steps' places, as `draft.steps()` lists them; a place the draft does not
      *   hold makes nothing.

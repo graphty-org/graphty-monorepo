@@ -162,6 +162,33 @@ describe("the doors into the join workspace (source-steps)", () => {
         await within(again).findByRole("radio", { name: fields, checked: true });
     });
 
+    it("a committed join reopened counts what Done would add to the graph, as the key does, left as it is or changed", async () => {
+        const { session } = await foundingProject();
+        drop("doors.csv", BUILDINGS);
+        await screen.findByRole("listitem", { name: "doors.csv" });
+        const modal = await openJoins();
+        await pickSources(modal, "people", "entries");
+        await pickFields(modal, "badge", "badge");
+        await addMatch(modal, 2, ["entries", "door"], ["doors", "door"]);
+        await joinAs(modal, "Edge per entries row, people to doors");
+        await done(modal);
+        const place = await screen.findByRole("region", { name: "Data place" });
+        const grid = await within(place).findByRole("grid", { name: "Joins" });
+        await userEvent.click(within(grid).getByRole("gridcell", { name: "people + entries + doors" }));
+        const again = await screen.findByRole("dialog", { name: "Join" });
+        const counts = (): string => again.querySelector(".jw-counts")?.textContent ?? "";
+        await waitFor(() => {
+            assert.include(counts(), "matched", "its counts are drawn");
+        });
+        assert.notMatch(counts(), /new (node|edge)/, "left as it is, it adds nothing the graph lacks");
+        await joinAs(again, "Node per entries row, linked to people and doors");
+        await waitFor(() => {
+            const added = session.data.currentDraft()?.preview().marks.nodes.new ?? -1;
+            assert.isAbove(added, 0);
+            assert.include(counts(), `${String(added)} new node`, "the doors the graph holds are not new");
+        });
+    });
+
     it("a card of three sources stays one card in the order picked after a save and a reopen", async () => {
         const { session } = await foundingProject();
         drop("doors.csv", "door,name\nD1,North\nD2,South");

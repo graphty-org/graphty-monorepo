@@ -391,6 +391,16 @@ describe("source-steps drafts: drawing a draft", () => {
             2,
             "its dashed border is drawn wide enough to see on a graph framed whole",
         );
+        // Where the edges it brings meet, a new node stays in sight: drawn hollow, in front of them.
+        const fill = (id: string): unknown =>
+            (session.styles.explain({ node: id }).merged["node.color"] as { hex?: string } | undefined)?.hex;
+        assert.strictEqual(String(fill("A-9")).toUpperCase(), "#FFFFFF", "a new node is drawn hollow");
+        assert.notStrictEqual(String(fill("A-1")).toUpperCase(), "#FFFFFF", "a merged node keeps its fill");
+        assert.isAbove(
+            Number(session.styles.explain({ node: "A-9" }).merged["node.drawOrder"]),
+            0,
+            "a new node is drawn in front of the edges",
+        );
         assert.isFalse(session.styles.showingBranches, "not a branches view");
         assert.strictEqual(session.styles.list(), layers, "the layer list is unchanged");
         assert.strictEqual(session.history.steps.length, steps, "no undo step");

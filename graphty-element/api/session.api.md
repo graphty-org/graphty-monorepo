@@ -4097,7 +4097,7 @@ export interface LoadedSource extends DataSourceDescriptor {
     readonly mapping?: LoadMappingRead;
     readonly named?: number;
     readonly reloadable?: true;
-    readonly rowsLeftOut?: Readonly<Partial<Record<"left-out:empty-key" | "left-out:empty-end" | "left-out:unmatched" | "left-out:fan-out" | "left-out:no-step", number>>>;
+    readonly rowsLeftOut?: Readonly<Partial<Record<"left-out:empty-key" | "left-out:empty-end" | "left-out:unmatched" | "left-out:fan-out" | "left-out:no-step" | "left-out:repeated-key", number>>>;
     readonly sameName?: SourceKey;
     readonly state?: SourceBuildState;
     readonly tableRows?: readonly ("nodes" | "edges")[];

@@ -256,13 +256,21 @@ function mergedLook(color: string): LayerSpec["set"] {
  */
 const MARK_SCREEN_WIDTH = 3;
 
+/** A new node's fill: hollow, so it reads apart from the filled nodes where the edges it brings meet. */
+const NEW_FILL = "#FFFFFF";
+
+/** A new node's draw order: in front of the edges, which otherwise bury a node they all meet. */
+const NEW_DRAW_ORDER = 100;
+
 /**
- * What a new node gets in a color: a dashed border.
+ * What a new node gets in a color: a dashed border round a hollow node, drawn in front of the edges.
  * @param color - The color.
  * @returns The channels.
  */
 function newNodeLook(color: string): LayerSpec["set"] {
     return {
+        "node.color": NEW_FILL,
+        "node.drawOrder": NEW_DRAW_ORDER,
         "node.borderColor": color,
         "node.borderStyle": "dashed",
         "node.borderWidth": 0.1,

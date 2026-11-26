@@ -1,4 +1,8 @@
 [
+    {
+        "file": "test/interactions/hover-leaves-graph-root-alone.test.ts",
+        "reason": "Counts the objects path's world-matrix recomputes, set by hand"
+    },
     { "file": "test/interactions/pick-parity.test.ts", "reason": "Sets each case's render path by hand" },
     { "file": "test/browser/drawn-invariants.test.ts", "reason": "Sets each case's render path by hand" },
     { "file": "test/browser/edges-follow-running-layout.test.ts", "reason": "Sets each case's render path by hand" },

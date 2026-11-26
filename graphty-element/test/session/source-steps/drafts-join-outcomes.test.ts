@@ -427,6 +427,26 @@ describe("source-steps drafts: what matches can make", () => {
         o.session.dispose();
     });
 
+    it("a chain's first merge, listing only the field the second matches by, reads back as no reduction", async () => {
+        const o = await opened(["network"], ["map", "expression"]);
+        const matches = [match(o.key, "network.id = map.protein"), match(o.key, "map.symbol = expression.symbol")];
+        const chain = o.draft.joinOutcomes({ matches }).outcomes.find((each) => each.code === "fields");
+        make(o.draft, chain?.acts ?? []);
+        const merges = o.draft.steps().filter((step) => step.op === "join.merge");
+        assert.strictEqual(merges.length, 2);
+        assert.deepStrictEqual(
+            merges[0]?.act?.aggregate,
+            { symbol: "list" },
+            "the chain lists the field it matches by",
+        );
+        assert.deepStrictEqual(
+            merges.map((step) => step.act?.repeated),
+            [null, null],
+            "nothing chose a reduction for the rows",
+        );
+        o.session.dispose();
+    });
+
     it("counts the edges that already join the nodes an edge's rows name", async () => {
         const o = await opened(["people", "buildings"], ["entries"]);
         const matches = [

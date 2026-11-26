@@ -45,6 +45,7 @@ import {
     type CellValue,
     type CopyTables,
     type EdgesStep,
+    type MergeStep,
     READER_SOURCE,
     READER_SPACE,
     type ReaderOp,
@@ -1317,13 +1318,28 @@ interface StepAct {
 /**
  * A merge's aggregate read back as `repeated` (#10056): its rule for every column without one of its
  * own (`"*"`), or else the one rule every column entry names (#10108), except `"first"` and
- * `"last"`, which `repeated` spells as a row winning.
- * @param aggregate - The step's aggregate.
+ * `"last"`, which `repeated` spells as a row winning. An entry for a column a later merge matches by
+ * is that match's (a chain lists the field its second merge matches by), so it names no rule here.
+ * @param value - The value.
+ * @param step - The merge.
  * @returns The rule, or null.
  */
-function everyReduction(aggregate: Aggregate | undefined): JoinReduce | null {
+function everyReduction(value: SourceSteps, step: MergeStep): JoinReduce | null {
+    const { aggregate } = step;
     const every = aggregate?.["*"];
-    const rules = new Set(Object.values(aggregate ?? {}));
+    const at = value.steps.indexOf(step);
+    const bridged = new Set(
+        value.steps
+            .slice(at + 1)
+            .flatMap((later) =>
+                later.op === "join.merge" && later.read.space === step.read.space && later.nodeColumn !== undefined
+                    ? [later.nodeColumn]
+                    : [],
+            ),
+    );
+    const rules = new Set(
+        Object.entries(aggregate ?? {}).flatMap(([column, rule]) => (bridged.has(column) ? [] : [rule])),
+    );
     const [only] = rules;
     const rule = every ?? (rules.size === 1 ? only : undefined);
     return rule !== undefined && rule !== "first" && rule !== "last" ? rule : null;
@@ -1362,7 +1378,7 @@ export function stepAct(value: SourceSteps, step: Step): StepAct | null {
             from: { source: step.source, field: step.read.key },
             into: into(step.read.space, step),
             ...shared,
-            repeated: step.repeated ?? everyReduction(step.aggregate),
+            repeated: step.repeated ?? everyReduction(value, step),
             aggregate: step.aggregate ?? null,
             unmatchedFrom: step.unmatchedFrom ?? "keep",
             ...defined({ fanOut: step.fanOut }),

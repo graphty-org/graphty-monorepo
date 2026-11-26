@@ -652,6 +652,11 @@ export class UpdateManager implements Manager {
     /** Whether this pass moved the camera towards the selection; see `followSelection`. */
     private followingSelection = false;
     /**
+     * The selection the camera is still gliding to: once the selection is cleared mid-glide, the
+     * glide carries on to it; see `followSelection`.
+     */
+    private glidingTo: readonly Node[] = [];
+    /**
      * Whether `camera.autoRotate` turned the camera on the last pass. It keeps a graph drawn on
      * demand drawing, and nothing else: the picture is finished when the layout and the styles
      * are, however the camera moves, so `graph-frame-stable` is not held back by it.
@@ -3699,6 +3704,7 @@ export class UpdateManager implements Manager {
         const nodes = this.graphContext.getSelectionManager?.()?.getSelectedNodes() ?? [];
         this.heldSelection = nodes.length === 0 ? null : selectionKey(nodes);
         this.followingSelection = false;
+        this.glidingTo = [];
     }
 
     /**
@@ -3738,7 +3744,14 @@ export class UpdateManager implements Manager {
             return;
         }
 
-        const nodes = this.graphContext.getSelectionManager?.()?.getSelectedNodes() ?? [];
+        // A selection cleared while the camera was still gliding to it (Escape right after a click):
+        // the glide ends where it was going. Stopped where the clear found it, the camera's place,
+        // and so where every node is drawn, depended on how many frames ran before the clear, and a
+        // node the reader was about to click could be off the canvas one time and on it the next
+        // (issue #10165).
+        const selected = this.graphContext.getSelectionManager?.()?.getSelectedNodes() ?? [];
+        const nodes = selected.length > 0 ? selected : this.glidingTo;
+        this.glidingTo = [];
         if (nodes.length === 0 || nodes.some((node) => node.dragging)) {
             return;
         }
@@ -3765,6 +3778,9 @@ export class UpdateManager implements Manager {
         // the time it took. Capped, a page drawing a frame a second glided for seven (issue #9032).
         const frames = frameMs / NOMINAL_FRAME_MS;
         this.followingSelection = this.camera.followPoint(selectionCenter(nodes), frames);
+        if (this.followingSelection) {
+            this.glidingTo = nodes;
+        }
     }
 
     /**

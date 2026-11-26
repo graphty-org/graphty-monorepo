@@ -77,6 +77,7 @@ export type Binding = {
 } | {
     template: readonly string[];
     format?: BindingNumberFormat;
+    values?: Readonly<Record<string, TemplateValue>>;
 } | {
     by: Path;
     combine?: CombineMode;
@@ -2143,6 +2144,26 @@ export interface LabelStyle {
 export function labelTemplateLine(row: LabelTemplateRow): string;
 
 // @public
+export type LabelTemplatePart = {
+    readonly text: string;
+} | {
+    readonly path: Path;
+    readonly op?: "count" | "rank";
+    readonly format?: BindingNumberFormat;
+    readonly missing?: "drop" | "skip" | {
+        readonly text: string;
+    };
+};
+
+// @public
+export interface LabelTemplateParts {
+    // (undocumented)
+    readonly bold: boolean;
+    // (undocumented)
+    readonly parts: readonly LabelTemplatePart[];
+}
+
+// @public
 export interface LabelTemplateRow {
     readonly bold?: boolean;
     readonly path: Path;
@@ -3559,6 +3580,12 @@ export const ORANGES_COLORS: readonly ["#fff5eb", "#fee6ce", "#fdd0a2", "#fdae6b
 export const OTHER_GROUP_COLOR = "#686868";
 
 // @public
+export function parseLabelTemplate(binding: {
+    readonly template: readonly string[];
+    readonly values?: Readonly<Record<string, TemplateValue>>;
+}): LabelTemplateParts[];
+
+// @public
 export const PASTEL_COLORS: readonly ["#FFD699", "#A8D8F0", "#66C9B2", "#FFF099", "#669DD6", "#FF9980", "#EBB8D2", "#CCCCCC"];
 
 // @public
@@ -4265,6 +4292,17 @@ export interface StyleDocument {
 }
 
 // @public
+export type TemplateValue = {
+    readonly path: Path;
+    readonly format?: BindingNumberFormat;
+    readonly missing?: "drop" | "skip" | {
+        readonly text: string;
+    };
+} | {
+    readonly text: string;
+};
+
+// @public
 export interface ThemeDescriptor {
     document: StyleDocument;
     name: string;
@@ -4288,6 +4326,12 @@ export type ViewMode = (typeof VIEW_MODE_VALUES)[number];
 
 // @public
 export const VIRIDIS_COLORS: readonly ["#440154", "#482878", "#3e4989", "#31688e", "#26828e", "#1f9e89", "#35b779", "#6ece58", "#b5de2b", "#fde724"];
+
+// @public
+export function writeLabelTemplate(lines: readonly LabelTemplateParts[]): {
+    template: string[];
+    values?: Record<string, TemplateValue>;
+};
 
 // @public
 export const YLORBR_COLORS: readonly ["#ef7818", "#d85a09", "#b84203", "#8e3104", "#662506"];

@@ -75,6 +75,7 @@ import type {
     Path,
     Rgba,
     StaticStyle,
+    TemplateValue,
 } from "../../catalog/types";
 import { isGraphtyError } from "../../errors";
 import type { GraphtyWarningCode } from "../../errors/codes";
@@ -990,10 +991,17 @@ function checkCombine(descriptor: ChannelDescriptor, binding: Binding, path: str
  * Check a template binding: a text channel, and lines whose placeholders parse.
  * @param descriptor - The channel it writes.
  * @param template - The lines, as authored.
+ * @param values - The values its `{=key}` placeholders write.
  * @param path - Where in the specification it sits.
  * @param log - Where problems and paths are collected.
  */
-function checkTemplate(descriptor: ChannelDescriptor, template: unknown, path: string, log: ProblemLog): void {
+function checkTemplate(
+    descriptor: ChannelDescriptor,
+    template: unknown,
+    values: Readonly<Record<string, TemplateValue>> | undefined,
+    path: string,
+    log: ProblemLog,
+): void {
     if (!TEMPLATE_CHANNELS.includes(descriptor.channel)) {
         report(log, {
             code: "E_BAD_LAYER",
@@ -1006,7 +1014,7 @@ function checkTemplate(descriptor: ChannelDescriptor, template: unknown, path: s
     }
 
     try {
-        for (const read of parseTemplate(template).paths) {
+        for (const read of parseTemplate(template, values).paths) {
             readsPath(log, read);
         }
     } catch (thrown) {
@@ -1088,7 +1096,7 @@ function checkBinding(
     log: ProblemLog,
 ): void {
     if ("template" in binding) {
-        checkTemplate(descriptor, binding.template, `${path}.template`, log);
+        checkTemplate(descriptor, binding.template, binding.values, `${path}.template`, log);
 
         return;
     }

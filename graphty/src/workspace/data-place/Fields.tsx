@@ -645,8 +645,33 @@ function SideGroup({
                     <EntityChip kind={kind}>{formatNumber(count)}</EntityChip>
                 </span>
             </FieldRow>
+            {side === "nodes" ? <RepeatedIds source={source} /> : null}
             {fixed}
             {entries.map(rowOf)}
+        </div>
+    );
+}
+
+/**
+ * How many of a source's node rows were left out for repeating an earlier row's key (the node
+ * keeps the first row's values), as graphty-element counts them; nothing when none was.
+ * @param props - Component props
+ * @param props.source - the load
+ * @returns the row, or null
+ */
+function RepeatedIds({ source }: Readonly<{ source: LoadedSource | undefined }>): React.JSX.Element | null {
+    const repeated = source?.rowsLeftOut?.["left-out:repeated-key"] ?? 0;
+    if (repeated === 0) {
+        return null;
+    }
+    return (
+        <div role="group" aria-label="Repeated ids">
+            <FieldRow>
+                <Text size="xs" truncate>
+                    Repeated ids
+                </Text>
+                <Text size="xs">{formatNumber(repeated)}</Text>
+            </FieldRow>
         </div>
     );
 }

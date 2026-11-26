@@ -52,6 +52,20 @@ describe("csv unnamed option", () => {
         expect(report.issues.map((issue) => issue.code)).toContain(NO_UNIQUE_ID_CODE);
     });
 
+    it("keeps the first row of a guessed key that repeats, and gives the row left out", async () => {
+        const text =
+            "protein_id,symbol\n" + Array.from({ length: 39 }, (_, i) => `P${i},S${i}`).join("\n") + "\nP0,again\n";
+        const { snapshot, report } = await load(text, { unnamed: "nodes" });
+        expect(report.resolved).toEqual({ idColumn: "protein_id" });
+        expect(snapshot.nodeCount).toBe(39);
+        const symbol = snapshot.nodes.get("symbol");
+        expect(symbol?.value(snapshot.ids.indexOf("P0"))).toBe("S0");
+        const repeats = report.issues.filter((issue) => issue.code === "W_DUPLICATE_NODE");
+        expect(repeats.map((issue) => [issue.line, issue.element, issue.params])).toEqual([
+            [41, "P0", { record: { protein_id: "P0", symbol: "again" } }],
+        ]);
+    });
+
     it("says the rows were read as nodes when the header names neither ends nor an id", async () => {
         const said = async (input: string): Promise<unknown[]> =>
             (await load(input, { unnamed: "nodes" })).report.issues

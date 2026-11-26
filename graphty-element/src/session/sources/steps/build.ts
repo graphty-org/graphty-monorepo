@@ -1716,14 +1716,16 @@ class Builder {
         const n = this.node(space, text(key), { source: s.source }, r, st) as BuiltNode;
         const repeat = at.seen.has(n.id);
         at.seen.add(n.id);
+        // `refuse` never meets a repeat here (the load refused it), so it keeps the first as `first` does:
+        // the row is left out, its node keeping the first row's values
+        if (repeat && (s.duplicateIds ?? src.settings?.duplicateIds ?? "first") !== "merge") {
+            this.fate(s.source, "nodes", i, "left-out:repeated-key", n.id);
+            return;
+        }
         this.touch(n, s, si, "nodes", r, i);
         supply(n, s.source);
         n.brought ??= new Set();
         n.brought.add(s.source);
-        // `refuse` never meets a repeat here (the load refused it), so it keeps the first as `first` does
-        if (repeat && (s.duplicateIds ?? src.settings?.duplicateIds ?? "first") !== "merge") {
-            return;
-        }
         const roles = new Set(Object.values(m).filter((v): v is string => typeof v === "string"));
         const brings = (c: string): boolean => !at.moved(r, c) && (!s.columns || s.columns.includes(c));
         for (const [c, v] of Object.entries(r).filter(([c]) => brings(c) || roles.has(c))) {

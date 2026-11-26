@@ -119,7 +119,11 @@ export const CSV_ISSUE = Object.freeze({
     QUOTE: BAD_QUOTE_CODE,
     /** A header and no data rows. */
     NO_DATA_ROWS: NO_DATA_ROWS_CODE,
-    /** A node table row repeating an id. */
+    /**
+     * A node table row repeating an id. Its values overwrite the earlier row's; when the id column was
+     * guessed from the values (`unnamed: "nodes"`), the row is left out instead, the first row's
+     * values stand, and the issue's `params.record` holds the row left out, by column name.
+     */
     DUPLICATE_NODE: DUPLICATE_NODE_CODE,
     /** An edge row repeating an edge id (skipped). */
     DUPLICATE_EDGE_ID: DUPLICATE_EDGE_ID_CODE,

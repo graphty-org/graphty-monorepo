@@ -1022,6 +1022,11 @@ class TableReader {
 
     /** Whether no guessed id column was distinct, so the node table is numbered by row. */
     private unkeyed = false;
+    /**
+     * Whether the node table is keyed by a column guessed from its values, which may repeat a
+     * little: a repeated id's row is then left out, and the first row's values stand.
+     */
+    private guessedKey = false;
     /** Whether a field-count error has already suggested `table: "adjacency"`. */
     private adjacencyHinted = false;
 
@@ -1920,6 +1925,7 @@ class TableReader {
             );
         }
         const key = byValue >= 0 ? byValue : chosen;
+        this.guessedKey = byValue >= 0;
         if (key !== null && (key >= 0 || !this.byValues())) {
             if (key >= 0) {
                 this.state.report.resolve("idColumn", names[key]);
@@ -2317,6 +2323,20 @@ class TableReader {
         let index: number;
         try {
             const id = this.nodeIdOf(plan, blank, idText, ordinal);
+            if (sink.indexOf(id) !== INVALID_INDEX && this.guessedKey) {
+                // A guessed key names the row's node by a value an earlier row gave: the first row's
+                // values stand, and the row left out is in the issue for whoever reads the report.
+                const record = Object.fromEntries(plan.names.map((name, i) => [name, row[i] ?? ""]));
+                report.warning(
+                    "merged",
+                    DUPLICATE_NODE_CODE,
+                    `node ${JSON.stringify(id)} already exists; this row is left out`,
+                    where,
+                    { record },
+                );
+                counts.skippedNodes++;
+                return;
+            }
             if (sink.indexOf(id) !== INVALID_INDEX) {
                 report.warning(
                     "merged",

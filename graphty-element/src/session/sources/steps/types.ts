@@ -521,7 +521,8 @@ export type RowFateKind =
     | "left-out:empty-end"
     | "left-out:unmatched"
     | "left-out:fan-out"
-    | "left-out:no-step";
+    | "left-out:no-step"
+    | "left-out:repeated-key";
 
 /** The fate of one row, and the elements it built. */
 export interface RowFate {

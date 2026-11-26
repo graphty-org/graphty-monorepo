@@ -3731,7 +3731,9 @@ export interface LoadedSource extends DataSourceDescriptor {
      */
     readonly named?: number;
     /**
-     * Its rows the build left out, by reason. Present only under the source-steps experiment.
+     * Its rows the build left out, by reason. `"left-out:repeated-key"` counts node rows whose key
+     * an earlier row of the source gave: the node keeps the first row's values. Present only under
+     * the source-steps experiment.
      * @experimental source-steps
      */
     readonly rowsLeftOut?: Readonly<
@@ -3741,7 +3743,8 @@ export interface LoadedSource extends DataSourceDescriptor {
                 | "left-out:empty-end"
                 | "left-out:unmatched"
                 | "left-out:fan-out"
-                | "left-out:no-step",
+                | "left-out:no-step"
+                | "left-out:repeated-key",
                 number
             >
         >

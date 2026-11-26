@@ -944,6 +944,7 @@ export class UpdateManager implements Manager {
         };
         this.meshAddedWatcher = scene.onNewMeshAddedObservable.add(pictureChanged);
         this.meshRemovedWatcher = scene.onMeshRemovedObservable.add(pictureChanged);
+        this.watchHandDrawnFrames(scene);
         this.lendShaderRepaint();
     }
 
@@ -966,6 +967,7 @@ export class UpdateManager implements Manager {
         scene.getEngine().onResizeObservable.remove(this.resizeWatcher);
         scene.onNewMeshAddedObservable.remove(this.meshAddedWatcher);
         scene.onMeshRemovedObservable.remove(this.meshRemovedWatcher);
+        scene.onBeforeRenderObservable.remove(this.watchingHeld);
     }
 
     /**
@@ -5505,7 +5507,6 @@ export class UpdateManager implements Manager {
     holdsMesh(node: Node): void {
         this.heldMeshes.set(node, true);
         this.sceneChanged = true;
-        this.watchHandDrawnFrames();
     }
 
     /**
@@ -5514,9 +5515,15 @@ export class UpdateManager implements Manager {
      * hidden or moved, or a camera moved while the list is frozen, thaws it here. A frozen list
      * recomputes no world matrix (`skipEvaluateActiveMeshes`), so a camera turned and drawn by hand
      * drew every billboard, an outline's ring among them, at the old camera's angle.
+     *
+     * ADDED ONCE, WITH THE SCENE, never on the way. The render loop reads a new newest before-render
+     * observer as somebody waiting for a frame (`RenderManager.newestFrameObservers`), so one added
+     * at the first freeze drew a frame on a graph that had come to rest, and changed the count of
+     * frame callbacks a graph holds once it settles.
+     * @param scene - The scene to watch.
      */
-    private watchHandDrawnFrames(): void {
-        this.watchingHeld ??= this.graphContext.getScene().onBeforeRenderObservable.add(() => {
+    private watchHandDrawnFrames(scene: Scene): void {
+        this.watchingHeld = scene.onBeforeRenderObservable.add(() => {
             if (this.heldMeshesChanged() || (this.activeMeshesFrozen && this.cameraMoved())) {
                 this.sceneChanged = true;
                 this.thawActiveMeshes();
@@ -5524,7 +5531,7 @@ export class UpdateManager implements Manager {
         });
     }
 
-    /** What watches frames drawn by hand, once one could draw a stale list ({@link UpdateManager.watchHandDrawnFrames}). */
+    /** What watches frames drawn by hand ({@link UpdateManager.watchHandDrawnFrames}). */
     private watchingHeld: Nullable<Observer<Scene>> = null;
 
     /**
@@ -5717,7 +5724,6 @@ export class UpdateManager implements Manager {
             // AND NO WORLD MATRIX IS RECOMPUTED WHILE FROZEN (`skipEvaluateActiveMeshes`). Babylon otherwise still
             // recomputes every listed mesh's world matrix each frame, about 15 ms a frame at 99,000 nodes, for a list
             // that is only frozen while nothing moves: whatever moves thaws it first (issue #10116).
-            this.watchHandDrawnFrames();
             const request = ++this.freezeRequest;
             scene.freezeActiveMeshes(true, () => {
                 if (request !== this.freezeRequest) {

@@ -14,6 +14,7 @@ import type { CameraManager } from "./cameras/CameraManager";
 import { expansionOf } from "./data/expand";
 import type { Graph } from "./Graph";
 import { layoutEngineInternals } from "./layout/LayoutEngine";
+import { NGraphEngine } from "./layout/NGraphLayoutEngine";
 import { SimulationLayoutEngine } from "./layout/SimulationLayoutEngine";
 import type { GraphContext } from "./managers/GraphContext";
 import type { Node as GraphNode, NodeIdType } from "./Node";
@@ -118,6 +119,16 @@ export interface NodePointerRoster {
      * click picks the scene once, not again on release (issue #10116).
      */
     pressed: { readonly id: NodeIdType | undefined; readonly x: number; readonly y: number } | null;
+}
+
+/**
+ * Whether a layout holds a dragged node still in its own simulation for the drag: a simulation left to integrate it
+ * keeps moving it between pointer moves.
+ * @param engine - The layout, if any.
+ * @returns True for one that does.
+ */
+function holdsDrags(engine: unknown): engine is SimulationLayoutEngine | NGraphEngine {
+    return engine instanceof SimulationLayoutEngine || engine instanceof NGraphEngine;
 }
 
 /** How many drag handlers were built; see {@link dragHandlersBuilt}. */
@@ -613,7 +624,7 @@ export class NodeDragHandler {
         // row and publishing where it put it, so without a fixed bit the forces would fight the
         // pointer. The bit is temporary: `onDragEnd` gives it back unless the drop pins the node.
         const { layoutEngine } = context.getLayoutManager();
-        if (layoutEngine instanceof SimulationLayoutEngine) {
+        if (holdsDrags(layoutEngine)) {
             layoutEngine.beginDrag(this.node);
         }
 
@@ -723,7 +734,7 @@ export class NodeDragHandler {
             // drop that pins keeps the bit it has been holding, and a drop that does not gives the
             // row back to the simulation.
             const { layoutEngine } = context.getLayoutManager();
-            if (layoutEngine instanceof SimulationLayoutEngine) {
+            if (holdsDrags(layoutEngine)) {
                 layoutEngine.endDrag(this.node, pins);
             }
 
@@ -904,7 +915,7 @@ export class NodeDragHandler {
 
         this.node.dragging = false;
         const { layoutEngine } = this.getContext().getLayoutManager();
-        if (layoutEngine instanceof SimulationLayoutEngine) {
+        if (holdsDrags(layoutEngine)) {
             layoutEngine.endDrag(this.node, false);
         }
 

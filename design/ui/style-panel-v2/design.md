@@ -630,8 +630,10 @@ thing's groups when it has more than one, and each opens a new pop-over.
   There are no Kind buttons under the row and no Basic / Model / Shader tabs in its pop-over, and a model's
   pop-over has no Model line, fixed or varying by data; each pop-over holds only its own settings (a model's
   Fallback shape, Tint, Fit and Center; a shader's parameters). The Fallback shape line sets the shape drawn under
-  the model, a different value from the drop-down's shape, which replaces the model (owner, 2026-11-25). A line under a row repeats the same control as the pop-over's line for that
-  value (2.5), in the same component and words: that is one control drawn in two places, not a second path. The
+  the model, a different value from the drop-down's shape, which replaces the model (team reading, not an owner
+  statement). Team decision, not stated by the owner: a line under a row may repeat the same control as the
+  pop-over's line for that value (2.5), in the same component and words, and that counts as one control drawn in
+  two places, not a second path. The
   rules test fails a value edited by two different controls. Model... opens the Models gallery beside the list,
   which stays open, and the gallery's Add custom model... is the one way to the Load custom model dialog from the
   Shape. The model varies by data from the Shape's by-data link, whose list opens with a "Which value" choice

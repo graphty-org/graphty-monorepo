@@ -4,7 +4,7 @@
     "minimumHeadroomBytes": 1024,
     "entries": {
         ".": 1280780,
-        "./session": 728863,
+        "./session": 813200,
         "./schema": 17573,
         "./catalog": 164343,
         "./commands": 1669,

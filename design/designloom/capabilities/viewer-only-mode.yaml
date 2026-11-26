@@ -12,6 +12,6 @@ requirements:
     - "Should: Viewer-only mode that opens a delivered file without the analysis UI"
 sources:
     - title: "Communicating findings: the deliverables each population hands to someone else (section 10, requirement
-        R17)"
+          R17)"
       url: design/user-research/communicating-findings-and-deliverables.md
       summary: "Should in the research. Covered by Designloom when researched: Gap"

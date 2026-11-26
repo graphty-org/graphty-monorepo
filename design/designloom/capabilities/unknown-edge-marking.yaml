@@ -16,6 +16,6 @@ requirements:
     - "Should: Unresolved endpoints (IP-only, unknown process) shown distinctly; missing edges treated as unknown"
 sources:
     - title: "Engineers Who Analyze Dependencies: IT Services, Networks, Software and Data Lineage (section 10,
-        requirement R21)"
+          requirement R21)"
       url: design/user-research/dependency-and-impact-analysis-engineers.md
       summary: "Should in the research. Covered by Designloom when researched: No"

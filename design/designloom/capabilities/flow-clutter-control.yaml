@@ -18,6 +18,6 @@ requirements:
       thickness scaled to the viewport"
 sources:
     - title: "Geographic Flow and Mobility Networks: Migration, Commuting, Mobility and Trade Flows on a Map (section
-        10, requirement R6)"
+          10, requirement R6)"
       url: design/user-research/geographic-flow-and-mobility-networks.md
       summary: "Must in the research. Covered by Designloom when researched: Partly (filtering is generic)"

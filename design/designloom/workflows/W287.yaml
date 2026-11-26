@@ -22,7 +22,8 @@ suggested_components:
     - data-table-panel
     - node-details-panel
 starting_state:
-    data_type: an embedded investigation graph and a customer requirement (WCAG 2.1 AA under ADA Title II, Section 508, or
+    data_type:
+        an embedded investigation graph and a customer requirement (WCAG 2.1 AA under ADA Title II, Section 508, or
         a questionnaire)
     node_count: 50-500
     edge_density: sparse

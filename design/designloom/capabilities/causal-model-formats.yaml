@@ -20,7 +20,7 @@ requirements:
       Tigramite graph and value arrays, NetworkX/GML for DoWhy (should)"
 sources:
     - title: "Causal Diagram Users: DAGs, Bayesian Networks, Causal Discovery, Time-Series Causal Graphs and SEM Path
-        Diagrams (section 10, requirement 8)"
+          Diagrams (section 10, requirement 8)"
       url: design/user-research/causal-diagrams-and-bayesian-networks.md
       summary: "Must in the research (the document says: must/should). Covered by Designloom when researched: No
-        (graph-io has DOT and GML only)"
+          (graph-io has DOT and GML only)"

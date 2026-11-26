@@ -17,4 +17,4 @@ sources:
     - title: "Genetic Genealogists: DNA Shared-Match Networks and Clusters (section 10, table row 1)"
       url: design/user-research/genetic-genealogy-dna-match-networks.md
       summary: "Must in the research. Covered by Designloom when researched: Partial (columnar table import and a column
-        mapper exist; a two-table match import with vendor presets does not)"
+          mapper exist; a two-table match import with vendor presets does not)"

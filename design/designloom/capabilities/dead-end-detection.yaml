@@ -13,7 +13,7 @@ requirements:
     - "Must: Components, cycles and dead ends reported and selectable (complete circles, open ends)"
 sources:
     - title: "Genome Assemblers, Microbial Genome Finishers and Pangenome Researchers: Assembly Graphs and Pangenome
-        Graphs (section 10, table row 8)"
+          Graphs (section 10, table row 8)"
       url: design/user-research/genome-assembly-and-pangenome-graphs.md
       summary: "Must in the research. Covered by Designloom when researched: Partial (components and cycle detection
-        exist; dead ends at node ends do not)"
+          exist; dead ends at node ends do not)"

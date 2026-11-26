@@ -38,7 +38,8 @@ suggested_components:
     - image-export-dialog
     - data-export-dialog
 starting_state:
-    data_type: List of significant metabolites (compound names, HMDB or KEGG ids, optional fold changes), optionally with
+    data_type:
+        List of significant metabolites (compound names, HMDB or KEGG ids, optional fold changes), optionally with
         a gene list; mapped onto the KEGG global metabolic map or onto metabolite, gene and disease interaction networks
         from STITCH and HMDB
     node_count: Seeds plus their direct neighbors; the tool advises keeping networks to 200-2000 nodes

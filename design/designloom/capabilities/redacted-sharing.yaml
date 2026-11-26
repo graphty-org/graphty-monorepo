@@ -18,6 +18,6 @@ requirements:
     - "Must: Redacted copies per audience or classification level, and read-only sharing"
 sources:
     - title: Law enforcement crime and intelligence analysts, and defense and national intelligence analysts (section
-        10, requirement 7)
+          10, requirement 7)
       url: design/user-research/law-enforcement-and-intelligence-analysts.md
       summary: "Must in the research. Covered by Designloom when researched: Gap"

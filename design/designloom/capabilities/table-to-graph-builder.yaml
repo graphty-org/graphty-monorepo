@@ -28,10 +28,10 @@ requirements:
       de-duplicating node ids, for BI, CSV and notebook hosts"
 sources:
     - title: Social Media Researchers, Disinformation Analysts and Marketing Network Analysts (section 10, requirement
-        2)
+          2)
       url: design/user-research/social-media-disinformation-and-marketing.md
       summary: "Must in the research. Covered by Designloom when researched: Gap."
     - title: Developers Who Embed Graph Visualization in Products or Extend It With Plugins (section 10, table row 9)
       url: design/user-research/developers-embedding-and-extending-graph-visualization.md
       summary: "Must in the research. Covered by Designloom when researched: Partly (CSV import exists; no table-binding
-        API)"
+          API)"

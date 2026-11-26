@@ -16,6 +16,6 @@ requirements:
     - "Should: Collapse of multi-step patterns (swap, bridge) into one displayed step that expands on demand"
 sources:
     - title: "Financial crime investigators: fraud rings, anti-money-laundering, beneficial ownership, crypto tracing
-        and insurance fraud (section 10, requirement 25)"
+          and insurance fraud (section 10, requirement 25)"
       url: design/user-research/financial-crime-fraud-aml-kyc.md
       summary: Should in the research.

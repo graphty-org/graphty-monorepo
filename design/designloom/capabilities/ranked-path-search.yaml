@@ -18,4 +18,4 @@ sources:
     - title: Network Medicine, Drug Discovery and Biomedical Knowledge Graph Researchers (section 10, requirement R4)
       url: design/user-research/network-medicine-and-biomedical-knowledge-graphs.md
       summary: "Must in the research. Covered by Designloom when researched: No (all-paths-finding without ranking by
-        edge weight)"
+          edge weight)"

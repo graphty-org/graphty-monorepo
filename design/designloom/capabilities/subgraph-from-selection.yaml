@@ -13,7 +13,7 @@ requirements:
     - "Must: Select by genome-count band and make a new graph from the selection, or hide it"
 sources:
     - title: "Genome Assemblers, Microbial Genome Finishers and Pangenome Researchers: Assembly Graphs and Pangenome
-        Graphs (section 10, table row 19)"
+          Graphs (section 10, table row 19)"
       url: design/user-research/genome-assembly-and-pangenome-graphs.md
       summary: "Must in the research. Covered by Designloom when researched: Partial (filtering and component extraction
-        exist; new graph from an arbitrary selection is unproven)"
+          exist; new graph from an arbitrary selection is unproven)"

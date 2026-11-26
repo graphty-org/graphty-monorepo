@@ -16,4 +16,4 @@ sources:
     - title: "Genetic Genealogists: DNA Shared-Match Networks and Clusters (section 10, table row 3)"
       url: design/user-research/genetic-genealogy-dna-match-networks.md
       summary: "Must in the research. Covered by Designloom when researched: Partial (filtering and interactive
-        thresholds exist; a two-ended band on a node attribute with a live count does not)"
+          thresholds exist; a two-ended band on a node attribute with a live count does not)"

@@ -19,6 +19,6 @@ requirements:
       EVTX-derived CSV, Zeek logs"
 sources:
     - title: "Cybersecurity Graph Work: Attack Paths, Threat-Intel Pivoting, Incident Response, Network, Cloud and
-        Binary Graphs (section 10, requirement 6)"
+          Binary Graphs (section 10, requirement 6)"
       url: design/user-research/cybersecurity-graph-work.md
       summary: "Must in the research. Covered by Designloom when researched: Not covered"

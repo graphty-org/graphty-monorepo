@@ -15,4 +15,4 @@ sources:
     - title: Supply Chain Risk Analysts and Physical Infrastructure Network Engineers (section 10, requirement R49)
       url: design/user-research/supply-chain-and-physical-infrastructure-networks.md
       summary: "Should in the research. Covered by Designloom when researched: Partly (dependency-propagation marks
-        downstream failure; leaf-grouping folds plots by supplier)"
+          downstream failure; leaf-grouping folds plots by supplier)"

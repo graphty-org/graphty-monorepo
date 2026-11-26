@@ -20,6 +20,6 @@ requirements:
     - "Must: Enrichment with explicit, recorded background"
 sources:
     - title: Systems Biologists and Bench Scientists Working With Molecular Interaction Networks (section 10,
-        requirement 15)
+          requirement 15)
       url: design/user-research/systems-biology-omics-networks.md
       summary: "Must in the research. Covered by Designloom when researched: partly covered (W21)"

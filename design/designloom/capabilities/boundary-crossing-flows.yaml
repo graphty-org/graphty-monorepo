@@ -13,6 +13,6 @@ requirements:
       threats attached to them"
 sources:
     - title: "Cybersecurity Graph Work: Attack Paths, Threat-Intel Pivoting, Incident Response, Network, Cloud and
-        Binary Graphs (section 10, requirement 28)"
+          Binary Graphs (section 10, requirement 28)"
       url: design/user-research/cybersecurity-graph-work.md
       summary: "Should in the research. Covered by Designloom when researched: Not covered"

@@ -156,7 +156,8 @@ sources:
       summary: Catalog record and summary of the guide's steps
     - title: Aurora, Colorado - Group Violence Intervention Problem Analysis Report (2023)
       url: https://www.auroragov.org/UserFiles/Servers/Server_1881137/Image/Departments/Police/NNSC%20Aurora%20Problem%20Analysis%20Final%20Repor%20July%202023.pdf
-      summary: 36 groups and about 1,355 members, 93 incidents with involvement classes, group audit table with conflicts
+      summary:
+          36 groups and about 1,355 members, 93 incidents with involvement classes, group audit table with conflicts
           and allies, confidentiality under a data-sharing agreement, refresh 2-4 times a year
     - title: Papachristos and Sierra-Arevalo (2018) - Policing the Connected World (COPS Office)
       url: https://portal.cops.usdoj.gov/resourcecenter/content.ashx/cops-w0859-pub.pdf

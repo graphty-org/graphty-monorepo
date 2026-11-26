@@ -85,7 +85,7 @@ collection.
    Trycycler, Hybracter), then open the graph to see whether the chromosome and plasmids are complete circles. Unicycler
    says "Since a typical bacterial genome has no dead ends (the sequences are circular) an ideal assembly graph won't
    either" and normalizes depth so "the chromosome has a depth near 1x and plasmids may have different (typically
-   higher) depths" ([Unicycler README](https://github.com/rrwick/Unicycler)). A completed *Klebsiella pneumoniae*
+   higher) depths" ([Unicycler README](https://github.com/rrwick/Unicycler)). A completed _Klebsiella pneumoniae_
    assembly "contained three contigs (one chromosome and two plasmids)" and "When viewed in Bandage, the Unicycler
    graph clearly distinguished between replicons that formed completed circularised sequences"
    ([Wick et al. 2017](https://pmc.ncbi.nlm.nih.gov/articles/PMC5481147)).
@@ -117,9 +117,9 @@ collection.
 8. _Microbial gene-level pangenome analysts._ Annotate hundreds to thousands of isolates of one bacterial species
    (Prokka or Bakta), cluster their genes into families with Roary, Panaroo or PPanGGOLiN, and study the core genome
    (families in nearly every genome) and the accessory genome (the rest). The Panaroo paper's collections were 413
-   *Mycobacterium tuberculosis*, 328 *Klebsiella pneumoniae* and 1,054 *Neisseria gonorrhoeae* genomes
+   _Mycobacterium tuberculosis_, 328 _Klebsiella pneumoniae_ and 1,054 _Neisseria gonorrhoeae_ genomes
    ([Tonkin-Hill et al. 2020](https://pmc.ncbi.nlm.nih.gov/articles/PMC7376924)); the PPanGGOLiN paper's example graph
-   is 3,117 *Acinetobacter baumannii* genomes, and it ran on 439 species and 136,287 genomes
+   is 3,117 _Acinetobacter baumannii_ genomes, and it ran on 439 species and 136,287 genomes
    ([Gautreau et al. 2020](https://pmc.ncbi.nlm.nih.gov/articles/PMC7108747)). Most of their output is tables: a gene
    presence-absence matrix, a core gene alignment for the phylogeny, and association tests. The graph is the part they
    open to see where an accessory gene island, a plasmid or a rearrangement sits relative to core genes: Panaroo's
@@ -131,24 +131,24 @@ collection.
 **Rough size (evidence only).** Citations counted by Europe PMC on 2026-11-25 (citations bound the number of papers
 that used a tool, not the number of people):
 
-| Tool or paper | What it is | Citations |
-| --- | --- | --- |
-| Unicycler ([Wick et al. 2017](https://doi.org/10.1371/journal.pcbi.1005595)) | bacterial assembler that writes a GFA graph | 7,758 |
-| Flye ([Kolmogorov et al. 2019](https://europepmc.org/article/MED/30936562)) | long-read assembler built on repeat graphs | 5,627 |
-| Roary ([Page et al. 2015](https://europepmc.org/article/MED/26198102)) | bacterial gene-level pangenome; writes gene graphs as DOT | 4,721 |
-| Panaroo ([Tonkin-Hill et al. 2020](https://europepmc.org/article/MED/32698896)) | bacterial gene-level pangenome; writes an annotated GML gene graph | 1,254 |
-| PPanGGOLiN ([Gautreau et al. 2020](https://europepmc.org/article/MED/32191703)) | partitioned bacterial gene graph; writes GEXF | 230 |
-| Bandage ([Wick et al. 2015](https://europepmc.org/article/MED/26099265)) | assembly graph viewer | 2,590 |
-| A draft human pangenome reference ([Liao et al. 2023](https://europepmc.org/article/MED/37165242)) | HPRC release 1 | 1,297 |
-| Trycycler ([Wick et al. 2021](https://europepmc.org/article/MED/34521459)) | consensus bacterial assembly | 509 |
-| Minigraph-Cactus ([Hickey et al. 2024](https://doi.org/10.1038/s41587-023-01793-w)) | pangenome graph builder | 332 |
-| PGGB ([Garrison et al. 2024](https://europepmc.org/article/MED/39433878)) | pangenome graph builder | 223 |
-| ODGI ([Guarracino et al. 2022](https://doi.org/10.1093/bioinformatics/btac308)) | pangenome graph toolkit with 1D and 2D renderers | 179 |
-| Hybracter ([Bouras et al. 2024](https://europepmc.org/article/MED/38717808)) | automated bacterial assembly | 118 |
-| Sequence Tube Maps ([Beyer et al. 2019](https://doi.org/10.1093/bioinformatics/btz597)) | path-track viewer for vg graphs | 61 |
-| GfaViz ([Gonnella et al. 2019](https://doi.org/10.1093/bioinformatics/bty1046)) | GFA1 and GFA2 viewer | 39 |
-| MoMI-G ([Yokoyama et al. 2019](https://europepmc.org/article/MED/31690272)) | multi-scale genome graph browser | 25 |
-| Panache ([Durant et al. 2021](https://europepmc.org/article/MED/34601567)) | linearized pangenome viewer | 21 |
+| Tool or paper                                                                                      | What it is                                                         | Citations |
+| -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | --------- |
+| Unicycler ([Wick et al. 2017](https://doi.org/10.1371/journal.pcbi.1005595))                       | bacterial assembler that writes a GFA graph                        | 7,758     |
+| Flye ([Kolmogorov et al. 2019](https://europepmc.org/article/MED/30936562))                        | long-read assembler built on repeat graphs                         | 5,627     |
+| Roary ([Page et al. 2015](https://europepmc.org/article/MED/26198102))                             | bacterial gene-level pangenome; writes gene graphs as DOT          | 4,721     |
+| Panaroo ([Tonkin-Hill et al. 2020](https://europepmc.org/article/MED/32698896))                    | bacterial gene-level pangenome; writes an annotated GML gene graph | 1,254     |
+| PPanGGOLiN ([Gautreau et al. 2020](https://europepmc.org/article/MED/32191703))                    | partitioned bacterial gene graph; writes GEXF                      | 230       |
+| Bandage ([Wick et al. 2015](https://europepmc.org/article/MED/26099265))                           | assembly graph viewer                                              | 2,590     |
+| A draft human pangenome reference ([Liao et al. 2023](https://europepmc.org/article/MED/37165242)) | HPRC release 1                                                     | 1,297     |
+| Trycycler ([Wick et al. 2021](https://europepmc.org/article/MED/34521459))                         | consensus bacterial assembly                                       | 509       |
+| Minigraph-Cactus ([Hickey et al. 2024](https://doi.org/10.1038/s41587-023-01793-w))                | pangenome graph builder                                            | 332       |
+| PGGB ([Garrison et al. 2024](https://europepmc.org/article/MED/39433878))                          | pangenome graph builder                                            | 223       |
+| ODGI ([Guarracino et al. 2022](https://doi.org/10.1093/bioinformatics/btac308))                    | pangenome graph toolkit with 1D and 2D renderers                   | 179       |
+| Hybracter ([Bouras et al. 2024](https://europepmc.org/article/MED/38717808))                       | automated bacterial assembly                                       | 118       |
+| Sequence Tube Maps ([Beyer et al. 2019](https://doi.org/10.1093/bioinformatics/btz597))            | path-track viewer for vg graphs                                    | 61        |
+| GfaViz ([Gonnella et al. 2019](https://doi.org/10.1093/bioinformatics/bty1046))                    | GFA1 and GFA2 viewer                                               | 39        |
+| MoMI-G ([Yokoyama et al. 2019](https://europepmc.org/article/MED/31690272))                        | multi-scale genome graph browser                                   | 25        |
+| Panache ([Durant et al. 2021](https://europepmc.org/article/MED/34601567))                         | linearized pangenome viewer                                        | 21        |
 
 Bandage's 2,590 citations make it the most cited dedicated graph viewer in this population by two orders of magnitude
 over the pangenome viewers. Its users are a subset of assembler users (Unicycler and Flye together exceed 13,000
@@ -249,17 +249,17 @@ results go to GenBank or ENA, public health surveillance databases or a paper. P
 
 ## 4. Use cases (ranked)
 
-| Rank | Question answered with a graph | Who | Frequency | Stakes |
-| --- | --- | --- | --- | --- |
-| 1 | Is this bacterial genome complete: are the chromosome and plasmids closed circles with no dead ends? | Finishers, AMR researchers | Every isolate | A reported "complete genome" that is not |
-| 2 | Which replicon (chromosome or which plasmid) carries this resistance or virulence gene? | Finishers, AMR, public health | Per isolate of interest | Plasmid-borne resistance spreads between strains |
-| 3 | Where do repeats tangle the graph, and what copy number do they have? | Finishers, developers | Per incomplete assembly | Whether to buy more long-read sequencing |
-| 4 | How do haplotypes traverse this structural variant bubble, and how many copies of this gene does each carry? | Pangenome researchers | Per locus | Disease association and genotyping claims |
-| 5 | How does this assembly graph differ from the one from another tool or k-mer size? | Developers | Per benchmark | Tool choice and published benchmarks |
-| 6 | What is near this region in a large metagenome graph? | Metagenome assemblers | Per study | Binning and plasmid-host assignment |
-| 7 | What figure shows the graph for a paper or report? | All | Per paper | Reader trust |
-| 8 | In a species collection, which gene families are core and which accessory, and where do accessory islands attach to the core? | Microbial pangenome analysts | Per collection | Which genes are called accessory or mobile |
-| 9 | Which lineages, countries or phenotypes carry this accessory island, plasmid or rearrangement? | Microbial pangenome analysts | Per finding | Claims that a resistance region spreads with a lineage |
+| Rank | Question answered with a graph                                                                                                | Who                           | Frequency               | Stakes                                                 |
+| ---- | ----------------------------------------------------------------------------------------------------------------------------- | ----------------------------- | ----------------------- | ------------------------------------------------------ |
+| 1    | Is this bacterial genome complete: are the chromosome and plasmids closed circles with no dead ends?                          | Finishers, AMR researchers    | Every isolate           | A reported "complete genome" that is not               |
+| 2    | Which replicon (chromosome or which plasmid) carries this resistance or virulence gene?                                       | Finishers, AMR, public health | Per isolate of interest | Plasmid-borne resistance spreads between strains       |
+| 3    | Where do repeats tangle the graph, and what copy number do they have?                                                         | Finishers, developers         | Per incomplete assembly | Whether to buy more long-read sequencing               |
+| 4    | How do haplotypes traverse this structural variant bubble, and how many copies of this gene does each carry?                  | Pangenome researchers         | Per locus               | Disease association and genotyping claims              |
+| 5    | How does this assembly graph differ from the one from another tool or k-mer size?                                             | Developers                    | Per benchmark           | Tool choice and published benchmarks                   |
+| 6    | What is near this region in a large metagenome graph?                                                                         | Metagenome assemblers         | Per study               | Binning and plasmid-host assignment                    |
+| 7    | What figure shows the graph for a paper or report?                                                                            | All                           | Per paper               | Reader trust                                           |
+| 8    | In a species collection, which gene families are core and which accessory, and where do accessory islands attach to the core? | Microbial pangenome analysts  | Per collection          | Which genes are called accessory or mobile             |
+| 9    | Which lineages, countries or phenotypes carry this accessory island, plasmid or rearrangement?                                | Microbial pangenome analysts  | Per finding             | Claims that a resistance region spreads with a lineage |
 
 ## 5. Step-by-step workflows
 
@@ -315,7 +315,7 @@ Sources: [Bandage wiki: BLAST searches](https://github.com/rrwick/Bandage/wiki/B
    ("starts at base 51 of node 9+ and ends after the first 87 bases of node 12-"), and copy or save its sequence.
    "Bandage removes overlaps between connected nodes", so the path sequence may be shorter than the sum of its nodes.
 8. **Interpret.** Which component the hit is on tells which replicon carries the gene. The Bandage paper reports
-   rebuilding a complete 1,535 bp 16S rRNA gene from fragmented nodes and tracing resistance regions in *Salmonella*
+   rebuilding a complete 1,535 bp 16S rRNA gene from fragmented nodes and tracing resistance regions in _Salmonella_
    genomic islands.
 9. **Batch alternative.** `Bandage querypaths <graph> <queries> <output_prefix>` writes the same results to a table.
 
@@ -365,7 +365,7 @@ Sources: [Bandage wiki: very large graphs](https://github.com/rrwick/Bandage/wik
 3. **Simplify drawing.** Minimize layout iterations, lower "Node length per megabase", raise "Node segment length",
    turn off labels and antialiasing.
 4. **Save the reduced graph.** `Bandage reduce graph.fastg high_depth.gfa --scope depthrange --mindepth 100.0
-   --maxdepth 1000000` writes a subgraph as GFA.
+--maxdepth 1000000` writes a subgraph as GFA.
 5. **Compare runs.** Render the same region from two k-mer sizes or tools side by side. Unicycler's own comparison of
    k-mer graphs scores them by contig count and dead-end count, because "excessively large k-mers can cause a
    fragmented graph with dead ends" ([Wick et al. 2017](https://pmc.ncbi.nlm.nih.gov/articles/PMC5481147)).
@@ -407,7 +407,7 @@ Sources: [Panaroo Cytoscape guide](https://raw.githubusercontent.com/gtonkinhill
    genome to get `capacity_cut_edges.txt`, import it as edge table columns, select edges where `is_cut_edge` is true,
    hide them, rerun the organic layout, then show all edges again.
 9. **Read structure.** Accessory islands show as low-count nodes hanging off a core path; Panaroo calls structural
-   variants from "distinct consecutive triplets of gene families", and its *N. gonorrhoeae* association study returned
+   variants from "distinct consecutive triplets of gene families", and its _N. gonorrhoeae_ association study returned
    138 triplets linked to antibiotic resistance, some with "phage-associated, transposase, or pilin genes". PPanGGOLiN
    names "Regions of Genome Plasticity", "clusters of genes made of shell and cloud genomes in the pangenome graph",
    and groups them into spots, "groups of RGPs that do not necessarily have the same gene content but have similar
@@ -486,21 +486,21 @@ genome of lineage X".
 
 **Sizes.**
 
-| Graph | Nodes | Edges | Source |
-| --- | --- | --- | --- |
-| Finished bacterial assembly (Unicycler) | a few segments (3 contigs: chromosome and two plasmids) | a few | [Wick et al. 2017](https://pmc.ncbi.nlm.nih.gov/articles/PMC5481147) |
-| SPAdes graph of a synthetic *Shigella dysenteriae* dataset | 2,186 | 3,061 | [PLoS Comput Biol figure](https://pmc.ncbi.nlm.nih.gov/articles/PMC7850483/figure/pcbi.1008586.g003) |
-| 5 Mb bacterial graph in Bandage | not stated; loads in seconds in under 100 MB of RAM | | [Wick et al. 2015](https://pmc.ncbi.nlm.nih.gov/articles/PMC4595904) |
-| Large graph example in the Bandage wiki | about 1.15 million | not stated | [Bandage wiki](https://github.com/rrwick/Bandage/wiki/Working-with-very-large-graphs) |
-| Minigraph human graph, 20 haplotypes plus GRCh38 | 148,618 segments | 214,995 links | [Li, Feng and Chu 2020](https://ar5iv.labs.arxiv.org/html/2003.06079) |
-| Minigraph-Cactus human graph, 2 haplotypes | 10,851,000 | 14,702,000 | [Andreace et al. 2023](https://pmc.ncbi.nlm.nih.gov/articles/PMC10691155/) |
-| Minigraph-Cactus human graph, 10 haplotypes | 37,767,000 | 51,595,000 | same |
-| Minigraph human graph, 104 haplotypes | 632,000 | 912,000 | same (PGGB and Minigraph-Cactus did not finish on 104) |
-| HPRC release 1 Minigraph-Cactus graph, 90 haplotypes | not stated (3.29 Gb of sequence, 67,000 SV sites, 22 million small variant sites) | | [Liao et al. 2023](https://pmc.ncbi.nlm.nih.gov/articles/PMC10172123) |
-| HPRC release 2 graph, 464 haplotypes | not stated (GBZ file 5.4 GB) | | [JBrowse HPRC tutorial](https://jbrowse.org/jb2/docs/tutorials/pangenome_hprc.md) |
-| PPanGGOLiN gene graph, 3,117 *A. baumannii* genomes | 69,446 gene families (3,084 persistent, 1,529 shell, 64,833 cloud) | not stated | [Gautreau et al. 2020](https://pmc.ncbi.nlm.nih.gov/articles/PMC7108747) |
-| Gene synteny network, 778 *Staphylococcus aureus* genomes | 7,091 (2,711 after filtering) | 17,100 (4,110 after filtering) | [Harling-Lee et al. 2022](https://pmc.ncbi.nlm.nih.gov/articles/PMC9548110) |
-| Panaroo `final_graph.gml`, species collections of 300 to 1,000 genomes | not stated; *K. pneumoniae* core alone is 3,372 families | not stated | [Tonkin-Hill et al. 2020](https://pmc.ncbi.nlm.nih.gov/articles/PMC7376924) |
+| Graph                                                                  | Nodes                                                                             | Edges                          | Source                                                                                               |
+| ---------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| Finished bacterial assembly (Unicycler)                                | a few segments (3 contigs: chromosome and two plasmids)                           | a few                          | [Wick et al. 2017](https://pmc.ncbi.nlm.nih.gov/articles/PMC5481147)                                 |
+| SPAdes graph of a synthetic _Shigella dysenteriae_ dataset             | 2,186                                                                             | 3,061                          | [PLoS Comput Biol figure](https://pmc.ncbi.nlm.nih.gov/articles/PMC7850483/figure/pcbi.1008586.g003) |
+| 5 Mb bacterial graph in Bandage                                        | not stated; loads in seconds in under 100 MB of RAM                               |                                | [Wick et al. 2015](https://pmc.ncbi.nlm.nih.gov/articles/PMC4595904)                                 |
+| Large graph example in the Bandage wiki                                | about 1.15 million                                                                | not stated                     | [Bandage wiki](https://github.com/rrwick/Bandage/wiki/Working-with-very-large-graphs)                |
+| Minigraph human graph, 20 haplotypes plus GRCh38                       | 148,618 segments                                                                  | 214,995 links                  | [Li, Feng and Chu 2020](https://ar5iv.labs.arxiv.org/html/2003.06079)                                |
+| Minigraph-Cactus human graph, 2 haplotypes                             | 10,851,000                                                                        | 14,702,000                     | [Andreace et al. 2023](https://pmc.ncbi.nlm.nih.gov/articles/PMC10691155/)                           |
+| Minigraph-Cactus human graph, 10 haplotypes                            | 37,767,000                                                                        | 51,595,000                     | same                                                                                                 |
+| Minigraph human graph, 104 haplotypes                                  | 632,000                                                                           | 912,000                        | same (PGGB and Minigraph-Cactus did not finish on 104)                                               |
+| HPRC release 1 Minigraph-Cactus graph, 90 haplotypes                   | not stated (3.29 Gb of sequence, 67,000 SV sites, 22 million small variant sites) |                                | [Liao et al. 2023](https://pmc.ncbi.nlm.nih.gov/articles/PMC10172123)                                |
+| HPRC release 2 graph, 464 haplotypes                                   | not stated (GBZ file 5.4 GB)                                                      |                                | [JBrowse HPRC tutorial](https://jbrowse.org/jb2/docs/tutorials/pangenome_hprc.md)                    |
+| PPanGGOLiN gene graph, 3,117 _A. baumannii_ genomes                    | 69,446 gene families (3,084 persistent, 1,529 shell, 64,833 cloud)                | not stated                     | [Gautreau et al. 2020](https://pmc.ncbi.nlm.nih.gov/articles/PMC7108747)                             |
+| Gene synteny network, 778 _Staphylococcus aureus_ genomes              | 7,091 (2,711 after filtering)                                                     | 17,100 (4,110 after filtering) | [Harling-Lee et al. 2022](https://pmc.ncbi.nlm.nih.gov/articles/PMC9548110)                          |
+| Panaroo `final_graph.gml`, species collections of 300 to 1,000 genomes | not stated; _K. pneumoniae_ core alone is 3,372 families                          | not stated                     | [Tonkin-Hill et al. 2020](https://pmc.ncbi.nlm.nih.gov/articles/PMC7376924)                          |
 
 Minigraph-Cactus graphs have "roughly 200x more nodes and edges than the SV graphs from minigraph"
 ([Hickey et al. 2024](https://pmc.ncbi.nlm.nih.gov/articles/PMC10638906)). Extracted locus subgraphs are not sized in
@@ -552,27 +552,26 @@ Centrality, community detection and the statistics most other populations use ar
 
 ## 9. Tools landscape and pain points
 
-| Tool | What it does | Pain points (sourced) |
-| --- | --- | --- |
-| Bandage | Desktop viewer for assembly graphs (Velvet, SPAdes, Trinity, GFA); depth as width, BLAST hits, paths, scope, CLI | "don't expect a lot development or support"; layout of 1.15 million nodes took 14.5 minutes; needs local BLAST; paths cannot contain gaps ([README](https://github.com/rrwick/Bandage); [wiki](https://github.com/rrwick/Bandage/wiki/Working-with-very-large-graphs); [SPAdes](https://ablab.github.io/spades/output.html)) |
-| BandageNG | Community fork recommended by SPAdes; OGDF layouts | README says documentation "might be incomplete, missed and inaccurate" ([BandageNG](https://github.com/asl/BandageNG)) |
-| GfaViz | GFA1 and GFA2 viewer with GUI and CLI | Low adoption (39 citations) |
-| SequenceTubeMap | Browser tube map of vg graphs with haplotype and read paths | Online version "limited to small file sizes only"; clutter with many rearrangements ([repo](https://github.com/vgteam/sequenceTubeMap); [paper](https://pmc.ncbi.nlm.nih.gov/articles/PMC6954646)) |
-| odgi viz, layout, draw | 1D binned path-by-node image at gigabase scale; 2D raster drawing | Static images; 2D "can be costly to compute"; the draw output "lacks path information" ([ODGI](https://pmc.ncbi.nlm.nih.gov/articles/PMC9237687)) |
-| gfaestus | Interactive 2D viewer that reads odgi layouts | Depends on a precomputed odgi layout ([gfaestus](https://github.com/chfi/gfaestus/blob/master/README.md)) |
-| JBrowse graph genome view | Pangenome subgraphs inside a genome browser, walks as rows, tube maps, force layouts | Beta; region cut at most 5 Mb; assembly GFA without a reference gets no locus cut, and "Bandage is suggested for these" ([JBrowse](https://jbrowse.org/jb2/docs/user_guides/graph_genome_view.md)) |
-| Panache | Linearized presence and absence browser for plant pangenomes | Needs the graph linearized first ([Durant et al. 2021](https://pmc.ncbi.nlm.nih.gov/articles/PMC8652104)) |
-| MoMI-G | Multi-scale genome graph browser | Low adoption (25 citations) |
-| Cytoscape (with Panaroo GML) | General network tool; Panaroo's recommended viewer for gene graphs | Organic layout "very convoluted" on these graphs, fixed with a separate reference script; metadata guide unfinished ([Panaroo layout](https://raw.githubusercontent.com/gtonkinhill/panaroo/master/docs/vis/layout.md); [metadata](https://raw.githubusercontent.com/gtonkinhill/panaroo/master/docs/vis/metadata.md)) |
-| Gephi (with Roary DOT or PPanGGOLiN GEXF) | General network tool with ForceAtlas2 | Full PPanGGOLiN GEXF "can be very heavy to manipulate"; rare families dropped from published figures ([PPanGGOLiN docs](https://ppanggolin.readthedocs.io/en/latest/user/PangenomeAnalyses/pangenomeGraphOut.html); [Gautreau et al. 2020](https://pmc.ncbi.nlm.nih.gov/articles/PMC7108747)) |
-| Graphia | 3D network tool used for genome, gene co-occurrence and synteny networks | Chosen because Cytoscape, Gephi and Bandage have restricted 2D layouts and slow on complex networks ([Harling-Lee et al. 2022](https://pmc.ncbi.nlm.nih.gov/articles/PMC9548110)) |
+| Tool                                      | What it does                                                                                                     | Pain points (sourced)                                                                                                                                                                                                                                                                                                        |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Bandage                                   | Desktop viewer for assembly graphs (Velvet, SPAdes, Trinity, GFA); depth as width, BLAST hits, paths, scope, CLI | "don't expect a lot development or support"; layout of 1.15 million nodes took 14.5 minutes; needs local BLAST; paths cannot contain gaps ([README](https://github.com/rrwick/Bandage); [wiki](https://github.com/rrwick/Bandage/wiki/Working-with-very-large-graphs); [SPAdes](https://ablab.github.io/spades/output.html)) |
+| BandageNG                                 | Community fork recommended by SPAdes; OGDF layouts                                                               | README says documentation "might be incomplete, missed and inaccurate" ([BandageNG](https://github.com/asl/BandageNG))                                                                                                                                                                                                       |
+| GfaViz                                    | GFA1 and GFA2 viewer with GUI and CLI                                                                            | Low adoption (39 citations)                                                                                                                                                                                                                                                                                                  |
+| SequenceTubeMap                           | Browser tube map of vg graphs with haplotype and read paths                                                      | Online version "limited to small file sizes only"; clutter with many rearrangements ([repo](https://github.com/vgteam/sequenceTubeMap); [paper](https://pmc.ncbi.nlm.nih.gov/articles/PMC6954646))                                                                                                                           |
+| odgi viz, layout, draw                    | 1D binned path-by-node image at gigabase scale; 2D raster drawing                                                | Static images; 2D "can be costly to compute"; the draw output "lacks path information" ([ODGI](https://pmc.ncbi.nlm.nih.gov/articles/PMC9237687))                                                                                                                                                                            |
+| gfaestus                                  | Interactive 2D viewer that reads odgi layouts                                                                    | Depends on a precomputed odgi layout ([gfaestus](https://github.com/chfi/gfaestus/blob/master/README.md))                                                                                                                                                                                                                    |
+| JBrowse graph genome view                 | Pangenome subgraphs inside a genome browser, walks as rows, tube maps, force layouts                             | Beta; region cut at most 5 Mb; assembly GFA without a reference gets no locus cut, and "Bandage is suggested for these" ([JBrowse](https://jbrowse.org/jb2/docs/user_guides/graph_genome_view.md))                                                                                                                           |
+| Panache                                   | Linearized presence and absence browser for plant pangenomes                                                     | Needs the graph linearized first ([Durant et al. 2021](https://pmc.ncbi.nlm.nih.gov/articles/PMC8652104))                                                                                                                                                                                                                    |
+| MoMI-G                                    | Multi-scale genome graph browser                                                                                 | Low adoption (25 citations)                                                                                                                                                                                                                                                                                                  |
+| Cytoscape (with Panaroo GML)              | General network tool; Panaroo's recommended viewer for gene graphs                                               | Organic layout "very convoluted" on these graphs, fixed with a separate reference script; metadata guide unfinished ([Panaroo layout](https://raw.githubusercontent.com/gtonkinhill/panaroo/master/docs/vis/layout.md); [metadata](https://raw.githubusercontent.com/gtonkinhill/panaroo/master/docs/vis/metadata.md))       |
+| Gephi (with Roary DOT or PPanGGOLiN GEXF) | General network tool with ForceAtlas2                                                                            | Full PPanGGOLiN GEXF "can be very heavy to manipulate"; rare families dropped from published figures ([PPanGGOLiN docs](https://ppanggolin.readthedocs.io/en/latest/user/PangenomeAnalyses/pangenomeGraphOut.html); [Gautreau et al. 2020](https://pmc.ncbi.nlm.nih.gov/articles/PMC7108747))                                |
+| Graphia                                   | 3D network tool used for genome, gene co-occurrence and synteny networks                                         | Chosen because Cytoscape, Gephi and Bandage have restricted 2D layouts and slow on complex networks ([Harling-Lee et al. 2022](https://pmc.ncbi.nlm.nih.gov/articles/PMC9548110))                                                                                                                                            |
 
 **Cross-cutting pain points.** No viewer shows topology, paths and depth together at the scale of a locus subgraph;
 the most used viewer is a desktop program with little development; large graphs need manual scope cutting; 2D layouts
 differ on every load, which Panache's authors cite as a reason to avoid graphs.
 
-**Why a general graph tool and not only a sequence viewer.** The assembly-graph questions in section 4 (ranks 1-3, 5,
-6) are graph questions -- components, cycles, dead ends, degree at node ends, neighborhoods, comparison -- over graphs
+**Why a general graph tool and not only a sequence viewer.** The assembly-graph questions in section 4 (ranks 1-3, 5, 6) are graph questions -- components, cycles, dead ends, degree at node ends, neighborhoods, comparison -- over graphs
 of 10^2 to 10^5 nodes. A browser-based, actively maintained viewer that reads GFA and draws the bidirected model would
 serve them without sequence-coordinate machinery. Whole-chromosome pangenome browsing (10^7 nodes, read by reference
 position) is a genome browser's job and is out of scope.
@@ -582,30 +581,30 @@ position) is a genome browser's job and is out of scope.
 Before this research, graphty's Designloom set had no persona or workflow in genome assembly or pangenomics. Its model has directed or
 undirected edges only, nodes as points with a size, no GFA reader and no notion of a path through nodes.
 
-| Requirement | Priority | Covered today? |
-| --- | --- | --- |
-| Import GFA 1.0-1.2: `S` (sequence or `*`, `LN`, `RC`, `KC`, `FC`, assembler depth tags), `L` (orientations, overlap), `P`, `W`, `J`; report unsupported lines; also FASTG | Must | No (graph-io reads 13 formats, none of them GFA) |
-| Bidirected edge model: an edge records which end of each node it joins; drawn at that end | Must | No |
-| Node geometry from sequence length: elongated nodes whose length is proportional to bp, with a minimum, a scale setting and a log option; width or color from depth | Must | No (node size exists; length-along-a-curve does not) |
-| Single and double strand views of the same graph | Should | No |
-| Paths and walks as colored tracks through nodes (tube map), with per-path show and hide and a per-node count of paths | Must | Partial (path highlighting for one computed path) |
-| Highlight where external sequence hits fall on nodes, imported from BLAST tabular or GAF, with the covered part of the node painted | Should | No |
-| Neighborhood scope: nodes within N steps of named nodes or hits; scope by depth range | Must | Partial (ego network and filtering exist) |
-| Components, cycles and dead ends reported and selectable (complete circles, open ends) | Must | Partial (components and cycle detection exist; dead ends at node ends do not) |
-| Extract the sequence spelled by a selected path, honoring orientation and overlaps | Should | No |
-| Export a subgraph as GFA | Should | No |
-| Node annotation table joined on segment name (CSV labels) | Must | Yes (table join) |
-| Side-by-side comparison of two assembly graphs | Could | Partial (comparison view) |
-| 1D linearized view: nodes in sort order across, paths as rows, colored by depth or orientation | Could | No |
-| Headless image rendering from the command line for pipelines | Should | Partial |
-| Scale: 10^5-10^6 node metagenome graphs with level of detail | Should | Unproven |
-| Gene graphs: import Panaroo GML (repeated `members` keys, semicolon `genomeIDs`, graph-level `isolateNames`), PPanGGOLiN GEXF and Roary DOT, keeping list-valued genome membership on nodes and edges | Must | Partial (graph-io reads GML lists, GEXF and DOT; genome indexes are not resolved to isolate names) |
-| Genome membership as a set attribute on nodes and edges, with a derived genome count to color, size and filter by | Must | No |
-| Join a per-genome metadata table (lineage, country, year, phenotype) through the membership sets, so nodes and edges can be filtered or colored by "present in any, all or none of the genomes with lineage X" | Must | No (table join is keyed on node or edge, not on a set member) |
-| Select by genome-count band and make a new graph from the selection, or hide it | Must | Partial (filtering and component extraction exist; new graph from an arbitrary selection is unproven) |
-| Categorical coloring by partition and edge width by genome count | Must | Yes (visual encoding) |
-| Hide a chosen edge set for layout and restore it afterward (reference-anchored untangling) | Could | Partial (filtering and fixed positions exist) |
-| Scale: 10^4-10^5 node gene graphs with every node kept, including rare families | Should | Unproven |
+| Requirement                                                                                                                                                                                                    | Priority | Covered today?                                                                                        |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------- |
+| Import GFA 1.0-1.2: `S` (sequence or `*`, `LN`, `RC`, `KC`, `FC`, assembler depth tags), `L` (orientations, overlap), `P`, `W`, `J`; report unsupported lines; also FASTG                                      | Must     | No (graph-io reads 13 formats, none of them GFA)                                                      |
+| Bidirected edge model: an edge records which end of each node it joins; drawn at that end                                                                                                                      | Must     | No                                                                                                    |
+| Node geometry from sequence length: elongated nodes whose length is proportional to bp, with a minimum, a scale setting and a log option; width or color from depth                                            | Must     | No (node size exists; length-along-a-curve does not)                                                  |
+| Single and double strand views of the same graph                                                                                                                                                               | Should   | No                                                                                                    |
+| Paths and walks as colored tracks through nodes (tube map), with per-path show and hide and a per-node count of paths                                                                                          | Must     | Partial (path highlighting for one computed path)                                                     |
+| Highlight where external sequence hits fall on nodes, imported from BLAST tabular or GAF, with the covered part of the node painted                                                                            | Should   | No                                                                                                    |
+| Neighborhood scope: nodes within N steps of named nodes or hits; scope by depth range                                                                                                                          | Must     | Partial (ego network and filtering exist)                                                             |
+| Components, cycles and dead ends reported and selectable (complete circles, open ends)                                                                                                                         | Must     | Partial (components and cycle detection exist; dead ends at node ends do not)                         |
+| Extract the sequence spelled by a selected path, honoring orientation and overlaps                                                                                                                             | Should   | No                                                                                                    |
+| Export a subgraph as GFA                                                                                                                                                                                       | Should   | No                                                                                                    |
+| Node annotation table joined on segment name (CSV labels)                                                                                                                                                      | Must     | Yes (table join)                                                                                      |
+| Side-by-side comparison of two assembly graphs                                                                                                                                                                 | Could    | Partial (comparison view)                                                                             |
+| 1D linearized view: nodes in sort order across, paths as rows, colored by depth or orientation                                                                                                                 | Could    | No                                                                                                    |
+| Headless image rendering from the command line for pipelines                                                                                                                                                   | Should   | Partial                                                                                               |
+| Scale: 10^5-10^6 node metagenome graphs with level of detail                                                                                                                                                   | Should   | Unproven                                                                                              |
+| Gene graphs: import Panaroo GML (repeated `members` keys, semicolon `genomeIDs`, graph-level `isolateNames`), PPanGGOLiN GEXF and Roary DOT, keeping list-valued genome membership on nodes and edges          | Must     | Partial (graph-io reads GML lists, GEXF and DOT; genome indexes are not resolved to isolate names)    |
+| Genome membership as a set attribute on nodes and edges, with a derived genome count to color, size and filter by                                                                                              | Must     | No                                                                                                    |
+| Join a per-genome metadata table (lineage, country, year, phenotype) through the membership sets, so nodes and edges can be filtered or colored by "present in any, all or none of the genomes with lineage X" | Must     | No (table join is keyed on node or edge, not on a set member)                                         |
+| Select by genome-count band and make a new graph from the selection, or hide it                                                                                                                                | Must     | Partial (filtering and component extraction exist; new graph from an arbitrary selection is unproven) |
+| Categorical coloring by partition and edge width by genome count                                                                                                                                               | Must     | Yes (visual encoding)                                                                                 |
+| Hide a chosen edge set for layout and restore it afterward (reference-anchored untangling)                                                                                                                     | Could    | Partial (filtering and fixed positions exist)                                                         |
+| Scale: 10^4-10^5 node gene graphs with every node kept, including rare families                                                                                                                                | Should   | Unproven                                                                                              |
 
 New personas: `bacterial-assembly-finisher` (roster lead, Tier B), `pangenome-graph-researcher` and
 `assembly-method-developer` (variants), and `microbial-pangenome-analyst` (Tier B, its own persona because the data

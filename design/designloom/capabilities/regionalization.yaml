@@ -15,7 +15,7 @@ requirements:
       regions; show regions as filled areas on the map"
 sources:
     - title: "Geographic Flow and Mobility Networks: Migration, Commuting, Mobility and Trade Flows on a Map (section
-        10, requirement R10)"
+          10, requirement R10)"
       url: design/user-research/geographic-flow-and-mobility-networks.md
       summary: "Should in the research. Covered by Designloom when researched: Partly (community-detection exists; no
-        self-loop or contiguity handling)"
+          self-loop or contiguity handling)"

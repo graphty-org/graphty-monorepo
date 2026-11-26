@@ -14,7 +14,7 @@ requirements:
       count of paths"
 sources:
     - title: "Genome Assemblers, Microbial Genome Finishers and Pangenome Researchers: Assembly Graphs and Pangenome
-        Graphs (section 10, table row 5)"
+          Graphs (section 10, table row 5)"
       url: design/user-research/genome-assembly-and-pangenome-graphs.md
       summary: "Must in the research. Covered by Designloom when researched: Partial (path highlighting for one computed
-        path)"
+          path)"

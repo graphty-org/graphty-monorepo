@@ -15,6 +15,6 @@ requirements:
       counting affected children per parent and flagging parents left with no other supporting node"
 sources:
     - title: "Engineers Who Analyze Dependencies: IT Services, Networks, Software and Data Lineage (section 10,
-        requirement R35)"
+          requirement R35)"
       url: design/user-research/dependency-and-impact-analysis-engineers.md
       summary: "Should in the research. Covered by Designloom when researched: No"

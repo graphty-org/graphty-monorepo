@@ -18,7 +18,7 @@ requirements:
       internal, net, net rate"
 sources:
     - title: "Geographic Flow and Mobility Networks: Migration, Commuting, Mobility and Trade Flows on a Map (section
-        10, requirement R5)"
+          10, requirement R5)"
       url: design/user-research/geographic-flow-and-mobility-networks.md
       summary: "Must in the research. Covered by Designloom when researched: Partly (computed-attributes exists; no
-        flow-specific measures)"
+          flow-specific measures)"

@@ -16,6 +16,6 @@ requirements:
     - "Must: Click-to-focus: dim everything except paths through the selected node"
 sources:
     - title: "Cybersecurity Graph Work: Attack Paths, Threat-Intel Pivoting, Incident Response, Network, Cloud and
-        Binary Graphs (section 10, requirement 5)"
+          Binary Graphs (section 10, requirement 5)"
       url: design/user-research/cybersecurity-graph-work.md
       summary: "Must in the research. Covered by Designloom when researched: Not covered"

@@ -12,6 +12,6 @@ requirements:
     - "Should: Per-flow uncertainty (margin of error) carried through filters and shown"
 sources:
     - title: "Geographic Flow and Mobility Networks: Migration, Commuting, Mobility and Trade Flows on a Map (section
-        10, requirement R13)"
+          10, requirement R13)"
       url: design/user-research/geographic-flow-and-mobility-networks.md
       summary: "Should in the research. Covered by Designloom when researched: No"

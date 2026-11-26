@@ -14,6 +14,6 @@ requirements:
       expand in place; reusable class instances (Hugin OOBN); temporal plates for dynamic BNs"
 sources:
     - title: "Causal Diagram Users: DAGs, Bayesian Networks, Causal Discovery, Time-Series Causal Graphs and SEM Path
-        Diagrams (section 10, requirement 24)"
+          Diagrams (section 10, requirement 24)"
       url: design/user-research/causal-diagrams-and-bayesian-networks.md
       summary: "Should in the research. Covered by Designloom when researched: No"

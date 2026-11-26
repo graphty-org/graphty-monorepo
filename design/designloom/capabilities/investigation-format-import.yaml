@@ -19,4 +19,4 @@ sources:
     - title: Data Preparation, Import and First Assessment Across All Graph Users (section 9, requirement 21)
       url: design/user-research/data-preparation-and-import.md
       summary: "Must in the research. Covered by Designloom when researched: Partial: graphrag-output-import and
-        provenance-tracking; FollowTheMoney and Maltego planned in investigation-format-import"
+          provenance-tracking; FollowTheMoney and Maltego planned in investigation-format-import"

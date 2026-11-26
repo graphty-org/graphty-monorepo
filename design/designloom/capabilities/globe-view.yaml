@@ -13,6 +13,6 @@ requirements:
       only a projection option"
 sources:
     - title: "Geographic Flow and Mobility Networks: Migration, Commuting, Mobility and Trade Flows on a Map (section
-        10, requirement R23)"
+          10, requirement R23)"
       url: design/user-research/geographic-flow-and-mobility-networks.md
       summary: "Must in the research. Covered by Designloom when researched: No"

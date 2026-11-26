@@ -19,5 +19,5 @@ sources:
     - title: Investigative journalists, OSINT investigators and trust-and-safety teams (section 10, requirement R23)
       url: design/user-research/investigative-journalism-and-osint.md
       summary: "Should in the research. Covered by Designloom when researched: Partly: W230 covers the importer's
-        upstream trace (watch-list-proximity, tracing-package-export); W1090 records this trace; stage filtering and
-        cross-script name matching are not covered"
+          upstream trace (watch-list-proximity, tracing-package-export); W1090 records this trace; stage filtering and
+          cross-script name matching are not covered"

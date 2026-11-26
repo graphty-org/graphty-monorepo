@@ -18,6 +18,6 @@ requirements:
       sender-recipient pair; top segment or all segments; dedupe by record key; edge count shown as records"
 sources:
     - title: eDiscovery, litigation review and internal-investigation teams who use communication graphs (section 10,
-        requirement R3)
+          requirement R3)
       url: design/user-research/ediscovery-and-legal-communication-analysis.md
       summary: "Must in the research. Covered by Designloom when researched: Not covered"

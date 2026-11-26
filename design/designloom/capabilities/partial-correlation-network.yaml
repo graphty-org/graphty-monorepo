@@ -21,7 +21,7 @@ requirements:
       and 71 samples in a mouse study)."
 sources:
     - title: Systems Biologists and Bench Scientists Working With Molecular Interaction Networks (section 10,
-        requirement 58)
+          requirement 58)
       url: design/user-research/systems-biology-omics-networks.md
       summary: Should in the research.
     - title: MetaboAnalyst Network Explorer Tutorial II (DSPC)

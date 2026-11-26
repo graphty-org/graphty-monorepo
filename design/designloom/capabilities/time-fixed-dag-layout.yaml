@@ -17,6 +17,6 @@ requirements:
       dragging that pins nodes"
 sources:
     - title: "Evolutionary Biologists, Population Geneticists and Protein-Family Analysts: Trees, Haplotype Networks,
-        Population Graphs and Similarity Networks (section 10, table row 10)"
+          Population Graphs and Similarity Networks (section 10, table row 10)"
       url: design/user-research/phylogenetics-and-haplotype-networks.md
       summary: "Must in the research. Covered by Designloom when researched: No"

@@ -15,6 +15,6 @@ requirements:
       threshold; the app writes the words"
 sources:
     - title: "Psychological Network Analysts: Symptom, Attitude and Personality Networks Estimated from Survey Items
-        (section 10, requirement R7)"
+          (section 10, requirement R7)"
       url: design/user-research/psychometric-network-analysis.md
       summary: "Should in the research. Covered by Designloom when researched: No"

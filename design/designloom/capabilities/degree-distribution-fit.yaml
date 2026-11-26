@@ -13,8 +13,8 @@ used_by_workflows:
     - W03
 implemented_by_components: []
 requirements:
-    - "Must: Degree-distribution fit by the Clauset-Shalizi-Newman protocol, worded \"plausible / not plausible /
-      alternative favored\""
+    - 'Must: Degree-distribution fit by the Clauset-Shalizi-Newman protocol, worded "plausible / not plausible /
+      alternative favored"'
 sources:
     - title: Network Scientists and the Validity of Core Analysis Methods (section 9, requirement R8)
       url: design/user-research/network-scientists-and-analysis-method-validity.md

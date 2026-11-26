@@ -15,7 +15,7 @@ requirements:
       scale setting and a log option; width or color from depth"
 sources:
     - title: "Genome Assemblers, Microbial Genome Finishers and Pangenome Researchers: Assembly Graphs and Pangenome
-        Graphs (section 10, table row 3)"
+          Graphs (section 10, table row 3)"
       url: design/user-research/genome-assembly-and-pangenome-graphs.md
       summary: "Must in the research. Covered by Designloom when researched: No (node size exists; length-along-a-curve
-        does not)"
+          does not)"

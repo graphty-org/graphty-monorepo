@@ -25,10 +25,10 @@ requirements:
       --before do"
 sources:
     - title: Public Health Outbreak Investigators and Molecular Epidemiologists (section 5.5 (keep cluster names stable
-        across monthly reruns); no numbered requirement)
+          across monthly reruns); no numbered requirement)
       url: design/user-research/public-health-and-molecular-epidemiology.md
       summary: The need appears in this workflow of the research, but in no numbered requirement.
     - title: hivclustering (HIV-TRACE network builder), command-line options
       url: https://github.com/veg/hivclustering
-      summary: "--prior takes a previous version of the network \"for consistent cluster naming\"; --prior-identity
-          matches on the entity (person) id by default; --after and --before restrict edges by date"
+      summary: '--prior takes a previous version of the network "for consistent cluster naming"; --prior-identity
+          matches on the entity (person) id by default; --after and --before restrict edges by date'

@@ -12,6 +12,6 @@ requirements:
     - "Should: Edge highlighting by an edge value, such as a given mass difference"
 sources:
     - title: Systems Biologists and Bench Scientists Working With Molecular Interaction Networks (section 10,
-        requirement 35)
+          requirement 35)
       url: design/user-research/systems-biology-omics-networks.md
       summary: "Should in the research. Covered by Designloom when researched: partly covered (filtering)"

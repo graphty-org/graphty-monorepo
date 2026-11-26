@@ -39,7 +39,8 @@ suggested_components:
     - data-export-dialog
     - image-export-dialog
 starting_state:
-    data_type: genetic interaction profile-similarity network (or any network or 2D scatter plot) plus a node-by-attribute
+    data_type:
+        genetic interaction profile-similarity network (or any network or 2D scatter plot) plus a node-by-attribute
         table of 0/1 annotations or quantitative screen scores
     node_count: about 2,500-5,000 (4,909 in the 2016 yeast map)
     edge_density: medium (34,468 edges at PCC >= 0.2 in the 2016 yeast map)

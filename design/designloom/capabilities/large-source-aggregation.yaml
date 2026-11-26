@@ -15,7 +15,7 @@ requirements:
       legible labels when expanded"
 sources:
     - title: "Process Mining Analysts: Process Maps, Models and Deviations from Event Logs (section 10, requirement
-        R22)"
+          R22)"
       url: design/user-research/process-mining-and-process-maps.md
       summary: "Must in the research. Covered by Designloom when researched: No (large-graph-rendering targets many
-        nodes)"
+          nodes)"

@@ -12,6 +12,6 @@ requirements:
     - "Could: 1D linearized view: nodes in sort order across, paths as rows, colored by depth or orientation"
 sources:
     - title: "Genome Assemblers, Microbial Genome Finishers and Pangenome Researchers: Assembly Graphs and Pangenome
-        Graphs (section 10, table row 13)"
+          Graphs (section 10, table row 13)"
       url: design/user-research/genome-assembly-and-pangenome-graphs.md
       summary: "Could in the research. Covered by Designloom when researched: No"

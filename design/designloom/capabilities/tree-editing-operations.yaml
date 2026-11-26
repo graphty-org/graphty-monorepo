@@ -16,6 +16,6 @@ requirements:
     - "Must: Tree operations: reroot, rotate, collapse by selection or support threshold, prune, extract subtree"
 sources:
     - title: "Evolutionary Biologists, Population Geneticists and Protein-Family Analysts: Trees, Haplotype Networks,
-        Population Graphs and Similarity Networks (section 10, table row 3)"
+          Population Graphs and Similarity Networks (section 10, table row 3)"
       url: design/user-research/phylogenetics-and-haplotype-networks.md
       summary: "Must in the research. Covered by Designloom when researched: No"

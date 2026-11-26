@@ -20,7 +20,7 @@ sources:
     - title: Analysts Who Work With Networks in 3D and in Immersive VR or AR (section 10, requirement R10)
       url: design/user-research/three-dimensional-and-immersive-network-analysis.md
       summary: "Must in the research. Covered by Designloom when researched: Partly (bookmarks store camera; no
-        multi-view or video export)"
+          multi-view or video export)"
     - title: Xia et al. 2013 - BrainNet Viewer
       url: https://pmc.ncbi.nlm.nih.gov/articles/PMC3701683/
       summary: Single, medium and full view layouts in one figure at a chosen DPI; 12 second 30 FPS rotating AVI

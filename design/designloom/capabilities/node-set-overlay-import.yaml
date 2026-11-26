@@ -19,4 +19,4 @@ sources:
     - title: Network Medicine, Drug Discovery and Biomedical Knowledge Graph Researchers (section 10, requirement R1)
       url: design/user-research/network-medicine-and-biomedical-knowledge-graphs.md
       summary: "Must in the research. Covered by Designloom when researched: Partly (W20 imports gene lists; no node-set
-        concept, no unmapped report)"
+          concept, no unmapped report)"

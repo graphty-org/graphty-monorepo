@@ -14,6 +14,6 @@ requirements:
     - "Must: Integer mutation counts drawn as hatch marks or labels; inferred nodes as small dots"
 sources:
     - title: "Evolutionary Biologists, Population Geneticists and Protein-Family Analysts: Trees, Haplotype Networks,
-        Population Graphs and Similarity Networks (section 10, table row 6)"
+          Population Graphs and Similarity Networks (section 10, table row 6)"
       url: design/user-research/phylogenetics-and-haplotype-networks.md
       summary: "Must in the research. Covered by Designloom when researched: No"

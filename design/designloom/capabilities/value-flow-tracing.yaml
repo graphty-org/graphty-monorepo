@@ -13,6 +13,6 @@ requirements:
     - "Must: Directed flow with amount, asset and time per edge, showing how traced value splits per hop"
 sources:
     - title: Law enforcement crime and intelligence analysts, and defense and national intelligence analysts (section
-        10, requirement 19)
+          10, requirement 19)
       url: design/user-research/law-enforcement-and-intelligence-analysts.md
       summary: "Must in the research. Covered by Designloom when researched: Gap"

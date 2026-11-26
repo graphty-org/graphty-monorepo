@@ -14,7 +14,7 @@ requirements:
     - "Must: Trophic-level layout with fractional levels, basal species at the bottom, tolerant of cycles"
 sources:
     - title: "Ecologists Working with Networks: Species Interactions, Animal Social and Contact Networks, Ecosystem
-        Flows and Landscape Connectivity (section 10, table row 9)"
+          Flows and Landscape Connectivity (section 10, table row 9)"
       url: design/user-research/ecological-interaction-networks.md
       summary: "Must in the research. Covered by Designloom when researched: No --
-        hierarchical layout assumes a DAG"
+          hierarchical layout assumes a DAG"

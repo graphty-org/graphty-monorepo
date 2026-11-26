@@ -145,28 +145,28 @@ Network medicine (disease modules, drug repurposing, biomedical knowledge graphs
 
 ## 4. Use cases (ranked)
 
-| Rank | Question answered with a graph                                                                           | Who                        | Frequency                                     |
-| ---- | -------------------------------------------------------------------------------------------------------- | -------------------------- | --------------------------------------------- |
-| 1    | How do my DE genes or hit proteins connect, and which groups moved together? (W20)                       | all                        | Every omics project                           |
-| 2    | What functions do the modules represent? (W21, W22)                                                      | genomics, core             | Every project                                 |
-| 3    | What cell populations does my data contain, and how do they connect? (kNN, Leiden, PAGA)                 | single-cell                | Every single-cell dataset                     |
-| 4    | Which molecular families are known, new, or different between groups? (GNPS)                             | molecular networking       | Every untargeted metabolomics project         |
-| 5    | Which co-expression modules track my trait, and what are their hubs? (WGCNA; crops in 5.17)              | genomics, core, crop       | Projects with 15+ samples                     |
-| 6    | Which cell types communicate, through which pathways, and what changes?                                  | single-cell                | Most immunology and cancer single-cell papers |
-| 7    | Which known and novel interactors does my bait have? (AP-MS)                                             | proteomics bench           | Per AP-MS experiment                          |
-| 8    | Where do my measurements fall on a known pathway or metabolic map?                                       | bench, genomics, metabolic | Very common                                   |
-| 9    | Which genes are hubs worth validating? (W23)                                                             | genomics                   | Common; credibility risk from study bias      |
-| 10   | Which upstream regulators and causal paths explain my change? (kinases from sites: W3066; signed: W244)  | signaling, single-cell, proteomics bench | Per project; every phosphoproteomics study |
-| 11   | Which TFs gain or lose centrality between cell types, and what does a knockout do? (CellOracle, SCENIC+) | single-cell                | Multiome and GRN projects                     |
-| 12   | Which lncRNAs and miRNAs regulate my DE mRNAs? (ceRNA)                                                   | genomics                   | Common in GEO/TCGA papers                     |
-| 13   | Which fluxes change under a knockout or condition?                                                       | metabolic                  | Per strain design                             |
-| 13a  | How do my metabolites link to genes, diseases and each other; which co-vary? (W3102, W3103)              | metabolomics network       | Per metabolomics study                        |
-| 14   | Do my results survive another cutoff, database or resolution?                                            | careful users, reviewers   | Rare; recommended                             |
-| 15   | Can I rebuild and share this exactly? (W25)                                                              | core, genomics             | Every publication                             |
-| 16   | Which residues carry a signal between two sites, and what does a mutation rewire?                        | structural                 | Adjacent, small                               |
-| 17   | Which regions of a genome-scale map are enriched for a function or a screen score? (SAFE)                | functional genomics        | Adjacent, small                               |
-| 18   | Which receptor clusters are shared across people, or enriched in disease? (repertoire networks)          | immune repertoire          | Per repertoire study                          |
-| 19   | Which cell types are neighbors in the tissue, and which cellular neighborhoods recur? (W2066)            | spatial omics              | Every spatial or multiplexed imaging dataset  |
+| Rank | Question answered with a graph                                                                           | Who                                      | Frequency                                     |
+| ---- | -------------------------------------------------------------------------------------------------------- | ---------------------------------------- | --------------------------------------------- |
+| 1    | How do my DE genes or hit proteins connect, and which groups moved together? (W20)                       | all                                      | Every omics project                           |
+| 2    | What functions do the modules represent? (W21, W22)                                                      | genomics, core                           | Every project                                 |
+| 3    | What cell populations does my data contain, and how do they connect? (kNN, Leiden, PAGA)                 | single-cell                              | Every single-cell dataset                     |
+| 4    | Which molecular families are known, new, or different between groups? (GNPS)                             | molecular networking                     | Every untargeted metabolomics project         |
+| 5    | Which co-expression modules track my trait, and what are their hubs? (WGCNA; crops in 5.17)              | genomics, core, crop                     | Projects with 15+ samples                     |
+| 6    | Which cell types communicate, through which pathways, and what changes?                                  | single-cell                              | Most immunology and cancer single-cell papers |
+| 7    | Which known and novel interactors does my bait have? (AP-MS)                                             | proteomics bench                         | Per AP-MS experiment                          |
+| 8    | Where do my measurements fall on a known pathway or metabolic map?                                       | bench, genomics, metabolic               | Very common                                   |
+| 9    | Which genes are hubs worth validating? (W23)                                                             | genomics                                 | Common; credibility risk from study bias      |
+| 10   | Which upstream regulators and causal paths explain my change? (kinases from sites: W3066; signed: W244)  | signaling, single-cell, proteomics bench | Per project; every phosphoproteomics study    |
+| 11   | Which TFs gain or lose centrality between cell types, and what does a knockout do? (CellOracle, SCENIC+) | single-cell                              | Multiome and GRN projects                     |
+| 12   | Which lncRNAs and miRNAs regulate my DE mRNAs? (ceRNA)                                                   | genomics                                 | Common in GEO/TCGA papers                     |
+| 13   | Which fluxes change under a knockout or condition?                                                       | metabolic                                | Per strain design                             |
+| 13a  | How do my metabolites link to genes, diseases and each other; which co-vary? (W3102, W3103)              | metabolomics network                     | Per metabolomics study                        |
+| 14   | Do my results survive another cutoff, database or resolution?                                            | careful users, reviewers                 | Rare; recommended                             |
+| 15   | Can I rebuild and share this exactly? (W25)                                                              | core, genomics                           | Every publication                             |
+| 16   | Which residues carry a signal between two sites, and what does a mutation rewire?                        | structural                               | Adjacent, small                               |
+| 17   | Which regions of a genome-scale map are enriched for a function or a screen score? (SAFE)                | functional genomics                      | Adjacent, small                               |
+| 18   | Which receptor clusters are shared across people, or enriched in disease? (repertoire networks)          | immune repertoire                        | Per repertoire study                          |
+| 19   | Which cell types are neighbors in the tissue, and which cellular neighborhoods recur? (W2066)            | spatial omics                            | Every spatial or multiplexed imaging dataset  |
 
 ## 5. Step-by-step workflows
 

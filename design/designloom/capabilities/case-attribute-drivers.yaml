@@ -17,6 +17,6 @@ requirements:
       metric; linked to the map selection, returned as structured facts (5.11)"
 sources:
     - title: "Process Mining Analysts: Process Maps, Models and Deviations from Event Logs (section 10, requirement
-        R25)"
+          R25)"
       url: design/user-research/process-mining-and-process-maps.md
       summary: "Must in the research. Covered by Designloom when researched: No"

@@ -23,4 +23,4 @@ sources:
     - title: Temporal and Dynamic Network Data and Analysis (section 11, requirement T11)
       url: design/user-research/temporal-and-dynamic-networks.md
       summary: "Must in the research. Covered by Designloom when researched: Partly (temporal-navigation says maintain
-        positions); chaining and union not specified"
+          positions); chaining and union not specified"

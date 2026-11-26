@@ -16,6 +16,6 @@ requirements:
       round-trip STIX Attack Flow JSON"
 sources:
     - title: "Cybersecurity Graph Work: Attack Paths, Threat-Intel Pivoting, Incident Response, Network, Cloud and
-        Binary Graphs (section 10, requirement 18)"
+          Binary Graphs (section 10, requirement 18)"
       url: design/user-research/cybersecurity-graph-work.md
       summary: "Should in the research. Covered by Designloom when researched: Not covered"

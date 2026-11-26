@@ -12,8 +12,8 @@ used_by_workflows:
     - W148
 implemented_by_components: []
 requirements:
-    - "Must: Every algorithm result records its scope: \"loaded subgraph\" or \"stored graph\" (with the source and
-      time)"
+    - 'Must: Every algorithm result records its scope: "loaded subgraph" or "stored graph" (with the source and
+      time)'
 sources:
     - title: Graph Database Users Who Explore by Search, Query and Expand (section 10, requirement 20)
       url: design/user-research/graph-database-query-and-expand-exploration.md

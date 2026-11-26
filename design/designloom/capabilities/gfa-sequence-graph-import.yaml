@@ -16,7 +16,7 @@ requirements:
       W, J; report unsupported lines; also FASTG"
 sources:
     - title: "Genome Assemblers, Microbial Genome Finishers and Pangenome Researchers: Assembly Graphs and Pangenome
-        Graphs (section 10, table row 1)"
+          Graphs (section 10, table row 1)"
       url: design/user-research/genome-assembly-and-pangenome-graphs.md
       summary: "Must in the research. Covered by Designloom when researched: No (graph-io reads 13 formats, none of them
-        GFA)"
+          GFA)"

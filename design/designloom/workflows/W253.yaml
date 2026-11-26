@@ -47,7 +47,8 @@ suggested_components:
     - network-list-panel
     - session-save-dialog
 starting_state:
-    data_type: GNPS GraphML (consensus spectra or features as nodes, cosine edges with mass difference) plus library hits,
+    data_type:
+        GNPS GraphML (consensus spectra or features as nodes, cosine edges with mass difference) plus library hits,
         or a .cys session; per-group intensities and SMILES
     node_count: 500-55,000 features per job in many small components capped at 100 nodes, plus singletons; 5-100 nodes
         per family drawn in a figure

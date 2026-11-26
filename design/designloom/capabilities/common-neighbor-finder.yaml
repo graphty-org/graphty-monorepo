@@ -13,9 +13,9 @@ used_by_workflows:
     - W98
 implemented_by_components: []
 requirements:
-    - "Must: Common-neighbor finder across seeds (\"called by 3+ subjects\", \"on 2+ phones\")"
+    - 'Must: Common-neighbor finder across seeds ("called by 3+ subjects", "on 2+ phones")'
 sources:
     - title: Law enforcement crime and intelligence analysts, and defense and national intelligence analysts (section
-        10, requirement 10)
+          10, requirement 10)
       url: design/user-research/law-enforcement-and-intelligence-analysts.md
       summary: "Must in the research. Covered by Designloom when researched: Gap"

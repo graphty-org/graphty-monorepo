@@ -13,6 +13,6 @@ requirements:
     - "Must: Attribution tags with source and confidence, shown on nodes"
 sources:
     - title: Law enforcement crime and intelligence analysts, and defense and national intelligence analysts (section
-        10, requirement 20)
+          10, requirement 20)
       url: design/user-research/law-enforcement-and-intelligence-analysts.md
       summary: "Must in the research. Covered by Designloom when researched: Gap"

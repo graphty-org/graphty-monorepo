@@ -52,14 +52,14 @@ What sets this population apart from every other in this research:
 
 ### 2.1 Size
 
-| Evidence | Figure | Source |
-| --- | --- | --- |
-| Papers with "network meta-analysis" in the title, by year | 9 (2010), 228 (2015), 600 (2018), 967 (2020), 1,529 (2022), 1,593 (2023), 1,846 (2024), 2,327 (2025) | Europe PMC REST search `TITLE:"network meta-analysis" AND PUB_YEAR:<year>`, queried 2026-11-25 ([2024 query](https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=TITLE:%22network%20meta-analysis%22%20AND%20PUB_YEAR:2024&format=json)) |
-| Bibliometric count to 2018 | 2,846 NMA articles in Web of Science to December 2018; fewer than 10 a year before 2009; 362 in 2015 and 690 in 2017; 2,610 (92%) published 2013-2018; USA 889, China 740, UK 708 articles | [Shi et al. 2021, BMC Med Inform Decis Mak](https://pmc.ncbi.nlm.nih.gov/articles/PMC8094555) |
-| Cochrane reviews titled as NMAs | 24 (2020), 25 (2022), 15 (2024), 19 (2025) in the Cochrane Database of Systematic Reviews | Europe PMC, `JOURNAL:"Cochrane Database Syst Rev"`, queried 2026-11-25 |
-| HTA submissions | Of 114 NICE technology appraisals (April 2022 to March 2025) that reported an indirect comparison, 61.4% used an NMA; evidence review groups raised heterogeneity of patient characteristics in 79% of the NMAs | [ISPOR Europe 2025 poster](https://www.ispor.org/heor-resources/presentations-database/presentation-cti/ispor-europe-2025/poster-session-3-2/indirect-treatment-comparisons-in-health-technology-assessment-submissions-a-review-and-critique-of-best-practice) |
-| EU joint clinical assessment | From January 2025 the EU HTA regulation applies; "indirect comparisons will be imperative for both the JCA and usage at a national level" | [Johns et al. 2025, J Mark Access Health Policy](https://pmc.ncbi.nlm.nih.gov/articles/PMC12551043) |
-| R package downloads, 2024 | netmeta 53,752; gemtc 21,674; multinma 8,562; pcnetmeta 5,228 (RStudio CRAN mirror only) | [cranlogs API](https://cranlogs.r-pkg.org/downloads/total/2024-01-01:2024-12-31/netmeta,gemtc,pcnetmeta,multinma) |
+| Evidence                                                  | Figure                                                                                                                                                                                                          | Source                                                                                                                                                                                                                                                          |
+| --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Papers with "network meta-analysis" in the title, by year | 9 (2010), 228 (2015), 600 (2018), 967 (2020), 1,529 (2022), 1,593 (2023), 1,846 (2024), 2,327 (2025)                                                                                                            | Europe PMC REST search `TITLE:"network meta-analysis" AND PUB_YEAR:<year>`, queried 2026-11-25 ([2024 query](https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=TITLE:%22network%20meta-analysis%22%20AND%20PUB_YEAR:2024&format=json))              |
+| Bibliometric count to 2018                                | 2,846 NMA articles in Web of Science to December 2018; fewer than 10 a year before 2009; 362 in 2015 and 690 in 2017; 2,610 (92%) published 2013-2018; USA 889, China 740, UK 708 articles                      | [Shi et al. 2021, BMC Med Inform Decis Mak](https://pmc.ncbi.nlm.nih.gov/articles/PMC8094555)                                                                                                                                                                   |
+| Cochrane reviews titled as NMAs                           | 24 (2020), 25 (2022), 15 (2024), 19 (2025) in the Cochrane Database of Systematic Reviews                                                                                                                       | Europe PMC, `JOURNAL:"Cochrane Database Syst Rev"`, queried 2026-11-25                                                                                                                                                                                          |
+| HTA submissions                                           | Of 114 NICE technology appraisals (April 2022 to March 2025) that reported an indirect comparison, 61.4% used an NMA; evidence review groups raised heterogeneity of patient characteristics in 79% of the NMAs | [ISPOR Europe 2025 poster](https://www.ispor.org/heor-resources/presentations-database/presentation-cti/ispor-europe-2025/poster-session-3-2/indirect-treatment-comparisons-in-health-technology-assessment-submissions-a-review-and-critique-of-best-practice) |
+| EU joint clinical assessment                              | From January 2025 the EU HTA regulation applies; "indirect comparisons will be imperative for both the JCA and usage at a national level"                                                                       | [Johns et al. 2025, J Mark Access Health Policy](https://pmc.ncbi.nlm.nih.gov/articles/PMC12551043)                                                                                                                                                             |
+| R package downloads, 2024                                 | netmeta 53,752; gemtc 21,674; multinma 8,562; pcnetmeta 5,228 (RStudio CRAN mirror only)                                                                                                                        | [cranlogs API](https://cranlogs.r-pkg.org/downloads/total/2024-01-01:2024-12-31/netmeta,gemtc,pcnetmeta,multinma)                                                                                                                                               |
 
 **Which tools the 2024 papers name.** Of the 1,846 papers titled as NMAs in 2024, Europe PMC holds full text for 990.
 A search of each tool name within the 1,846 (full text where held, abstract otherwise) finds Stata in 566, gemtc in
@@ -152,17 +152,17 @@ are its variants.
 
 Ranked by how many NMA authors do it and how much it depends on the network view.
 
-| Rank | Use case | Who | Network dependence |
-| --- | --- | --- | --- |
-| 1 | Draw the PRISMA-NMA S3 network figure with stated node-size and edge-width measures | Everyone | High: it is the figure |
-| 2 | Check the network is connected, and find disconnected subnetworks before fitting | Everyone | High: a component computation |
-| 3 | Describe geometry in the S4 paragraph: nodes, edges, studies per edge, multi-arm trials, closed loops, star-shaped parts | Academic reviewers | High |
-| 4 | Find closed loops and locate inconsistency (loop-specific, node-splitting, design-by-treatment) | Reviewers, assessors | High: loops are cycles in the graph |
-| 5 | Rate confidence per comparison (CINeMA) with risk of bias colored on nodes and edges and a contribution matrix | Reviewers, assessors | Medium: the rating is a table, the colors and contributions live on the graph |
-| 6 | Draw one network per outcome side by side with the same node positions | Reviewers with several outcomes | High |
-| 7 | Sensitivity: remove studies and see which treatments disconnect | HTA assessors, HEOR analysts | High |
-| 8 | Show which comparisons feed one estimate (evidence flow) | Methods-aware reviewers, assessors | High |
-| 9 | Rank treatments and present league tables | Everyone | Low: a table and a forest plot |
+| Rank | Use case                                                                                                                 | Who                                | Network dependence                                                            |
+| ---- | ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------- | ----------------------------------------------------------------------------- |
+| 1    | Draw the PRISMA-NMA S3 network figure with stated node-size and edge-width measures                                      | Everyone                           | High: it is the figure                                                        |
+| 2    | Check the network is connected, and find disconnected subnetworks before fitting                                         | Everyone                           | High: a component computation                                                 |
+| 3    | Describe geometry in the S4 paragraph: nodes, edges, studies per edge, multi-arm trials, closed loops, star-shaped parts | Academic reviewers                 | High                                                                          |
+| 4    | Find closed loops and locate inconsistency (loop-specific, node-splitting, design-by-treatment)                          | Reviewers, assessors               | High: loops are cycles in the graph                                           |
+| 5    | Rate confidence per comparison (CINeMA) with risk of bias colored on nodes and edges and a contribution matrix           | Reviewers, assessors               | Medium: the rating is a table, the colors and contributions live on the graph |
+| 6    | Draw one network per outcome side by side with the same node positions                                                   | Reviewers with several outcomes    | High                                                                          |
+| 7    | Sensitivity: remove studies and see which treatments disconnect                                                          | HTA assessors, HEOR analysts       | High                                                                          |
+| 8    | Show which comparisons feed one estimate (evidence flow)                                                                 | Methods-aware reviewers, assessors | High                                                                          |
+| 9    | Rank treatments and present league tables                                                                                | Everyone                           | Low: a table and a forest plot                                                |
 
 ## 5. Step-by-step workflows
 
@@ -311,12 +311,12 @@ that share a study, and a k-arm study yields k(k-1)/2 edges that belong together
 
 ### 6.2 Sizes
 
-| Corpus | Treatments (nodes) | Comparisons (edges) | Studies | Source |
-| --- | --- | --- | --- | --- |
-| 167 reproducible NMA networks to 2017 | median 8 (IQR 6-11), range 3-42 | median 10 (IQR 6-16), range 3-66 | median 22 (IQR 13-35), range 3-157 | [Tonin et al. 2019](https://pmc.ncbi.nlm.nih.gov/articles/PMC6382117/) |
-| 365 drug-therapy NMAs | median 7, range 3-71 | not reported | median 21, range 3-450 | [Tonin et al. 2018](https://pmc.ncbi.nlm.nih.gov/articles/PMC5927429/) |
-| 441 network plots in 162 cancer NMAs | median 8 (IQR 5-11), range 3-112 | not reported | not reported | [Jain et al. 2024](https://pmc.ncbi.nlm.nih.gov/articles/PMC10927000/) |
-| Antidepressants (Cipriani 2018) | 22 | not reported | 522 | [Cipriani et al. 2018](https://pmc.ncbi.nlm.nih.gov/articles/PMC5889788/) |
+| Corpus                                | Treatments (nodes)               | Comparisons (edges)              | Studies                            | Source                                                                    |
+| ------------------------------------- | -------------------------------- | -------------------------------- | ---------------------------------- | ------------------------------------------------------------------------- |
+| 167 reproducible NMA networks to 2017 | median 8 (IQR 6-11), range 3-42  | median 10 (IQR 6-16), range 3-66 | median 22 (IQR 13-35), range 3-157 | [Tonin et al. 2019](https://pmc.ncbi.nlm.nih.gov/articles/PMC6382117/)    |
+| 365 drug-therapy NMAs                 | median 7, range 3-71             | not reported                     | median 21, range 3-450             | [Tonin et al. 2018](https://pmc.ncbi.nlm.nih.gov/articles/PMC5927429/)    |
+| 441 network plots in 162 cancer NMAs  | median 8 (IQR 5-11), range 3-112 | not reported                     | not reported                       | [Jain et al. 2024](https://pmc.ncbi.nlm.nih.gov/articles/PMC10927000/)    |
+| Antidepressants (Cipriani 2018)       | 22                               | not reported                     | 522                                | [Cipriani et al. 2018](https://pmc.ncbi.nlm.nih.gov/articles/PMC5889788/) |
 
 Scale is never the problem: the largest network found here has 112 nodes. The difficulty is many small graphs (one
 per outcome, per PICO, per sensitivity analysis) that must stay comparable.
@@ -331,16 +331,16 @@ per outcome, per PICO, per sensitivity analysis) that must stay comparable.
 
 ## 7. Analysis methods
 
-| Method | Graph view of it | Where it lives today |
-| --- | --- | --- |
-| Connectivity check | Connected components of the treatment graph | netmeta `netconnection`; MetaInsight drops disconnected nodes after an exclusion |
-| Geometry description | Node and edge counts, density, share of nodes with degree above 1, median studies per edge, share of edges with more than one study | Hand counts or Gephi (Tonin) |
-| Closed loops | Cycles of direct comparisons; triangles and quadrilaterals in Stata `ifplot`; a loop made only by one multi-arm trial cannot be inconsistent | Stata `ifplot`, MetaInsight |
-| Node-splitting (SIDE) | Split each edge's estimate into the edge itself and every other path | netmeta `netsplit`, gemtc |
-| Design-by-treatment interaction | Groups studies by design (the hyperedge's node set) | netmeta `decomp.design`, CINeMA |
-| Contribution matrix | Decomposition of each estimate's evidence flow into paths and streams through the graph | netmeta `netcontrib` (method "shortestpath" and others), Stata `netweight`, CINeMA |
-| Study-to-edge aggregation | Majority, average or highest grade over the studies on an edge | Stata `networkplot edgecolor(by ...)`, CINeMA |
-| Ranking | Not a graph computation | `netrank`, SUCRA |
+| Method                          | Graph view of it                                                                                                                             | Where it lives today                                                               |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Connectivity check              | Connected components of the treatment graph                                                                                                  | netmeta `netconnection`; MetaInsight drops disconnected nodes after an exclusion   |
+| Geometry description            | Node and edge counts, density, share of nodes with degree above 1, median studies per edge, share of edges with more than one study          | Hand counts or Gephi (Tonin)                                                       |
+| Closed loops                    | Cycles of direct comparisons; triangles and quadrilaterals in Stata `ifplot`; a loop made only by one multi-arm trial cannot be inconsistent | Stata `ifplot`, MetaInsight                                                        |
+| Node-splitting (SIDE)           | Split each edge's estimate into the edge itself and every other path                                                                         | netmeta `netsplit`, gemtc                                                          |
+| Design-by-treatment interaction | Groups studies by design (the hyperedge's node set)                                                                                          | netmeta `decomp.design`, CINeMA                                                    |
+| Contribution matrix             | Decomposition of each estimate's evidence flow into paths and streams through the graph                                                      | netmeta `netcontrib` (method "shortestpath" and others), Stata `netweight`, CINeMA |
+| Study-to-edge aggregation       | Majority, average or highest grade over the studies on an edge                                                                               | Stata `networkplot edgecolor(by ...)`, CINeMA                                      |
+| Ranking                         | Not a graph computation                                                                                                                      | `netrank`, SUCRA                                                                   |
 
 ## 8. Outputs and collaboration
 
@@ -362,16 +362,16 @@ Tonin et al. warn that node size by participants can mislead unless it counts ev
 
 ## 9. Tools landscape and pain points
 
-| Tool | What it does for the graph | Limits |
-| --- | --- | --- |
-| netmeta `netgraph` (R) | Circle, eigenvector or random start, stress majorization, edge width from studies or weights, node points sized by a vector, multi-arm polygons, highlighted comparisons, study counts on edges, 3D with rgl | No legend; node size off by default; positions differ per outcome unless fixed by hand; static base-R plot |
-| Stata `networkplot` | Node and edge size by studies or a variable, edges colored by a three-level risk-of-bias rule | Circle layout; static |
-| gemtc `plot` (R) | igraph plot with edge thickness by number of studies | Few options; tutorial reseeds a Fruchterman-Reingold layout for a cleaner view |
-| BUGSnet `net.plot` (R) | igraph layout, default `layout_in_circle`; node and edge scale by studies; `flag` colors one treatment's comparisons; study counts | Static |
-| pcnetmeta `nma.networkplot` (R) | Node size by total sample size or by number of direct comparisons (default); multi-arm studies as "shaded treatment loops in different colors" | Alphabetical circle order |
-| CINeMA (web) | Node and edge size by sample size or studies; node and edge colors by risk-of-bias rule | One outcome per project; PNG only |
-| MetaInsight (web) | Network plot with trial counts; side-by-side network before and after excluding studies | Fixed encoding |
-| Gephi | Geometry metrics (Tonin) | No NMA concepts; manual rebuild |
+| Tool                            | What it does for the graph                                                                                                                                                                                   | Limits                                                                                                     |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| netmeta `netgraph` (R)          | Circle, eigenvector or random start, stress majorization, edge width from studies or weights, node points sized by a vector, multi-arm polygons, highlighted comparisons, study counts on edges, 3D with rgl | No legend; node size off by default; positions differ per outcome unless fixed by hand; static base-R plot |
+| Stata `networkplot`             | Node and edge size by studies or a variable, edges colored by a three-level risk-of-bias rule                                                                                                                | Circle layout; static                                                                                      |
+| gemtc `plot` (R)                | igraph plot with edge thickness by number of studies                                                                                                                                                         | Few options; tutorial reseeds a Fruchterman-Reingold layout for a cleaner view                             |
+| BUGSnet `net.plot` (R)          | igraph layout, default `layout_in_circle`; node and edge scale by studies; `flag` colors one treatment's comparisons; study counts                                                                           | Static                                                                                                     |
+| pcnetmeta `nma.networkplot` (R) | Node size by total sample size or by number of direct comparisons (default); multi-arm studies as "shaded treatment loops in different colors"                                                               | Alphabetical circle order                                                                                  |
+| CINeMA (web)                    | Node and edge size by sample size or studies; node and edge colors by risk-of-bias rule                                                                                                                      | One outcome per project; PNG only                                                                          |
+| MetaInsight (web)               | Network plot with trial counts; side-by-side network before and after excluding studies                                                                                                                      | Fixed encoding                                                                                             |
+| Gephi                           | Geometry metrics (Tonin)                                                                                                                                                                                     | No NMA concepts; manual rebuild                                                                            |
 
 Sources: [BUGSnet net.plot source](https://github.com/audrey-b/BUGSnet/blob/master/R/net.plot.R);
 [pcnetmeta reference](https://search.r-project.org/CRAN/refmans/pcnetmeta/html/nma.networkplot.html);
@@ -391,21 +391,21 @@ Sources: [BUGSnet net.plot source](https://github.com/audrey-b/BUGSnet/blob/mast
 
 ## 10. Requirements implied
 
-| Requirement | Priority | Covered today? |
-| --- | --- | --- |
-| Build the treatment graph from an arm-level or contrast table: nodes from distinct treatments, one edge per treatment pair, each study kept as a group over its arms | Must | Partial (table-to-graph building is planned; studies as groups is hypergraph-data, planned) |
-| Draw multi-arm studies as shaded polygons over their treatments, distinct from two-arm trials | Must | No |
-| Aggregate study attributes to each edge: counts and sums, and majority, average or highest of an ordinal grade | Must | No |
-| Node size and edge width from evidence counts, with the measure and its scaling stated in the legend and the export | Must | Partial (encoding and legends exist; stating the measure and rescaling rule in export does not) |
-| Edge and node color from a risk-of-bias or confidence grade with a fixed green, yellow, red scale | Must | Partial (encoding exists; the grade aggregation does not) |
-| Connectivity check that names each disconnected subnetwork and updates live as studies are excluded | Must | Partial (component analysis exists; live exclusion does not) |
-| Geometry metrics: nodes, edges, density, share of common comparators, median studies per edge, share of strong edges, number of independent closed loops | Must | Partial (basic statistics give counts and density only) |
-| List closed loops and mark loops formed only inside one multi-arm study | Should | No |
-| Circular start layout in a chosen treatment order, refined by stress majorization, with a crossing-reducing order | Must | Partial (Kamada-Kawai exists in the layout package; a circle-seeded run with a fixed order does not) |
-| One network per outcome side by side with shared node positions | Must | Partial (small multiples and shared layouts are planned) |
-| Show an estimate's evidence flow: highlight the paths and their share for one chosen comparison | Should | No |
-| Journal figure export at a given width and dpi with legend and caption text | Must | Partial (journal figure export is planned) |
-| Before-and-after view when studies are excluded, with dropped treatments marked | Should | Partial (comparison view is planned) |
+| Requirement                                                                                                                                                          | Priority | Covered today?                                                                                       |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------- |
+| Build the treatment graph from an arm-level or contrast table: nodes from distinct treatments, one edge per treatment pair, each study kept as a group over its arms | Must     | Partial (table-to-graph building is planned; studies as groups is hypergraph-data, planned)          |
+| Draw multi-arm studies as shaded polygons over their treatments, distinct from two-arm trials                                                                        | Must     | No                                                                                                   |
+| Aggregate study attributes to each edge: counts and sums, and majority, average or highest of an ordinal grade                                                       | Must     | No                                                                                                   |
+| Node size and edge width from evidence counts, with the measure and its scaling stated in the legend and the export                                                  | Must     | Partial (encoding and legends exist; stating the measure and rescaling rule in export does not)      |
+| Edge and node color from a risk-of-bias or confidence grade with a fixed green, yellow, red scale                                                                    | Must     | Partial (encoding exists; the grade aggregation does not)                                            |
+| Connectivity check that names each disconnected subnetwork and updates live as studies are excluded                                                                  | Must     | Partial (component analysis exists; live exclusion does not)                                         |
+| Geometry metrics: nodes, edges, density, share of common comparators, median studies per edge, share of strong edges, number of independent closed loops             | Must     | Partial (basic statistics give counts and density only)                                              |
+| List closed loops and mark loops formed only inside one multi-arm study                                                                                              | Should   | No                                                                                                   |
+| Circular start layout in a chosen treatment order, refined by stress majorization, with a crossing-reducing order                                                    | Must     | Partial (Kamada-Kawai exists in the layout package; a circle-seeded run with a fixed order does not) |
+| One network per outcome side by side with shared node positions                                                                                                      | Must     | Partial (small multiples and shared layouts are planned)                                             |
+| Show an estimate's evidence flow: highlight the paths and their share for one chosen comparison                                                                      | Should   | No                                                                                                   |
+| Journal figure export at a given width and dpi with legend and caption text                                                                                          | Must     | Partial (journal figure export is planned)                                                           |
+| Before-and-after view when studies are excluded, with dropped treatments marked                                                                                      | Should   | Partial (comparison view is planned)                                                                 |
 
 The statistics (models, node-splitting, design-by-treatment, ranking) stay in R and Stata. The product draws, checks
 and describes the graph those packages use.

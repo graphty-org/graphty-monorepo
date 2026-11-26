@@ -15,6 +15,6 @@ requirements:
     - "Should: Layouts whose distances mean something: MDS with a stress value, and Procrustes alignment of two layouts"
 sources:
     - title: "Psychological Network Analysts: Symptom, Attitude and Personality Networks Estimated from Survey Items
-        (section 10, requirement R9)"
+          (section 10, requirement R9)"
       url: design/user-research/psychometric-network-analysis.md
       summary: "Should in the research. Covered by Designloom when researched: No"

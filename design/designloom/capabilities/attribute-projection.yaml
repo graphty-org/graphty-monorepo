@@ -17,5 +17,5 @@ sources:
     - title: Investigative journalists, OSINT investigators and trust-and-safety teams (section 10, requirement R11)
       url: design/user-research/investigative-journalism-and-osint.md
       summary: "Should in the research (the document says: Should (driven by OSINT tag-id and address pivots; T&S
-        evidence is weak)). Covered by Designloom when researched: Not covered (component-analysis exists but no
-        projection from attribute values)"
+          evidence is weak)). Covered by Designloom when researched: Not covered (component-analysis exists but no
+          projection from attribute values)"

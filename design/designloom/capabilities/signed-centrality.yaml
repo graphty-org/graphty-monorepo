@@ -16,7 +16,7 @@ requirements:
     - "Must: Strength, signed expected influence and bridge variants as node metrics, raw by default"
 sources:
     - title: "Psychological Network Analysts: Symptom, Attitude and Personality Networks Estimated from Survey Items
-        (section 10, requirement R6)"
+          (section 10, requirement R6)"
       url: design/user-research/psychometric-network-analysis.md
       summary: "Must in the research. Covered by Designloom when researched: Partial: degree, betweenness, closeness
-        exist"
+          exist"

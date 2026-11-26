@@ -16,6 +16,6 @@ requirements:
       them; ancestor classes"
 sources:
     - title: "Causal Diagram Users: DAGs, Bayesian Networks, Causal Discovery, Time-Series Causal Graphs and SEM Path
-        Diagrams (section 10, requirement 5)"
+          Diagrams (section 10, requirement 5)"
       url: design/user-research/causal-diagrams-and-bayesian-networks.md
       summary: "Must in the research. Covered by Designloom when researched: No"

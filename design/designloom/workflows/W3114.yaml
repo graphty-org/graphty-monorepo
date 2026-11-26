@@ -83,7 +83,7 @@ goal: >-
 success_criteria:
     - metric: Reproducibility against UCINET or sna
       target: Same core numbers, clique census, triad census and blockmodel image as sna or UCINET with the same stated
-        settings on a classic teaching dataset
+          settings on a classic teaching dataset
     - metric: Lab completion
       target: A student completes the subgroup and positions lab without leaving the tool or writing code
 sources:

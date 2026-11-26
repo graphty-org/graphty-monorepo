@@ -14,6 +14,6 @@ requirements:
       an ortholog, and run enrichment on plant gene sets with that coverage stated (5.17)"
 sources:
     - title: Systems Biologists and Bench Scientists Working With Molecular Interaction Networks (section 10,
-        requirement 47)
+          requirement 47)
       url: design/user-research/systems-biology-omics-networks.md
       summary: Must in the research.

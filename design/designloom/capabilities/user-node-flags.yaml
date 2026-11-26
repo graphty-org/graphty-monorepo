@@ -16,6 +16,6 @@ requirements:
     - "Must: User-set node flags (owned, high value) as calculated values that queries and styles use"
 sources:
     - title: "Cybersecurity Graph Work: Attack Paths, Threat-Intel Pivoting, Incident Response, Network, Cloud and
-        Binary Graphs (section 10, requirement 3)"
+          Binary Graphs (section 10, requirement 3)"
       url: design/user-research/cybersecurity-graph-work.md
       summary: "Must in the research. Covered by Designloom when researched: Not covered"

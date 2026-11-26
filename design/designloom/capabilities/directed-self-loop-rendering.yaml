@@ -16,6 +16,6 @@ requirements:
       is near 0.5)"
 sources:
     - title: "Psychological Network Analysts: Symptom, Attitude and Personality Networks Estimated from Survey Items
-        (section 10, requirement R8)"
+          (section 10, requirement R8)"
       url: design/user-research/psychometric-network-analysis.md
       summary: "Must in the research. Covered by Designloom when researched: Partial: directed edges exist"

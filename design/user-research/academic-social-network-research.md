@@ -175,20 +175,20 @@ years rather than one hand-built archive.
   descriptives, Pajek or Gephi for large files and figures. Learned ERGM and TERGM at the section's workshops
   [POLNET-2021] [POLNET-2013-TERGM].
 - **Data.**
-  - Bill cosponsorship: legislator-by-bill records for every session. Fowler's data cover all 280,000 bills in the House
-    and Senate, 1973-2004 [FOWLER-2006]; derived copies hold 1,718 legislators and 282,049 timestamped bills
-    [ZENODO-FOWLER-HG]; the 107th Senate alone had over 20,660 bills with cosponsors [LO-2025]. Outside the US, parlnet
-    builds 150 networks from 27 chambers in 19 European countries plus Israel, one per legislative period [PARLNET].
-  - Roll-call votes: Voteview's member-by-vote download, members keyed by ICPSR code [VOTEVIEW-VOTES]. Andris and
-    colleagues built one agreement network per House from 1949 to 2012 (32 Congresses), tying two members when their
-    agreement count passes a per-Congress threshold [ANDRIS-2015].
-  - Alliances and conflict: the Correlates of War Formal Alliances data (v4.1, 1816-2012) with a dyadic file and
-    alliance types (defense, neutrality, non-aggression, entente) [COW-ALLIANCE]; Militarized Interstate Disputes v5.0
-    (1816-2014) as dispute and participant files, with dyad-years derived by tools such as peacesciencer
-    [COW-MID] [PEACESCIENCER-MID].
-  - Policy-actor networks: a common policy network survey of the organizations engaged in climate politics, from state
-    and society, fielded by teams in over 25 societies (COMPON) [COMPON]; actor-by-institution participation analyzed as
-    a bipartite network with ERGM [LUBELL-2014].
+    - Bill cosponsorship: legislator-by-bill records for every session. Fowler's data cover all 280,000 bills in the House
+      and Senate, 1973-2004 [FOWLER-2006]; derived copies hold 1,718 legislators and 282,049 timestamped bills
+      [ZENODO-FOWLER-HG]; the 107th Senate alone had over 20,660 bills with cosponsors [LO-2025]. Outside the US, parlnet
+      builds 150 networks from 27 chambers in 19 European countries plus Israel, one per legislative period [PARLNET].
+    - Roll-call votes: Voteview's member-by-vote download, members keyed by ICPSR code [VOTEVIEW-VOTES]. Andris and
+      colleagues built one agreement network per House from 1949 to 2012 (32 Congresses), tying two members when their
+      agreement count passes a per-Congress threshold [ANDRIS-2015].
+    - Alliances and conflict: the Correlates of War Formal Alliances data (v4.1, 1816-2012) with a dyadic file and
+      alliance types (defense, neutrality, non-aggression, entente) [COW-ALLIANCE]; Militarized Interstate Disputes v5.0
+      (1816-2014) as dispute and participant files, with dyad-years derived by tools such as peacesciencer
+      [COW-MID] [PEACESCIENCER-MID].
+    - Policy-actor networks: a common policy network survey of the organizations engaged in climate politics, from state
+      and society, fielded by teams in over 25 societies (COMPON) [COMPON]; actor-by-institution participation analyzed as
+      a bipartite network with ERGM [LUBELL-2014].
 - **Goals.** Who cooperates across party lines and how that changes from session to session; whether cosponsorship or
   alliance ties predict passage, votes or conflict; publishing a model table and one figure per session or period.
 - **Frustrations.** Projecting bills onto legislators inflates clustering and hides bipartisan bills [LO-2025]; the
@@ -609,7 +609,7 @@ reference definitions; every step depends on stated choices about direction and 
 | Collections of networks | Many classrooms or schools analyzed together; 20 yearly networks of 164 countries                                                                                                              | [MLERGM] [BTERGM]                                                   |
 | Ego network sizes       | 5 to about 50 alters, hundreds to thousands of egos                                                                                                                                            | [GSS-NAMEGEN] [UFL-ANG5420]                                         |
 | Two-mode sizes          | 18 by 14 (Southern Women) to 280,000 bills                                                                                                                                                     | [BORGATTI-EVERETT-1997] [FOWLER-2006]                               |
-| Political records       | Legislator-by-bill per session; member-by-vote tables keyed by ICPSR code; state dyad-years (alliances 1816-2012, disputes 1816-2014); policy-actor surveys                                     | [VOTEVIEW-VOTES] [COW-ALLIANCE] [COW-MID] [COMPON]                  |
+| Political records       | Legislator-by-bill per session; member-by-vote tables keyed by ICPSR code; state dyad-years (alliances 1816-2012, disputes 1816-2014); policy-actor surveys                                    | [VOTEVIEW-VOTES] [COW-ALLIANCE] [COW-MID] [COMPON]                  |
 | Timestamped events      | Sender, receiver, time, increment (439 calls among 84 students in the goldfish teaching data)                                                                                                  | [GOLDFISH-TEACH]                                                    |
 | Signed ties             | Agreement versus disagreement in discourse networks; conflict networks as negative ties                                                                                                        | [LEIFELD-2017]                                                      |
 | Genealogies             | Parent-child arcs plus union edges; 17 to about 50,000 individuals; no generation field                                                                                                        | [KINSOURCES-ARXIV]                                                  |
@@ -701,11 +701,11 @@ importer reads `.net` (two-mode headers, arcs and edges lists, matrices) and a s
 | Ego measures beyond size, density and constraint: effective size, efficiency, hierarchy, EI, composition, heterogeneity                                                                    | must-have   | NOT covered                                                                                                |
 | Many-small-networks mode (ego, alter, alter-alter tables) with egograms                                                                                                                    | should-have | NOT covered                                                                                                |
 | Collections of many whole networks (classrooms, years) viewed as small multiples with shared styling                                                                                       | should-have | NOT covered                                                                                                |
-| Per-session or per-year networks with stable ids (ICPSR codes, country codes) and node sets that change between sessions                                                                 | should-have | NOT covered (W1138, W1139 proposed)                                                                        |
-| Bipartite view beside its projection, showing what the projection hides (clustering both ways, mixed-party groups)                                                                       | should-have | NOT covered                                                                                                |
+| Per-session or per-year networks with stable ids (ICPSR codes, country codes) and node sets that change between sessions                                                                   | should-have | NOT covered (W1138, W1139 proposed)                                                                        |
+| Bipartite view beside its projection, showing what the projection hides (clustering both ways, mixed-party groups)                                                                         | should-have | NOT covered                                                                                                |
 | Vote-agreement network from a member-by-vote table with the threshold rule recorded on the network                                                                                         | should-have | NOT covered                                                                                                |
-| Dyad-year import: de-duplicate directed dyads, several events per year, alliance and dispute as typed or signed ties                                                                      | should-have | NOT covered                                                                                                |
-| Classic descriptives with UCINET definitions: centralization, cliques, n-clans, factions, k-cores, core-periphery, equivalence, triad census                                               | must-have   | planned: `positional-subgroup-analysis` (W3114, W26, W187); k-core per node ships in graphty-element |
+| Dyad-year import: de-duplicate directed dyads, several events per year, alliance and dispute as typed or signed ties                                                                       | should-have | NOT covered                                                                                                |
+| Classic descriptives with UCINET definitions: centralization, cliques, n-clans, factions, k-cores, core-periphery, equivalence, triad census                                               | must-have   | planned: `positional-subgroup-analysis` (W3114, W26, W187); k-core per node ships in graphty-element       |
 | Homophily: mixing matrix, EI index, assortativity per attribute                                                                                                                            | must-have   | NOT covered                                                                                                |
 | Permutation tests: CUG, QAP, MRQAP with DSP, null-distribution histogram                                                                                                                   | should-have | NOT covered                                                                                                |
 | Timestamped event streams (sender, receiver, time, weight): import, slice and aggregate by time window, animate                                                                            | must-have   | partly (`temporal-analysis` and W19, planned, cover windows over timestamped edges; no event-table import) |

@@ -11,7 +11,9 @@ const INDEX = "population-to-designloom-persona-index.md";
 
 it("the persona index lists every user research document", () => {
     const docs = readdirSync(DIR).filter((f) => f.endsWith(".md") && f !== INDEX && f !== "README.md");
-    const section2 = readFileSync(new URL(INDEX, DIR), "utf8").split(/^## 2\./m)[1].split(/^## 3\./m)[0];
+    const section2 = readFileSync(new URL(INDEX, DIR), "utf8")
+        .split(/^## 2\./m)[1]
+        .split(/^## 3\./m)[0];
     const listed = [...section2.matchAll(/^\| ([a-z0-9-]+\.md) +\|/gm)].map((m) => m[1]);
     assert.deepEqual(
         { missing: docs.filter((f) => !listed.includes(f)), stale: listed.filter((f) => !docs.includes(f)) },

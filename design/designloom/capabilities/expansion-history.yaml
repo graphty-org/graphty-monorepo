@@ -15,6 +15,6 @@ requirements:
     - "Must: Expand-on-demand with per-expansion limits, undo of expansions, bulk prune by type or mark"
 sources:
     - title: "Cybersecurity Graph Work: Attack Paths, Threat-Intel Pivoting, Incident Response, Network, Cloud and
-        Binary Graphs (section 10, requirement 8)"
+          Binary Graphs (section 10, requirement 8)"
       url: design/user-research/cybersecurity-graph-work.md
       summary: "Must in the research. Covered by Designloom when researched: Not covered"

@@ -12,6 +12,6 @@ requirements:
     - "Should: Region-level enrichment overlay on a fixed layout"
 sources:
     - title: Systems Biologists and Bench Scientists Working With Molecular Interaction Networks (section 10,
-        requirement 28)
+          requirement 28)
       url: design/user-research/systems-biology-omics-networks.md
       summary: Should in the research.

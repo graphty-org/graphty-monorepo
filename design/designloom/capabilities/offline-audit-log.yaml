@@ -14,6 +14,6 @@ requirements:
     - "Must: Offline, on-premise operation; audit log of searches and purposes"
 sources:
     - title: Law enforcement crime and intelligence analysts, and defense and national intelligence analysts (section
-        10, requirement 25)
+          10, requirement 25)
       url: design/user-research/law-enforcement-and-intelligence-analysts.md
       summary: "Must in the research. Covered by Designloom when researched: Gap"

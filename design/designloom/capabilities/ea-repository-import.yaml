@@ -13,6 +13,6 @@ requirements:
       ArchiMate Model Exchange File Format"
 sources:
     - title: "Engineers Who Analyze Dependencies: IT Services, Networks, Software and Data Lineage (section 10,
-        requirement R36)"
+          requirement R36)"
       url: design/user-research/dependency-and-impact-analysis-engineers.md
       summary: "Should in the research. Covered by Designloom when researched: No"

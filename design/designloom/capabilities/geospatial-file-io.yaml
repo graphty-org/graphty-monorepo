@@ -37,10 +37,10 @@ requirements:
       statement)"
 sources:
     - title: "Geographic Flow and Mobility Networks: Migration, Commuting, Mobility and Trade Flows on a Map (section
-        10, requirement R26)"
+          10, requirement R26)"
       url: design/user-research/geographic-flow-and-mobility-networks.md
       summary: "Must in the research. Covered by Designloom when researched: No (no capability names a geospatial
-        format)"
+          format)"
     - title: Supply Chain Risk Analysts and Physical Infrastructure Network Engineers (section 10, requirement R19)
       url: design/user-research/supply-chain-and-physical-infrastructure-networks.md
       summary: "Must in the research. Covered by Designloom when researched: Partly"

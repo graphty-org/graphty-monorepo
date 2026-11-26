@@ -22,6 +22,6 @@ requirements:
       not lost at the next import"
 sources:
     - title: "Digital Humanities Scholars and Historians: Correspondence, Prosopography, Kinship, Literary and
-        Archaeological Networks (Workflow 1 (manual coding; re-cleaning means re-importing); no numbered requirement)"
+          Archaeological Networks (Workflow 1 (manual coding; re-cleaning means re-importing); no numbered requirement)"
       url: design/user-research/digital-humanities-and-historical-networks.md
       summary: The need appears in this workflow of the research, but in no numbered requirement.

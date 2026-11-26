@@ -14,6 +14,6 @@ requirements:
     - "Must: Sankey or flow-of-funds view of an allocation or of summed flows, each band drillable to transactions"
 sources:
     - title: "Financial crime investigators: fraud rings, anti-money-laundering, beneficial ownership, crypto tracing
-        and insurance fraud (section 10, requirement 19)"
+          and insurance fraud (section 10, requirement 19)"
       url: design/user-research/financial-crime-fraud-aml-kyc.md
       summary: Must in the research.

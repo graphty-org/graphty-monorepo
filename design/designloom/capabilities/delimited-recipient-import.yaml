@@ -15,6 +15,6 @@ requirements:
       missing fields, no native message needed"
 sources:
     - title: eDiscovery, litigation review and internal-investigation teams who use communication graphs (section 10,
-        requirement R24)
+          requirement R24)
       url: design/user-research/ediscovery-and-legal-communication-analysis.md
       summary: "Must in the research. Covered by Designloom when researched: Partly (CSV edge import only)"

@@ -15,6 +15,6 @@ requirements:
     - "Must: Bidirected edge model: an edge records which end of each node it joins; drawn at that end"
 sources:
     - title: "Genome Assemblers, Microbial Genome Finishers and Pangenome Researchers: Assembly Graphs and Pangenome
-        Graphs (section 10, table row 2)"
+          Graphs (section 10, table row 2)"
       url: design/user-research/genome-assembly-and-pangenome-graphs.md
       summary: "Must in the research. Covered by Designloom when researched: No"

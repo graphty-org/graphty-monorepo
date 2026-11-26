@@ -13,6 +13,6 @@ requirements:
       a marker's expression painted on the cells, and imported cell-type labels with a confidence column (5.14)"
 sources:
     - title: Systems Biologists and Bench Scientists Working With Molecular Interaction Networks (section 10,
-        requirement 49)
+          requirement 49)
       url: design/user-research/systems-biology-omics-networks.md
       summary: Should in the research.

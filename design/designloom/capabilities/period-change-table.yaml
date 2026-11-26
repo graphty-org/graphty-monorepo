@@ -16,7 +16,7 @@ requirements:
       change table with resolved items"
 sources:
     - title: "Communicating findings: the deliverables each population hands to someone else (section 10, requirement
-        R24)"
+          R24)"
       url: design/user-research/communicating-findings-and-deliverables.md
       summary: "Must in the research (the document says: must for recurring deliverables). Covered by Designloom when
-        researched: Gap (report-generation planned, unspecified)"
+          researched: Gap (report-generation planned, unspecified)"

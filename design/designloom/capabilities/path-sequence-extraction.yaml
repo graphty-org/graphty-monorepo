@@ -12,6 +12,6 @@ requirements:
     - "Should: Extract the sequence spelled by a selected path, honoring orientation and overlaps"
 sources:
     - title: "Genome Assemblers, Microbial Genome Finishers and Pangenome Researchers: Assembly Graphs and Pangenome
-        Graphs (section 10, table row 9)"
+          Graphs (section 10, table row 9)"
       url: design/user-research/genome-assembly-and-pangenome-graphs.md
       summary: "Should in the research. Covered by Designloom when researched: No"

@@ -16,6 +16,6 @@ requirements:
     - "Must: Component browser: list components with size and attribute summaries, sort, open one, export it"
 sources:
     - title: Systems Biologists and Bench Scientists Working With Molecular Interaction Networks (section 10,
-        requirement 33)
+          requirement 33)
       url: design/user-research/systems-biology-omics-networks.md
       summary: Must in the research.

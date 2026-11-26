@@ -16,4 +16,4 @@ sources:
     - title: Supply Chain Risk Analysts and Physical Infrastructure Network Engineers (section 10, requirement R50)
       url: design/user-research/supply-chain-and-physical-infrastructure-networks.md
       summary: "Should in the research. Covered by Designloom when researched: Partly (per-window-metrics,
-        event-window-aggregation, bipartite-projection planned or undirected)"
+          event-window-aggregation, bipartite-projection planned or undirected)"

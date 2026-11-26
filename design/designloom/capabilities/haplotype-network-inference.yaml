@@ -15,6 +15,6 @@ requirements:
     - "Should: Haplotype network inference from an alignment (MSN, TCS, median-joining) with a merged-samples list"
 sources:
     - title: "Evolutionary Biologists, Population Geneticists and Protein-Family Analysts: Trees, Haplotype Networks,
-        Population Graphs and Similarity Networks (section 10, table row 18)"
+          Population Graphs and Similarity Networks (section 10, table row 18)"
       url: design/user-research/phylogenetics-and-haplotype-networks.md
       summary: "Should in the research. Covered by Designloom when researched: No"

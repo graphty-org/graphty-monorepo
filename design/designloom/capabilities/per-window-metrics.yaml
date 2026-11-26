@@ -24,4 +24,4 @@ sources:
     - title: Temporal and Dynamic Network Data and Analysis (section 11, requirement T9)
       url: design/user-research/temporal-and-dynamic-networks.md
       summary: "Must in the research. Covered by Designloom when researched: Partly (temporal-analysis lists counts,
-        density, modularity, component count)"
+          density, modularity, component count)"

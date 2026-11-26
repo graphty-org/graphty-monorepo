@@ -13,6 +13,6 @@ requirements:
       as not traceable on chain) and a bounded search for the nearest labeled service from a seed"
 sources:
     - title: Law enforcement crime and intelligence analysts, and defense and national intelligence analysts (section
-        10, requirement 17a)
+          10, requirement 17a)
       url: design/user-research/law-enforcement-and-intelligence-analysts.md
       summary: "Must in the research. Covered by Designloom when researched: Gap"

@@ -66,7 +66,6 @@ goal: >-
     fourteen steps, including the transaction-as-node view, CoinJoin exclusion and undoable clusters, the allocation
     rule (W121), the watch list and the export audit log that this record carried.
 
-
 success_criteria:
     - metric: Undoable clusters
       target: Every address merge names its heuristic and can be undone, splitting the cluster back

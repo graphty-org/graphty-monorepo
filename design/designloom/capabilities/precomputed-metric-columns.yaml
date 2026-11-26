@@ -13,7 +13,7 @@ used_by_workflows:
     - W251
 implemented_by_components: []
 requirements:
-    - "Must: Accept a precomputed node column as a \"metric\" treated like built-in algorithms"
+    - 'Must: Accept a precomputed node column as a "metric" treated like built-in algorithms'
 sources:
     - title: Developers Who Embed Graph Visualization in Products or Extend It With Plugins (section 10, table row 16)
       url: design/user-research/developers-embedding-and-extending-graph-visualization.md

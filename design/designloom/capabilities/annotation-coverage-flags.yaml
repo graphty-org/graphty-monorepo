@@ -15,7 +15,7 @@ requirements:
       chosen count"
 sources:
     - title: Systems Biologists and Bench Scientists Working With Molecular Interaction Networks (section 5.2, 7.4 and
-        section 10, requirement 57)
+          section 10, requirement 57)
       url: design/user-research/systems-biology-omics-networks.md
       summary: "Should in the research. Covered by Designloom when researched: not covered"
     - title: Needham et al. 2019 - Illuminating the dark phosphoproteome (Science Signaling)

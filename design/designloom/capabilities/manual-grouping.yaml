@@ -16,6 +16,6 @@ requirements:
     - "Must: Lasso and modifier-click selection that writes an editable group or tag attribute"
 sources:
     - title: "Engineers Who Analyze Dependencies: IT Services, Networks, Software and Data Lineage (section 10,
-        requirement R7)"
+          requirement R7)"
       url: design/user-research/dependency-and-impact-analysis-engineers.md
       summary: "Must in the research. Covered by Designloom when researched: No"

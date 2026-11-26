@@ -17,6 +17,6 @@ requirements:
       recipient-in, pair, role filter, or record IDs); when the host's record set changes, the graph rebuilds"
 sources:
     - title: eDiscovery, litigation review and internal-investigation teams who use communication graphs (section 10,
-        requirement R1)
+          requirement R1)
       url: design/user-research/ediscovery-and-legal-communication-analysis.md
       summary: "Must in the research. Covered by Designloom when researched: Not covered"

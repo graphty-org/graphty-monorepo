@@ -17,6 +17,6 @@ requirements:
       selectable on chart, timeline and map; legend and true scale"
 sources:
     - title: Law enforcement crime and intelligence analysts, and defense and national intelligence analysts (section
-        10, requirement 9)
+          10, requirement 9)
       url: design/user-research/law-enforcement-and-intelligence-analysts.md
       summary: "Should in the research. Covered by Designloom when researched: Gap"

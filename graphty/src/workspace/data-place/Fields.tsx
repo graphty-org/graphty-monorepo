@@ -665,14 +665,12 @@ function RepeatedIds({ source }: Readonly<{ source: LoadedSource | undefined }>)
         return null;
     }
     return (
-        <div role="group" aria-label="Repeated ids">
-            <FieldRow>
-                <Text size="xs" truncate>
-                    Repeated ids
-                </Text>
-                <Text size="xs">{formatNumber(repeated)}</Text>
-            </FieldRow>
-        </div>
+        <FieldRow>
+            <Text size="xs" truncate>
+                Repeated ids
+            </Text>
+            <Text size="xs">{formatNumber(repeated)}</Text>
+        </FieldRow>
     );
 }
 

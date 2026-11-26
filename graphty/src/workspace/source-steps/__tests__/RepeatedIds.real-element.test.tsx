@@ -33,7 +33,7 @@ describe("a node file that repeats its key", () => {
         await waitFor(() => {
             assert.strictEqual(session.data.nodes().find((node) => node.id === "P-0")?.symbol, "S0");
         });
-        const row = await within(entry).findByRole("group", { name: "Repeated ids" });
-        assert.strictEqual(row.textContent, "Repeated ids2");
+        await within(entry).findByText("Repeated ids");
+        assert.include(entry.textContent, "Repeated ids2", "the count follows its label");
     });
 });

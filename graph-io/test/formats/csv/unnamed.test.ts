@@ -53,8 +53,8 @@ describe("csv unnamed option", () => {
     });
 
     it("keeps the first row of a guessed key that repeats, and gives the row left out", async () => {
-        const text =
-            "protein_id,symbol\n" + Array.from({ length: 39 }, (_, i) => `P${i},S${i}`).join("\n") + "\nP0,again\n";
+        const rows = Array.from({ length: 39 }, (_, i) => `P${i},S${i}`).join("\n");
+        const text = `protein_id,symbol\n${rows}\nP0,again\n`;
         const { snapshot, report } = await load(text, { unnamed: "nodes" });
         expect(report.resolved).toEqual({ idColumn: "protein_id" });
         expect(snapshot.nodeCount).toBe(39);

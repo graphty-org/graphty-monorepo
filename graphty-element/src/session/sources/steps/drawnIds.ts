@@ -184,8 +184,11 @@ export function madeCounts(state: DraftState, marks: DraftMarks, steps: readonly
         }).length;
     const merged = reached(["merged"]);
     const mergedEdges = reached(["mergedEdges"]);
+    // A node a merge keeps is the one an earlier step made: new only when the commit adds it.
+    const made = reached(["newNodes"]);
+    const kept = [...reached(["keptNew"])].filter((id) => !made.has(id) && marks.nodes.get(id) === "new");
     return {
-        nodes: { new: added(reached(["newNodes", "keptNew"]), merged, marks.nodes), merged: merged.size },
+        nodes: { new: added(made, merged, marks.nodes) + kept.length, merged: merged.size },
         edges: { new: added(reached(["newEdges"]), mergedEdges, marks.edges), merged: mergedEdges.size },
     };
 }

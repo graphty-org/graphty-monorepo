@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+    arcRoute,
     carry,
     flatPlaces,
     flightPoses,
@@ -255,6 +256,33 @@ test("the reveal starts on the flight's close-up, creeping, then pulls back and 
     // clearly pulling back a twentieth of the way into the pull (over a tenth farther out)
     const at = poses[Math.round(((1000 + 0.05 * 12000) * 60) / 1000)];
     assert.ok(dist(at.p, spot) > 1.15 * dist(poses[60].p, spot));
+});
+
+test("arcRoute puts the middle airports on an arc: equal legs, the same gentle turn at each", () => {
+    // a sharp, uneven route: a 90 degree corner after a short leg
+    const at = {
+        a: { x: 0, y: 0, z: 0 },
+        b: { x: 10, y: 0, z: 0 },
+        c: { x: 10, y: 60, z: 5 },
+        d: { x: 80, y: 70, z: 0 },
+    };
+    const ids = ["a", "b", "c", "d"];
+    const out = arcRoute(at, ids, Math.PI / 3);
+    assert.deepEqual(Object.keys(out).sort(), ["b", "c"]);
+    const q = ids.map((id) => out[id] ?? at[id]);
+    const legs = q.slice(1).map((p, i) => dist(p, q[i]));
+    for (const l of legs) assert.ok(Math.abs(l - legs[0]) < 1e-9, `legs ${legs}`);
+    const dir = (i) => unit({ x: q[i + 1].x - q[i].x, y: q[i + 1].y - q[i].y, z: q[i + 1].z - q[i].z });
+    for (const i of [0, 1]) assert.ok(Math.abs(angle(dir(i), dir(i + 1)) - Math.PI / 9) < 1e-6);
+    // bowed toward the side the middle airports were on (+y of the chord a-d)
+    assert.ok(out.b.y - (70 / 80) * out.b.x > 0 && out.c.y - (70 / 80) * out.c.x > 0);
+});
+
+test("revealPoses ends over the latitude asked for", () => {
+    const spot = { x: 10, y: 15, z: -17 };
+    const o = { close: 4, pull: 12000, turn: 0, lat: 0.1 };
+    const { p } = revealPoses(spot, { x: -20, y: 10, z: 12 }, o).poses.at(-1);
+    assert.ok(Math.abs(Math.asin(p.y / Math.hypot(p.x, p.y, p.z)) - 0.1) < 1e-3);
 });
 
 test("stretch plays a stretch slower and keeps the poses before and after it", () => {

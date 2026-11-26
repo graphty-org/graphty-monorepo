@@ -171,8 +171,11 @@ const FADE_EXTRA = (FADE[0] - FADE[1]) * (FADE_SLOW - 1);
  * globe's round its place on the globe, so they match frame for frame through the dissolve.
  */
 const SEAM = 1500 * END;
-/** How long the reveal creeps in before the pull back starts: early in the dissolve (take ms: 0.2 s in the cut). */
-const REST = 200 * END;
+/**
+ * How long the reveal creeps in before the pull back starts: the whole dissolve, so no line of the
+ * flight's plate fades out (nor the globe's in) while the camera pulls back.
+ */
+const REST = SEAM;
 /** The pull back from the close-up to the whole globe (take ms). */
 const PULL = S(12000);
 /**
@@ -230,14 +233,22 @@ const HIDDEN = {
 const VIBRANT = ["#0077bb", "#33bbee", "#009988", "#ee7733", "#cc3311", "#ee3377", "#bbbbbb"];
 const MUTED = ["#436e87", "#6899ab", "#376e68", "#ab8168", "#935c50", "#ab6881", "#878787"];
 /**
- * A community color's quiet version on the globe (MUTED): the nearest of the palette's colors.
+ * The routes' colors on the globe, in the same order: dark steel blues, slate teals and cool grays,
+ * no warm hue, so the lines read as one calm network over the lit map (darker than its land and
+ * its sea alike), San Francisco's red the only warm mark.
+ */
+const COOL = ["#24506e", "#2b6582", "#235e5e", "#3b4557", "#4d5868", "#3d4275", "#59616d"];
+/**
+ * A community color's quiet version on the globe: the nearest of the palette's colors, its
+ * counterpart in `to` (MUTED for the airports, COOL for the routes).
  * @param hex - a drawn color, "#rrggbb"
+ * @param [to] - the palette in VIBRANT's order
  * @returns its muted color
  */
-const muted = (hex) => {
+const muted = (hex, to = MUTED) => {
     const rgb = (c) => [1, 3, 5].map((i) => Number.parseInt(c.slice(i, i + 2), 16));
     const d = (c) => rgb(c).reduce((sum, v, i) => sum + (v - rgb(hex)[i]) ** 2, 0);
-    return MUTED[VIBRANT.indexOf(VIBRANT.reduce((a, b) => (d(b) < d(a) ? b : a)))];
+    return to[VIBRANT.indexOf(VIBRANT.reduce((a, b) => (d(b) < d(a) ? b : a)))];
 };
 /** Drawn at their scene size, even on the globe (the map draws nodes at a size on screen). */
 const SCENE = { "node.sizeSpace": "scene" };
@@ -296,6 +307,8 @@ const reveal = (spot, europe, o = {}) =>
         drop: -0.11,
         spin: 0.07,
         aim: RAISE,
+        // the camera ends level with the equator, over the longitude halfway to Europe
+        lat: 0,
     });
 
 /**
@@ -650,9 +663,14 @@ export default {
         console.log(`  growth-world: path ${path.nodes.join(" > ")}`);
         if (path.nodes.join() !== h.steps.route.join())
             throw new Error(`growth-world: the path is not plan's route (${h.steps.route.join(" > ")})`);
+        // the route's middle airports glide onto a gentle arc (plan's arcRoute: even legs, no sharp
+        // corner) while the world darkens, long before the flight reaches them; the flight is
+        // planned on the places they glide to
+        await slowMotion(h, { layoutSeconds: H(2000) / 1000, transition: "glide" });
+        await place(h, Object.fromEntries(h.steps.map((s) => [s.node.id, h.steps.arc[s.node.id] ?? s.node.position])));
         const all = await onElement(h, (el) => el.getNodes().map((n) => [n.id, n.getPosition()]));
         const where = new Map(all);
-        const pts = path.nodes.map((id) => where.get(id));
+        const pts = path.nodes.map((id) => h.steps.arc[id] ?? where.get(id));
         const start = pts[0];
         console.log(
             `  growth-world: route at ${JSON.stringify(pts)}, San Francisco on the globe ${JSON.stringify(h.steps.spot)}`,
@@ -687,6 +705,19 @@ export default {
                 set: { ...plainEdges("#2a3045", 2), "edge.opacity": 0.12 },
             }),
         };
+        // San Francisco's own routes (but the flight's): faded out once the world is dark (below), so
+        // the close-up shows no line that would fade out through the dissolve while the globe's
+        // lines of the same routes fade in another way
+        const sfEdges = await onElement(
+            h,
+            (el, [end, keep]) =>
+                el.session.data
+                    .edges()
+                    .filter((e) => (e.source === end || e.target === end) && !keep.includes(e.id))
+                    .map((e) => e.id),
+            [PATH_END, path.edges],
+        );
+        const sfDim = { ...plainEdges("#2a3045", 2), "edge.opacity": 0.12 };
         // the flight, planned from where the orbit has the camera now (flightPoses): the approach
         // to the run-in, then the route; on into the reveal's first SEAM played round San Francisco's
         // place in this drawing (where the globe will put it is only known once it is up; plan
@@ -794,7 +825,17 @@ export default {
                 }),
                 sweep(h, { id: h.routes, edges: true, by: start, reverse: true, ms: H(2200), stepMs: 900 }),
                 tween(h, "background", { color: SKY.day }, { color: SKY.hush }, H(2200), 400),
-            ]),
+            ]).then(async () => {
+                // over the dimmed routes' layer, looking the same, then faded out
+                const id = await addLayer(h, {
+                    name: "San Francisco's routes",
+                    target: "edge",
+                    selector: { match: "ids", edges: sfEdges },
+                    set: sfDim,
+                });
+                await tween(h, id, sfDim, { ...sfDim, "edge.opacity": 0 }, H(600), 900);
+                return id;
+            }),
         );
         await h.pause(H(1200));
         const routeLine = (opacity, width) => ({
@@ -889,7 +930,7 @@ export default {
                 900,
             ),
         ]);
-        await dark;
+        const sfRoutes = await dark;
         await faded;
         await flown;
         // ---- the globe: switched to in one frame (it cannot fade in, defects.md 8: the cut
@@ -926,7 +967,7 @@ export default {
                 // the dark lifted and the flight's line gone, here in the cut-away: the whole network is
                 // on the globe in its end look as the earth dissolves in, and nothing restyles a route
                 // as the camera pulls back
-                for (const id of [o.dimNodes, o.dimEdges, o.routeEdges]) await styles.remove(id);
+                for (const id of [o.dimNodes, o.dimEdges, o.sfRoutes, o.routeEdges]) await styles.remove(id);
                 // the airports the globe draws on or under San Francisco stay hidden: they would
                 // crowd it in the close-up
                 await styles.add({
@@ -958,6 +999,7 @@ export default {
                 endId: PATH_END,
                 dimNodes: dim.nodes,
                 dimEdges: dim.edges,
+                sfRoutes,
                 hidden: HIDDEN,
                 routeEdges: route.edges,
                 under: h.steps.under,
@@ -1018,7 +1060,7 @@ export default {
                     "edge.width": 0.1,
                     "edge.minScreenWidth": GLOBE_EDGE,
                 },
-                Object.fromEntries(Object.entries(colors).map(([id, c]) => [id, muted(c)])),
+                Object.fromEntries(Object.entries(colors).map(([id, c]) => [id, muted(c, COOL)])),
             ],
         );
         const pull = reveal(landed, h.steps.europe, atRest);

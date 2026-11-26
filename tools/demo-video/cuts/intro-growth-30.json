@@ -1,12 +1,12 @@
 {
     "name": "intro-growth-30",
     "title": "Growth (30 s)",
-    "note": "The same take as Growth (new), sped up in the edit to about 30 s with nothing removed: the 2D growth and the tail lose the most, the flight and the pull back the least, the opening still the slowest part. Music is the same PLACEHOLDER track, played from its build at a faster tempo so its final hit lands on the logo (~/intros/growth/v5/s30/music.sh).",
+    "note": "The same take as Growth (new), sped up in the edit to about 30 s with nothing removed: the 2D growth and the tail lose the most, the flight and the pull back the least, the opening still the slowest part. Music: the bright wind-led orchestral track (~/music28/wind-led-earth-orchestra, built on the same 130 BPM picture timing), its final D major chord on the logo.",
     "top": true,
     "crossfadeMs": 933,
     "music": {
-        "file": "~/intros/growth/v5/s30/music-30.wav",
-        "gain": -1,
+        "file": "~/music28/wind-led-earth-orchestra/final.wav",
+        "gain": 0,
         "fadeOut": 1.5
     },
     "bpm": 60.51,
@@ -73,7 +73,7 @@
                     "hold": 2.133,
                     "veil": 0.3,
                     "logoY": 460,
-                    "linesY": 872,
+                    "linesY": 610,
                     "scrim": 0.5,
                     "strong": true,
                     "sfx": [

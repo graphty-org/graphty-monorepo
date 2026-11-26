@@ -31,6 +31,8 @@ const ROUTE_STOPS = 4;
  * in 3D (pullIn): its corner eased, so the flight meets it head on and turns after it gently.
  */
 const EASE = 0.3;
+/** How far the route turns in all once its middle airports glide onto their arc (arcRoute): 20 degrees at each. */
+const ROUTE_ARC = Math.PI / 3;
 /** The airport the globe turns toward at the end, so Europe's network passes the camera. */
 export const EUROPE = "FRA";
 /** How wide the force layout's drawing is scaled to (scene units) before its communities are drawn apart. */
@@ -230,6 +232,9 @@ export async function plan(h, preload, flat) {
         PATH_END,
     );
     pullIn(byId, steps.route.slice(-3), EASE);
+    // where the route's middle airports glide to at the hush (arcRoute), so the flight bends
+    // gently at each and passes them evenly spaced (the drawing before the hush keeps them in their lobes)
+    steps.arc = arcRoute(Object.fromEntries(steps.map((s) => [s.node.id, s.node.position])), steps.route, ROUTE_ARC);
     // the airports that join the 3D drawing appear scattered through it, in its open spaces, and
     // glide to their lobes as the communities light (scatter)
     steps.scatter = scatter(
@@ -337,6 +342,41 @@ export function flightRoute(
     if (!best)
         throw new Error(`flightRoute: no route to ${end} of ${stops}+ airports with every leg at least ${minLeg}`);
     return best.p;
+}
+
+/**
+ * The route's middle airports on a circular arc from its first airport to its last, at equal
+ * steps along it, bowed toward the side they are on now: every leg the same length and every turn
+ * `angle` / legs, so the path has no sharp corner.
+ * @param at - each airport's place, by id
+ * @param ids - the route, in order
+ * @param angle - how far the path turns in all, first leg to last (rad, under 2 pi)
+ * @returns the middle airports' new places, by id
+ */
+export function arcRoute(at, ids, angle) {
+    const [a, b] = [at[ids[0]], at[ids.at(-1)]];
+    const c = sub(b, a);
+    const u = unit(c);
+    const mid = mul(add(a, b), 0.5);
+    const off = sub(
+        mul(
+            ids.slice(1, -1).reduce((s, id) => add(s, at[id]), { x: 0, y: 0, z: 0 }),
+            1 / (ids.length - 2),
+        ),
+        mid,
+    );
+    let n = sub(off, mul(u, dot(off, u)));
+    // in line with the chord: bowed to any side square to it
+    if (len(n) < 1e-9) n = cross(u, Math.abs(u.y) < 0.9 ? { x: 0, y: 1, z: 0 } : { x: 1, y: 0, z: 0 });
+    n = unit(n);
+    const r = len(c) / (2 * Math.sin(angle / 2));
+    const center = sub(mid, mul(n, r * Math.cos(angle / 2)));
+    const out = {};
+    for (let k = 1; k < ids.length - 1; k++) {
+        const phi = -angle / 2 + (k * angle) / (ids.length - 1);
+        out[ids[k]] = add(center, add(mul(u, r * Math.sin(phi)), mul(n, r * Math.cos(phi))));
+    }
+    return out;
 }
 
 /**
@@ -1124,6 +1164,8 @@ export function stretch(poses, hz, a, b, f) {
  *     view (so the point, then the globe, sits that much above the canvas's middle: in the middle of
  *     a crop)
  * @param [o.hz] - poses a second
+ * @param [o.lat] - the latitude (rad) the camera ends over, instead of the halfway point's (its
+ *     longitude kept)
  * @returns `poses` and `hz`, as flightPoses
  */
 export function revealPoses(spot, toward, o) {
@@ -1135,7 +1177,7 @@ export function revealPoses(spot, toward, o) {
     const [a0, b0] = [Math.atan2(u.z, u.x), Math.acos(u.y)];
     let a1 = Math.atan2(m.z, m.x);
     a1 += 2 * Math.PI * Math.round((a0 - a1) / (2 * Math.PI));
-    const b1 = Math.acos(m.y);
+    const b1 = o.lat === undefined ? Math.acos(m.y) : Math.PI / 2 - o.lat;
     const R = r * far;
     // smootherstep: a longer, softer start and end than smoothstep
     const soft = (k) => {

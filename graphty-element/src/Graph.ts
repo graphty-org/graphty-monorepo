@@ -110,8 +110,11 @@ const ZOOM_STEP_FACTOR = 1.25;
  */
 const MAP_CLEARANCE = 1e-4;
 
-/** Screen pixels a held draft preview keeps between a node the draft adds and any other node. */
-const DRAFT_SPREAD_GAP = 2;
+/**
+ * The gap a held draft preview keeps between a node the draft adds and any other node, as a share of the two
+ * nodes' radii.
+ */
+const DRAFT_SPREAD_GAP = 0.15;
 
 /**
  * Above this many comparisons of a node the draft adds with another node, a held preview leaves the nodes it
@@ -122,26 +125,29 @@ const DRAFT_SPREAD_LIMIT = 4_000_000;
 /** How many times a node the draft adds is pushed off the nodes it is drawn over, at most. */
 const DRAFT_SPREAD_ROUNDS = 4;
 
-/** A move on screen, in pixels. */
-interface ScreenMove {
+/** The pending work a held preview's push waits beside: its own, and nothing else. */
+const DRAFT_SPREAD_WORK: ReadonlySet<string> = new Set(["draft-spread"]);
+
+/** A move in the plane facing the camera, in scene units. */
+interface PlaneMove {
     x: number;
     y: number;
 }
 
-/** A spot on screen, and how far it reaches. */
-interface ScreenDisc {
+/** A node in the plane facing the camera, and how far it reaches, in scene units. */
+interface PlaneDisc {
     readonly x: number;
     readonly y: number;
     readonly radius: number;
 }
 
 /**
- * How far to move a disc on screen so it is drawn over none of some others, with a gap between.
+ * How far to move a disc in the plane facing the camera so it is drawn over none of some others, with a gap between.
  * @param disc - The disc.
  * @param others - The others.
  * @returns The move, or null when it is drawn over none.
  */
-function pushOff(disc: ScreenDisc, others: readonly ScreenDisc[]): ScreenMove | null {
+function pushOff(disc: PlaneDisc, others: readonly PlaneDisc[]): PlaneMove | null {
     const now = { x: disc.x, y: disc.y };
     for (let round = 0; round < DRAFT_SPREAD_ROUNDS; round++) {
         const push = { x: 0, y: 0 };
@@ -166,11 +172,11 @@ function pushOff(disc: ScreenDisc, others: readonly ScreenDisc[]): ScreenMove | 
  * @param disc - The disc moved.
  * @param other - The other.
  */
-function addPush(push: ScreenMove, disc: ScreenDisc, other: ScreenDisc): void {
+function addPush(push: PlaneMove, disc: PlaneDisc, other: PlaneDisc): void {
     const dx = disc.x - other.x;
     const dy = disc.y - other.y;
     const apart = Math.hypot(dx, dy);
-    const short = disc.radius + other.radius + DRAFT_SPREAD_GAP - apart;
+    const short = (disc.radius + other.radius) * (1 + DRAFT_SPREAD_GAP) - apart;
     if (short <= 0) {
         return;
     }
@@ -179,22 +185,6 @@ function addPush(push: ScreenMove, disc: ScreenDisc, other: ScreenDisc): void {
     const centred = apart < 1e-6;
     push.x += centred ? short : (dx / apart) * short;
     push.y += centred ? 0 : (dy / apart) * short;
-}
-
-/**
- * The amounts of two screen moves that add up to a third.
- * @param one - The first move.
- * @param two - The second move.
- * @param sum - The move wanted.
- * @returns The amounts, or null when the two moves are one direction.
- */
-function solve2(one: ScreenMove, two: ScreenMove, sum: ScreenMove): { a: number; b: number } | null {
-    const det = one.x * two.y - two.x * one.y;
-    if (Math.abs(det) < 1e-9) {
-        return null;
-    }
-
-    return { a: (sum.x * two.y - two.x * sum.y) / det, b: (one.x * sum.y - sum.x * one.y) / det };
 }
 
 import { measureBounds } from "./camera/bounds.js";
@@ -1245,6 +1235,12 @@ export class Graph implements GraphContext {
     /** Rows a forward add brought that the layout has not placed yet: an import still reading. */
     #placementOwed = false;
 
+    /**
+     * The picture changed under a held draft preview, so the nodes the draft adds are still to be pushed off the
+     * graph's own: done once nothing else moves it. See {@link Graph.spreadWhenStill}.
+     */
+    #spreadOwed = false;
+
     /** The running pass repainted the whole graph, so it needs a frame whatever keys it wrote. */
     #passRepainted = false;
     /** Whether the last whole-graph paint drew a graph past `fullDetailTriangleBudget` (low node detail). */
@@ -1903,7 +1899,6 @@ export class Graph implements GraphContext {
         // way to the array, a new snapshot reloads the layout without starting it.
         this.layoutManager.onRest = () => {
             dispatcherOf(this.session).arrangement.rest();
-            this.#spreadDraftNodes();
         };
         this.layoutManager.onMotion = (motion) => {
             this.session.layoutMotion(motion);
@@ -2047,6 +2042,14 @@ export class Graph implements GraphContext {
         // scene shader's (the background, a group outline) still loading, compiling or owed a draw.
         this.updateManager.fitAnnotations = () => {
             this.#annotations?.refit();
+        };
+        this.updateManager.pending.watch(
+            "draft-spread",
+            "the nodes a join preview adds are still to be moved clear of the graph's",
+            () => this.#spreadOwed,
+        );
+        this.updateManager.spreadDraft = () => {
+            this.spreadWhenStill();
         };
         this.updateManager.annotationMeshes = () => this.#annotations?.placedMeshes ?? [];
         this.updateManager.picturesLoading = () =>
@@ -8011,9 +8014,37 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * Push a held draft preview's new nodes off the graph's each time the picture comes to rest under it, once
+     * nothing else is changing it. Taken only when the layout rested, the push read the nodes as they were drawn
+     * then: a new node not shown yet, or still drawn at its size from before the preview's style, was left where it
+     * was, over a node the graph holds, in one load and pushed clear of it in the next.
+     */
+    private spreadWhenStill(): void {
+        if (layoutManagerInternals.draftHeld(this.layoutManager) === null) {
+            this.#spreadOwed = false;
+            return;
+        }
+
+        if (!this.updateManager.pending.pendingOnly(DRAFT_SPREAD_WORK)) {
+            this.#spreadOwed = true;
+            return;
+        }
+
+        if (this.#spreadOwed) {
+            this.#spreadOwed = false;
+            this.#spreadDraftNodes();
+        }
+    }
+
+    /**
      * Under a held draft preview at rest, push each node the draft adds off every node the graph holds that it
-     * is drawn over, on screen, and hold it there: the layout keeps nodes apart in the world, and in 3D one can still sit right
-     * behind another, where the reader cannot see that it is there.
+     * is drawn over, in the plane facing the camera, and hold it there: the layout keeps nodes apart in the world,
+     * and in 3D one can still sit right behind another, where the reader cannot see that it is there.
+     *
+     * Measured in scene units, at each node's size before the view sizes it (`node.sizeSpace`), so only the way the
+     * camera faces counts, never how near it stands: measured in screen pixels, the push read whatever zoom the
+     * camera had reached when the layout rested -- still framing the graph before the preview, or already framing
+     * the preview -- and held the node there for good, so the same preview drew it in different places.
      */
     #spreadDraftNodes(): void {
         const held = layoutManagerInternals.draftHeld(this.layoutManager);
@@ -8022,39 +8053,45 @@ export class Graph implements GraphContext {
             return;
         }
 
-        const spots = [...this.drawnNodeSpots()].filter((spot) => spot.at.visible);
+        // Shown at all, not on screen now: the camera may still be on its way to framing the preview.
+        const spots = [...this.drawnNodeSpots()].filter((spot) =>
+            spot.node === null ? spot.at.visible : spot.node.getRenderState() === "visible",
+        );
         const fresh = spots.filter((spot) => !held.has(spot.id));
-        const kept = spots.filter((spot) => held.has(spot.id)).map((spot) => spot.at);
         // ponytail: every new node against every held one, O(new x held); DRAFT_SPREAD_LIMIT bounds it.
-        if (fresh.length === 0 || fresh.length * kept.length > DRAFT_SPREAD_LIMIT) {
+        if (fresh.length === 0 || fresh.length * (spots.length - fresh.length) > DRAFT_SPREAD_LIMIT) {
             return;
         }
 
-        // A move on screen, in the world: along the camera's right and up at the node, as they land on screen.
+        // The camera's right and up, which a rotation keeps unit length and square to each other.
         const view = camera.getViewMatrix().m;
         const right = new Vector3(view[0], view[4], view[8]);
         const up = new Vector3(view[1], view[5], view[9]);
+        const discOf = (spot: DrawnNodeSpot): PlaneDisc => {
+            const x = Vector3.Dot(spot.centre, right);
+            const y = Vector3.Dot(spot.centre, up);
+            // How far its drawn box reaches across the plane, at its size before the view scaled it.
+            let reach = 0;
+            for (const corner of spot.corners) {
+                reach = Math.max(
+                    reach,
+                    Math.abs(Vector3.Dot(corner, right) - x),
+                    Math.abs(Vector3.Dot(corner, up) - y),
+                );
+            }
+
+            return { x, y, radius: reach / (spot.node?.drawnScale ?? 1) };
+        };
+        const kept = spots.filter((spot) => held.has(spot.id)).map((spot) => discOf(spot));
         const toLocal = this.scene.getTransformNodeByName("graph-root")?.computeWorldMatrix(true).clone().invert();
         const places = new Map<string | number, { x: number; y: number; z: number }>();
         for (const node of fresh) {
-            const push = pushOff(node.at, kept);
+            const push = pushOff(discOf(node), kept);
             if (push === null) {
                 continue;
             }
 
-            const from = this.worldToScreen(node.centre);
-            const onRight = this.worldToScreen(node.centre.add(right));
-            const onUp = this.worldToScreen(node.centre.add(up));
-            const along = solve2(
-                { x: onRight.x - from.x, y: onRight.y - from.y },
-                { x: onUp.x - from.x, y: onUp.y - from.y },
-                push,
-            );
-            if (along === null) {
-                continue;
-            }
-
-            const world = node.centre.add(right.scale(along.a)).add(up.scale(along.b));
+            const world = node.centre.add(right.scale(push.x)).add(up.scale(push.y));
             const local = toLocal === undefined ? world : Vector3.TransformCoordinates(world, toLocal);
             places.set(node.id, { x: local.x, y: local.y, z: local.z });
         }

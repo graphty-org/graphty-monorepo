@@ -2795,7 +2795,17 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * @param id - The layer.
      * @returns The two counts.
      */
-    const amongDrawn = (id: LayerId): { readonly matched: number; readonly of: number } => {
+    const amongDrawn = (id: LayerId): { readonly matched: number; readonly of: number } =>
+        // Kept as `counts` is: the graphty app reads the legend on every run and style event, and
+        // each read walked every drawn element through the layer's selector (issue #10227).
+        kept(JSON.stringify(["amongDrawn", id, sources.workingGraph?.() === true]), () => walkDrawn(id));
+    /**
+     * The walk behind {@link amongDrawn}.
+     * @param id - The layer.
+     * @returns The two counts.
+     */
+    const walkDrawn = (id: LayerId): { readonly matched: number; readonly of: number } => {
+        drawnCounters.walks++;
         const compiled = byId().get(id);
         const edges = compiled?.layer.target === "edge";
         const drawn = sources.drawn?.() ?? elementsOf(DRAWN);
@@ -2919,8 +2929,11 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             const { matched, of } = amongDrawn(id);
             return { count: matched, of: edges ? whole.edgeCount : whole.nodeCount, visible: of };
         },
-        reach: (id, channel) => valueReach(id, channel, elementsOf(WHOLE_GRAPH), countSources()),
-        carried: (id, path) => categoryCounts(id, path, WHOLE_GRAPH),
+        reach: (id, channel) =>
+            kept(JSON.stringify(["reach", id, channel]), () =>
+                valueReach(id, channel, elementsOf(WHOLE_GRAPH), countSources()),
+            ),
+        carried: (id, path) => kept(JSON.stringify(["carried", id, path]), () => categoryCounts(id, path, WHOLE_GRAPH)),
         // With the working graph on, a row is a category some shown element of the layer carries.
         shown: (id, channel) => {
             const binding = byId().get(id)?.layer.encode?.[channel];
@@ -5900,6 +5913,12 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
  * out by them.
  */
 export const GROUP_OUTLINE_CAP = 32;
+
+/** Work the legend's reading of what a layer selects among the drawn elements did, for tests to count. */
+export const drawnCounters = {
+    /** Walks of the drawn elements through one layer's selector. */
+    walks: 0,
+};
 
 /** A group's key: its `groupBy` value, or null for a use drawing one outline. */
 export type GroupKey = string | number | boolean | null;

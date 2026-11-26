@@ -29,7 +29,7 @@ async function marked(context: RunExecutionContext): Promise<RunOutcome> {
     return {
         result: createRunResult({
             runId: context.runId,
-            shape: "score",
+            shape: "node-metric",
             fields: [
                 {
                     name: "score",

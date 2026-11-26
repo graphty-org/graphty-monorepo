@@ -165,6 +165,7 @@ async function sceneOf(overrides: Partial<ViewMasks> = {}): Promise<Scene> {
     const newBabylon = (): BabylonScene =>
         ({
             onAfterRenderObservable: observable,
+            onBeforeRenderObservable: observable,
             onBeforeDrawPhaseObservable: observable,
             onNewMeshAddedObservable: observable,
             onMeshRemovedObservable: observable,

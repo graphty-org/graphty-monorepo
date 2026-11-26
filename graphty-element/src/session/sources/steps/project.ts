@@ -45,6 +45,7 @@ import {
     type RowFilter,
     type Source,
     type Step,
+    type StepJoin,
     type StepStats,
     type TableName,
     type TypeEntry,
@@ -1228,6 +1229,8 @@ export interface StepRow {
     readonly act: StepAct | null;
     /** For a step that links nodes sharing a value: its choices, as `link` would take them again. */
     readonly link: SourceLinkOptions | null;
+    /** The join it was written as, when its act was given one. */
+    readonly join?: StepJoin;
     /** For a step that links nodes sharing a value: the space of the nodes it links. */
     readonly holders: string | null;
     /** For an Extract's step: its choices, as `extract` would take them again for its source. */
@@ -1644,6 +1647,7 @@ export function stepRows(value: SourceSteps, result: BuildResult, copies: Copies
             link: stepLink(value, step),
             holders: step.op === "join.edges" && step.link !== undefined ? holdersOf(value, step, index) : null,
             extract: stepExtract(value, index),
+            ...(step.op === "join.add" || step.join === undefined ? {} : { join: step.join }),
         });
     });
 }

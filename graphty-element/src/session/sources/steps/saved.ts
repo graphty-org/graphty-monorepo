@@ -16,7 +16,8 @@
  * and a network source's `_source.loads` cells from its id. A source's key-overlap reports are
  * session-only. The file keeps no part counter: parts are minted from the parts present (3.3).
  *
- * An edge step's `rowNode`, `existing`, `addEnd`, `link` and `extract`, an add's `joined`, and a
+ * A step's `join` (the join it was written as, `SourceJoinTag`), an edge step's `rowNode`, `existing`,
+ * `addEnd`, `link` and `extract`, an add's `joined`, and a
  * `join.merge` reading edge rows, are written as the session keeps them: version 2 spells none of
  * them yet (4.1.8 rule 10). So is a
  * source's `numbered`, the column its keyless rows were numbered under, and the member's
@@ -618,6 +619,7 @@ function stepShaped(step: Record<string, unknown>): boolean {
         optional(step.except, filter) &&
         optional(step.clash, (v) => typeof v === "string" || isObject(v)) &&
         optional(step.aggregate, isObject) &&
+        optional(step.join, (v) => isObject(v) && typeof v.id === "string" && Array.isArray(v.matches)) &&
         optional(
             link,
             (v) => isObject(v) && isTexts(v.columns) && Number.isInteger(v.maxShared) && Number.isInteger(v.minShared),

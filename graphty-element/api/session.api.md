@@ -7728,7 +7728,7 @@ export interface SourceConflictQuery {
 }
 
 // @public
-export interface SourceConnectOptions {
+export interface SourceConnectOptions extends SourceJoinPart {
     readonly direction?: "into-from" | "from-into";
     readonly edgeType?: SourceTypeName;
     readonly existing?: "add" | "merge";
@@ -8195,7 +8195,7 @@ export interface SourceExpansionRecord {
 }
 
 // @public
-export interface SourceExtractOptions {
+export interface SourceExtractOptions extends SourceJoinPart {
     readonly column: string;
     readonly columns?: readonly string[];
     readonly edgeType?: SourceTypeName;
@@ -8328,6 +8328,11 @@ export interface SourceJoinOutcomesOptions {
 }
 
 // @public
+export interface SourceJoinPart {
+    readonly join?: SourceJoinTag;
+}
+
+// @public
 export interface SourceJoinRow {
     readonly a: Readonly<Record<string, SourceValue>> | null;
     readonly b: Readonly<Record<string, SourceValue>> | null;
@@ -8365,6 +8370,12 @@ export type SourceJoinSide = {
 };
 
 // @public
+export interface SourceJoinTag {
+    readonly id: string;
+    readonly matches: readonly SourceJoinMatch[];
+}
+
+// @public
 export type SourceKey = string;
 
 export { SourceKind }
@@ -8389,7 +8400,7 @@ export interface SourceLineage {
 }
 
 // @public
-export interface SourceLinkOptions {
+export interface SourceLinkOptions extends SourceJoinPart {
     readonly as?: "edges" | "nodes";
     readonly columns: readonly string[];
     readonly edgeType?: SourceTypeName;
@@ -8549,7 +8560,7 @@ export interface SourceMatchValuesOptions extends SourceMatchOptions {
 }
 
 // @public
-export interface SourceMergeOptions {
+export interface SourceMergeOptions extends SourceJoinPart {
     readonly aggregate?: Readonly<Record<string, JoinReduce>>;
     readonly clash?: SourceClashRule | Readonly<Record<string, SourceClashRule>>;
     readonly except?: SourceRowFilter;
@@ -8905,6 +8916,7 @@ export interface SourceStepRow {
     readonly held: boolean;
     readonly holders: SourceSpaceName | null;
     readonly index: number;
+    readonly join?: SourceJoinTag;
     readonly joined?: true;
     readonly link: SourceLinkOptions | null;
     readonly missing: readonly SourceRefreshIssue[];

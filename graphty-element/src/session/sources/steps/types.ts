@@ -10,7 +10,7 @@
 
 import type { DuplicatePolicy } from "@graphty/graph-format";
 
-import type { JoinReduce } from "../../types";
+import type { JoinReduce, SourceJoinTag } from "../../types";
 
 /** One cell of a row as read. */
 export type CellValue = string | number | boolean | null;
@@ -161,7 +161,12 @@ interface StepChoices {
     readonly clash?: ClashRule | Readonly<Record<string, ClashRule>>;
     readonly ignoreCase?: boolean;
     readonly ignoreSpaces?: boolean;
+    /** The join the step was written as: an id the steps of one join share, and its matches as given. */
+    readonly join?: StepJoin;
 }
+
+/** A step's join, as `SourceJoinTag` has it: plain JSON the element keeps and reads back. */
+export type StepJoin = SourceJoinTag;
 
 /** `join.add`: every table of the source, through its mapping. */
 export interface AddStep extends StepChoices {

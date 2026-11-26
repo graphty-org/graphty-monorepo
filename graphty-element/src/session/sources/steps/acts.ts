@@ -33,6 +33,7 @@ import type {
     NodeValuesStep,
     RowFilter,
     Step,
+    StepJoin,
     TableName,
 } from "./types";
 
@@ -53,6 +54,8 @@ export type JoinInto =
 
 /** Merge 2 into 1 (3.6). */
 interface MergeAct {
+    /** The join the act is one of (`SourceJoinTag`), kept on each step it writes. */
+    readonly join?: StepJoin;
     readonly from: FieldRef;
     readonly into: JoinInto;
     readonly unmatchedFrom?: "keep" | "drop";
@@ -72,6 +75,8 @@ interface MergeAct {
 
 /** Make an edge (3.6): each row of the source becomes an edge between its node and node 1. */
 interface ConnectAct {
+    /** The join the act is one of (`SourceJoinTag`), kept on each step it writes. */
+    readonly join?: StepJoin;
     readonly from: FieldRef;
     readonly into: JoinInto;
     /** `"into-from"` (default) runs each edge from node 1 to the source's node. */
@@ -102,6 +107,8 @@ interface ConnectAct {
 
 /** Extract (4.3): one column becomes nodes, joined to an edge row's end or to the row's own node by new edges. */
 interface ExtractAct {
+    /** The join the act is one of (`SourceJoinTag`), kept on each step it writes. */
+    readonly join?: StepJoin;
     readonly column: string;
     readonly space?: string;
     readonly type?: string;
@@ -116,6 +123,8 @@ interface ExtractAct {
 
 /** Link nodes whose rows share a value. */
 interface LinkAct {
+    /** The join the act is one of (`SourceJoinTag`), kept on each step it writes. */
+    readonly join?: StepJoin;
     readonly source: string;
     readonly columns: readonly string[];
     /** The column naming the node that holds each row's values; absent, the row's own node. */
@@ -973,16 +982,40 @@ function joined(
     copies: Copies,
     act: Extract<StepsAct, { act: "replace-step" }>["with"],
 ): SourceSteps {
-    switch (act.act) {
-        case "merge":
-            return merge(value, copies, act.options);
-        case "connect":
-            return connect(value, copies, act.options);
-        case "link":
-            return link(value, copies, act.options);
-        default:
-            return extract(value, act.source, copies, act.options);
+    const next = ((): SourceSteps => {
+        switch (act.act) {
+            case "merge":
+                return merge(value, copies, act.options);
+            case "connect":
+                return connect(value, copies, act.options);
+            case "link":
+                return link(value, copies, act.options);
+            default:
+                return extract(value, act.source, copies, act.options);
+        }
+    })();
+    return withJoin(value, next, act.options.join);
+}
+
+/**
+ * The steps an act added, each carrying the join it was given (`SourceJoinTag`), whatever the act wrote
+ * them as; a source it added keeps none, since one source may serve several joins.
+ * @param before - The value before the act.
+ * @param after - The value it made, its new steps at the end.
+ * @param join - The join, if the act was given one.
+ * @returns The value.
+ */
+function withJoin(before: SourceSteps, after: SourceSteps, join: StepJoin | undefined): SourceSteps {
+    if (join === undefined) {
+        return after;
     }
+    const kept: StepJoin = { id: join.id, matches: [...join.matches] };
+    return {
+        ...after,
+        steps: after.steps.map((step, i) =>
+            i < before.steps.length || step.op === "join.add" ? step : { ...step, join: kept },
+        ),
+    };
 }
 
 /**
@@ -1520,13 +1553,10 @@ function pick(value: SourceSteps, copies: Copies, act: Extract<StepsAct, { act: 
 export function applyAct(value: SourceSteps, act: StepsAct, copies: Copies): SourceSteps {
     switch (act.act) {
         case "merge":
-            return merge(value, copies, act.options);
         case "connect":
-            return connect(value, copies, act.options);
         case "extract":
-            return extract(value, act.source, copies, act.options);
         case "link":
-            return link(value, copies, act.options);
+            return joined(value, copies, act);
         case "move-columns":
             return moveColumns(value, act.source, act.options);
         case "rename": {

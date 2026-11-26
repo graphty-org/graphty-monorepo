@@ -5165,6 +5165,11 @@ export interface SourceStepRow {
      * its `source` with one changed. Null for any other step.
      */
     readonly extract: SourceExtractOptions | null;
+    /**
+     * The join it was written as, when its act was given one ({@link SourceJoinTag}): the steps one
+     * join wrote carry the same. Absent for any other step.
+     */
+    readonly join?: SourceJoinTag;
 }
 
 /**
@@ -5637,6 +5642,37 @@ export interface SourceJoinMatch {
 }
 
 /**
+ * The join a step was written as, which `draft.steps()` reads back: the steps one join wrote carry
+ * the same `id`, and `matches` are that join's matches in the order they were given, which no step
+ * holds on its own. An application passes it on every act of one join (on `draft.merge`,
+ * `draft.connect`, `draft.link`, `draft.extract` or `draft.replaceStep`); a project file keeps it.
+ *
+ * ```ts
+ * const join = { id: crypto.randomUUID(), matches };
+ * draft.merge({ from: { source: ids, field: "account_id" }, into: { source: accounts }, join });
+ * draft.merge({ from: { source: watch, field: "value" }, into: { source: ids, field: "phone" }, join });
+ * // after a save and reopen, the steps whose `join?.id` is the same are still one join
+ * const steps = draft.steps().filter((step) => step.join?.id === join.id);
+ * ```
+ * @experimental source-steps
+ */
+export interface SourceJoinTag {
+    /** The join's id, chosen by whoever writes it; the steps one join wrote share it. */
+    readonly id: string;
+    /** The join's matches, in the order given. */
+    readonly matches: readonly SourceJoinMatch[];
+}
+
+/**
+ * What every join act takes besides its own options.
+ * @experimental source-steps
+ */
+export interface SourceJoinPart {
+    /** The join the step is one of, read back on `SourceStepRow.join`; absent, a join of its own. */
+    readonly join?: SourceJoinTag;
+}
+
+/**
  * One field of a side of a join, as `draft.sideFields` lists it, with the facts of its values. A
  * list's values count apart.
  * @experimental source-steps
@@ -5894,7 +5930,7 @@ export interface SourceElementsFilter {
  * no node of its own: each of its rows folds its columns into the node its field names.
  * @experimental source-steps
  */
-export interface SourceMergeOptions {
+export interface SourceMergeOptions extends SourceJoinPart {
     /** The source whose nodes fold in, and the field naming the node each folds into. */
     readonly from: SourceField;
     /** The nodes they fold into. */
@@ -5938,7 +5974,7 @@ export interface SourceMergeOptions {
  * its field names. A row of a source read as edges becomes the node itself, keyed by its content.
  * @experimental source-steps
  */
-export interface SourceConnectOptions {
+export interface SourceConnectOptions extends SourceJoinPart {
     /** The source whose rows become edges, and the field naming the node at the other end. */
     readonly from: SourceField;
     /** The nodes the field names. */
@@ -6024,7 +6060,7 @@ export interface SourceConnectOptions {
  * ```
  * @experimental source-steps
  */
-export interface SourceExtractOptions {
+export interface SourceExtractOptions extends SourceJoinPart {
     /** The column whose values become nodes. */
     readonly column: string;
     /** The id space the new nodes live in; default `type`, else a space named after the column. */
@@ -6055,7 +6091,7 @@ export interface SourceExtractOptions {
  * ```
  * @experimental source-steps
  */
-export interface SourceLinkOptions {
+export interface SourceLinkOptions extends SourceJoinPart {
     /** The source whose rows hold the values. */
     readonly source: SourceKey;
     /** The columns whose values link nodes; a value links only within its column. */
